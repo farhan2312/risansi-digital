@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Risansi Digital — One gateway to every Risansi solution</title>
+<meta name="description" content="Risansi Industries Ltd digital studio — access the Sales Portal, Pump Selection, Testing Portal, and SO to Dispatch from one place." />
+<link rel="icon" href="assets/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ── Risansi brand tokens ─────────────────────────────────────── */
+  :root {
+    color-scheme: dark;
+    --brand-navy:   #0A1628;
+    --brand-navy-2: #132240;
+    --brand-blue:   #1A5CB8;   /* Risansi blue — primary */
+    --brand-blue-2: #4A8FE8;   /* lighter blue, reads well on navy */
+    --brand-cyan:   #00B4D8;   /* secondary accent */
+    --fg:           #F0F4F8;
+    --fg-2:         #B8C9E8;
+    --fg-3:         #8FA3B8;
+    --line:         rgba(255, 255, 255, 0.08);
+    --line-strong:  rgba(255, 255, 255, 0.16);
+    --card:         rgba(19, 34, 64, 0.72);
+    --card-hover:   rgba(26, 46, 84, 0.85);
+    --radius:       10px;
+    --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--brand-navy);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Branded backdrop — the login-panel gradient + a faint grid */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(1100px 600px at 85% -10%, rgba(0, 180, 216, 0.14), transparent 60%),
+      radial-gradient(900px 700px at -10% 110%, rgba(26, 92, 184, 0.22), transparent 55%),
+      linear-gradient(150deg, #0A1628 0%, #0C2C60 62%, #0A1628 100%);
+  }
+  .backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
+  }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+
+  /* ── Header ───────────────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 22px 0;
+  }
+  .logo-chip {
+    background: #fff;
+    border-radius: 8px;
+    padding: 7px 12px;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  }
+  .logo-chip img { height: 34px; display: block; }
+  .header-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-cyan);
+    white-space: nowrap;
+  }
+
+  /* ── Hero ─────────────────────────────────────────────────────── */
+  .hero {
+    padding: 72px 0 56px;
+    max-width: 720px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--brand-cyan);
+    margin-bottom: 18px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 26px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--brand-cyan);
+  }
+  h1 {
+    font-size: clamp(34px, 5.4vw, 54px);
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+  h1 .accent {
+    background: linear-gradient(100deg, var(--brand-blue-2), var(--brand-cyan));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero p {
+    margin-top: 18px;
+    font-size: 16.5px;
+    color: var(--fg-2);
+    max-width: 560px;
+  }
+
+  /* ── Portal grid ──────────────────────────────────────────────── */
+  .grid-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: 16px;
+  }
+  .grid-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    padding-bottom: 72px;
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 26px 26px 22px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: inherit;
+    backdrop-filter: blur(6px);
+    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--brand-blue-2), var(--brand-cyan));
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .card:hover, .card:focus-visible {
+    transform: translateY(-3px);
+    background: var(--card-hover);
+    border-color: rgba(74, 143, 232, 0.45);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+  }
+  .card:hover::before, .card:focus-visible::before { opacity: 1; }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: rgba(26, 92, 184, 0.22);
+    border: 1px solid rgba(74, 143, 232, 0.35);
+    color: var(--brand-blue-2);
+    flex-shrink: 0;
+  }
+  .card-icon svg { width: 23px; height: 23px; }
+  .card-num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--fg-3);
+    letter-spacing: 0.08em;
+  }
+
+  .card h2 {
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .card p {
+    font-size: 13.5px;
+    color: var(--fg-2);
+    line-height: 1.55;
+    min-height: 42px;
+  }
+
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .card-url {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--brand-cyan);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-go {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--fg-2);
+    white-space: nowrap;
+    transition: color 0.18s ease;
+  }
+  .card-go svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.18s ease;
+  }
+  .card:hover .card-go, .card:focus-visible .card-go { color: #fff; }
+  .card:hover .card-go svg, .card:focus-visible .card-go svg { transform: translateX(3px); }
+
+  /* ── Footer ───────────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 26px 0 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  footer .copy {
+    font-size: 12.5px;
+    color: var(--fg-3);
+  }
+  footer .links {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  footer .links a {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--fg-3);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  footer .links a:hover { color: var(--brand-cyan); }
+
+  /* ── Focus & motion ───────────────────────────────────────────── */
+  :focus-visible {
+    outline: 2px solid var(--brand-blue-2);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+    html { scroll-behavior: auto; }
+  }
+
+  /* ── Mobile ───────────────────────────────────────────────────── */
+  @media (max-width: 767px) {
+    .wrap { padding: 0 18px; }
+    .hero { padding: 44px 0 40px; }
+    .grid { grid-template-columns: 1fr; gap: 14px; padding-bottom: 48px; }
+    .card p { min-height: 0; }
+    .header-tag { display: none; }
+    footer { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<div class="backdrop" aria-hidden="true"></div>
+
+<div class="wrap">
+
+  <header>
+    <span class="logo-chip">
+      <img src="assets/logo.png" alt="Risansi Industries Ltd" />
+    </span>
+    <span class="header-tag">digital.risansi.com</span>
+  </header>
+
+  <section class="hero">
+    <span class="eyebrow">Risansi Industries Ltd</span>
+    <h1>Risansi <span class="accent">Digital&nbsp;Studio</span></h1>
+    <p>One gateway to every digital solution at Risansi — from first enquiry to final dispatch. Pick a portal below to get started.</p>
+  </section>
+
+  <div class="grid-label">Solutions · 04</div>
+
+  <main class="grid">
+
+    <!-- Sales Portal -->
+    <a class="card" href="https://sales.risansi.com" target="_blank" rel="noopener">
+      <div class="card-top">
+        <span class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/>
+          </svg>
+        </span>
+        <span class="card-num">01</span>
+      </div>
+      <h2>Sales Portal</h2>
+      <p>Manage leads, clients, and the full opportunity pipeline — from first enquiry to won order.</p>
+      <div class="card-foot">
+        <span class="card-url">sales.risansi.com</span>
+        <span class="card-go">Open portal
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </span>
+      </div>
+    </a>
+
+    <!-- Pump Selection -->
+    <a class="card" href="https://select.risansi.com" target="_blank" rel="noopener">
+      <div class="card-top">
+        <span class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="8"/><path d="M12 12l3.5-3.5"/><path d="M8.5 15.5a4.95 4.95 0 0 1 7 0"/>
+          </svg>
+        </span>
+        <span class="card-num">02</span>
+      </div>
+      <h2>Pump Selection</h2>
+      <p>Find the right pump for every duty point — head, flow, and efficiency matched in seconds.</p>
+      <div class="card-foot">
+        <span class="card-url">select.risansi.com</span>
+        <span class="card-go">Open portal
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </span>
+      </div>
+    </a>
+
+    <!-- Testing Portal -->
+    <a class="card" href="https://testing.risansi.com" target="_blank" rel="noopener">
+      <div class="card-top">
+        <span class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 3h6"/><path d="M10 3v6.3L5.2 17a3 3 0 0 0 2.6 4.5h8.4a3 3 0 0 0 2.6-4.5L14 9.3V3"/><path d="M7.5 14h9"/>
+          </svg>
+        </span>
+        <span class="card-num">03</span>
+      </div>
+      <h2>Testing Portal</h2>
+      <p>Record, track, and certify pump performance tests with a complete digital test log.</p>
+      <div class="card-foot">
+        <span class="card-url">testing.risansi.com</span>
+        <span class="card-go">Open portal
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </span>
+      </div>
+    </a>
+
+    <!-- SO to Dispatch -->
+    <a class="card" href="https://so2dispatch.risansi.com" target="_blank" rel="noopener">
+      <div class="card-top">
+        <span class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 8h13v9H1z"/><path d="M14 11h4l3 3v3h-7"/><circle cx="5.5" cy="19" r="1.8"/><circle cx="17.5" cy="19" r="1.8"/>
+          </svg>
+        </span>
+        <span class="card-num">04</span>
+      </div>
+      <h2>SO to Dispatch</h2>
+      <p>Track every sales order from booking through production to dispatch — end to end.</p>
+      <div class="card-foot">
+        <span class="card-url">so2dispatch.risansi.com</span>
+        <span class="card-go">Open portal
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+        </span>
+      </div>
+    </a>
+
+  </main>
+
+  <footer>
+    <span class="copy">© 2026 Risansi Industries Ltd. All rights reserved.</span>
+    <nav class="links" aria-label="Portal quick links">
+      <a href="https://sales.risansi.com" target="_blank" rel="noopener">sales</a>
+      <a href="https://select.risansi.com" target="_blank" rel="noopener">select</a>
+      <a href="https://testing.risansi.com" target="_blank" rel="noopener">testing</a>
+      <a href="https://so2dispatch.risansi.com" target="_blank" rel="noopener">so2dispatch</a>
+    </nav>
+  </footer>
+
+</div>
+
+</body>
+</html>
