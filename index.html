@@ -12,25 +12,80 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script>
+  /* Apply saved theme before first paint to avoid a flash */
+  (function () {
+    try {
+      if (localStorage.getItem('risansi-theme') === 'light') {
+        document.documentElement.classList.add('light');
+      }
+    } catch (e) {}
+  })();
+</script>
 <style>
-  /* ── Risansi brand tokens ─────────────────────────────────────── */
+  /* ── Risansi brand tokens — dark (default) ────────────────────── */
   :root {
     color-scheme: dark;
     --brand-navy:   #0A1628;
     --brand-navy-2: #132240;
     --brand-blue:   #1A5CB8;   /* Risansi blue — primary */
-    --brand-blue-2: #4A8FE8;   /* lighter blue, reads well on navy */
-    --brand-cyan:   #00B4D8;   /* secondary accent */
+
+    --bg:           #0A1628;
     --fg:           #F0F4F8;
     --fg-2:         #B8C9E8;
     --fg-3:         #8FA3B8;
     --line:         rgba(255, 255, 255, 0.08);
     --line-strong:  rgba(255, 255, 255, 0.16);
-    --card:         rgba(19, 34, 64, 0.72);
-    --card-hover:   rgba(26, 46, 84, 0.85);
+
+    --accent:       #4A8FE8;   /* lighter blue, reads well on navy */
+    --accent-cyan:  #00B4D8;   /* secondary accent */
+    --grad-a:       #4A8FE8;   /* h1 gradient start */
+    --grad-b:       #00B4D8;   /* h1 gradient end */
+
+    --card:              rgba(19, 34, 64, 0.72);
+    --card-hover:        rgba(26, 46, 84, 0.85);
+    --card-hover-border: rgba(74, 143, 232, 0.45);
+    --card-shadow:       none;
+    --card-shadow-hover: 0 18px 44px rgba(0, 0, 0, 0.35);
+    --icon-bg:           rgba(26, 92, 184, 0.22);
+    --icon-border:       rgba(74, 143, 232, 0.35);
+    --go-hover:          #ffffff;
+    --chip-border:       transparent;
+    --chip-shadow:       0 4px 18px rgba(0, 0, 0, 0.25);
+    --grid-line:         rgba(255, 255, 255, 0.025);
+
     --radius:       10px;
     --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  /* ── Light mode — same tokens, new values ─────────────────────── */
+  :root.light {
+    color-scheme: light;
+
+    --bg:           #F4F6FB;
+    --fg:           #0D1B2E;
+    --fg-2:         #2D3E55;
+    --fg-3:         #6B7F96;
+    --line:         rgba(10, 22, 40, 0.08);
+    --line-strong:  rgba(10, 22, 40, 0.16);
+
+    --accent:       #1A5CB8;
+    --accent-cyan:  #0E7490;   /* darker teal — readable on light */
+    --grad-a:       #1A5CB8;
+    --grad-b:       #00A3C4;
+
+    --card:              #FFFFFF;
+    --card-hover:        #FFFFFF;
+    --card-hover-border: rgba(26, 92, 184, 0.45);
+    --card-shadow:       0 1px 3px rgba(10, 61, 143, 0.05);
+    --card-shadow-hover: 0 18px 44px rgba(10, 61, 143, 0.12);
+    --icon-bg:           rgba(26, 92, 184, 0.10);
+    --icon-border:       rgba(26, 92, 184, 0.25);
+    --go-hover:          #0A3D8F;
+    --chip-border:       rgba(10, 22, 40, 0.08);
+    --chip-shadow:       0 2px 10px rgba(10, 61, 143, 0.08);
+    --grid-line:         rgba(10, 22, 40, 0.03);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -38,7 +93,7 @@
   html { scroll-behavior: smooth; }
 
   body {
-    background: var(--brand-navy);
+    background: var(--bg);
     color: var(--fg);
     font-family: var(--font-sans);
     font-size: 15px;
@@ -46,6 +101,7 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+    transition: background 0.25s ease, color 0.25s ease;
   }
 
   /* Branded backdrop — the login-panel gradient + a faint grid */
@@ -57,14 +113,21 @@
       radial-gradient(1100px 600px at 85% -10%, rgba(0, 180, 216, 0.14), transparent 60%),
       radial-gradient(900px 700px at -10% 110%, rgba(26, 92, 184, 0.22), transparent 55%),
       linear-gradient(150deg, #0A1628 0%, #0C2C60 62%, #0A1628 100%);
+    transition: opacity 0.25s ease;
+  }
+  :root.light .backdrop {
+    background:
+      radial-gradient(1100px 600px at 85% -10%, rgba(0, 163, 196, 0.10), transparent 60%),
+      radial-gradient(900px 700px at -10% 110%, rgba(26, 92, 184, 0.10), transparent 55%),
+      linear-gradient(150deg, #F4F6FB 0%, #E8F0FB 62%, #F4F6FB 100%);
   }
   .backdrop::after {
     content: '';
     position: absolute;
     inset: 0;
     background-image:
-      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 44px 44px;
     mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
     -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
@@ -86,21 +149,51 @@
   }
   .logo-chip {
     background: #fff;
+    border: 1px solid var(--chip-border);
     border-radius: 8px;
     padding: 7px 12px;
     display: inline-flex;
     align-items: center;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--chip-shadow);
   }
   .logo-chip img { height: 34px; display: block; }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
   .header-tag {
     font-family: var(--font-mono);
     font-size: 11px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--brand-cyan);
+    color: var(--accent-cyan);
     white-space: nowrap;
   }
+
+  /* Theme toggle */
+  .theme-toggle {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover {
+    color: var(--accent);
+    border-color: var(--card-hover-border);
+    background: var(--icon-bg);
+  }
+  .theme-toggle svg { width: 17px; height: 17px; }
+  .theme-toggle .icon-moon { display: none; }
+  :root.light .theme-toggle .icon-moon { display: block; }
+  :root.light .theme-toggle .icon-sun { display: none; }
 
   /* ── Hero ─────────────────────────────────────────────────────── */
   .hero {
@@ -115,7 +208,7 @@
     font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--brand-cyan);
+    color: var(--accent-cyan);
     margin-bottom: 18px;
   }
   .eyebrow::before {
@@ -123,7 +216,7 @@
     width: 26px;
     height: 2px;
     border-radius: 2px;
-    background: var(--brand-cyan);
+    background: var(--accent-cyan);
   }
   h1 {
     font-size: clamp(34px, 5.4vw, 54px);
@@ -132,7 +225,7 @@
     letter-spacing: -0.02em;
   }
   h1 .accent {
-    background: linear-gradient(100deg, var(--brand-blue-2), var(--brand-cyan));
+    background: linear-gradient(100deg, var(--grad-a), var(--grad-b));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -179,6 +272,7 @@
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
     text-decoration: none;
     color: inherit;
     backdrop-filter: blur(6px);
@@ -190,15 +284,15 @@
     position: absolute;
     left: 0; top: 0; bottom: 0;
     width: 3px;
-    background: linear-gradient(180deg, var(--brand-blue-2), var(--brand-cyan));
+    background: linear-gradient(180deg, var(--grad-a), var(--grad-b));
     opacity: 0;
     transition: opacity 0.18s ease;
   }
   .card:hover, .card:focus-visible {
     transform: translateY(-3px);
     background: var(--card-hover);
-    border-color: rgba(74, 143, 232, 0.45);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+    border-color: var(--card-hover-border);
+    box-shadow: var(--card-shadow-hover);
   }
   .card:hover::before, .card:focus-visible::before { opacity: 1; }
 
@@ -213,9 +307,9 @@
     border-radius: 10px;
     display: grid;
     place-items: center;
-    background: rgba(26, 92, 184, 0.22);
-    border: 1px solid rgba(74, 143, 232, 0.35);
-    color: var(--brand-blue-2);
+    background: var(--icon-bg);
+    border: 1px solid var(--icon-border);
+    color: var(--accent);
     flex-shrink: 0;
   }
   .card-icon svg { width: 23px; height: 23px; }
@@ -250,7 +344,7 @@
   .card-url {
     font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--brand-cyan);
+    color: var(--accent-cyan);
     letter-spacing: -0.01em;
     white-space: nowrap;
     overflow: hidden;
@@ -271,7 +365,7 @@
     height: 14px;
     transition: transform 0.18s ease;
   }
-  .card:hover .card-go, .card:focus-visible .card-go { color: #fff; }
+  .card:hover .card-go, .card:focus-visible .card-go { color: var(--go-hover); }
   .card:hover .card-go svg, .card:focus-visible .card-go svg { transform: translateX(3px); }
 
   /* ── Footer ───────────────────────────────────────────────────── */
@@ -300,11 +394,11 @@
     text-decoration: none;
     transition: color 0.15s ease;
   }
-  footer .links a:hover { color: var(--brand-cyan); }
+  footer .links a:hover { color: var(--accent-cyan); }
 
   /* ── Focus & motion ───────────────────────────────────────────── */
   :focus-visible {
-    outline: 2px solid var(--brand-blue-2);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 3px;
   }
@@ -335,7 +429,20 @@
     <span class="logo-chip">
       <img src="assets/logo.png" alt="Risansi Industries Ltd" />
     </span>
-    <span class="header-tag">digital.risansi.com</span>
+    <div class="header-right">
+      <span class="header-tag">digital.risansi.com</span>
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to light mode">
+        <!-- sun (shown in dark mode) -->
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/>
+          <path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3L17 7M7 17l-1.7 1.7"/>
+        </svg>
+        <!-- moon (shown in light mode) -->
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z"/>
+        </svg>
+      </button>
+    </div>
   </header>
 
   <section class="hero">
@@ -441,6 +548,29 @@
   </footer>
 
 </div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('themeToggle');
+
+    function sync() {
+      var light = root.classList.contains('light');
+      btn.setAttribute('aria-label', light ? 'Switch to dark mode' : 'Switch to light mode');
+      btn.title = light ? 'Switch to dark mode' : 'Switch to light mode';
+    }
+
+    btn.addEventListener('click', function () {
+      root.classList.toggle('light');
+      try {
+        localStorage.setItem('risansi-theme', root.classList.contains('light') ? 'light' : 'dark');
+      } catch (e) {}
+      sync();
+    });
+
+    sync();
+  })();
+</script>
 
 </body>
 </html>
