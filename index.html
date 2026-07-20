@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Risansi Digital — One gateway to every Risansi solution</title>
-<meta name="description" content="Risansi Industries Ltd digital studio — access the Sales Portal, Pump Selection, Testing Portal, and SO to Dispatch from one place." />
+<meta name="description" content="Risansi Industries Ltd digital studio — access the Sales Portal, Pump Selection, R&D Testing Portal, and SO to Dispatch from one place." />
 <link rel="icon" href="assets/favicon.ico" sizes="any" />
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
@@ -42,8 +42,8 @@
     --grad-a:       #4A8FE8;   /* h1 gradient start */
     --grad-b:       #00B4D8;   /* h1 gradient end */
 
-    --card:              rgba(19, 34, 64, 0.72);
-    --card-hover:        rgba(26, 46, 84, 0.85);
+    --card:              rgba(19, 34, 64, 0.62);
+    --card-hover:        rgba(26, 46, 84, 0.78);
     --card-hover-border: rgba(74, 143, 232, 0.45);
     --card-shadow:       none;
     --card-shadow-hover: 0 18px 44px rgba(0, 0, 0, 0.35);
@@ -52,7 +52,14 @@
     --go-hover:          #ffffff;
     --chip-border:       transparent;
     --chip-shadow:       0 4px 18px rgba(0, 0, 0, 0.25);
-    --grid-line:         rgba(255, 255, 255, 0.025);
+    --grid-line:         rgba(255, 255, 255, 0.028);
+
+    /* Ambient graphics intensity */
+    --aurora-op:    0.85;
+    --spot-op:      0.55;
+    --beam-op:      0.5;
+    --glow-op:      0.16;
+    --dot-op:       0.5;
 
     --radius:       10px;
     --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
@@ -75,7 +82,7 @@
     --grad-a:       #1A5CB8;
     --grad-b:       #00A3C4;
 
-    --card:              #FFFFFF;
+    --card:              rgba(255, 255, 255, 0.86);
     --card-hover:        #FFFFFF;
     --card-hover-border: rgba(26, 92, 184, 0.45);
     --card-shadow:       0 1px 3px rgba(10, 61, 143, 0.05);
@@ -85,7 +92,13 @@
     --go-hover:          #0A3D8F;
     --chip-border:       rgba(10, 22, 40, 0.08);
     --chip-shadow:       0 2px 10px rgba(10, 61, 143, 0.08);
-    --grid-line:         rgba(10, 22, 40, 0.03);
+    --grid-line:         rgba(10, 22, 40, 0.035);
+
+    --aurora-op:    0.45;
+    --spot-op:      0.30;
+    --beam-op:      0.28;
+    --glow-op:      0.10;
+    --dot-op:       0.35;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -104,39 +117,125 @@
     transition: background 0.25s ease, color 0.25s ease;
   }
 
-  /* Branded backdrop — the login-panel gradient + a faint grid */
+  /* ══ Ambient background stack ═══════════════════════════════════
+     Layer 0  aurora blobs      — slow drifting brand-color light
+     Layer 1  spotlight cone    — top-centre beam
+     Layer 2  grid + fade mask  — technical texture
+     Layer 3  scan beams        — vertical light streaks
+  ═══════════════════════════════════════════════════════════════ */
   .backdrop {
     position: fixed;
     inset: 0;
     z-index: -1;
-    background:
-      radial-gradient(1100px 600px at 85% -10%, rgba(0, 180, 216, 0.14), transparent 60%),
-      radial-gradient(900px 700px at -10% 110%, rgba(26, 92, 184, 0.22), transparent 55%),
-      linear-gradient(150deg, #0A1628 0%, #0C2C60 62%, #0A1628 100%);
+    overflow: hidden;
+    background: var(--bg);
+    transition: background 0.25s ease;
+  }
+
+  /* — Aurora — */
+  .aurora {
+    position: absolute;
+    inset: -25%;
+    opacity: var(--aurora-op);
+    filter: blur(70px);
     transition: opacity 0.25s ease;
   }
-  :root.light .backdrop {
-    background:
-      radial-gradient(1100px 600px at 85% -10%, rgba(0, 163, 196, 0.10), transparent 60%),
-      radial-gradient(900px 700px at -10% 110%, rgba(26, 92, 184, 0.10), transparent 55%),
-      linear-gradient(150deg, #F4F6FB 0%, #E8F0FB 62%, #F4F6FB 100%);
+  .aurora span {
+    position: absolute;
+    display: block;
+    border-radius: 50%;
+    mix-blend-mode: screen;
+    will-change: transform;
   }
-  .backdrop::after {
-    content: '';
+  :root.light .aurora span { mix-blend-mode: multiply; }
+
+  .aurora .a1 {
+    width: 52vw; height: 52vw;
+    top: -8%; left: 52%;
+    background: radial-gradient(circle at 50% 50%, rgba(0, 180, 216, 0.55), transparent 68%);
+    animation: drift1 26s ease-in-out infinite;
+  }
+  .aurora .a2 {
+    width: 58vw; height: 58vw;
+    top: 18%; left: -12%;
+    background: radial-gradient(circle at 50% 50%, rgba(26, 92, 184, 0.62), transparent 68%);
+    animation: drift2 32s ease-in-out infinite;
+  }
+  .aurora .a3 {
+    width: 44vw; height: 44vw;
+    top: 58%; left: 32%;
+    background: radial-gradient(circle at 50% 50%, rgba(74, 143, 232, 0.45), transparent 68%);
+    animation: drift3 29s ease-in-out infinite;
+  }
+  @keyframes drift1 {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50%      { transform: translate3d(-7vw, 5vh, 0) scale(1.14); }
+  }
+  @keyframes drift2 {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+    50%      { transform: translate3d(6vw, -5vh, 0) scale(0.92); }
+  }
+  @keyframes drift3 {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); }
+    50%      { transform: translate3d(-5vw, -7vh, 0) scale(1.12); }
+  }
+
+  /* — Spotlight cone from the top — */
+  .spotlight {
+    position: absolute;
+    top: -30vh; left: 50%;
+    width: 130vw; height: 90vh;
+    transform: translateX(-50%) rotate(-6deg);
+    background: conic-gradient(from 180deg at 50% 0%,
+                transparent 0deg,
+                rgba(74, 143, 232, 0.22) 12deg,
+                rgba(0, 180, 216, 0.16) 26deg,
+                transparent 42deg);
+    filter: blur(38px);
+    opacity: var(--spot-op);
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  /* — Technical grid — */
+  .grid-layer {
     position: absolute;
     inset: 0;
     background-image:
       linear-gradient(var(--grid-line) 1px, transparent 1px),
       linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 44px 44px;
-    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
-    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 92% 78% at 50% 0%, #000 12%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse 92% 78% at 50% 0%, #000 12%, transparent 78%);
+  }
+
+  /* — Vertical scan beams — */
+  .beams { position: absolute; inset: 0; overflow: hidden; opacity: var(--beam-op); transition: opacity 0.25s ease; }
+  .beams i {
+    position: absolute;
+    top: -40%;
+    width: 1px;
+    height: 42%;
+    background: linear-gradient(to bottom, transparent, var(--accent-cyan), transparent);
+    animation: fall 9s linear infinite;
+  }
+  .beams i:nth-child(1) { left: 14%; animation-duration: 10s; animation-delay: 0s;   }
+  .beams i:nth-child(2) { left: 33%; animation-duration: 13s; animation-delay: 2.4s; background: linear-gradient(to bottom, transparent, var(--accent), transparent); }
+  .beams i:nth-child(3) { left: 58%; animation-duration: 11s; animation-delay: 4.1s; }
+  .beams i:nth-child(4) { left: 78%; animation-duration: 15s; animation-delay: 1.2s; background: linear-gradient(to bottom, transparent, var(--accent), transparent); }
+  .beams i:nth-child(5) { left: 91%; animation-duration: 12s; animation-delay: 6s;   }
+  @keyframes fall {
+    0%   { transform: translateY(0);    opacity: 0; }
+    12%  { opacity: 1; }
+    88%  { opacity: 1; }
+    100% { transform: translateY(340vh); opacity: 0; }
   }
 
   .wrap {
     max-width: 1120px;
     margin: 0 auto;
     padding: 0 28px;
+    position: relative;
   }
 
   /* ── Header ───────────────────────────────────────────────────── */
@@ -197,39 +296,58 @@
 
   /* ── Hero ─────────────────────────────────────────────────────── */
   .hero {
-    padding: 72px 0 56px;
-    max-width: 720px;
+    padding: 76px 0 58px;
+    max-width: 740px;
   }
   .eyebrow {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
+    padding: 5px 13px 5px 9px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--card);
+    backdrop-filter: blur(8px);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.13em;
     text-transform: uppercase;
-    color: var(--accent-cyan);
-    margin-bottom: 18px;
+    color: var(--fg-2);
+    margin-bottom: 22px;
   }
-  .eyebrow::before {
-    content: '';
-    width: 26px;
-    height: 2px;
-    border-radius: 2px;
+  .eyebrow .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
     background: var(--accent-cyan);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-cyan) 22%, transparent);
+    animation: pulse-dot 2.4s ease-in-out infinite;
   }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
   h1 {
-    font-size: clamp(34px, 5.4vw, 54px);
+    font-size: clamp(34px, 5.4vw, 56px);
     font-weight: 700;
     line-height: 1.12;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.022em;
   }
   h1 .accent {
-    background: linear-gradient(100deg, var(--grad-a), var(--grad-b));
+    background: linear-gradient(100deg,
+                var(--grad-a) 0%,
+                var(--grad-b) 32%,
+                var(--fg) 50%,
+                var(--grad-b) 68%,
+                var(--grad-a) 100%);
+    background-size: 260% auto;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    animation: shine 7s linear infinite;
   }
+  @keyframes shine {
+    0%   { background-position: 0% center; }
+    100% { background-position: 260% center; }
+  }
+
   .hero p {
     margin-top: 18px;
     font-size: 16.5px;
@@ -253,7 +371,7 @@
     content: '';
     flex: 1;
     height: 1px;
-    background: var(--line);
+    background: linear-gradient(90deg, var(--line), transparent);
   }
 
   .grid {
@@ -275,10 +393,28 @@
     box-shadow: var(--card-shadow);
     text-decoration: none;
     color: inherit;
-    backdrop-filter: blur(6px);
-    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    backdrop-filter: blur(10px);
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
     overflow: hidden;
+    isolation: isolate;
   }
+
+  /* Mouse-tracking spotlight glow (21st.dev "glowing card" pattern) */
+  .card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 0%),
+                color-mix(in srgb, var(--accent) 55%, transparent), transparent 65%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .card:hover::after, .card:focus-visible::after { opacity: var(--glow-op); }
+
+  /* Gradient accent rail */
   .card::before {
     content: '';
     position: absolute;
@@ -286,10 +422,10 @@
     width: 3px;
     background: linear-gradient(180deg, var(--grad-a), var(--grad-b));
     opacity: 0;
-    transition: opacity 0.18s ease;
+    transition: opacity 0.2s ease;
   }
   .card:hover, .card:focus-visible {
-    transform: translateY(-3px);
+    transform: translateY(-4px);
     background: var(--card-hover);
     border-color: var(--card-hover-border);
     box-shadow: var(--card-shadow-hover);
@@ -302,6 +438,7 @@
     justify-content: space-between;
   }
   .card-icon {
+    position: relative;
     width: 46px;
     height: 46px;
     border-radius: 10px;
@@ -311,6 +448,11 @@
     border: 1px solid var(--icon-border);
     color: var(--accent);
     flex-shrink: 0;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .card:hover .card-icon {
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 32%, transparent);
   }
   .card-icon svg { width: 23px; height: 23px; }
   .card-num {
@@ -396,6 +538,18 @@
   }
   footer .links a:hover { color: var(--accent-cyan); }
 
+  /* ── Entrance animation ───────────────────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    animation: rise 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .reveal:nth-child(1) { animation-delay: 0.05s; }
+  .reveal:nth-child(2) { animation-delay: 0.12s; }
+  .reveal:nth-child(3) { animation-delay: 0.19s; }
+  .reveal:nth-child(4) { animation-delay: 0.26s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
   /* ── Focus & motion ───────────────────────────────────────────── */
   :focus-visible {
     outline: 2px solid var(--accent);
@@ -406,6 +560,8 @@
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
     html { scroll-behavior: auto; }
+    .reveal { opacity: 1; transform: none; }
+    .beams { display: none; }
   }
 
   /* ── Mobile ───────────────────────────────────────────────────── */
@@ -415,13 +571,20 @@
     .grid { grid-template-columns: 1fr; gap: 14px; padding-bottom: 48px; }
     .card p { min-height: 0; }
     .header-tag { display: none; }
+    .beams, .spotlight { display: none; }   /* keep phones light */
+    .aurora { filter: blur(52px); }
     footer { flex-direction: column; align-items: flex-start; }
   }
 </style>
 </head>
 <body>
 
-<div class="backdrop" aria-hidden="true"></div>
+<div class="backdrop" aria-hidden="true">
+  <div class="aurora"><span class="a1"></span><span class="a2"></span><span class="a3"></span></div>
+  <div class="spotlight"></div>
+  <div class="grid-layer"></div>
+  <div class="beams"><i></i><i></i><i></i><i></i><i></i></div>
+</div>
 
 <div class="wrap">
 
@@ -446,7 +609,7 @@
   </header>
 
   <section class="hero">
-    <span class="eyebrow">Risansi Industries Ltd</span>
+    <span class="eyebrow"><span class="dot"></span>Risansi Industries Ltd</span>
     <h1>Risansi <span class="accent">Digital&nbsp;Studio</span></h1>
     <p>One gateway to every digital solution at Risansi — from first enquiry to final dispatch. Pick a portal below to get started.</p>
   </section>
@@ -456,7 +619,7 @@
   <main class="grid">
 
     <!-- Sales Portal -->
-    <a class="card" href="https://sales.risansi.com" target="_blank" rel="noopener">
+    <a class="card reveal" href="https://sales.risansi.com" target="_blank" rel="noopener">
       <div class="card-top">
         <span class="card-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -476,7 +639,7 @@
     </a>
 
     <!-- Pump Selection -->
-    <a class="card" href="https://select.risansi.com" target="_blank" rel="noopener">
+    <a class="card reveal" href="https://select.risansi.com" target="_blank" rel="noopener">
       <div class="card-top">
         <span class="card-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -495,8 +658,8 @@
       </div>
     </a>
 
-    <!-- Testing Portal -->
-    <a class="card" href="https://testing.risansi.com" target="_blank" rel="noopener">
+    <!-- R&D Testing Portal -->
+    <a class="card reveal" href="https://rndtesting.risansi.com" target="_blank" rel="noopener">
       <div class="card-top">
         <span class="card-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -508,7 +671,7 @@
       <h2>Testing Portal</h2>
       <p>Record, track, and certify pump performance tests with a complete digital test log.</p>
       <div class="card-foot">
-        <span class="card-url">testing.risansi.com</span>
+        <span class="card-url">rndtesting.risansi.com</span>
         <span class="card-go">Open portal
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
         </span>
@@ -516,7 +679,7 @@
     </a>
 
     <!-- SO to Dispatch -->
-    <a class="card" href="https://so2dispatch.risansi.com" target="_blank" rel="noopener">
+    <a class="card reveal" href="https://so2dispatch.risansi.com" target="_blank" rel="noopener">
       <div class="card-top">
         <span class="card-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -542,7 +705,7 @@
     <nav class="links" aria-label="Portal quick links">
       <a href="https://sales.risansi.com" target="_blank" rel="noopener">sales</a>
       <a href="https://select.risansi.com" target="_blank" rel="noopener">select</a>
-      <a href="https://testing.risansi.com" target="_blank" rel="noopener">testing</a>
+      <a href="https://rndtesting.risansi.com" target="_blank" rel="noopener">rndtesting</a>
       <a href="https://so2dispatch.risansi.com" target="_blank" rel="noopener">so2dispatch</a>
     </nav>
   </footer>
@@ -550,6 +713,7 @@
 </div>
 
 <script>
+  /* Theme toggle — persists to localStorage */
   (function () {
     var root = document.documentElement;
     var btn = document.getElementById('themeToggle');
@@ -569,6 +733,21 @@
     });
 
     sync();
+  })();
+
+  /* Card spotlight — feed cursor position into --mx / --my.
+     Not gated on reduced-motion: it responds to the cursor rather than
+     animating on its own. Touch devices skip it (no hover). */
+  (function () {
+    if (!window.matchMedia('(hover: hover)').matches) return;
+
+    document.querySelectorAll('.card').forEach(function (card) {
+      card.addEventListener('pointermove', function (e) {
+        var r = card.getBoundingClientRect();
+        card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+        card.style.setProperty('--my', (e.clientY - r.top) + 'px');
+      });
+    });
   })();
 </script>
 
