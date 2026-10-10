@@ -264,11 +264,24 @@ cutover would have put that discovery on the day everybody was watching.
 
 | Step | What ships | Who notices |
 |---|---|---|
-| 1 | Sales *can* read the shared session. NextAuth stays primary. | nobody |
-| 2 | Seed `identity.users` and the grants from sales. | nobody |
-| 3 | Sales prefers the shared session, NextAuth as fallback. | nobody — both logins work |
-| 4 | Sales' sign-in redirects to the hub. | **everybody** |
-| 5 | Remove NextAuth and the credential columns. | nobody |
+| 1 | Sales *can* read the shared session. NextAuth stays primary. | nobody | **done** 11 Oct |
+| 2 | Seed `identity.users` and the grants from sales. | nobody | **done** 11 Oct |
+| 3 | Sales prefers the shared session, NextAuth as fallback. | nobody | **done** 11 Oct |
+| 4 | Sales' sign-in redirects to the hub. | **everybody** | **done** 11 Oct |
+| 5 | Remove NextAuth and the credential columns. | nobody | to do |
+
+Three things the steps turned up that the plan had not foreseen:
+
+- `proxy.ts` gates before anything else and knew only NextAuth, so a valid
+  shared session was bounced before reaching the code that would have
+  recognised it. Fixing that moved the `/risansi/admin` gate and the staff
+  allowlist into the layout — they had been proxy-only, judged on a role
+  baked into a cookie that `getToken()` never refreshes.
+- 49 files called `getServerSession` directly rather than through the lib, so
+  the first pass left pages working and every API route answering 401.
+- `getSession()` is now on every request and `readToken` throws when the
+  secret is missing, which would have locked out every NextAuth user over a
+  variable nobody needed yet. It falls through instead.
 
 Only step 4 is a cutover. Steps 1-3 are additive, and if step 3 misbehaves
 people fall back to the sales login with nothing to undo.

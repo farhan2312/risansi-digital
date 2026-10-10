@@ -54,6 +54,28 @@ const proxy = withAuth(
         ? NextResponse.json({ error: message }, { status })
         : NextResponse.redirect(new URL(to, req.url));
 
+    /**
+     * Phase 3 step 4: signing in happens at Risansi Digital, not here.
+     *
+     * Carries where they were going. Without it, following a link to one
+     * complaint out of a notification email signs you in and drops you on the
+     * portal home with the complaint gone — which is what this app has done
+     * all along, and gets worse once the detour crosses a domain.
+     *
+     * `next` is an absolute URL because the hub is a different origin. It is
+     * checked there by safeReturnUrl(), which only hands somebody back to a
+     * *.risansi.com address — an unchecked next on a login page is a phishing
+     * hop, and that check is tested against the shapes that matter.
+     */
+    const toHub = (message: string) => {
+      if (isApi && !wantsHtml) return NextResponse.json({ error: message }, { status: 401 });
+      const hub = (process.env.HUB_URL || 'https://digital.risansi.com').replace(/\/+$/, '');
+      const back = new URL(req.url);
+      // The session cookie is read from the host, never from the query, so the
+      // only thing travelling here is a destination.
+      return NextResponse.redirect(`${hub}/sign-in?next=${encodeURIComponent(back.toString())}`);
+    };
+
     // Phase 3 step 3: a Risansi Digital session counts as signed in.
     //
     // withAuth only knows about NextAuth, so without this a person holding a
@@ -68,9 +90,9 @@ const proxy = withAuth(
     // per request. Outer door here, lock there.
     const shared = !token && await sharedSessionIsValid(req);
 
-    // Not logged in by either route → signin.
+    // Not logged in by either route → the hub.
     if (!token && !shared) {
-      return deny(401, 'Not signed in.', '/api/auth/signin');
+      return toHub('Not signed in.');
     }
 
     // Everything below reads `token`, which a shared-session request does not
@@ -100,7 +122,10 @@ const proxy = withAuth(
     // the row, and app/risansi/layout.tsx now refuses on that answer. Treat
     // this as the outer door and that as the lock.
     if (token.risansiAccess !== 'Approved') {
-      return deny(403, 'Your access to the portal has been withdrawn.', '/api/auth/signup/pending');
+      // To the hub rather than a sales page: whatever happened to their
+      // access, the hub is where it is now visible and where a request to
+      // restore it is made.
+      return toHub('Your access to the portal has been withdrawn.');
     }
 
     // /admin → sysadmin only.
