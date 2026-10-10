@@ -51,6 +51,19 @@ const SECURITY_HEADERS = [
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 const nextConfig: NextConfig = {
+  // Both of these, set to the same value, and that is not belt-and-braces.
+  //
+  // Vercel sets outputFileTracingRoot itself. Next then found it disagreeing
+  // with turbopack.root, discarded OURS in favour of Vercel's, and resolved
+  // module paths against a root that does not contain packages/ — so a build
+  // that was clean locally failed with "Can't resolve '@risansi/identity'",
+  // having warned "they must have the same value" one line earlier.
+  //
+  // outputFileTracingRoot pointing at the monorepo base is also what the docs
+  // prescribe for this layout; without it, tracing treats apps/sales as the
+  // root and leaves out anything above it (01-app/03-api-reference/05-config/
+  // 01-next-config-js/output.md, "Caveats").
+  outputFileTracingRoot: REPO_ROOT,
   turbopack: {
     root: REPO_ROOT,
   },

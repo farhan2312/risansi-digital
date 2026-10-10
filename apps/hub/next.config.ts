@@ -23,6 +23,12 @@ import type { NextConfig } from 'next';
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 const nextConfig: NextConfig = {
+  // Set together and equal. Vercel supplies its own outputFileTracingRoot, and
+  // when the two disagree Next discards turbopack.root and resolves against
+  // Vercel's — which does not contain packages/. That broke the sales build
+  // even though it was clean locally, because the conflict only exists on
+  // Vercel. This app has the same exposure whether or not it has bitten yet.
+  outputFileTracingRoot: REPO_ROOT,
   turbopack: {
     root: REPO_ROOT,
   },
