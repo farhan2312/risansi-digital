@@ -294,22 +294,55 @@ Per portal: Sales 49, Testing 28, Pump Selection 13, SO to Dispatch 61 — and
 every single row in all four is approved or active. No pending, rejected or
 disabled accounts anywhere, so there is nothing to triage before the merge.
 
-### Three things the count turned up
+Re-counted after the clean-up below: **150 rows, 91 distinct people**, 41 of
+them still holding more than one account.
 
-1. **One person, two addresses.** Ankur Srivastava appears as both
-   `ankur.srivastava@risansi.com` and `marketing@risansi.com`. An email-keyed
-   merge makes him two identities, which is precisely what this project exists
-   to stop. Needs a human answer before Phase 4 runs: is `marketing@` him, or a
-   shared mailbox?
-2. **Six logins are role mailboxes, not people** — `westindia1@` (Vishal
+### Three things the count turned up, and what was done
+
+1. **`marketing@` was Ankur — merged and deleted.** Both accounts signed in from
+   the same two IP addresses (`103.164.188.14`, `152.58.129.212`) and the same
+   browser, so this was one person with two logins, not a shared mailbox.
+   Merged into `ankur.srivastava@risansi.com`: 571 client rows, 386 page-activity
+   rows, 83 opportunities, 50 notifications, 7 assorted, and one
+   `quotation.tsm_rep_id` in the **Pump Selection** database. He now holds 76
+   live clients and 98 opportunities.
+
+   That Pump Selection row is the cross-database reference described in §1 —
+   a bare integer with no foreign key. Nothing would have stopped the delete
+   from orphaning it, which is why it was moved first.
+
+   **The 19 audit rows naming `marketing@` were deliberately left alone** (5 in
+   `audit_log`, 14 in `auth_audit`, plus 12 holding the deleted id in
+   `auth_audit.user_id`). On those dates somebody did sign in as that address.
+   An appended audit entry records the merge and names the old address, so the
+   thread is followable without altering what was logged.
+
+2. **The four territory mailboxes stay as they are** — `westindia1@` (Vishal
    Gaikwad), `westindia2@` (Prashant Dhere), `northindia2@` (Amit Srivastava),
-   `rekayasa.bakti@` (Susanta Pande), `marketing@`, and `admin@`. Where the
-   mailbox is shared, the login travels with the territory rather than the
-   person, and the audit trail then names a region instead of a human. In a
-   model where one person is one identity this should be resolved rather than
-   carried across.
-3. **`admin@risansi.com` holds three portals.** A shared admin account is the
-   hardest thing to reconstruct after the fact. Decide whether it survives.
+   `rekayasa.bakti@` (Susanta Pande). Decided 10 Oct 2026. The consequence to
+   keep in mind: each login belongs to a territory rather than a person, so when
+   a territory changes hands the account goes with it and the audit trail names
+   the region. Acceptable, but it means "one person, one identity" is not quite
+   true for these four.
+
+3. **`admin@risansi.com` is retired in sales, and still live in two others.**
+   In sales it keeps its row but cannot be signed into: status off `Approved`,
+   `is_active` false, password hash removed. Its 3 manager-rep links, 2 bug
+   reports and 42 audit rows stay attributed to it, so history reads true. The
+   173 live notifications moved to `mfarhan@risansi.com`.
+
+   `mfarhan@risansi.com` and `araza@risansi.com` both already existed and were
+   already `sysadmin`, so only temporary passwords were issued, with
+   `must_change_password` set so each must choose their own at next sign-in.
+
+   **Still open: `admin@` remains fully active with a working password in
+   Pump Selection (`system_admin`) and SO to Dispatch (`admin`).** Retiring it
+   there is part of those portals' cutovers, or can be done sooner — it is the
+   same shared-account problem, just in two databases nobody has touched yet.
+
+4. **Ten sysadmins out of 91 people**, all able to reset anyone's password.
+   Worth a look when grants are designed in Phase 2: the hub's approver role is
+   a chance to separate "can approve access" from "can do anything".
 
 The per-person breakdown was written to `portal-user-overlap.csv` at the time of
 the count. It carries staff email addresses and was deliberately not committed.
