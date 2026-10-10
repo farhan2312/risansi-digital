@@ -1,0 +1,1929 @@
+
+[P]
+[P]
+[P]
+[P]RISANSI
+[P]
+[P]Sales &amp; Marketing Intelligence Platform
+[P]
+[P]
+[P]
+[P]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[P]
+[P]
+[P]
+[P]PRODUCT REQUIREMENTS DOCUMENT
+[P]
+[P]
+[P]
+[P]Version 1.0  |  May 2026
+[P]
+[P]Confidential — Internal Use Only
+[P]
+[P]
+[P]
+[P]Document Owner
+[P]
+[P]Business Domain
+[P]
+[P]Status
+[P]
+[P]Review Cycle
+[P]Sales &amp; Marketing Head
+[P]Sales Operations / CRM
+[P]Draft — For Review
+[P]Quarterly
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]1. Executive Summary
+[P]
+[P]
+[P]
+[P]Risansi&apos;s Sales &amp; Marketing team currently manages its entire commercial operation — client master data, visit records, revenue history, equipment assessments, and competitive intelligence — through a single shared Excel workbook containing over 3,500 client records across 14 inter-linked sheets. This file is updated manually by multiple team members, shared via email, and queried by management for reporting.
+[P]
+[P]
+[P]
+[P]This approach creates structural risks that limit the team&apos;s ability to operate at scale: data conflicts when multiple users edit simultaneously, version proliferation across email threads, no real-time visibility for management, no field-capture capability for reps on-site at client locations, and no systematic intelligence on competitor installed base.
+[P]
+[P]
+[P]
+[P]This document specifies the requirements for the Risansi Sales &amp; Marketing Intelligence Platform — a purpose-built web and mobile application that replaces all Excel- and email-based processes with a structured, real-time, field-ready digital system.
+[P]
+[P]
+[P]Scope of Digitization
+[P]Client master data management (3,500+ records, growing)
+[P]Field visit planning, scheduling, and GPS-verified check-in
+[P]On-site data capture: visit reports, equipment assessments, contact management
+[P]Revenue tracking: year-on-year turnover by pump and spare category
+[P]Competitive intelligence: installed base per client, market share analytics
+[P]Pipeline and forecast management
+[P]Role-based dashboards: rep, zonal manager, national head
+[P]Complete offline capability for field operations
+[P]
+[P]
+[P]What Is Explicitly Out of Scope
+[P]Accounting, invoicing, or ERP financial transactions (integration only)
+[P]Manufacturing or supply chain management
+[P]HR or payroll systems
+[P]Customer-facing portals (the platform is internal-only in Phase 1)
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]2. Business Context &amp; Problem Statement
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]2.1  Current State
+[P]
+[P]The existing Excel-based master client sheet serves as CRM, visit log, revenue ledger, equipment census, and competitive register simultaneously. The key structural problems are:
+[P]
+[P]
+[P]
+[P]
+[P]No concurrent editing: Only one person can meaningfully update the file at a time. When multiple reps update separate copies, reconciliation is manual and error-prone.
+[P]
+[P]
+[P]No field capture: Sales representatives visit clients at industrial sites — sugar mills, distilleries, paper plants — in remote areas and record findings on paper, WhatsApp, or personal notes, then update the Excel hours or days later. Data quality degrades and observations are lost.
+[P]
+[P]
+[P]No real-time visibility: Management receives revenue status and visit coverage updates via periodic email reports. There is no live view of what any rep is doing on any given day.
+[P]
+[P]
+[P]No visit-frequency enforcement: Client visit schedules exist as planned entries in a column. There is no system that alerts when a key account is overdue for a visit.
+[P]
+[P]
+[P]No competitive intelligence workflow: The Competitor Data sheet captures installed base at a point in time but is not updated from field visits in any structured way.
+[P]
+[P]
+[P]Reporting is manual: Pivot tables, summaries, and dashboards are built ad hoc and distributed via email. There is no single source of truth that all stakeholders query simultaneously.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]2.2  Desired Future State
+[P]
+[P]After platform implementation:
+[P]
+[P]
+[P]
+[P]
+[P]Every client record is live, structured, and accessible to every authorised user simultaneously from any device.
+[P]
+[P]
+[P]A sales representative arriving at a client site opens the mobile app, checks in via GPS, and completes a structured visit report and equipment assessment form — all on their phone, offline if necessary, syncing automatically when back in range.
+[P]
+[P]
+[P]The moment a rep submits a visit, the client&apos;s record is updated. The zonal manager&apos;s dashboard reflects the visit. Any equipment assessment data updates the competitive share calculation for that client.
+[P]
+[P]
+[P]Management has a live dashboard showing: revenue vs. target by rep and territory, visit frequency compliance by account tier, pipeline by industry segment, and RIL&apos;s competitive market share against every named competitor.
+[P]
+[P]
+[P]No commercial information travels via email or is stored in a spreadsheet.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]2.3  Success Criteria
+[P]
+[P]
+[P]
+[P]Metric
+[P]
+[P]Baseline (Current)
+[P]
+[P]Target (12 months post-launch)
+[P]Time between client visit and data update
+[P]Hours to days
+[P]&lt; 2 hours (same-day sync)
+[P]Visit report completion rate
+[P]Estimated ~40%
+[P]&gt; 90% within 24 hrs of visit
+[P]Competitive installed base coverage
+[P]Partial, static
+[P]&gt; 80% of active accounts assessed
+[P]Management reporting cycle
+[P]Weekly email
+[P]Live, self-serve dashboards
+[P]Data conflicts / version errors
+[P]Frequent
+[P]Zero (single source of truth)
+[P]At-risk account identification time
+[P]Monthly review
+[P]Automated, real-time alert
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]3. Stakeholders &amp; User Roles
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]3.1  Stakeholder Map
+[P]
+[P]
+[P]
+[P]Stakeholder
+[P]
+[P]Role in Platform
+[P]
+[P]Primary Interest
+[P]National Sales Head
+[P]Executive viewer + approver
+[P]Revenue vs. target, competitive position, rep performance
+[P]Zonal / Regional Manager
+[P]Manager — approves plans, monitors coverage
+[P]Visit compliance, pipeline by territory, at-risk accounts
+[P]Sales Representative (Field)
+[P]Primary data creator
+[P]Client profiles, visit planning, on-site data capture
+[P]Back-Office / Admin
+[P]Master data steward
+[P]Client onboarding, rep assignment, data quality
+[P]Marketing / Product Team
+[P]Analytics consumer
+[P]Segment trends, industry mix, opportunity sizing
+[P]IT / System Admin
+[P]Platform administrator
+[P]User management, integrations, security
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]3.2  Detailed User Personas
+[P]
+[P]
+[P]
+[P]
+[P]Persona A — The Field Sales Representative
+[P]
+[P]Akshay is a sales rep covering a Western India territory. He visits 5–8 clients per week across Maharashtra and Gujarat. He drives to mills in rural areas where internet connectivity is intermittent. He is comfortable with WhatsApp and Google Maps but not with spreadsheets. His primary need is a mobile-first tool that helps him prepare for each visit, capture everything during the visit, and submit his report without going back to a laptop.
+[P]
+[P]
+[P]
+[P]
+[P]Persona B — The Zonal Manager
+[P]
+[P]Himanshu manages a team of four reps across Central India. He spends mornings reviewing who visited whom, whether key accounts are being covered, and what the pipeline looks like for the quarter. He currently receives a weekly Excel summary by email and has limited visibility into what his team is doing in real time. His primary need is a dashboard that shows him the full picture of his zone without asking anyone for a file.
+[P]
+[P]
+[P]
+[P]
+[P]Persona C — The National Sales Head
+[P]
+[P]The Sales Head reviews performance monthly and presents to leadership quarterly. She needs to see revenue trends by segment (Sugar vs. Non-Sugar, Domestic vs. Export), competitive market share at the national level, and which accounts are growing or at risk. She currently pieces this together from multiple Excel extracts. Her primary need is a single, always-current executive view with drill-down capability.
+[P]
+[P]
+[P]
+[P]
+[P]Persona D — The Back-Office Admin
+[P]
+[P]The admin team is responsible for adding new clients to the master sheet, updating rep assignments when territories change, and maintaining data quality. Currently this means editing a shared Excel file and hoping no one else is in it simultaneously. Their primary need is a structured admin interface with clear workflows and validation rules.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]4. Functional Requirements
+[P]
+[P]
+[P]
+[P]Requirements are prioritised using the MoSCoW framework:
+[P]
+[P]
+[P]
+[P]Priority
+[P]
+[P]Label
+[P]
+[P]Definition
+[P]P0
+[P]Must Have
+[P]Platform cannot launch without this. Core operational requirement.
+[P]P1
+[P]Should Have
+[P]High value; should be in Phase 1 unless constrained by timeline.
+[P]P2
+[P]Could Have
+[P]Valuable but can be deferred to Phase 2 without blocking launch.
+[P]P3
+[P]Won&apos;t Have (yet)
+[P]Acknowledged, deferred to future roadmap.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]4.1  Module 1 — Client Master Data Management
+[P]
+[P]
+[P]
+[P]This module is the foundation of the platform. It replaces the Master Clients sheet and provides a structured, searchable, auditable registry of every client.
+[P]
+[P]
+[P]
+[P]
+[P]4.1.1  Client Record Structure
+[P]
+[P]Each client record shall contain the following data fields. All fields marked Required must be present before a record is saved as Active.
+[P]
+[P]
+[P]
+[P]Field Group
+[P]
+[P]Fields
+[P]
+[P]Required?
+[P]Identity
+[P]Client Code (auto-generated), Legal Name, Trade Name (if different), Business Start Year with RIL
+[P]Yes
+[P]Geography
+[P]Country, Zone, State, City, Full Address, GPS Coordinates (lat/lng), Google Maps Link
+[P]Yes
+[P]Classification
+[P]Market Type (Domestic / Export), Industry (Sugar, Distillery, Paper, Pharma, Dairy, Cattle Feed, Oil &amp; Gas, ETP/STP/WTP, Chemical, Other), Sugar / Non-Sugar flag, Client Type (End User / OEM / Trader / Group Mill / Merchant Exporter), Group/Parent Company
+[P]Yes
+[P]Plant Data
+[P]Plant Capacity Bracket (0–5000 / 5001–9000 / 9001+), Mill TCD/TPD (actual value), Distillery KLPD (if applicable)
+[P]Conditional
+[P]Commercial
+[P]Tender / Non-Tender flag, Status (Active / Inactive / Prospective / Closed / Duplicate / Ledger Changed)
+[P]Yes
+[P]Territory
+[P]Primary RIL Rep, Secondary RIL Rep, Tour Route Assignment
+[P]Yes
+[P]Contacts
+[P]Multiple contacts per client (see 4.1.2)
+[P]Min. 1
+[P]Audit
+[P]Created by, Created date, Last modified by, Last modified date, Change log
+[P]System-generated
+[P]
+[P]
+[P]
+[P]
+[P]4.1.2  Contact Management
+[P]
+[P]Each client may have multiple contacts. Each contact record shall include:
+[P]
+[P]
+[P]Full name
+[P]
+[P]
+[P]Designation (free text + picklist: GM Engineering, Chief Engineer, Deputy CE, Purchase Officer, GM Production, AGM, DGM, MD, Other)
+[P]
+[P]
+[P]Mobile number (with country code for export clients)
+[P]
+[P]
+[P]Email address
+[P]
+[P]
+[P]Primary Contact flag (one contact per client must be flagged as primary)
+[P]
+[P]
+[P]Direct call and WhatsApp link from the mobile app
+[P]
+[P]
+[P]Notes field for relationship context
+[P]
+[P]
+[P]
+[P]
+[P]4.1.3  Client Lifecycle &amp; Status Workflow
+[P]
+[P]Client status transitions shall follow a defined workflow with mandatory reason codes and timestamps:
+[P]
+[P]
+[P]
+[P]Transition
+[P]
+[P]Who Can Trigger
+[P]
+[P]Mandatory Fields
+[P]Prospective → Active
+[P]Back-Office Admin / Manager
+[P]First order date or first confirmed meeting date
+[P]Active → Inactive
+[P]Manager or National Head
+[P]Reason (No activity &gt;12 months / Client ceased / Competitor displaced / Other)
+[P]Inactive → Active
+[P]Manager
+[P]Re-engagement note
+[P]Active → Closed
+[P]National Head only
+[P]Closure reason, final revenue date
+[P]Any → Duplicate
+[P]Back-Office Admin
+[P]Reference to canonical record
+[P]
+[P]
+[P]
+[P]FR-1.3.1: Every status change shall be logged with user, timestamp, and reason. This log shall be visible on the client profile and non-deletable.
+[P]
+[P]
+[P]
+[P]
+[P]4.1.4  Client Code Generation
+[P]
+[P]Client codes shall follow the existing convention (e.g. HOSH01A001) and be auto-generated by the system based on city, sequence, and alphabetic series. Manual override shall be available to Admin role only with a mandatory justification note.
+[P]
+[P]
+[P]
+[P]
+[P]4.1.5  Feature Requirements — Client Master
+[P]
+[P]
+[P]FR-ID
+[P]Feature
+[P]Description
+[P]Priority
+[P]FR-1.01
+[P]Create Client Record
+[P]Admin and Manager can create a new client record with all required fields. System validates uniqueness of client code and flags potential duplicates by name + city before saving.
+[P]
+[P]P0
+[P]FR-1.02
+[P]Edit Client Record
+[P]All user roles can edit fields within their permission scope. Full audit log maintained for every field change.
+[P]
+[P]P0
+[P]FR-1.03
+[P]Client Search &amp; Filter
+[P]Full-text search by name, code, city, state, contact name. Filter by status, industry, client type, market type, territory, rep, tour route, plant capacity bracket. Results displayed in sortable list.
+[P]
+[P]P0
+[P]FR-1.04
+[P]Client Profile Page
+[P]A single page per client showing all record fields, contacts, visit history, revenue history, equipment assessment summary, pipeline, and next planned visit. Accessible to all roles.
+[P]
+[P]P0
+[P]FR-1.05
+[P]Bulk Import (Migration)
+[P]One-time structured import from Excel for initial data migration. Validation report generated before commit. Rollback capability.
+[P]
+[P]P0
+[P]FR-1.06
+[P]Status Workflow Enforcement
+[P]Status transitions follow the defined workflow with mandatory reason codes. Unauthorised transitions are blocked.
+[P]
+[P]P0
+[P]FR-1.07
+[P]Duplicate Detection
+[P]On client creation, system checks for existing records with similar name + city combination and presents a warning before allowing save.
+[P]
+[P]P1
+[P]FR-1.08
+[P]Map View of Clients
+[P]All active clients displayed on an interactive map, filterable by territory, rep, industry. Useful for tour planning.
+[P]
+[P]P1
+[P]FR-1.09
+[P]Client Export
+[P]Authorised users can export a filtered client list to CSV or PDF. No full Excel export of all fields available to field reps.
+[P]
+[P]P2
+[P]FR-1.10
+[P]Group / Parent Roll-Up
+[P]For clients that are part of a named group (Bajaj, Balrampur, Dalmia, etc.), a group profile page shows aggregate revenue, visit coverage, and competitive share across all group units.
+[P]
+[P]P2
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]4.2  Module 2 — Visit Planning &amp; Scheduling
+[P]
+[P]
+[P]
+[P]This module replaces the Planned Visit column, tour mapping, and all visit-planning emails and spreadsheets.
+[P]
+[P]
+[P]
+[P]
+[P]4.2.1  Tour Route Management
+[P]
+[P]Tour routes (e.g. Western, Central-1, Belagavi-1, M.P.-2, Satara-1) shall be configured in the system as named beats. Each tour route defines:
+[P]
+[P]
+[P]A set of client records assigned to that route
+[P]
+[P]
+[P]A responsible primary rep
+[P]
+[P]
+[P]An expected visit frequency per client tier (configurable per route)
+[P]
+[P]
+[P]A geographic cluster (used for map-based route optimisation)
+[P]
+[P]
+[P]
+[P]FR-2.1.1: Route assignments are managed by Admin. When a rep is reassigned, all their tour route responsibilities transfer automatically and the previous rep is notified.
+[P]
+[P]
+[P]
+[P]
+[P]4.2.2  Visit Frequency Rules
+[P]
+[P]Client tiers and their required visit frequencies shall be configurable by management:
+[P]
+[P]
+[P]
+[P]Client Tier (configurable)
+[P]
+[P]Default Visit Frequency
+[P]
+[P]Alert Threshold
+[P]Key Account (e.g. &gt;10 KLPD, &gt;5L annual revenue)
+[P]Every 90 days
+[P]Flag at 100 days with no visit
+[P]Standard Active Account
+[P]Every 180 days
+[P]Flag at 200 days with no visit
+[P]OEM / Trader
+[P]As required (no automatic frequency)
+[P]No auto-alert
+[P]Prospective Client
+[P]Quarterly outreach minimum
+[P]Flag at 120 days with no contact
+[P]
+[P]
+[P]
+[P]
+[P]4.2.3  Visit Planning Calendar
+[P]
+[P]Reps shall be able to plan their visits 1–4 weeks in advance via a calendar interface. Managers shall review and optionally approve planned schedules. The calendar shall show:
+[P]
+[P]
+[P]Planned visits by day and by rep (manager view)
+[P]
+[P]
+[P]Overdue accounts (past the frequency threshold, no planned visit)
+[P]
+[P]
+[P]Confirmed visits (checked-in), completed visits, and cancelled visits
+[P]
+[P]
+[P]Client visit history overlaid on the calendar for context
+[P]
+[P]
+[P]
+[P]
+[P]4.2.4  Feature Requirements — Visit Planning
+[P]
+[P]
+[P]FR-ID
+[P]Feature
+[P]Description
+[P]Priority
+[P]FR-2.01
+[P]Plan Visit
+[P]Rep or Manager can schedule a visit for a specific client on a specific date. Visit can be linked to a purpose (Routine, Follow-up Quote, Complaint, New Opportunity, Equipment Assessment, Management Review).
+[P]
+[P]P0
+[P]FR-2.02
+[P]Overdue Account Alerts
+[P]System automatically flags clients who have breached their visit frequency threshold. Alerts appear on rep dashboard and are escalated to manager if the account remains unvisited for an additional 30 days.
+[P]
+[P]P0
+[P]FR-2.03
+[P]Manager Visit Calendar
+[P]Manager sees a weekly/monthly calendar view of all planned and completed visits across their team. Filter by rep, tour route, or industry.
+[P]
+[P]P0
+[P]FR-2.04
+[P]Rep Day Planner
+[P]Each morning, the rep&apos;s app shows their planned visits for the day with client name, location, last visit date, open follow-ups, and one-tap navigation.
+[P]
+[P]P0
+[P]FR-2.05
+[P]Route Optimisation
+[P]System suggests an optimal visit sequence for a day&apos;s planned visits based on geographic proximity (map-based). Rep can accept or override.
+[P]
+[P]P1
+[P]FR-2.06
+[P]Visit Reminders
+[P]Push notification to rep&apos;s mobile app the evening before a planned visit with client summary.
+[P]
+[P]P1
+[P]FR-2.07
+[P]Plan Approval Workflow
+[P]Manager can optionally enable a weekly plan approval gate — rep submits their planned visits for the week and manager approves or adjusts before the rep departs.
+[P]
+[P]P2
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]4.3  Module 3 — Field Data Capture (Mobile)
+[P]
+[P]
+[P]
+[P]This is the most operationally critical module. It is the mechanism by which every field observation, client interaction, and equipment assessment is captured structured at source — eliminating all post-visit email updates and Excel entries.
+[P]
+[P]
+[P]
+[P]
+[P]4.3.1  Visit Check-In
+[P]
+[P]When a rep arrives at a client location:
+[P]
+[P]
+[P]Rep opens the mobile app and taps the planned visit for that client.
+[P]
+[P]
+[P]App requests GPS location. System validates that the rep&apos;s location is within a configurable radius (default: 500 metres) of the client&apos;s registered GPS coordinates.
+[P]
+[P]
+[P]Check-in is recorded with GPS coordinates, timestamp, and user ID.
+[P]
+[P]
+[P]If the rep is outside the expected radius (e.g. visiting a nearby plant not in the system), they can perform a manual check-in with a mandatory location note. This is flagged for manager review.
+[P]
+[P]
+[P]
+[P]FR-3.1.1: GPS check-in is mandatory for all field visits. Remote check-in (without GPS proximity) requires manager override and is flagged in the audit log. This is a data integrity, not a surveillance, control.
+[P]
+[P]
+[P]
+[P]
+[P]4.3.2  Visit Report Form
+[P]
+[P]After or during the meeting, the rep completes a structured visit report. All fields except Discussion Summary shall be structured selections, not free text:
+[P]
+[P]
+[P]
+[P]Field
+[P]
+[P]Type
+[P]
+[P]Options / Notes
+[P]Contacts Met
+[P]Multi-select
+[P]From client&apos;s contact list. &apos;Add new contact&apos; option available.
+[P]Visit Purpose
+[P]Single-select
+[P]Routine / Quote Follow-up / Complaint Resolution / New Opportunity / Equipment Assessment / Management Relationship Visit
+[P]Meeting Outcome
+[P]Single-select
+[P]Very Positive / Positive / Neutral / Needs Attention / Escalation Required
+[P]Discussion Summary
+[P]Text (max 1000 chars)
+[P]Free text field. Voice-to-text supported on mobile.
+[P]Competitor Activity Observed
+[P]Yes / No
+[P]If Yes, opens competitor sighting form (see 4.3.4)
+[P]Sample / Gift Given
+[P]Yes / No
+[P]If Yes, record item and approx. value
+[P]Follow-up Action Required
+[P]Yes / No + text
+[P]If Yes, creates a task with due date assigned to rep or manager
+[P]Next Visit Recommendation
+[P]Date picker
+[P]Rep&apos;s recommended next visit date; becomes the planned visit entry
+[P]Photos
+[P]File attachment
+[P]Up to 5 photos per visit. GPS-tagged automatically.
+[P]
+[P]
+[P]
+[P]
+[P]4.3.3  Equipment Assessment Form
+[P]
+[P]The equipment assessment replaces and systematises the Competitor Data sheet. It is completed during a walk-around of the client&apos;s plant. Each installation point (pump station) is logged as a separate entry:
+[P]
+[P]
+[P]
+[P]Field
+[P]
+[P]Type
+[P]
+[P]Notes
+[P]Equipment Type
+[P]Single-select
+[P]PCP (Progressive Cavity Pump) / MMP (Multistage Mixed-flow Pump) / Other
+[P]Supplier
+[P]Single-select + free text
+[P]RIL, or named competitor from configured list (Roto, Rotomac, Gita, Sintech, PSP, Syno, Netzsch, Tushaco, Yaswant, Shivam, Saksham, Mahalaxmi, Span, Others)
+[P]Quantity
+[P]Number
+[P]Number of units of this type from this supplier at this station
+[P]Condition
+[P]Single-select
+[P]Good / Requires Maintenance / End of Life / Unknown
+[P]Model / Size
+[P]Free text (optional)
+[P]If visible on nameplate
+[P]Location in Plant
+[P]Free text (optional)
+[P]Cane prep / Juice extraction / Distillery / Boiler / Effluent, etc.
+[P]Photo of Nameplate
+[P]File attachment
+[P]Optional but encouraged
+[P]Replacement Opportunity
+[P]Auto-generated
+[P]System flags as Opportunity if Condition = End of Life AND Supplier ≠ RIL
+[P]
+[P]
+[P]
+[P]FR-3.3.1: Equipment assessment data updates the client&apos;s competitive installed base record immediately on submission. The competitive share dashboard recalculates in real time.
+[P]
+[P]
+[P]
+[P]FR-3.3.2: Multiple assessments over time are version-controlled per client. The system tracks when a competitor pump was replaced by a RIL pump and vice versa.
+[P]
+[P]
+[P]
+[P]
+[P]4.3.4  Competitor Sighting Form
+[P]
+[P]Triggered when the rep taps &apos;Competitor Activity Observed&apos; during a visit report. Records:
+[P]
+[P]
+[P]Competitor name (from configured list or free text)
+[P]
+[P]
+[P]Type of activity (New installation / Quoting / Price undercutting / Complaint resolved by competitor / Rep visit observed)
+[P]
+[P]
+[P]Product type (PCP / MMP / Spares / Service)
+[P]
+[P]
+[P]Details (free text, max 500 characters)
+[P]
+[P]
+[P]Photo evidence (optional)
+[P]
+[P]
+[P]
+[P]
+[P]4.3.5  Offline Mode — Critical Requirement
+[P]
+[P]The mobile application shall function fully offline. This is non-negotiable given that client sites are frequently in rural areas with poor or no mobile connectivity.
+[P]
+[P]
+[P]
+[P]
+[P]All client data required for the day&apos;s planned visits shall be pre-loaded to the device before the rep leaves for the day (auto-sync on Wi-Fi).
+[P]
+[P]
+[P]Visit check-in, visit reports, equipment assessment forms, and contact additions shall all be completable offline with full data capture.
+[P]
+[P]
+[P]Completed forms shall be queued locally and synced to the server automatically when connectivity is restored.
+[P]
+[P]
+[P]The rep shall see a clear indicator showing: online / offline / syncing / sync complete status at all times.
+[P]
+[P]
+[P]Conflict resolution: If a client record is updated on the server while a rep has it open offline, the system shall apply last-write-wins for non-conflicting fields, and flag conflicting fields for manual resolution by Admin.
+[P]
+[P]
+[P]
+[P]
+[P]4.3.6  Feature Requirements — Field Capture
+[P]
+[P]
+[P]FR-ID
+[P]Feature
+[P]Description
+[P]Priority
+[P]FR-3.01
+[P]GPS Check-In
+[P]Visit check-in with GPS proximity validation. Timestamp and location recorded. Manual override available with escalation flag.
+[P]
+[P]P0
+[P]FR-3.02
+[P]Visit Report Submission
+[P]Structured visit report form as specified. Mandatory fields enforced. Auto-populated with client and contact data.
+[P]
+[P]P0
+[P]FR-3.03
+[P]Equipment Assessment Form
+[P]Per-installation-point assessment with competitor, type, quantity, condition, and replacement opportunity fields. Updates competitive intelligence in real time.
+[P]
+[P]P0
+[P]FR-3.04
+[P]Offline Operation
+[P]Full form completion offline. Data queued and synced on reconnection. Sync status indicator always visible.
+[P]
+[P]P0
+[P]FR-3.05
+[P]Contact Addition On-Site
+[P]Rep can add a new contact to a client record during a visit. Contact syncs to server immediately or when online.
+[P]
+[P]P0
+[P]FR-3.06
+[P]Follow-Up Task Creation
+[P]From any visit report, rep can create a follow-up task with due date, assignee (self or manager), and description. Tasks appear in the assignee&apos;s dashboard.
+[P]
+[P]P0
+[P]FR-3.07
+[P]Photo Attachment
+[P]Up to 5 GPS-tagged photos per visit report. Up to 2 per equipment assessment entry. Photos stored securely in cloud.
+[P]
+[P]P1
+[P]FR-3.08
+[P]Voice-to-Text for Notes
+[P]Discussion Summary and other free-text fields support voice input via device microphone.
+[P]
+[P]P1
+[P]FR-3.09
+[P]Competitor Sighting Form
+[P]Structured capture of competitor activity observed during visit. Feeds into competitive intelligence.
+[P]
+[P]P1
+[P]FR-3.10
+[P]Visit Report Auto-Reminder
+[P]If a rep checks in but does not submit a visit report within 6 hours, a push notification reminds them.
+[P]
+[P]P1
+[P]FR-3.11
+[P]Unplanned Visit
+[P]Rep can initiate an unplanned visit (not on their day&apos;s schedule). System captures this as an ad hoc visit with mandatory context note.
+[P]
+[P]P1
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]4.4  Module 4 — Revenue &amp; Pipeline Management
+[P]
+[P]
+[P]
+[P]This module replaces the year-wise financial columns in the Master Clients sheet with a structured, always-current revenue ledger and forward-looking pipeline.
+[P]
+[P]
+[P]
+[P]
+[P]4.4.1  Order &amp; Revenue Recording
+[P]
+[P]Revenue data shall be entered through one of two routes:
+[P]
+[P]
+[P]Manual entry by Back-Office Admin when an order is confirmed (used until ERP integration is live)
+[P]
+[P]
+[P]Automated pull from ERP / accounting system via API integration (Phase 2)
+[P]
+[P]
+[P]
+[P]Each revenue entry shall record:
+[P]
+[P]
+[P]
+[P]Field
+[P]
+[P]Required?
+[P]
+[P]Notes
+[P]Client (linked record)
+[P]Yes
+[P]Looked up from client master
+[P]Financial Year
+[P]Yes
+[P]FY selection (e.g. 25-26)
+[P]Product Category
+[P]Yes
+[P]Pump / Spare
+[P]Order Value (INR)
+[P]Yes
+[P]Exclusive of taxes
+[P]Order Date
+[P]Yes
+[P]Date of purchase order receipt
+[P]Invoice Date
+[P]No
+[P]When available from ERP
+[P]Order Reference / PO Number
+[P]Yes
+[P]For traceability
+[P]Product Description
+[P]No
+[P]Brief description of what was ordered
+[P]
+[P]
+[P]
+[P]
+[P]4.4.2  Pipeline / Opportunity Management
+[P]
+[P]Any quote discussed during a visit or raised by a rep shall be logged as a pipeline opportunity:
+[P]
+[P]
+[P]
+[P]Stage
+[P]
+[P]Definition
+[P]
+[P]Required Fields
+[P]Suspect
+[P]Client has a potential need, not yet discussed
+[P]Client, product type, estimated value, rep
+[P]Prospect
+[P]Need confirmed in conversation, quote not yet submitted
+[P]All Suspect fields + probability %, expected month
+[P]Quoted
+[P]Formal quote submitted to client
+[P]All Prospect fields + quote reference, quote date
+[P]Negotiating
+[P]Client is actively evaluating the quote
+[P]All Quoted fields + negotiation notes
+[P]Won
+[P]PO received — transitions to confirmed order
+[P]PO number, final value
+[P]Lost
+[P]Client confirmed order to competitor
+[P]Competitor name, reason for loss
+[P]
+[P]
+[P]
+[P]
+[P]4.4.3  Feature Requirements — Revenue &amp; Pipeline
+[P]
+[P]
+[P]FR-ID
+[P]Feature
+[P]Description
+[P]Priority
+[P]FR-4.01
+[P]Revenue Entry
+[P]Back-Office Admin enters confirmed orders against client records. Validation against client status (only Active clients can receive revenue entries).
+[P]
+[P]P0
+[P]FR-4.02
+[P]Year-on-Year Revenue View
+[P]Client profile shows a revenue table (and sparkline chart) showing Pump and Spare values by FY from 18-19 to current year. This mirrors the Excel history.
+[P]
+[P]P0
+[P]FR-4.03
+[P]Pipeline Entry
+[P]Rep or manager can create a pipeline opportunity from a visit report or directly. Stage progression tracked with timestamps.
+[P]
+[P]P0
+[P]FR-4.04
+[P]Pipeline Dashboard
+[P]View of all open opportunities by stage, value, expected close month, rep, and territory. Filterable by all dimensions.
+[P]
+[P]P0
+[P]FR-4.05
+[P]Forecast View
+[P]Current year forecast = sum of Won + weighted Quoted + weighted Negotiating opportunities. Compared to annual target. Updated in real time.
+[P]
+[P]P0
+[P]FR-4.06
+[P]At-Risk Account Detection
+[P]System flags any Active account with no order activity in the past 18 months and no open pipeline. Appears on manager and head dashboards as At-Risk.
+[P]
+[P]P1
+[P]FR-4.07
+[P]Win / Loss Analysis
+[P]Closed opportunities (Won and Lost) feed an analytics view showing win rate by competitor, by industry, by territory, by rep.
+[P]
+[P]P1
+[P]FR-4.08
+[P]ERP Integration
+[P]API connection to ERP / accounting system to auto-pull confirmed invoices and orders. Eliminates manual revenue entry. Phase 2 delivery.
+[P]
+[P]P2
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]4.5  Module 5 — Competitive Intelligence
+[P]
+[P]
+[P]
+[P]This module replaces the Competitor Data sheet with a live, field-updated competitive intelligence system.
+[P]
+[P]
+[P]
+[P]
+[P]4.5.1  Installed Base Register
+[P]
+[P]The installed base register is built progressively through equipment assessments submitted by field reps. It is not a static import — it is a living database updated every time a rep walks a plant. For each client, the register shows:
+[P]
+[P]
+[P]Total pumps (PCP and MMP) at the facility
+[P]
+[P]
+[P]RIL&apos;s installed quantity and percentage for each type
+[P]
+[P]
+[P]Each competitor&apos;s installed quantity and percentage for each type
+[P]
+[P]
+[P]Date of last assessment (data currency indicator)
+[P]
+[P]
+[P]Change history (which supplier&apos;s pumps were replaced by whom and when)
+[P]
+[P]
+[P]
+[P]
+[P]4.5.2  Competitor Configuration
+[P]
+[P]The list of tracked competitors is configurable by Admin. New competitors can be added at any time. Currently tracked: Roto, Rotomac, Gita, Sintech, PSP, Syno, Ropman, Netzsch, Tushaco, Yaswant, Shivam, Saksham, Mahalaxmi, Span Engineering, Pandey, Varun, and an &apos;Others&apos; catch-all.
+[P]
+[P]
+[P]
+[P]
+[P]4.5.3  Feature Requirements — Competitive Intelligence
+[P]
+[P]
+[P]FR-ID
+[P]Feature
+[P]Description
+[P]Priority
+[P]FR-5.01
+[P]Installed Base Register
+[P]Per-client view of all pumps by type and supplier, built from equipment assessment submissions. Shows data currency (date of last assessment).
+[P]
+[P]P0
+[P]FR-5.02
+[P]Competitive Share Dashboard
+[P]National, zonal, and individual-account view of RIL&apos;s PCP and MMP market share vs. each competitor. Calculated from live installed base data.
+[P]
+[P]P0
+[P]FR-5.03
+[P]Displacement Opportunity List
+[P]Automatically generated list of competitor pumps flagged as End of Life during equipment assessments. Sorted by estimated value of replacement opportunity.
+[P]
+[P]P1
+[P]FR-5.04
+[P]Competitor Activity Feed
+[P]Chronological feed of all competitor sightings logged by reps across the country. Filterable by competitor, region, product type.
+[P]
+[P]P1
+[P]FR-5.05
+[P]Assessment Coverage Tracker
+[P]Shows which active accounts have been assessed in the last 12 months and which have not. Prompts reps to prioritise assessment during next visit.
+[P]
+[P]P1
+[P]FR-5.06
+[P]Competitor Trend Analysis
+[P]Over time, how is each competitor&apos;s installed base share trending? Which competitors are growing in which segments? Requires 12+ months of assessment data to be meaningful.
+[P]
+[P]P2
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]4.6  Module 6 — Dashboards &amp; Analytics
+[P]
+[P]
+[P]
+[P]Dashboards replace all periodic email reports. Every KPI visible on a dashboard is self-serve, always current, and requires no one to prepare a file.
+[P]
+[P]
+[P]
+[P]
+[P]4.6.1  Role-Based Dashboard Views
+[P]
+[P]
+[P]
+[P]Dashboard
+[P]
+[P]Primary User
+[P]
+[P]Key Widgets
+[P]Rep Dashboard
+[P]Field Sales Rep
+[P]Today&apos;s visits, open tasks, overdue accounts, my pipeline value, my revenue vs. target this FY, recent visit activity
+[P]Manager Dashboard
+[P]Zonal Manager
+[P]Team visit coverage map, rep-wise visit compliance %, pipeline by rep, at-risk accounts in zone, competitive share for zone, pending approvals
+[P]Executive Dashboard
+[P]National Sales Head / Leadership
+[P]National revenue vs. target, segment mix (Sugar/Non-Sugar, Domestic/Export), top 20 accounts by revenue, competitive share nationally, pipeline funnel, at-risk account count
+[P]Admin Dashboard
+[P]Back-Office Admin
+[P]Data quality alerts (incomplete records, unverified GPS, duplicate flags), pending status changes, new contacts added this week
+[P]
+[P]
+[P]
+[P]
+[P]4.6.2  Feature Requirements — Dashboards
+[P]
+[P]
+[P]FR-ID
+[P]Feature
+[P]Description
+[P]Priority
+[P]FR-6.01
+[P]Rep Dashboard
+[P]Mobile-first dashboard showing the rep&apos;s own activity, tasks, pipeline, and account health. Default view on app open.
+[P]
+[P]P0
+[P]FR-6.02
+[P]Manager Dashboard
+[P]Team-level visibility across visit coverage, pipeline, at-risk accounts, and competitive share for the manager&apos;s zone.
+[P]
+[P]P0
+[P]FR-6.03
+[P]Executive Dashboard
+[P]National view with segmentation, revenue trend, competitive position, and top accounts. Accessible from web.
+[P]
+[P]P0
+[P]FR-6.04
+[P]Real-Time Revenue Tracker
+[P]Revenue recorded vs. annual target, updated as orders are entered. Broken down by Pump vs. Spare, Domestic vs. Export, Sugar vs. Non-Sugar.
+[P]
+[P]P0
+[P]FR-6.05
+[P]Visit Coverage Heatmap
+[P]Map view showing visit frequency compliance across the country. Red = overdue, green = compliant. Filterable by rep and territory.
+[P]
+[P]P1
+[P]FR-6.06
+[P]Client 360 Widget
+[P]From any dashboard, clicking a client name opens a summary panel (not a new page) with last visit, revenue trend, pipeline, and installed base at a glance.
+[P]
+[P]P1
+[P]FR-6.07
+[P]Custom Date Range Filtering
+[P]All dashboard widgets support custom date range selection. Defaults: current FY, current quarter, current month, last 30 days.
+[P]
+[P]P1
+[P]FR-6.08
+[P]Exportable Reports
+[P]Any dashboard view can be exported to PDF for offline sharing. No editable Excel export of raw data.
+[P]
+[P]P2
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]5. Non-Functional Requirements
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]5.1  Performance
+[P]
+[P]
+[P]
+[P]Requirement
+[P]
+[P]Target
+[P]Web page load time (dashboard)
+[P]&lt; 2 seconds on standard broadband
+[P]Mobile app first meaningful paint
+[P]&lt; 3 seconds on 4G
+[P]API response time (95th percentile)
+[P]&lt; 500 milliseconds
+[P]Offline data pre-load (rep&apos;s day schedule)
+[P]&lt; 30 seconds on Wi-Fi
+[P]Sync time for queued offline submissions (10 forms)
+[P]&lt; 60 seconds on 4G reconnection
+[P]Search results display
+[P]&lt; 1 second for &lt; 5,000 records
+[P]Dashboard data freshness
+[P]Real-time for operational widgets; &lt; 5 min lag for analytics aggregations
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]5.2  Security &amp; Access Control
+[P]
+[P]
+[P]
+[P]
+[P]Authentication via username + password with enforced strong password policy (minimum 12 characters, mixed case, number, symbol).
+[P]
+[P]
+[P]Multi-Factor Authentication (MFA) mandatory for Manager and above roles.
+[P]
+[P]
+[P]Role-Based Access Control (RBAC) as defined in Section 3. No user can access data outside their role permissions.
+[P]
+[P]
+[P]All data in transit encrypted via TLS 1.3. All data at rest encrypted via AES-256.
+[P]
+[P]
+[P]Field rep access limited to their assigned territory and tour routes. They cannot browse other reps&apos; clients.
+[P]
+[P]
+[P]Session timeout after 30 minutes of inactivity on web; 4 hours on mobile app (to accommodate field use).
+[P]
+[P]
+[P]No client data shall be transmitted via unencrypted channels. Email-based sharing of client data is disabled by design.
+[P]
+[P]
+[P]Audit logs are immutable and retained for a minimum of 3 years.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]5.3  Availability &amp; Reliability
+[P]
+[P]
+[P]
+[P]Requirement
+[P]
+[P]Target
+[P]Platform uptime (web + API)
+[P]99.5% monthly (excluding scheduled maintenance)
+[P]Scheduled maintenance window
+[P]Sundays 01:00–04:00 IST
+[P]Recovery Time Objective (RTO)
+[P]&lt; 4 hours for full recovery
+[P]Recovery Point Objective (RPO)
+[P]&lt; 1 hour (maximum data loss)
+[P]Mobile app offline capability
+[P]Unlimited duration — app must function without any server contact
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]5.4  Scalability
+[P]
+[P]
+[P]
+[P]
+[P]The platform shall support up to 10,000 client records without performance degradation.
+[P]
+[P]
+[P]User base up to 200 concurrent users with no performance impact.
+[P]
+[P]
+[P]Storage architecture shall support 5 years of historical data, visit records, photos, and documents without requiring manual archiving.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]5.5  Usability
+[P]
+[P]
+[P]
+[P]
+[P]Mobile app must be usable with one hand. Core field actions (check-in, visit report, equipment assessment) completable in under 10 minutes per visit.
+[P]
+[P]
+[P]Forms shall not have more than 15 fields on a single screen. Long forms shall be paginated.
+[P]
+[P]
+[P]All critical actions shall have confirmation dialogs to prevent accidental submission or deletion.
+[P]
+[P]
+[P]Platform shall support Hindi UI as a Phase 2 enhancement. English only at launch.
+[P]
+[P]
+[P]Accessibility: WCAG 2.1 Level AA compliance for web application.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]5.6  Data Integrity
+[P]
+[P]
+[P]
+[P]
+[P]Every record in the database has a UUID primary key. No records are physically deleted — only soft-deleted with status change and audit trail.
+[P]
+[P]
+[P]Client codes, once assigned, cannot be changed. Name changes, mergers, and renames are handled via a name change log on the record.
+[P]
+[P]
+[P]Revenue entries, once confirmed by Admin, are locked from editing. Corrections require a reversal entry with mandatory reason.
+[P]
+[P]
+[P]Equipment assessment history is append-only. Previous assessments are retained as historical versions.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]6. System Architecture &amp; Technology
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]6.1  Architecture Overview
+[P]
+[P]
+[P]
+[P]The platform shall follow a modern three-tier architecture with a clear separation between the client layer (web and mobile), the API layer, and the data layer.
+[P]
+[P]
+[P]Architecture Layers
+[P]PRESENTATION LAYER — Web Application (React.js / Next.js) for desktop/manager use; Progressive Web App (PWA) or React Native for mobile field use.
+[P]API LAYER — RESTful API backend (Node.js + Express or Python FastAPI). Handles all business logic, authentication, validation, and real-time sync.
+[P]DATA LAYER — PostgreSQL for structured relational data (clients, contacts, visits, revenue); object storage (AWS S3 / Azure Blob) for photos and documents; Redis for caching and real-time push.
+[P]OFFLINE LAYER — IndexedDB / SQLite on device for offline data store. Background sync via Service Workers.
+[P]INTEGRATION LAYER — API gateway for ERP, Google Maps, and WhatsApp Business API connections.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]6.2  Technology Recommendations
+[P]
+[P]
+[P]
+[P]Layer
+[P]
+[P]Recommended Technology
+[P]
+[P]Rationale
+[P]Web Frontend
+[P]React.js + Next.js
+[P]Component reuse with mobile; server-side rendering for dashboard performance; strong ecosystem
+[P]Mobile App
+[P]React Native or PWA
+[P]React Native for native performance and offline; PWA as fallback for lower device budget
+[P]Backend API
+[P]Node.js (TypeScript) or Python FastAPI
+[P]Node for team familiarity; FastAPI for data-heavy analytics endpoints
+[P]Primary Database
+[P]PostgreSQL (managed cloud — AWS RDS / Azure Database)
+[P]Relational structure suits client-visit-revenue model; ACID compliance for financial data
+[P]File Storage
+[P]AWS S3 or Azure Blob Storage
+[P]Scalable, cost-effective for photos and documents
+[P]Caching / Real-time
+[P]Redis
+[P]Dashboard widget caching; pub-sub for live notifications
+[P]Offline Sync
+[P]IndexedDB + Background Sync API (PWA) or WatermelonDB (React Native)
+[P]Robust offline-first with conflict resolution
+[P]Maps
+[P]Google Maps Platform
+[P]Already used by the team (existing Google Maps links in master sheet)
+[P]Notifications
+[P]Firebase Cloud Messaging (FCM)
+[P]Cross-platform push notifications for iOS and Android
+[P]Hosting
+[P]AWS or Azure (cloud-agnostic)
+[P]Managed services for database, storage, compute
+[P]CI/CD
+[P]GitHub Actions or GitLab CI
+[P]Automated testing and deployment pipeline
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]6.3  Integration Requirements
+[P]
+[P]
+[P]
+[P]
+[P]Google Maps Platform
+[P]
+[P]
+[P]Client record GPS coordinate capture and display
+[P]
+[P]
+[P]GPS proximity validation during visit check-in
+[P]
+[P]
+[P]Turn-by-turn navigation from rep day planner
+[P]
+[P]
+[P]Map visualisation for client coverage and visit heatmap
+[P]
+[P]
+[P]
+[P]
+[P]ERP / Accounting System (Phase 2)
+[P]
+[P]
+[P]Pull confirmed invoices and orders by client code
+[P]
+[P]
+[P]Map to client records via client code or PO number
+[P]
+[P]
+[P]Auto-update revenue history without manual entry
+[P]
+[P]
+[P]Webhook-based trigger when invoice status changes
+[P]
+[P]
+[P]
+[P]
+[P]WhatsApp Business API (Phase 2 — Optional)
+[P]
+[P]
+[P]Send automated visit confirmation messages to client contacts
+[P]
+[P]
+[P]Receive client queries and route to rep&apos;s task list
+[P]
+[P]
+[P]Visit reminder alerts to client&apos;s primary contact the day before
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]6.4  Data Migration Plan
+[P]
+[P]
+[P]
+[P]The existing Excel master sheet (approximately 3,500 client records, 14 sheets) shall be migrated through a structured process:
+[P]
+[P]
+[P]
+[P]
+[P]Data audit: Identify and resolve duplicate records, incomplete records, and status inconsistencies in the Excel before migration begins.
+[P]
+[P]
+[P]Field mapping: Map every Excel column to the corresponding structured database field. Document any fields that require transformation (e.g. date format normalisation, capacity bracket standardisation).
+[P]
+[P]
+[P]Validation rules defined: Agree on mandatory field completeness thresholds per record.
+[P]
+[P]
+[P]Staging import: Load data into a staging environment. Generate a validation report showing records that passed, records that require attention, and records that were auto-corrected.
+[P]
+[P]
+[P]Stakeholder review: Business team reviews the staging data and signs off.
+[P]
+[P]
+[P]Production import: Execute the migration. The Excel file is immediately archived as read-only. No new data to be entered in Excel from this point.
+[P]
+[P]
+[P]Post-migration verification: Random sample of 100 records checked by the admin team against the original Excel.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]7. Delivery Roadmap
+[P]
+[P]
+[P]
+[P]The platform is delivered in four phases over nine months. Each phase ends with a working, usable increment — not just a set of features ready for the next phase.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]Phase 1 — Foundation (Months 1–3)
+[P]
+[P]
+[P]Phase 1 Goal
+[P]The team has a live, structured client database replacing the Excel master sheet.
+[P]Back-office can manage all client records, contacts, rep assignments, and tour routes from the web app.
+[P]Reps can log in and see their assigned clients.
+[P]Basic visit planning calendar is live.
+[P]
+[P]
+[P]
+[P]Sprint
+[P]
+[P]Deliverables
+[P]Sprint 1–2 (Weeks 1–4)
+[P]Project setup, cloud infrastructure, authentication system, user management, role-based access control
+[P]Sprint 3–4 (Weeks 5–8)
+[P]Client record schema, CRUD operations, contact management, client search and filter, client profile page (read-only)
+[P]Sprint 5–6 (Weeks 9–12)
+[P]Data migration tooling, Excel import and validation, bulk import of existing 3,500+ records, post-migration verification, tour route configuration
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]Phase 2 — Field Operations (Months 3–6)
+[P]
+[P]
+[P]Phase 2 Goal
+[P]Sales reps are capturing all visit data from their phones during or immediately after client visits.
+[P]GPS check-in is live. Visit reports, equipment assessments, and follow-up tasks are submitted from the field.
+[P]Offline mode is fully functional.
+[P]Managers see real-time visit activity across their team.
+[P]
+[P]
+[P]
+[P]Sprint
+[P]
+[P]Deliverables
+[P]Sprint 7–8 (Weeks 13–16)
+[P]Mobile app scaffold, offline data architecture, GPS check-in, visit planning calendar on mobile
+[P]Sprint 9–10 (Weeks 17–20)
+[P]Visit report form, contact addition on-site, follow-up task creation, photo attachment, offline queue and sync
+[P]Sprint 11–12 (Weeks 21–24)
+[P]Equipment assessment form, competitor sighting form, offline sync conflict resolution, visit auto-reminders, manager visit calendar
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]Phase 3 — Intelligence &amp; Analytics (Months 6–8)
+[P]
+[P]
+[P]Phase 3 Goal
+[P]Revenue tracking replaces all manual Excel financial columns.
+[P]Competitive intelligence dashboard is live from equipment assessment data.
+[P]Pipeline management module is operational.
+[P]All three dashboard tiers (rep, manager, executive) are live.
+[P]
+[P]
+[P]
+[P]Sprint
+[P]
+[P]Deliverables
+[P]Sprint 13–14 (Weeks 25–28)
+[P]Revenue entry module, year-on-year revenue view on client profile, pipeline opportunity management (all stages)
+[P]Sprint 15–16 (Weeks 29–32)
+[P]Installed base competitive intelligence dashboard, displacement opportunity list, competitive share analytics
+[P]Sprint 17 (Weeks 33–34)
+[P]Rep dashboard, Manager dashboard, Executive dashboard, at-risk account detection, win/loss analysis
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]Phase 4 — Integration &amp; Hardening (Months 8–9)
+[P]
+[P]
+[P]Phase 4 Goal
+[P]ERP integration auto-populates revenue data.
+[P]All performance, security, and reliability requirements met and verified.
+[P]User training completed across all roles.
+[P]Excel files formally retired.
+[P]
+[P]
+[P]
+[P]Sprint
+[P]
+[P]Deliverables
+[P]Sprint 18–19 (Weeks 35–38)
+[P]ERP API integration for revenue auto-pull, WhatsApp Business API integration (optional), performance tuning and load testing
+[P]Sprint 20 (Weeks 39–40)
+[P]Security audit and penetration testing, accessibility review, user acceptance testing (UAT) with field reps and managers, training materials and rollout
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]8. Acceptance Criteria
+[P]
+[P]
+[P]
+[P]The platform shall be accepted as complete when all of the following criteria are met. Each criterion is testable and has an objective pass/fail outcome.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]8.1  Module-Level Acceptance Criteria
+[P]
+[P]
+[P]
+[P]Module
+[P]
+[P]Acceptance Criterion
+[P]
+[P]Tested By
+[P]Client Master
+[P]All 3,500+ records imported from Excel with &lt; 0.5% error rate. Any Admin user can create, edit, search, and change status of a client record. Duplicate detection fires for test cases with matching name and city.
+[P]Admin team + QA
+[P]Visit Planning
+[P]Overdue account alert fires correctly for 5 test accounts configured with known visit dates. Manager can see all reps&apos; planned visits for the week. Rep receives push notification reminder the evening before a planned visit.
+[P]Manager + QA
+[P]Field Capture — Online
+[P]Rep can complete check-in, visit report, and equipment assessment form for a test client in under 10 minutes. GPS validation accepts location within 500m and rejects location &gt; 1km away.
+[P]Field rep + QA
+[P]Field Capture — Offline
+[P]Phone placed in airplane mode. Rep completes 3 visit reports and 1 equipment assessment. Airplane mode removed. All data syncs to server within 60 seconds. Server records verified against device entries.
+[P]QA (controlled test)
+[P]Revenue Tracking
+[P]Revenue entry creates the correct year-wise record on the client profile. Revenue vs. target calculation is accurate within INR 1 for all test accounts.
+[P]Back-office + QA
+[P]Competitive Intelligence
+[P]Equipment assessment submitted with 5 competitor PCP pumps (Condition: End of Life) creates 5 displacement opportunities automatically. Competitive share dashboard updates within 5 minutes of submission.
+[P]QA
+[P]Dashboards
+[P]All three dashboard tiers load within 2 seconds on standard connection. Data on Manager dashboard matches the sum of individual rep data in the underlying records for 10 randomly sampled metrics.
+[P]QA + manager
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]8.2  Non-Functional Acceptance Criteria
+[P]
+[P]
+[P]
+[P]Requirement
+[P]
+[P]Test Method
+[P]
+[P]Pass Threshold
+[P]Load performance
+[P]Load test with 200 concurrent users
+[P]&lt; 2s dashboard load, &lt; 500ms API P95
+[P]Offline resilience
+[P]72-hour offline simulation on test device
+[P]Zero data loss on sync
+[P]Security — access control
+[P]Penetration test by external firm
+[P]No critical or high vulnerabilities unresolved
+[P]Data integrity — audit log
+[P]Attempt to delete or modify an audit log entry via API
+[P]All attempts blocked; no log entry modified
+[P]GPS validation
+[P]Check-in attempts from 100m, 500m, 1km, 5km away from client GPS point
+[P]Accept ≤ 500m; prompt manual override at &gt; 500m; reject without override at &gt; 1km
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]9. Risks &amp; Mitigations
+[P]
+[P]
+[P]
+[P]Risk
+[P]
+[P]Likelihood
+[P]
+[P]Impact
+[P]
+[P]Mitigation
+[P]Field rep adoption resistance — reps revert to WhatsApp/email for visit updates
+[P]High
+[P]Critical
+[P]Involve 2–3 reps as co-designers during field capture module sprint. Ensure app is faster than current process (under 10 min). Manager dashboard makes non-compliance visible, creating natural accountability.
+[P]Poor GPS accuracy at industrial sites (remote areas, large plant footprints)
+[P]Medium
+[P]Medium
+[P]Set GPS radius to 500m by default but make it configurable per client. Allow rep to manually attach a satellite image pin for a client if the registered GPS is inaccurate.
+[P]Data migration quality — Excel has inconsistencies, duplicates, and missing data
+[P]High
+[P]High
+[P]Run data audit before migration. Allocate 2 weeks specifically for data cleaning with business team. Stage import with validation report and business sign-off before production push.
+[P]Offline sync conflicts — two people update the same record while one is offline
+[P]Low
+[P]Medium
+[P]Last-write-wins for non-conflicting fields. Conflict flagging for critical fields (status, revenue) with mandatory admin resolution. Design minimises shared field editing.
+[P]ERP integration delay — ERP API not ready within project timeline
+[P]Medium
+[P]Low
+[P]Revenue manual entry is the fallback and is fully functional. ERP integration is Phase 4 and does not block earlier phases.
+[P]Connectivity worse than anticipated — sync takes too long or fails
+[P]Medium
+[P]High
+[P]Robust local queue with retry logic. Sync status always visible to rep. Background sync does not block the UI. Test in genuine rural connectivity conditions during Phase 2.
+[P]Scope creep — requests to add features mid-development
+[P]High
+[P]Medium
+[P]Strict change control process from Phase 2 onwards. New features logged in a backlog, reviewed and prioritised quarterly. Phase boundary reviews with stakeholders.
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]10. Appendices
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]Appendix A — User Permission Matrix
+[P]
+[P]
+[P]
+[P]Action
+[P]
+[P]Field Rep
+[P]
+[P]Zonal Manager
+[P]
+[P]National Head
+[P]
+[P]Back-Office Admin
+[P]
+[P]IT Admin
+[P]View own clients
+[P]✓
+[P]✓
+[P]✓
+[P]✓
+[P]✓
+[P]View all clients
+[P]✗
+[P]Zone only
+[P]✓
+[P]✓
+[P]✓
+[P]Create client record
+[P]✗
+[P]✓
+[P]✓
+[P]✓
+[P]✗
+[P]Edit client fields
+[P]Limited
+[P]✓
+[P]✓
+[P]✓
+[P]✗
+[P]Change client status
+[P]✗
+[P]Active↔Inactive
+[P]All
+[P]All
+[P]✗
+[P]Delete client (soft)
+[P]✗
+[P]✗
+[P]✗
+[P]✓
+[P]✓
+[P]Add / edit contacts
+[P]✓ (own clients)
+[P]✓
+[P]✓
+[P]✓
+[P]✗
+[P]Plan visits
+[P]Own only
+[P]Team
+[P]All
+[P]✗
+[P]✗
+[P]Submit visit report
+[P]✓
+[P]✓
+[P]✓
+[P]✗
+[P]✗
+[P]Submit equipment assessment
+[P]✓
+[P]✓
+[P]✓
+[P]✗
+[P]✗
+[P]Enter revenue / orders
+[P]✗
+[P]✗
+[P]✗
+[P]✓
+[P]✗
+[P]Create pipeline opportunity
+[P]✓
+[P]✓
+[P]✓
+[P]✗
+[P]✗
+[P]View rep dashboards
+[P]Own only
+[P]Team
+[P]All
+[P]✗
+[P]✗
+[P]View executive dashboard
+[P]✗
+[P]✗
+[P]✓
+[P]✗
+[P]✗
+[P]Configure tour routes
+[P]✗
+[P]✗
+[P]✗
+[P]✓
+[P]✗
+[P]Manage users
+[P]✗
+[P]✗
+[P]✗
+[P]✗
+[P]✓
+[P]View audit logs
+[P]Own actions
+[P]Team
+[P]All
+[P]All
+[P]All
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]Appendix B — Industry &amp; Classification Reference
+[P]
+[P]
+[P]
+[P]Industry (picklist)
+[P]
+[P]Sub-type
+[P]
+[P]Notes
+[P]Sugar
+[P]Sugar (processing)
+[P]Primary industry; Sugar / Non-Sugar flag = Sugar
+[P]Distillery
+[P]Distillery (Sugar), Distillery (Grain)
+[P]May be co-located with sugar mill or standalone
+[P]Paper
+[P]—
+[P]Pulp and paper mills
+[P]Cattle Feed
+[P]—
+[P]Feed processing plants
+[P]Dairy
+[P]—
+[P]Milk processing and dairy plants
+[P]Oil &amp; Gas
+[P]—
+[P]Refining, petrochemical
+[P]ETP/STP/WTP
+[P]—
+[P]Effluent, sewage, water treatment plants
+[P]Chemical
+[P]—
+[P]Specialty chemicals, pharmaceuticals
+[P]Edible Oil
+[P]—
+[P]Solvent extraction, refining
+[P]Textile
+[P]—
+[P]Textile manufacturing
+[P]Food
+[P]—
+[P]Food processing, FMCG
+[P]Thermal Power
+[P]—
+[P]Power generation
+[P]Jaggery
+[P]—
+[P]Jaggery processing units
+[P]Biogas
+[P]—
+[P]Biogas generation plants
+[P]Others
+[P]—
+[P]Catch-all; requires specification in notes
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]Appendix C — Glossary
+[P]
+[P]
+[P]
+[P]Term
+[P]
+[P]Definition
+[P]PCP
+[P]Progressive Cavity Pump — a type of positive displacement pump; the primary RIL product category
+[P]MMP
+[P]Multistage Mixed-flow Pump — the secondary RIL product category
+[P]TCD
+[P]Tonnes of Cane Crushed per Day — the capacity measure for sugar mills
+[P]KLPD
+[P]Kilolitres Per Day — the capacity measure for distilleries
+[P]OEM
+[P]Original Equipment Manufacturer — a client who integrates RIL pumps into their own equipment or systems
+[P]End User
+[P]A client who uses RIL pumps directly in their own plant operations
+[P]Group Mill
+[P]A client that is one of multiple plants under the same parent company / ownership group
+[P]Merchant Exporter
+[P]A client who buys RIL products for re-export to overseas buyers
+[P]Tour Route / Beat
+[P]A named geographic cluster of clients assigned to a rep for regular visit coverage
+[P]Installed Base
+[P]The total number of pumps (of any brand) physically installed and operating at a client&apos;s facility
+[P]Displacement Opportunity
+[P]A competitor pump that is end-of-life or poorly performing, representing a potential RIL replacement sale
+[P]At-Risk Account
+[P]An active client with no orders in 18+ months and no open pipeline — flagged for immediate rep action
+[P]FY / Financial Year
+[P]Indian financial year: April 1 to March 31 (e.g. FY 25-26 = April 2025 to March 2026)
+[P]
+[P]
+[P]
+[P]
+[P]
+[P]Appendix D — Document Revision History
+[P]
+[P]
+[P]
+[P]Version
+[P]
+[P]Date
+[P]
+[P]Author
+[P]
+[P]Summary of Changes
+[P]0.1
+[P]May 2026
+[P]Business Analyst
+[P]Initial draft — scope and user roles
+[P]0.5
+[P]May 2026
+[P]Product Manager
+[P]Functional requirements added for all 6 modules
+[P]1.0
+[P]May 2026
+[P]Product Manager
+[P]Complete draft — NFRs, architecture, roadmap, appendices added
+[P]
+[P]
+[P]
+[P]
+[P]

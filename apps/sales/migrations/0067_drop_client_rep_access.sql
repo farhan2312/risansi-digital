@@ -1,0 +1,22 @@
+-- Remove special access.
+--
+-- client_rep_access let an admin grant one rep direct access to one client,
+-- outside whatever the tour said. It existed because tour membership was the
+-- only way to reach a client and tours were too coarse to express "this person,
+-- this account" — so the exception mechanism was the only way to say it.
+--
+-- Ownership can say it directly. A covering rep (client_secondary_reps) carries
+-- exactly the access a grant did, and says it where people already look: on the
+-- client, editable from Client Master and from Reps & Managers, visible in the
+-- Owner & cover column rather than hidden behind a button on one admin screen.
+-- Keeping both would mean two tables answering the same question, only one of
+-- which anyone can find.
+--
+-- The table is empty. Every grant ever made had already been superseded by the
+-- ownership backfill, so nothing is being taken away from anybody and nothing
+-- needed converting. That is also why there is no archive file beside this one,
+-- unlike migration 0066: there were no rows to keep.
+--
+-- The deployed build no longer references it.
+
+DROP TABLE IF EXISTS client_rep_access;

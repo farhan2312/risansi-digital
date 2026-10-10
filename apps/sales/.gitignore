@@ -1,0 +1,58 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Data-dictionary build artefacts (regenerate with scripts/schema-dump.mjs)
+schema.tmp.json
+descriptions.json
+Risansi-Database-Guide-*.xlsx
+Risansi-Pipeline-*.xlsx
+# The generated workbooks at the repo root only. Without the leading slash this
+# matches a directory named `reports` at ANY depth, which silently swallowed
+# app/api/risansi/reports/ — the route built locally, was never committed, and
+# 404ed in production.
+/reports/
+public/_preview/
+
+# A vendored copy of the Impeccable design skill, cloned in place. It was
+# committed as a submodule gitlink with no .gitmodules, so a fresh clone left an
+# empty directory and `git submodule update` failed. Ignored rather than tracked.
+.claude/impeccable-main/

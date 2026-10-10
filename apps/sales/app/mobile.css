@@ -1,0 +1,419 @@
+/* ── Mobile bottom-nav + responsive layer ───────────────────────
+   EVERYTHING here is confined to phones (≤767px) or is a component
+   hidden on desktop, so the desktop UI (≥768px) is never affected.
+   Inline styles win over stylesheets, so structural overrides use
+   !important — same pattern as the dark-mode form rules in globals.css. */
+
+/* The bottom nav + sheet exist in the DOM on all sizes but only show on phones. */
+.risansi-bottom-nav { display: none; }
+.risansi-more-sheet { display: none; }
+
+/* Mobile-only elements are hidden on desktop by default; the media query below
+   reveals them. (Desktop-only elements stay visible until the media query hides them.) */
+.r-mobile-only { display: none; }
+
+/* Floating "plan visit" action button — phones only (revealed in the media query). */
+.r-visit-fab { display: none; }
+
+/* Client-360 mobile tab bar — hidden on desktop; .r-tabbed does no filtering
+   off-mobile, so every panel shows as before. */
+.r-detail-tabs { display: none; }
+
+@media (max-width: 767px) {
+  /* Hide the desktop sidebar; let the page fill the width. */
+  aside { display: none !important; }
+
+  /* Main scroll area clears the fixed bottom nav. */
+  .risansi-main {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Hide the top breadcrumb bar on phones — the bottom tab bar + each page's own
+     header are enough, and the breadcrumb felt cluttered. */
+  .risansi-topbar { display: none !important; }
+
+  /* Bottom tab bar — white, sits above the mobile overlay (z-index 50) */
+  .risansi-bottom-nav {
+    display: flex;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 65;
+    background: var(--bg-paper); border-top: 1px solid var(--line);
+    box-shadow: 0 -2px 12px rgba(10, 22, 40, 0.06);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    align-items: stretch;
+  }
+  .risansi-more-sheet { display: block; position: fixed; inset: 0; z-index: 70; }
+
+  /* Floating "plan visit" button — sits above the bottom nav on the Client 360 page. */
+  .r-visit-fab {
+    display: flex !important; align-items: center; justify-content: center;
+    position: fixed; right: 16px; z-index: 60; cursor: pointer;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    width: 56px; height: 56px; border-radius: 50%;
+    background: #1A5CB8; color: #fff; border: none;
+    box-shadow: 0 6px 18px rgba(10, 61, 143, 0.42);
+  }
+  .r-visit-fab:active { transform: scale(0.94); }
+
+  /* ── Auto-collapse inline CSS grids on phones ──
+     The app builds layouts with inline `grid-template-columns`. These
+     substring rules catch the common shapes so every page reflows without
+     touching desktop. Generic rule stacks to one column; repeat(N) KPI/stat
+     rows step down to two columns (later rule wins on equal specificity). */
+  .risansi-main [style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  .risansi-main [style*="repeat(2"],
+  .risansi-main [style*="repeat(3"],
+  .risansi-main [style*="repeat(4"],
+  .risansi-main [style*="repeat(5"],
+  .risansi-main [style*="repeat(6"],
+  .risansi-main [style*="1fr 1fr 1fr"],
+  .risansi-main [style*="1fr 1fr 1fr 1fr"] { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Wide grids (calendars / weekday strips use 7 columns) keep their columns —
+     opt out of the blanket collapse above. .r-keepcols is a manual escape hatch. */
+  .risansi-main [style*="repeat(7"] { grid-template-columns: repeat(7, 1fr) !important; }
+  .risansi-main .r-keepcols { grid-template-columns: revert !important; }
+
+  /* Complaint timeline: seven statuses in a row is a strip on a desktop and
+     seven slivers on a phone. Two per row, labels allowed to wrap. */
+  .risansi-main .cmp-timeline { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; row-gap: 10px !important; }
+  .risansi-main .cmp-timeline [data-label] { white-space: normal !important; overflow: visible !important; }
+  /* Complaints status filter: the Open/Closed toggle and the stage dropdown are
+     one control, so they take a row of their own rather than being wedged
+     between two other filters at 120px each. */
+  .risansi-main .cmp-statusfilter { width: 100% !important; }
+  .risansi-main .cmp-statusfilter select { flex: 1 1 auto !important; min-width: 0 !important; width: auto !important; }
+
+  /* Raised-between: the two date boxes and the "to" between them take a row of
+     their own and share it, rather than wrapping as three separate filters and
+     leaving the "to" stranded at the end of a line. */
+  .risansi-main .cmp-daterange { width: 100% !important; }
+  .risansi-main .cmp-daterange input[type="date"] { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
+
+  /* "Where they are": the bar's note ("16 awaiting closure") is a column on a
+     desktop and a sliver on a phone. It drops to its own line under the bar. */
+  .risansi-main .sc-row { flex-wrap: wrap !important; row-gap: 2px !important; }
+  .risansi-main .sc-note {
+    flex-basis: 100% !important; width: auto !important;
+    text-align: left !important; order: 9; padding-left: 2px;
+  }
+  /* A stage with nothing to say keeps a spacer on a desktop for the columns;
+     on its own line here it would just be a stray dot. */
+  .risansi-main .sc-note--empty { display: none !important; }
+  /* "Customer Confirmation Pending" does not fit 150px. With the note already
+     on its own line there is room for the label to take two. */
+  .risansi-main .sc-row .sc-label { white-space: normal !important; overflow: visible !important; }
+
+  /* Complaint page tabs: pills that scroll sideways. */
+  .risansi-main .cmp-pages { gap: 6px !important; padding: 6px 8px !important; }
+  .risansi-main .cmp-pages a { border-bottom: none !important; margin-bottom: 0 !important; border-radius: 999px !important; padding: 8px 12px !important; background: var(--bg-elev); }
+
+  /* Tables that aren't card-converted scroll horizontally instead of squishing.
+     display:block makes the table a scroll container while its rows keep the
+     table layout (columns stay aligned). r-cards tables are excluded, and so
+     are r-own-scroll ones: those already sit in a scroll box of their own, and
+     two scrollers nested inside each other fight over the same swipe. The
+     nowrap rule below still applies to them — that is what gives the outer box
+     something to scroll. */
+  .risansi-main table:not(.r-cards):not(.r-own-scroll) {
+    display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+  .risansi-main table:not(.r-cards) td,
+  .risansi-main table:not(.r-cards) th { white-space: nowrap; }
+
+  /* The complaints table freezes the complaint number and the client. On a
+     phone the client column as well would leave barely a third of the screen
+     for the other sixteen columns, so only the number stays pinned and the
+     seam that marks the frozen edge moves onto it. */
+  .risansi-main .cmp-fz-client { position: static !important; box-shadow: none !important; }
+  .risansi-main .cmp-fz-no { box-shadow: 1px 0 0 var(--line) !important; }
+
+  /* ── Drawers & modals → fit the phone ──
+     Side drawers become full-screen above the bottom nav; centered modals
+     shrink to the viewport. (Both opt-in via className on the panel root.) */
+  .risansi-drawer {
+    left: 0 !important; right: 0 !important; width: 100% !important; max-width: 100% !important;
+    z-index: 320 !important;
+  }
+  .risansi-modal {
+    width: calc(100vw - 20px) !important; max-width: 460px !important;
+    max-height: 88vh !important; overflow-y: auto !important;
+  }
+
+  /* ── Layout helpers (opt-in via className) ── */
+  .r-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .r-grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
+  .r-grid-2 { grid-template-columns: 1fr !important; }
+  .r-2col   { grid-template-columns: 1fr !important; }
+  .r-stack  { flex-direction: column !important; align-items: stretch !important; }
+  .r-wrap   { flex-wrap: wrap !important; }
+  .r-scroll-x { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .r-full   { width: 100% !important; max-width: 100% !important; }
+  .r-hide   { display: none !important; }
+  .r-pad    { padding-left: 12px !important; padding-right: 12px !important; }
+  .r-desktop-only { display: none !important; }   /* shown on desktop, hidden on phones */
+  .r-mobile-only  { display: block !important; }   /* hidden on desktop, shown on phones */
+
+  /* ── Field Activity tabs → snappy scroll-snap pills ── */
+  .field-tabs {
+    border-bottom: none !important; gap: 8px !important; padding: 2px 0 8px !important;
+    scroll-snap-type: x mandatory; scrollbar-width: none;
+  }
+  .field-tabs::-webkit-scrollbar { display: none; }
+  .field-tabs a {
+    border-bottom: none !important; margin-bottom: 0 !important;
+    border-radius: 999px !important; padding: 8px 16px !important;
+    min-height: 44px !important; display: inline-flex !important; align-items: center !important;
+    background: var(--bg-elev); color: var(--fg-2) !important; font-weight: 600 !important;
+    border: 1px solid var(--line);
+  }
+  .field-tabs a[aria-current="true"] {
+    background: #1A5CB8 !important; color: #fff !important; border-color: #1A5CB8 !important;
+  }
+
+  /* Visit wizard's sticky nav sits just above the fixed bottom tab bar. */
+  .wizard-nav { bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important; }
+
+  /* ── Login / sign-in: drop the brand panel, full-width form ── */
+  .login-grid  { grid-template-columns: 1fr !important; }
+  .login-brand { display: none !important; }
+  .login-form  { padding: 20px 14px !important; min-height: 100vh; }
+
+  /* Tighten the generous desktop page padding on phones. */
+  .r-page { padding: 16px 12px 24px !important; }
+
+  /* ── Client 360 detail header ──
+     Desktop lays the title and the action buttons side-by-side
+     (justify-content:space-between). On a phone the long legal name
+     wraps into a tall column and the buttons collide with it, so stack:
+     title block on top, actions as a full-width 2-up button grid below. */
+  .risansi-main .r-detail-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+  .risansi-main .r-detail-title {
+    font-size: 18px !important;
+    line-height: 1.25 !important;
+  }
+  .risansi-main .r-detail-actions {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  /* Flatten the action-button row so Export PDF and the Plan Visit /
+     New Opportunity / Edit buttons all become siblings of one grid. */
+  .risansi-main .r-detail-actions .r-action-row { display: contents !important; }
+  .risansi-main .r-detail-actions > a,
+  .risansi-main .r-detail-actions .r-action-row > button {
+    flex: 1 1 calc(50% - 4px) !important;
+    justify-content: center !important;
+    min-height: 38px !important;
+  }
+
+  /* ── Table → cards (opt-in: <table class="r-cards"> with data-label on <td>) ──
+     Each row is a clearly-separated card: a prominent title with a divider, then
+     "LABEL  value" rows (inline label on the left) so it scans cleanly instead of
+     reading as a wall of stacked text. */
+  table.r-cards, table.r-cards tbody, table.r-cards td { display: block; width: 100%; }
+  table.r-cards thead { display: none; }
+  table.r-cards tr {
+    display: flex; flex-direction: column;
+    border: 1px solid var(--line); border-radius: 14px; margin-bottom: 14px;
+    padding: 12px 14px; background: var(--bg-paper);
+    box-shadow: 0 1px 3px rgba(10, 22, 40, 0.05);
+  }
+  table.r-cards td {
+    padding: 7px 0 !important; border: none !important;
+    border-top: 1px solid var(--line-2) !important;
+    font-size: 13px; color: var(--fg); line-height: 1.4;
+  }
+  table.r-cards td::before {
+    content: attr(data-label); display: inline-block; min-width: 96px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--fg-3); font-weight: 600; vertical-align: top;
+  }
+  /* Title cell — pulled to the top of the card, bold, no label/border. */
+  table.r-cards td[data-label=""] {
+    order: -1; border-top: none !important; padding: 2px 0 9px !important;
+    font-size: 15px; font-weight: 600; color: var(--fg);
+  }
+  table.r-cards td[data-label=""]::before { content: none; }
+
+  /* ── Complaints module: stack two-column form rows on phones ── */
+  .risansi-complaint-row { grid-template-columns: 1fr !important; }
+
+  /* ── Touch targets (WCAG 44px) ──
+     Small desktop controls get a comfortable hit area on phones without
+     changing their look much. Opt-in via these classes on the controls. */
+  .risansi-main .r-tap {
+    min-height: 44px !important;
+    display: inline-flex !important; align-items: center !important;
+  }
+  /* Inline text links (contact phone/email/WhatsApp) become tappable chips. */
+  .risansi-main .r-tap-link {
+    min-height: 40px !important; padding: 7px 10px !important;
+    display: inline-flex !important; align-items: center !important;
+    background: var(--bg-elev) !important; border-radius: 8px !important;
+  }
+  /* Filter dropdown menu — wider, with 44px-tall option rows. */
+  .risansi-main .r-filter-menu { min-width: 220px !important; }
+  .risansi-main .r-filter-menu label { min-height: 44px !important; }
+  /* Pagination buttons. */
+  .risansi-main .r-pager a { min-height: 44px !important; min-width: 42px !important; }
+  /* Active-filter pills — taller pill, bigger close hit area. */
+  .risansi-main .r-pill { min-height: 30px !important; padding: 4px 10px !important; }
+  .risansi-main .r-pill-x {
+    min-width: 28px !important; min-height: 28px !important;
+    justify-content: center !important; margin-left: 0 !important;
+  }
+  /* Visit wizard stepper — keep the dot small, enlarge the tap area. */
+  .risansi-main .r-step-dot { min-height: 44px !important; }
+
+  /* ── Pipeline kanban → swipe between stages on phones ──
+     7 columns at ~51px each are unusable, and HTML5 drag-drop doesn't work on
+     touch. Make each stage a readable ~82%-width column in a horizontal
+     scroll-snap row; reps swipe between stages and tap a card to edit / move it.
+     (Later in the file than the repeat(7) rule, so it wins on equal specificity.) */
+  .risansi-main .r-kanban {
+    grid-template-columns: none !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: 82% !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .risansi-main .r-kanban > * { scroll-snap-align: start; }
+
+  /* Client list filter chips → one swipeable row on phones (was wrapping to
+     3–4 rows). The chips keep their size and scroll horizontally. */
+  .risansi-main .r-filter-row {
+    flex-wrap: nowrap !important; overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .risansi-main .r-filter-row::-webkit-scrollbar { display: none; }
+  .risansi-main .r-filter-row > * { flex-shrink: 0 !important; }
+
+  /* ── Client-360 mobile tabs ──
+     Show the tab bar and reveal only the active group's panels. Panels opt in
+     via data-tabgroup; the tab bar sets data-active on the .r-tabbed wrapper. */
+  .r-detail-tabs { display: flex !important; }
+  .risansi-main .r-tabbed[data-active="overview"] [data-tabgroup]:not([data-tabgroup="overview"]),
+  .risansi-main .r-tabbed[data-active="activity"] [data-tabgroup]:not([data-tabgroup="activity"]),
+  .risansi-main .r-tabbed[data-active="contacts"] [data-tabgroup]:not([data-tabgroup="contacts"]) {
+    display: none !important;
+  }
+  /* ── Exhibitions: meeting + expense capture on a phone ──
+     Both are filled standing at a stand, one-handed, so they get the most
+     attention. Everything here is inside the existing 767px block. */
+
+  /* Two-up field rows stack. The desktop grid is a hard 1fr 1fr, which squeezes
+     a date picker and a rupee field into half a phone each. */
+  .risansi-main .exh-2col { grid-template-columns: 1fr !important; }
+
+  /* 16px inputs. Below 16px iOS silently zooms the whole page on focus and does
+     not zoom back out, which is the single worst thing that can happen to
+     someone typing a meeting note between conversations. */
+  .risansi-main .exh-form input,
+  .risansi-main .exh-form select,
+  .risansi-main .exh-form textarea {
+    font-size: 16px !important;
+    padding: 11px 12px !important;
+  }
+
+  /* Thumb-sized controls (44px is the platform minimum touch target). */
+  .risansi-main .exh-form button,
+  .risansi-main .exh-pick button { min-height: 44px !important; }
+
+  /* Attach buttons go full width and stack, rather than three tiny targets. */
+  .risansi-main .exh-pick { flex-direction: column !important; }
+  .risansi-main .exh-pick button { width: 100% !important; }
+
+  /* Save/Cancel pinned to the bottom of the form so a long meeting form never
+     hides its own submit behind the keyboard. */
+  .risansi-main .exh-actions {
+    position: sticky; bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-paper);
+    padding: 10px 0 2px; margin-top: 4px;
+    border-top: 1px solid var(--line); z-index: 2;
+  }
+  .risansi-main .exh-actions button { flex: 1; }
+
+  /* The 60px above is the bottom nav, which the form sits above in page flow.
+     Inside a dialog there is no bottom nav — the panel's own edge is the
+     bottom — so the same offset leaves Save floating 60px up with a strip of
+     panel beneath it. The bar still sticks; it just sticks to the right edge. */
+  .risansi-main .risansi-modal .exh-actions {
+    bottom: 0;
+  }
+
+  /* Expense table reflows to one card per row: the header is dropped and each
+     cell carries its own label, so nothing has to be scrolled sideways. */
+  .risansi-main .exh-table thead { display: none; }
+  .risansi-main .exh-table, 
+  .risansi-main .exh-table tbody,
+  .risansi-main .exh-table tr,
+  .risansi-main .exh-table td { display: block; width: 100%; }
+  .risansi-main .exh-table tr {
+    border: 1px solid var(--line) !important; border-radius: 8px;
+    margin-bottom: 10px; padding: 4px 2px; background: var(--bg-paper);
+  }
+  .risansi-main .exh-table td {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 7px 12px !important; border: 0 !important;
+  }
+  .risansi-main .exh-table td::before {
+    content: attr(data-label);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--fg-3); flex-shrink: 0;
+  }
+  /* A cell with nothing in it would otherwise render as a stray label. */
+  .risansi-main .exh-table td:empty { display: none; }
+
+  /* Meeting cards: the right-hand meta column drops under the name instead of
+     squeezing it to a few characters. */
+  .risansi-main .exh-meeting-head { flex-direction: column !important; gap: 6px !important; }
+  /* Visit report card: the pump line sits under the flags once the row stacks, so it reads left like them. */
+  .risansi-main .vr-equip { text-align: left !important; }
+  /* Quote line items: one card per line, every field labelled, no 620px floor. */
+  .risansi-main .qli-min { min-width: 0 !important; }
+  .risansi-main .qli-head { display: none !important; }
+  .risansi-main .qli-row { grid-template-columns: 1fr 1fr !important; gap: 8px !important; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-elev); margin-bottom: 10px !important; }
+  .risansi-main .qli-cell { display: block !important; }
+  .risansi-main .qli-cell:first-child { grid-column: 1 / -1; }
+  .risansi-main .qli-lbl { display: block !important; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-3); margin-bottom: 3px; }
+  .risansi-main .qli-cell input { width: 100% !important; min-height: 40px; box-sizing: border-box; }
+  /* Client 360 complaints: number and pills on one line, the text on its own below,
+     rather than a two-word description squeezed between a number and two pills. */
+  .risansi-main .c360-cmp-row { flex-wrap: wrap !important; row-gap: 4px !important; }
+  .risansi-main .c360-cmp-no { width: auto !important; margin-right: auto; }
+  .risansi-main .c360-cmp-text { flex-basis: 100% !important; order: 9; }
+  .risansi-main .c360-cmp-text > span:first-child { white-space: normal !important; }
+  /* The Excel export links (header, Meetings tab, closed banner): a full-width, thumb-sized button. */
+  /* Potential leads: the company reads full width, its buttons sit under it
+     and are thumb-sized rather than a right-hand column squeezed to nothing. */
+  .risansi-main .pl-row { flex-direction: column !important; gap: 8px !important; }
+  .risansi-main .pl-actions { min-width: 0 !important; width: 100% !important; text-align: left !important; }
+  .risansi-main .pl-actions button { min-height: 40px; }
+  .risansi-main .pl-actions input { width: 100% !important; }
+
+  .risansi-main .exh-export { display: flex !important; align-items: center; justify-content: center; width: 100% !important; min-height: 44px !important; margin-left: 0 !important; box-sizing: border-box; }
+  .risansi-main .exh-meeting-meta { text-align: left !important; }
+
+  /* Bug report: the attached screenshots stay two across on a phone. The
+     blanket one-column rule above would stack them into a tall tower and push
+     the Submit button out of the dialog. */
+  .risansi-main .risansi-bug-shots { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  /* Settings → Targets by Rep. The blanket one-column rule above would put each
+     rep's name and their input on separate lines, turning eighteen rows into a
+     page of scrolling; name left, input right is the whole point of the list.
+     The 210px input column shrinks to what the field and its caption need. */
+  .risansi-main .rt-row { grid-template-columns: minmax(0, 1fr) 128px !important; gap: 8px !important; }
+  .risansi-main .rt-row input { width: 72px !important; min-height: 40px; }
+  .risansi-main .rt-head { font-size: 10px !important; }
+  /* The role / code / zone meta drops under the name rather than pushing it out. */
+  .risansi-main .rt-row > span:first-child > span { display: block; margin-left: 0 !important; }
+
+}
