@@ -1,0 +1,15 @@
+{
+  "name": "@risansi/notify",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Transactional email for Risansi Digital, in the same card the sales portal already sends.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "resend": "^4.0.0"
+  }
+}
