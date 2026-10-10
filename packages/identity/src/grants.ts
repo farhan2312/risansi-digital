@@ -59,6 +59,47 @@ export function tileState(t: Pick<AppTile, 'needsGrant' | 'status'>): TileState 
   }
 }
 
+/** One role a portal offers, as the approval form should present it. */
+export interface AppRole {
+  role: string;
+  label: string;
+  description: string;
+}
+
+/**
+ * The roles an application actually has, in the order to offer them.
+ *
+ * For the approval form: an approver picks from these rather than typing, and
+ * `app_grants` carries a composite foreign key onto the same table, so a role
+ * that does not exist cannot be stored even if the form is bypassed. The
+ * dropdown is the convenience; the constraint is the rule.
+ *
+ * `description` is not decoration. `operations` and `central_visibility` mean
+ * nothing to somebody outside that department, and an approver guessing between
+ * them is how the wrong access gets granted to the right person.
+ */
+export async function rolesFor(db: Queryable, appSlug: string): Promise<AppRole[]> {
+  const { rows } = await db.query<AppRole>(
+    `SELECT role, label, description FROM identity.app_roles
+      WHERE app_slug = $1 ORDER BY sort_order, label`,
+    [appSlug],
+  );
+  return rows;
+}
+
+/** Every application's roles at once, keyed by slug — for the approval queue. */
+export async function allRoles(db: Queryable): Promise<Record<string, AppRole[]>> {
+  const { rows } = await db.query<AppRole & { app_slug: string }>(
+    `SELECT app_slug, role, label, description FROM identity.app_roles
+      ORDER BY app_slug, sort_order, label`,
+  );
+  const out: Record<string, AppRole[]> = {};
+  for (const r of rows) {
+    (out[r.app_slug] ??= []).push({ role: r.role, label: r.label, description: r.description });
+  }
+  return out;
+}
+
 /** Every live application, with this person's standing against each. */
 export async function tilesFor(db: Queryable, userId: string): Promise<AppTile[]> {
   const { rows } = await db.query<{
