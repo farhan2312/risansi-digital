@@ -267,7 +267,7 @@ cutover would have put that discovery on the day everybody was watching.
 | 1 | Sales *can* read the shared session. NextAuth stays primary. | nobody | **done** 11 Oct |
 | 2 | Seed `identity.users` and the grants from sales. | nobody | **done** 11 Oct |
 | 3 | Sales prefers the shared session, NextAuth as fallback. | nobody | **done** 11 Oct |
-| 4 | Sales' sign-in redirects to the hub. | **everybody** | **done** 11 Oct |
+| 4 | Sales' sign-in redirects to the hub. | **everybody** | **done and verified** 11 Oct |
 | 5 | Remove NextAuth and the credential columns. | nobody | to do |
 
 Three things the steps turned up that the plan had not foreseen:
@@ -282,6 +282,37 @@ Three things the steps turned up that the plan had not foreseen:
 - `getSession()` is now on every request and `readToken` throws when the
   secret is missing, which would have locked out every NextAuth user over a
   variable nobody needed yet. It falls through instead.
+
+Step 4 was verified end to end on 11 Oct: a hub sign-in opens sales with no
+second login, a deep link followed while signed out comes back to the page
+asked for, and the old `/api/auth/signin` redirects rather than showing a
+form.
+
+Two more things it turned up, both found by asking why a signed-out deep link
+still rendered the portal — it had not: a pre-step-4 NextAuth cookie was still
+being honoured.
+
+- **Sign out signed you out of one portal.** The button called next-auth's
+  `signOut()`, which clears `next-auth.session-token` and knows nothing about
+  the shared `risansi_session`. Anybody who signed in through the hub — by now
+  everybody — clicked it and was waved straight back in. Both cookies are
+  cleared by one server action in sales now; the shared one is on
+  `.risansi.com` and sales is a subdomain, so no cross-origin hop is needed.
+- **The sidebar's Change Password dialog wrote a dead column.** It POSTed to
+  `/api/auth/change-password`, which hashes into `users.password_hash` — not
+  the credential store since step 4 — and reported success. It was on every
+  screen, which made it worse than the `/change-password` page, whose only
+  callers are old emails. Dialog removed, menu links to the hub, route answers
+  410 with the new address.
+
+The pattern in all four findings is the same: step 4 changed where the
+credential lives, and every surface that still *wrote* one had to be found
+by hand, because writing to a column nobody reads raises nothing.
+
+A lingering NextAuth cookie stays honoured until step 5 or until it expires,
+whichever comes first — no new ones can be minted, so the pool drains within
+eight hours of the last pre-cutover sign-in. Hub sign-out does not clear it
+(different host, host-only cookie); the sales sign-out button does.
 
 Only step 4 is a cutover. Steps 1-3 are additive, and if step 3 misbehaves
 people fall back to the sales login with nothing to undo.
@@ -302,6 +333,13 @@ rediscovered on cutover day.
 - Give every existing sales account an Approved grant whose `app_role` is its current sales role, so nobody loses access on the day.
 - Rewrite `lib/risansi-auth.ts` to resolve `CurrentUser` from shared session + grant + profile. Keep the shape: 76 files call it and only about ten read a claim directly. Sales keeps its integer `users.id` and all 48 foreign keys.
 - Credential columns stay on `users`, unread, for one release. Dropping them is step 5.
+
+**Step 5, concretely.** Remove the NextAuth fallback in `getSession()`, the
+`[...nextauth]` route and `authOptions`, the `/api/auth/change-password`
+handler, and `users.password_hash` / `must_change_password` in sales. The
+fallback is already nearly inert — nothing can mint a NextAuth cookie now —
+so the release it is waiting out is a formality against the shared session
+proving unreliable, not a live escape hatch.
 - Done when: one login at the hub opens sales, and revoking the grant locks someone out on their next click.
 
 ### Phase 4 — Testing and Pump Selection.
