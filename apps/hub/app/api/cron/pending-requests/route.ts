@@ -68,7 +68,7 @@ export async function GET(req: Request) {
     //   any other error         → Resend refused it, and that is the reason
     config: {
       resendConfigured: Boolean(process.env.RESEND_API_KEY),
-      from: process.env.RESEND_FROM_DIGITAL || 'Risansi Digital <no-reply@digital.risansi.com>',
+      from: process.env.RESEND_FROM_DIGITAL || 'Risansi Digital <digital-portal@digital.risansi.com>',
       hubUrl: process.env.HUB_URL || '(unset, defaulting to https://digital.risansi.com)',
       approvers: await approverCount(),
     },

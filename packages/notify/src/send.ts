@@ -30,8 +30,22 @@ function client(): Resend | null {
   return cached;
 }
 
+/**
+ * Not `no-reply@`.
+ *
+ * The first version of this sent as `no-reply@digital.risansi.com` and Resend
+ * reported every message delivered while none of them reached the inbox:
+ * Microsoft accepted them and filed them away. Same verified domain as the
+ * sales portal, but a brand-new local part with no sending history to the
+ * tenant, and `no-reply` is a spam signal in its own right.
+ *
+ * `digital-portal@` mirrors `sales-portal@digital.risansi.com`, which has been
+ * landing in those inboxes for months. Matching the shape of an address a
+ * tenant already trusts is worth more here than saying "do not reply" in the
+ * address, which the footer says anyway.
+ */
 const FROM = process.env.RESEND_FROM_DIGITAL
-  || 'Risansi Digital <no-reply@digital.risansi.com>';
+  || 'Risansi Digital <digital-portal@digital.risansi.com>';
 
 export interface SendResult {
   ok: boolean;
