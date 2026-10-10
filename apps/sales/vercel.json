@@ -1,0 +1,17 @@
+{
+  "functions": {
+    "app/**": {
+      "maxDuration": 10
+    },
+    "app/api/cron/**": {
+      "maxDuration": 60
+    },
+    "app/api/risansi/reports/**": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    { "path": "/api/cron/daily", "schedule": "30 2 * * *" },
+    { "path": "/api/cron/weekly", "schedule": "30 2 * * 1" }
+  ]
+}

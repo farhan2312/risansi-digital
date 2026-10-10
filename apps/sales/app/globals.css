@@ -1,0 +1,467 @@
+@import "tailwindcss";
+
+/* ── shadcn/ui ⇄ Risansi token bridge ───────────────────────────
+   The shadcn kit consumes these semantic vars two ways: as utilities
+   (bg-primary, border-border …) generated from the @theme block below,
+   and as raw var() refs inside arbitrary values (e.g. var(--secondary),
+   var(--radius-md) in button.tsx). We keep the var *names* the kit
+   expects but point their *values* at the Risansi design tokens defined
+   lower in this file — so the kit inherits the exact Risansi palette and
+   follows the dark-mode overrides (:root.dark) automatically. */
+:root {
+  --background:           var(--bg);
+  --foreground:           var(--fg);
+  --card:                 var(--bg-paper);
+  --card-foreground:      var(--fg);
+  --popover:              var(--bg-paper);
+  --popover-foreground:   var(--fg);
+  --primary:              var(--brand-blue);
+  --primary-foreground:   #ffffff;
+  --secondary:            var(--bg-elev);
+  --secondary-foreground: var(--fg);
+  --muted:                var(--bg-elev);
+  --muted-foreground:     var(--fg-3);
+  --destructive:          var(--neg);
+  --border:               var(--line);
+  --input:                var(--line-strong);
+  --ring:                 var(--accent-line);
+
+  --radius:    6px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --chart-1: oklch(0.809 0.105 251.813);
+  --chart-2: oklch(0.623 0.214 259.815);
+  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-4: oklch(0.488 0.243 264.376);
+  --chart-5: oklch(0.424 0.199 265.638);
+
+  /* Sidebar chrome — intentionally dark navy in both themes */
+  --sidebar:                    #0A1628;
+  --sidebar-foreground:         #B8C9E8;
+  --sidebar-primary:            var(--brand-blue);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent:             #00B4D8;
+  --sidebar-border:             rgba(255, 255, 255, 0.08);
+}
+
+/* Dark mode — overrides the Risansi tokens themselves, so every page
+   (which styles via var(--bg)/var(--fg)/…) and the bridged shadcn vars
+   both flip together. `:root.dark` (0,2,0) out-specifies the later plain
+   `:root` token block (0,1,0); a bare `.dark` would lose to it on order.
+   next-themes adds the `dark` class to <html>. */
+:root.dark {
+  /* Native controls (date picker, select, scrollbars) render dark chrome. */
+  color-scheme: dark;
+
+  /* Text — brightened for legibility on the dark surfaces below. */
+  --fg:   #F0F4F8;
+  --fg-2: #CBD5E0;
+  --fg-3: #8FA3B8;
+  --fg-4: #6B7FA3;
+
+  /* Surfaces */
+  --bg:       #0D1B2E;
+  --bg-paper: #132240;
+  --bg-elev:  #1A2E4A;
+  --bg-sunk:  #0A1628;
+
+  /* Borders — visible but subtle */
+  --line:        rgba(255, 255, 255, 0.08);
+  --line-2:      rgba(255, 255, 255, 0.05);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  /* Brand / accent — slightly lighter blue for dark bg.
+     --accent + --accent-line track --brand-blue so the bridged
+     shadcn --ring and Risansi page accents stay consistent. */
+  --brand-blue:  #4A8FE8;
+  --accent:      #4A8FE8;
+  --accent-soft: rgba(74, 143, 232, 0.15);
+  --accent-line: rgba(74, 143, 232, 0.30);
+  --title:       #4A8FE8;
+  /* A FILLED button, not text. --title and --neg are right for text and
+     borders, and wrong here: white on dark --title (#4A8FE8) measures 3.29:1
+     and on dark --neg (#F87171) 2.77:1, both under AA. #2E6FC4 keeps the label
+     at 5.02:1 and still reads as a button against --bg-paper at 3.15:1.
+     Light --neg already clears AA with white, so --neg-fill does not flip. */
+  --accent-fill: #2E6FC4;
+  --on-accent:   #ffffff;
+  --neg-fill:    #DC2626;
+  --won-bg:            rgba(5, 150, 105, 0.15);
+  --toggle-sel-bg:     var(--brand-blue);
+  --toggle-sel-fg:     #ffffff;
+  --toggle-sel-border: var(--brand-blue);
+
+  /* Functional — brighter for dark */
+  --pos:       #34D399;
+  --pos-soft:  rgba(52, 211, 153, 0.15);
+  --neg:       #F87171;
+  --neg-soft:  rgba(248, 113, 113, 0.15);
+  /* Strong on-tint text: readable when set as text ON --pos-soft / --neg-soft. */
+  --pos-strong: #6EE7B7;
+  --neg-strong: #FCA5A5;
+  --warn:      #FBBF24;
+  --warn-soft: rgba(251, 191, 36, 0.15);
+  --warn-strong: #FCD34D;
+  --info:      #60A5FA;
+  --info-soft: rgba(96, 165, 250, 0.15);
+  /* The missing member of the family. --pos, --neg and --warn each had a
+     -strong arm for text sitting ON their own soft tint; --info did not, so the
+     one info-toned pill in Tag.tsx kept its #1E40AF hardcoded and would have
+     been blue-800 on a translucent tint here. 7.96:1 on --info-soft. */
+  --info-strong: #93C5FD;
+  --purple:    #A78BFA;
+  /* 0.10, not the 0.16 the other -soft tokens use. The exhibition block puts
+     --purple text directly on this, and at 0.16 the composite over --bg-paper
+     measures 4.44:1 — just under AA for 10.5px text. 0.10 gives 4.92:1 and still
+     reads as a filled band rather than a bare label.
+
+     On --bg-elev it is 4.31:1, and going low enough to fix that (0.06) leaves the
+     band too faint to notice, which is the one thing it must not be. The only
+     --bg-elev day cells are the adjacent-month ones, which the calendar already
+     renders at opacity 0.55 — every visit chip there is equally faded, so
+     singling this element out would buy nothing. */
+  --purple-soft: rgba(167, 139, 250, 0.10);
+}
+
+/* ── Tailwind theme mappings ─────────────────────────────────────
+   `inline` means utilities embed the var() ref directly, so when
+   :root.dark changes the underlying token the utility re-resolves. */
+@theme inline {
+  --color-background:             var(--background);
+  --color-foreground:             var(--foreground);
+  --color-card:                   var(--card);
+  --color-card-foreground:        var(--card-foreground);
+  --color-popover:                var(--popover);
+  --color-popover-foreground:     var(--popover-foreground);
+  --color-primary:                var(--primary);
+  --color-primary-foreground:     var(--primary-foreground);
+  --color-secondary:              var(--secondary);
+  --color-secondary-foreground:   var(--secondary-foreground);
+  --color-muted:                  var(--muted);
+  --color-muted-foreground:       var(--muted-foreground);
+  --color-accent:                 var(--bg-elev);
+  --color-accent-foreground:      var(--fg);
+  --color-destructive:            var(--destructive);
+  --color-destructive-foreground: #ffffff;
+  --color-border:                 var(--border);
+  --color-input:                  var(--input);
+  --color-ring:                   var(--ring);
+
+  --color-sidebar:                    var(--sidebar);
+  --color-sidebar-foreground:         var(--sidebar-foreground);
+  --color-sidebar-primary:            var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:             var(--sidebar-accent);
+  --color-sidebar-border:             var(--sidebar-border);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Utility classes ────────────────────────────────────────── */
+
+.num, .mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6B7FA3;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.panel {
+  background: #FFFFFF;
+  border: 1px solid #DDE6F5;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(10, 61, 143, 0.05);
+}
+
+.panel-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #EBF1FB;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0A3D8F;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+/* Dark-mode overrides for the kept panel classes. Light appearance is
+   left byte-for-byte unchanged above; these only apply under .dark so
+   panels, headers, and titles stay legible on the dark surfaces. */
+:root.dark .panel {
+  background: var(--bg-paper);
+  border-color: var(--line);
+  box-shadow: none;
+}
+:root.dark .panel-header {
+  border-bottom-color: var(--line);
+}
+:root.dark .panel-title {
+  color: var(--accent);
+}
+
+/* Native form controls in dark mode. Inline styles on <input>/<select>/
+   <textarea> win over normal CSS, so !important is required to retheme
+   them. Scoped to .dark only — light mode controls are untouched. */
+.dark input:not([type="hidden"]),
+.dark select,
+.dark textarea {
+  background-color: var(--bg-sunk) !important;
+  color: var(--fg) !important;
+  border-color: var(--line-strong) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--fg-3) !important;
+}
+.dark select option {
+  background-color: var(--bg-ink);
+  color: var(--fg);
+}
+
+/* ── Skeleton shimmer ───────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -800px 0; }
+  100% { background-position:  800px 0; }
+}
+
+/* `.shimmer` is an alias: the route loading.tsx skeletons mark their
+   placeholder boxes with either class, and before this only `.skeleton` had a
+   rule — so every `.shimmer` box rendered as blank empty space. Tokens (not the
+   old hardcoded light hex) keep the shimmer visible in dark mode too. */
+.skeleton,
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-elev) 25%,
+    var(--bg-sunk) 50%,
+    var(--bg-elev) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* ── Live dot pulse ─────────────────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0E9F6E;
+  animation: pulse-dot 2s ease-in-out infinite;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+/* ── Risansi design tokens ──────────────────────────────────── */
+:root {
+  color-scheme: light;
+
+  /* Surface */
+  --bg:           #F4F6FB;
+  --bg-paper:     #FFFFFF;
+  --bg-elev:      #EDF1F7;
+  --bg-sunk:      #E2E8F3;
+  --bg-ink:       #0A1628;
+  --bg-ink-2:     #132240;
+
+  /* Text */
+  --fg:   #0D1B2E;
+  --fg-2: #2D3E55;
+  --fg-3: #6B7F96;
+  --fg-4: #A8BAC8;
+
+  /* Borders */
+  --line:        rgba(10, 22, 40, 0.08);
+  --line-2:      rgba(10, 22, 40, 0.05);
+  --line-strong: rgba(10, 22, 40, 0.16);
+
+  /* Accent — Risansi blue */
+  --accent:      #1A5CB8;
+  --accent-fg:   #ffffff;
+  --accent-soft: rgba(26, 92, 184, 0.10);
+  --accent-line: rgba(26, 92, 184, 0.25);
+
+  /* Brand */
+  --brand-navy:  #0A1628;
+  --brand-blue:  #1A5CB8;
+  --brand-cyan:  #00A3C4;
+  --brand-light: #E8F0FB;
+
+  /* Section-title / KPI-accent navy. Light value here is the original
+     #0A3D8F (unchanged); :root.dark flips it to the lighter accent so
+     titles stay legible on dark surfaces. */
+  --title: #0A3D8F;
+
+  /* Filled-button surface + its label. Light values are what every hardcoded
+     primary button already painted, so this changes nothing here; :root.dark
+     keeps the fill dark enough for the label to stay readable. */
+  --accent-fill: #0A3D8F;
+  --on-accent:   #ffffff;
+  --neg-fill:    #DC2626;
+
+  /* Theme-aware component colors — light values here, :root.dark flips them. */
+  --won-bg:            #F0FDF4;  /* kanban Won card */
+  --toggle-sel-bg:     #EBF1FB;  /* sugar/non-sugar selected pill */
+  --toggle-sel-fg:     #0A3D8F;
+  --toggle-sel-border: #0A3D8F;
+
+  /* Functional */
+  --pos:       #059669;
+  --pos-soft:  #D1FAE5;
+  --neg:       #DC2626;
+  --neg-soft:  #FEE2E2;
+  /* Strong on-tint text: readable when set as text ON --pos-soft / --neg-soft. */
+  --pos-strong: #065F46;
+  --neg-strong: #991B1B;
+  --warn:      #D97706;
+  --warn-soft: #FEF3C7;
+  /* Six components referenced var(--warn-strong, #92400E) before this existed,
+     so every one of them silently took the fallback — a dark brown that sits at
+     about 2.2:1 on the dark-mode paper and is unreadable there. The light value
+     is that same brown, so defining it changes nothing in light mode and fixes
+     all six in dark. */
+  --warn-strong: #92400E;
+  --info:      #2563EB;
+  --info-soft: #DBEAFE;
+  --info-strong: #1E40AF;   /* what Tag.tsx's info pill already used; 7.15:1 on --info-soft */
+  --purple:    #7C3AED;
+  --purple-soft: #EDE9FE;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius:    6px;
+  --radius-lg: 10px;
+}
+
+/* ── Accessibility: visible keyboard focus ──
+   Most interactive elements use inline styles with no focus ring. This adds a
+   consistent keyboard-only focus indicator. :focus-visible only fires for
+   keyboard / assistive-tech focus, so mouse clicks stay ring-free. */
+:focus-visible {
+  outline: 2px solid var(--brand-blue, #1A5CB8);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+:root {
+  --font-sans:  'IBM Plex Sans',    system-ui, sans-serif;
+  --font-mono:  'IBM Plex Mono',    ui-monospace, monospace;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+}
+
+/* ── Print styles ───────────────────────────────────────────── */
+
+/* Stage dashboard, Quoted: eight analytics panels as two rows of four. */
+.stage-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+/* Wide panels inside it: a fourteen-column month chart takes three cells, a
+   long bar list two. Clamped as the grid narrows so a span never exceeds the row. */
+.stage-grid-4 .stage-span-3 { grid-column: span 3; display: grid; }
+.stage-grid-4 .stage-span-2 { grid-column: span 2; display: grid; }
+@media (max-width: 1500px) {
+  .stage-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage-grid-4 .stage-span-3 { grid-column: span 2; }
+}
+@media (max-width: 760px) {
+  .stage-grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .stage-grid-4 .stage-span-3, .stage-grid-4 .stage-span-2 { grid-column: span 1; }
+}
+
+@media print {
+  aside,
+  header,
+  nav,
+  button,
+  .no-print,
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  [class*="panel"],
+  [style*="border-radius"] {
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 15mm;
+  }
+}
+
+/* Auth pages — the form column fades/slides in on each navigation while the shared
+   video panel stays put (see app/api/auth/layout.tsx). */
+@keyframes authFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.auth-fade { animation: authFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-fade { animation: none; }
+}
+
+/* Executive Review KPI cards — each number/breakdown row links through to the
+   clients list pre-filtered to match; underline on hover signals it's clickable. */
+.exec-kpi-link:hover { text-decoration: underline !important; }
+/* Opportunities flow strip — the brackets that map to a real set of cards are
+   links that filter the table/board below. The hover tint is the only thing
+   distinguishing them from the three that are pure arithmetic (Revenue,
+   Best-case, Target) and stay inert, so it has to be visible without shouting. */
+.risansi-bracket-link { transition: background 0.12s ease, border-color 0.12s ease; }
+.risansi-bracket-link:hover {
+  background: var(--bg-elev) !important;
+  border-color: var(--line-strong) !important;
+}
+.risansi-bracket-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Quote line items: the per-field label is for phones only (see mobile.css). */
+.qli-lbl { display: none; }
