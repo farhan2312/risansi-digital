@@ -1,4 +1,4 @@
-name: CI
+name: Sales CI
 
 # First automated check the repo has had, on every push and PR to main.
 #
@@ -18,11 +18,17 @@ name: CI
 # in as GitHub Actions secrets) once that's set up — the scripts are ready
 # (`npm run build`).
 
+# Scoped with `paths` so a change to another app in this monorepo does not run
+# the sales checks. GitHub only reads .github/workflows from the repo ROOT, so
+# this file cannot live in apps/sales — moving it there during the migration
+# would have silently stopped the only automated gate this repo has.
 on:
   push:
     branches: [main]
+    paths: ['apps/sales/**', '.github/workflows/sales-ci.yml']
   pull_request:
     branches: [main]
+    paths: ['apps/sales/**', '.github/workflows/sales-ci.yml']
 
 # A newer push to the same branch/PR cancels the older, still-running check.
 concurrency:
@@ -33,6 +39,10 @@ jobs:
   verify:
     name: Typecheck + lint
     runs-on: ubuntu-latest
+    # Every `run` below is relative to the app, so npm finds its own lockfile.
+    defaults:
+      run:
+        working-directory: apps/sales
     steps:
       - uses: actions/checkout@v4
 
@@ -40,6 +50,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: apps/sales/package-lock.json
 
       - name: Install dependencies
         run: npm ci
