@@ -18,14 +18,14 @@ export {
   readToken,
   cookieOptions,
   clearedCookieOptions,
-} from './session.js';
+} from './session.ts';
 
 export {
   MIN_PASSWORD_LENGTH,
   hashPassword,
   verifyPassword,
   passwordProblem,
-} from './password.js';
+} from './password.ts';
 
 export {
   type GrantStatus,
@@ -39,6 +39,6 @@ export {
   tilesFor,
   mayOpen,
   requestAccess,
-} from './grants.js';
+} from './grants.ts';
 
-export { safeReturnUrl, isSafeReturnUrl } from './return-url.js';
+export { safeReturnUrl, isSafeReturnUrl } from './return-url.ts';

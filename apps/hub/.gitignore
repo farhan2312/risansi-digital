@@ -1,0 +1,10 @@
+/node_modules
+/.next
+/out
+next-env.d.ts
+*.tsbuildinfo
+
+# Real secrets never land in the repo; .env.example is the documented list.
+.env
+.env.local
+.env*.local

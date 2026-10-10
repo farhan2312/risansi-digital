@@ -18,8 +18,8 @@
  * it was notifying about.
  */
 
-import { renderCard } from './card.js';
-import { sendEmail, hubUrl, type SendResult } from './send.js';
+import { renderCard } from './card.ts';
+import { sendEmail, hubUrl, type SendResult } from './send.ts';
 
 export interface Queryable {
   query<R = Record<string, unknown>>(
@@ -145,6 +145,44 @@ export async function notifyAccessDecided(a: {
       body: a.note || 'No reason was given.',
       ctaLabel: 'Back to Risansi Digital',
       ctaUrl: hubUrl('/'),
+      footer: 'Sent by Risansi Digital. Replies to this address are not read.',
+    }),
+  });
+}
+
+/**
+ * Access that somebody had has been taken away. Tell them.
+ *
+ * Its own template rather than reusing the refusal, because the refusal says
+ * "your request was not approved" — which reads as nonsense to a person who has
+ * been using the portal for a month and is the kind of message that makes
+ * somebody distrust the whole system. Losing access is also the one event here
+ * that a person will not have initiated, so it is the one most worth being
+ * clear and unhurried about.
+ *
+ * No call to action: there is nothing useful to click. The person needs a
+ * conversation, so the mail names who did it and stops there.
+ */
+export async function notifyAccessRevoked(a: {
+  personName: string;
+  personEmail: string;
+  appName: string;
+  revokedByName?: string | null;
+  note?: string | null;
+}): Promise<SendResult> {
+  return sendEmail({
+    to: a.personEmail,
+    subject: `Your access to ${a.appName} has been removed`,
+    html: renderCard({
+      section: 'Access removed',
+      accent: NEGATIVE,
+      greetingName: a.personName?.split(' ')[0] ?? null,
+      intro: `Your access to ${a.appName} has been removed${a.revokedByName ? ` by ${a.revokedByName}` : ''}.`
+        + ' Your Risansi Digital sign-in still works, and any other portals you have stay as they were.',
+      title: a.appName,
+      body: a.note
+        || 'No reason was recorded. If you still need this, speak to whoever removed it.',
+      meta: [['Removed by', a.revokedByName || '']],
       footer: 'Sent by Risansi Digital. Replies to this address are not read.',
     }),
   });

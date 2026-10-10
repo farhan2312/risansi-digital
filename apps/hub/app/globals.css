@@ -1,0 +1,974 @@
+/* ══════════════════════════════════════════════════════════════════
+   Risansi Digital — hub stylesheet.
+
+   Everything from the `:root` block down to the mobile media query is
+   lifted from the static index.html at the repo root, which is still the
+   live hub and still the reference for how this is meant to look. Two
+   deliberate changes only:
+
+   The "Application chrome" section at the bottom is the only addition:
+   the forms, the approvals queue and the header controls did not exist on a
+   page whose only job was to link out. A tile that is not a link carries
+   `.card .card-static`, so the lifted `.card` rules still shape it and
+   `.card-static` only cancels the hover that would promise a click.
+
+   Colours live here as tokens and nowhere else. No component in this app
+   writes a hex value.
+   ══════════════════════════════════════════════════════════════════ */
+
+  /* ── Risansi brand tokens — dark (default) ────────────────────── */
+  :root {
+    color-scheme: dark;
+    --brand-navy:   #0A1628;
+    --brand-navy-2: #132240;
+    --brand-blue:   #1A5CB8;   /* Risansi blue — primary */
+
+    --bg:           #0A1628;
+    --fg:           #F0F4F8;
+    --fg-2:         #B8C9E8;
+    --fg-3:         #8FA3B8;
+    --line:         rgba(255, 255, 255, 0.08);
+    --line-strong:  rgba(255, 255, 255, 0.16);
+
+    --accent:       #4A8FE8;   /* lighter blue, reads well on navy */
+    --accent-cyan:  #00B4D8;   /* secondary accent */
+    --grad-a:       #4A8FE8;   /* h1 gradient start */
+    --grad-b:       #00B4D8;   /* h1 gradient end */
+
+    --card:              rgba(19, 34, 64, 0.62);
+    --card-hover:        rgba(26, 46, 84, 0.78);
+    --card-hover-border: rgba(74, 143, 232, 0.45);
+    --card-shadow:       none;
+    --card-shadow-hover: 0 18px 44px rgba(0, 0, 0, 0.35);
+    --icon-bg:           rgba(26, 92, 184, 0.22);
+    --icon-border:       rgba(74, 143, 232, 0.35);
+    --go-hover:          #ffffff;
+    --chip-border:       transparent;
+    --chip-shadow:       0 4px 18px rgba(0, 0, 0, 0.25);
+    --grid-line:         rgba(255, 255, 255, 0.028);
+
+    /* Ambient graphics intensity */
+    --aurora-op:    0.85;
+    --spot-op:      0.55;
+    --beam-op:      0.5;
+    --glow-op:      0.16;
+    --dot-op:       0.5;
+
+    --radius:       10px;
+    --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  /* ── Light mode — same tokens, new values ─────────────────────── */
+  :root.light {
+    color-scheme: light;
+
+    --bg:           #F4F6FB;
+    --fg:           #0D1B2E;
+    --fg-2:         #2D3E55;
+    --fg-3:         #6B7F96;
+    --line:         rgba(10, 22, 40, 0.08);
+    --line-strong:  rgba(10, 22, 40, 0.16);
+
+    --accent:       #1A5CB8;
+    --accent-cyan:  #0E7490;   /* darker teal — readable on light */
+    --grad-a:       #1A5CB8;
+    --grad-b:       #00A3C4;
+
+    --card:              rgba(255, 255, 255, 0.86);
+    --card-hover:        #FFFFFF;
+    --card-hover-border: rgba(26, 92, 184, 0.45);
+    --card-shadow:       0 1px 3px rgba(10, 61, 143, 0.05);
+    --card-shadow-hover: 0 18px 44px rgba(10, 61, 143, 0.12);
+    --icon-bg:           rgba(26, 92, 184, 0.10);
+    --icon-border:       rgba(26, 92, 184, 0.25);
+    --go-hover:          #0A3D8F;
+    --chip-border:       rgba(10, 22, 40, 0.08);
+    --chip-shadow:       0 2px 10px rgba(10, 61, 143, 0.08);
+    --grid-line:         rgba(10, 22, 40, 0.035);
+
+    --aurora-op:    0.45;
+    --spot-op:      0.30;
+    --beam-op:      0.28;
+    --glow-op:      0.10;
+    --dot-op:       0.35;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  /* ══ Ambient background stack ═══════════════════════════════════
+     Layer 0  aurora blobs      — slow drifting brand-color light
+     Layer 1  spotlight cone    — top-centre beam
+     Layer 2  grid + fade mask  — technical texture
+     Layer 3  scan beams        — vertical light streaks
+  ═══════════════════════════════════════════════════════════════ */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    background: var(--bg);
+    transition: background 0.25s ease;
+  }
+
+  /* — Aurora — */
+  .aurora {
+    position: absolute;
+    inset: -25%;
+    opacity: var(--aurora-op);
+    filter: blur(70px);
+    transition: opacity 0.25s ease;
+  }
+  .aurora span {
+    position: absolute;
+    display: block;
+    border-radius: 50%;
+    mix-blend-mode: screen;
+    will-change: transform;
+  }
+  :root.light .aurora span { mix-blend-mode: multiply; }
+
+  .aurora .a1 {
+    width: 52vw; height: 52vw;
+    top: -8%; left: 52%;
+    background: radial-gradient(circle at 50% 50%, rgba(0, 180, 216, 0.55), transparent 68%);
+    animation: drift1 26s ease-in-out infinite;
+  }
+  .aurora .a2 {
+    width: 58vw; height: 58vw;
+    top: 18%; left: -12%;
+    background: radial-gradient(circle at 50% 50%, rgba(26, 92, 184, 0.62), transparent 68%);
+    animation: drift2 32s ease-in-out infinite;
+  }
+  .aurora .a3 {
+    width: 44vw; height: 44vw;
+    top: 58%; left: 32%;
+    background: radial-gradient(circle at 50% 50%, rgba(74, 143, 232, 0.45), transparent 68%);
+    animation: drift3 29s ease-in-out infinite;
+  }
+  @keyframes drift1 {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50%      { transform: translate3d(-7vw, 5vh, 0) scale(1.14); }
+  }
+  @keyframes drift2 {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+    50%      { transform: translate3d(6vw, -5vh, 0) scale(0.92); }
+  }
+  @keyframes drift3 {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); }
+    50%      { transform: translate3d(-5vw, -7vh, 0) scale(1.12); }
+  }
+
+  /* — Spotlight cone from the top — */
+  .spotlight {
+    position: absolute;
+    top: -30vh; left: 50%;
+    width: 130vw; height: 90vh;
+    transform: translateX(-50%) rotate(-6deg);
+    background: conic-gradient(from 180deg at 50% 0%,
+                transparent 0deg,
+                rgba(74, 143, 232, 0.22) 12deg,
+                rgba(0, 180, 216, 0.16) 26deg,
+                transparent 42deg);
+    filter: blur(38px);
+    opacity: var(--spot-op);
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  /* — Technical grid — */
+  .grid-layer {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 92% 78% at 50% 0%, #000 12%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse 92% 78% at 50% 0%, #000 12%, transparent 78%);
+  }
+
+  /* — Vertical scan beams — */
+  .beams { position: absolute; inset: 0; overflow: hidden; opacity: var(--beam-op); transition: opacity 0.25s ease; }
+  .beams i {
+    position: absolute;
+    top: -40%;
+    width: 1px;
+    height: 42%;
+    background: linear-gradient(to bottom, transparent, var(--accent-cyan), transparent);
+    animation: fall 9s linear infinite;
+  }
+  .beams i:nth-child(1) { left: 14%; animation-duration: 10s; animation-delay: 0s;   }
+  .beams i:nth-child(2) { left: 33%; animation-duration: 13s; animation-delay: 2.4s; background: linear-gradient(to bottom, transparent, var(--accent), transparent); }
+  .beams i:nth-child(3) { left: 58%; animation-duration: 11s; animation-delay: 4.1s; }
+  .beams i:nth-child(4) { left: 78%; animation-duration: 15s; animation-delay: 1.2s; background: linear-gradient(to bottom, transparent, var(--accent), transparent); }
+  .beams i:nth-child(5) { left: 91%; animation-duration: 12s; animation-delay: 6s;   }
+  @keyframes fall {
+    0%   { transform: translateY(0);    opacity: 0; }
+    12%  { opacity: 1; }
+    88%  { opacity: 1; }
+    100% { transform: translateY(340vh); opacity: 0; }
+  }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 28px;
+    position: relative;
+  }
+
+  /* ── Header ───────────────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 22px 0;
+  }
+  .logo-chip {
+    background: #fff;
+    border: 1px solid var(--chip-border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: var(--chip-shadow);
+  }
+  .logo-chip img { height: 34px; display: block; }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .header-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    white-space: nowrap;
+  }
+
+  /* Theme toggle */
+  .theme-toggle {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover {
+    color: var(--accent);
+    border-color: var(--card-hover-border);
+    background: var(--icon-bg);
+  }
+  .theme-toggle svg { width: 17px; height: 17px; }
+  .theme-toggle .icon-moon { display: none; }
+  :root.light .theme-toggle .icon-moon { display: block; }
+  :root.light .theme-toggle .icon-sun { display: none; }
+
+  /* ── Hero ─────────────────────────────────────────────────────── */
+  .hero {
+    padding: 76px 0 58px;
+    max-width: 740px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 13px 5px 9px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: var(--card);
+    backdrop-filter: blur(8px);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--fg-2);
+    margin-bottom: 22px;
+  }
+  .eyebrow .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-cyan) 22%, transparent);
+    animation: pulse-dot 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  h1 {
+    font-size: clamp(34px, 5.4vw, 56px);
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.022em;
+  }
+  h1 .accent {
+    background: linear-gradient(100deg,
+                var(--grad-a) 0%,
+                var(--grad-b) 32%,
+                var(--fg) 50%,
+                var(--grad-b) 68%,
+                var(--grad-a) 100%);
+    background-size: 260% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shine 7s linear infinite;
+  }
+  @keyframes shine {
+    0%   { background-position: 0% center; }
+    100% { background-position: 260% center; }
+  }
+
+  .hero p {
+    margin-top: 18px;
+    font-size: 16.5px;
+    color: var(--fg-2);
+    max-width: 560px;
+  }
+
+  /* ── Portal grid ──────────────────────────────────────────────── */
+  .grid-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: 16px;
+  }
+  .grid-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--line), transparent);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    padding-bottom: 72px;
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 26px 26px 22px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    text-decoration: none;
+    color: inherit;
+    backdrop-filter: blur(10px);
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  /* Mouse-tracking spotlight glow (21st.dev "glowing card" pattern) */
+  .card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 0%),
+                color-mix(in srgb, var(--accent) 55%, transparent), transparent 65%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .card:hover::after, .card:focus-visible::after { opacity: var(--glow-op); }
+
+  /* Gradient accent rail */
+  .card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--grad-a), var(--grad-b));
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .card:hover, .card:focus-visible {
+    transform: translateY(-4px);
+    background: var(--card-hover);
+    border-color: var(--card-hover-border);
+    box-shadow: var(--card-shadow-hover);
+  }
+  .card:hover::before, .card:focus-visible::before { opacity: 1; }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-icon {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--icon-bg);
+    border: 1px solid var(--icon-border);
+    color: var(--accent);
+    flex-shrink: 0;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .card:hover .card-icon {
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  .card-icon svg { width: 23px; height: 23px; }
+  .card-num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--fg-3);
+    letter-spacing: 0.08em;
+  }
+
+  .card h2 {
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .card p {
+    font-size: 13.5px;
+    color: var(--fg-2);
+    line-height: 1.55;
+    min-height: 42px;
+  }
+
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .card-url {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent-cyan);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-go {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--fg-2);
+    white-space: nowrap;
+    transition: color 0.18s ease;
+  }
+  .card-go svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.18s ease;
+  }
+  .card:hover .card-go, .card:focus-visible .card-go { color: var(--go-hover); }
+  .card:hover .card-go svg, .card:focus-visible .card-go svg { transform: translateX(3px); }
+
+  /* ── Footer ───────────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 26px 0 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  footer .copy {
+    font-size: 12.5px;
+    color: var(--fg-3);
+  }
+  footer .links {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  footer .links a {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--fg-3);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  footer .links a:hover { color: var(--accent-cyan); }
+
+  /* ── Entrance animation ───────────────────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    animation: rise 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .reveal:nth-child(1) { animation-delay: 0.05s; }
+  .reveal:nth-child(2) { animation-delay: 0.12s; }
+  .reveal:nth-child(3) { animation-delay: 0.19s; }
+  .reveal:nth-child(4) { animation-delay: 0.26s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  /* ── Focus & motion ───────────────────────────────────────────── */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+    html { scroll-behavior: auto; }
+    .reveal { opacity: 1; transform: none; }
+    .beams { display: none; }
+  }
+
+  /* ── Mobile ───────────────────────────────────────────────────── */
+  @media (max-width: 767px) {
+    .wrap { padding: 0 18px; }
+    .hero { padding: 44px 0 40px; }
+    .grid { grid-template-columns: 1fr; gap: 14px; padding-bottom: 48px; }
+    .card p { min-height: 0; }
+    .header-tag { display: none; }
+    .beams, .spotlight { display: none; }   /* keep phones light */
+    .aurora { filter: blur(52px); }
+    footer { flex-direction: column; align-items: flex-start; }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+     Application chrome — new in the Next app
+     ══════════════════════════════════════════════════════════════════
+     Everything above renders the marketing page. Everything below renders
+     the parts that only exist now that there is a login behind it: the
+     forms, the approvals queue, and the tile states.
+
+     New tokens are declared for both themes in the same place, so a colour
+     added here cannot end up light-mode-only by accident.
+     ══════════════════════════════════════════════════════════════════ */
+
+  :root {
+    /* next/font self-hosts IBM Plex and exposes it as a CSS variable, so the
+       family names move behind the two variables the rest of the sheet
+       already uses. Fallbacks match the static page. */
+    --font-sans: var(--font-plex-sans), 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, monospace;
+
+    /* Form fields */
+    --field-bg:       rgba(10, 22, 40, 0.55);
+    --field-border:   rgba(255, 255, 255, 0.14);
+    --field-focus:    var(--accent);
+    --placeholder:    #6F86A3;
+
+    /* Buttons */
+    --btn-fg:         #FFFFFF;
+    --btn-bg:         #1A5CB8;
+    --btn-bg-hover:   #2A6FD0;
+
+    /* Notices */
+    --bad:            #FF8A8A;
+    --bad-bg:         rgba(255, 92, 92, 0.12);
+    --bad-border:     rgba(255, 92, 92, 0.34);
+    --good:           #6FE3B0;
+    --good-bg:        rgba(0, 200, 140, 0.12);
+    --good-border:    rgba(0, 200, 140, 0.32);
+
+    /* Tile state chips */
+    --chip-bg:        rgba(255, 255, 255, 0.06);
+    --chip-fg:        var(--fg-3);
+  }
+
+  :root.light {
+    --field-bg:       #FFFFFF;
+    --field-border:   rgba(10, 22, 40, 0.18);
+    --placeholder:    #8A9BB0;
+
+    --btn-bg:         #1A5CB8;
+    --btn-bg-hover:   #0A3D8F;
+
+    --bad:            #A8232D;
+    --bad-bg:         rgba(168, 35, 45, 0.08);
+    --bad-border:     rgba(168, 35, 45, 0.28);
+    --good:           #0A6B4A;
+    --good-bg:        rgba(10, 107, 74, 0.08);
+    --good-border:    rgba(10, 107, 74, 0.26);
+
+    --chip-bg:        rgba(10, 22, 40, 0.05);
+  }
+
+  /* ── Header controls ──────────────────────────────────────────────
+     Shaped like the theme toggle rather than like a call to action. The
+     approvals link in particular is seen by a handful of people and should
+     not shout at everyone else. */
+  .header-ctl {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 12px;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    color: var(--fg-2);
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+  .header-ctl:hover {
+    color: var(--accent);
+    border-color: var(--card-hover-border);
+    background: var(--icon-bg);
+  }
+  .header-ctl svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  .header-who {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--fg-3);
+    max-width: 24ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .count-pill {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--btn-fg);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1;
+  }
+
+  /* ── Tiles that are not links ─────────────────────────────────────
+     Same shell, no hover promising a click. */
+  .card-static { cursor: default; }
+  .card-static:hover, .card-static:focus-within {
+    transform: none;
+    background: var(--card);
+    border-color: var(--line);
+    box-shadow: var(--card-shadow);
+  }
+  .card-static:hover::before, .card-static:hover::after { opacity: 0; }
+  .card-dim .card-icon {
+    color: var(--fg-3);
+    border-color: var(--line-strong);
+    background: var(--chip-bg);
+  }
+  .card-dim h2, .card-dim .card-url { color: var(--fg-3); }
+
+  .state-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--chip-fg);
+    white-space: nowrap;
+  }
+  .state-chip svg { width: 14px; height: 14px; }
+
+  .tile-note {
+    margin-top: 10px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--fg-3);
+    border-left: 2px solid var(--line-strong);
+    padding-left: 10px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* The request form sits inside a tile, so it stays quiet. */
+  .tile-request { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+  .tile-request textarea { width: 100%; min-height: 54px; resize: vertical; }
+
+  /* ── Fields ───────────────────────────────────────────────────────── */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+  }
+  .field-hint { font-size: 12.5px; color: var(--fg-3); line-height: 1.5; }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--field-bg);
+    border: 1px solid var(--field-border);
+    border-radius: 8px;
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 14.5px;
+    line-height: 1.5;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  input::placeholder, textarea::placeholder { color: var(--placeholder); }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--field-focus);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--btn-bg);
+    color: var(--btn-fg);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  }
+  .btn:hover { background: var(--btn-bg-hover); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .btn-wide { width: 100%; }
+
+  .btn-quiet {
+    background: transparent;
+    border-color: var(--line-strong);
+    color: var(--fg-2);
+  }
+  .btn-quiet:hover {
+    background: var(--icon-bg);
+    border-color: var(--card-hover-border);
+    color: var(--accent);
+  }
+
+  .btn-small { padding: 7px 12px; font-size: 12.5px; }
+
+  /* ── Notices ──────────────────────────────────────────────────────── */
+  .notice {
+    padding: 10px 13px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: var(--chip-bg);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--fg-2);
+  }
+  .notice-bad  { background: var(--bad-bg);  border-color: var(--bad-border);  color: var(--bad); }
+  .notice-good { background: var(--good-bg); border-color: var(--good-border); color: var(--good); }
+
+  /* ── Panels and the narrow auth column ────────────────────────────── */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(10px);
+    padding: 26px;
+  }
+
+  .auth-shell {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 56px 0 72px;
+  }
+  .auth-shell h1 { font-size: clamp(26px, 4vw, 34px); margin-bottom: 8px; }
+  .auth-shell > p {
+    color: var(--fg-2);
+    font-size: 14.5px;
+    margin-bottom: 24px;
+  }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+  .stack-tight { display: flex; flex-direction: column; gap: 10px; }
+
+  .auth-foot { margin-top: 18px; font-size: 13px; color: var(--fg-3); }
+  .auth-foot a { color: var(--accent-cyan); text-decoration: none; }
+  .auth-foot a:hover { text-decoration: underline; }
+
+  /* ── Sub-page heading ─────────────────────────────────────────────── */
+  .page-head { padding: 48px 0 26px; }
+  .page-head h1 { font-size: clamp(28px, 4.2vw, 40px); margin-bottom: 10px; }
+  .page-head p { color: var(--fg-2); font-size: 15px; max-width: 62ch; }
+
+  /* ── The approvals queue ──────────────────────────────────────────── */
+  .queue { display: flex; flex-direction: column; gap: 14px; padding-bottom: 56px; }
+  .queue-item {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(10px);
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .queue-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .queue-who { font-size: 16px; font-weight: 600; }
+  .queue-meta {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--fg-3);
+    letter-spacing: -0.01em;
+  }
+  .queue-app { font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan); }
+  .queue-reason {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--fg-2);
+    border-left: 2px solid var(--line-strong);
+    padding-left: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .queue-forms {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .queue-forms form { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+  .queue-forms .field { min-width: 190px; }
+
+  .empty {
+    padding: 34px 26px;
+    text-align: center;
+    color: var(--fg-3);
+    font-size: 14px;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin: 30px 0 14px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--line), transparent);
+  }
+
+  .muted { color: var(--fg-3); }
+
+
+  /* ── Role selection on the approval queue ─────────────────────────
+     Added with migration 0002: the approver picks from the roles an
+     application actually has instead of typing one, and reads what the
+     role carries before granting it. */
+  select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--field-bg);
+    border: 1px solid var(--field-border);
+    border-radius: 8px;
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 14.5px;
+    line-height: 1.5;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  select:focus {
+    outline: none;
+    border-color: var(--field-focus);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  /* Overrides the single-row shape `.queue-forms form` gives the simpler
+     forms: a decision needs a column, because the role description sits
+     under the select and changes height as the choice changes. */
+  .decision {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    flex: 1 1 290px;
+    min-width: 260px;
+  }
+  .decision .field { min-width: 0; }
+  .decision .btn { align-self: flex-start; }
+
+  .role-desc {
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--fg-2);
+    border-left: 2px solid var(--line-strong);
+    padding-left: 10px;
+  }
+  /* The two heaviest grants in the system — sales sysadmin and SO to
+     Dispatch admin — both carry user management. Nothing is blocked; the
+     description just stops looking like the other ten. */
+  .role-desc-heavy {
+    border-left-color: var(--bad-border);
+    color: var(--bad);
+  }
+
+  @media (max-width: 767px) {
+    .header-who { display: none; }
+    .auth-shell { padding: 32px 0 48px; }
+    .queue-forms { flex-direction: column; gap: 14px; }
+  }

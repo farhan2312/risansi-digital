@@ -1,0 +1,55 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    // The shared packages import each other as './session.ts' rather than
+    // './session.js'. That is deliberate and it is the only spelling all three
+    // consumers accept: Turbopack does no extension substitution at all (it
+    // rejects the '.js' form outright), while Node running the packages' own
+    // tests under --experimental-strip-types needs a real extension and will
+    // not take an extensionless specifier. Nothing is emitted from them —
+    // Next transpiles them in place via transpilePackages — so permitting the
+    // extension costs nothing.
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    // The three entries after "@/*" are a workaround, not a preference.
+    //
+    // @risansi/identity and @risansi/notify arrive as `file:` dependencies,
+    // which npm installs as symlinks to ../../packages/*. Both tsc and the
+    // bundler resolve through the real path, so `import { Resend } from
+    // 'resend'` inside packages/notify/src walks up from packages/notify/src
+    // looking for a node_modules — and there is none at packages/ or at the
+    // repo root, because this repo deliberately has no root package.json
+    // (a live Vercel deployment builds apps/sales from it and workspaces
+    // could change how that installs).
+    //
+    // So the three runtime dependencies those packages declare are installed
+    // here, as this app's own, and pointed at explicitly. Remove these the day
+    // there is a root install for the packages to resolve against.
+    "paths": {
+      "@/*": ["./*"],
+      "jose": ["./node_modules/jose"],
+      "bcryptjs": ["./node_modules/bcryptjs"],
+      "resend": ["./node_modules/resend"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

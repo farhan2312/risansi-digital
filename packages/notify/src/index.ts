@@ -9,11 +9,12 @@
  * was notifying about — see the note at the top of send.ts.
  */
 
-export { escapeHtml, renderCard, type Card } from './card.js';
-export { sendEmail, hubUrl, type SendResult } from './send.js';
+export { escapeHtml, renderCard, type Card } from './card.ts';
+export { sendEmail, hubUrl, type SendResult } from './send.ts';
 export {
   type Queryable,
   notifyAccessRequested,
   notifyAccessDecided,
+  notifyAccessRevoked,
   notifyPendingBacklog,
-} from './access.js';
+} from './access.ts';
