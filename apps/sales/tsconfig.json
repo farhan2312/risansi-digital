@@ -11,6 +11,12 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // @risansi/identity imports its own files as './session.ts'. That is the
+    // only spelling all three consumers accept — Turbopack does no extension
+    // substitution, and Node running the package's own tests under
+    // --experimental-strip-types needs a real extension. Nothing is emitted
+    // from it (Next transpiles it in place), so allowing it costs nothing.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
@@ -19,7 +25,20 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      // Not a preference. @risansi/identity arrives as a `file:` dependency,
+      // which npm installs as a symlink, and resolution goes through the real
+      // path — so `import { SignJWT } from 'jose'` inside packages/identity/src
+      // walks up from there looking for a node_modules and finds none, because
+      // this repo deliberately has no root package.json (a live Vercel
+      // deployment builds this app from it and workspaces could change how
+      // that installs).
+      //
+      // Both already exist here at the top level, so this points at them
+      // rather than installing anything. Remove the day there is a root
+      // install for the package to resolve against.
+      "jose": ["./node_modules/jose"],
+      "bcryptjs": ["./node_modules/bcryptjs"]
     }
   },
   "include": [

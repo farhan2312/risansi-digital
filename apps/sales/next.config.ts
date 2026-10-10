@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== 'production';
@@ -34,7 +35,32 @@ const SECURITY_HEADERS = [
   { key: 'Permissions-Policy',        value: 'geolocation=(self)' },
 ];
 
+/**
+ * The repo root — the parent of both this app and packages/.
+ *
+ * Turbopack resolves nothing outside its project root, and it works that root
+ * out from where the lockfile is, which here is apps/sales. `@risansi/identity`
+ * is a `file:` dependency, so npm installs it as a symlink to ../../packages,
+ * and that target sits outside. Without this the symlink is present on disk
+ * and the build still cannot see through it.
+ *
+ * Documented at node_modules/next/dist/docs/01-app/03-api-reference/05-config/
+ * 01-next-config-js/turbopack.md under "Root directory". apps/hub needs the
+ * same line for the same reason.
+ */
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: REPO_ROOT,
+  },
+
+  // @risansi/identity ships raw TypeScript and arrives as a `file:` dependency,
+  // so npm installs it as a symlink under node_modules and Next compiles
+  // nothing there by default. Phase 3 step 1: read-only so far — NextAuth is
+  // still what decides who is signed in.
+  transpilePackages: ['@risansi/identity'],
+
   experimental: {
     optimizePackageImports: ['@/components/risansi'],
     serverActions: {
