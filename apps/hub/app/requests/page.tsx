@@ -189,7 +189,7 @@ export default async function RequestsPage() {
           </div>
         )}
 
-      <SiteFooter />
+      <SiteFooter signedIn />
     </>
   );
 }

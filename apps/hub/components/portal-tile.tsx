@@ -87,19 +87,41 @@ function BlockedIcon() {
  * Nobody's standing is known, so nothing is claimed about it — clicking
  * through lands on the portal, which bounces them back here to sign in.
  */
+/**
+ * A tile as a signed-out visitor sees it.
+ *
+ * It goes to the sign-in page, never to the portal. These used to link
+ * straight out to sales.risansi.com and the rest, which was how the static
+ * page worked and is wrong here for two reasons.
+ *
+ * It undoes the point of the hub. The whole arrangement is that this is the
+ * only door — one sign-in, then the portals. A tile that steps around it on
+ * the front page says the opposite on the first screen anybody sees.
+ *
+ * And it does not work. A signed-out visitor who follows it arrives at a
+ * portal with no session and gets that portal's own empty or redirected
+ * state, which looks like something is broken rather than like being asked to
+ * sign in.
+ *
+ * The cards stay at full strength rather than dimmed: this is still the
+ * public landing page and four greyed-out boxes is a poor first impression.
+ * What changes is the thing it offers to do.
+ */
 export function MarketingTileCard({
   slug, name, url, blurb, number,
 }: {
   slug: string; name: string; url: string; blurb: string; number: string;
 }) {
   return (
-    <a className="card reveal" href={url} target="_blank" rel="noopener">
+    <a className="card reveal" href="/sign-in">
       <Top slug={slug} number={number} />
       <h2>{name}</h2>
       <p>{blurb}</p>
       <div className="card-foot">
+        {/* The address still shows. It tells somebody which system this is,
+            and a bookmark they already hold will match it. */}
         <span className="card-url">{displayHost(url)}</span>
-        <span className="card-go">Open portal<Arrow /></span>
+        <span className="card-go">Sign in to access<Arrow /></span>
       </div>
     </a>
   );

@@ -86,7 +86,7 @@ export default async function Page() {
             ))}
           </PortalGrid>
         )}
-      <SiteFooter />
+      <SiteFooter signedIn />
     </>
   );
 }
