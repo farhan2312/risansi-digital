@@ -66,7 +66,21 @@ There is no global role and there should not be one. A grant carries an app-spec
    This avoids Next `basePath`, which was the alternative reading. Measured cost of that path, for the record: ~115 call sites (72 `fetch('/api/…')`, 36 plain `<a href="/…">`, 6 `<img src="/…">`, 2 `window.location`), a new build gate to hold it, and a build-time-inlined prefix that cannot be toggled per environment. `<Link>` (30) and `revalidatePath` (155) would have been unaffected. Not needed now.
 
    A happy consequence: `APP_URL` and every link already sent out in a notification email or embedded in an Excel export keeps working untouched.
-4. **Password merge: force a reset.** Nobody's existing password carries over. `must_change_password` already exists in all four portals and is already enforced.
+4. **Password merge: carry the hashes, force a reset only on a real conflict.**
+   *Revised 11 Oct 2026.* The original decision was a blanket reset for
+   everyone, taken when the question looked like "this person has a sales
+   password and a testing password, which wins?". Sequencing dissolves most of
+   that: at Phase 3 only sales moves, so there is no conflict to resolve.
+   Sales hashes with bcrypt cost 10 and so does `@risansi/identity`,
+   deliberately, so those hashes copy across and keep working — **nobody
+   resets anything on cutover day**, which takes a great deal of risk out of
+   the one day everybody notices.
+
+   The conflict is real at Phase 4, when somebody already holding an identity
+   row from sales also has a testing password that will stop working. That is
+   41 people at most, not 91, and only those whose two passwords actually
+   differ. `must_change_password` exists in all four portals and is enforced;
+   it gets used there, on the people it applies to.
 5. **One approver for all applications.** No per-app approver table, no routing rules. A single `identity` role may decide any grant.
 6. **Four separate databases, mixed and matched as needed.** So `identity` gets its own home and **no app can foreign-key to it.** The design in §5 assumes exactly that: link by column, not by constraint.
 
@@ -242,14 +256,39 @@ enable long paths (`git config --system core.longpaths true` plus the
 - No portal is touched. Every existing login still works.
 - Done when: someone can sign up at the hub, see the tiles, request sales access, and the approver can approve it — with the grant having no effect yet.
 
-### Phase 3 — Sales cutover. The only hard one.
+### Phase 3 — Sales cutover. Five deploys, one of them visible.
 Rehearse against a restored copy of the sales database first (§2.2).
 
-- Seed `identity.users` from sales `users`; add `users.identity_user_id`.
-- Rewrite `lib/risansi-auth.ts` to resolve `CurrentUser` from shared session + grant + profile. Keep the shape. The 48 FKs are not touched.
-- `proxy.ts` checks the sales grant instead of `users.status`. The check is already centralised there and `proxy-coverage-check.mjs` already asserts all 91 routes sit behind it — one place to change, with a gate proving nothing escaped.
-- An unauthenticated hit on `sales.risansi.com` redirects to the hub. The portal's own sign-in page is retired.
-- Credential columns stay on `users`, unread, for one release. Dropping them is a later migration.
+Split up *after* the proxy staleness below came to light, because a single
+cutover would have put that discovery on the day everybody was watching.
+
+| Step | What ships | Who notices |
+|---|---|---|
+| 1 | Sales *can* read the shared session. NextAuth stays primary. | nobody |
+| 2 | Seed `identity.users` and the grants from sales. | nobody |
+| 3 | Sales prefers the shared session, NextAuth as fallback. | nobody — both logins work |
+| 4 | Sales' sign-in redirects to the hub. | **everybody** |
+| 5 | Remove NextAuth and the credential columns. | nobody |
+
+Only step 4 is a cutover. Steps 1-3 are additive, and if step 3 misbehaves
+people fall back to the sales login with nothing to undo.
+
+**Where the grant check goes, and why not the proxy.** An earlier draft had
+`proxy.ts` testing the sales grant, on the strength of a comment there saying
+the jwt callback re-reads `users` on every request so the value is live. That
+comment was wrong — `withAuth` reads the cookie through `getToken()`, which
+decodes without running the callback — and it surfaced on 11 Oct as a
+deactivated account rendering a portal full of zeros instead of being refused.
+
+So the grant is checked in `getCurrentUser()` and the layout, which genuinely
+re-read per request, and the proxy stays a cheap outer door that turns away
+the common case without a round trip. Written down here rather than
+rediscovered on cutover day.
+
+- Seed `identity.users` from sales `users`, carrying the bcrypt hashes (§2.4); add `users.identity_user_id`.
+- Give every existing sales account an Approved grant whose `app_role` is its current sales role, so nobody loses access on the day.
+- Rewrite `lib/risansi-auth.ts` to resolve `CurrentUser` from shared session + grant + profile. Keep the shape: 76 files call it and only about ten read a claim directly. Sales keeps its integer `users.id` and all 48 foreign keys.
+- Credential columns stay on `users`, unread, for one release. Dropping them is step 5.
 - Done when: one login at the hub opens sales, and revoking the grant locks someone out on their next click.
 
 ### Phase 4 — Testing and Pump Selection.
