@@ -8,7 +8,7 @@ import { ExportPdfButton } from '@/components/risansi/ExportPdfButton';
 import { RefreshButton } from '@/components/risansi/RefreshButton';
 import Link from 'next/link';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, hasRole } from '@/lib/risansi-auth';
+import { getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
 import { clientStatusLabel, CLIENT_STATUSES } from '@/lib/risansi-client-status';
 import { SortableTH } from '@/components/risansi/SortableTH';
 import { sortRows, type SortableColumn } from '@/lib/risansi-table-sort';
@@ -138,7 +138,7 @@ export default async function ExecDashboardPage({ searchParams }: {
     redirect('/risansi/mobile');
   }
 
-  const session     = await getServerSession(authOptions);
+  const session     = await getSession();
   const displayName = session?.user?.name ?? session?.user?.email ?? 'Admin';
   const role        = session?.user?.role ?? '';
 

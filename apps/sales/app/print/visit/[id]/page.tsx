@@ -3,7 +3,7 @@ import { probabilityPctSql } from '@/lib/risansi-probability-codes';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, clientScopeSql, canViewClient , OWN_OPEN } from '@/lib/risansi-auth';
+import { OWN_OPEN, canViewClient, clientScopeSql, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { AutoPrint } from '@/components/risansi/AutoPrint';
 import {
   PRINT_CSS, ROOT, C, Section, Facts, TextBlock, TH, TD, DocHeader, RowFacts,
@@ -34,7 +34,7 @@ interface ClientComment { body: string; who: string; created_at: string; total: 
 
 export default async function VisitPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
 
   const visitRes = await risansiPool.query<Record<string, unknown>>(

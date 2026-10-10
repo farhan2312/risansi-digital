@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth/next';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { hasRole, getCurrentUser, whyCannotWorkClient } from '@/lib/risansi-auth';
+import { getCurrentUser, getSession, hasRole, whyCannotWorkClient } from '@/lib/risansi-auth';
 
 /**
  * A refusal the person can read. Thrown server-action errors are redacted in
@@ -45,7 +45,7 @@ export interface PumpUploadResult {
 const textOrNull = pumpTextOrNull;
 
 export async function uploadPumps(rows: PumpPayloadRow[]): Promise<PumpUploadResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!hasRole(session?.user?.role, 'admin')) {
     throw new Error('Unauthorized');
   }
@@ -144,7 +144,7 @@ export async function uploadPumps(rows: PumpPayloadRow[]): Promise<PumpUploadRes
 }
 
 export async function deletePumpUpload(logId: number): Promise<void> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!hasRole(session?.user?.role, 'admin')) {
     throw new Error('Unauthorized');
   }

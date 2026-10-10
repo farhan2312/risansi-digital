@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/risansi-auth';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -12,7 +13,7 @@ import risansiPool from '@/lib/db-risansi';
 // client_secondary_reps, and mapping a tour does not touch either.
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
     if (!session?.user) {
       return NextResponse.json([], { status: 401 });
     }

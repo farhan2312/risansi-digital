@@ -5,7 +5,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Topbar, Donut } from '@/components/risansi';
 import { periodLabel } from '@/lib/risansi-revenue-period';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, clientVisibilitySql } from '@/lib/risansi-auth';
+import { clientVisibilitySql, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { formatRev } from '@/lib/risansi-utils';
 import { RevenueTopClients, type RevenueClientRow } from '@/components/risansi/RevenueTopClients';
 import { UrlSelect } from '@/components/risansi/UrlSelect';
@@ -57,7 +57,7 @@ export default async function RevenuePage({
   const sp = await searchParams;
 
   // ── Role / rep scoping ──────────────────────────────────────
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? 'rep';
   const isRep   = role === 'rep';
   let repId: number | null = session?.user?.repId ?? null;

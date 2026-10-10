@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { getManagerAssignableReps } from '@/lib/risansi-auth';
+import { getManagerAssignableReps, getSession } from '@/lib/risansi-auth';
 import risansiPool from '@/lib/db-risansi';
 
 // Columns every consumer of this endpoint relies on. id is text so client-side
@@ -10,7 +10,7 @@ const REP_COLS = `id::text AS id, name, zone, route, initials, rep_code, email, 
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
     if (!session?.user) {
       return NextResponse.json([], { status: 401 });
     }

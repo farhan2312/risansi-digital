@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
 import { getGreeting, fmtCr, formatRev, getCurrentFY } from '@/lib/risansi-utils';
-import { getCurrentUser, clientVisibilitySql, clientScopeSql , OWN_OPEN } from '@/lib/risansi-auth';
+import { OWN_OPEN, clientScopeSql, clientVisibilitySql, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { EmptyState } from '@/components/risansi/EmptyState';
 import { EditVisitButton } from '@/components/risansi/EditVisitButton';
 import { MobilePlanVisit } from '@/components/risansi/MobilePlanVisit';
@@ -38,7 +38,7 @@ const STATUS_BG: Record<string, string> = {
 // ── Page ───────────────────────────────────────────────────────
 
 export default async function MobileDayPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const email   = session?.user?.email ?? '';
   const role    = session?.user?.role ?? 'rep';
 

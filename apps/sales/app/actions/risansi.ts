@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { getManagerAssignableReps, hasRole, getCurrentUser, canViewClient, whyCannotWorkClient, whyCannotVisitClient, isDepartment, type RisansiRole } from '@/lib/risansi-auth';
+import { canViewClient, getCurrentUser, getManagerAssignableReps, getSession, hasRole, isDepartment, type RisansiRole, whyCannotVisitClient, whyCannotWorkClient } from '@/lib/risansi-auth';
 import risansiPool from '@/lib/db-risansi';
 import { recordAudit } from '@/lib/audit';
 import { normalizeClientName, uniqueLeadCode } from '@/lib/risansi-lead-code';
@@ -139,7 +139,7 @@ async function syncOfferRevisions(
 }
 
 async function requireSession() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
   return session.user;
 }
@@ -307,7 +307,7 @@ async function logActivity(entityType: string, entityId: string, action: string,
 // ── Access request ─────────────────────────────────────────────
 
 export async function requestAccess(_formData: FormData) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
 
   if (!session?.user?.email) {
     redirect('/api/auth/signin');
@@ -591,7 +591,7 @@ async function saveClientOwnership(clientId: number, formData: FormData, actorEm
  * only that something went wrong.
  */
 export async function updateClient(clientId: number, formData: FormData): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!hasRole(session?.user?.role, 'admin')) {
     return fail('Only an admin can edit a client.');
   }
@@ -796,7 +796,7 @@ export async function addClientComment(clientId: number, body: string): Promise<
   if (!text) return fail('Comment cannot be empty.');
   if (text.length > 5000) return fail('Comment is too long (5,000 characters at most).');
 
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const authorName = session?.user?.name ?? user.email;
 
   await risansiPool.query(
@@ -2149,7 +2149,7 @@ export async function checkInNewVisit(data: {
  * the point of this function — they have to reach the person typing.
  */
 export async function addClient(formData: FormData): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!hasRole(session?.user?.role, 'admin')) {
     return fail('Only an admin can add a client.');
   }
@@ -2271,7 +2271,7 @@ export async function addClient(formData: FormData): Promise<SaveResult> {
  * code so the caller can navigate to the client's new URL.
  */
 export async function convertLeadToClient(clientId: number, erpCode: string): Promise<{ newCode: string }> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!hasRole(session?.user?.role, 'admin')) throw new Error('Unauthorized');
   const email = session!.user.email ?? 'system';
 

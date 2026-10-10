@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
 import { recordAudit } from '@/lib/audit';
+import { getSession } from '@/lib/risansi-auth';
 
 // Refusals come back rather than being thrown: Next redacts a thrown
 // server-action message in production, so the sentence telling somebody how to
@@ -19,7 +20,7 @@ const VALID_ROLES = ['rep', 'manager', 'admin', 'sysadmin'];
 
 // Access-approval / user creation is now a System Admin (sysadmin) capability.
 async function requireSysadmin() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
   const role = session.user.role ?? '';
   if (role !== 'sysadmin') redirect('/api/auth/signin');

@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/risansi-auth';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -15,7 +16,7 @@ import risansiPool from '@/lib/db-risansi';
 // String(id) comparisons hold.
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
     if (!session?.user) return NextResponse.json({ ids: [], owner: null, covering: [] }, { status: 401 });
 
     const clientId = parseInt(new URL(request.url).searchParams.get('clientId') ?? '', 10);

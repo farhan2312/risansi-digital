@@ -3,7 +3,7 @@ import { probabilityPctSql } from '@/lib/risansi-probability-codes';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, canViewClient } from '@/lib/risansi-auth';
+import { canViewClient, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { formatRev, fmtCr, formatLastVisit } from '@/lib/risansi-utils';
 import { clientStatusLabel } from '@/lib/risansi-client-status';
 import { AutoPrint } from '@/components/risansi/AutoPrint';
@@ -50,7 +50,7 @@ function fmtDate(v: string | Date | null | undefined): string {
 
 export default async function ClientPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
 
   const isNumeric = /^\d+$/.test(id);

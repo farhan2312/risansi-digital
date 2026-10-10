@@ -6,10 +6,11 @@ import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
 import { recordAudit } from '@/lib/audit';
+import { getSession } from '@/lib/risansi-auth';
 
 // Access-approval is now a System Admin (sysadmin) capability.
 async function requireSysadmin() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
   const role = session.user.role ?? '';
   if (role !== 'sysadmin') redirect('/risansi');

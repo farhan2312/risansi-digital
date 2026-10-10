@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, clientScopeSql, canViewClient, canEditVisitReport, whyCannotWorkClient, hasRole, OWN_OPEN } from '@/lib/risansi-auth';
+import { OWN_OPEN, canEditVisitReport, canViewClient, clientScopeSql, getCurrentUser, getSession, hasRole, whyCannotWorkClient } from '@/lib/risansi-auth';
 import { Topbar } from '@/components/risansi';
 import Link from 'next/link';
 import { VisitReportForm } from '@/components/risansi/VisitReportForm';
@@ -19,7 +19,7 @@ export default async function VisitReportPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
 
   const visitRes = await risansiPool.query<{

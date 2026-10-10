@@ -4,7 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Topbar, Donut, Tag, KpiCard, MultiSelectFilter, ActiveFilterBar, SortableTH } from '@/components/risansi';
 import risansiPool from '@/lib/db-risansi';
 import { clientRepNamesSql } from '@/lib/risansi-client-rep';
-import { getCurrentUser, clientVisibilitySql, clientScopeSql , OWN_OPEN } from '@/lib/risansi-auth';
+import { OWN_OPEN, clientScopeSql, clientVisibilitySql, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { fmtCr } from '@/lib/risansi-utils';
 import { AND_LIVE_CLIENT } from '@/lib/risansi-opportunity-scope';
 import { SortedTable } from '@/components/risansi/SortedTable';
@@ -136,7 +136,7 @@ export default async function CompetePage({
   const sp = await searchParams;
 
   // ── Role / rep scoping (rep sees only their own visit data) ──
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? 'rep';
   const isRep   = role === 'rep';
   let repId: number | null = session?.user?.repId ?? null;

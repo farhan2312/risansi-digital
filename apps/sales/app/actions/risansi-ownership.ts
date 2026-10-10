@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
 import { recordAudit } from '@/lib/audit';
-import { orphanSql } from '@/lib/risansi-auth';
+import { getSession, orphanSql } from '@/lib/risansi-auth';
 import {
   freezeCreditForClient, freezeCreditForRepBook, thawOpenCredit,
 } from '@/lib/risansi-attribution';
@@ -26,7 +26,7 @@ const fail = (e: unknown): Outcome => ({
 });
 
 async function requireAdmin(): Promise<{ email: string } | null> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role = session?.user?.role;
   if (role !== 'admin' && role !== 'sysadmin') return null;
   return { email: session?.user?.email ?? '' };

@@ -4,7 +4,7 @@ import { Topbar, MultiSelectFilter, ActiveFilterBar } from '@/components/risansi
 import { DateRangeFilter } from '@/components/risansi/DateRangeFilter';
 import { ActionQueueRow, type QueueTask } from '@/components/risansi/ActionQueueRow';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, hasRole } from '@/lib/risansi-auth';
+import { getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
 import {
   buildTasksQuery, buildTasksCountQuery, buildTasksStatsQuery, TASK_DUE_BUCKETS,
   RESP_EXTERNAL, type TaskFilters,
@@ -29,7 +29,7 @@ export default async function ActionRegistryPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const sp = await searchParams;
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const email = session?.user?.email ?? '';
   const user  = await getCurrentUser();
   const isAdmin = hasRole(user.role, 'admin');

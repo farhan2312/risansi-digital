@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/risansi-auth';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -8,7 +9,7 @@ export const runtime = 'nodejs';
 // Records active-time beacons from the client ActivityTracker. Body is JSON
 // (sent via sendBeacon or fetch keepalive): { path, seconds, sessionId }.
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) return NextResponse.json({ ok: false }, { status: 401 });
 
   let body: { path?: unknown; seconds?: unknown; sessionId?: unknown };

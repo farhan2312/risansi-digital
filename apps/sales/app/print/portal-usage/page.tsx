@@ -12,7 +12,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser } from '@/lib/risansi-auth';
+import { getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { PortalUsageReport, moduleOf } from '@/components/risansi/PortalUsageReport';
 import { loadPersonMetrics, comparePerson, cohortFor, PERSON_WINDOWS } from '@/lib/risansi-person-metrics';
 import { windowStartSql } from '@/lib/risansi-audit-overall';
@@ -31,7 +31,7 @@ export default async function PortalUsagePrint({ searchParams }: {
   searchParams: Promise<{ user?: string; win?: string }>;
 }) {
   const sp = await searchParams;
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
   const me = await getCurrentUser();
   // Same gate as the Audit Log page this is launched from. An activity report

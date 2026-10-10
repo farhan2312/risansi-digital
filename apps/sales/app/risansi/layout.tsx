@@ -1,16 +1,20 @@
 import { IBM_Plex_Sans, IBM_Plex_Mono, Instrument_Serif } from 'next/font/google';
-import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/lib/risansi-auth';
+import { headers } from 'next/headers';
+import { getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
 import { cache } from 'react';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Sidebar } from '@/components/risansi';
 import type { SidebarRole } from '@/components/risansi/Sidebar';
 import { BottomNav } from '@/components/risansi/BottomNav';
 import { ActivityTracker } from '@/components/risansi/ActivityTracker';
 import risansiPool from '@/lib/db-risansi';
 
-const getSession = cache(() => getServerSession(authOptions));
+// Was a local `cache(() => getSession())`. That is why the
+// first shared-session test still bounced to sign-in with everything else
+// working: the proxy let the request through, the grant resolved, and then
+// this helper asked NextAuth — which knew nothing about it — and found
+// nobody. The shared-aware one lives in lib/risansi-auth.ts and tries the
+// Risansi Digital cookie before falling back to NextAuth.
 
 const ibmPlexSans = IBM_Plex_Sans({
   weight: ['400', '500', '600'],
@@ -73,6 +77,33 @@ export default async function RisansiLayout({ children }: { children: React.Reac
   const current = await getCurrentUser();
   if (!current.email) {
     redirect('/api/auth/signup/pending');
+  }
+
+  // The two path rules proxy.ts applies, applied again here from the role this
+  // layout actually resolved.
+  //
+  // Not belt-and-braces. proxy.ts reads them off the NextAuth token, and a
+  // request carrying a Risansi Digital session instead has no such token — it
+  // is waved through there precisely so that it can be judged here, where the
+  // grant has been read. Without this, the shared session would be a way past
+  // both rules.
+  //
+  // It also fixes them for NextAuth sessions, which were being judged on a
+  // role baked into a cookie that getToken() never re-reads. The staff
+  // allowlist in particular existed in exactly one place, and that place was
+  // working from a value that could be hours stale.
+  const pathname = (await headers()).get('x-risansi-path') ?? '';
+  if (pathname) {
+    if (pathname.startsWith('/risansi/admin') && !hasRole(current.role, 'admin')) {
+      redirect('/risansi');
+    }
+    // Staff reach Client 360 and Complaints and nothing else — an allowlist,
+    // so a screen added later fails closed rather than quietly inheriting.
+    if (current.role === 'staff') {
+      const allowed = ['/risansi/clients', '/risansi/complaints']
+        .some(p => pathname === p || pathname.startsWith(`${p}/`));
+      if (!allowed) redirect('/risansi/complaints');
+    }
   }
 
   // Force temp-password users to set their own password before using the app.

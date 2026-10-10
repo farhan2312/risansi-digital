@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/risansi-auth';
 import type { CSSProperties } from 'react';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
@@ -24,7 +25,7 @@ type LogRow = OutstandingLogRow;
 type OutRow = OutstandingRow;
 
 export default async function OutstandingAdminPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? '';
   if (!['admin', 'sysadmin'].includes(role)) redirect('/risansi');
 

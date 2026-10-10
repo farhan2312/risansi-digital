@@ -6,7 +6,7 @@ import { Topbar, Tag, SortableTH } from '@/components/risansi';
 import { MobileSortUrl } from '@/components/risansi/MobileSort';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, clientVisibilitySql, clientScopeSql, OWN_OPEN, orphanSql } from '@/lib/risansi-auth';
+import { OWN_OPEN, clientScopeSql, clientVisibilitySql, getCurrentUser, getSession, orphanSql } from '@/lib/risansi-auth';
 import { parseVisitFilters, getVisitFilterOptions, getScopedRepNames, getExhibitionScopeUserIds } from '@/lib/risansi-visit-filters';
 import { FieldFilterBar } from '@/components/risansi/FieldFilterBar';
 import { PlannedVisitsExport } from '@/components/risansi/PlannedVisitsExport';
@@ -154,7 +154,7 @@ export default async function FieldActivityPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? 'rep';
   const isRep   = role === 'rep';
 

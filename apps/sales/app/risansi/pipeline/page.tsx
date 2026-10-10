@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Topbar, MultiSelectFilter, ActiveFilterBar } from '@/components/risansi';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, clientScopeSql, OWN_OPEN, hasRole } from '@/lib/risansi-auth';
+import { OWN_OPEN, clientScopeSql, getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
 import { creditedRepNameSql, CREDITED_REP_JOIN } from '@/lib/risansi-attribution';
 import { getCurrentFY, fmtCr, fmtUsdFromCr } from '@/lib/risansi-utils';
 import { getUsdRate } from '@/lib/risansi-settings';
@@ -91,7 +91,7 @@ export default async function PipelinePage({
   const cyEnd   = `${Number(cyStart.slice(0, 4)) + 1}-04-01`;   // 2027-04-01 (exclusive)
 
   // ── Role / rep scoping ──────────────────────────────────────
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? 'rep';
 
   // Prefer the session's linked rep_id; fall back to email lookup.

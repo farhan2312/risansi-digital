@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, clientVisibilitySql } from '@/lib/risansi-auth';
+import { clientVisibilitySql, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { NewVisitClient } from './NewVisitClient';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export interface ClientOption {
 }
 
 export default async function NewVisitPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const email = session?.user?.email ?? '';
 
   const rep = await q<{ id: string; name: string } | null>(async () => {

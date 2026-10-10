@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import type { Session } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
+import identityPool from '@/lib/db-identity';
+import { readSharedSession } from '@/lib/risansi-shared-session';
 
 export type RisansiRole = 'staff' | 'rep' | 'manager' | 'admin' | 'sysadmin';
 
@@ -60,7 +62,111 @@ export function hasRole(userRole: string | null | undefined, requiredRole: Risan
 // callback — which queries the users table — every call, and a single page render
 // calls getCurrentUser/requireSession many times (per gated component). React's
 // cache() dedupes them to one lookup for the lifetime of the request.
-const getSession = cache(async () => getServerSession(authOptions));
+/**
+ * Phase 3 step 3: a session built from the shared Risansi Digital cookie.
+ *
+ * Returns a Session of exactly the shape NextAuth produces, so everything
+ * downstream — getCurrentUser, both requireSession variants, the layout, the
+ * 76 files that never touch a session directly — carries on unchanged. That is
+ * the whole design: one function learns a second way to answer, and nothing
+ * else in the app is edited.
+ *
+ * ── It can only ADD access, never remove it ──────────────────────
+ *
+ * This returns null unless the shared cookie resolves all the way to an
+ * approved, active sales account. Anything short of that — no cookie, no
+ * linked sales row, a grant that is Pending or Revoked, either side
+ * deactivated — falls through to NextAuth, which behaves exactly as it did
+ * yesterday.
+ *
+ * So this deploy cannot lock anybody out. Somebody who could sign in this
+ * morning still can, by the same route. The refusal becomes real at step 4,
+ * when NextAuth goes and there is nothing to fall through to; doing both at
+ * once would mean a new way in and a new way to be shut out on the same day,
+ * with no way to tell which had misbehaved.
+ *
+ * ── Where each field comes from ──────────────────────────────────
+ *
+ * identity owns WHO you are and WHETHER you may open sales. The sales row owns
+ * WHAT you are inside it — the integer id that all 48 foreign keys use, and
+ * the departments. `role` comes from the grant, because that is now where an
+ * approver sets it; the sales column is a fallback for a grant approved before
+ * roles were catalogued.
+ */
+const sessionFromSharedCookie = cache(async (): Promise<Session | null> => {
+  // Everything in here is best-effort, and that is the single most important
+  // property of this function during step 3.
+  //
+  // getSession() is now on the path of every request in the app. readToken
+  // THROWS when RISANSI_SESSION_SECRET is missing or too short — correct in
+  // the hub, where it is the only way in and a silent misconfiguration would
+  // be worse than a crash. Here it would mean a sales deploy that forgot one
+  // variable locks out every single person, NextAuth users included, for a
+  // feature nobody is using yet.
+  //
+  // So: any failure at all falls through to NextAuth, which is exactly how
+  // this app behaved yesterday. The shared session can add a way in. It must
+  // not be able to take one away.
+  let shared;
+  try {
+    shared = await readSharedSession();
+  } catch (e) {
+    console.error('[shared-session] could not be read, falling back to NextAuth:', e);
+    return null;
+  }
+  if (!shared) return null;
+
+  const { rows } = await risansiPool.query<{
+    id: number; email: string; name: string | null; role: string | null;
+    is_active: boolean; status: string; departments: string[] | null;
+  }>(
+    `SELECT u.id, u.email, u.name, u.role, u.is_active, u.status,
+            ARRAY(SELECT d.department FROM user_departments d
+                   WHERE d.user_id = u.id ORDER BY d.department) AS departments
+       FROM users u
+      WHERE u.identity_user_id = $1
+      LIMIT 1`,
+    [shared.userId],
+  );
+  const sales = rows[0];
+  if (!sales || !sales.is_active || sales.status !== 'Approved') return null;
+
+  // The grant lives in the other database, so this cannot be one join.
+  const grant = await identityPool.query<{ status: string; app_role: string | null; is_active: boolean }>(
+    `SELECT g.status, g.app_role, u.is_active
+       FROM identity.app_grants g
+       JOIN identity.users u ON u.id = g.user_id
+      WHERE g.user_id = $1 AND g.app_slug = 'sales'
+      LIMIT 1`,
+    [shared.userId],
+  ).catch(() => ({ rows: [] as { status: string; app_role: string | null; is_active: boolean }[] }));
+
+  const g = grant.rows[0];
+  if (!g || !g.is_active || g.status !== 'Approved') return null;
+
+  return {
+    user: {
+      name:  sales.name ?? shared.name,
+      email: sales.email,
+      image: null,
+      risansiAccess: 'Approved',
+      role: g.app_role ?? sales.role ?? 'rep',
+      repId: sales.id,
+      mustChange: shared.mustChangePassword,
+      departments: (sales.departments ?? []).filter(isDepartment),
+    },
+    expires: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+  } satisfies Session;
+});
+
+/**
+ * The shared Risansi Digital session first, NextAuth second.
+ *
+ * Both work, deliberately, for one release. See the note above on why this
+ * ordering cannot lock anybody out.
+ */
+export const getSession = cache(async (): Promise<Session | null> =>
+  (await sessionFromSharedCookie()) ?? getServerSession(authOptions));
 
 /**
  * Is this session still entitled to the portal?

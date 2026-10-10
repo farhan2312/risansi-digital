@@ -12,7 +12,7 @@ import { fyShortLabel, formatRev, formatLastVisit, fmtUsdFromCr } from '@/lib/ri
 import { getUsdRate } from '@/lib/risansi-settings';
 import { OfferRevisionsList } from '@/components/risansi/OfferRevisionsField';
 import type { OfferRevision } from '@/lib/risansi-offer-revisions';
-import { hasRole, getCurrentUser, canViewClient } from '@/lib/risansi-auth';
+import { canViewClient, getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
 import {
   clientPrimaryRepSql, clientRepNamesSql, clientSecondaryNamesSql, clientManagerNamesSql,
 } from '@/lib/risansi-client-rep';
@@ -184,7 +184,7 @@ export default async function ClientProfilePage({
 }) {
   const { id } = await params;
 
-  const session  = await getServerSession(authOptions);
+  const session  = await getSession();
   const role     = session?.user?.role ?? '';
   const canEdit  = hasRole(role, 'admin');
 

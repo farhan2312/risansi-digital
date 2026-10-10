@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { hasRole } from '@/lib/risansi-auth';
+import { getSession, hasRole } from '@/lib/risansi-auth';
 import { Topbar } from '@/components/risansi';
 import { UsersManager, type UserRow } from '@/components/risansi/UsersManager';
 
@@ -16,7 +16,7 @@ async function q<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 // access requests, create/edit users (name, email, role), reset passwords,
 // activate/deactivate, and delete. Tour assignment lives on Tours & Reps.
 export default async function AdminPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? '';
 
   // Sysadmin-only (mirrors the /admin proxy guard).

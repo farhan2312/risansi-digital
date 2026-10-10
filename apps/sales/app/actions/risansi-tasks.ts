@@ -4,12 +4,12 @@ import { getServerSession } from 'next-auth/next';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, canViewClient, hasRole, canEditVisitReport } from '@/lib/risansi-auth';
+import { canEditVisitReport, canViewClient, getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
 import { notifyActionAssigned } from '@/lib/risansi-email';
 import { pushInApp } from '@/lib/risansi-inapp';
 
 async function requireEmail(): Promise<string> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) throw new Error('Unauthorized');
   return session.user.email;
 }

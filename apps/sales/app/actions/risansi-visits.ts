@@ -6,7 +6,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
 import { recordAudit } from '@/lib/audit';
 import { withinVisitEditWindow, VISIT_EDIT_WINDOW_DAYS } from '@/lib/risansi-visit-edit-window';
-import { canEditVisitReport, whyCannotVisitClient } from '@/lib/risansi-auth';
+import { canEditVisitReport, getSession, whyCannotVisitClient } from '@/lib/risansi-auth';
 import { pctForProbabilityCode } from '@/lib/risansi-probability-codes';
 import { isEpcOem } from '@/lib/risansi-client-types';
 import { notifyExpansionTagged } from '@/lib/risansi-email';
@@ -71,7 +71,7 @@ export async function saveExpansionOpportunity(input: {
   tsmExternal?: string | null;
   tsmExternalEmail?: string | null;
 }): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) throw new Error('Unauthorized');
 
   // Same gate as the rest of the report: an authorised person, within the
@@ -213,7 +213,7 @@ export async function checkInVisit({
   manualNote?: string;
 }): Promise<SaveResult> {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
     if (!session?.user?.email) throw new Error('Not authenticated');
 
     // Only someone allowed to edit this visit may check it in (the UPDATE is
@@ -294,7 +294,7 @@ export async function saveVisitField(
   visitId: string,
   fields: Record<string, unknown>,
 ): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) throw new Error('Unauthorized');
 
   const { rows } = await risansiPool.query<{ rep_id: number | null; submitted_at: string | null; client_id: number | null }>(
@@ -406,7 +406,7 @@ export async function saveClientProfileFromVisit(
   visitId: string,
   patch: Record<string, unknown>,
 ): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) throw new Error('Unauthorized');
 
   const { rows } = await risansiPool.query<{ rep_id: number | null; submitted_at: string | null; client_id: number | null; client_type: string | null }>(
@@ -489,7 +489,7 @@ export async function addEquipment(
     competitor_activity_type?: string;
   },
 ): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) throw new Error('Unauthorized');
 
   // Same gate as the report itself: an authorised person, within the window.
@@ -556,7 +556,7 @@ export async function updateEquipment(
     competitor_activity_type?: string;
   },
 ): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) throw new Error('Unauthorized');
 
   // Editable until submission, then for the correction window only — by an
@@ -613,7 +613,7 @@ export async function updateEquipment(
 // ── Delete equipment (only while the visit is still open) ───────
 
 export async function deleteEquipment(equipmentId: string | number, visitId: string): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) throw new Error('Unauthorized');
 
   // Match the edit rule — an authorised person, correctable until the window closes.
@@ -799,7 +799,7 @@ function oppProductType(pumpType: string | null | undefined): string {
  * Ankur Srivastava's two accounts and he was signed into the other.
  */
 export async function submitVisit(visitId: string): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) return { ok: false, error: 'Your session has expired. Sign in again.' };
 
   const [visitRes, sugarRes, dispRes] = await Promise.all([

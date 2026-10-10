@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/risansi-auth';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -6,7 +7,7 @@ import { ChangePasswordForm } from './ChangePasswordForm';
 // Top-level (outside /risansi) so the forced-change redirect from the Risansi
 // layout never loops. Reached when users.must_change_password is true.
 export default async function ChangePasswordPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
 
   const forced = session.user.mustChange === true;

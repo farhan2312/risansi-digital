@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/risansi-auth';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -9,7 +10,7 @@ import { clientRepIdsSql } from '@/lib/risansi-client-rep';
 // Used by the client form to prefill the multi-owner picker when editing.
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
     if (!session?.user) {
       return NextResponse.json({ owner_ids: [] }, { status: 401 });
     }

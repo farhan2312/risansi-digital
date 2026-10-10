@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/risansi-auth';
 import 'server-only';
 import { headers } from 'next/headers';
 import risansiPool from './db-risansi';
@@ -42,7 +43,7 @@ export async function recordAudit(input: AuditInput): Promise<void> {
         import('next-auth/next'),
         import('@/app/api/auth/[...nextauth]/route'),
       ]);
-      const session = await getServerSession(authOptions);
+      const session = await getSession();
       actorEmail = session?.user?.email ?? null;
       actorRole  = (session?.user?.role as string | undefined) ?? null;
     }

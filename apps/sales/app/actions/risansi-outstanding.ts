@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth/next';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { hasRole } from '@/lib/risansi-auth';
+import { getSession, hasRole } from '@/lib/risansi-auth';
 import risansiPool from '@/lib/db-risansi';
 import { DEBTOR_USER } from '@/lib/risansi-outstanding-debtors';
 
@@ -43,7 +43,7 @@ export type OutstandingUploadOutcome =
 export async function uploadOutstanding(
   rows: OutstandingRow[], asOfDate: string, filename: string,
 ): Promise<OutstandingUploadOutcome> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? '';
   if (!hasRole(role, 'admin')) {
     return { ok: false, error: 'You are signed in as ' + (role || 'an unknown role') + ', which cannot upload outstanding data. An admin has to do it.' };

@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { isDepartment } from '@/lib/risansi-auth';
+import { getSession, isDepartment } from '@/lib/risansi-auth';
 
 // Refusals come back rather than being thrown: Next redacts a thrown
 // server-action message in production, so the sentence telling somebody how to
@@ -15,7 +15,7 @@ const fail = (error: string): SaveResult => ({ ok: false, error });
 
 // Reps & Tours management is a System Admin (sysadmin) capability.
 async function requireSysadmin() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (session?.user?.role !== 'sysadmin') {
     throw new Error('System admin access required');
   }

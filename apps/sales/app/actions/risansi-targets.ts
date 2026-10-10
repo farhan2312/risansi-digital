@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
+import { getSession } from '@/lib/risansi-auth';
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 const fail = (error: string): SaveResult => ({ ok: false, error });
@@ -27,7 +28,7 @@ const MAX_TARGET_CR = 10_000;
  *  All rows are written in one transaction. A partial save would leave the sum
  *  shown against the company target describing a state nobody chose. */
 export async function setRepTargets(rows: RepTargetInput[]): Promise<SaveResult> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (session?.user?.role !== 'sysadmin') return fail('Sysadmin access required.');
   const email = (session.user.email ?? 'system').toLowerCase();
 

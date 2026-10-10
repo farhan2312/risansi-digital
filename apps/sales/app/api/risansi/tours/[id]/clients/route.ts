@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/risansi-auth';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -9,7 +10,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (session?.user?.role !== 'sysadmin') {
     return NextResponse.json({ error: 'Sysadmin access required' }, { status: 403 });
   }

@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser } from '@/lib/risansi-auth';
+import { getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { PortalOverallReport } from '@/components/risansi/PortalOverallReport';
 import { loadOverall, OVERALL_WINDOWS } from '@/lib/risansi-audit-overall';
 
@@ -21,7 +21,7 @@ export default async function PortalOverallPrint({ searchParams }: {
   searchParams: Promise<{ win?: string; role?: string; user?: string }>;
 }) {
   const sp = await searchParams;
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
   const me = await getCurrentUser();
   // Same gate as the Audit Log page this is launched from.

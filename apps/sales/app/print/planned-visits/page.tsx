@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, clientScopeSql , OWN_OPEN } from '@/lib/risansi-auth';
+import { OWN_OPEN, clientScopeSql, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { AutoPrint } from '@/components/risansi/AutoPrint';
 import { C, TH, TD, DocHeader } from '@/components/risansi/print-shared';
 
@@ -42,7 +42,7 @@ export default async function PlannedVisitsPrint({ searchParams }: {
   searchParams: Promise<{ from?: string; to?: string; rep?: string }>;
 }) {
   const sp = await searchParams;
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
   const viewer = await getCurrentUser();
 

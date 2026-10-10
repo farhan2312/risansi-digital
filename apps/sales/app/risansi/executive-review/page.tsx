@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import { Topbar } from '@/components/risansi';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { getCurrentUser, getReviewableRepIds, getManagerAssignableReps, clientVisibilitySql, clientScopeSql , OWN_OPEN } from '@/lib/risansi-auth';
+import { OWN_OPEN, clientScopeSql, clientVisibilitySql, getCurrentUser, getManagerAssignableReps, getReviewableRepIds, getSession } from '@/lib/risansi-auth';
 import risansiPool from '@/lib/db-risansi';
 import { ExecutiveViews, ExecTabs, type ExecData, type Row, type ExecTab } from '@/components/risansi/ExecutiveViews';
 import { ProjectionFilters } from '@/components/risansi/ProjectionFilters';
@@ -46,7 +46,7 @@ const FY_EXPR = (col: string) => `CASE WHEN EXTRACT(MONTH FROM ${col}) >= 4
 export default async function ExecutiveReviewPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined> & { tsm?: string; month?: string; months?: string; view?: string; tab?: string; ctype?: string; name?: string; tview?: string; scope?: string; proj?: string }>;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user?.email) redirect('/api/auth/signin');
   const sp = await searchParams;
 

@@ -2,7 +2,7 @@ import 'server-only';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, clientScopeSql, OWN_OPEN } from '@/lib/risansi-auth';
+import { OWN_OPEN, clientScopeSql, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { parseOppFilters, buildOppFilter, repBookSql } from '@/lib/risansi-opp-filters';
 import { creditedRepNameSql, CREDITED_REP_JOIN } from '@/lib/risansi-attribution';
 import {
@@ -40,7 +40,7 @@ export interface StageRows {
 }
 
 export async function loadStageRows(stage: DashStage, sp: SearchParams): Promise<StageRows> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? 'rep';
   let currentRepId: number | null = session?.user?.repId ?? null;
   if (role === 'rep' && currentRepId == null && session?.user?.email) {
@@ -114,7 +114,7 @@ export async function loadStageRows(stage: DashStage, sp: SearchParams): Promise
 // the client's owner (Rep), industry, client type, and the viewer's scope —
 // because a revenue row has no product type, probability or quote date.
 export async function loadFyActuals(sp: SearchParams): Promise<Map<number, MonthActual>> {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   const role    = session?.user?.role ?? 'rep';
   let currentRepId: number | null = session?.user?.repId ?? null;
   if (role === 'rep' && currentRepId == null && session?.user?.email) {

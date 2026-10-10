@@ -3,7 +3,32 @@
 // 03-api-reference/03-file-conventions/proxy.md. `proxy` runs on the Node.js
 // runtime, which is what next-auth's getToken-based `withAuth` needs anyway.
 import { withAuth } from 'next-auth/middleware';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
+
+/**
+ * Does this request carry a valid Risansi Digital session?
+ *
+ * Signature and issuer only — no database. The proxy's job is to turn away
+ * somebody with no credentials at all; deciding what a credentialled person
+ * may see costs a query and belongs where the query happens.
+ *
+ * Inlined rather than imported from @risansi/identity because this file runs
+ * in the proxy, and `next/headers` — which that package's reader uses — is not
+ * available here. Same cookie name, same secret, same issuer.
+ */
+async function sharedSessionIsValid(req: NextRequest): Promise<boolean> {
+  const raw = req.cookies.get('risansi_session')?.value;
+  const secret = process.env.RISANSI_SESSION_SECRET;
+  if (!raw || !secret) return false;
+  try {
+    await jwtVerify(raw, new TextEncoder().encode(secret), { issuer: 'risansi-digital' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 
 /** Every page prefix a `staff` user may open. Client 360 is read-only for them
  *  (nothing in the client write path accepts a non-admin), and the print view is
@@ -15,7 +40,7 @@ const STAFF_PATHS = [
 ];
 
 const proxy = withAuth(
-  function proxy(req) {
+  async function proxy(req) {
     const token    = req.nextauth.token;
     const pathname = req.nextUrl.pathname;
 
@@ -29,9 +54,35 @@ const proxy = withAuth(
         ? NextResponse.json({ error: message }, { status })
         : NextResponse.redirect(new URL(to, req.url));
 
-    // Not logged in → signin.
-    if (!token) {
+    // Phase 3 step 3: a Risansi Digital session counts as signed in.
+    //
+    // withAuth only knows about NextAuth, so without this a person holding a
+    // perfectly good shared session is bounced here and never reaches the
+    // code that would have recognised it — which is exactly what happened the
+    // first time this was tested.
+    //
+    // Verified, not trusted: `sharedSessionIsValid` checks the signature and
+    // the issuer. It deliberately does NOT read the database. Whether that
+    // person may open sales is decided by the sales grant, in
+    // app/risansi/layout.tsx and getCurrentUser(), where the row is re-read
+    // per request. Outer door here, lock there.
+    const shared = !token && await sharedSessionIsValid(req);
+
+    // Not logged in by either route → signin.
+    if (!token && !shared) {
       return deny(401, 'Not signed in.', '/api/auth/signin');
+    }
+
+    // Everything below reads `token`, which a shared-session request does not
+    // have. Those rules are enforced again downstream — the layout applies the
+    // admin gates and the staff allowlist from the role it resolves itself,
+    // which is the live one rather than whatever a cookie was carrying. So a
+    // shared session passes here and is judged there.
+    if (!token) {
+      // The layout cannot see the URL on its own, so hand it over.
+      const headers = new Headers(req.headers);
+      headers.set('x-risansi-path', pathname);
+      return NextResponse.next({ request: { headers } });
     }
 
     // Pending / Rejected / Revoked → blocked.

@@ -1,14 +1,11 @@
+import { getSession } from '@/lib/risansi-auth';
 import { IBM_Plex_Sans, IBM_Plex_Mono, Instrument_Serif } from 'next/font/google';
-import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
-import { cache } from 'react';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Sidebar } from '@/components/risansi';
 import type { SidebarRole } from '@/components/risansi/Sidebar';
 import { ActivityTracker } from '@/components/risansi/ActivityTracker';
 import risansiPool from '@/lib/db-risansi';
 
-const getSession = cache(() => getServerSession(authOptions));
 
 const ibmPlexSans = IBM_Plex_Sans({
   weight: ['400', '500', '600'],
