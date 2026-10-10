@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
 import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import { Backdrop } from '@/components/backdrop';
@@ -59,7 +60,13 @@ const THEME_SCRIPT =
   '(function(){try{if(localStorage.getItem("risansi-theme")==="light")'
   + 'document.documentElement.classList.add("light")}catch(e){}})()';
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Set by proxy.ts, one per request. Next attaches the nonce to its own
+  // scripts by reading the CSP header; this one it does not know about, so it
+  // has to be carried across by hand or the browser refuses it and the page
+  // flashes the wrong theme on every load.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
+
   return (
     <html
       lang="en"
@@ -67,8 +74,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       suppressHydrationWarning
     >
       <head>
-        {/* Applied before first paint to avoid a flash. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {/* Applied before first paint to avoid a flash. Carries the nonce
+            from proxy.ts; without it the Content-Security-Policy blocks it. */}
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body>
         <Backdrop />
