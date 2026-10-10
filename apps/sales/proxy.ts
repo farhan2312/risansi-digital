@@ -36,9 +36,18 @@ const proxy = withAuth(
 
     // Pending / Rejected / Revoked → blocked.
     //
-    // The jwt callback re-reads `users` on every request, so this is the live
-    // status, not whatever it was at sign-in: revoking someone takes effect on
-    // their very next request rather than when their 8-hour session expires.
+    // This value can be STALE, and the comment here used to claim the
+    // opposite. `withAuth` reads the cookie through getToken(), which decodes
+    // it; it does not run the jwt callback. So `risansiAccess` is whatever was
+    // written into the token the last time NextAuth issued one, not the live
+    // row — and somebody deactivated mid-session passes this gate until their
+    // cookie is next re-issued.
+    //
+    // It is still worth keeping: it is the cheap check that turns away the
+    // common case without a database round trip. The authoritative one is
+    // getCurrentUser(), which goes through getServerSession and does re-read
+    // the row, and app/risansi/layout.tsx now refuses on that answer. Treat
+    // this as the outer door and that as the lock.
     if (token.risansiAccess !== 'Approved') {
       return deny(403, 'Your access to the portal has been withdrawn.', '/api/auth/signup/pending');
     }

@@ -1,6 +1,7 @@
 import { IBM_Plex_Sans, IBM_Plex_Mono, Instrument_Serif } from 'next/font/google';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/risansi-auth';
 import { cache } from 'react';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Sidebar } from '@/components/risansi';
@@ -49,6 +50,29 @@ export default async function RisansiLayout({ children }: { children: React.Reac
   const session = await getSession();
   if (!session?.user?.email) {
     redirect('/api/auth/signin');
+  }
+
+  // Approval is checked HERE, not only in proxy.ts, and the difference matters.
+  //
+  // `withAuth` reads the cookie with getToken(), which decodes it and does not
+  // run the jwt callback — so the `risansiAccess` the proxy tests is whatever
+  // was baked in when the token was last written, not the live row. A person
+  // deactivated mid-session therefore walks straight past that gate until
+  // their cookie happens to be re-issued.
+  //
+  // What they got instead of a refusal was worse than it sounds: the session
+  // still carries an email and a name, so this layout let them in, and
+  // getCurrentUser correctly resolved them to SIGNED_OUT — whose role is 'rep'
+  // and whose id is null. The result was a portal that looked signed in, with
+  // their old name in the header, labelled "sales representative", and every
+  // figure on it zero. No data escaped. It just read as a broken portal rather
+  // than as being told.
+  //
+  // getCurrentUser goes through getServerSession, which DOES run the jwt
+  // callback and re-reads the row, so this is the live answer.
+  const current = await getCurrentUser();
+  if (!current.email) {
+    redirect('/api/auth/signup/pending');
   }
 
   // Force temp-password users to set their own password before using the app.
