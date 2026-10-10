@@ -913,6 +913,16 @@
     background: linear-gradient(90deg, var(--line), transparent);
   }
 
+  /* A sentence under a section label. Not .empty, which is a dashed box that
+     reads as "there is nothing here" — wrong for text that is always there. */
+  .section-note {
+    margin: -4px 0 14px;
+    max-width: 62ch;
+    color: var(--fg-2);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
   .muted { color: var(--fg-3); }
 
 

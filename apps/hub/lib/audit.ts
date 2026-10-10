@@ -27,7 +27,9 @@ export type AuthEvent =
   | 'access_requested'
   | 'grant_approved'
   | 'grant_rejected'
-  | 'grant_revoked';
+  | 'grant_revoked'
+  | 'approver_granted'
+  | 'approver_revoked';
 
 export interface AuthEventFields {
   event: AuthEvent;

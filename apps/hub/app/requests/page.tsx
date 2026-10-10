@@ -23,6 +23,11 @@ import db from '@/lib/db';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { ApproveForm, RejectForm, RevokeForm } from '@/components/decision-forms';
+import {
+  GrantApproverForm,
+  RevokeApproverForm,
+  type Candidate,
+} from '@/components/approver-forms';
 import { requireApprover } from '@/lib/viewer';
 
 export const metadata: Metadata = {
@@ -69,7 +74,7 @@ function when(value: Date | null): string {
 }
 
 export default async function RequestsPage() {
-  await requireApprover();
+  const viewer = await requireApprover();
 
   // All four portals' roles in one query, since the queue lists requests for
   // several applications at once.
@@ -96,6 +101,22 @@ export default async function RequestsPage() {
        LEFT JOIN identity.users d ON d.id = g.decided_by
       WHERE g.status = 'Approved'
       ORDER BY a.sort_order, u.name`,
+  );
+
+  // Who decides, and who could. Active accounts only: an approver who cannot
+  // sign in is a name on a list that quietly decides nothing.
+  const approvers = await db.query<{ id: string; name: string; email: string }>(
+    `SELECT id::text AS id, name, email
+       FROM identity.users
+      WHERE role = 'approver' AND is_active
+      ORDER BY name`,
+  );
+
+  const candidates = await db.query<Candidate>(
+    `SELECT id::text AS id, name, email
+       FROM identity.users
+      WHERE role <> 'approver' AND is_active
+      ORDER BY name`,
   );
 
   /** The label from identity.app_roles, so the list does not show raw slugs. */
@@ -188,6 +209,41 @@ export default async function RequestsPage() {
             ))}
           </div>
         )}
+
+      <div className="section-label">
+        Approvers · {String(approvers.rows.length).padStart(2, '0')}
+      </div>
+
+      <p className="section-note">
+        An approver decides access for every portal, not one. Keep at least two,
+        so a request does not wait on one person being at their desk.
+      </p>
+
+      <div className="queue">
+        {approvers.rows.map(row => (
+          <article className="queue-item" key={row.id}>
+            <div className="queue-head">
+              <div>
+                <div className="queue-who">{row.name}</div>
+                <div className="queue-meta">{row.email}</div>
+              </div>
+            </div>
+            <div className="queue-forms">
+              <RevokeApproverForm
+                userId={row.id}
+                name={row.name}
+                isSelf={row.id === viewer.id}
+              />
+            </div>
+          </article>
+        ))}
+
+        <article className="queue-item">
+          <div className="queue-forms">
+            <GrantApproverForm candidates={candidates.rows} />
+          </div>
+        </article>
+      </div>
 
       <SiteFooter signedIn />
     </>
