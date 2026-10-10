@@ -195,6 +195,46 @@ One improvement to take while we are here: the sales sign-up form lets the reque
 - **Nothing about the running application changes.** Same domain, same `APP_URL`, same login.
 - Done when: the deployed site is the same application on the same domain and all nine build gates pass.
 
+**Status: DONE and live, 10 Oct 2026.** Merged as PR #1 (`a331a70`). The Vercel
+project now reads `risansi-digital` with Root Directory `apps/sales`, on the
+same `sales.risansi.com` domain. Verified in production: sign-in works, the
+dashboard returns real figures, saving works, and both cron jobs are listed.
+
+- 680 files, all recorded as `R100` — pure renames, every blob hash identical to
+  `ae51dcc` in the old repo. The code did not change.
+- 610 commits of history joined, not squashed. `git log --follow` and
+  `git blame` both trace through the move.
+- `index.html` and `assets/` untouched at the repo root, so the current static
+  hub still deploys exactly as it does today.
+- Verified from a fresh clone of the branch: `npm ci`, all nine gates, `tsc
+  --noEmit` clean, `npm run build` green.
+- The CI workflow had to move to the repo root as
+  `.github/workflows/sales-ci.yml`, scoped with `paths` to `apps/sales/**`.
+  GitHub only reads `.github/workflows` from the root, so leaving it inside the
+  app would have silently stopped the only automated gate the repo has.
+
+**One thing for Windows developers.** `apps/sales/` adds 11 characters to every
+path, and Turbopack writes some long chunk filenames under `.next/server/chunks/ssr/`.
+A build inside a deep directory now hits the Windows 260-character `MAX_PATH`
+limit and fails with a Turbopack panic rather than a useful message. Clone
+shallow — `C:
+isansi-digital` rather than somewhere under `Documents\...` — or
+enable long paths (`git config --system core.longpaths true` plus the
+`LongPathsEnabled` registry key). Vercel builds on Linux and is unaffected.
+
+**What has to happen in Vercel, by hand:**
+1. Merge `phase-1-sales` into `main`.
+2. In the existing sales Vercel project, change the Git repository to
+   `risansi-digital` and set **Root Directory** to `apps/sales`.
+3. Leave every environment variable exactly as it is, including `APP_URL`,
+   `NEXTAUTH_SECRET`, the `DB_*` set and `CRON_SECRET`.
+4. Confirm both cron paths still read `/api/cron/daily` and `/api/cron/weekly` —
+   `vercel.json` travelled with the app and is read relative to the root
+   directory, so they should be unchanged.
+5. Keep the `sales.risansi.com` domain on that project.
+6. Deploy, then sign in and click through one page from each area before
+   archiving the old repo.
+
 ### Phase 2 — The hub becomes an application.
 - `apps/hub`: Next app, hub's own domain. Port the static page in as the signed-in landing view.
 - `packages/identity`: token format, cookie, `verifySession()`.
@@ -226,13 +266,55 @@ Rehearse against a restored copy of the sales database first (§2.2).
 
 ## 6. Risks and open items
 
-- **Email overlap is unmeasured.** The merge is by email and nobody has counted how many people exist in more than one portal, or whether the same person used different addresses. One query per database answers it; do it before Phase 3 is scheduled, because it sets the size of the forced-reset announcement.
+- ~~Email overlap is unmeasured.~~ **Measured, 10 Oct 2026** — see §7.
 - **`users_pump` has already drifted** from `users`. Expect more differences in the data than in the schema.
 - **The cookie is domain-wide.** `.risansi.com` is readable by every subdomain, now and in future. Consequence of decision 2.3, not a defect, but it constrains what may ever be hosted on a `risansi.com` subdomain.
 - **Sales-first means no rehearsal of the pattern.** Mitigated by rehearsing Phase 3 against a restored database.
 - **Nothing shipped recently has been opened in a browser.** Unrelated to this plan, but the same gap: sales is sign-in gated and recent verification has been by build gate rather than by eye.
 
-## 7. What I have not done
+## 7. Who the users actually are
+
+Counted across all four portal tables on 10 Oct 2026. All four databases sit on
+one Azure server and one login reads them all, so this is repeatable: the script
+lives in the session scratchpad and can be re-run before the cutover.
+
+**151 account rows. 92 distinct people.**
+
+| Portals held | People |
+|---|---|
+| 1 | 51 |
+| 2 | 27 |
+| 3 | 10 |
+| 4 | 4 |
+
+So **41 people hold more than one account**, which is the population that gains
+most from this work, and **92 is the size of the forced-reset announcement**.
+
+Per portal: Sales 49, Testing 28, Pump Selection 13, SO to Dispatch 61 — and
+every single row in all four is approved or active. No pending, rejected or
+disabled accounts anywhere, so there is nothing to triage before the merge.
+
+### Three things the count turned up
+
+1. **One person, two addresses.** Ankur Srivastava appears as both
+   `ankur.srivastava@risansi.com` and `marketing@risansi.com`. An email-keyed
+   merge makes him two identities, which is precisely what this project exists
+   to stop. Needs a human answer before Phase 4 runs: is `marketing@` him, or a
+   shared mailbox?
+2. **Six logins are role mailboxes, not people** — `westindia1@` (Vishal
+   Gaikwad), `westindia2@` (Prashant Dhere), `northindia2@` (Amit Srivastava),
+   `rekayasa.bakti@` (Susanta Pande), `marketing@`, and `admin@`. Where the
+   mailbox is shared, the login travels with the territory rather than the
+   person, and the audit trail then names a region instead of a human. In a
+   model where one person is one identity this should be resolved rather than
+   carried across.
+3. **`admin@risansi.com` holds three portals.** A shared admin account is the
+   hardest thing to reconstruct after the fact. Decide whether it survives.
+
+The per-person breakdown was written to `portal-user-overlap.csv` at the time of
+the count. It carries staff email addresses and was deliberately not committed.
+
+## 8. What I have not done
 
 No repo has been changed. Phase 1 is a destructive, outward-facing operation — it repoints a live Vercel deployment — so it waits for an explicit go.
 
