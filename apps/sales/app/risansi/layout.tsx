@@ -111,7 +111,19 @@ export default async function RisansiLayout({ children }: { children: React.Reac
   // jwt callback re-reads must_change_password each request, so the flag clears
   // automatically once they change it.
   if (session.user.mustChange) {
-    redirect('/change-password');
+    // To the HUB's change-password screen, not this app's.
+    //
+    // Since step 4 the password that signs somebody in lives in
+    // identity.users. This app's /change-password writes users.password_hash,
+    // which nothing reads any more — so sending them there would have them
+    // type a new password, be told it worked, and still be prompted for a
+    // change on their next sign-in, having altered a column with no effect.
+    //
+    // The flag itself is carried in the shared session token, and the hub
+    // clears it and re-issues the token when the password is actually
+    // changed.
+    const hub = (process.env.HUB_URL || 'https://digital.risansi.com').replace(/\/+$/, '');
+    redirect(`${hub}/change-password`);
   }
 
   const email       = session.user.email;

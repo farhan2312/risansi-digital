@@ -1,38 +1,30 @@
-import { getSession } from '@/lib/risansi-auth';
-import { getServerSession } from 'next-auth/next';
+/**
+ * Changing a password happens at Risansi Digital.
+ *
+ * Phase 3 step 4. The credential that signs anybody into this portal lives in
+ * `identity.users` now. The form that used to be here wrote
+ * `users.password_hash`, which nothing reads any more — so leaving it would
+ * let somebody set a new password, be told it worked, and find on their next
+ * sign-in that nothing had changed and they were still being prompted. That
+ * is the worst of the three possible outcomes: worse than an error, because
+ * it looks like success.
+ *
+ * Kept as a redirect rather than deleted. It is linked from old notification
+ * emails and people have it bookmarked; deleting it makes those 404, keeping
+ * it sends them somewhere that works.
+ *
+ * The form component and the API route behind it are left in place for now.
+ * They are unreachable from here, and step 5 removes them along with NextAuth
+ * and the credential columns — doing it in one go rather than leaving the
+ * password machinery half-dismantled across two releases.
+ */
+
 import { redirect } from 'next/navigation';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { ChangePasswordForm } from './ChangePasswordForm';
 
-// Top-level (outside /risansi) so the forced-change redirect from the Risansi
-// layout never loops. Reached when users.must_change_password is true.
-export default async function ChangePasswordPage() {
-  const session = await getSession();
-  if (!session?.user?.email) redirect('/api/auth/signin');
+export const dynamic = 'force-dynamic';
 
-  const forced = session.user.mustChange === true;
+const HUB = (process.env.HUB_URL || 'https://digital.risansi.com').replace(/\/+$/, '');
 
-  return (
-    <div style={{
-      minHeight: '100vh', display: 'grid', placeItems: 'center',
-      background: '#0A1628', padding: 24,
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 400, background: '#fff',
-        borderRadius: 14, padding: '32px 28px',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
-      }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, color: '#0D1B2A', margin: '0 0 4px' }}>
-          {forced ? 'Set your password' : 'Change password'}
-        </h1>
-        <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 20px', lineHeight: 1.5 }}>
-          {forced
-            ? 'Your account uses a temporary password. Choose a new one to continue.'
-            : 'Update the password for your account.'}
-        </p>
-        <ChangePasswordForm forced={forced} />
-      </div>
-    </div>
-  );
+export default async function ChangePasswordRedirect() {
+  redirect(`${HUB}/change-password`);
 }
