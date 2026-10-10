@@ -27,6 +27,18 @@ function authorized(req: Request): boolean {
   return req.headers.get('authorization') === `Bearer ${secret}`;
 }
 
+/** How many people could receive a notification at all. Zero explains silence. */
+async function approverCount(): Promise<number> {
+  try {
+    const { rows } = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM identity.users WHERE role = 'approver' AND is_active`,
+    );
+    return rows[0]?.n ?? 0;
+  } catch {
+    return -1;   // -1 rather than 0: the database was unreachable, which is a different fault
+  }
+}
+
 export async function GET(req: Request) {
   if (!authorized(req)) return new Response('Unauthorized', { status: 401 });
 
@@ -41,5 +53,24 @@ export async function GET(req: Request) {
     pending: result.pending,
     approversNotified: result.recipients ?? 0,
     error: result.error ?? null,
+
+    // Configuration, reported because "no email arrived" has four causes and
+    // they are indistinguishable from the outside. Booleans and a From
+    // address only — never the key itself, and the route is behind
+    // CRON_SECRET in production regardless.
+    //
+    //   resendConfigured false  → the key is missing from THIS project and
+    //                             environment, or was added without a
+    //                             redeploy afterwards
+    //   approvers 0             → a request has nobody to be sent to, which
+    //                             is silent by design
+    //   error 'not-configured'  → same as the first, reported by the sender
+    //   any other error         → Resend refused it, and that is the reason
+    config: {
+      resendConfigured: Boolean(process.env.RESEND_API_KEY),
+      from: process.env.RESEND_FROM_DIGITAL || 'Risansi Digital <no-reply@digital.risansi.com>',
+      hubUrl: process.env.HUB_URL || '(unset, defaulting to https://digital.risansi.com)',
+      approvers: await approverCount(),
+    },
   });
 }
