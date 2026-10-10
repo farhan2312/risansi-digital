@@ -5,7 +5,6 @@ import { useTheme } from 'next-themes';
 import { Sun, Moon, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
-import { signOutEverywhere } from '@/app/actions/sign-out';
 
 type UserMenuProps = {
   name: string;
@@ -87,13 +86,13 @@ export function UserMenu({ name, email, role }: UserMenuProps) {
           </div>
 
           <div style={{ padding: '6px 8px' }}>
-            <form action={signOutEverywhere}>
-            <button type="submit" style={SIGNOUT_BTN}>
+            <form method="POST" action="/sign-out">
+              <button type="submit" style={SIGNOUT_BTN}>
               <svg width={13} height={13} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                 <path d="M10 8H3M6 5l-3 3 3 3M11 4V3a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-1"/>
               </svg>
-              Sign out
-            </button>
+                Sign out
+              </button>
             </form>
           </div>
         </div>

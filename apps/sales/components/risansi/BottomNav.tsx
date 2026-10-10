@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, type CSSProperties } from 'react';
-import { signOutEverywhere } from '@/app/actions/sign-out';
 import { useTheme } from 'next-themes';
 import {
   LayoutGrid, Building2, MapPinned, Receipt, Menu, X,
@@ -177,7 +176,8 @@ export function BottomNav({ role, user }: {
                   <span>Change Password</span>
                 </Link>
                 <form
-                  action={signOutEverywhere}
+                  method="POST"
+                  action="/sign-out"
                   onSubmit={e => { if (!window.confirm('Sign out of Risansi?')) e.preventDefault(); }}
                 >
                   <button type="submit" style={{ ...ROW_BTN, color: '#FF6B6B' }}>
