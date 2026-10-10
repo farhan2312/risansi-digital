@@ -139,24 +139,38 @@ export async function mayOpen(
 export async function requestAccess(
   db: Queryable, userId: string, appSlug: string, reason: string | null,
 ): Promise<{ ok: true; state: 'created' | 'reopened' | 'unchanged' }> {
+  // `before` is read in the same statement, so it sees the row as it was prior
+  // to the upsert. That is the only way to tell the three outcomes apart:
+  // RETURNING can only see the NEW row, so a repeat request on something
+  // already Pending looks identical to one that has just been reopened after a
+  // refusal. Reporting that as "reopened" would have told somebody their
+  // request was reinstated when in fact nothing happened.
   const { rows } = await db.query<{ state: string }>(
-    `INSERT INTO identity.app_grants (user_id, app_slug, status, requested_reason)
-     VALUES ($1, $2, 'Pending', $3)
-     ON CONFLICT (user_id, app_slug) DO UPDATE
-        SET status           = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
-                                    THEN 'Pending' ELSE identity.app_grants.status END,
-            requested_reason = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
-                                    THEN EXCLUDED.requested_reason ELSE identity.app_grants.requested_reason END,
-            requested_at     = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
-                                    THEN now() ELSE identity.app_grants.requested_at END,
-            decided_by       = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
-                                    THEN NULL ELSE identity.app_grants.decided_by END,
-            decided_at       = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
-                                    THEN NULL ELSE identity.app_grants.decided_at END,
-            updated_at       = now()
-     RETURNING CASE WHEN xmax = 0 THEN 'created'
-                    WHEN status = 'Pending' AND decided_at IS NULL THEN 'reopened'
-                    ELSE 'unchanged' END AS state`,
+    `WITH before AS (
+       SELECT status FROM identity.app_grants WHERE user_id = $1 AND app_slug = $2
+     ), up AS (
+       INSERT INTO identity.app_grants (user_id, app_slug, status, requested_reason)
+       VALUES ($1, $2, 'Pending', $3)
+       ON CONFLICT (user_id, app_slug) DO UPDATE
+          SET status           = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
+                                      THEN 'Pending' ELSE identity.app_grants.status END,
+              requested_reason = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
+                                      THEN EXCLUDED.requested_reason ELSE identity.app_grants.requested_reason END,
+              requested_at     = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
+                                      THEN now() ELSE identity.app_grants.requested_at END,
+              decided_by       = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
+                                      THEN NULL ELSE identity.app_grants.decided_by END,
+              decided_at       = CASE WHEN identity.app_grants.status IN ('Rejected','Revoked')
+                                      THEN NULL ELSE identity.app_grants.decided_at END,
+              updated_at       = now()
+       RETURNING id
+     )
+     SELECT CASE
+              WHEN NOT EXISTS (SELECT 1 FROM before)                   THEN 'created'
+              WHEN (SELECT status FROM before) IN ('Rejected','Revoked') THEN 'reopened'
+              ELSE 'unchanged'
+            END AS state
+       FROM up`,
     [userId, appSlug, reason],
   );
   return { ok: true, state: (rows[0]?.state as 'created' | 'reopened' | 'unchanged') ?? 'unchanged' };
