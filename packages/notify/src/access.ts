@@ -151,6 +151,45 @@ export async function notifyAccessDecided(a: {
 }
 
 /**
+ * Their role inside a portal changed, without their access changing.
+ *
+ * Its own template rather than a second use of the approval one, which opens
+ * "You now have access to..." — read by somebody who has had access for weeks,
+ * that is confusing at best, and if the change narrowed what they can do it
+ * actively misleads. Both directions are sent: a person who quietly loses the
+ * ability to approve revenue should hear it from the system rather than from a
+ * button that stopped working.
+ */
+export async function notifyRoleChanged(a: {
+  userName: string;
+  userEmail: string;
+  appName: string;
+  appUrl: string;
+  fromLabel: string;
+  toLabel: string;
+  changedByName?: string | null;
+}): Promise<SendResult> {
+  return sendEmail({
+    to: a.userEmail,
+    subject: `Your role in ${a.appName} has changed`,
+    html: renderCard({
+      section: 'Role changed',
+      greetingName: a.userName?.split(' ')[0] ?? null,
+      intro: `What you can do inside ${a.appName} has been changed${a.changedByName ? ` by ${a.changedByName}` : ''}.`
+        + ' Your access itself is unchanged — you sign in exactly as before.',
+      title: a.appName,
+      meta: [
+        ['Was', a.fromLabel],
+        ['Now', a.toLabel],
+      ],
+      ctaLabel: `Open ${a.appName}`,
+      ctaUrl: a.appUrl,
+      footer: 'Sent by Risansi Digital. Replies to this address are not read.',
+    }),
+  });
+}
+
+/**
  * Access that somebody had has been taken away. Tell them.
  *
  * Its own template rather than reusing the refusal, because the refusal says

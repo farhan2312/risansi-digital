@@ -21,6 +21,7 @@ import {
   notifyAccessDecided,
   notifyAccessRequested,
   notifyAccessRevoked,
+  notifyRoleChanged,
 } from '@risansi/notify';
 import db from '@/lib/db';
 import { logAuthEvent } from '@/lib/audit';
@@ -225,6 +226,89 @@ export async function approveGrantAction(
   });
 
   return { notice: `${settled.email} can open ${settled.appName} as ${roleRow.label}.` };
+}
+
+/**
+ * Change the role on a grant somebody already holds.
+ *
+ * Separate from approving, because it answers a different question. Approving
+ * decides whether a person gets in at all; this decides what they can do once
+ * they are, and it is the one that gets revisited — somebody changes team, or
+ * was given more than they needed on a busy day. Doing it by revoking and
+ * re-granting would work and would also mail them twice, log a withdrawal
+ * that never happened, and lose who first let them in.
+ *
+ * `status = 'Approved'` in the WHERE clause rather than a read-then-write, so
+ * a role cannot be set on a grant another approver is revoking at the same
+ * moment.
+ */
+export async function changeRoleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const approver = await requireApprover();
+  const grantId = grantIdFrom(formData);
+  if (!grantId) return { error: 'That grant could not be found.' };
+
+  const role = trimmedOrNull(text(formData, 'role'), 60);
+  if (!role) return { error: 'Choose the role they should have.' };
+
+  const { rows: grantRows } = await db.query<{
+    app_slug: string; status: string; app_role: string | null;
+  }>(
+    `SELECT app_slug, status, app_role FROM identity.app_grants WHERE id = $1`,
+    [grantId],
+  );
+  const grant = grantRows[0];
+  if (!grant) return { error: 'That grant could not be found.' };
+  if (grant.status !== 'Approved') return { error: 'That grant is not currently approved.' };
+  if (grant.app_role === role) return { notice: 'That is already their role.' };
+
+  // Both labels, in one query: the new one for the message and the old one for
+  // the email, which is worth little if it cannot say what changed.
+  const { rows: roleRows } = await db.query<{ role: string; label: string }>(
+    `SELECT role, label FROM identity.app_roles WHERE app_slug = $1 AND role = ANY($2::text[])`,
+    [grant.app_slug, [role, grant.app_role].filter(Boolean)],
+  );
+  const toRole = roleRows.find(r => r.role === role);
+  if (!toRole) return { error: `${role} is not a role that application has.` };
+  const fromLabel = roleRows.find(r => r.role === grant.app_role)?.label
+    ?? grant.app_role
+    ?? 'no role set';
+
+  const { rows } = await db.query<{
+    email: string; name: string; app_name: string; app_url: string;
+  }>(
+    `UPDATE identity.app_grants g
+        SET app_role = $2, updated_at = now()
+      WHERE g.id = $1 AND g.status = 'Approved'
+      RETURNING (SELECT u.email FROM identity.users u WHERE u.id = g.user_id) AS email,
+                (SELECT u.name  FROM identity.users u WHERE u.id = g.user_id) AS name,
+                (SELECT a.name  FROM identity.apps  a WHERE a.slug = g.app_slug) AS app_name,
+                (SELECT a.url   FROM identity.apps  a WHERE a.slug = g.app_slug) AS app_url`,
+    [grantId, role],
+  );
+  const row = rows[0];
+  if (!row) return { error: 'That grant is no longer approved.' };
+
+  await logAuthEvent({
+    event: 'grant_role_changed',
+    email: row.email,
+    appSlug: grant.app_slug,
+    detail: `${grant.app_role ?? 'no role'} to ${role}, by ${approver.email}`,
+  });
+
+  await notifyRoleChanged({
+    userName: row.name,
+    userEmail: row.email,
+    appName: row.app_name,
+    appUrl: row.app_url,
+    fromLabel,
+    toLabel: toRole.label,
+    changedByName: approver.name,
+  });
+
+  return { notice: `${row.email} is now ${toRole.label} in ${row.app_name}.` };
 }
 
 export async function rejectGrantAction(

@@ -16,5 +16,6 @@ export {
   notifyAccessRequested,
   notifyAccessDecided,
   notifyAccessRevoked,
+  notifyRoleChanged,
   notifyPendingBacklog,
 } from './access.ts';

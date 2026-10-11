@@ -20,6 +20,7 @@ import { useActionState, useState } from 'react';
 import type { AppRole } from '@risansi/identity';
 import {
   approveGrantAction,
+  changeRoleAction,
   rejectGrantAction,
   revokeGrantAction,
   type ActionState,
@@ -83,6 +84,67 @@ export function ApproveForm({
           happily and leave the person approved and unable to do anything. */}
       <button className="btn btn-small" type="submit" disabled={pending || !chosen}>
         {pending ? 'Approving…' : 'Approve'}
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Changing the role on a grant somebody already holds.
+ *
+ * Pre-selected with what they have now, unlike the approval form next door.
+ * There the blank is the point — a default role is one stray click from being
+ * granted. Here the current value is the thing being edited, and starting
+ * blank would hide what it is. Submit stays disabled until the choice differs.
+ */
+export function ChangeRoleForm({
+  grantId, appSlug, roles, current,
+}: {
+  grantId: string; appSlug: string; roles: AppRole[]; current: string | null;
+}) {
+  const [state, formAction, pending] = useActionState(changeRoleAction, EMPTY);
+  const [chosen, setChosen] = useState(current ?? '');
+
+  const role = roles.find(r => r.role === chosen);
+  const heavy = role ? isHeavyRole(appSlug, role.role) : false;
+  const selectId = `change-role-${grantId}`;
+
+  return (
+    <form action={formAction} className="decision">
+      <input type="hidden" name="grantId" value={grantId} />
+
+      <div className="field">
+        <label htmlFor={selectId}>Role in that portal</label>
+        <select
+          id={selectId}
+          name="role"
+          value={chosen}
+          onChange={e => setChosen(e.target.value)}
+          required
+        >
+          {!current && <option value="">Choose a role…</option>}
+          {roles.map(r => (
+            <option key={r.role} value={r.role}>
+              {isHeavyRole(appSlug, r.role) ? `${r.label} — heaviest` : r.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {role && (
+        <p className={heavy ? 'role-desc role-desc-heavy' : 'role-desc'}>
+          {role.description}
+        </p>
+      )}
+
+      <Result state={state} />
+
+      <button
+        className="btn btn-small"
+        type="submit"
+        disabled={pending || !chosen || chosen === current}
+      >
+        {pending ? 'Changing…' : 'Change role'}
       </button>
     </form>
   );

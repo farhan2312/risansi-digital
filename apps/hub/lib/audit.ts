@@ -28,6 +28,7 @@ export type AuthEvent =
   | 'grant_approved'
   | 'grant_rejected'
   | 'grant_revoked'
+  | 'grant_role_changed'
   | 'approver_granted'
   | 'approver_revoked';
 

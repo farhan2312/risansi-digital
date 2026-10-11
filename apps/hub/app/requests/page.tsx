@@ -22,12 +22,18 @@ import { allRoles } from '@risansi/identity';
 import db from '@/lib/db';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
-import { ApproveForm, RejectForm, RevokeForm } from '@/components/decision-forms';
+import {
+  ApproveForm,
+  ChangeRoleForm,
+  RejectForm,
+  RevokeForm,
+} from '@/components/decision-forms';
 import {
   GrantApproverForm,
   RevokeApproverForm,
   type Candidate,
 } from '@/components/approver-forms';
+import { RequestsTabs } from '@/components/requests-tabs';
 import { requireApprover } from '@/lib/viewer';
 
 export const metadata: Metadata = {
@@ -129,6 +135,8 @@ export default async function RequestsPage() {
     <>
       <SiteHeader />
 
+      <RequestsTabs active="requests" />
+
       <div className="page-head">
         <h1>Access requests</h1>
         <p>
@@ -203,6 +211,12 @@ export default async function RequestsPage() {
                 </div>
 
                 <div className="queue-forms">
+                  <ChangeRoleForm
+                    grantId={row.id}
+                    appSlug={row.app_slug}
+                    roles={roles[row.app_slug] ?? []}
+                    current={row.app_role}
+                  />
                   <RevokeForm grantId={row.id} />
                 </div>
               </article>
