@@ -10,6 +10,20 @@ const isDev = process.env.NODE_ENV !== 'production';
 // tightening is a separate, larger change. Every PDF / map / screenshot in the
 // app opens via <a target="_blank">, so there are no same-page iframes/embeds to
 // account for. Dev additionally needs 'unsafe-eval' for HMR.
+// Signing out posts to /sign-out here and ends at the hub's sign-in page, and
+// `form-action` is enforced across the whole redirect chain of a form
+// submission — not just its first hop. With 'self' alone the browser blocks
+// the 303 before it leaves, which read as a server error on the page the
+// button was clicked from and made signing out impossible. The hub is a real
+// form destination for this app now, so it is named as one.
+const HUB_ORIGIN = (() => {
+  try {
+    return new URL(process.env.HUB_URL || 'https://digital.risansi.com').origin;
+  } catch {
+    return 'https://digital.risansi.com';
+  }
+})();
+
 const CSP = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
@@ -20,7 +34,7 @@ const CSP = [
   "frame-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  `form-action 'self' ${HUB_ORIGIN}`,
   "frame-ancestors 'none'",
 ].join('; ');
 

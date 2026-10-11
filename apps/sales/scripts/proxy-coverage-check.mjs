@@ -28,6 +28,7 @@ const EXEMPT = [
   ['/change-password',           'A user forced to change their password has to be able to reach this. Its own API route is exempt for the same reason.'],
   ['/api/auth',                  'Sign-in must work for somebody holding no token at all.'],
   ['/api/cron',                  'No session. Guarded by CRON_SECRET instead.'],
+  ['/sign-out',                  'Clearing a session must work for anybody holding one in any state, including a withdrawn account that the proxy would otherwise bounce to the hub before it could be cleared. POST only, with an Origin check of its own.'],
 ];
 
 // ── What proxy.ts actually matches ────────────────────────────────
