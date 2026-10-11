@@ -344,8 +344,52 @@ proving unreliable, not a live escape hatch.
 
 ### Phase 4 — Testing and Pump Selection.
 - Merge `users` and `users_pump` into `identity.users` by email, resolving the drift. Produce a reconciliation report **before** the merge runs.
-- Seed identity uuids to the existing testing uuids so nothing remaps.
+- ~~Seed identity uuids to the existing testing uuids so nothing remaps.~~ **Not possible — see below.**
 - Both apps swap their verify for the shared one and read their grant. `users_pump` becomes a profile row.
+
+#### Reconciliation, measured 11 Oct 2026
+
+Read-only, against the live databases. Four things the plan had wrong or had
+not seen.
+
+**1. The uuids cannot be reused, so a remap is unavoidable.** The plan assumed
+identity could adopt the testing uuids and nothing would have to be rewritten.
+It cannot: all ten people who exist in *both* `users` and `users_pump` carry a
+**different uuid in each**, and none of the eighteen already seeded into
+identity got an id matching either. There is no single uuid to adopt. Whatever
+references those ids — `reviewed_by`, `user_sessions`, the test-requisition
+chain — has to be remapped through an email bridge, and that work belongs in
+the phase, not discovered during it.
+
+**2. The schema has barely drifted; the data has.** Only two differences
+between the tables: `users_pump` has `bug_feed_seen_at`, and
+`must_change_password` defaults `true` in testing and `false` in pump. But
+`users_pump` is no longer a subset — 28 testing rows, 13 pump rows, only 10
+shared, and **three people exist in pump and not in testing at all**
+(`amit.verma@`, `amit.bisht@`, `admin@`). "A fork, seeded once" no longer
+describes it.
+
+**3. The role vocabularies do not even agree between the two tables.** Testing
+uses `admin` / `central-admin` / `source` / `testing`; Pump Selection uses
+`admin` / `system_admin` / `user` / `pulley_owner`. Of the ten shared people,
+**every one holds a different role in each**, and `admin` means something
+different on each side. `identity.app_roles` already carries five rows for
+each app — they need checking against these actual values before the merge,
+not after.
+
+**4. Thirteen addresses are new to identity, and four of them are junk.**
+`test02@`, `testing@`, `testing001@`, `source001@` are test logins, and
+`narendra.kushwaha@` / `narendrakushwaha@` are one person with two accounts.
+That is a triage to run *before* the merge, or identity inherits the mess.
+Note this contradicts §7's "nothing to triage" — that was measured on status,
+and all of these are active.
+
+Smaller: the cross-database reference is `public.quotation` (singular), not
+`quotations` as §1 said. It is 33 rows across 9 sales reps with no nulls, so
+replacing it with a real lookup in Phase 5 is a small job.
+
+**Blocked on**: the conversation with the Testing / Pump Selection developers,
+which also covers retiring `admin@` there.
 
 ### Phase 5 — SO-to-Dispatch, and paying off the couplings.
 - Same cutover.
