@@ -388,6 +388,52 @@ Smaller: the cross-database reference is `public.quotation` (singular), not
 `quotations` as §1 said. It is 33 rows across 9 sales reps with no nulls, so
 replacing it with a real lookup in Phase 5 is a small job.
 
+#### Seeded 11 Oct 2026 — `scripts/seed-identity-from-testing-select.mjs`
+
+Identity now holds both portals. **52 people, 33 new grants** (21 testing, 12
+select), every role carried from the portal's own table. Idempotent: a second
+run reports nothing to do.
+
+It writes to `risansi_identity` and nowhere else. Neither portal reads identity
+yet, so this changed nothing anybody can see — which is the property that let
+it be run now rather than on cutover day.
+
+Two recon worries closed. `identity.app_roles` already covers every role
+actually in use on both sides, so the vocabularies needed no migration. And
+all hashes in both tables are `$2b$`, matching sales, so nobody gets a
+temporary password for an account they already had.
+
+Decided at the seed:
+
+- **Shared mailboxes `centraladmin@`, `it@`, `testing@` are retired.** Two had
+  never been signed into; the third had no activity.
+- **Test logins `source001@`, `test02@`, `testing001@` are not carried**, and
+  will stop working at cutover. They are genuinely used — 73 audit entries
+  between them — so this is a known cost, not an oversight. The testers use
+  their own accounts instead.
+- **`narendrakushwaha@` ("DRG") is not carried**; `narendra.kushwaha@` is the
+  surviving account. Its one session and one audit row are left pointing at
+  the DRG id rather than moved. On that date somebody did sign in as that
+  address, and re-pointing an audit row changes what the log says happened —
+  the same call as the `marketing@` merge on 10 Oct.
+- **Nothing was deactivated in `Pump_Selector_and_testing`.** An account with
+  no identity row cannot sign in once the swap happens, so leaving the rows
+  alone retires them on the day instead of changing a live portal another team
+  owns.
+
+#### What is left
+
+1. **The uuid bridge.** `identity_user_id uuid` on `users` and `users_pump`,
+   matching `apps/sales/migrations/0121`. Additive and nullable, but it is a
+   schema change to their database, so it goes through them.
+2. **Both apps swap their verify** for `@risansi/identity` and read their
+   grant. Neither codebase is in this repo — both are Python, against
+   `alembic_version` — so this is their work, with the shared session contract
+   from `packages/identity` as the interface.
+3. **Remap whatever points at the old uuids** through an email bridge, since
+   adopting them is not available (see above).
+4. `users_pump` becomes a profile row rather than an account table.
+
 **Blocked on**: the conversation with the Testing / Pump Selection developers,
 which also covers retiring `admin@` there.
 
