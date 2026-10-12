@@ -1,50 +1,25 @@
-import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+/**
+ * Gone. Passwords are changed at Risansi Digital.
+ *
+ * Phase 4b. This wrote `users.password_hash`, which nothing reads any more,
+ * so a successful-looking response here would have been a lie: somebody
+ * would set a new password, be told it worked, and find the old one still
+ * signing them in. Worse than an error, because it looks like success.
+ *
+ * Five accounts were flagged `must_change_password` in this app's own table
+ * when the form went. That flag is read from the shared session now, not from
+ * the column, so none of them are pinned to a screen that no longer exists.
+ */
+import { NextResponse } from "next/server";
 
-import { error, json } from "@/lib/api";
-import { AuthError, decodeToken } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
 
-export const dynamic = "force-dynamic";
-
-export async function POST(req: Request) {
-  let claims;
-  try {
-    claims = await decodeToken(req);
-  } catch (e) {
-    if (e instanceof AuthError) return error(e.message, e.statusCode);
-    throw e;
-  }
-
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return error("Request body must be JSON", 400);
-  }
-
-  const currentPassword = String(body.currentPassword ?? "");
-  const newPassword = String(body.newPassword ?? "");
-  if (!currentPassword || !newPassword) {
-    return error("'currentPassword' and 'newPassword' are required", 400);
-  }
-  if (newPassword.length < 6) {
-    return error("New password must be at least 6 characters.", 400);
-  }
-
-  const [user] = await db.select().from(users).where(eq(users.id, claims.sub)).limit(1);
-  if (!user) {
-    return error("User not found", 404);
-  }
-  if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
-    return error("Current password is incorrect.", 401);
-  }
-
-  const newHash = await bcrypt.hash(newPassword, 12);
-  await db
-    .update(users)
-    .set({ passwordHash: newHash, mustChangePassword: false })
-    .where(eq(users.id, user.id));
-  return json({ success: true });
+export async function POST() {
+  return NextResponse.json(
+    {
+      error: "Passwords are changed at Risansi Digital.",
+      changePasswordUrl: `${HUB}/change-password`,
+    },
+    { status: 410 },
+  );
 }

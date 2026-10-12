@@ -1,115 +1,22 @@
-import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+/**
+ * Gone. Signing in happens at Risansi Digital.
+ *
+ * Phase 4b. This handler checked `users_pump.password_hash` and minted a
+ * local `auth_token`. Both had to go: a second place to type a password is
+ * what this migration exists to end, and a locally minted cookie is a way
+ * into the portal that never consults the grant decided at the hub.
+ *
+ * Answered rather than deleted — an old bookmark, a stale tab or a cached
+ * client bundle will hit it, and a 410 naming the new address is more use
+ * than a 404. Step 5 removes it with the rest of the local credential path.
+ */
+import { NextResponse } from "next/server";
 
-import { error, json } from "@/lib/api";
-import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME, createToken } from "@/lib/auth";
-import { resolveAccess } from "@/lib/effective-role";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { logAudit } from "@/lib/audit";
+const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
 
-export const dynamic = "force-dynamic";
-
-export async function POST(req: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return error("Request body must be JSON", 400);
-  }
-
-  const email = String(body.email ?? "").trim().toLowerCase();
-  const password = String(body.password ?? "");
-  if (!email || !password) {
-    return error("'email' and 'password' are required", 400);
-  }
-
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    await logAudit(req, {
-      eventType: "login_failed",
-      action: "auth.login_failed",
-      actor: { id: user?.id ?? null, email, role: user?.role ?? null },
-      detail: user ? "Incorrect password" : "No account for this email",
-    });
-    return error("Invalid email or password.", 401);
-  }
-
-  if (user.status === "pending") {
-    await logAudit(req, {
-      eventType: "login_failed",
-      action: "auth.login_blocked",
-      actor: { id: user.id, email: user.email, role: user.role },
-      detail: "Account status: pending",
-    });
-    return error("Your access request is still pending admin approval.", 403);
-  }
-  if (user.status === "rejected") {
-    await logAudit(req, {
-      eventType: "login_failed",
-      action: "auth.login_blocked",
-      actor: { id: user.id, email: user.email, role: user.role },
-      detail: "Account status: rejected",
-    });
-    return error("Your access request was rejected. Contact an administrator.", 403);
-  }
-  if (user.status === "deactivated") {
-    await logAudit(req, {
-      eventType: "login_failed",
-      action: "auth.login_blocked",
-      actor: { id: user.id, email: user.email, role: user.role },
-      detail: "Account status: deactivated",
-    });
-    return error("Your account has been deactivated. Contact an administrator.", 403);
-  }
-
-  // Phase 4b: the role in the token is the one identity grants, not
-  // users_pump.role. It has to be, because sessionVerdict() ends the session
-  // whenever the account's role stops matching the token's — so minting a
-  // local role here while the verdict reads the granted one would sign
-  // everybody out on their very next request, permanently.
-  const access = await resolveAccess(user.id);
-  if (!access || access.status !== "active") {
-    await logAudit(req, {
-      eventType: "login_failed",
-      action: "auth.login_denied",
-      actor: { id: user.id, email: user.email, role: user.role },
-      detail: access?.reason ?? "No access to Pump Selection",
-    });
-    return error(access?.reason ?? "You do not have access to Pump Selection.", 403);
-  }
-
-  const token = createToken({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: access.role,
-    mustChangePassword: user.mustChangePassword,
-  });
-  await logAudit(req, {
-    eventType: "login",
-    action: "auth.login",
-    actor: { id: user.id, email: user.email, role: user.role },
-    detail: "Signed in",
-  });
-
-  const response = json({
-    user: {
-      id: String(user.id),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      // Lets the client route straight to the change-password screen; the
-      // middleware enforces it regardless.
-      mustChangePassword: user.mustChangePassword === true,
-    },
-  });
-  response.cookies.set(AUTH_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: AUTH_COOKIE_MAX_AGE,
-  });
-  return response;
+export async function POST() {
+  return NextResponse.json(
+    { error: "Sign in at Risansi Digital.", signInUrl: `${HUB}/sign-in` },
+    { status: 410 },
+  );
 }

@@ -455,6 +455,42 @@ Selection rows — the gaps being exactly the deliberate exclusions.
 environment. Neither is deployed from this repo yet, so nothing is live and
 nothing is broken; the variables go in when Vercel is repointed.
 
+#### 4b, second half — the sign-in pages are gone. Done 12 Oct 2026.
+
+Both portals redirect `/` to the hub, carrying `next`. `/api/auth/login` and
+`/api/auth/change-password` answer 410 with the new address rather than 404,
+because an old bookmark, a stale tab or a cached client bundle will hit them.
+The local cookie is still *accepted*; nothing can *mint* one any more, so the
+remaining ones drain within twelve hours. Removing the credential path
+entirely is step 5.
+
+**The forced-password-change trap, closed.** Five Testing accounts were
+flagged `must_change_password` in that app's own table. Retiring the form
+without this would have pinned them to a screen that no longer exists, with
+no way to clear a column only that screen could clear. Both portals read the
+flag from the shared session now; the hub forces the change and reissues the
+session with it off.
+
+**Found the hard way, and the reason one portal worked for hours while the
+other did not:** the two apps have different shapes. Pump Selection has
+middleware, so a shared session is noticed before any page renders. Testing
+had none — its root path *is* the login page and `AuthGuard` only wraps the
+dashboard group, so arriving with a valid session rendered the login form and
+never called `/api/auth/me`. The session was never examined, the account was
+never provisioned, and the only way in was a page you could not reach without
+already being in. Four rounds went into secrets, environment variables and
+database constraints, all of which were fine. Compare the shape of two apps
+before comparing their configuration.
+
+**A grant now creates the account it needs.** `users.id` is still the foreign
+key on everything, so an approval with no local row resolved to nothing.
+Both portals provision on first arrival, gated on the grant.
+
+**What stops working today**, as agreed on 11 Oct: the eight accounts left out
+of the seed — `centraladmin@`, `it@`, `testing@`, `source001@`, `test02@`,
+`testing001@`, `narendrakushwaha@` and `admin@` — can no longer sign in once
+their current cookie expires. Three of those are test logins in real use.
+
 **What 4b already has to deal with, found during the move:**
 
 - Both apps set `outputFileTracingRoot: import.meta.dirname`, pinning tracing

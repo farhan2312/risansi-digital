@@ -204,7 +204,12 @@ export async function sharedSessionPayload(
     email: session.email,
     name: session.name,
     role: access.role,
-    mustChangePassword: access.mustChangePassword,
+    // From the token, not from users_pump. The password lives at Risansi
+    // Digital now and this app's change-password form has gone, so the local
+    // column can no longer be cleared from here — trusting it would pin
+    // somebody to a screen that no longer exists. The hub forces the change
+    // and reissues the session with the flag off.
+    mustChangePassword: session.mustChangePassword,
     // "now" is always safe here: sessionVerdict compares its cached read
     // against iat and a later iat can only force a fresh read.
     iat: Math.floor(Date.now() / 1000),

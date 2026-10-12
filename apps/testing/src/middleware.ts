@@ -53,11 +53,26 @@ async function hasSharedSession(req: NextRequest): Promise<boolean> {
   }
 }
 
+const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
+
 export async function middleware(req: NextRequest) {
   if (await hasSharedSession(req)) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
-  return NextResponse.next();
+
+  // Phase 4b, the visible step: this portal no longer has a sign-in page.
+  // Two places to type a password is the thing the whole migration exists to
+  // end. The login screen's component is still in the tree and still
+  // reachable by nothing — removing it is step 5, along with the local
+  // cookie it used to mint.
+  //
+  // `next` carries where they were going, so a link out of a notification
+  // email lands on that page rather than on the dashboard. It is checked by
+  // safeReturnUrl() at the hub and deliberately not here: an unvalidated
+  // destination on a login page is a phishing hop, and two checks in two
+  // codebases drift apart.
+  const next = encodeURIComponent(req.nextUrl.href);
+  return NextResponse.redirect(`${HUB}/sign-in?next=${next}`);
 }
 
 export const config = {

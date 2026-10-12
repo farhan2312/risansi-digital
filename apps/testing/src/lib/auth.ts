@@ -277,6 +277,19 @@ async function sharedClaims(req: Request): Promise<TokenClaims | null> {
     row?.id ?? (await provisionFromIdentity(session.userId, session.email, session.name));
   if (!localId) return null;
 
+  // Phase 4b: the password lives at Risansi Digital, so the flag that says
+  // "you are still on an issued one" comes from the token, not from this
+  // app's own column. That column can no longer be cleared from here — the
+  // change-password form has gone — so trusting it would pin five people to
+  // a screen that does not exist. The hub forces the change and reissues the
+  // session with the flag off.
+  if (session.mustChangePassword) {
+    throw new AuthError(
+      "Choose a new password at Risansi Digital before opening this portal.",
+      401,
+    );
+  }
+
   const live = await loadLiveUser(localId);
   if (live.status !== "active") {
     throw new AuthError(live.reason ?? "This account is not active.", 401);

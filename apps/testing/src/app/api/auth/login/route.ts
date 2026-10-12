@@ -1,87 +1,23 @@
-import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+/**
+ * Gone. Signing in happens at Risansi Digital.
+ *
+ * Phase 4b. This handler checked `users.password_hash`, which stopped being
+ * the credential store when the portal started accepting a shared session.
+ * Leaving it would be a second place to type a password — the thing this
+ * migration exists to end — and a way to mint a local cookie that bypasses
+ * every grant decision made at the hub.
+ *
+ * Answered rather than deleted: it is what an old bookmark, a stale tab or a
+ * cached client bundle will hit, and a 410 naming the new address is more use
+ * than a 404. Step 5 removes it with the rest of the local credential path.
+ */
+import { NextResponse } from "next/server";
 
-import { error, json } from "@/lib/api";
-import { getClientIp, getUserAgent, logAudit } from "@/lib/audit";
-import { authCookieOptions, AUTH_COOKIE_NAME, createToken } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { userSessions, users } from "@/lib/db/schema";
+const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
 
-export const dynamic = "force-dynamic";
-
-export async function POST(req: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return error("Request body must be JSON", 400);
-  }
-
-  const email = String(body.email ?? "").trim().toLowerCase();
-  const password = String(body.password ?? "");
-  if (!email || !password) {
-    return error("'email' and 'password' are required", 400);
-  }
-
-  const ip = getClientIp(req);
-  const userAgent = getUserAgent(req);
-
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    // No user_id on a failed attempt -- either the account doesn't exist or
-    // the password was wrong, and we don't want to leak which via the log.
-    await logAudit({ ipAddress: ip, userAgent, eventType: "login_failed", userEmail: email, details: "Invalid email or password" });
-    return error("Invalid email or password.", 401);
-  }
-
-  if (user.status === "pending") {
-    await logAudit({
-      ipAddress: ip, userAgent,
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      eventType: "login_failed",
-      details: "Access request still pending",
-    });
-    return error("Your access request is still pending admin approval.", 403);
-  }
-  if (user.status === "rejected") {
-    await logAudit({
-      ipAddress: ip, userAgent,
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      eventType: "login_failed",
-      details: "Access request rejected",
-    });
-    return error("Your access request was rejected. Contact an administrator.", 403);
-  }
-  if (user.status === "inactive") {
-    await logAudit({
-      ipAddress: ip, userAgent,
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      eventType: "login_failed",
-      details: "Account deactivated",
-    });
-    return error("Your account has been deactivated. Contact an administrator.", 403);
-  }
-
-  const token = createToken({ id: user.id, email: user.email, role: user.role });
-
-  await db.insert(userSessions).values({ userId: user.id, userName: user.name, userEmail: user.email });
-  await logAudit({ ipAddress: ip, userAgent, userId: user.id, userName: user.name, userEmail: user.email, eventType: "login" });
-
-  const response = json({
-    user: {
-      id: String(user.id),
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      must_change_password: user.mustChangePassword,
-    },
-  });
-  response.cookies.set(AUTH_COOKIE_NAME, token, authCookieOptions());
-  return response;
+export async function POST() {
+  return NextResponse.json(
+    { error: "Sign in at Risansi Digital.", signInUrl: `${HUB}/sign-in` },
+    { status: 410 },
+  );
 }

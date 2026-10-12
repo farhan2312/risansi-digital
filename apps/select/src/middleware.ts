@@ -15,7 +15,25 @@ const AUTH_COOKIE_NAME = "auth_token";
 
 /** Forced-password-change screen — reachable only by a flagged user, and the
  * only protected page they can reach. */
-const CHANGE_PASSWORD_PATH = "/change-password";
+const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
+/**
+ * Phase 4b: both of these are at Risansi Digital now. This portal has no
+ * sign-in page and no change-password form — two places to type a password is
+ * what the migration exists to end, and a local login would also be a way to
+ * mint a cookie that bypasses every grant decision made at the hub.
+ */
+const HUB_SIGN_IN = `${HUB}/sign-in`;
+const CHANGE_PASSWORD_PATH = `${HUB}/change-password`;
+/** The path this app used to serve it on. Kept only to forward. */
+const LOCAL_CHANGE_PASSWORD = "/change-password";
+
+/** Where to send somebody who is not signed in, carrying where they meant to
+ *  go. `next` is checked by safeReturnUrl() at the hub and deliberately not
+ *  here: two checks in two codebases drift apart, and on a login page an
+ *  unvalidated destination is a phishing hop. */
+function toHub(req: NextRequest) {
+  return NextResponse.redirect(`${HUB_SIGN_IN}?next=${encodeURIComponent(req.nextUrl.href)}`);
+}
 
 /** Where a session that has ended (deactivated, role changed, password reset)
  * lands; the login page explains why they are there. */
@@ -153,32 +171,27 @@ export async function middleware(req: NextRequest) {
     if (session && (await pageSessionEnded(session))) session = null;
     if (session) {
       return NextResponse.redirect(
-        new URL(
-          session.mustChangePassword === true ? CHANGE_PASSWORD_PATH : "/dashboard",
-          req.url,
-        ),
+        session.mustChangePassword === true
+          ? CHANGE_PASSWORD_PATH
+          : new URL("/dashboard", req.url),
       );
     }
-    if (req.cookies.get(AUTH_COOKIE_NAME)) {
-      const res = NextResponse.next();
-      res.cookies.delete(AUTH_COOKIE_NAME);
-      return res;
-    }
-    return NextResponse.next();
+    const res = toHub(req);
+    // Drop the dead local cookie on the way out so the next request does not
+    // re-run a doomed verify.
+    if (req.cookies.get(AUTH_COOKIE_NAME)) res.cookies.delete(AUTH_COOKIE_NAME);
+    return res;
   }
 
   // Forced password change: a user with an admin-issued password can't reach
-  // any protected page until they've set their own. Checked before the
-  // role gates below so it can't be side-stepped by deep-linking.
-  if (pathname === CHANGE_PASSWORD_PATH) {
-    const session = await verifySession(req);
-    if (!session) return NextResponse.redirect(new URL("/", req.url));
-    if (await pageSessionEnded(session)) return endPageSession(req);
-    // Already changed it — no reason to sit on this screen.
-    if (session.mustChangePassword !== true) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-    return NextResponse.next();
+  // any protected page until they've set their own.
+  //
+  // Phase 4b: that screen is at Risansi Digital now, so this path only
+  // exists to forward the bookmarks and the stale tabs. No session check
+  // first — there is nothing here to protect, and the hub will ask who they
+  // are anyway.
+  if (pathname === LOCAL_CHANGE_PASSWORD) {
+    return NextResponse.redirect(CHANGE_PASSWORD_PATH);
   }
 
   const isProtected = PROTECTED_PREFIXES.some(
@@ -188,9 +201,9 @@ export async function middleware(req: NextRequest) {
 
   const payload = await verifySession(req);
   if (!payload) {
-    // No session (or a stale one) — back to the login page, dropping the dead
-    // cookie so the next request doesn't re-run a doomed verify.
-    const res = NextResponse.redirect(new URL("/", req.url));
+    // No session (or a stale one) — to the hub, dropping the dead cookie so
+    // the next request doesn't re-run a doomed verify.
+    const res = toHub(req);
     if (req.cookies.get(AUTH_COOKIE_NAME)) res.cookies.delete(AUTH_COOKIE_NAME);
     return res;
   }
@@ -200,7 +213,7 @@ export async function middleware(req: NextRequest) {
   if (await pageSessionEnded(payload)) return endPageSession(req);
 
   if (payload.mustChangePassword === true) {
-    return NextResponse.redirect(new URL(CHANGE_PASSWORD_PATH, req.url));
+    return NextResponse.redirect(CHANGE_PASSWORD_PATH);
   }
 
   // Users & Access (formerly "access requests") and Bug Tracker are

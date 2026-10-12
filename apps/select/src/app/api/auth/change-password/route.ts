@@ -1,78 +1,21 @@
-import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+/**
+ * Gone. Passwords are changed at Risansi Digital.
+ *
+ * Phase 4b. This wrote `users_pump.password_hash`, which nothing reads any
+ * more, so a success here would have been a lie. The forced-change flag is
+ * read from the shared session now rather than from this app's column, so
+ * nobody is left pinned to a screen that no longer exists.
+ */
+import { NextResponse } from "next/server";
 
-import { error, json } from "@/lib/api";
-import {
-  AUTH_COOKIE_MAX_AGE,
-  AUTH_COOKIE_NAME,
-  AuthError,
-  createToken,
-  decodeToken,
-} from "@/lib/auth";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
 
-export const dynamic = "force-dynamic";
-
-export async function POST(req: Request) {
-  let claims;
-  try {
-    claims = await decodeToken(req);
-  } catch (e) {
-    if (e instanceof AuthError) return error(e.message, e.statusCode);
-    throw e;
-  }
-
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return error("Request body must be JSON", 400);
-  }
-
-  const currentPassword = String(body.currentPassword ?? "");
-  const newPassword = String(body.newPassword ?? "");
-  if (!currentPassword || !newPassword) {
-    return error("'currentPassword' and 'newPassword' are required", 400);
-  }
-
-  const [user] = await db.select().from(users).where(eq(users.id, claims.sub)).limit(1);
-  if (!user) {
-    return error("User not found", 404);
-  }
-  if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
-    return error("Current password is incorrect.", 401);
-  }
-
-  // Block re-setting the same password — otherwise a forced change can be
-  // satisfied by re-entering the admin-issued one, defeating the point.
-  if (await bcrypt.compare(newPassword, user.passwordHash)) {
-    return error("New password must be different from your current password.", 400);
-  }
-
-  const newHash = await bcrypt.hash(newPassword, 12);
-  await db
-    .update(users)
-    .set({ passwordHash: newHash, mustChangePassword: false })
-    .where(eq(users.id, user.id));
-
-  // Re-issue the session cookie so the cleared flag takes effect immediately —
-  // the old token still carries mustChangePassword and middleware reads the
-  // token, so without this the user would stay trapped on the change screen.
-  const token = createToken({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    mustChangePassword: false,
-  });
-  const response = json({ success: true });
-  response.cookies.set(AUTH_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: AUTH_COOKIE_MAX_AGE,
-  });
-  return response;
+export async function POST() {
+  return NextResponse.json(
+    {
+      error: "Passwords are changed at Risansi Digital.",
+      changePasswordUrl: `${HUB}/change-password`,
+    },
+    { status: 410 },
+  );
 }
