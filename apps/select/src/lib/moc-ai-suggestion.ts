@@ -78,7 +78,18 @@ export interface MocComponentSuggestions {
 
   summary: string;
   alternatives: string;
+  /** Per component (keyed like the fields above): why the material was
+   *  picked and up to 2 alternatives with their reasons - the MOC table
+   *  shows them as chips to choose from. Absent on suggestions made before
+   *  2026-10-13. */
+  componentChoices?: ComponentChoices;
 }
+
+export type ComponentChoice = {
+  reason: string;
+  alternatives: { material: string; reason: string }[];
+};
+export type ComponentChoices = Partial<Record<string, ComponentChoice>>;
 
 
 const BASE_REQUIRED_FIELDS: (keyof MocComponentSuggestions)[] = [
@@ -243,7 +254,68 @@ function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null
       description:
         "Markdown with ONE | pipe table | of alternative materials and trade-offs. Do not restate the primary selection or the summary.",
     },
+    // Per component: the reason for the pick and 1-2 alternatives, shown as
+    // choosable chips in the MOC table (hover = reason).
+    componentChoices: {
+      type: "object",
+      description:
+        "For EVERY component answered above (same keys): a one-sentence reason for the chosen material, and 1-2 genuine alternatives (different materials, from that component's choices where possible) each with a one-sentence reason/trade-off. Material names only in 'material'.",
+      properties: Object.fromEntries(
+        componentKeysFor(pumpType).map((k) => [
+          k,
+          {
+            type: "object",
+            properties: {
+              reason: { type: "string", description: "One sentence: why this material for this media." },
+              alternatives: {
+                type: "array",
+                maxItems: 2,
+                items: {
+                  type: "object",
+                  properties: {
+                    material: { type: "string", description: "Material name only." },
+                    reason: { type: "string", description: "One sentence: when/why to choose it instead (trade-off)." },
+                  },
+                  required: ["material", "reason"],
+                },
+              },
+            },
+            required: ["reason", "alternatives"],
+          },
+        ]),
+      ),
+    },
   };
+}
+
+/** The component fields asked for on this pump type (one plate only). */
+function componentKeysFor(pumpType: string | null): string[] {
+  return [
+    "bearingHousing", activePlateField(pumpType), "tieRod", "nutBolt",
+    "pumpHousing", "rotor", "shaft", "statorRubber", "statorSleeve",
+  ];
+}
+
+/** Whatever the model / the browser sent -> clean per-component choices
+ *  (known keys, material names trimmed, short reasons, max 2 alternatives).
+ *  Also used by the wizard-input route before saving. */
+export function normalizeComponentChoices(raw: unknown): ComponentChoices | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const out: ComponentChoices = {};
+  for (const k of MATERIAL_FIELDS) {
+    const c = (raw as Record<string, unknown>)[k];
+    if (!isObj(c)) continue;
+    const alternatives = (Array.isArray(c.alternatives) ? c.alternatives : [])
+      .filter(isObj)
+      .map((a) => ({ material: materialOnly(text(a.material, 120)), reason: text(a.reason, 300) }))
+      .filter((a) => a.material)
+      .slice(0, 2);
+    const reason = text(c.reason, 300);
+    if (reason || alternatives.length) out[k] = { reason, alternatives };
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 
@@ -368,6 +440,7 @@ function coerceSuggestions(
     sealRationale: get("sealRationale"),
     summary: get("summary"),
     alternatives: get("alternatives"),
+    componentChoices: normalizeComponentChoices(parsed.componentChoices) ?? undefined,
   };
 
   return out;
@@ -447,7 +520,7 @@ async function getMocAiSuggestionAnthropic(
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 4000,
+      max_tokens: 6000,
       system: MOC_RULES_PROMPT,
       tools: [
         {
@@ -457,7 +530,7 @@ async function getMocAiSuggestionAnthropic(
           input_schema: {
             type: "object",
             properties: schemaPropertiesFor(context.pumpType, context.pumpSupport),
-            required: ["mediaAssessment", ...requiredFieldsFor(context.pumpType)],
+            required: ["mediaAssessment", ...requiredFieldsFor(context.pumpType), "componentChoices"],
           },
         },
       ],

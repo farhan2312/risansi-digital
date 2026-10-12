@@ -91,6 +91,7 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "mocAiSuggestedSummary", "mocAiSuggestedAlternatives",
     "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealMoc", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
+    "mocAiComponentChoices",
   ],
   "motor-drive": [
     "driveMotorKw", "driveMotorKwRemarks", "driveSystem", "motorRPM",

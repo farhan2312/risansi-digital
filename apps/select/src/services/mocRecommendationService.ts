@@ -92,6 +92,9 @@ export interface MocComponentSuggestions {
   summary: string;
   /** 1-3 alternative material/elastomer combinations with trade-off notes. */
   alternatives: string;
+  /** Per component (keyed like the fields above): why the material was picked
+   *  and up to 2 alternatives with reasons - chips in the MOC table. */
+  componentChoices?: Partial<Record<string, { reason: string; alternatives: { material: string; reason: string }[] }>>;
 }
 
 /** Why the AI path produced no suggestion: "not_configured" = no usable API
