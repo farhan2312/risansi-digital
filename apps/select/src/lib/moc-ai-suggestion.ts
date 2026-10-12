@@ -118,8 +118,12 @@ const MOC_COMPONENT_OPTIONS = {
   shaft: [...SHAFT_ROTOR_BASE.map((m) => (m === "SS410" ? "SS410 HT" : m)), "Tool Steel"],
   rotor: [...SHAFT_ROTOR_BASE.map((m) => (m === "SS410" ? "SS410 HT HCP" : m)), "Tool Steel"],
 };
+// Every component field is shown as-is in the MOC table's "AI Recommendation"
+// cell and copied into the manual pick, so it must be the material alone.
+const NAME_ONLY =
+  "Answer with the material name ONLY (e.g. \"SS316L\" or \"Nitrile\") - no reasons, notes, conditions or brackets here; explain in the summary.";
 const choose = (status: string, options: string[], note = "") =>
-  `${status} Choose one of: ${options.join(", ")}.${note} Another material only if the media truly requires it - then say why.`;
+  `${status} Choose one of: ${options.join(", ")}.${note} Another material only if the media truly requires it. ${NAME_ONLY}`;
 
 
 // Material rules (sent as the system prompt). Without them "cost optimised"
@@ -142,7 +146,7 @@ const MOC_RULES_PROMPT =
   "- Food, beverage, dairy, pharma, potable: SS316L (or SS304) wetted parts; food-grade elastomer (FG Nitrile, White Nitrile or food-grade EPDM).\n" +
   "- Abrasive solids: hardened / hard-chrome rotor; Natural rubber or abrasion-grade Nitrile within temperature; Ni-Hard CI for very abrasive duty.\n" +
   "- Stator elastomer temperature limits (approx.): Natural 70 C, Nitrile 90 C, EPDM 120 C, Viton higher.\n" +
-  "When several apply, the most demanding one governs. Explain the deciding reasons in the summary's Key Design Drivers.";
+  "When several apply, the most demanding one governs. Explain the deciding reasons in the summary's Key Design Drivers - every component field holds the material name only.";
 
 const HORIZONTAL_WETTABLE_COMP = ["Pump Housing", "Rotor", "Shaft"];
 const horizontalNonWettableComp = (driveEnd: string) => [
@@ -210,7 +214,8 @@ function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null
         "Stator elastomer. " + WETTED +
         " Answer an elastomer, not a metal. Preferred (not mandatory): " +
         MOC_AI_ELASTOMERS.join(", ") +
-        " - another elastomer is fine when the media calls for it; say so explicitly.",
+        " - another elastomer is fine when the media calls for it. " +
+        NAME_ONLY,
     },
     statorSleeve: {
       type: "string",
@@ -318,6 +323,22 @@ function buildProcessData(context: MocAiContext): string {
   );
 }
 
+/** The component fields - shown in the MOC table and copied into the manual
+ *  pick, so they must be just the material. */
+const MATERIAL_FIELDS = new Set<keyof MocComponentSuggestions>([
+  "bearingHousing", "basePlate", "mountingPlate", "tieRod", "nutBolt",
+  "pumpHousing", "rotor", "shaft", "statorRubber", "statorSleeve",
+]);
+
+/** "Nitrile (abrasion-grade preferred for 30% solids…)" -> "Nitrile". A short
+ *  answer is kept whole (a grade like "SS316L" or "Nitrile (FG)" is fine); a
+ *  long one is cut at the first bracket, semicolon, colon, " - " or comma. */
+function materialOnly(text: string): string {
+  if (text.length <= 30) return text;
+  const cut = text.search(/\s*[(;:,]|\s+-\s+|\s+(?:because|as|for|due)\s/i);
+  return (cut > 0 ? text.slice(0, cut) : text).trim();
+}
+
 function coerceSuggestions(
   parsed: Partial<Record<string, unknown>>,
   pumpType: string | null,
@@ -328,7 +349,8 @@ function coerceSuggestions(
   }
   const get = (k: keyof MocComponentSuggestions) => {
     const v = parsed[k];
-    return typeof v === "string" ? v.trim() : "";
+    const text = typeof v === "string" ? v.trim() : "";
+    return MATERIAL_FIELDS.has(k) ? materialOnly(text) : text;
   };
   const out: MocComponentSuggestions = {
     bearingHousing: get("bearingHousing"),
