@@ -95,7 +95,13 @@ export interface TechDocSheet {
   config: TechDocConfig;
   /** Drive group code, for the file name when the enquiry mixes drives. */
   group?: string;
+  /** Scope of supply / Out of scope lines (from the Quotation step), printed
+   *  at the foot; absent or blank = not printed. */
+  scope?: ScopeLines;
 }
+
+/** "A, B & C" / "A + B" — the two lines as the sheets print them. */
+export type ScopeLines = { scope: string; out: string };
 
 /** Sheet key: a drive group, or "NONE" for confirmed tags with no drive. */
 export type TechDocGroup = DriveGroup | "NONE";
@@ -117,6 +123,9 @@ export interface TechDocData {
   erpNumbers?: Record<string, string>;
   /** Drive group → that sheet's edits. */
   configs: Record<string, TechDocConfig>;
+  /** Drive group → its Scope of supply / Out of scope lines (shared with the
+   *  Commercial Offer; set on the Quotation step). */
+  scopes?: Record<string, ScopeLines>;
 }
 
 export const techDocGroupOf = (t: TechDocTag): TechDocGroup =>
@@ -147,6 +156,7 @@ export function techDocSheet(data: TechDocData, group: TechDocGroup): TechDocShe
     tags: data.tags.filter((t) => techDocGroupOf(t) === group),
     config: data.configs[group] ?? EMPTY_TECH_DOC_CONFIG,
     group: data.mixed && group !== "NONE" ? group : undefined,
+    scope: data.scopes?.[group],
   };
 }
 
@@ -615,9 +625,23 @@ export function buildTechDocHtml(data: TechDocSheet, logoUrl = "/logo.png"): str
     title: "Technical Data Sheet",
     header: data.header,
     tagCount: data.tags.length,
-    body,
+    body: body + scopeRowsHtml(data.scope, cols),
     logoUrl,
+    css: SCOPE_CSS,
   });
+}
+
+/** The sheets' Scope of supply / Out of scope rows (Technical Data Sheet and
+ *  Commercial Offer print them the same way). */
+export const SCOPE_CSS = `
+  tr.scope td { color: #c00000; font-weight: bold; font-style: italic; text-align: center; font-size: 9.5pt; padding: 6px; }
+  tr.oos td { font-style: italic; text-align: center; font-size: 9pt; padding: 6px; }`;
+export function scopeRowsHtml(lines: ScopeLines | undefined, cols: number): string {
+  if (!lines) return "";
+  return (
+    (lines.scope ? `<tr class="scope"><td colspan="${cols}">Scope of supply :- ${esc(lines.scope)}</td></tr>` : "") +
+    (lines.out ? `<tr class="oos"><td colspan="${cols}">Out Of Scope :- ${esc(lines.out)}</td></tr>` : "")
+  );
 }
 
 /** Letterhead icons — inline SVG so they print without any font or network. */

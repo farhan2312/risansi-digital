@@ -59,6 +59,10 @@ export function downloadTechDocExcel(data: TechDocSheet): string {
     }
   }
 
+  if (data.scope?.scope)
+    rows.push([{ value: `Scope of supply :- ${data.scope.scope}`, colSpan: width, color: "C00000", bold: true, align: "center", wrap: true }]);
+  if (data.scope?.out) rows.push([{ value: `Out Of Scope :- ${data.scope.out}`, colSpan: width, align: "center", wrap: true }]);
+
   const filename = `${techDocFileStem(data)}.xlsx`;
   downloadXlsx(filename, [
     { name: "Technical Data Sheet", columnWidths: [30, ...Array.from({ length: n }, () => 28)], rows },

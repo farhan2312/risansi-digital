@@ -23,7 +23,7 @@
  * Client-safe (no DB / DOM): the modal, print and Excel all build from here.
  */
 import { boiNet, boiTotal, otherNet, type CommercialPrices, type DriveGroup, type TagTech } from "./commercial";
-import { esc, headerHiddenList, sheetHtml, type HeaderKey, type TechDocHeader, type TechDocRow } from "./tech-doc";
+import { SCOPE_CSS, esc, headerHiddenList, scopeRowsHtml, sheetHtml, type HeaderKey, type TechDocHeader, type TechDocRow } from "./tech-doc";
 
 export const OFFER_TITLE = "Commercial Offer";
 
@@ -384,8 +384,7 @@ export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string
     `<tr class="offer-band"><td colspan="${cols}">${esc(OFFER_TITLE)}</td></tr>` +
     tagHead +
     rows +
-    (scope ? `<tr class="scope"><td colspan="${cols}">Scope of supply :- ${esc(scope)}</td></tr>` : "") +
-    (out ? `<tr class="oos"><td colspan="${cols}">Out Of Scope :- ${esc(out)}</td></tr>` : "");
+    scopeRowsHtml({ scope, out }, cols);
   return sheetHtml({
     projectCode: sheet.projectCode,
     title: OFFER_TITLE,
@@ -395,8 +394,6 @@ export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string
     logoUrl,
     css: `
   tr.offer-band td { background: #dcebfb; color: #0b3d7e; font-weight: bold; text-align: center; font-size: 10.5pt; padding: 6px; }
-  tr.tags td { font-weight: bold; }
-  tr.scope td { color: #c00000; font-weight: bold; font-style: italic; text-align: center; font-size: 9.5pt; padding: 6px; }
-  tr.oos td { font-style: italic; text-align: center; font-size: 9pt; padding: 6px; }`,
+  tr.tags td { font-weight: bold; }${SCOPE_CSS}`,
   });
 }
