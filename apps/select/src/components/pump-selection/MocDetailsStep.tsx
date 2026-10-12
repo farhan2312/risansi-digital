@@ -12,7 +12,12 @@ import {
   MOC_AI_ELASTOMERS,
   MOC_AI_MATERIALS,
   MOC_AI_PROVIDERS,
-  ROTOR_SHAFT_MATERIALS,
+  BEARING_HOUSING_MATERIALS,
+  FASTENER_MATERIALS,
+  PLATE_MATERIALS,
+  ROTOR_MATERIALS,
+  SHAFT_MATERIALS,
+  STATOR_SLEEVE_MATERIALS,
   type MocAiProvider,
   type MocComponentSuggestions,
 } from "../../services/mocRecommendationService";
@@ -155,6 +160,9 @@ type ComponentRow = {
 // Both variants write the SAME formData keys (mocAiBasePlate /
 // mocAiStatorSleeve), so switching pump type re-labels and re-groups the rows
 // without stranding an already-entered material under an orphaned key.
+/** The "type it yourself" entry at the end of every material list. */
+const OTHERS = "Others";
+
 const isVerticalPump = (pumpType: string | undefined): boolean =>
   pumpType === "Vertical";
 
@@ -162,14 +170,14 @@ const pumpSupportRow = (bearingHousing: string | undefined): ComponentRow => ({
   key: "mocAiBearingHousing",
   label: pumpSupportComponentName(bearingHousing),
   aiKey: "bearingHousing",
-  options: MOC_AI_MATERIALS,
+  options: BEARING_HOUSING_MATERIALS,
 });
 
 const BASE_PLATE_ROW: ComponentRow = {
   key: "mocAiBasePlate",
   label: "Base Plate",
   aiKey: "basePlate",
-  options: MOC_AI_MATERIALS,
+  options: PLATE_MATERIALS,
 };
 
 // A mounting plate is its OWN component, not a renamed base plate - separate
@@ -178,28 +186,28 @@ const MOUNTING_PLATE_ROW: ComponentRow = {
   key: "mocAiMountingPlate",
   label: "Mounting Plate",
   aiKey: "mountingPlate",
-  options: MOC_AI_MATERIALS,
+  options: PLATE_MATERIALS,
 };
 
 const TIE_ROD_ROW: ComponentRow = {
   key: "mocAiTieRod",
   label: "Tie Rod",
   aiKey: "tieRod",
-  options: MOC_AI_MATERIALS,
+  options: FASTENER_MATERIALS,
 };
 
 const NUT_BOLT_ROW: ComponentRow = {
   key: "mocAiNutBolt",
   label: "Nut & Bolt",
   aiKey: "nutBolt",
-  options: MOC_AI_MATERIALS,
+  options: FASTENER_MATERIALS,
 };
 
 const STATOR_SLEEVE_ROW: ComponentRow = {
   key: "mocAiStatorSleeve",
   label: "Stator Sleeve",
   aiKey: "statorSleeve",
-  options: MOC_AI_MATERIALS,
+  options: STATOR_SLEEVE_MATERIALS,
 };
 
 const WETTABLE_BASE_ROWS: ComponentRow[] = [
@@ -213,13 +221,13 @@ const WETTABLE_BASE_ROWS: ComponentRow[] = [
     key: "mocAiRotor",
     label: "Rotor",
     aiKey: "rotor",
-    options: ROTOR_SHAFT_MATERIALS,
+    options: ROTOR_MATERIALS,
   },
   {
     key: "mocAiShaft",
     label: "Shaft",
     aiKey: "shaft",
-    options: ROTOR_SHAFT_MATERIALS,
+    options: SHAFT_MATERIALS,
   },
 ];
 
@@ -581,6 +589,7 @@ const MocDetailsStep = ({
   for (const row of activeRows) {
     const manual = (formData[row.key] ?? "").trim();
     if (!manual) mocErrors[row.key] = "Required";
+    else if (manual === OTHERS) mocErrors[row.key] = "Type the material";
   }
   const mocErrorCount = Object.values(mocErrors).filter(Boolean).length;
 
@@ -1078,27 +1087,43 @@ const MocComponentTable = ({
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <select
-                    className={control}
-                    value={formData[row.key] ?? ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, [row.key]: e.target.value })
-                    }
-                  >
-                    <option value="">Select</option>
-                    {/* A value carried over from the AI can name a material
-                        outside the standard list; list it so the dropdown can
-                        actually show it instead of falling back to blank. */}
-                    {formData[row.key] &&
-                      !row.options.includes(formData[row.key]) && (
-                        <option value={formData[row.key]}>{formData[row.key]}</option>
-                      )}
-                    {row.options.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                  {(() => {
+                    // A material outside the row's list (typed under "Others",
+                    // or named by the AI) shows as "Others" with its text in
+                    // the box below. Bare "Others" = picked, not typed yet.
+                    const value: string = formData[row.key] ?? "";
+                    const listed = value !== "" && value !== OTHERS && row.options.includes(value);
+                    const selectValue = value === "" ? "" : listed ? value : OTHERS;
+                    return (
+                      <>
+                        <select
+                          className={control}
+                          value={selectValue}
+                          onChange={(e) => setFormData({ ...formData, [row.key]: e.target.value })}
+                        >
+                          <option value="">Select</option>
+                          {row.options.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                        {selectValue === OTHERS && (
+                          <input
+                            type="text"
+                            className={`${control} mt-1.5`}
+                            placeholder="Type the material"
+                            maxLength={100}
+                            value={value === OTHERS ? "" : value}
+                            onChange={(e) =>
+                              setFormData({ ...formData, [row.key]: e.target.value.trim() ? e.target.value : OTHERS })
+                            }
+                            aria-label={`${row.label} - other material`}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
                   {showErrors && errors[row.key] && (
                     <span className="mt-1 block text-[11.5px] text-neg">{errors[row.key]}</span>
                   )}
