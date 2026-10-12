@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { asc, eq, inArray } from "drizzle-orm";
 
@@ -59,65 +60,25 @@ export async function GET(req: Request) {
   );
 }
 
-/** Directly creates an already-active user — the "+ Add User" action on the
- * Users & Access page. Distinct from /api/access-requests (self-service
- * signup, always starts "pending"): this is a system admin vouching for the
- * account up front, so it skips the approval step entirely. */
-export async function POST(req: Request) {
-  let claims;
-  try {
-    claims = await requireSystemAdmin(req);
-  } catch (e) {
-    if (e instanceof AuthError) return error(e.message, e.statusCode);
-    throw e;
-  }
-
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return error("Request body must be JSON", 400);
-  }
-
-  const name = String(body.name ?? "").trim();
-  const email = String(body.email ?? "").trim().toLowerCase();
-  const password = String(body.password ?? "");
-  const role = String(body.role ?? "user");
-  if (!name || !email || !password) {
-    return error("'name', 'email', and 'password' are required", 400);
-  }
-  if (password.length < 6) {
-    return error("'password' must be at least 6 characters", 400);
-  }
-  if (!VALID_ROLES.has(role)) {
-    return error("'role' must be one of: user, selection_head, pulley_owner, admin, system_admin", 400);
-  }
-
-  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing) {
-    return error("A user with this email already exists.", 409);
-  }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-  const [user] = await db
-    .insert(users)
-    .values({
-      name,
-      email,
-      passwordHash,
-      role,
-      status: "active",
-      reviewedBy: claims.sub,
-      reviewedAt: new Date(),
-    })
-    .returning();
-
-  await logAudit(req, {
-    action: "user.create",
-    entity: "users_pump",
-    entityId: user.id,
-    detail: `Created user ${user.email} with role ${user.role}`,
-  });
-
-  return json(userToDict(user), 201);
+/**
+ * Creating an account happens at Risansi Digital.
+ *
+ * Phase 4b. This made a row here with a local password, which no longer signs
+ * anybody in — and it could not create the grant that decides whether they
+ * may open this portal at all, because that lives in identity. An account
+ * made here would have been a row nobody could use.
+ *
+ * The GET above stays: other screens need the list of people to assign work
+ * to, and reading it was never the problem.
+ */
+export async function POST() {
+  const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
+  return NextResponse.json(
+    {
+      error: "Create the account at Risansi Digital — it grants the portals at the same time.",
+      manageUrl: `${HUB}/requests/people`,
+    },
+    { status: 410 },
+  );
 }
+

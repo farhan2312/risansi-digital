@@ -27,99 +27,51 @@ async function requireSysadmin() {
   return session.user;
 }
 
-export async function approveUser(formData: FormData) {
-  const admin    = await requireSysadmin();
-  const id       = parseInt(formData.get('id') as string); // users.id
-  const role     = formData.get('role') as string;
-  const safeRole = VALID_ROLES.includes(role) ? role : 'rep';
+// ── Account management moved to Risansi Digital ──────────────────
+//
+// Phase 4b. Approving, refusing, revoking, reinstating, creating a person and
+// resetting a password all happen once at digital.risansi.com/requests/people
+// now, instead of here and in two other portals. The same job had four
+// implementations; which one got used depended on who you asked, and
+// switching somebody off properly meant remembering all four.
+//
+// They are refused rather than deleted. A Server Function is reachable by
+// direct POST whether or not anything renders a form for it, so removing the
+// UI would have left five working write paths behind an unlinked door. Step 5
+// deletes them with the rest of the local credential machinery.
+//
+// Refusing also happens to be the only correct answer. This portal cannot
+// decide access any more: whether somebody may open it is read from
+// identity.app_grants on every request, so a role written into `users` here
+// is overwritten on the next page load, and a password set here signs nobody
+// in because the credential lives in identity.
 
-  // The user record IS the person now — just flip status + role.
-  await risansiPool.query(
-    `UPDATE users SET
-       status     = 'Approved',
-       role       = $1,
-       updated_at = NOW()
-     WHERE id = $2`,
-    [safeRole, id],
-  );
+const MOVED = fail(
+  'Accounts are managed at Risansi Digital — digital.risansi.com/requests/people. '
+  + 'Changes made here would be overwritten on the next page load.',
+);
 
-  // Approving no longer assigns routes. It read tour_ids[] from the form, but no
-  // form has sent that field for some time, and a route grants nothing now — an
-  // approved rep gets their access from the clients they own, which is set on
-  // Reps & Managers.
-
-  revalidatePath('/admin');
-  revalidatePath('/risansi/admin/reps');
-}
-
-// ── resetUserPassword ──────────────────────────────────────────
-// Sysadmin sets a temporary password for a user and forces a change at next
-// login (must_change_password = true). The temp password is communicated to
-// the user out of band; on next sign-in the layout routes them to
-// /change-password, where they enter the temp value as their "current"
-// password and pick a new one.
-export async function resetUserPassword(formData: FormData): Promise<SaveResult> {
-  const admin = await requireSysadmin();
-  const id    = parseInt(formData.get('id') as string, 10);
-  const tempPw = (formData.get('temp_password') as string | null) ?? '';
-
-  if (!Number.isInteger(id) || id <= 0) throw new Error('Invalid user id');
-  if (typeof tempPw !== 'string' || tempPw.length < 8) {
-    return fail('The temporary password needs at least 8 characters.');
-  }
-
-  const { rows } = await risansiPool.query<{ email: string }>('SELECT email FROM users WHERE id = $1', [id]);
-  if (!rows[0]) throw new Error('User not found');
-
-  // Cost factor 10 to match signup / change-password.
-  const hash = await bcrypt.hash(tempPw, 10);
-  await risansiPool.query(
-    `UPDATE users SET password_hash = $1, must_change_password = true, updated_at = NOW() WHERE id = $2`,
-    [hash, id],
-  );
-
-  await recordAudit({
-    action: 'password_reset', entityType: 'user', entityId: id, entityLabel: rows[0].email,
-    summary: `Reset password for ${rows[0].email} (forced change at next login)`,
-    actorEmail: admin.email ?? null, actorRole: 'sysadmin',
-  });
-
-  revalidatePath('/admin');
-  return { ok: true };
-}
-
-export async function rejectUser(formData: FormData) {
+export async function approveUser(_formData: FormData): Promise<SaveResult> {
   await requireSysadmin();
-  const id = parseInt(formData.get('id') as string); // users.id
-
-  await risansiPool.query(
-    `UPDATE users SET status = 'Rejected', updated_at = NOW() WHERE id = $1`,
-    [id],
-  );
-  revalidatePath('/admin');
+  return MOVED;
 }
 
-export async function revokeUser(formData: FormData) {
+export async function rejectUser(_formData: FormData): Promise<SaveResult> {
   await requireSysadmin();
-  const id = parseInt(formData.get('id') as string); // users.id
-
-  // No 'Revoked' status in the CHECK constraint — use 'Rejected'.
-  await risansiPool.query(
-    `UPDATE users SET status = 'Rejected', updated_at = NOW() WHERE id = $1`,
-    [id],
-  );
-  revalidatePath('/admin');
+  return MOVED;
 }
 
-export async function reapproveUser(formData: FormData) {
+export async function revokeUser(_formData: FormData): Promise<SaveResult> {
   await requireSysadmin();
-  const id       = parseInt(formData.get('id') as string); // users.id
-  const role     = formData.get('role') as string;
-  const safeRole = VALID_ROLES.includes(role) ? role : 'rep';
+  return MOVED;
+}
 
-  await risansiPool.query(
-    `UPDATE users SET status = 'Approved', role = $1, updated_at = NOW() WHERE id = $2`,
-    [safeRole, id],
-  );
-  revalidatePath('/admin');
+export async function reapproveUser(_formData: FormData): Promise<SaveResult> {
+  await requireSysadmin();
+  return MOVED;
+}
+
+export async function resetUserPassword(_formData: FormData): Promise<SaveResult> {
+  await requireSysadmin();
+  return MOVED;
 }

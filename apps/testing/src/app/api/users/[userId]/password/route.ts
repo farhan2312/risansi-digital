@@ -1,63 +1,34 @@
-import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+/**
+ * Gone. Accounts are managed at Risansi Digital.
+ *
+ * Phase 4b. Creating somebody, changing their role, resetting a password and
+ * switching an account off all happen at digital.risansi.com/requests/people
+ * now. They used to exist here and in two other portals as well, which meant
+ * the same job had four implementations, the one that got used depended on who
+ * you asked, and switching somebody off properly meant remembering all four.
+ *
+ * Worse than duplication: this portal can no longer decide any of it. Whether
+ * somebody may open it is read from identity.app_grants per request, so a role
+ * written into this table would be overwritten on the next page load and a
+ * password set here would sign nobody in.
+ *
+ * Answered rather than deleted — a cached client bundle or an open tab will
+ * still call it, and a 410 naming the new address is more use than a 404.
+ */
+import { NextResponse } from "next/server";
 
-import { error, json } from "@/lib/api";
-import { getClientIp, logAudit } from "@/lib/audit";
-import { AuthError, requireAdmin } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
 
-export const dynamic = "force-dynamic";
+function gone() {
+  return NextResponse.json(
+    {
+      error: "Accounts are managed at Risansi Digital.",
+      manageUrl: `${HUB}/requests/people`,
+    },
+    { status: 410 },
+  );
+}
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
-  let claims;
-  try {
-    claims = await requireAdmin(req);
-  } catch (e) {
-    if (e instanceof AuthError) return error(e.message, e.statusCode);
-    throw e;
-  }
-
-  const { userId } = await params;
-  if (!UUID_RE.test(userId)) {
-    return error("Invalid user id", 400);
-  }
-
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return error("Request body must be JSON", 400);
-  }
-
-  const newPassword = String(body.newPassword ?? "");
-  if (newPassword.length < 6) {
-    return error("Password must be at least 6 characters.", 400);
-  }
-
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user) {
-    return error("User not found", 404);
-  }
-
-  const newHash = await bcrypt.hash(newPassword, 12);
-  await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id));
-
-  await logAudit({
-    ipAddress: getClientIp(req),
-    userId: claims.sub,
-    userEmail: claims.email,
-    eventType: "update",
-    entityType: "user",
-    entityId: user.id,
-    entityLabel: user.email,
-    details: "Password reset by admin",
-  });
-
-  return json({ success: true });
+export async function PATCH() {
+  return gone();
 }

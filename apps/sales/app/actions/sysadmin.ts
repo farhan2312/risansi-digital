@@ -110,56 +110,12 @@ export async function setUsdRate(formData: FormData): Promise<SaveResult> {
 // SET NULL, so their book surfaces in the Unassigned tab rather than vanishing,
 // and their secondary and team rows cascade away.
 
-export async function deleteUser(formData: FormData): Promise<SaveResult> {
-  const actor = await requireSysadmin();
-  const id = parseInt(formData.get('id') as string, 10);
-  const force = formData.get('force') === 'true';
-
-  if (!Number.isInteger(id) || id <= 0) throw new Error('Invalid user id');
-
-  // Snapshot for audit + ownership guard.
-  const { rows: userRows } = await risansiPool.query<{ email: string; name: string; role: string }>(
-    'SELECT email, name, role FROM users WHERE id = $1',
-    [id],
-  );
-  if (!userRows[0]) throw new Error('User not found');
-
-  if (!force) {
-    const { rows } = await risansiPool.query<{
-      clients: string; visits: string; opps: string;
-    }>(
-      `SELECT
-         (SELECT COUNT(*) FROM clients WHERE primary_rep_id = $1 AND deleted_at IS NULL)::text AS clients,
-         (SELECT COUNT(*) FROM visits        WHERE rep_id = $1)::text       AS visits,
-         (SELECT COUNT(*) FROM opportunities WHERE rep_id = $1)::text       AS opps`,
-      [id],
-    );
-    const clients = Number(rows[0]?.clients ?? 0);
-    const visits  = Number(rows[0]?.visits ?? 0);
-    const opps    = Number(rows[0]?.opps ?? 0);
-    if (clients > 0 || visits > 0 || opps > 0) {
-      const parts: string[] = [];
-      if (clients) parts.push(`${clients} client${clients !== 1 ? 's' : ''}`);
-      if (visits)  parts.push(`${visits} visit${visits !== 1 ? 's' : ''}`);
-      if (opps)    parts.push(`${opps} opportunit${opps !== 1 ? 'ies' : 'y'}`);
-      return fail(
-        `Cannot delete — this user still owns ${parts.join(', ')}. Hand their book to someone `
-        + `else with Move clients on Reps & Managers, or use force delete.`,
-      );
-    }
-  }
-
-  // Everything that pointed at this user either cascades or nulls out via its
-  // own FK: client_assignments, client_secondary_reps and manager_reps cascade,
-  // clients.primary_rep_id sets null. The one row that needed deleting by hand
-  // was the route assignment, and that table is gone.
-  await risansiPool.query('DELETE FROM users WHERE id = $1', [id]);
-
-  await audit('user', id, 'delete', userRows[0], null, actor);
-
-  revalidatePath('/admin');
-  revalidatePath('/risansi/admin/reps');
-  return { ok: true };
+// Deleting an account moved to Risansi Digital. Deactivating there locks
+// every portal on that person's next click and keeps their history intact,
+// which is what this was nearly always used for. Refused rather than removed:
+// a Server Function is reachable by direct POST with or without a button.
+export async function deleteUser(_formData: FormData): Promise<SaveResult> {
+  return { ok: false, error: 'Accounts are managed at Risansi Digital — digital.risansi.com/requests/people.' };
 }
 
 // The four tour actions that used to live here — setUserTours, assignUserToTour,
