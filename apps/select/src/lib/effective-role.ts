@@ -26,6 +26,9 @@
  * is supposed to do that, and before the conversation about replacing it.
  * It falls through to the local columns and stops working on the day.
  */
+import { randomUUID } from "node:crypto";
+
+import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
 import { COOKIE_NAME as SHARED_COOKIE, mayOpen, readToken } from "@risansi/identity";
@@ -108,6 +111,50 @@ export async function localUserIdFor(identityUserId: string): Promise<string | n
   return row?.id ?? null;
 }
 
+/**
+ * Give somebody a row here the first time they arrive with a grant.
+ *
+ * Without this a grant cannot do anything on its own: `users_pump.id` is
+ * still the foreign key on projects, quotations and audit rows, so a person
+ * approved in the hub with no row here resolves to nothing and is sent back
+ * to the login page. Two of the six grants set on 12 Oct were inert for
+ * exactly this reason.
+ *
+ * The gate is the grant. Nothing is created for anybody a human has not
+ * approved for this application on the hub's approvals screen.
+ *
+ * `password_hash` is NOT NULL and these accounts have no local password —
+ * the credential lives in identity — so it holds a bcrypt hash of a random
+ * uuid that is immediately discarded: right shape, impossible to match, no
+ * special case anywhere else. Matching on email rather than failing means a
+ * row the Phase 4 seed missed gets linked instead, and two simultaneous
+ * first requests settle as one row.
+ */
+async function provisionFromIdentity(
+  identityUserId: string,
+  email: string,
+  name: string,
+): Promise<string | null> {
+  const verdict = await mayOpen(identityDb, identityUserId, APP_SLUG);
+  if (!verdict.allowed) return null;
+
+  const [row] = await db
+    .insert(users)
+    .values({
+      email,
+      name,
+      passwordHash: await bcrypt.hash(randomUUID(), 10),
+      role: verdict.appRole ?? "user",
+      status: "active",
+      mustChangePassword: false,
+      identityUserId,
+    })
+    .onConflictDoUpdate({ target: users.email, set: { identityUserId } })
+    .returning({ id: users.id });
+
+  return row?.id ?? null;
+}
+
 /** What `verifyToken` returns for a local cookie, built from a shared one. */
 export interface SharedPayload {
   sub: string;
@@ -142,8 +189,11 @@ export async function sharedSessionPayload(
   }
   if (!session) return null;
 
-  const localId = await localUserIdFor(session.userId);
-  // Signed in to Risansi Digital with no account in this portal.
+  // No row here yet. If Risansi Digital says they may open this portal, make
+  // one; otherwise they are simply not a user here.
+  const localId =
+    (await localUserIdFor(session.userId)) ??
+    (await provisionFromIdentity(session.userId, session.email, session.name));
   if (!localId) return null;
 
   const access = await resolveAccess(localId);

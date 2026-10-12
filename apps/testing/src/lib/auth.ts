@@ -7,7 +7,10 @@
  * sales-portal-next separately if it should also move off Authorization
  * headers -- this file only controls testing-portal's own cookie.
  */
+import { randomUUID } from "node:crypto";
+
 import { COOKIE_NAME as SHARED_COOKIE, mayOpen, readToken } from "@risansi/identity";
+import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
@@ -181,6 +184,61 @@ async function loadLiveUser(userId: string): Promise<LiveUser> {
 }
 
 /**
+ * Give somebody a row here the first time they arrive with a grant.
+ *
+ * Without this a grant cannot do anything on its own. The local `users.id` is
+ * still the foreign key on requisitions, calendar events and audit rows, so a
+ * person approved in the hub but with no row here would be handed a grant
+ * that resolves to nothing and sent back to the login page — which is exactly
+ * what happened to the three people made admins on 12 Oct, two of whose six
+ * grants were inert.
+ *
+ * The gate is the grant itself. Nothing is created for somebody who has not
+ * been approved for this application by a human on the approvals screen, so
+ * this cannot quietly populate the table with anyone holding a hub account.
+ *
+ * ── The password column ─────────────────────────────────────────
+ *
+ * `password_hash` is NOT NULL and these accounts have no local password at
+ * all — the credential lives in identity. It is filled with a bcrypt hash of
+ * a random uuid that is then discarded: valid in shape, impossible to match,
+ * and no special case anywhere else in the app. `must_change_password` is
+ * explicitly false, because the column defaults to true here and a true would
+ * pin them to a change-password screen for a password that does not exist.
+ *
+ * ── On conflict ─────────────────────────────────────────────────
+ *
+ * Matching on email rather than failing: a row already here under that
+ * address means the Phase 4 seed missed it, and linking is the repair. It
+ * also makes two simultaneous first requests settle as one row rather than a
+ * unique-violation on whichever lost.
+ */
+async function provisionFromIdentity(
+  identityUserId: string,
+  email: string,
+  name: string,
+): Promise<string | null> {
+  const verdict = await mayOpen(identityDb, identityUserId, APP_SLUG);
+  if (!verdict.allowed) return null;
+
+  const [row] = await db
+    .insert(users)
+    .values({
+      email,
+      name,
+      passwordHash: await bcrypt.hash(randomUUID(), 10),
+      role: verdict.appRole ?? "user",
+      status: "active",
+      mustChangePassword: false,
+      identityUserId,
+    })
+    .onConflictDoUpdate({ target: users.email, set: { identityUserId } })
+    .returning({ id: users.id });
+
+  return row?.id ?? null;
+}
+
+/**
  * A Risansi Digital session, resolved into this portal's own claims.
  *
  * Phase 4b. The shared cookie's `sub` is an `identity.users.id`; everything
@@ -213,18 +271,20 @@ async function sharedClaims(req: Request): Promise<TokenClaims | null> {
     .from(users)
     .where(eq(users.identityUserId, session.userId))
     .limit(1);
-  // Signed in to Risansi Digital, but with no account in this portal. Not an
-  // error and not a fallback either — their own cookie would not help.
-  if (!row) return null;
+  // No row here yet. If Risansi Digital says they may open this portal, make
+  // one; otherwise they are simply not a user here and fall through.
+  const localId =
+    row?.id ?? (await provisionFromIdentity(session.userId, session.email, session.name));
+  if (!localId) return null;
 
-  const live = await loadLiveUser(row.id);
+  const live = await loadLiveUser(localId);
   if (live.status !== "active") {
     throw new AuthError(live.reason ?? "This account is not active.", 401);
   }
 
   const now = Math.floor(Date.now() / 1000);
   return {
-    sub: row.id,
+    sub: localId,
     email: session.email,
     role: live.role ?? "user",
     // Synthesised. The shared token's own lifetime was already checked by
