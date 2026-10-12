@@ -725,21 +725,12 @@ const ProjectsPage = () => {
                     <div className="flex flex-nowrap items-center justify-start gap-0.5">
                       <button
                         type="button"
-                        className={btn}
-                        onClick={() => openDocument(project)}
-                        title="View this enquiry's Technical Data Sheet"
-                      >
-                        <DocumentIcon />
-                        <span className="hidden 2xl:inline">Technical</span>
-                      </button>
-                      <button
-                        type="button"
                         className={`${btn} relative`}
                         onClick={() => setQuotationFor(project)}
                         title={
                           project.quotation_count
                             ? "Quotation generated — view it or change the quotation no. (ERP)"
-                            : "Generate the quotation (opens Commercial)"
+                            : "Generate the quotation (opens Technical and Commercial)"
                         }
                         aria-label={`Quotation for ${project.project_code}`}
                       >
@@ -748,6 +739,21 @@ const ProjectsPage = () => {
                         {!project.quotation_count && (
                           <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[var(--warn)]" aria-hidden="true" />
                         )}
+                      </button>
+                      <button
+                        type="button"
+                        className={btn}
+                        onClick={() => openDocument(project)}
+                        disabled={!project.quotation_count}
+                        title={
+                          project.quotation_count
+                            ? "View this enquiry's Technical Data Sheet"
+                            : "Generate the quotation first (Quotation button)"
+                        }
+                        aria-label={`Technical Data Sheet for ${project.project_code}`}
+                      >
+                        <DocumentIcon />
+                        <span className="hidden 2xl:inline">Technical</span>
                       </button>
                       <button
                         type="button"
