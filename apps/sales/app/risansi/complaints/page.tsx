@@ -45,7 +45,15 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
   // where four are in use and show an empty table for the fifth.
   const options: FilterOptions = {
     categories: uniq(base.map(r => r.complaint_category)),
-    subcategories: uniq(base.map(r => r.complaint_subcategory)),
+    // Narrowed by the chosen Category, because a sub-category belongs to one:
+    // offering all of them made "Supply Related · Wrong material despatched"
+    // selectable together and return nothing. Still built from the UNFILTERED
+    // set otherwise, like every list here — Category is the only filter that
+    // is allowed to narrow it, because it is the only one it depends on.
+    subcategories: uniq(
+      (filters.cat ? base.filter(r => r.complaint_category === filters.cat) : base)
+        .map(r => r.complaint_subcategory),
+    ),
     // Only the historical rows the 2 Oct mapping could not read onto a new
     // category. A row with both is reachable through Category instead, so
     // offering its old wording as well would be two routes to the same rows.

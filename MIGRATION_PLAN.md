@@ -662,6 +662,25 @@ fails for the first person who ever arrives that way.
 
 ---
 
+### One deploy per app, and a trap in vercel.json
+
+Each app's `vercel.json` carries an `ignoreCommand` so a push only rebuilds
+the app it touched:
+
+```
+git diff --quiet HEAD^ HEAD -- . ../../packages
+```
+
+Exit 0 skips, non-zero builds. `.` is the project's Root Directory and
+`../../packages` is the shared code all four import, so a change to the
+migration plan or a script rebuilds nothing.
+
+**Do not put a `"//"` comment key in `vercel.json`.** Vercel validates the
+file strictly and rejects an unknown key, failing the deployment before the
+ignore check even runs — which is how three apps broke on 12 Oct after the
+rationale for the command was written into the file as a comment. The file
+takes no comments; the reasoning lives here instead.
+
 ## 6. Risks and open items
 
 - ~~Email overlap is unmeasured.~~ **Measured, 10 Oct 2026** — see §7.
