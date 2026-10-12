@@ -21,6 +21,7 @@ import type { AppRole } from '@risansi/identity';
 import {
   approveGrantAction,
   changeRoleAction,
+  reinstateGrantAction,
   rejectGrantAction,
   revokeGrantAction,
   type ActionState,
@@ -145,6 +146,67 @@ export function ChangeRoleForm({
         disabled={pending || !chosen || chosen === current}
       >
         {pending ? 'Changing…' : 'Change role'}
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Giving back access that was refused or withdrawn.
+ *
+ * Blank by default like the approval form, not pre-filled like the role
+ * editor. Whatever role the refusal carried is not a choice anybody made —
+ * a Rejected grant usually has none at all — so there is nothing to preserve
+ * and a default would just be a guess somebody clicks past.
+ */
+export function ReinstateForm({
+  grantId, appSlug, roles, from,
+}: {
+  grantId: string; appSlug: string; roles: AppRole[]; from: string;
+}) {
+  const [state, formAction, pending] = useActionState(reinstateGrantAction, EMPTY);
+  const [chosen, setChosen] = useState('');
+
+  const role = roles.find(r => r.role === chosen);
+  const heavy = role ? isHeavyRole(appSlug, role.role) : false;
+  const selectId = `reinstate-role-${grantId}`;
+
+  return (
+    <form action={formAction} className="decision">
+      <input type="hidden" name="grantId" value={grantId} />
+
+      <div className="field">
+        <label htmlFor={selectId}>Give them</label>
+        <select
+          id={selectId}
+          name="role"
+          value={chosen}
+          onChange={e => setChosen(e.target.value)}
+          required
+        >
+          <option value="">Choose a role…</option>
+          {roles.map(r => (
+            <option key={r.role} value={r.role}>
+              {isHeavyRole(appSlug, r.role) ? `${r.label} — heaviest` : r.label}
+            </option>
+          ))}
+        </select>
+        <p className="field-hint">
+          This overturns a decision somebody made. It is recorded as that,
+          not as a fresh approval.
+        </p>
+      </div>
+
+      {role && (
+        <p className={heavy ? 'role-desc role-desc-heavy' : 'role-desc'}>
+          {role.description}
+        </p>
+      )}
+
+      <Result state={state} />
+
+      <button className="btn btn-small" type="submit" disabled={pending || !chosen}>
+        {pending ? 'Restoring…' : `Undo this ${from.toLowerCase()}`}
       </button>
     </form>
   );

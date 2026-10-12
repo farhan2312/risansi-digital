@@ -119,7 +119,7 @@ interface Settled {
  */
 async function decide(
   grantId: string,
-  from: 'Pending' | 'Approved',
+  from: 'Pending' | 'Approved' | 'Rejected' | 'Revoked',
   to: 'Approved' | 'Rejected' | 'Revoked',
   deciderId: string,
   appRole: string | null,
@@ -242,6 +242,80 @@ export async function approveGrantAction(
  * a role cannot be set on a grant another approver is revoking at the same
  * moment.
  */
+/**
+ * Put back access that was refused or withdrawn.
+ *
+ * The screen could approve a request, refuse one, change a role and revoke —
+ * and then had nothing to say to a `Rejected` or `Revoked` row ever again.
+ * That is the wrong shape for what this actually is. A refusal is usually
+ * "not yet": somebody asks before they need it, is told no, and asks again
+ * three weeks later. Without this the only way back was a second request
+ * from the person, or psql.
+ *
+ * It is not a second `approve`. Approve moves Pending → Approved and is the
+ * first decision on a request; this one knowingly overturns a decision that
+ * was already made, which is why it logs `grant_reinstated` with the status
+ * it came from rather than pretending the refusal never happened.
+ *
+ * The person is told, using the same mail an approval sends — from where they
+ * stand that is exactly what has happened.
+ */
+export async function reinstateGrantAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const approver = await requireApprover();
+  const grantId = grantIdFrom(formData);
+  if (!grantId) return { error: 'That grant could not be found.' };
+
+  const role = trimmedOrNull(text(formData, 'role'), 60);
+  if (!role) return { error: 'Choose the role they should have.' };
+
+  const { rows: grantRows } = await db.query<{ app_slug: string; status: string }>(
+    `SELECT app_slug, status FROM identity.app_grants WHERE id = $1`,
+    [grantId],
+  );
+  const grant = grantRows[0];
+  if (!grant) return { error: 'That grant could not be found.' };
+  if (grant.status === 'Approved') return { notice: 'They already have that access.' };
+  if (grant.status === 'Pending') {
+    return { error: 'That one is still waiting on a decision — approve it instead.' };
+  }
+
+  const { rows: roleRows } = await db.query<{ label: string }>(
+    `SELECT label FROM identity.app_roles WHERE app_slug = $1 AND role = $2`,
+    [grant.app_slug, role],
+  );
+  const roleRow = roleRows[0];
+  if (!roleRow) return { error: `${role} is not a role that application has.` };
+
+  // The old status is in the WHERE clause for the same reason every other
+  // decision here puts it there: two approvers acting at once settle it once.
+  const settled = await decide(
+    grantId, grant.status as 'Rejected' | 'Revoked', 'Approved', approver.id, role, null);
+  if (!settled) return { error: 'That grant changed while you were looking at it.' };
+
+  await logAuthEvent({
+    event: 'grant_reinstated',
+    email: settled.email,
+    appSlug: settled.appSlug,
+    detail: `${grant.status} to Approved as ${role}, by ${approver.email}`,
+  });
+
+  await notifyAccessDecided({
+    requesterName: settled.name,
+    requesterEmail: settled.email,
+    appName: settled.appName,
+    appUrl: settled.appUrl,
+    approved: true,
+    appRole: role,
+    roleLabel: roleRow.label,
+    decidedByName: approver.name,
+  });
+
+  return { notice: `${settled.email} can open ${settled.appName} as ${roleRow.label}.` };
+}
+
 export async function changeRoleAction(
   _prev: ActionState,
   formData: FormData,
