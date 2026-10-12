@@ -17,8 +17,6 @@ type Props = {
   formData: any;
   projectId?: string;
   tagId?: string;
-  projectCode?: string;
-  projectName?: string | null;
   /** Resolves once the step-leave saves in flight have landed. */
   savesSettled?: () => Promise<unknown>;
 };
@@ -38,8 +36,6 @@ const PumpQtyWizardStep = ({
   formData,
   projectId,
   tagId,
-  projectCode,
-  projectName,
   savesSettled,
 }: Props) => {
   const [tag, setTag] = useState<CommercialTag | null>(null);
@@ -87,8 +83,6 @@ const PumpQtyWizardStep = ({
         ) : (
           <PumpQtyStep
             projectId={projectId}
-            projectCode={projectCode ?? ""}
-            projectName={projectName ?? null}
             tags={[tag]}
             nextLabel="Save & Next →"
             onSaved={(_, productCode, quantity, codeParts) => setTag((t) => (t ? { ...t, productCode, quantity, codeParts } : t))}
