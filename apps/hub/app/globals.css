@@ -994,6 +994,49 @@
     text-transform: uppercase;
     color: var(--fg-2);
   }
+  /* ── Add someone ────────────────────────────────────────────── */
+  .new-user {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--card);
+    padding: 18px 20px;
+    margin-bottom: 8px;
+  }
+  .new-user-who,
+  .new-user-apps {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+  .new-user-who  { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .new-user-apps { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+  /* The password, for as long as this panel is on screen and nowhere else. */
+  .handover {
+    margin: 14px 0;
+    padding: 14px 16px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--bg);
+  }
+  .handover-head { font-weight: 600; margin: 0; }
+  .handover-sub  { margin: 2px 0 10px; font-size: 12px; color: var(--fg-3); }
+  .handover-pw {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 6px;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    user-select: all;
+    word-break: break-all;
+  }
+  .handover-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--fg-2); }
+
+  /* Several controls in one cell, stacked rather than crowded onto a line. */
+  .row-action-stack { flex-direction: column; align-items: flex-start; gap: 6px; }
+
   /* An action that lives in a table cell: the control and nothing around it. */
   .row-action {
     display: flex;

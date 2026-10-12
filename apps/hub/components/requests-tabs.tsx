@@ -12,9 +12,10 @@ import Link from 'next/link';
 const TABS = [
   { href: '/requests',        key: 'requests', label: 'Requests' },
   { href: '/requests/access', key: 'access',   label: 'Who has what' },
+  { href: '/requests/people', key: 'people',   label: 'People' },
 ] as const;
 
-export function RequestsTabs({ active }: { active: 'requests' | 'access' }) {
+export function RequestsTabs({ active }: { active: 'requests' | 'access' | 'people' }) {
   return (
     <nav className="tabs" aria-label="Access">
       {TABS.map(t => (
