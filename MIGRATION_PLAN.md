@@ -398,8 +398,44 @@ and fails to resolve `@risansi/identity`. And on Windows the extra path depth
 plus Turbopack's long chunk filenames hits `MAX_PATH`; clone shallow or enable
 long paths.
 
-**Open before 4a can start:** neither repository is on this machine and the
-stack of each is unconfirmed. Both are needed before the subtree.
+**Status: code moved 12 Oct 2026.** `risansi-testing` → `apps/testing` (181
+commits), `risansi_pump_selection` → `apps/select` (228 commits). History
+joined rather than squashed: both move commits are pure renames, 257 and 357
+files, zero insertions and zero deletions, and `git log --follow` and
+`git blame` both trace through to the original authors and paths. `npm ci`,
+`tsc --noEmit` and `npm run build` are green for both. Vercel still has to be
+repointed by hand — steps 2 to 6 above.
+
+`apps/select` is named for its `app_slug`. Its `package.json` still says
+`sales-portal-next`, which is a fork artefact and nothing to do with the sales
+portal.
+
+**The stack question is settled.** Both are Next 15.5.7 and TypeScript, so
+both can import `@risansi/identity` at 4b and `SESSION_CONTRACT.md` is a
+reference rather than a specification to implement. The Python that
+`alembic_version` implied is real but confined to `apps/select/azure-functions`,
+which has its own `shared/auth.py` — so Pump Selection authenticates in two
+runtimes and 4b has to change both.
+
+**What 4b already has to deal with, found during the move:**
+
+- Both apps set `outputFileTracingRoot: import.meta.dirname`, pinning tracing
+  to the app directory. Harmless today because neither imports anything from
+  `packages/`; the moment one does, that has to become the repo root, and it
+  has to agree with `turbopack.root` or Vercel discards it — the Phase 1
+  failure, exactly.
+- `apps/testing/next.config.ts` sends `form-action 'self'`. That is what
+  blocked sign-out on sales for most of a day: the hub has to be named there
+  before the cutover, not after.
+- Testing's token carries `role` in the claims, which is the one thing the
+  shared session deliberately does not do. Every read of `claims.role` becomes
+  a grant lookup. That, not the verify swap, is the bulk of 4b.
+- Both use cookie `auth_token`, `JWT_SECRET`, HS256, 12 hours, and
+  `jsonwebtoken` rather than `jose`. The two apps share a secret and payload
+  shape on purpose, so a token minted by either is valid in both — which means
+  they have to cut over together, not one at a time.
+- Neither repository had a CI workflow, so nothing needed moving to
+  `.github/workflows`. Neither has one now either.
 
 #### Reconciliation, measured 11 Oct 2026
 
