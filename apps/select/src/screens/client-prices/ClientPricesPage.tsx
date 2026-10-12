@@ -199,8 +199,12 @@ function History({
             <article key={q.info.id} className="rounded-xl border border-line bg-paper">
               <header className="flex flex-wrap items-start justify-between gap-2 border-b border-line px-4 py-3">
                 <div className="min-w-0">
-                  <p className="font-mono text-[13px] font-semibold break-all text-fg">{q.info.number}</p>
-                  {q.info.erpNumber && <p className="font-mono text-[11.5px] break-all text-fg-2">ERP: {q.info.erpNumber}</p>}
+                  {q.info.erpNumber && (
+                    <p className="font-mono text-[13px] font-semibold break-all text-fg">Quotation No.: {q.info.erpNumber}</p>
+                  )}
+                  <p className={`font-mono break-all ${q.info.erpNumber ? "text-[11.5px] text-fg-2" : "text-[13px] font-semibold text-fg"}`}>
+                    Quotation No. (System): {q.info.number}
+                  </p>
                   <p className="text-[12px] text-fg-3">
                     {fmtDate(q.info.quoteDate)} · TSM {q.info.tsmName ?? "—"}
                     {isDriveGroup(q.info.driveGroup) ? ` · ${DRIVE_GROUP_LABEL[q.info.driveGroup]}` : ""}

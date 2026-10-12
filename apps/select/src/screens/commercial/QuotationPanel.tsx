@@ -204,7 +204,7 @@ export default function QuotationPanel({
           <div className="flex flex-wrap items-center gap-3">
             {tsmField}
             <label className="flex items-center gap-2 text-[12.5px] text-fg-2">
-              Quotation No. (ERP) serial
+              Quotation No. serial
               <input
                 className="w-[130px] rounded-lg border border-line bg-paper px-2.5 py-1.5 font-mono text-[13px] text-fg uppercase outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
                 value={erpDraft}
@@ -250,7 +250,10 @@ export default function QuotationPanel({
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0">
           <h2 className="text-[14px] font-semibold text-fg">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
-          <p className="mt-0.5 font-mono text-[15px] font-semibold break-all text-fg">{quotation.number}</p>
+          <p className="mt-0.5 font-mono text-[15px] font-semibold break-all text-fg">
+            <span className="mr-1.5 font-sans text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No. (System)</span>
+            {quotation.number}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <VersionBadge label="Internal" value={versionLabel(quotation.internalVersion)} />
@@ -287,14 +290,14 @@ export default function QuotationPanel({
 
       <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No. (ERP)</span>
+          <span className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No.</span>
           <span className="flex flex-wrap items-center gap-1.5">
             <input
               className="w-[120px] rounded-md border border-line bg-paper px-2 py-1 font-mono text-[12.5px] text-fg uppercase outline-none focus:border-accent"
               value={erpDraft}
               maxLength={30}
-              placeholder="ERP serial"
-              aria-label="ERP serial"
+              placeholder="Serial"
+              aria-label="Quotation No. serial"
               onChange={(e) => setErpDraft(e.target.value)}
             />
             {erpDraft.trim().toUpperCase() !== (quotation.erpSerial ?? "") && (
@@ -302,7 +305,7 @@ export default function QuotationPanel({
                 type="button"
                 className={btnSm}
                 disabled={busy}
-                onClick={() => run(() => setQuotationErpSerial(quotation.id, erpDraft.trim()), "Couldn't save the ERP serial.")}
+                onClick={() => run(() => setQuotationErpSerial(quotation.id, erpDraft.trim()), "Couldn't save the quotation no.")}
               >
                 Save
               </button>

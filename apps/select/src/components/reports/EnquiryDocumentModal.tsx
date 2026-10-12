@@ -386,13 +386,6 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                       {
                         key: "quotation",
                         label: "Quotation No. & Date",
-                        value: config.quotationText ?? "",
-                        auto: (group && data?.quotations[group]) || "",
-                        onChange: (v) => updateConfig({ ...config, quotationText: v }),
-                      },
-                      {
-                        key: "erp",
-                        label: "Quotation No. & Date (ERP)",
                         value: config.erpText ?? "",
                         auto: (group && data?.erpNumbers?.[group]) || "",
                         onChange: (v) => updateConfig({ ...config, erpText: v }),

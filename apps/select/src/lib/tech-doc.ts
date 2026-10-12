@@ -80,10 +80,10 @@ export function headerCells(h: TechDocHeader): { client: string | null; enquiry:
   return {
     client: hid.has("client") ? null : `Client Name: ${h.clientName}`,
     enquiry: hid.has("enquiry") ? null : `Enquiry No. & Date: ${h.enquiry}`,
-    quote: [
-      hid.has("quotation") ? null : `Quotation No. & Date: ${h.quotation || "-"}`,
-      hid.has("erp") || !h.erp ? null : `Quotation No. & Date (ERP): ${h.erp}`,
-    ].filter((x): x is string => x !== null),
+    // One line: the quotation no. as entered in ERP (the sheet's
+    // `quotation`). Sheets frozen before 2026-10-12 also carry the portal
+    // number there, with the ERP one in `erp` — that one is shown.
+    quote: hid.has("quotation") ? [] : [`Quotation No. & Date: ${h.erp || h.quotation || "-"}`],
   };
 }
 
@@ -140,8 +140,8 @@ export function techDocSheet(data: TechDocData, group: TechDocGroup): TechDocShe
       clientName: data.clientName,
       enquiry: data.enquiry,
       // Typed on the sheet's header wins over the automatic line.
-      quotation: cfg?.quotationText || (data.quotations[group] ?? ""),
-      erp: cfg?.erpText || data.erpNumbers?.[group] || undefined,
+      // The ERP quotation no. (the portal's own number is not on the sheet).
+      quotation: cfg?.erpText || data.erpNumbers?.[group] || "",
       hidden: cfg?.headerHidden ?? [],
     },
     tags: data.tags.filter((t) => techDocGroupOf(t) === group),

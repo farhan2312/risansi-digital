@@ -118,15 +118,14 @@ export default function CommercialOfferModal({
   const geared = isGearedGroup(group);
   const sheet: OfferSheet | null = useMemo(() => {
     if (!data) return null;
-    const q = data.quotations[group] ?? "";
     return {
       projectCode: data.projectCode,
       header: {
         clientName: data.clientName,
         enquiry: data.enquiry,
-        // Typed on the sheet's header wins over the automatic line.
-        quotation: config.quotationText || (q && version ? `${q} (${version.label})` : q),
-        erp: config.erpText || data.erpNumbers?.[group] || undefined,
+        // The ERP quotation no. (typed on the sheet's header wins); the
+        // portal's own number is not on the sheet.
+        quotation: config.erpText || data.erpNumbers?.[group] || "",
         hidden: config.headerHidden ?? [],
       },
       tags,
@@ -262,13 +261,6 @@ export default function CommercialOfferModal({
                       {
                         key: "quotation",
                         label: "Quotation No. & Date",
-                        value: config.quotationText ?? "",
-                        auto: data.quotations[group] ?? "",
-                        onChange: (v) => update({ ...config, quotationText: v }),
-                      },
-                      {
-                        key: "erp",
-                        label: "Quotation No. & Date (ERP)",
                         value: config.erpText ?? "",
                         auto: data.erpNumbers?.[group] ?? "",
                         onChange: (v) => update({ ...config, erpText: v }),
