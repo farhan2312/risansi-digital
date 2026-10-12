@@ -25,13 +25,13 @@ import { SiteFooter } from '@/components/site-footer';
 import {
   ApproveForm,
   ChangeRoleForm,
-  ReinstateForm,
+  ReinstateInline,
   RejectForm,
   RevokeForm,
 } from '@/components/decision-forms';
 import {
-  GrantApproverForm,
-  RevokeApproverForm,
+  GrantApproverInline,
+  RevokeApproverInline,
   type Candidate,
 } from '@/components/approver-forms';
 import { RequestsTabs } from '@/components/requests-tabs';
@@ -125,6 +125,12 @@ export default async function RequestsPage() {
        LEFT JOIN identity.users d ON d.id = g.decided_by
       WHERE g.status IN ('Rejected', 'Revoked')
       ORDER BY g.decided_at DESC NULLS LAST`,
+  );
+
+  const comingSoon = new Set(
+    (await db.query<{ slug: string }>(
+      `SELECT slug FROM identity.apps WHERE coming_soon`,
+    )).rows.map(r => r.slug),
   );
 
   // Who decides, and who could. Active accounts only: an approver who cannot
@@ -248,39 +254,55 @@ export default async function RequestsPage() {
             Refused and withdrawn · {String(settled.rows.length).padStart(2, '0')}
           </div>
           <p className="section-note">
-            A refusal is often only &ldquo;not yet&rdquo;. Undoing one here is
+            A refusal is often only &ldquo;not yet&rdquo;. Restoring one here is
             recorded as overturning a decision, not as a fresh approval.
           </p>
 
-          <div className="queue">
-            {settled.rows.map(row => (
-              <article className="queue-item" key={row.id}>
-                <div className="queue-head">
-                  <div>
-                    <div className="queue-who">{row.user_name}</div>
-                    <div className="queue-meta">{row.email}</div>
-                  </div>
-                  <div>
-                    <div className="queue-app">{row.app_name}</div>
-                    <div className="queue-meta">
-                      {`${row.status.toLowerCase()} ${when(row.decided_at)}`}
-                      {row.decided_by_email ? ` by ${row.decided_by_email}` : ''}
-                    </div>
-                  </div>
-                </div>
-
-                {row.decided_note && <p className="queue-reason">{row.decided_note}</p>}
-
-                <div className="queue-forms">
-                  <ReinstateForm
-                    grantId={row.id}
-                    appSlug={row.app_slug}
-                    roles={roles[row.app_slug] ?? []}
-                    from={row.status}
-                  />
-                </div>
-              </article>
-            ))}
+          <div className="matrix-scroll">
+            <table className="matrix">
+              <thead>
+                <tr>
+                  <th scope="col">Person</th>
+                  <th scope="col">Application</th>
+                  <th scope="col">Decided</th>
+                  <th scope="col">Restore</th>
+                </tr>
+              </thead>
+              <tbody>
+                {settled.rows.map(row => (
+                  <tr key={row.id}>
+                    <th scope="row">
+                      <span className="matrix-who">{row.user_name}</span>
+                      <span className="matrix-mail">{row.email}</span>
+                    </th>
+                    <td>
+                      {row.app_name}
+                      {/* The note, where it belongs: on the row it explains,
+                          not repeated at full width five times over. */}
+                      {row.decided_note && (
+                        <span className="cell-reason" title={row.decided_note}>
+                          {row.decided_note}
+                        </span>
+                      )}
+                    </td>
+                    <td className="cell-no">
+                      {row.status.toLowerCase()} {when(row.decided_at)}
+                      {row.decided_by_email ? <><br />by {row.decided_by_email}</> : null}
+                    </td>
+                    <td>
+                      <ReinstateInline
+                        grantId={row.id}
+                        appSlug={row.app_slug}
+                        roles={roles[row.app_slug] ?? []}
+                        // Restoring access to something nobody can open yet
+                        // would produce a grant for a greyed tile.
+                        disabledReason={comingSoon.has(row.app_slug) ? 'Not open yet' : undefined}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </>
       )}
@@ -288,36 +310,46 @@ export default async function RequestsPage() {
       <div className="section-label">
         Approvers · {String(approvers.rows.length).padStart(2, '0')}
       </div>
-
       <p className="section-note">
         An approver decides access for every portal, not one. Keep at least two,
         so a request does not wait on one person being at their desk.
       </p>
 
-      <div className="queue">
-        {approvers.rows.map(row => (
-          <article className="queue-item" key={row.id}>
-            <div className="queue-head">
-              <div>
-                <div className="queue-who">{row.name}</div>
-                <div className="queue-meta">{row.email}</div>
-              </div>
-            </div>
-            <div className="queue-forms">
-              <RevokeApproverForm
-                userId={row.id}
-                name={row.name}
-                isSelf={row.id === viewer.id}
-              />
-            </div>
-          </article>
-        ))}
-
-        <article className="queue-item">
-          <div className="queue-forms">
-            <GrantApproverForm candidates={candidates.rows} />
-          </div>
-        </article>
+      <div className="matrix-scroll">
+        <table className="matrix">
+          <thead>
+            <tr>
+              <th scope="col">Person</th>
+              <th scope="col">&nbsp;</th>
+            </tr>
+          </thead>
+          <tbody>
+            {approvers.rows.map(row => (
+              <tr key={row.id}>
+                <th scope="row">
+                  <span className="matrix-who">{row.name}</span>
+                  <span className="matrix-mail">{row.email}</span>
+                </th>
+                <td>
+                  <RevokeApproverInline
+                    userId={row.id}
+                    name={row.name}
+                    isSelf={row.id === viewer.id}
+                  />
+                </td>
+              </tr>
+            ))}
+            <tr>
+              <th scope="row">
+                <span className="matrix-who">Add an approver</span>
+                <span className="matrix-mail">
+                  They can approve, refuse and withdraw access to every portal
+                </span>
+              </th>
+              <td><GrantApproverInline candidates={candidates.rows} /></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <SiteFooter signedIn />

@@ -994,6 +994,30 @@
     text-transform: uppercase;
     color: var(--fg-2);
   }
+  /* An action that lives in a table cell: the control and nothing around it. */
+  .row-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .row-action select { min-width: 190px; }
+  .row-action .notice { margin: 0; flex-basis: 100%; }
+
+  /* The decided note, on the row it explains. Clipped to two lines; the full
+     text is the cell's title attribute. */
+  .cell-reason {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 3px;
+    max-width: 38ch;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--fg-3);
+  }
+
   .cell-yes     { color: var(--fg); }
   .cell-pending { color: var(--fg-2); font-style: italic; }
   .cell-open    { color: var(--fg-3); }

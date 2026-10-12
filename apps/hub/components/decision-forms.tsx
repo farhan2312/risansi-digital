@@ -212,6 +212,49 @@ export function ReinstateForm({
   );
 }
 
+/**
+ * The same thing as ReinstateForm, sized for a table row.
+ *
+ * No label, no hint, no description panel — in a table the column heading is
+ * the label and the row is the context. The full-width card version stays for
+ * the queue, where a decision is being made for the first time and the role
+ * description earns its space.
+ */
+export function ReinstateInline({
+  grantId, appSlug, roles, disabledReason,
+}: {
+  grantId: string; appSlug: string; roles: AppRole[]; disabledReason?: string;
+}) {
+  const [state, formAction, pending] = useActionState(reinstateGrantAction, EMPTY);
+  const [chosen, setChosen] = useState('');
+
+  if (disabledReason) return <span className="cell-no">{disabledReason}</span>;
+
+  return (
+    <form action={formAction} className="row-action">
+      <input type="hidden" name="grantId" value={grantId} />
+      <select
+        name="role"
+        aria-label={`Role for ${appSlug}`}
+        value={chosen}
+        onChange={e => setChosen(e.target.value)}
+        required
+      >
+        <option value="">Choose a role…</option>
+        {roles.map(r => (
+          <option key={r.role} value={r.role}>
+            {isHeavyRole(appSlug, r.role) ? `${r.label} — heaviest` : r.label}
+          </option>
+        ))}
+      </select>
+      <button className="btn btn-small" type="submit" disabled={pending || !chosen}>
+        {pending ? 'Restoring…' : 'Restore'}
+      </button>
+      {(state.error || state.notice) && <Result state={state} />}
+    </form>
+  );
+}
+
 export function RejectForm({ grantId }: { grantId: string }) {
   const [state, formAction, pending] = useActionState(rejectGrantAction, EMPTY);
   const noteId = `reject-note-${grantId}`;

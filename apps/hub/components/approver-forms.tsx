@@ -74,6 +74,64 @@ export function GrantApproverForm({ candidates }: { candidates: Candidate[] }) {
   );
 }
 
+/**
+ * The add control, sized to sit in the last row of the approvers table.
+ *
+ * In the table rather than in a card underneath it: the list and the way to
+ * add to it are the same thought, and splitting them puts a second panel on
+ * screen that says nothing the column heading did not.
+ */
+export function GrantApproverInline({ candidates }: { candidates: Candidate[] }) {
+  const [state, formAction, pending] = useActionState(grantApproverAction, EMPTY);
+  const [chosen, setChosen] = useState('');
+
+  if (candidates.length === 0) {
+    return <span className="cell-no">Everybody active is already an approver.</span>;
+  }
+
+  return (
+    <form action={formAction} className="row-action">
+      <select
+        name="userId"
+        aria-label="Give approver access to"
+        value={chosen}
+        onChange={e => setChosen(e.target.value)}
+        required
+      >
+        <option value="">Choose somebody…</option>
+        {candidates.map(c => (
+          <option key={c.id} value={c.id}>{c.name} — {c.email}</option>
+        ))}
+      </select>
+      <button className="btn btn-small" type="submit" disabled={pending || !chosen}>
+        {pending ? 'Adding…' : 'Add approver'}
+      </button>
+      {(state.error || state.notice) && <Result state={state} />}
+    </form>
+  );
+}
+
+/** Remove, sized for a table row. */
+export function RevokeApproverInline({
+  userId, name, isSelf,
+}: {
+  userId: string; name: string; isSelf: boolean;
+}) {
+  const [state, formAction, pending] = useActionState(revokeApproverAction, EMPTY);
+
+  if (isSelf) return <span className="cell-no">This is you</span>;
+
+  return (
+    <form action={formAction} className="row-action">
+      <input type="hidden" name="userId" value={userId} />
+      <button className="btn btn-small btn-quiet" type="submit" disabled={pending}>
+        {pending ? 'Removing…' : `Remove ${name.split(' ')[0]}`}
+      </button>
+      {(state.error || state.notice) && <Result state={state} />}
+    </form>
+  );
+}
+
 export function RevokeApproverForm({
   userId, name, isSelf,
 }: {
