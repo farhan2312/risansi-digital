@@ -78,7 +78,18 @@ export interface MocComponentSuggestions {
 
   summary: string;
   alternatives: string;
+  /** Per component (keyed like the fields above): why the material was
+   *  picked and up to 2 alternatives with their reasons - the MOC table
+   *  shows them as chips to choose from. Absent on suggestions made before
+   *  2026-10-13. */
+  componentChoices?: ComponentChoices;
 }
+
+export type ComponentChoice = {
+  reason: string;
+  alternatives: { material: string; reason: string }[];
+};
+export type ComponentChoices = Partial<Record<string, ComponentChoice>>;
 
 
 const BASE_REQUIRED_FIELDS: (keyof MocComponentSuggestions)[] = [
@@ -118,8 +129,12 @@ const MOC_COMPONENT_OPTIONS = {
   shaft: [...SHAFT_ROTOR_BASE.map((m) => (m === "SS410" ? "SS410 HT" : m)), "Tool Steel"],
   rotor: [...SHAFT_ROTOR_BASE.map((m) => (m === "SS410" ? "SS410 HT HCP" : m)), "Tool Steel"],
 };
+// Every component field is shown as-is in the MOC table's "AI Recommendation"
+// cell and copied into the manual pick, so it must be the material alone.
+const NAME_ONLY =
+  "Answer with the material name ONLY (e.g. \"SS316L\" or \"Nitrile\") - no reasons, notes, conditions or brackets here; explain in the summary.";
 const choose = (status: string, options: string[], note = "") =>
-  `${status} Choose one of: ${options.join(", ")}.${note} Another material only if the media truly requires it - then say why.`;
+  `${status} Choose one of: ${options.join(", ")}.${note} Another material only if the media truly requires it. ${NAME_ONLY}`;
 
 
 // Material rules (sent as the system prompt). Without them "cost optimised"
@@ -142,7 +157,7 @@ const MOC_RULES_PROMPT =
   "- Food, beverage, dairy, pharma, potable: SS316L (or SS304) wetted parts; food-grade elastomer (FG Nitrile, White Nitrile or food-grade EPDM).\n" +
   "- Abrasive solids: hardened / hard-chrome rotor; Natural rubber or abrasion-grade Nitrile within temperature; Ni-Hard CI for very abrasive duty.\n" +
   "- Stator elastomer temperature limits (approx.): Natural 70 C, Nitrile 90 C, EPDM 120 C, Viton higher.\n" +
-  "When several apply, the most demanding one governs. Explain the deciding reasons in the summary's Key Design Drivers.";
+  "When several apply, the most demanding one governs. Explain the deciding reasons in the summary's Key Design Drivers - every component field holds the material name only.";
 
 const HORIZONTAL_WETTABLE_COMP = ["Pump Housing", "Rotor", "Shaft"];
 const horizontalNonWettableComp = (driveEnd: string) => [
@@ -210,7 +225,8 @@ function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null
         "Stator elastomer. " + WETTED +
         " Answer an elastomer, not a metal. Preferred (not mandatory): " +
         MOC_AI_ELASTOMERS.join(", ") +
-        " - another elastomer is fine when the media calls for it; say so explicitly.",
+        " - another elastomer is fine when the media calls for it. " +
+        NAME_ONLY,
     },
     statorSleeve: {
       type: "string",
@@ -238,7 +254,68 @@ function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null
       description:
         "Markdown with ONE | pipe table | of alternative materials and trade-offs. Do not restate the primary selection or the summary.",
     },
+    // Per component: the reason for the pick and 1-2 alternatives, shown as
+    // choosable chips in the MOC table (hover = reason).
+    componentChoices: {
+      type: "object",
+      description:
+        "For EVERY component answered above (same keys): a one-sentence reason for the chosen material, and 1-2 genuine alternatives (different materials, from that component's choices where possible) each with a one-sentence reason/trade-off. Material names only in 'material'.",
+      properties: Object.fromEntries(
+        componentKeysFor(pumpType).map((k) => [
+          k,
+          {
+            type: "object",
+            properties: {
+              reason: { type: "string", description: "One sentence: why this material for this media." },
+              alternatives: {
+                type: "array",
+                maxItems: 2,
+                items: {
+                  type: "object",
+                  properties: {
+                    material: { type: "string", description: "Material name only." },
+                    reason: { type: "string", description: "One sentence: when/why to choose it instead (trade-off)." },
+                  },
+                  required: ["material", "reason"],
+                },
+              },
+            },
+            required: ["reason", "alternatives"],
+          },
+        ]),
+      ),
+    },
   };
+}
+
+/** The component fields asked for on this pump type (one plate only). */
+function componentKeysFor(pumpType: string | null): string[] {
+  return [
+    "bearingHousing", activePlateField(pumpType), "tieRod", "nutBolt",
+    "pumpHousing", "rotor", "shaft", "statorRubber", "statorSleeve",
+  ];
+}
+
+/** Whatever the model / the browser sent -> clean per-component choices
+ *  (known keys, material names trimmed, short reasons, max 2 alternatives).
+ *  Also used by the wizard-input route before saving. */
+export function normalizeComponentChoices(raw: unknown): ComponentChoices | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const out: ComponentChoices = {};
+  for (const k of MATERIAL_FIELDS) {
+    const c = (raw as Record<string, unknown>)[k];
+    if (!isObj(c)) continue;
+    const alternatives = (Array.isArray(c.alternatives) ? c.alternatives : [])
+      .filter(isObj)
+      .map((a) => ({ material: materialOnly(text(a.material, 120)), reason: text(a.reason, 300) }))
+      .filter((a) => a.material)
+      .slice(0, 2);
+    const reason = text(c.reason, 300);
+    if (reason || alternatives.length) out[k] = { reason, alternatives };
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 
@@ -318,6 +395,22 @@ function buildProcessData(context: MocAiContext): string {
   );
 }
 
+/** The component fields - shown in the MOC table and copied into the manual
+ *  pick, so they must be just the material. */
+const MATERIAL_FIELDS = new Set<keyof MocComponentSuggestions>([
+  "bearingHousing", "basePlate", "mountingPlate", "tieRod", "nutBolt",
+  "pumpHousing", "rotor", "shaft", "statorRubber", "statorSleeve",
+]);
+
+/** "Nitrile (abrasion-grade preferred for 30% solids…)" -> "Nitrile". A short
+ *  answer is kept whole (a grade like "SS316L" or "Nitrile (FG)" is fine); a
+ *  long one is cut at the first bracket, semicolon, colon, " - " or comma. */
+function materialOnly(text: string): string {
+  if (text.length <= 30) return text;
+  const cut = text.search(/\s*[(;:,]|\s+-\s+|\s+(?:because|as|for|due)\s/i);
+  return (cut > 0 ? text.slice(0, cut) : text).trim();
+}
+
 function coerceSuggestions(
   parsed: Partial<Record<string, unknown>>,
   pumpType: string | null,
@@ -328,7 +421,8 @@ function coerceSuggestions(
   }
   const get = (k: keyof MocComponentSuggestions) => {
     const v = parsed[k];
-    return typeof v === "string" ? v.trim() : "";
+    const text = typeof v === "string" ? v.trim() : "";
+    return MATERIAL_FIELDS.has(k) ? materialOnly(text) : text;
   };
   const out: MocComponentSuggestions = {
     bearingHousing: get("bearingHousing"),
@@ -346,6 +440,7 @@ function coerceSuggestions(
     sealRationale: get("sealRationale"),
     summary: get("summary"),
     alternatives: get("alternatives"),
+    componentChoices: normalizeComponentChoices(parsed.componentChoices) ?? undefined,
   };
 
   return out;
@@ -425,7 +520,7 @@ async function getMocAiSuggestionAnthropic(
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 4000,
+      max_tokens: 6000,
       system: MOC_RULES_PROMPT,
       tools: [
         {
@@ -435,7 +530,7 @@ async function getMocAiSuggestionAnthropic(
           input_schema: {
             type: "object",
             properties: schemaPropertiesFor(context.pumpType, context.pumpSupport),
-            required: ["mediaAssessment", ...requiredFieldsFor(context.pumpType)],
+            required: ["mediaAssessment", ...requiredFieldsFor(context.pumpType), "componentChoices"],
           },
         },
       ],

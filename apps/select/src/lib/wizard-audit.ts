@@ -44,6 +44,7 @@ const NAME_ONLY_FIELDS: Record<string, string> = {
   mocAiSuggestedAlternatives: "AI alternatives regenerated",
   mocAiSuggestedSealRationale: "AI seal rationale regenerated",
   mocAiGeneratedAt: "AI suggestion regenerated",
+  mocAiComponentChoices: "AI material options regenerated",
   clientRequirementsUploadedAt: "Client requirements re-uploaded",
   headCalc: "Head calculator updated",
 };

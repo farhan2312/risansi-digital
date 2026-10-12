@@ -415,6 +415,9 @@ export const mocSealingInput = pgTable("moc_sealing_input", {
   mocAiSuggestedRotor: text("ai_rotor"),
   mocAiSuggestedShaft: text("ai_shaft"),
   mocAiSuggestedStatorRubber: text("ai_stator_rubber"),
+  // Per component: reason + up to 2 alternatives (MOC table chips; hover =
+  // reason). lib/moc-ai-suggestion.ts ComponentChoices.
+  mocAiComponentChoices: jsonb("ai_component_choices"),
   mocAiSuggestedStatorSleeve: text("ai_stator_sleeve"),
   // The rest of the AI panel — summary, alternatives, and the sealing
   // recommendation + its rationale. Persisted (previously session-only) so the

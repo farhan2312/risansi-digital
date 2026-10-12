@@ -147,7 +147,8 @@ const AI_LOADING_MESSAGES = [
 type ComponentRow = {
   key: string;
   label: string;
-  aiKey: keyof MocComponentSuggestions;
+  // The text fields only (not the componentChoices object).
+  aiKey: Exclude<keyof MocComponentSuggestions, "componentChoices">;
   options: readonly string[];
 };
 
@@ -312,6 +313,8 @@ const reconstructAiSuggestion = (f: any): MocComponentSuggestions | null => {
     sealRationale: f.mocAiSuggestedSealRationale || "",
     summary: f.mocAiSuggestedSummary || "",
     alternatives: f.mocAiSuggestedAlternatives || "",
+    componentChoices:
+      f.mocAiComponentChoices && typeof f.mocAiComponentChoices === "object" ? f.mocAiComponentChoices : undefined,
   };
 };
 
@@ -336,6 +339,7 @@ const CLEARED_AI_FIELDS = {
   mocAiSuggestedSealMoc: "",
   mocAiSuggestedSealRationale: "",
   mocAiGeneratedAt: "",
+  mocAiComponentChoices: null,
 } as const;
 
 const MocDetailsStep = ({
@@ -560,6 +564,7 @@ const MocDetailsStep = ({
             mocAiSuggestedSealMoc: suggestion.sealMoc,
             mocAiSuggestedSealRationale: suggestion.sealRationale,
             mocAiGeneratedAt: new Date().toISOString(),
+            mocAiComponentChoices: suggestion.componentChoices ?? null,
           };
           // Carry the suggestion straight into the manual selections, so the
           // form comes back already filled in rather than needing every row
@@ -1066,7 +1071,9 @@ const MocComponentTable = ({
         <thead>
           <tr className="bg-paper text-left text-[11px] uppercase tracking-wide text-fg-3">
             <th className="px-3 py-2">Component</th>
-            <th className="px-3 py-2">AI Recommendation</th>
+            <th className="px-3 py-2" title="Click a material to use it; hover for the reason">
+              AI Recommendation <span className="font-normal normal-case tracking-normal text-fg-4">· click to use, hover for reason</span>
+            </th>
             <th className="px-3 py-2">Manual *</th>
             <th className="px-3 py-2">Open Remarks</th>
           </tr>
@@ -1079,9 +1086,26 @@ const MocComponentTable = ({
                 <td className="px-3 py-2 font-semibold text-fg">{row.label}</td>
                 <td className="px-3 py-2">
                   {aiValue ? (
-                    <span className="inline-block rounded-md border border-pos bg-[var(--pos-soft)] px-2 py-1 font-semibold text-[var(--pos-strong)]">
-                      {aiValue}
-                    </span>
+                    // The AI's pick (green) and its alternatives: click one to
+                    // put it in Manual, hover for why.
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <MaterialChip
+                        material={aiValue}
+                        reason={ai?.componentChoices?.[row.aiKey]?.reason}
+                        primary
+                        active={(formData[row.key] ?? "") === aiValue}
+                        onPick={() => setFormData({ ...formData, [row.key]: aiValue })}
+                      />
+                      {(ai?.componentChoices?.[row.aiKey]?.alternatives ?? []).map((alt) => (
+                        <MaterialChip
+                          key={alt.material}
+                          material={alt.material}
+                          reason={alt.reason}
+                          active={(formData[row.key] ?? "") === alt.material}
+                          onPick={() => setFormData({ ...formData, [row.key]: alt.material })}
+                        />
+                      ))}
+                    </div>
                   ) : (
                     <span className="text-fg-3">—</span>
                   )}
@@ -1152,5 +1176,60 @@ const MocComponentTable = ({
     </div>
   </div>
 );
+
+/** One material in the AI Recommendation cell: the AI's pick (green) or an
+ *  alternative. Click = use it as the manual pick; hover/focus = the AI's
+ *  reason, in a fixed-position bubble the table's scroll box can't clip. */
+function MaterialChip({
+  material,
+  reason,
+  primary = false,
+  active,
+  onPick,
+}: {
+  material: string;
+  reason?: string;
+  primary?: boolean;
+  active: boolean;
+  onPick: () => void;
+}) {
+  const [tip, setTip] = useState<{ x: number; y: number } | null>(null);
+  const show = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setTip({ x: Math.min(r.left, window.innerWidth - 340), y: r.bottom + 6 });
+  };
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onPick}
+        onMouseEnter={(e) => show(e.currentTarget)}
+        onMouseLeave={() => setTip(null)}
+        onFocus={(e) => show(e.currentTarget)}
+        onBlur={() => setTip(null)}
+        aria-pressed={active}
+        aria-label={`Use ${material}${reason ? ` - ${reason}` : ""}`}
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-left text-[12.5px] font-semibold transition-colors ${
+          primary
+            ? "border-pos bg-[var(--pos-soft)] text-[var(--pos-strong)] hover:brightness-95"
+            : "border-line bg-paper text-fg-2 hover:border-accent hover:text-accent"
+        } ${active ? "ring-2 ring-accent ring-offset-1" : ""}`}
+      >
+        {primary && <span className="text-[9.5px] font-bold tracking-wide uppercase opacity-70">AI</span>}
+        {material}
+        {active && <span aria-hidden="true">✓</span>}
+      </button>
+      {tip && (
+        <span
+          role="tooltip"
+          className="pointer-events-none fixed z-50 max-w-[320px] rounded-md bg-[#0d1b2e] px-2.5 py-1.5 text-[12px] leading-snug font-normal text-white shadow-lg"
+          style={{ left: tip.x, top: tip.y }}
+        >
+          {reason || "Regenerate the recommendation to see the reason and alternatives."}
+        </span>
+      )}
+    </>
+  );
+}
 
 export default MocDetailsStep;

@@ -10,6 +10,7 @@ import {
   approvalStepsForChange,
 } from "@/lib/approval";
 import { resetApprovals } from "@/lib/approval-server";
+import { normalizeComponentChoices } from "@/lib/moc-ai-suggestion";
 import { normalizeHeadCalc } from "@/lib/head-calc-store";
 import {
   enquiryTags,
@@ -107,6 +108,7 @@ const FIELDS: Record<TableKey, readonly string[]> = {
     "mocAiSuggestedSummary", "mocAiSuggestedAlternatives",
     "mocAiSuggestedSealRecommendation", "mocAiSuggestedSealMoc", "mocAiSuggestedSealRationale",
     "mocAiGeneratedAt",
+    "mocAiComponentChoices",
   ],
   "motor-drive": [
     "driveMotorKw", "driveMotorKwRemarks", "driveSystem", "motorRPM",
@@ -176,7 +178,9 @@ function pickFields(tableKey: TableKey, body: Record<string, unknown>) {
         ? coerceTimestamp(body[key])
         : key === "headCalc"
           ? normalizeHeadCalc(body[key])
-          : body[key];
+          : key === "mocAiComponentChoices"
+            ? normalizeComponentChoices(body[key])
+            : body[key];
     }
   }
   return out;
