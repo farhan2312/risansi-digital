@@ -7,6 +7,7 @@
  * or Revoked means, the package does, and every portal will read the same
  * answer when it checks its own grant.
  *
+ *   soon       muted, "Coming soon", nothing to click and nothing to ask for
  *   open       a link into the portal
  *   request    the same shell with a Request access form in the footer
  *   requested  muted, "Requested", nothing to click
@@ -131,6 +132,28 @@ export function PortalTile({ tile, number }: { tile: AppTile; number: string }) 
   const state = tileState(tile);
   const host = displayHost(tile.url);
   const blurb = tile.blurb ?? '';
+
+  // Not on Risansi Digital yet. Shown, because it exists and people use it
+  // every day — removing the tile would read as a fault. Greyed and inert,
+  // because an identical-looking tile is why five people asked for access to
+  // something nobody could grant.
+  if (state === 'soon') {
+    return (
+      <div className="card card-static card-dim reveal">
+        <Top slug={tile.slug} number={number} />
+        <h2>{tile.name}</h2>
+        <p>{blurb}</p>
+        <p className="tile-note">
+          Not part of Risansi Digital yet. Carry on using it exactly as you do
+          today — you do not need to ask for anything here.
+        </p>
+        <div className="card-foot">
+          <span className="card-url">{host}</span>
+          <span className="state-chip">Coming soon</span>
+        </div>
+      </div>
+    );
+  }
 
   if (state === 'open') {
     return (

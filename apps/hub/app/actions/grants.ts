@@ -58,12 +58,18 @@ export async function requestAccessAction(
 
   // The slug arrives from a form field, so confirm it is a live application
   // that actually gates itself rather than taking the client's word for it.
-  const { rows } = await db.query<{ name: string; needs_grant: boolean }>(
-    `SELECT name, needs_grant FROM identity.apps WHERE slug = $1 AND is_live`,
+  const { rows } = await db.query<{ name: string; needs_grant: boolean; coming_soon: boolean }>(
+    `SELECT name, needs_grant, coming_soon FROM identity.apps WHERE slug = $1 AND is_live`,
     [slug],
   );
   const app = rows[0];
   if (!app) return { error: 'That application is not available.' };
+  // Checked here and not only on the tile: the tile no longer renders a form
+  // for a coming-soon application, but a Server Function is reachable by
+  // direct POST and a hidden control is not a rule.
+  if (app.coming_soon) {
+    return { error: `${app.name} is not on Risansi Digital yet. Keep using it as you do today.` };
+  }
   if (!app.needs_grant) return { error: `${app.name} is open to everyone — no request needed.` };
 
   // Upserts. Asking again after a refusal reopens the same row; asking for

@@ -26,6 +26,8 @@ export interface AppTile {
   blurb: string | null;
   sortOrder: number;
   needsGrant: boolean;
+  /** On the grid but not open yet: greyed, and access cannot be requested. */
+  comingSoon: boolean;
   /** Null when they have never asked. */
   status: GrantStatus | null;
   /** The portal's own role, set by the approver. Null until approved. */
@@ -37,18 +39,24 @@ export interface AppTile {
 /**
  * What the tile should offer.
  *
+ *   soon       on the grid, not open yet, nothing to ask for
  *   open       go straight in
  *   request    never asked, and it needs asking
  *   requested  asked, nobody has decided
  *   refused    rejected, or revoked
  *
+ * `soon` is checked before anything else, including an existing grant: an
+ * application that is not open is not open, and somebody who was approved for
+ * it earlier should not be the only one shown a door that leads nowhere.
+ *
  * `refused` folds Rejected and Revoked together for the UI while the two stay
  * distinct in the database, because a person asking why deserves the real
  * answer and the two are different conversations.
  */
-export type TileState = 'open' | 'request' | 'requested' | 'refused';
+export type TileState = 'soon' | 'open' | 'request' | 'requested' | 'refused';
 
-export function tileState(t: Pick<AppTile, 'needsGrant' | 'status'>): TileState {
+export function tileState(t: Pick<AppTile, 'needsGrant' | 'status' | 'comingSoon'>): TileState {
+  if (t.comingSoon) return 'soon';
   if (!t.needsGrant) return 'open';
   switch (t.status) {
     case 'Approved': return 'open';
@@ -104,11 +112,11 @@ export async function allRoles(db: Queryable): Promise<Record<string, AppRole[]>
 export async function tilesFor(db: Queryable, userId: string): Promise<AppTile[]> {
   const { rows } = await db.query<{
     slug: string; name: string; url: string; blurb: string | null;
-    sort_order: number; needs_grant: boolean;
+    sort_order: number; needs_grant: boolean; coming_soon: boolean;
     status: GrantStatus | null; app_role: string | null;
     requested_reason: string | null; decided_note: string | null;
   }>(
-    `SELECT a.slug, a.name, a.url, a.blurb, a.sort_order, a.needs_grant,
+    `SELECT a.slug, a.name, a.url, a.blurb, a.sort_order, a.needs_grant, a.coming_soon,
             g.status, g.app_role, g.requested_reason, g.decided_note
        FROM identity.apps a
        LEFT JOIN identity.app_grants g
@@ -119,7 +127,7 @@ export async function tilesFor(db: Queryable, userId: string): Promise<AppTile[]
   );
   return rows.map(r => ({
     slug: r.slug, name: r.name, url: r.url, blurb: r.blurb,
-    sortOrder: r.sort_order, needsGrant: r.needs_grant,
+    sortOrder: r.sort_order, needsGrant: r.needs_grant, comingSoon: r.coming_soon,
     status: r.status, appRole: r.app_role,
     requestedReason: r.requested_reason, decidedNote: r.decided_note,
   }));
