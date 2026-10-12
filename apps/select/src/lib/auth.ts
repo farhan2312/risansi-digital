@@ -1,20 +1,18 @@
 /**
- * JWT auth, ported from azure-functions/shared/auth.py.
- * HS256 tokens with the same {sub, email, role, iat, exp} payload, so a
- * JWT_SECRET shared with the old deployment stays compatible.
+ * Who is asking - the Risansi Digital session, as this portal's claims.
+ *
+ * Since Phase 4b the hub's shared `risansi_session` cookie is the only
+ * session this portal accepts: sign-in happens only at Risansi Digital. The
+ * app's own `auth_token` JWT (and the Bearer header that could carry it) is
+ * gone - nothing issued it any more since /api/auth/login answers 410, and
+ * leaving it readable only kept a second way in, and made Sign out clear the
+ * wrong cookie.
  */
-import jwt from "jsonwebtoken";
-
 import { SHARED_COOKIE, sharedSessionPayload } from "@/lib/effective-role";
 
-const JWT_ALGORITHM = "HS256" as const;
-const JWT_EXPIRY_SECONDS = 60 * 60 * 12; // 12 hours
-
-/** httpOnly cookie the session token lives in — not readable/settable from
- * client JS, so it can't be faked via localStorage the way the old
- * client-stored token could be. */
-export const AUTH_COOKIE_NAME = "auth_token";
-export const AUTH_COOKIE_MAX_AGE = JWT_EXPIRY_SECONDS;
+/** How long the claims below say they are good for. The real lifetime is the
+ *  shared session's own; this only fills iat/exp for code that reads them. */
+const CLAIMS_LIFETIME_SECONDS = 60 * 60 * 12;
 
 function readCookie(req: Request, name: string): string | null {
   const header = req.headers.get("cookie");
@@ -26,22 +24,13 @@ function readCookie(req: Request, name: string): string | null {
   return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
 }
 
-function getSecret(): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error("Missing required environment variable: JWT_SECRET");
-  }
-  return secret;
-}
-
 export interface TokenClaims {
   sub: string;
   name: string | null;
   email: string;
   role: string;
-  /** True while the user still has an admin-issued password. Carried in the
-   * token so middleware can gate the whole app without a DB round-trip;
-   * change-password re-issues the cookie with it cleared. */
+  /** True while the user still has an admin-issued password; the middleware
+   * sends them to the hub's change-password page. */
   mustChangePassword?: boolean;
   iat: number;
   exp: number;
@@ -56,46 +45,17 @@ export class AuthError extends Error {
   }
 }
 
-export interface TokenUser {
-  id: string;
-  name: string | null;
-  email: string;
-  role: string | null;
-  mustChangePassword?: boolean;
-}
-
-export function createToken(user: TokenUser): string {
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    sub: String(user.id),
-    name: user.name ?? null,
-    email: user.email,
-    role: user.role ?? "user",
-    mustChangePassword: user.mustChangePassword === true,
-    iat: now,
-    exp: now + JWT_EXPIRY_SECONDS,
-  };
-  return jwt.sign(payload, getSecret(), { algorithm: JWT_ALGORITHM });
-}
-
-/** Extract and verify the session token — from the httpOnly auth cookie
- * (the normal path for browser requests), falling back to a Bearer
- * Authorization header for any direct/non-browser API callers. */
 /**
- * A Risansi Digital session, as this portal's claims.
- *
- * The resolving lives in `effective-role.ts` and is shared with middleware,
- * which gates pages on the role it returns. Two implementations here would
- * be a door that opens on one side and not the other.
- *
- * The shared cookie's `sub` is an `identity.users.id`; everything downstream
- * expects `claims.sub` to be this app's own `users_pump.id` — the foreign key
- * on projects, quotations and audit rows — so the translation happens there
- * and the rest of the app never learns anything changed.
+ * The shared session's claims. The resolving lives in `effective-role.ts`
+ * and is shared with middleware, which gates pages on the role it returns -
+ * two implementations would be a door that opens on one side and not the
+ * other. The cookie's `sub` is an `identity.users.id`; everything
+ * downstream expects this app's own `users_pump.id` (the foreign key on
+ * projects, quotations and audit rows), so the translation happens there.
  */
-async function sharedClaims(req: Request): Promise<TokenClaims | null> {
+export async function decodeToken(req: Request): Promise<TokenClaims> {
   const p = await sharedSessionPayload(readCookie(req, SHARED_COOKIE));
-  if (!p) return null;
+  if (!p) throw new AuthError("Missing or invalid session", 401);
   const now = Math.floor(Date.now() / 1000);
   return {
     sub: p.sub,
@@ -104,33 +64,8 @@ async function sharedClaims(req: Request): Promise<TokenClaims | null> {
     role: p.role ?? "user",
     mustChangePassword: p.mustChangePassword,
     iat: now,
-    exp: now + JWT_EXPIRY_SECONDS,
+    exp: now + CLAIMS_LIFETIME_SECONDS,
   };
-}
-
-export async function decodeToken(req: Request): Promise<TokenClaims> {
-  // Risansi Digital first; this app's own cookie stays valid behind it so the
-  // swap ships on its own and admin@, which has no identity row, keeps
-  // working until the cutover retires it.
-  const shared = await sharedClaims(req);
-  if (shared) return shared;
-
-  const header = req.headers.get("authorization") ?? "";
-  const bearerToken = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
-  const token = bearerToken ?? readCookie(req, AUTH_COOKIE_NAME);
-  if (!token) {
-    throw new AuthError("Missing or invalid session", 401);
-  }
-  try {
-    return jwt.verify(token, getSecret(), {
-      algorithms: [JWT_ALGORITHM],
-    }) as TokenClaims;
-  } catch (err) {
-    if (err instanceof jwt.TokenExpiredError) {
-      throw new AuthError("Token expired", 401);
-    }
-    throw new AuthError("Invalid token", 401);
-  }
 }
 
 /** Same as decodeToken, but returns null instead of throwing — for routes

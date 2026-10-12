@@ -64,7 +64,7 @@ export async function sessionVerdict(claims: SessionClaims): Promise<"active" | 
 
   const account = await loadAccount(userId, issuedAtMs);
   if (!account || account.status !== "active") return "ended";
-  // createToken writes a missing role as "user", so compare the same way.
+  // decodeToken (lib/auth) reads a missing role as "user", so compare the same way.
   if ((account.role ?? "user") !== claims.role) return "ended";
   // Reset by an admin after this token was issued. (The reverse, a token
   // still flagged while the account is not, is the normal moment right after

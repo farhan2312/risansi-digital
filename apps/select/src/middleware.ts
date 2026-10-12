@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { jwtVerify, type JWTPayload } from "jose";
+import type { JWTPayload } from "jose";
 
 import { SHARED_COOKIE, sharedSessionPayload } from "@/lib/effective-role";
 import { sessionVerdict } from "@/lib/session-guard";
@@ -11,7 +11,6 @@ import { sessionVerdict } from "@/lib/session-guard";
  * route handler, so a route that forgets to check the session is still
  * closed. Runs on the Node.js runtime because the account check reads the
  * database. */
-const AUTH_COOKIE_NAME = "auth_token";
 
 /** Forced-password-change screen — reachable only by a flagged user, and the
  * only protected page they can reach. */
@@ -58,7 +57,6 @@ const PROTECTED_PREFIXES = [
  * one — deny by default, so a new route is protected without remembering to. */
 const PUBLIC_API_PATHS = new Set([
   "/api/auth/login",
-  "/api/auth/logout",
   "/api/access-requests",
   "/api/health",
 ]);
@@ -67,21 +65,10 @@ const PUBLIC_API_PATHS = new Set([
  * own — the API side of the page redirect to /change-password below. */
 const MUST_CHANGE_PASSWORD_API_PATHS = new Set(["/api/auth/me", "/api/auth/change-password"]);
 
-/** Verifies a session token, returning its payload or null when absent,
- * expired, or otherwise invalid. */
-async function verifyToken(token: string | null | undefined): Promise<JWTPayload | null> {
-  if (!token) return null;
-  try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Phase 4b: a Risansi Digital session counts as signed in here too.
+ * The session: Risansi Digital's shared cookie - the only one this portal
+ * accepts (sign-in happens only at the hub; this app's own auth_token is no
+ * longer issued or read).
  *
  * This gate runs before anything that understands the shared cookie, so
  * without this a person holding a perfectly good one is bounced to the login
@@ -93,8 +80,6 @@ async function verifyToken(token: string | null | undefined): Promise<JWTPayload
  * role gates further down read the same value the route handlers will.
  */
 async function verifySession(req: NextRequest): Promise<JWTPayload | null> {
-  const local = await verifyToken(req.cookies.get(AUTH_COOKIE_NAME)?.value);
-  if (local) return local;
   return (await sharedSessionPayload(req.cookies.get(SHARED_COOKIE)?.value)) as JWTPayload | null;
 }
 
@@ -109,32 +94,22 @@ async function pageSessionEnded(payload: JWTPayload): Promise<boolean> {
   }
 }
 
-/** Sends an ended session to the login page and drops its cookie. */
+/** Sends an ended session to the login page. */
 function endPageSession(req: NextRequest) {
-  const res = NextResponse.redirect(new URL(SESSION_ENDED_PATH, req.url));
-  res.cookies.delete(AUTH_COOKIE_NAME);
-  return res;
+  return NextResponse.redirect(new URL(SESSION_ENDED_PATH, req.url));
 }
 
-function apiError(message: string, status: number, clearCookie = false) {
-  const res = NextResponse.json({ error: message }, { status });
-  if (clearCookie) res.cookies.delete(AUTH_COOKIE_NAME);
-  return res;
+function apiError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
 }
 
 async function guardApi(req: NextRequest, pathname: string) {
   if (PUBLIC_API_PATHS.has(pathname)) return NextResponse.next();
 
-  // Same sources as decodeToken in lib/auth: a Bearer header for direct API
-  // callers, otherwise the browser's session cookie.
-  const header = req.headers.get("authorization") ?? "";
-  const bearer = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
-  const cookie = req.cookies.get(AUTH_COOKIE_NAME)?.value;
-  const payload =
-    (await verifyToken(bearer ?? cookie)) ??
-    ((await sharedSessionPayload(req.cookies.get(SHARED_COOKIE)?.value)) as JWTPayload | null);
+  // Same source as decodeToken in lib/auth: the Risansi Digital session.
+  const payload = await verifySession(req);
   if (!payload) {
-    return apiError("Please sign in to continue.", 401, Boolean(cookie));
+    return apiError("Please sign in to continue.", 401);
   }
 
   let verdict;
@@ -144,7 +119,7 @@ async function guardApi(req: NextRequest, pathname: string) {
     return apiError("Could not verify your session. Please try again.", 503);
   }
   if (verdict === "ended") {
-    return apiError("Your session has ended. Please sign in again.", 401, true);
+    return apiError("Your session has ended. Please sign in again.", 401);
   }
 
   if (payload.mustChangePassword === true && !MUST_CHANGE_PASSWORD_API_PATHS.has(pathname)) {
@@ -176,11 +151,7 @@ export async function middleware(req: NextRequest) {
           : new URL("/dashboard", req.url),
       );
     }
-    const res = toHub(req);
-    // Drop the dead local cookie on the way out so the next request does not
-    // re-run a doomed verify.
-    if (req.cookies.get(AUTH_COOKIE_NAME)) res.cookies.delete(AUTH_COOKIE_NAME);
-    return res;
+    return toHub(req);
   }
 
   // Forced password change: a user with an admin-issued password can't reach
@@ -201,11 +172,8 @@ export async function middleware(req: NextRequest) {
 
   const payload = await verifySession(req);
   if (!payload) {
-    // No session (or a stale one) — to the hub, dropping the dead cookie so
-    // the next request doesn't re-run a doomed verify.
-    const res = toHub(req);
-    if (req.cookies.get(AUTH_COOKIE_NAME)) res.cookies.delete(AUTH_COOKIE_NAME);
-    return res;
+    // No session (or a stale one) - to the hub to sign in.
+    return toHub(req);
   }
   // Deactivated, role changed or password reset since signing in. Checked
   // before the role gates below, which trust the token's role — safe only

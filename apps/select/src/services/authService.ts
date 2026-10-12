@@ -58,6 +58,3 @@ export const changePassword = async (
   return data;
 };
 
-export const logout = async () => {
-  await apiClient.post("/auth/logout");
-};
