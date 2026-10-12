@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import EditPasswordModal from "../ui/EditPasswordModal";
-import { logout } from "../../services/authService";
 
 const MoonIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="h-[16px] w-[16px] shrink-0">
@@ -51,7 +49,6 @@ const roleLabel = (role: string | undefined) => {
  * role, and an expand chevron that opens an upward popup (theme toggle,
  * change password, log out). Tailwind-styled. */
 const SidebarUserMenu = () => {
-  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { user: currentUser } = useCurrentUser();
 
@@ -62,16 +59,6 @@ const SidebarUserMenu = () => {
   const userEmail = currentUser?.email || "";
 
   const initial = userName.charAt(0).toUpperCase() || "U";
-
-  const handleLogout = async () => {
-    // Clear the httpOnly session cookie server-side — client JS can't
-    // remove it directly.
-    try {
-      await logout();
-    } finally {
-      router.push("/");
-    }
-  };
 
   // Fixed px throughout (not Tailwind's rem-based p-2/gap-2.5/h-8/etc.) —
   // those scale with the app's 13px root font-size (index.css's "compact
@@ -127,14 +114,18 @@ const SidebarUserMenu = () => {
 
           <div className="my-[6px] h-px bg-white/10" />
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex w-full items-center gap-[8px] text-left pl-[8px] pr-[8px] pt-[6px] pb-[6px] rounded text-[13px] text-red-400 hover:bg-white/10 transition-colors"
-          >
-            <LogOutIcon />
-            Sign out
-          </button>
+          {/* A plain form POST: /sign-out clears the Risansi Digital
+              session (the only one this portal accepts) and answers 303 to
+              the hub's sign-in. */}
+          <form method="POST" action="/sign-out">
+            <button
+              type="submit"
+              className="flex w-full items-center gap-[8px] text-left pl-[8px] pr-[8px] pt-[6px] pb-[6px] rounded text-[13px] text-red-400 hover:bg-white/10 transition-colors"
+            >
+              <LogOutIcon />
+              Sign out
+            </button>
+          </form>
         </div>
       )}
 
