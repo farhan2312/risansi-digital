@@ -49,12 +49,18 @@ export async function GET(req: Request) {
   out.sessionSecretLongEnough = (secret?.length ?? 0) >= 32;
 
   // 2. Are the identity database variables present?
-  out.identityDbConfigured = Boolean(
-    process.env.IDENTITY_DB_HOST &&
-      process.env.IDENTITY_DB_NAME &&
-      process.env.IDENTITY_DB_USER &&
-      process.env.IDENTITY_DB_PASSWORD,
-  );
+  // Named individually, not as one boolean. The first version of this said
+  // only "not configured", which left four variables to hunt through when
+  // three of them were already right.
+  const identityVars = [
+    "IDENTITY_DB_HOST",
+    "IDENTITY_DB_NAME",
+    "IDENTITY_DB_USER",
+    "IDENTITY_DB_PASSWORD",
+  ] as const;
+  const missing = identityVars.filter((v) => !process.env[v]);
+  out.identityDbConfigured = missing.length === 0;
+  out.identityDbMissing = missing;
   out.identityDbName = process.env.IDENTITY_DB_NAME ?? null;
 
   // 3. Can we actually reach it? This is the one that a wrong password or a
