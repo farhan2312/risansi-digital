@@ -608,8 +608,8 @@ const ProjectsPage = () => {
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
           <div className="overflow-x-auto">
-          <div className="min-w-[940px] 2xl:min-w-[1060px]">
-          <div className={`border-b border-line bg-elev px-4 py-2.5 grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_186px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_370px] items-center gap-x-3 [&>*]:min-w-0`}>
+          <div className="min-w-[980px] 2xl:min-w-[1170px]">
+          <div className={`border-b border-line bg-elev px-4 py-2.5 grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_222px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_478px] items-center gap-x-3 [&>*]:min-w-0`}>
             <span />
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
@@ -629,7 +629,7 @@ const ProjectsPage = () => {
               return (
                 <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                   {/* Enquiry row: columns on wide screens, stacked below lg */}
-                  <div className={`group px-4 py-3 transition-colors hover:bg-elev grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_186px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_370px] items-center gap-x-3 [&>*]:min-w-0`}>
+                  <div className={`group px-4 py-3 transition-colors hover:bg-elev grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_222px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_478px] items-center gap-x-3 [&>*]:min-w-0`}>
                     <button
                         type="button"
                         onClick={() => toggleExpanded(project.id)}
@@ -734,7 +734,7 @@ const ProjectsPage = () => {
                       </button>
                       <button
                         type="button"
-                        className={btn}
+                        className={`${btn} relative`}
                         onClick={() => setQuotationFor(project)}
                         title={
                           project.quotation_count
@@ -746,7 +746,7 @@ const ProjectsPage = () => {
                         <QuoteIcon />
                         <span className="hidden 2xl:inline">Quotation</span>
                         {!project.quotation_count && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--warn)]" aria-hidden="true" />
+                          <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[var(--warn)]" aria-hidden="true" />
                         )}
                       </button>
                       <button
