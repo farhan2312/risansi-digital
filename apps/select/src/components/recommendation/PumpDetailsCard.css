@@ -1,0 +1,79 @@
+/* Pump Selection details — the report's lead card, styled like the wizard's
+   own step-card headers (filled gradient banner) so "pump selection details
+   at top" reads as the anchor of the whole report. */
+.pump-card {
+  margin-top: 0;
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 3px rgba(10, 61, 143, 0.05), 0 8px 24px rgba(10, 22, 40, 0.04);
+  overflow: hidden;
+}
+
+.pump-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 22px;
+  background: var(--line);
+  color: rgb(34, 33, 33);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.pump-card h3::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 18px;
+  background: rgba(240, 159, 159, 0.75);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.pump-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  padding: 20px 22px 22px;
+}
+
+@media (max-width: 720px) {
+  .pump-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.pump-grid span {
+  display: block;
+  color: var(--fg-3);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 5px;
+}
+
+.pump-grid strong {
+  font-size: 14.5px;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.pump-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+.pump-status-tested {
+  background: var(--pos-soft);
+  color: var(--pos-strong);
+}
+.pump-status-not-tested {
+  background: var(--warn-soft);
+  color: var(--warn);
+}

@@ -1,0 +1,46 @@
+.spinner-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--brand-blue, var(--accent));
+}
+
+.spinner-inline {
+  vertical-align: middle;
+}
+
+.spinner-ring {
+  animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner-caption {
+  font-size: 13px;
+  color: var(--fg-3);
+  letter-spacing: 0.01em;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-ring {
+    animation: none;
+    opacity: 0.6;
+  }
+}

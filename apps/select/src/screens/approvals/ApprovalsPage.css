@@ -1,0 +1,619 @@
+/* Approvals page (selection heads) and its review popup. Theme tokens only,
+   so both follow light and dark mode. */
+
+.apv-page {
+  padding: 20px 24px 32px;
+}
+
+.apv-page-head h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.apv-page-head p {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+/* --- Tabs ---------------------------------------------------------------- */
+.apv-tabs {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+.apv-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 2px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg-3);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.apv-tab:hover {
+  color: var(--fg);
+}
+.apv-tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.apv-tab-count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--fg-2);
+  font-size: 11px;
+  text-align: center;
+}
+.apv-tab.is-active .apv-tab-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* --- Request list -------------------------------------------------------- */
+.apv-list-panel {
+  margin-top: 16px;
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+.apv-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.apv-list li + li {
+  border-top: 1px solid var(--line);
+}
+.apv-row {
+  width: 100%;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.apv-row:hover {
+  background: var(--bg-elev);
+}
+.apv-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.apv-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.apv-row-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.apv-row-badge {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.apv-row-sub {
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+.apv-row-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.apv-row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex: none;
+  font-size: 12.5px;
+  color: var(--fg-2);
+  text-align: right;
+}
+.apv-row-when {
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.apv-row-open {
+  margin-top: 6px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.apv-banner {
+  margin: 14px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.apv-banner.bad {
+  background: var(--neg-soft);
+  color: var(--neg-strong);
+}
+
+/* --- Review popup -------------------------------------------------------- */
+.apv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10, 22, 40, 0.55);
+}
+.apv-modal {
+  width: 100%;
+  max-width: 940px;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(10, 22, 40, 0.28);
+  overflow: hidden;
+}
+
+/* Brand header, matching the wizard's step banners. */
+.apv-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, #0a3d8f 0%, #1a5cb8 55%, #2c8dbf 100%);
+  color: #fff;
+}
+.apv-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+.apv-modal-head h2 {
+  margin-top: 2px;
+  font-size: 19px;
+  font-weight: 700;
+  color: #fff;
+}
+.apv-subtitle {
+  margin-top: 3px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.apv-close {
+  flex: none;
+  display: inline-flex;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+.apv-close:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+.apv-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.apv-loading {
+  padding: 28px 22px;
+  font-size: 13.5px;
+  color: var(--fg-3);
+}
+
+/* Key facts strip under the header. Flex-wrap (not a grid) so a fact that
+   wraps onto its own line stretches across it instead of leaving empty cells;
+   the -1px margins collapse neighbouring borders into single hairlines. */
+.apv-facts {
+  display: flex;
+  flex-wrap: wrap;
+  flex: none;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.apv-fact {
+  flex: 1 1 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 22px;
+  margin: 0 -1px -1px 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.apv-fact span {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.apv-fact strong {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* Steps rail on the left, the chosen step on the right. */
+.apv-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.apv-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+.apv-rail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.apv-rail-item:hover {
+  background: var(--bg-elev);
+}
+.apv-rail-item.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line, transparent);
+}
+.apv-rail-num {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+.apv-rail-num.sent {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.apv-rail-num.ok {
+  background: var(--pos);
+  color: #fff;
+}
+.apv-rail-num.bad {
+  background: var(--neg);
+  color: #fff;
+}
+.apv-rail-num.pending {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.apv-rail-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.apv-rail-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.apv-rail-status {
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+.apv-rail-flag {
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--neg);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.apv-detail {
+  padding: 18px 22px 22px;
+  overflow-y: auto;
+}
+.apv-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.apv-detail-head h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.apv-empty-step {
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.apv-group {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+/* The one real pick in a group (V-belt, gearbox, motor): confirmed green. */
+.apv-group.is-highlight {
+  border: 1.5px solid var(--pos);
+  background: var(--pos-soft);
+}
+.apv-group-title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.apv-group.is-highlight .apv-group-title {
+  color: var(--pos-strong);
+}
+.apv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+}
+.apv-field {
+  min-width: 0;
+}
+.apv-field dt {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.apv-field dd {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+/* Decision block. */
+.apv-decide {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--bg-elev);
+}
+.apv-decide-label {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fg-2);
+}
+.apv-choice {
+  display: inline-flex;
+  gap: 8px;
+}
+.apv-choice-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line-strong, var(--line));
+  background: var(--bg-paper);
+  color: var(--fg-2);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.apv-choice-btn.ok:hover,
+.apv-choice-btn.ok.is-on {
+  border-color: var(--pos);
+  color: var(--pos-strong);
+}
+.apv-choice-btn.bad:hover,
+.apv-choice-btn.bad.is-on {
+  border-color: var(--neg);
+  color: var(--neg-strong);
+}
+.apv-choice-btn.ok.is-on {
+  background: var(--pos-soft);
+}
+.apv-choice-btn.bad.is-on {
+  background: var(--neg-soft);
+}
+.apv-remarks {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 12px;
+}
+.apv-remarks span {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.apv-remarks textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: 8px;
+  background: var(--bg-paper);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+}
+.apv-remarks textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.apv-remarks textarea[aria-invalid="true"] {
+  border-color: var(--neg);
+}
+.apv-field-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--neg-strong);
+}
+
+.apv-decided {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.apv-decided.ok {
+  background: var(--pos-soft);
+  color: var(--pos-strong);
+}
+.apv-decided.bad {
+  background: var(--neg-soft);
+  color: var(--neg-strong);
+}
+.apv-decided-remarks {
+  margin-top: 6px;
+  color: var(--fg);
+}
+
+.apv-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-paper);
+}
+.apv-foot-status {
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+.apv-foot-error {
+  color: var(--neg-strong);
+}
+.apv-foot-ok {
+  color: var(--pos-strong);
+}
+.apv-foot-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+.apv-btn {
+  padding: 9px 20px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.apv-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.apv-btn.primary {
+  border: 1px solid transparent;
+  background: #0a3d8f;
+  color: #fff;
+}
+.apv-btn.primary:hover:not(:disabled) {
+  background: #1a5cb8;
+}
+.apv-btn.ghost {
+  border: 1px solid var(--line-strong, var(--line));
+  background: var(--bg-paper);
+  color: var(--fg-2);
+}
+.apv-btn.ghost:hover:not(:disabled) {
+  border-color: var(--pos);
+  color: var(--pos-strong);
+}
+
+/* Phones: the rail becomes a horizontal strip above the detail. */
+@media (max-width: 720px) {
+  .apv-page {
+    padding: 16px;
+  }
+  .apv-row {
+    flex-direction: column;
+  }
+  .apv-row-meta {
+    align-items: flex-start;
+    text-align: left;
+  }
+  /* A column of rail + detail that scrolls as one. Flex rather than grid: a
+     scrolling grid lets an overflow:auto row shrink to nothing, which
+     squashed the rail to a sliver. */
+  .apv-body {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .apv-rail {
+    flex: none;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .apv-rail-item {
+    width: auto;
+    flex: none;
+  }
+  .apv-detail {
+    overflow: visible;
+  }
+}

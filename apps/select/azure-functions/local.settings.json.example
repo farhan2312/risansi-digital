@@ -1,0 +1,19 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "DB_HOST": "cosmosdb1.postgres.database.azure.com",
+    "DB_PORT": "5432",
+    "DB_NAME": "Pump_Selector_and_testing",
+    "DB_USER": "REPLACE_WITH_DB_USER",
+    "DB_PASSWORD": "REPLACE_WITH_DB_PASSWORD",
+    "DB_SSLMODE": "require",
+    "ANTHROPIC_API_KEY": "REPLACE_WITH_YOUR_ANTHROPIC_API_KEY",
+    "JWT_SECRET": "REPLACE_WITH_ANY_LONG_RANDOM_STRING"
+  },
+  "Host": {
+    "CORS": "http://localhost:5173",
+    "CORSCredentials": false
+  }
+}

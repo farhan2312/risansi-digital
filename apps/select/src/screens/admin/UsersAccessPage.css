@@ -1,0 +1,180 @@
+/* Users & Access page — reuses the shared .pmm-* table/modal/button classes
+   from PumpModelMasterPage.css (imported by this page) for the table shell,
+   search box, and modals, so it reads as one consistent admin surface. This
+   stylesheet adds only what's specific to a user list: role/status badges
+   and the header's user-count subtitle. */
+
+.uap-header-stats {
+  font-size: 13px;
+  color: var(--fg-3);
+  margin: 4px 0 0;
+}
+.uap-header-stats strong {
+  color: var(--fg-2);
+  font-weight: 600;
+}
+
+/* Avatar + name/email in the User column. */
+.uap-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.uap-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--uap-hue, 212) 70% 52%),
+    hsl(calc(var(--uap-hue, 212) + 30) 70% 42%)
+  );
+  box-shadow: 0 2px 6px rgba(10, 22, 40, 0.15);
+}
+
+.uap-user-name {
+  font-weight: 600;
+  color: var(--fg);
+}
+.uap-user-email {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-top: 1px;
+}
+
+.uap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Role badges */
+.uap-role-user {
+  background: var(--bg-elev);
+  color: var(--fg-3);
+}
+.uap-role-selection_head {
+  background: var(--pos-soft);
+  color: var(--pos-strong);
+}
+.uap-role-pulley_owner {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.uap-role-admin {
+  background: var(--accent-soft);
+  color: var(--brand-blue);
+}
+.uap-role-system_admin {
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--purple);
+}
+
+/* Status badges carry a dot in their own colour. */
+[class*="uap-status-"]::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.uap-status-pending::before {
+  animation: uap-pulse 1.6s ease-in-out infinite;
+}
+@keyframes uap-pulse {
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .uap-status-pending::before { animation: none; }
+}
+
+/* Status badges */
+.uap-status-pending {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.uap-status-active {
+  background: var(--pos-soft);
+  color: var(--pos-strong);
+}
+.uap-status-rejected {
+  background: var(--neg-soft);
+  color: var(--neg-strong);
+}
+.uap-status-deactivated {
+  background: var(--bg-elev);
+  color: var(--fg-3);
+}
+
+.uap-self-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--fg-3);
+  font-weight: 500;
+}
+
+.uap-field-hint {
+  font-size: 11.5px;
+  color: var(--fg-3);
+  margin-top: 4px;
+}
+
+/* People glyph instead of the masters' database glyph in the header badge. */
+.pmm-header:has(.uap-header-stats) > div:first-child::after {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E");
+}
+
+/* Reviewed column: who approved, rejected or added the account. */
+.uap-review {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12px;
+  color: var(--fg-2);
+  line-height: 1.35;
+}
+.uap-review strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.uap-review-who::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--fg-4);
+}
+.uap-review-approved .uap-review-who::before { background: var(--pos); }
+.uap-review-rejected .uap-review-who::before { background: var(--neg); }
+.uap-review-added .uap-review-who::before { background: var(--brand-blue); }
+.uap-review-when {
+  padding-left: 12px;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.uap-review-waiting {
+  color: var(--warn);
+  font-weight: 600;
+}
+.uap-review-none {
+  color: var(--fg-4);
+}

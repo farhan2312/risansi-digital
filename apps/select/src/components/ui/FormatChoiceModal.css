@@ -1,0 +1,120 @@
+/* "PDF or Excel?" prompt. Self-contained (its own overlay + card) so it can be
+   shown from the wizard and from the Reports page without either page's modal
+   shell. */
+.fmt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 32, 0.45);
+}
+
+.fmt-modal {
+  width: 100%;
+  max-width: 430px;
+  padding: 22px 22px 16px;
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--line);
+  background: var(--bg-paper, #fff);
+  box-shadow: var(--shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.22));
+}
+
+.fmt-modal h3 {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.fmt-message {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-3, #6e7781);
+}
+
+.fmt-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+@media (max-width: 460px) {
+  .fmt-choices { grid-template-columns: 1fr; }
+}
+
+.fmt-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 12px;
+  border: 1px solid var(--line-strong, #b9c1ca);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-paper, #fff);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms, background-color 120ms, transform 100ms;
+}
+.fmt-choice:hover:not(:disabled) {
+  border-color: var(--accent, #0969da);
+  background: var(--accent-soft, #eaf2fd);
+}
+.fmt-choice:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.fmt-choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.fmt-choice-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--accent, #0969da);
+}
+.fmt-choice-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.fmt-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.fmt-choice-text b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.fmt-choice-text em {
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--fg-3, #6e7781);
+}
+
+.fmt-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.fmt-cancel {
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--line);
+  background: var(--bg-paper, #fff);
+  color: var(--fg-2, #3d4c5a);
+  cursor: pointer;
+}
+.fmt-cancel:hover:not(:disabled) {
+  background: var(--bg-elev, #f6f8fa);
+}

@@ -1,0 +1,37 @@
+.report-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.5);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    z-index:1000;
+}
+
+.report-modal{
+    width:600px;
+    background:var(--surface);
+    color:var(--text);
+    border-radius:12px;
+    padding:30px;
+}
+
+.report-modal h2,
+.report-modal h3{
+    color:var(--text-h);
+}
+
+.report-grid{
+    display:grid;
+    gap:12px;
+    margin:25px 0;
+}
+
+.report-modal button{
+    background:var(--accent);
+    color:white;
+    border:none;
+    padding:12px 20px;
+    border-radius:8px;
+    cursor:pointer;
+}

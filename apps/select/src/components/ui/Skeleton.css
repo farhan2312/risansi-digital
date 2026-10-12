@@ -1,0 +1,36 @@
+/* Base .skeleton class + shimmer keyframes live in src/index.css so any
+   surface can use them without importing this file — this stylesheet adds
+   only the layout wrappers for stacked lines / table rows and the pill /
+   circle shape modifiers. */
+
+.skeleton {
+  display: inline-block;
+}
+
+.skeleton-pill {
+  border-radius: 999px;
+}
+
+.skeleton-circle {
+  border-radius: 50%;
+  height: unset;
+}
+
+.skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 0;
+}

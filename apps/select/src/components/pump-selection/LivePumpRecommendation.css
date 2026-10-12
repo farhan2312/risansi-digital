@@ -1,0 +1,322 @@
+.live-rec {
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--title);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  margin: 8px auto 0;
+  max-width: 1200px;
+}
+
+.live-rec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.live-rec-status {
+  font-size: 10px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.live-rec-hint {
+  font-size: 12px;
+  color: var(--fg-3);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.live-rec-warn {
+  color: var(--warn);
+  margin-top: 6px;
+}
+
+/* A quick sample of pumps that satisfy the current inputs (no ranking —
+   selection is manual). Clicking one pins it as the user's pick (see
+   LivePumpRecommendation.tsx / findCandidates on the backend). */
+.live-rec-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 2px;
+  /* One card per model+head, so the list can still run long — cap the height
+     and scroll inside the panel so the wizard's Next/Previous buttons stay
+     reachable. */
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.live-rec-card {
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--bg-elev);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius, 6px);
+  padding: 6px 10px;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.live-rec-card:hover {
+  border-color: var(--accent-line, var(--accent));
+}
+
+.live-rec-card.is-selected {
+  border-color: var(--title);
+  background: var(--accent-soft);
+}
+
+/* General Information preview: the same cards, but not pickable there. */
+.live-rec-card.is-preview {
+  cursor: default;
+}
+.live-rec-card.is-preview:hover {
+  border-color: var(--line);
+}
+.live-rec-card.is-preview.is-selected:hover {
+  border-color: var(--title);
+}
+
+/* Confirmed single-model view: not clickable, no hover affordance. */
+.live-rec-cards--single {
+  grid-template-columns: minmax(0, 320px);
+  max-height: none;
+  overflow: visible;
+}
+
+.live-rec-card.is-locked {
+  cursor: default;
+  border-color: var(--pos, var(--title));
+  background: var(--accent-soft);
+}
+
+.live-rec-card.is-locked:hover {
+  border-color: var(--pos, var(--title));
+}
+
+.live-rec-badge.confirmed {
+  background: var(--pos, var(--title));
+  color: #fff;
+}
+
+/* Confirm prompt shown once a model is picked. */
+.live-rec-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius, 6px);
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.live-rec-confirm-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: var(--radius, 6px);
+  background: var(--title);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.live-rec-confirm-btn:hover {
+  filter: brightness(1.08);
+}
+
+.live-rec-change {
+  margin-top: 10px;
+  padding: 5px 14px;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: var(--radius, 6px);
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.live-rec-change:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.live-rec-card-badges {
+  display: flex;
+  gap: 4px;
+  min-height: 13px;
+}
+
+.live-rec-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.live-rec-badge.picked {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.live-rec-badge.warn {
+  background: var(--warn-soft, transparent);
+  color: var(--warn);
+  border: 1px solid var(--warn);
+}
+
+.live-rec-card-model {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.live-rec-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.live-rec-card-meta > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.live-rec-card-meta span {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+}
+
+.live-rec-card-meta b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+
+.live-rec-card-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+
+.live-rec-card-action {
+  font-size: 10px;
+  color: var(--fg-3);
+}
+
+@media (max-width: 700px) {
+  .live-rec-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Head-wise performance (expandable per-model curve) ----------------- */
+
+/* The wrapper is now the grid cell; the select button + toggle + table stack
+   inside it. */
+.live-rec-card-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.live-rec-card-wrap > .live-rec-card {
+  width: 100%;
+}
+
+.live-rec-headtoggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin-top: 3px;
+  padding: 2px 4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent, #0969da);
+}
+.live-rec-headtoggle:hover {
+  text-decoration: underline;
+}
+.live-rec-chevron {
+  transition: transform 0.12s;
+  display: inline-block;
+}
+.live-rec-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+/* 5-column table in a ~1/3-width cell — let it scroll horizontally rather than
+   squashing the columns. */
+.live-rec-headtable-wrap {
+  overflow-x: auto;
+  margin-top: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 6px);
+}
+.live-rec-headtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.live-rec-headtable th {
+  text-align: left;
+  padding: 4px 8px;
+  white-space: nowrap;
+  color: var(--fg-3);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-paper);
+}
+.live-rec-headtable td {
+  padding: 4px 8px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+}
+.live-rec-headtable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Head rows are now selectable (pick the operating head). */
+.live-rec-headrow {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.live-rec-headrow:hover {
+  background: var(--accent-soft, rgba(9,105,218,0.06));
+}
+.live-rec-headrow.is-selected {
+  background: var(--accent-soft, rgba(9,105,218,0.12));
+  font-weight: 600;
+}
+.live-rec-headrow.is-selected td:first-child {
+  color: var(--title, #0969da);
+}
+/* Highlight the whole model card wrapper when one of its heads is picked. */
+.live-rec-card-wrap.is-selected-wrap > .live-rec-card {
+  border-color: var(--title);
+  background: var(--accent-soft);
+}
+

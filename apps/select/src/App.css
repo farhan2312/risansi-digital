@@ -1,0 +1,48 @@
+/* Wrapped in Tailwind's own "base" layer (declared by `@import "tailwindcss"`
+   in index.css: theme, base, components, utilities). CSS Cascade Layers give
+   ANY unlayered rule priority over ALL layered rules regardless of
+   specificity — so an unlayered `* { padding: 0 }` here would silently zero
+   out every Tailwind padding/margin utility everywhere in the app. Layering
+   this into "base" keeps it as the reset baseline while letting "utilities"
+   (higher-priority than "base") win, exactly like Tailwind's own Preflight. */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  img {
+    max-width: 100%;
+    display: block;
+  }
+}

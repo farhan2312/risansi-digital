@@ -1,0 +1,512 @@
+.login-page {
+  display: grid;
+  grid-template-columns: 70fr 30fr;
+  width: 100%;
+  /* Exactly one viewport tall — both panels scroll internally if they ever
+     need to, so the page itself never grows a scrollbar at 100% zoom. */
+  height: 100vh;
+  overflow: hidden;
+  font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+}
+
+/* ================= LEFT PANEL ================= */
+/* Auth surfaces are a fixed branded surface — always this dark gradient,
+   regardless of light/dark theme elsewhere in the app. */
+
+.branding-panel {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(150deg, #0a1628 0%, #0d2a52 55%, #0a3d6e 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  padding: 34px 52px;
+  height: 100vh;
+}
+
+/* Faint dotted-grid wash across the whole panel. */
+.branding-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(120, 170, 230, 0.14) 1px, transparent 1.4px);
+  background-size: 26px 26px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Engineering-blueprint pump watermark, bleeding off the right edge. */
+.blueprint-bg {
+  position: absolute;
+  right: -80px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 620px;
+  height: 620px;
+  color: rgba(125, 184, 232, 0.22);
+  pointer-events: none;
+}
+.blueprint-bg svg {
+  width: 100%;
+  height: 100%;
+}
+
+.branding-panel .company-logo,
+.branding-content,
+.branding-badge {
+  position: relative;
+  z-index: 1;
+}
+
+.branding-panel .company-logo {
+  width: auto;
+  height: 42px;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 7px 13px;
+  align-self: flex-start;
+}
+
+.branding-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 560px;
+  padding: 18px 0;
+  min-height: 0; /* let it shrink inside the fixed-height panel */
+}
+
+.branding-content h1 {
+  /* Scales with the viewport so the hero never overflows a short window. */
+  font-size: clamp(34px, 3.6vw, 50px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: #ffffff;
+}
+.branding-content h1 span {
+  display: block;
+}
+.branding-content h1 .brand-accent {
+  color: #4ea6ec;
+}
+
+.brand-accent-bar {
+  width: 60px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3b82f6, #22a6d6);
+  margin: 16px 0 18px;
+}
+
+.branding-lead {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #c9d4e3;
+  margin-bottom: 26px;
+  max-width: 460px;
+}
+
+/* Capability tiles under the lead paragraph. */
+.branding-features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.branding-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.feature-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: rgba(93, 173, 226, 0.12);
+  border: 1px solid rgba(93, 173, 226, 0.28);
+  display: grid;
+  place-items: center;
+  color: #8fc7f0;
+}
+.feature-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.feature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.feature-text strong {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+}
+.feature-text span {
+  color: #9fb0c7;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.branding-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  padding: 10px 16px;
+  color: #dbe5f2;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.branding-badge svg {
+  width: 18px;
+  height: 18px;
+  color: #8fc7f0;
+}
+
+/* ================= RIGHT PANEL ================= */
+
+.login-form-container {
+  background: #eef2f8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  height: 100vh;
+  /* The Request Access form is taller than Sign In — if it can't fit the
+     window, this column scrolls on its own instead of the whole page. */
+  overflow-y: auto;
+}
+
+/* Floating white card. */
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid #e7ecf4;
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(15, 30, 60, 0.13);
+  padding: 28px 30px 24px;
+  display: flex;
+  flex-direction: column;
+  margin: auto; /* keeps it centred, but lets it start at the top when tall */
+}
+
+.login-card .form-logo {
+  width: auto;
+  height: 34px;
+  margin: 0 auto 16px;
+}
+
+.login-card h2 {
+  font-size: 23px;
+  font-weight: 700;
+  color: #0d1b2e;
+  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+}
+
+/* The form's subtitle line. Excludes .mode-switch — that's also a direct <p>
+   child, and this shorthand would otherwise zero its margin-top. */
+.login-card form > p:not(.mode-switch) {
+  font-size: 13.5px;
+  color: #667085;
+  margin: 0 0 16px;
+}
+
+.login-card label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2d3e55;
+  margin-bottom: 5px;
+}
+
+/* Icon-prefixed input wrapper. */
+.input-icon {
+  position: relative;
+  margin-bottom: 13px;
+}
+/* The leading icon is always the wrapper's first child svg (mail/lock/person),
+   so target it structurally rather than by class — that way every field-icon
+   type gets positioned even if the icon component carries no field-icon class. */
+.input-icon > svg {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 19px;
+  height: 19px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+.input-icon input {
+  margin-bottom: 0 !important;
+  padding-left: 44px !important;
+}
+.input-icon-password input {
+  padding-right: 48px !important;
+}
+
+.login-card .input-icon-password .toggle-visibility {
+  position: absolute !important;
+  right: 7px !important;
+  top: 50% !important;
+  transform: translateY(-50%);
+  width: 34px !important;
+  height: 34px !important;
+  border: none !important;
+  background: transparent !important;
+  color: #8b98ab !important;
+  cursor: pointer;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 8px;
+  box-shadow: none !important;
+  display: grid;
+  place-items: center;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.login-card .input-icon-password .toggle-visibility svg {
+  width: 19px;
+  height: 19px;
+}
+.login-card .input-icon-password .toggle-visibility:hover {
+  color: #1a5cb8 !important;
+  background: #eef4fc !important;
+}
+.login-card .input-icon-password .toggle-visibility:focus-visible {
+  outline: 2px solid #1a5cb8;
+  outline-offset: 1px;
+}
+
+.form-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.form-success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.login-card input,
+.login-card select {
+  width: 100%;
+  height: 44px;
+  padding: 0 15px;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  background: #f5f7fb;
+  color: #1f2937;
+  font-size: 14.5px;
+  margin-bottom: 13px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-card select {
+  cursor: pointer;
+}
+
+.login-card input::placeholder {
+  color: #98a4b8;
+}
+
+.login-card input:hover:not(:focus),
+.login-card select:hover:not(:focus) {
+  border-color: #b8c3d3;
+}
+
+.login-card input:focus,
+.login-card select:focus {
+  border-color: #1a5cb8;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(26, 92, 184, 0.14);
+}
+
+.login-card button[type="submit"] {
+  position: relative;
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #1a5cb8, #2c8dbf);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 22px rgba(26, 92, 184, 0.3);
+  transition: box-shadow 0.2s ease, transform 0.08s ease, filter 0.2s ease;
+}
+
+.login-card button[type="submit"] .btn-arrow {
+  position: absolute;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  display: grid;
+  place-items: center;
+}
+.login-card button[type="submit"] .btn-arrow svg {
+  width: 17px;
+  height: 17px;
+}
+
+.login-card button[type="submit"]:hover:not(:disabled) {
+  box-shadow: 0 12px 28px rgba(26, 92, 184, 0.38);
+  filter: brightness(1.05);
+}
+.login-card button[type="submit"]:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.login-card button[type="submit"]:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Mode switch under the submit button — replaces the old segmented tabs. */
+.login-card .mode-switch {
+  margin: 26px 0 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: #667085;
+}
+
+.login-card .mode-switch button {
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: #1a5cb8;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+.login-card .mode-switch button:hover {
+  color: #12447f;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.login-card .mode-switch button:focus-visible {
+  outline: 2px solid #1a5cb8;
+  outline-offset: 3px;
+}
+
+/* Error text under a field. */
+.error-text {
+  display: block;
+  color: #dc2626;
+  font-size: 13px;
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+/* ================= RESPONSIVE ================= */
+
+/* Short desktop windows (e.g. 1366x768 laptops): compact the card so even the
+   taller Request Access form fits on one screen without scrolling. The logo
+   stays — dropping the tabs and the security row freed enough room. */
+@media (min-width: 993px) and (max-height: 820px) {
+  .login-card {
+    padding: 22px 26px 20px;
+  }
+  .login-card .form-logo {
+    height: 30px;
+    margin-bottom: 12px;
+  }
+  .login-card h2 {
+    font-size: 21px;
+  }
+  .login-card form > p:not(.mode-switch) {
+    margin-bottom: 13px;
+  }
+  .login-card input,
+  .login-card select {
+    height: 40px;
+    margin-bottom: 10px;
+  }
+  .input-icon {
+    margin-bottom: 10px;
+  }
+  .login-card button[type="submit"] {
+    height: 44px;
+  }
+  .login-card .mode-switch {
+    margin-top: 22px;
+  }
+}
+
+/* ---------- Mobile / tablet: form only ----------
+   The marketing panel is dropped entirely rather than stacked above the form —
+   on a phone it just pushes the fields below the fold. The card carries the
+   logo, so the brand is still present. */
+@media (max-width: 992px) {
+  .login-page {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .branding-panel {
+    display: none;
+  }
+
+  .login-form-container {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    padding: 24px 20px 32px;
+  }
+
+  /* Full-width card on small screens; still centred and capped on tablets. */
+  .login-card {
+    max-width: 460px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-form-container {
+    padding: 18px 14px 26px;
+  }
+
+  .login-card {
+    padding: 26px 20px 24px;
+    border-radius: 18px;
+  }
+}

@@ -1,0 +1,61 @@
+.recommendation-table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:25px;
+    background:var(--surface);
+    color:var(--text);
+}
+
+.recommendation-table th,
+.recommendation-table td{
+    padding:14px;
+    border:1px solid var(--border);
+    text-align:center;
+}
+
+.recommendation-table th{
+    background:var(--accent);
+    color:white;
+    padding:16px;
+}
+
+.recommendation-table button{
+    padding:8px 14px;
+    border:none;
+    background:var(--pos);
+    color:white;
+    border-radius:var(--radius);
+    cursor:pointer;
+}
+
+.recommendation-table tbody tr:hover{
+    background:var(--surface-hover);
+}
+
+.badge{
+    padding:3px 8px;
+    border-radius:10px;
+    font-size:11px;
+    font-weight:600;
+    font-family:var(--mono);
+}
+
+.available{
+    background:var(--pos-soft);
+    color:var(--pos-strong);
+}
+
+.out{
+    background:var(--neg-soft);
+    color:var(--neg-strong);
+}
+
+.tested{
+    background:var(--info-soft);
+    color:var(--accent);
+}
+
+.pending{
+    background:var(--warn-soft);
+    color:var(--warn);
+}

@@ -1,0 +1,19 @@
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.breadcrumb-root {
+  color: var(--fg-3);
+}
+
+.breadcrumb-sep {
+  color: var(--fg-4);
+}
+
+.breadcrumb-current {
+  color: var(--fg);
+  font-weight: 600;
+}

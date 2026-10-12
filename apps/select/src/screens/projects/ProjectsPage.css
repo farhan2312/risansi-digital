@@ -1,0 +1,550 @@
+/* Projects page — flat, hairline design that lines up with the app's shared
+   tokens (theme.css). Header uses a page-title / subtitle pair; the table
+   sits inside a bordered panel so it reads as one contained surface. */
+
+.projects-page {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.projects-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.projects-header-text h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--title);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.projects-header-text p {
+  font-size: 13px;
+  color: var(--fg-3);
+  margin: 4px 0 0;
+}
+
+/* Filter bar — Client Name + Enquiry no., independent case-insensitive
+   substring matches combined with AND. Mirrors the dashboard's filter-bar
+   panel treatment so the two pages read consistently. */
+.projects-filter-bar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.projects-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 220px;
+}
+
+.projects-filter-field label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-3);
+}
+
+.projects-filter-field input {
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-sunk);
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 120ms, box-shadow 120ms, background-color 120ms;
+}
+.projects-filter-field input:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  background: var(--bg-paper);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.projects-filter-clear {
+  padding: 8px 4px;
+  border: none;
+  background: none;
+  color: var(--fg-3);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.projects-filter-clear:hover {
+  color: var(--fg);
+}
+
+/* Primary action button — flat blue, subtle hover lift, icon on the left. */
+.projects-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--brand-blue);
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms, transform 60ms, box-shadow 120ms;
+  box-shadow: 0 1px 2px rgba(10, 61, 143, 0.15);
+  white-space: nowrap;
+}
+.projects-new-btn:hover:not(:disabled) {
+  background: var(--accent-hover, #164d99);
+  box-shadow: 0 4px 12px rgba(26, 92, 184, 0.28);
+}
+.projects-new-btn:active {
+  transform: translateY(1px);
+}
+.projects-new-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Inline error banner — soft red tint, small icon prefix. */
+.projects-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--neg-soft);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 8px;
+  color: var(--neg-strong);
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+.projects-error svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* Table shell — one panel, hairline borders, header row on the sunk tint. */
+.projects-panel {
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.projects-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--fg);
+  font-size: 13.5px;
+}
+
+.projects-table thead th {
+  padding: 12px 18px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--fg-3);
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.projects-table tbody td {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-2);
+  vertical-align: middle;
+}
+
+.projects-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.projects-table tbody tr {
+  transition: background-color 100ms;
+}
+
+.projects-table tbody tr:hover {
+  background: var(--bg-elev);
+}
+
+.project-code {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--brand-blue);
+  letter-spacing: -0.005em;
+}
+
+.project-name {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* Action column — right-aligned, icon-first buttons for a cleaner scan. */
+.projects-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.projects-actions-col {
+  width: 1%;
+  text-align: right;
+}
+
+.project-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-paper);
+  color: var(--fg-2);
+  transition: background-color 100ms, border-color 100ms, color 100ms;
+  white-space: nowrap;
+}
+.project-btn:hover:not(:disabled) {
+  background: var(--bg-elev);
+  border-color: var(--fg-3);
+  color: var(--fg);
+}
+.project-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.project-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.project-btn-primary {
+  background: var(--brand-blue);
+  border-color: var(--brand-blue);
+  color: white;
+}
+.project-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover, #164d99);
+  border-color: var(--accent-hover, #164d99);
+  color: white;
+}
+
+.project-btn-danger:hover:not(:disabled) {
+  background: var(--neg-soft);
+  border-color: var(--neg);
+  color: var(--neg-strong);
+}
+
+.projects-loading {
+  padding: 18px;
+}
+
+@media (max-width: 860px) {
+  .projects-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .projects-new-btn {
+    justify-content: center;
+  }
+
+  /* Filter fields stack full-width instead of sitting side by side. */
+  .projects-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .projects-filter-field {
+    min-width: 0;
+  }
+  .projects-filter-clear {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Rows become stacked cards — the header row is hidden, so each cell
+     carries its own label via data-label (set in ProjectsPage.tsx). */
+  .projects-table thead {
+    display: none;
+  }
+  .projects-table,
+  .projects-table tbody,
+  .projects-table tr {
+    display: block;
+    width: 100%;
+  }
+  .projects-table tr {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .projects-table tbody td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0;
+    border-bottom: none;
+    text-align: right;
+  }
+  .projects-table tbody td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-3);
+    text-align: left;
+  }
+  /* The actions cell has no label and spans the full width. */
+  .projects-table tbody td.projects-actions-col::before {
+    content: none;
+  }
+  .projects-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    width: 100%;
+  }
+}
+
+/* ---------- Enquiry tags: chevron + nested table ------------------------ */
+
+/* Fixed-width column for the chevron so the main columns don't jitter as the
+   list re-renders. */
+.projects-chevron-col {
+  width: 32px;
+  padding-left: 12px !important;
+  padding-right: 4px !important;
+}
+
+.projects-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line, #d0d7de);
+  border-radius: 4px;
+  background: var(--bg-paper, #fff);
+  color: var(--fg-2, #57606a);
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.projects-chevron:hover {
+  background: var(--bg-elev, #edf1f7);
+  color: var(--fg, #1f2328);
+}
+.projects-chevron.is-open {
+  transform: rotate(90deg);
+  color: var(--accent, #0969da);
+}
+
+/* Nested tag panel sits inside its own <tr>; the panel div gives it padding
+   and a slight inset so it visually anchors to its parent enquiry. */
+.projects-tags-row > td {
+  background: var(--bg-elev, #edf1f7);
+  padding: 12px 16px 16px 40px !important;
+  border-top: 0 !important;
+}
+.projects-tags-panel {
+  border: 1px solid var(--line, #d0d7de);
+  border-radius: 6px;
+  background: var(--bg-paper, #fff);
+  padding: 12px;
+}
+.projects-tags-heading {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-3, #6e7781);
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.projects-tags-hint {
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--fg-3, #6e7781);
+}
+
+.projects-tags-empty,
+.projects-tags-error {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--fg-3, #6e7781);
+  text-align: left;
+}
+.projects-tags-error {
+  color: var(--warn, #a16207);
+}
+
+.projects-tags-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.projects-tags-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-3, #6e7781);
+  border-bottom: 1px solid var(--line, #d0d7de);
+  background: transparent;
+}
+.projects-tags-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line, #d0d7de);
+  vertical-align: middle;
+}
+.projects-tags-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Tag name is a click-to-rename affordance - looks like a link, becomes an
+   input when clicked. Same size as the surrounding table text. */
+.projects-tag-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--fg, #1f2328);
+  font: inherit;
+  font-weight: 600;
+  cursor: text;
+  text-align: left;
+}
+.projects-tag-name:hover {
+  color: var(--accent, #0969da);
+  text-decoration: underline dotted;
+}
+.projects-tag-input {
+  width: 100%;
+  max-width: 240px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong, #9ea7b3);
+  border-radius: 4px;
+  font: inherit;
+  background: var(--bg-paper, #fff);
+  color: var(--fg, #1f2328);
+}
+
+/* Add-tag inline form / button placement. */
+.projects-tag-add {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.projects-tag-add .projects-tag-input {
+  max-width: 320px;
+}
+.projects-tag-add-btn {
+  margin-top: 12px;
+}
+
+/* ---------- Tag status: colored rows + pills ---------------------------- */
+
+/* Row tint - a soft background so the status reads at a glance. The pill
+   below carries the strong color; the row is intentionally light so
+   readability of the plain text columns doesn't take a hit. */
+.projects-tag-row-completed td {
+  background: rgba(16, 185, 129, 0.08);
+}
+.projects-tag-row-in-progress td {
+  background: rgba(37, 99, 235, 0.08);
+}
+.projects-tag-row-pending td {
+  background: rgba(107, 114, 128, 0.08);
+}
+
+.projects-tag-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.projects-tag-status.is-completed {
+  background: rgba(16, 185, 129, 0.18);
+  color: #065f46;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.projects-tag-status.is-in-progress {
+  background: rgba(37, 99, 235, 0.16);
+  color: #1e3a8a;
+  border-color: rgba(37, 99, 235, 0.35);
+}
+.projects-tag-status.is-pending {
+  background: rgba(107, 114, 128, 0.18);
+  color: #374151;
+  border-color: rgba(107, 114, 128, 0.35);
+}
+.projects-tag-status.is-neutral {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
+  border-color: rgba(107, 114, 128, 0.25);
+}
+
+/* Dark-mode readability tweak - lighter text on a slightly stronger tint so
+   the row still contrasts against the dark panel.
+
+   Keyed ONLY on [data-theme="dark"]. These rules used to also carry a
+   :root:not([data-theme="light"]) fallback, meaning "system dark" - but this
+   app never derives the theme from prefers-color-scheme; dark is always the
+   explicit attribute (see styles/theme.css). So that half matched plain light
+   mode too and painted these pale dark-mode colours onto the white panel,
+   which left the status pills unreadable. */
+:root[data-theme="dark"] .projects-tag-row-completed td {
+  background: rgba(16, 185, 129, 0.14);
+}
+:root[data-theme="dark"] .projects-tag-row-in-progress td {
+  background: rgba(37, 99, 235, 0.16);
+}
+:root[data-theme="dark"] .projects-tag-row-pending td {
+  background: rgba(107, 114, 128, 0.16);
+}
+:root[data-theme="dark"] .projects-tag-status.is-completed { color: #a7f3d0; }
+:root[data-theme="dark"] .projects-tag-status.is-in-progress { color: #bfdbfe; }
+:root[data-theme="dark"] .projects-tag-status.is-pending { color: #d1d5db; }
+:root[data-theme="dark"] .projects-tag-status.is-neutral { color: #d1d5db; }

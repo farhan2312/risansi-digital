@@ -1,0 +1,131 @@
+/* Shared wizard step chrome — every step in the pump-selection wizard imports
+   this stylesheet (via `import "./GeneralInformationStep.css"`), so any tweak
+   here cascades to General / Fluid / Operating / MOC / Sealing / Motor Rating
+   / Drive / Recommendation. Form FIELDS themselves are styled with Tailwind
+   (see formStyles.ts). */
+
+.step-container {
+  padding: 0;
+  background: var(--bg);
+}
+
+.step-card {
+  background: var(--bg-paper);
+  max-width: 1200px;
+  margin: 0 auto 8px;
+  padding: 18px 22px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgba(10, 61, 143, 0.05), 0 8px 24px rgba(10, 22, 40, 0.04);
+  overflow: hidden;
+}
+
+/* Filled gradient header banner — pulled to the card edges with negative
+   margins so it spans full-width without requiring a component wrapper. */
+.step-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -18px -22px 16px;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #0a3d8f 0%, #1a5cb8 55%, #2c8dbf 100%);
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Slim white accent bar to the left of the title — a visual anchor without
+   adding an icon to every step component. */
+.step-card h2::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* A button at the right-hand end of the header banner (e.g. the Summary's
+   Recheck PDF) — the same light-on-blue pill as the approval tick, so both
+   read as banner controls rather than form buttons. */
+.step-header-action {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background 120ms, border-color 120ms;
+}
+/* A second header button sits right beside the first. */
+.step-header-action + .step-header-action {
+  margin-left: 8px;
+}
+.step-header-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+.step-header-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.step-header-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.step-card > p:first-of-type,
+.step-card h2 + p {
+  color: var(--fg-3);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0 0 16px;
+}
+.step-card > p:first-of-type strong,
+.step-card h2 + p strong {
+  color: var(--fg-2);
+  font-weight: 600;
+}
+
+.step-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.step-actions button {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 8px;
+  background: var(--brand-blue);
+  color: white;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, box-shadow 0.15s, transform 0.08s;
+  box-shadow: 0 1px 2px rgba(10, 61, 143, 0.15);
+}
+.step-actions button:hover:not(:disabled) {
+  background: var(--accent-hover, #164d99);
+  box-shadow: 0 4px 12px rgba(26, 92, 184, 0.25);
+}
+.step-actions button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.step-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,0 +1,28 @@
+# dependencies
+/node_modules
+.vscode
+# next.js
+/.next/
+# isolated test builds (NEXT_DIST_DIR)
+/.next-*/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+
+# local env files
+.env
+.env*.local
+.env.example
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+/docs

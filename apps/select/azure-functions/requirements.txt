@@ -1,0 +1,6 @@
+azure-functions
+sqlalchemy==2.0.51
+psycopg2-binary==2.9.12
+anthropic==0.72.0
+bcrypt==4.2.1
+PyJWT==2.10.1

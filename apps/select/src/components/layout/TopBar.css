@@ -1,0 +1,77 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  flex-shrink: 0;
+  padding: 0 24px;
+  background: var(--bg-paper);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-report-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-paper);
+  color: var(--fg);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms, border-color 120ms, box-shadow 120ms;
+}
+.topbar-report-btn:hover {
+  background: var(--bg-elev);
+  border-color: var(--fg-3);
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    height: 52px;
+    padding: 0 14px;
+    gap: 10px;
+  }
+
+  .topbar-actions {
+    gap: 8px;
+  }
+
+  /* Collapse the report button to just its bug icon — the label is the
+     widest thing in the bar and the icon reads fine on its own. */
+  .topbar-report-btn {
+    padding: 8px;
+    gap: 0;
+  }
+  .topbar-report-btn .topbar-report-label {
+    display: none;
+  }
+
+  /* The breadcrumb truncates rather than pushing the actions off-screen. */
+  .breadcrumb {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .breadcrumb-current {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  /* Very narrow: the "Risansi Portal" root crumb goes, leaving just the
+     current page name. */
+  .breadcrumb-root,
+  .breadcrumb-sep {
+    display: none;
+  }
+}

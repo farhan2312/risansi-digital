@@ -1,0 +1,308 @@
+/* Create / Edit Project modals share this stylesheet (EditProjectModal.tsx
+   imports "./CreateProjectModal.css"). Matches the app's flat, hairline
+   design tokens with a filled gradient header banner for a cleaner look. */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  z-index: 1000;
+  animation: modal-fade-in 120ms ease-out;
+}
+
+.modal {
+  width: 100%;
+  max-width: 560px;
+  background: var(--bg-paper);
+  color: var(--fg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modal-pop-in 140ms ease-out;
+}
+
+/* Filled gradient header banner — same treatment as the wizard step forms. */
+.modal h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #0a3d8f 0%, #1a5cb8 55%, #2c8dbf 100%);
+  color: white;
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.modal h2::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.modal-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 4px;
+}
+
+.modal-form .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-form label {
+  color: var(--fg-3);
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.modal-form input,
+.modal-form textarea,
+.modal-form select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: 14.5px;
+  color: var(--fg);
+  background: var(--bg-sunk);
+  font-family: inherit;
+  transition: border-color 120ms, box-shadow 120ms, background-color 120ms;
+}
+
+.modal-form input:hover,
+.modal-form textarea:hover,
+.modal-form select:hover {
+  border-color: var(--fg-3);
+}
+
+.modal-form input:focus,
+.modal-form textarea:focus,
+.modal-form select:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  background: var(--bg-paper);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* Inline create error (blank or duplicate Enquiry no.) — sits between the
+   form and the action buttons so it can't be missed. */
+.modal-error {
+  margin: 0;
+  padding: 0 24px 4px;
+  font-size: 13px;
+  color: var(--warn, #b45309);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 20px;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-elev);
+}
+
+/* Modal buttons — mirror the shared .btn-primary / .btn-secondary from
+   PumpModelMasterPage.css so both surfaces read the same way. */
+.cancel-btn,
+.create-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 120ms, border-color 120ms, box-shadow 120ms, transform 60ms;
+}
+.cancel-btn:not(:disabled):active,
+.create-btn:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.cancel-btn {
+  background: var(--bg-paper);
+  border-color: var(--line-strong);
+  color: var(--fg-2);
+}
+.cancel-btn:hover:not(:disabled) {
+  background: var(--bg-elev);
+  border-color: var(--fg-3);
+}
+
+.create-btn {
+  background: var(--brand-blue);
+  color: white;
+  box-shadow: 0 1px 2px rgba(10, 61, 143, 0.15);
+}
+.create-btn:hover:not(:disabled) {
+  background: var(--accent-hover, #164d99);
+  box-shadow: 0 4px 12px rgba(26, 92, 184, 0.25);
+}
+
+.create-btn:disabled,
+.cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay, .modal { animation: none; }
+}
+
+@media (max-width: 560px) {
+  .modal { max-width: 100%; }
+}
+
+/* Small helper text under the enquiry-no. input - explains the prefilled
+   prefix without making it look like an error message. */
+.modal-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+  line-height: 1.4;
+}
+
+/* --- Client lookup (Market Intell client master, read-only) --------------
+   Debounced typeahead over client code / legal name. Results list sits under
+   the search box; each row offers a Select button that prefills the client
+   fields below. */
+.client-results {
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-elev, #f7f8fa);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.client-results-msg {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--fg-3, #6e7781);
+}
+.client-results-error {
+  color: var(--neg, #b42318);
+}
+
+.client-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.client-result:last-child {
+  border-bottom: none;
+}
+
+.client-result-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.client-result-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+}
+.client-result-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.client-result-industry {
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+}
+
+.client-select-btn {
+  flex: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--accent, #0a3d8f);
+  background: var(--accent, #0a3d8f);
+  color: #fff;
+  cursor: pointer;
+}
+.client-select-btn:hover {
+  filter: brightness(1.08);
+}
+
+/* The chosen client, shown in place of the search box until "Change". */
+.client-picked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--pos, #059669);
+  background: var(--pos-soft, #ecfdf5);
+  border-radius: var(--radius-md, 8px);
+}
+.client-picked-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.client-picked-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+}
+.client-picked-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.client-picked-industry {
+  font-size: 11px;
+  color: var(--fg-3, #6e7781);
+}
+
+.client-change-btn {
+  flex: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--line);
+  background: var(--bg-paper, #fff);
+  color: var(--fg, #1f2328);
+  cursor: pointer;
+}
+.client-change-btn:hover {
+  background: var(--bg-elev, #f7f8fa);
+}

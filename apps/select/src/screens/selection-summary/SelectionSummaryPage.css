@@ -1,0 +1,445 @@
+/* Reports list — one generated MOC & Sealing PDF per project. Mirrors the
+   Projects page's flat, hairline design (see ProjectsPage.css) so the two
+   list-style pages read as one consistent system. No page-level padding/
+   min-height here — dashboard-main already pads every page. */
+
+.summary-page {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.summary-header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--title);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.summary-header p {
+  font-size: 13px;
+  color: var(--fg-3);
+  margin: 4px 0 0;
+}
+
+.summary-search {
+  min-width: 260px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-paper);
+  color: var(--fg);
+  font-size: 13px;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.summary-search:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.summary-panel {
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--fg);
+  font-size: 13.5px;
+}
+
+.summary-table thead th {
+  padding: 12px 18px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--fg-3);
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.summary-table tbody td {
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-2);
+  vertical-align: middle;
+}
+.summary-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.summary-table tbody tr {
+  transition: background-color 100ms;
+}
+.summary-table tbody tr:hover {
+  background: var(--bg-elev);
+}
+
+.summary-project-code {
+  display: block;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--brand-blue);
+  letter-spacing: -0.005em;
+}
+.summary-project-name {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-top: 1px;
+}
+
+.summary-row-clickable {
+  cursor: pointer;
+}
+
+.summary-actions-col {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.summary-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--brand-blue);
+  background: var(--brand-blue);
+  color: white;
+  text-decoration: none;
+  transition: background-color 100ms, border-color 100ms;
+}
+.summary-download-btn:hover {
+  background: var(--accent-hover, #164d99);
+  border-color: var(--accent-hover, #164d99);
+}
+
+.summary-empty-cell {
+  padding: 0 !important;
+  background: var(--bg-paper);
+}
+
+.error-message {
+  color: var(--neg);
+  margin-bottom: 16px;
+}
+
+@media (max-width: 640px) {
+  .summary-table thead {
+    display: none;
+  }
+  .summary-table,
+  .summary-table tbody,
+  .summary-table tr {
+    display: block;
+    width: 100%;
+  }
+  .summary-table tr {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .summary-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: none;
+  }
+  .summary-actions-col {
+    justify-content: flex-start;
+    margin-top: 8px;
+  }
+}
+
+/* --- Summary modal (click a report row) --------------------------------- */
+
+.summary-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 60;
+}
+
+.summary-modal {
+  background: var(--bg-paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 720px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.summary-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 22px;
+  background: linear-gradient(135deg, #0a3d8f 0%, #1a5cb8 55%, #2c8dbf 100%);
+  color: #ffffff;
+}
+.summary-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.summary-modal-header p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.8);
+}
+.summary-modal-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 100ms;
+}
+.summary-modal-close:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.summary-modal-body {
+  padding: 18px 22px;
+  overflow-y: auto;
+}
+
+.summary-modal-section {
+  margin-bottom: 16px;
+}
+.summary-modal-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Combined enquiry document rendered as the Risansi quotation matrix: one
+   column per tag (liquid), parameters down the side, dark section bands
+   spanning all columns - mirrors the generated PDF. */
+.summary-modal-wide {
+  max-width: min(1100px, 96vw);
+  width: min(1100px, 96vw);
+}
+.summary-doc-scroll {
+  overflow-x: auto;
+}
+.summary-doc-matrix {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.summary-doc-matrix th,
+.summary-doc-matrix td {
+  border: 1px solid var(--line, #d0d3d8);
+  padding: 6px 9px;
+  vertical-align: top;
+  text-align: center;
+}
+.summary-doc-band {
+  background: #3c3c3c;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: 7px 9px;
+}
+.summary-doc-label {
+  text-align: left;
+  font-weight: 700;
+  background: var(--bg-elev, #f7f8fa);
+  white-space: nowrap;
+  min-width: 160px;
+}
+
+.summary-modal-section-title {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--fg-3);
+  margin-bottom: 8px;
+}
+.summary-modal-section-title-pos {
+  color: var(--pos-strong);
+}
+
+.summary-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--bg-elev);
+}
+.summary-modal-grid-pos {
+  background: var(--pos-soft);
+  border: 1px solid var(--pos);
+}
+
+.summary-modal-grid span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+.summary-modal-grid strong {
+  font-size: 13px;
+  color: var(--fg);
+  font-weight: 600;
+}
+.summary-modal-grid-pos span {
+  color: var(--pos-strong);
+  opacity: 0.75;
+}
+.summary-modal-grid-pos strong {
+  color: var(--pos-strong);
+}
+
+.summary-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-elev);
+}
+
+.summary-modal-close-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-paper);
+  color: var(--fg-2);
+}
+.summary-modal-close-btn:hover {
+  background: var(--bg-elev);
+}
+
+@media (max-width: 640px) {
+  .summary-modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Reports: chevron + nested per-tag table --------------------- */
+
+/* Chevron column shares layout + style with the Projects page so the two
+   tables read the same way. Fixed width prevents jitter as rows collapse. */
+.summary-chevron-col {
+  width: 32px;
+  padding-left: 12px !important;
+  padding-right: 4px !important;
+}
+.summary-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line, #d0d7de);
+  border-radius: 4px;
+  background: var(--bg-paper, #fff);
+  color: var(--fg-2, #57606a);
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.summary-chevron:hover {
+  background: var(--bg-elev, #edf1f7);
+  color: var(--fg, #1f2328);
+}
+.summary-chevron.is-open {
+  transform: rotate(90deg);
+  color: var(--accent, #0969da);
+}
+
+/* Nested tag panel sits inside its own <tr>. The wrapper div gives it padding
+   and an inset border that anchors it visually to its parent enquiry. */
+.summary-tags-row > td {
+  background: var(--bg-elev, #edf1f7);
+  padding: 12px 16px 16px 40px !important;
+  border-top: 0 !important;
+}
+.summary-tags-panel {
+  border: 1px solid var(--line, #d0d7de);
+  border-radius: 6px;
+  background: var(--bg-paper, #fff);
+  padding: 12px;
+}
+.summary-tags-heading {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-3, #6e7781);
+  margin-bottom: 8px;
+}
+.summary-tags-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.summary-tags-table th {
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-3, #6e7781);
+  border-bottom: 1px solid var(--line, #d0d7de);
+  background: transparent;
+}
+.summary-tags-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line, #d0d7de);
+  vertical-align: middle;
+}
+.summary-tags-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Small badge next to the enquiry code in the summary modal - shows which
+   tag the currently-viewed report belongs to, so the two title lines don't
+   collapse to look like one enquiry-wide report. */
+.summary-modal-tag {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-3, #6e7781);
+  margin-left: 4px;
+}

@@ -1,0 +1,37 @@
+/* Read-only approval status at the right-hand end of a step's gradient header
+   banner (.step-card h2 is a flex row). A solid light pill, so it reads as a
+   label rather than a control; the text colour carries the status. */
+.step-approval-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  cursor: default;
+  /* h2 sets a large heading size; the badge must not inherit it. */
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.step-approval-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Fixed colours: the pill is always light, whatever the page theme. */
+.step-approval-badge.sent {
+  color: #0a3d8f;
+}
+.step-approval-badge.ok {
+  color: #1d6b3a;
+}
+.step-approval-badge.bad {
+  color: #a02020;
+}

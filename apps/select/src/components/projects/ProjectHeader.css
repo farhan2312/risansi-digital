@@ -1,0 +1,12 @@
+/* Minimal project-id line — just the id, no card/shadow. */
+.project-id-line{
+    font-size:12px;
+    color:var(--text-muted);
+    margin-bottom:10px;
+}
+
+.project-id-line span{
+    font-family:var(--mono);
+    font-weight:600;
+    color:var(--text-h);
+}

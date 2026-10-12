@@ -1,0 +1,178 @@
+/* Wizard progress stepper — 8 clickable step labels with a horizontal
+   connecting line running behind the circles. The line is one continuous
+   track (var(--line)) with a filled overlay (var(--brand-blue)) sized to
+   the current step's percentage via the --step-progress CSS variable set
+   on the container inline (falls back to 0%). */
+
+.stepper {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 20px;
+  padding: 4px 20px 0;
+}
+
+/* Background track (grey hairline) */
+.stepper::before,
+/* Filled progress overlay (brand blue) */
+.stepper::after {
+  content: "";
+  position: absolute;
+  top: 21px;
+  left: 42px;
+  right: 42px;
+  height: 2px;
+  border-radius: 2px;
+  z-index: 0;
+}
+.stepper::before {
+  background: var(--line-strong);
+}
+.stepper::after {
+  background: linear-gradient(90deg, var(--brand-blue), var(--brand-cyan));
+  /* Filled length driven by inline --step-progress on the container (0–100%). */
+  width: calc(var(--step-progress, 0%) * (100% - 84px) / 100%);
+  transition: width 0.28s ease;
+  right: auto;
+}
+
+.step {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  font-family: inherit;
+  cursor: default;
+}
+
+.step.clickable {
+  cursor: pointer;
+}
+
+.step-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--bg-paper);
+  border: 2px solid var(--line-strong);
+  color: var(--fg-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s,
+    transform 0.15s;
+}
+
+.step.clickable:hover .step-circle {
+  border-color: var(--brand-blue);
+  color: var(--brand-blue);
+  background: var(--accent-soft);
+}
+
+.step.clickable:hover span {
+  color: var(--brand-blue);
+}
+
+.step.active .step-circle {
+  background: linear-gradient(135deg, var(--brand-blue), var(--brand-cyan));
+  border-color: var(--brand-blue);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(26, 92, 184, 0.15);
+  transform: scale(1.05);
+}
+
+.step.completed .step-circle {
+  background: var(--pos);
+  border-color: var(--pos);
+  color: white;
+}
+
+.step span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-3);
+  transition: color 0.15s;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  letter-spacing: 0.01em;
+}
+
+.step.active span {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ---------- Mobile: 8 steps can't fit across a phone, so the stepper
+   becomes a horizontally scrollable strip with fixed-width steps. The
+   connecting line is dropped — it can't track a scrolling container. ---------- */
+@media (max-width: 700px) {
+  .stepper {
+    justify-content: flex-start;
+    gap: 2px;
+    padding: 4px 0 6px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .stepper::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* No continuous track when the strip scrolls. */
+  .stepper::before,
+  .stepper::after {
+    display: none;
+  }
+
+  .step {
+    flex: 0 0 auto;
+    width: 68px;
+    scroll-snap-align: center;
+    padding: 2px;
+  }
+
+  .step-circle {
+    width: 30px;
+    height: 30px;
+    font-size: 12.5px;
+    margin-bottom: 5px;
+  }
+
+  .step span {
+    font-size: 10.5px;
+  }
+
+  /* Active step keeps its ring but drops the scale so neighbours don't clip. */
+  .step.active .step-circle {
+    transform: none;
+    box-shadow: 0 0 0 3px rgba(26, 92, 184, 0.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stepper::after,
+  .step-circle {
+    transition: none;
+  }
+  .step.active .step-circle {
+    transform: none;
+  }
+}

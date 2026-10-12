@@ -1,0 +1,243 @@
+/* "Report a Bug" modal — reuses the app's .modal-overlay (defined in
+   CreateProjectModal.css, already loaded globally via layout.tsx) but its
+   own card styling, since this one leads with a plain title rather than the
+   gradient banner other modals use. */
+
+.bug-modal {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
+  background: var(--bg-paper);
+  color: var(--fg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg, 0 24px 64px rgba(0, 0, 0, 0.2));
+  padding: 22px 24px 20px;
+  animation: modal-pop-in 140ms ease-out;
+}
+
+.bug-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: none;
+  background: var(--bg-elev);
+  color: var(--fg-3);
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms, color 120ms;
+}
+.bug-modal-close:hover {
+  background: var(--line-strong);
+  color: var(--fg);
+}
+
+.bug-modal-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--neg, #dc2626);
+  margin-bottom: 6px;
+}
+
+.bug-modal-title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.bug-modal-subtitle {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--fg-3);
+  line-height: 1.45;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bug-modal-form {
+  display: grid;
+  gap: 14px;
+}
+
+.bug-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+.bug-field .req {
+  color: var(--neg, #dc2626);
+}
+
+/* Excludes the visually-hidden file input — this selector (0,1,1) outranks
+   Tailwind's .sr-only utility (0,1,0), so without the :not() it would stretch
+   that absolutely-positioned input to full width and push it past the modal's
+   right edge, giving the whole dialog a horizontal scrollbar. */
+.bug-field input:not([type="file"]),
+.bug-field textarea,
+.bug-field select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--fg);
+  background: var(--bg-sunk);
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 120ms, box-shadow 120ms, background-color 120ms;
+}
+/* Belt-and-braces: pin the hidden file input to a 1px box regardless of what
+   else matches it. It's never shown — the visible "Attach a screenshot" button
+   triggers it via ref.click(). */
+.bug-field input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.bug-field input:focus,
+.bug-field textarea:focus,
+.bug-field select:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  background: var(--bg-paper);
+  box-shadow: 0 0 0 4px var(--accent-soft, rgba(26, 92, 184, 0.1));
+}
+
+.bug-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.bug-type-toggle {
+  display: flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.bug-type-toggle button {
+  flex: 1;
+  padding: 9px 12px;
+  border: none;
+  background: var(--bg-sunk);
+  color: var(--fg-3);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms;
+}
+.bug-type-toggle button:first-child {
+  border-right: 1px solid var(--line-strong);
+}
+.bug-type-toggle button.active {
+  background: var(--bg-paper);
+  color: var(--fg);
+}
+
+.bug-screenshot-btn {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-sunk);
+  color: var(--fg-3);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms, background-color 120ms;
+}
+.bug-screenshot-btn:hover {
+  border-color: var(--brand-blue);
+  background: var(--accent-soft, rgba(26, 92, 184, 0.06));
+}
+
+.bug-screenshot-attached {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-sunk);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.bug-screenshot-attached span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bug-screenshot-attached button {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--neg, #dc2626);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bug-modal-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--neg, #dc2626);
+}
+
+.bug-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.submit-bug-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--pos, #059669);
+  color: white;
+  transition: background-color 120ms, box-shadow 120ms, transform 60ms;
+}
+.submit-bug-btn:hover:not(:disabled) {
+  background: var(--pos-strong, #065f46);
+}
+.submit-bug-btn:not(:disabled):active {
+  transform: translateY(1px);
+}
+.submit-bug-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .bug-field-row {
+    grid-template-columns: 1fr;
+  }
+}
