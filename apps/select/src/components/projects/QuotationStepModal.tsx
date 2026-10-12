@@ -130,7 +130,9 @@ export default function QuotationStepModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => !busy && onClose()}>
       <div
-        className="flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
+        // Wide and tall enough that the scope dropdowns (340px lists) open
+        // without squeezing; the body scrolls inside.
+        className="flex h-[90vh] w-full max-w-[1200px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
