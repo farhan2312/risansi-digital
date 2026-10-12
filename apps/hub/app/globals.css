@@ -1044,7 +1044,9 @@
     gap: 8px;
     flex-wrap: wrap;
   }
-  .row-action select { min-width: 190px; }
+  .row-action select { min-width: 170px; }
+  /* A text input that has to share a table cell with a button. */
+  .input-slim { width: 150px; min-width: 0; }
   .row-action .notice { margin: 0; flex-basis: 100%; }
 
   /* The decided note, on the row it explains. Clipped to two lines; the full

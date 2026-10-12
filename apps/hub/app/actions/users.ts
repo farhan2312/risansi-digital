@@ -117,9 +117,12 @@ export async function createUserAction(
     .filter(x => x.role);
 
   for (const { app, role } of wanted) {
-    if (app.coming_soon) {
-      return { error: `${app.name} is not on Risansi Digital yet, so it cannot be granted.` };
-    }
+    // An application that is not open yet CAN be granted here, deliberately.
+    // Requesting one is still refused — that is what had five people asking
+    // for something nobody could grant — but an approver setting it up ahead
+    // of the portal opening is the opposite problem. The grant simply sits
+    // there: the tile stays greyed and the portal does not read grants yet,
+    // so nothing happens until it does, and then it already works.
     const { rows } = await db.query<{ role: string }>(
       `SELECT role FROM identity.app_roles WHERE app_slug = $1 AND role = $2`,
       [app.slug, role],

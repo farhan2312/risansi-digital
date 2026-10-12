@@ -27,6 +27,8 @@ const EMPTY_ACTION: ActionState = {};
 export interface GrantableApp {
   slug: string;
   name: string;
+  /** On the grid but not open yet. A grant here waits until it is. */
+  comingSoon?: boolean;
   roles: AppRole[];
 }
 
@@ -82,13 +84,18 @@ export function NewUserForm({ apps }: { apps: GrantableApp[] }) {
 
       <p className="field-hint">
         Pick what they need now. Anything left on <em>No access</em> they can
-        request later in the ordinary way.
+        request later in the ordinary way. A portal marked{' '}
+        <em>Not open yet</em> can still be set up — the grant waits, and works
+        the day that portal goes live.
       </p>
 
       <div className="new-user-apps">
         {apps.map(a => (
           <div className="field" key={a.slug}>
-            <label htmlFor={`nu-${a.slug}`}>{a.name}</label>
+            <label htmlFor={`nu-${a.slug}`}>
+              {a.name}
+              {a.comingSoon && <span className="pill">Not open yet</span>}
+            </label>
             <select id={`nu-${a.slug}`} name={`role:${a.slug}`} defaultValue="">
               <option value="">No access</option>
               {a.roles.map(r => (

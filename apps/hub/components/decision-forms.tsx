@@ -91,128 +91,6 @@ export function ApproveForm({
 }
 
 /**
- * Changing the role on a grant somebody already holds.
- *
- * Pre-selected with what they have now, unlike the approval form next door.
- * There the blank is the point — a default role is one stray click from being
- * granted. Here the current value is the thing being edited, and starting
- * blank would hide what it is. Submit stays disabled until the choice differs.
- */
-export function ChangeRoleForm({
-  grantId, appSlug, roles, current,
-}: {
-  grantId: string; appSlug: string; roles: AppRole[]; current: string | null;
-}) {
-  const [state, formAction, pending] = useActionState(changeRoleAction, EMPTY);
-  const [chosen, setChosen] = useState(current ?? '');
-
-  const role = roles.find(r => r.role === chosen);
-  const heavy = role ? isHeavyRole(appSlug, role.role) : false;
-  const selectId = `change-role-${grantId}`;
-
-  return (
-    <form action={formAction} className="decision">
-      <input type="hidden" name="grantId" value={grantId} />
-
-      <div className="field">
-        <label htmlFor={selectId}>Role in that portal</label>
-        <select
-          id={selectId}
-          name="role"
-          value={chosen}
-          onChange={e => setChosen(e.target.value)}
-          required
-        >
-          {!current && <option value="">Choose a role…</option>}
-          {roles.map(r => (
-            <option key={r.role} value={r.role}>
-              {isHeavyRole(appSlug, r.role) ? `${r.label} — heaviest` : r.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {role && (
-        <p className={heavy ? 'role-desc role-desc-heavy' : 'role-desc'}>
-          {role.description}
-        </p>
-      )}
-
-      <Result state={state} />
-
-      <button
-        className="btn btn-small"
-        type="submit"
-        disabled={pending || !chosen || chosen === current}
-      >
-        {pending ? 'Changing…' : 'Change role'}
-      </button>
-    </form>
-  );
-}
-
-/**
- * Giving back access that was refused or withdrawn.
- *
- * Blank by default like the approval form, not pre-filled like the role
- * editor. Whatever role the refusal carried is not a choice anybody made —
- * a Rejected grant usually has none at all — so there is nothing to preserve
- * and a default would just be a guess somebody clicks past.
- */
-export function ReinstateForm({
-  grantId, appSlug, roles, from,
-}: {
-  grantId: string; appSlug: string; roles: AppRole[]; from: string;
-}) {
-  const [state, formAction, pending] = useActionState(reinstateGrantAction, EMPTY);
-  const [chosen, setChosen] = useState('');
-
-  const role = roles.find(r => r.role === chosen);
-  const heavy = role ? isHeavyRole(appSlug, role.role) : false;
-  const selectId = `reinstate-role-${grantId}`;
-
-  return (
-    <form action={formAction} className="decision">
-      <input type="hidden" name="grantId" value={grantId} />
-
-      <div className="field">
-        <label htmlFor={selectId}>Give them</label>
-        <select
-          id={selectId}
-          name="role"
-          value={chosen}
-          onChange={e => setChosen(e.target.value)}
-          required
-        >
-          <option value="">Choose a role…</option>
-          {roles.map(r => (
-            <option key={r.role} value={r.role}>
-              {isHeavyRole(appSlug, r.role) ? `${r.label} — heaviest` : r.label}
-            </option>
-          ))}
-        </select>
-        <p className="field-hint">
-          This overturns a decision somebody made. It is recorded as that,
-          not as a fresh approval.
-        </p>
-      </div>
-
-      {role && (
-        <p className={heavy ? 'role-desc role-desc-heavy' : 'role-desc'}>
-          {role.description}
-        </p>
-      )}
-
-      <Result state={state} />
-
-      <button className="btn btn-small" type="submit" disabled={pending || !chosen}>
-        {pending ? 'Restoring…' : `Undo this ${from.toLowerCase()}`}
-      </button>
-    </form>
-  );
-}
-
-/**
  * The same thing as ReinstateForm, sized for a table row.
  *
  * No label, no hint, no description panel — in a table the column heading is
@@ -255,6 +133,79 @@ export function ReinstateInline({
   );
 }
 
+/**
+ * Changing a role, sized for a table row.
+ *
+ * Pre-selected with what they hold: here the current value is the thing being
+ * edited, and starting blank would hide it. Submit stays off until the choice
+ * differs, so the button cannot be clicked into a no-op.
+ */
+export function ChangeRoleInline({
+  grantId, appSlug, roles, current,
+}: {
+  grantId: string; appSlug: string; roles: AppRole[]; current: string | null;
+}) {
+  const [state, formAction, pending] = useActionState(changeRoleAction, EMPTY);
+  const [chosen, setChosen] = useState(current ?? '');
+
+  return (
+    <form action={formAction} className="row-action">
+      <input type="hidden" name="grantId" value={grantId} />
+      <select
+        name="role"
+        aria-label={`Role in ${appSlug}`}
+        value={chosen}
+        onChange={e => setChosen(e.target.value)}
+        required
+      >
+        {!current && <option value="">Choose a role…</option>}
+        {roles.map(r => (
+          <option key={r.role} value={r.role}>
+            {isHeavyRole(appSlug, r.role) ? `${r.label} — heaviest` : r.label}
+          </option>
+        ))}
+      </select>
+      <button
+        className="btn btn-small"
+        type="submit"
+        disabled={pending || !chosen || chosen === current}
+      >
+        {pending ? 'Changing…' : 'Change'}
+      </button>
+      {(state.error || state.notice) && <Result state={state} />}
+    </form>
+  );
+}
+
+/**
+ * Withdrawing access, sized for a table row.
+ *
+ * The reason box stays. It is the only record of why somebody lost access,
+ * the person sees it on their tile, and dropping it to save a column would
+ * turn every revocation into an unexplained one.
+ */
+export function RevokeInline({ grantId }: { grantId: string }) {
+  const [state, formAction, pending] = useActionState(revokeGrantAction, EMPTY);
+
+  return (
+    <form action={formAction} className="row-action">
+      <input type="hidden" name="grantId" value={grantId} />
+      <input
+        name="note"
+        type="text"
+        maxLength={500}
+        placeholder="Why? optional"
+        aria-label="Reason for withdrawing access"
+        className="input-slim"
+      />
+      <button className="btn btn-small btn-quiet" type="submit" disabled={pending}>
+        {pending ? 'Withdrawing…' : 'Revoke'}
+      </button>
+      {(state.error || state.notice) && <Result state={state} />}
+    </form>
+  );
+}
+
 export function RejectForm({ grantId }: { grantId: string }) {
   const [state, formAction, pending] = useActionState(rejectGrantAction, EMPTY);
   const noteId = `reject-note-${grantId}`;
@@ -278,27 +229,3 @@ export function RejectForm({ grantId }: { grantId: string }) {
   );
 }
 
-export function RevokeForm({ grantId }: { grantId: string }) {
-  const [state, formAction, pending] = useActionState(revokeGrantAction, EMPTY);
-  const noteId = `revoke-note-${grantId}`;
-
-  return (
-    <form action={formAction} className="decision">
-      <input type="hidden" name="grantId" value={grantId} />
-
-      <div className="field">
-        <label htmlFor={noteId}>Why? Optional</label>
-        <input id={noteId} name="note" type="text" maxLength={500} />
-        <p className="field-hint">
-          Takes effect on their next click, not when their session expires.
-        </p>
-      </div>
-
-      <Result state={state} />
-
-      <button className="btn btn-small btn-quiet" type="submit" disabled={pending}>
-        {pending ? 'Withdrawing…' : 'Revoke access'}
-      </button>
-    </form>
-  );
-}

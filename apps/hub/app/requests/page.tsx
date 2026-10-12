@@ -24,10 +24,10 @@ import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import {
   ApproveForm,
-  ChangeRoleForm,
+  ChangeRoleInline,
   ReinstateInline,
   RejectForm,
-  RevokeForm,
+  RevokeInline,
 } from '@/components/decision-forms';
 import {
   GrantApproverInline,
@@ -215,36 +215,44 @@ export default async function RequestsPage() {
       {approved.rows.length === 0
         ? <p className="empty">Nobody holds access to anything yet.</p>
         : (
-          <div className="queue">
-            {approved.rows.map(row => (
-              <article className="queue-item" key={row.id}>
-                <div className="queue-head">
-                  <div>
-                    <div className="queue-who">{row.user_name}</div>
-                    <div className="queue-meta">{row.email}</div>
-                  </div>
-                  <div>
-                    <div className="queue-app">
-                      {row.app_name} · {roleLabel(row.app_slug, row.app_role)}
-                    </div>
-                    <div className="queue-meta">
-                      {`granted ${when(row.decided_at)}`}
-                      {row.decided_by_email ? ` by ${row.decided_by_email}` : ''}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="queue-forms">
-                  <ChangeRoleForm
-                    grantId={row.id}
-                    appSlug={row.app_slug}
-                    roles={roles[row.app_slug] ?? []}
-                    current={row.app_role}
-                  />
-                  <RevokeForm grantId={row.id} />
-                </div>
-              </article>
-            ))}
+          <div className="matrix-scroll">
+            <table className="matrix">
+              <thead>
+                <tr>
+                  <th scope="col">Person</th>
+                  <th scope="col">Application</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Granted</th>
+                  <th scope="col">Change</th>
+                  <th scope="col">Withdraw</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approved.rows.map(row => (
+                  <tr key={row.id}>
+                    <th scope="row">
+                      <span className="matrix-who">{row.user_name}</span>
+                      <span className="matrix-mail">{row.email}</span>
+                    </th>
+                    <td>{row.app_name}</td>
+                    <td className="cell-yes">{roleLabel(row.app_slug, row.app_role)}</td>
+                    <td className="cell-no">
+                      {when(row.decided_at)}
+                      {row.decided_by_email ? <><br />by {row.decided_by_email}</> : null}
+                    </td>
+                    <td>
+                      <ChangeRoleInline
+                        grantId={row.id}
+                        appSlug={row.app_slug}
+                        roles={roles[row.app_slug] ?? []}
+                        current={row.app_role}
+                      />
+                    </td>
+                    <td><RevokeInline grantId={row.id} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 

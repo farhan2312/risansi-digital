@@ -33,47 +33,6 @@ function Result({ state }: { state: ActionState }) {
   return null;
 }
 
-export function GrantApproverForm({ candidates }: { candidates: Candidate[] }) {
-  const [state, formAction, pending] = useActionState(grantApproverAction, EMPTY);
-  const [chosen, setChosen] = useState('');
-
-  if (candidates.length === 0) {
-    return <p className="empty">Everybody with an active account is already an approver.</p>;
-  }
-
-  return (
-    <form action={formAction} className="decision">
-      <div className="field">
-        <label htmlFor="new-approver">Give approver access to</label>
-        <select
-          id="new-approver"
-          name="userId"
-          value={chosen}
-          onChange={e => setChosen(e.target.value)}
-          required
-        >
-          <option value="">Choose somebody…</option>
-          {candidates.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.name} — {c.email}
-            </option>
-          ))}
-        </select>
-        <p className="field-hint">
-          They will be able to approve, refuse and withdraw access to every
-          portal, and will start receiving the daily list of what is waiting.
-        </p>
-      </div>
-
-      <Result state={state} />
-
-      <button className="btn btn-small" type="submit" disabled={pending || !chosen}>
-        {pending ? 'Granting…' : 'Make approver'}
-      </button>
-    </form>
-  );
-}
-
 /**
  * The add control, sized to sit in the last row of the approvers table.
  *
@@ -132,29 +91,3 @@ export function RevokeApproverInline({
   );
 }
 
-export function RevokeApproverForm({
-  userId, name, isSelf,
-}: {
-  userId: string; name: string; isSelf: boolean;
-}) {
-  const [state, formAction, pending] = useActionState(revokeApproverAction, EMPTY);
-
-  if (isSelf) {
-    return (
-      <p className="field-hint">
-        This is you. Removing your own approver access would leave you unable
-        to put it back, so another approver has to do it.
-      </p>
-    );
-  }
-
-  return (
-    <form action={formAction} className="decision">
-      <input type="hidden" name="userId" value={userId} />
-      <Result state={state} />
-      <button className="btn btn-small btn-quiet" type="submit" disabled={pending}>
-        {pending ? 'Removing…' : `Remove ${name.split(' ')[0]}`}
-      </button>
-    </form>
-  );
-}

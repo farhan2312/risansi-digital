@@ -38,16 +38,19 @@ export default async function PeoplePage() {
   const viewer = await requireApprover();
   const roles = await allRoles(db);
 
-  // Only what can actually be granted today. An application that is not open
-  // yet would offer a role leading to a greyed tile.
-  const apps = await db.query<{ slug: string; name: string }>(
-    `SELECT slug, name FROM identity.apps
-      WHERE is_live AND needs_grant AND NOT coming_soon
+  // Every live application, including the ones not open yet. An approver
+  // setting somebody up before a portal opens is useful — the grant waits,
+  // and works the day it goes live. It is *requesting* one of those that is
+  // refused, which is a different thing and stays refused.
+  const apps = await db.query<{ slug: string; name: string; coming_soon: boolean }>(
+    `SELECT slug, name, coming_soon FROM identity.apps
+      WHERE is_live AND needs_grant
       ORDER BY sort_order`,
   );
   const grantable: GrantableApp[] = apps.rows.map(a => ({
     slug: a.slug,
     name: a.name,
+    comingSoon: a.coming_soon,
     roles: roles[a.slug] ?? [],
   }));
 
