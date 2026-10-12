@@ -1,0 +1,5 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "//": "Build only when this app, or the shared packages it imports, actually changed. Exit 0 tells Vercel to skip; a non-zero exit tells it to build. `.` is this app's directory (the project's Root Directory) and ../../packages is the shared code. Anything else in the repo \u2014 the migration plan, another app, a script \u2014 leaves this one alone. If HEAD^ does not exist, git exits non-zero and the build runs, which is the safe way round.",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ../../packages"
+}
