@@ -630,6 +630,32 @@ longer exists**, which predates all of this.
 which also covers retiring `admin@` there.
 
 ### Phase 5 — SO-to-Dispatch, and paying off the couplings.
+
+**Handed to that portal's own developer, 12 Oct 2026.**
+`Phase5-SO-to-Dispatch-Handover.docx` at the repo root is the brief: the
+architecture, his seven steps, the session contract, the variable names, the
+gotchas and the test plan. He has the GitHub invite and no Vercel access,
+which is deliberate — every deployment and every secret stays with Farhan.
+
+**Two roles were missing from the hub, fixed before the seed rather than
+during it** (`0005_so2dispatch_missing_roles.sql`). 0002 took that portal's
+roles from its `REQUESTABLE_ROLES` list, but its `users` table holds thirteen:
+`rep` (15 people) and `order_making_so` (1) are assigned, not requested, so
+they never appeared on the request form. The composite foreign key on
+(app_slug, app_role) would have made all sixteen unapprovable.
+
+`rep` is a sales role, not a department — all fifteen holders carry their own
+name in `users.rep_name` and all fifteen are a rep, manager or admin in the
+Sales Portal. `order_making_so` is held by one functional mailbox,
+`makerso@`; how it differs from `order_making` is unknown here and its
+description says so rather than guessing, because an invented description on
+an approval form is how the wrong access gets granted.
+
+**One more difference to carry into the work:** `ec_to_dispatch.users` has its
+unique index on `lower(email)`, not on `email`, unlike the other two portals.
+Auto-provisioning has to target `lower(email)` in its `ON CONFLICT` or it
+fails for the first person who ever arrives that way.
+
 - Same cutover.
 - Replace `DATABASE_URL_EXT` — the direct read into the sales database — with a real interface. With four databases that means an API in sales, not a view.
 - Replace `quotations.tsm_name` / `tsm_initials` / `tsm_zone` with a lookup once rep identity is shared, so the copies stop going stale.
