@@ -24,6 +24,7 @@ import {
 } from "@/lib/db/schema";
 import { DRIVE_GROUPS, erpQuotationNumber, quotationNumber } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
+import { normalizeOfferConfigs, offerOutOfScope, offerScope } from "@/lib/commercial-offer";
 import { dotDate, normalizeTechDocConfigs, type TechDocData, type TechDocForm, type TechDocPump } from "@/lib/tech-doc";
 
 // Every wizard table a tag's data lives in. Their columns merge into one flat
@@ -58,6 +59,7 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
       name: projects.name,
       enquiryDate: projects.enquiryDate,
       config: projects.techDocConfig,
+      offerConfig: projects.commercialOfferConfig,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -144,6 +146,13 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
       quotes.map((q) => [q.driveGroup, `${quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`]),
     ),
     configs: normalizeTechDocConfigs(p.config, [...DRIVE_GROUPS, "NONE"]),
+    // Same lines as the Commercial Offer (set on the Quotation step / Commercial).
+    scopes: Object.fromEntries(
+      Object.entries(normalizeOfferConfigs(p.offerConfig, [...DRIVE_GROUPS])).map(([g, c]) => [
+        g,
+        { scope: offerScope(c, g), out: offerOutOfScope(c) },
+      ]),
+    ),
   };
   return data;
 }

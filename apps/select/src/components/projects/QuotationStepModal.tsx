@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { DRIVE_GROUP_LABEL, type EnquiryQuotations, type TsmOption } from "../../lib/commercial";
+import ScopeControls, { ScopeLines } from "../../screens/commercial/ScopeControls";
+import { EMPTY_OFFER_CONFIG, type OfferConfig } from "../../lib/commercial-offer";
+import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
 import {
   createQuotation,
   getEnquiryQuotations,
@@ -14,7 +17,9 @@ import {
 // Enquiries list. Generates one quotation per drive system in use (they share
 // the serial), with the TSM (the client's rep in sales, else picked here) and
 // the quotation no. as entered in ERP. Commercial stays locked until at least
-// one exists. Later edits (ERP no., versions, send) stay on the Commercial page.
+// one exists. Also each group's Scope of supply / Out of scope (its offer
+// config — the Technical Data Sheet and the Commercial Offer both print them).
+// Later edits (ERP no., scope, versions, send) can still be made on Commercial.
 
 const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
@@ -45,6 +50,25 @@ export default function QuotationStepModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  // Each drive group's offer config (scope lists live there), saved on change.
+  const [offerConfigs, setOfferConfigs] = useState<Record<string, OfferConfig> | null>(null);
+  const [scopeSave, setScopeSave] = useState<"" | "saving" | "saved" | "error">("");
+  useEffect(() => {
+    let cancelled = false;
+    getCommercialOffer(project.id)
+      .then((d) => !cancelled && setOfferConfigs(d.configs))
+      .catch(() => !cancelled && setOfferConfigs({}));
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+  const saveScope = (group: string, next: OfferConfig) => {
+    setOfferConfigs((m) => ({ ...(m ?? {}), [group]: next }));
+    setScopeSave("saving");
+    saveCommercialOfferConfig(project.id, group, next)
+      .then(() => setScopeSave("saved"))
+      .catch(() => setScopeSave("error"));
+  };
 
   const load = useCallback(async () => {
     setLoadError("");
@@ -180,10 +204,8 @@ export default function QuotationStepModal({
                   <span>Quotation No. serial</span>
                 </div>
                 {data.groups.map((g) => (
-                  <div
-                    key={g.group}
-                    className="grid grid-cols-1 items-center gap-2 border-b border-line px-3 py-2.5 last:border-b-0 sm:grid-cols-[1.1fr_1.3fr_150px] sm:gap-3"
-                  >
+                  <div key={g.group} className="border-b border-line last:border-b-0">
+                  <div className="grid grid-cols-1 items-center gap-2 px-3 py-2.5 sm:grid-cols-[1.1fr_1.3fr_150px] sm:gap-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-fg">
                         {DRIVE_GROUP_LABEL[g.group]}
@@ -229,6 +251,21 @@ export default function QuotationStepModal({
                       }}
                     />
                   </div>
+                  <div className="flex flex-col gap-2 border-t border-dashed border-line bg-sunk px-3 py-2.5">
+                    {offerConfigs === null ? (
+                      <span className="text-[12px] text-fg-3">Loading scope…</span>
+                    ) : (
+                      <>
+                        <ScopeControls
+                          config={offerConfigs[g.group] ?? EMPTY_OFFER_CONFIG}
+                          group={g.group}
+                          onChange={(next) => saveScope(g.group, next)}
+                        />
+                        <ScopeLines config={offerConfigs[g.group] ?? EMPTY_OFFER_CONFIG} group={g.group} />
+                      </>
+                    )}
+                  </div>
+                  </div>
                 ))}
               </div>
 
@@ -238,8 +275,15 @@ export default function QuotationStepModal({
                 </p>
               )}
               <p className="text-[12px] text-fg-3">
-                The quotation no. (ERP) is what the Technical Data Sheet and the Commercial Offer show; it can still be
-                changed later on the Commercial page.
+                The quotation no. (ERP) and the scope lines are what the Technical Data Sheet and the Commercial Offer
+                show; both can still be changed later on the Commercial page.
+                {scopeSave === "saving"
+                  ? " Saving scope…"
+                  : scopeSave === "saved"
+                    ? " Scope saved."
+                    : scopeSave === "error"
+                      ? " Couldn't save the scope — try again."
+                      : ""}
               </p>
             </>
           )}
