@@ -9,7 +9,7 @@
 // import every predicate below rather than spelling it out twice.
 
 import {
-  clientScopeSql, clientVisibilitySql, OWN_OPEN, type CurrentUser,
+  clientScopeSql, clientVisibilitySql, ownedOnlySql, OWN_OPEN, type CurrentUser,
 } from './risansi-auth';
 import { AND_LIVE_CLIENT } from './risansi-opportunity-scope';
 import { getCurrentFY } from './risansi-utils';
@@ -84,7 +84,12 @@ export interface DashScope {
  * itemise, never whose rows to include — so opening a breakdown can never show
  * somebody a row the tile above it did not already count for them.
  */
-export function dashScope(user: CurrentUser): DashScope {
+/**
+ * @param ownedOnly  Narrow every figure to accounts the viewer is primary rep
+ *   on. Never widens: it is ANDed on top of the visibility rule, so a rep
+ *   cannot reach anything new by ticking it.
+ */
+export function dashScope(user: CurrentUser, ownedOnly = false): DashScope {
   const cVis = clientVisibilitySql(user, 'c');
   const oppVis = clientScopeSql(user, 'o.client_id', OWN_OPEN.opportunity('o'));
   const visitVis = clientScopeSql(user, 'v.client_id', OWN_OPEN.visit('v'));
@@ -106,7 +111,20 @@ export function dashScope(user: CurrentUser): DashScope {
   const oppCredit = clientScopeSql(user, 'o.client_id');
   const oppCreditAnd = (oppCredit ? ` AND (${oppCredit})` : '') + AND_LIVE_CLIENT('o');
   const visitOwnerAnd = visitVis ? ` AND (${visitVis})` : '';
-  return { cVisAnd, oppOwnerAnd, oppCreditAnd, visitOwnerAnd };
+
+  if (!ownedOnly) return { cVisAnd, oppOwnerAnd, oppCreditAnd, visitOwnerAnd };
+
+  // One extra AND per predicate, each against that query's own client column.
+  const own = (col: string) => {
+    const sql = ownedOnlySql(user, col);
+    return sql ? ` AND (${sql})` : '';
+  };
+  return {
+    cVisAnd:       cVisAnd       + own('c.id'),
+    oppOwnerAnd:   oppOwnerAnd   + own('o.client_id'),
+    oppCreditAnd:  oppCreditAnd  + own('o.client_id'),
+    visitOwnerAnd: visitOwnerAnd + own('v.client_id'),
+  };
 }
 
 // ── Revenue ───────────────────────────────────────────────────

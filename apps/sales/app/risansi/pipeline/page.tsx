@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Topbar, MultiSelectFilter, ActiveFilterBar } from '@/components/risansi';
 import risansiPool from '@/lib/db-risansi';
-import { OWN_OPEN, clientScopeSql, getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
+import { OWN_OPEN, clientScopeSql, getCurrentUser, getSession, hasRole, ownedOnlySql } from '@/lib/risansi-auth';
 import { creditedRepNameSql, CREDITED_REP_JOIN } from '@/lib/risansi-attribution';
 import { getCurrentFY, fmtCr, fmtUsdFromCr } from '@/lib/risansi-utils';
 import { getUsdRate } from '@/lib/risansi-settings';
@@ -17,6 +17,7 @@ import { TextSearchFilter } from '@/components/risansi/TextSearchFilter';
 import { DateRangeFilter } from '@/components/risansi/DateRangeFilter';
 import { ForecastBar } from '@/components/risansi/ForecastBar';
 import { oppFilterQuery, repBookSql } from '@/lib/risansi-opp-filters';
+import { OwnedOnlyToggle } from '@/components/risansi/OwnedOnlyToggle';
 import { LIVE_CLIENT, AND_LIVE_CLIENT } from '@/lib/risansi-opportunity-scope';
 import {
   bracketLink, soCoverageSql, isSoCoverage, SO_COVERAGE_LABELS,
@@ -86,6 +87,9 @@ export default async function PipelinePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
+  // See OwnedOnlyToggle. Off by default: this board has always shown owned
+  // plus covered accounts.
+  const ownedOnly = sp.owned === '1';
   const fy = getCurrentFY();
   const cyStart = fy.startDate;                                 // e.g. 2026-04-01
   const cyEnd   = `${Number(cyStart.slice(0, 4)) + 1}-04-01`;   // 2027-04-01 (exclusive)
@@ -249,19 +253,33 @@ export default async function PipelinePage({
   // Per-user owner visibility — null for admin/sysadmin (no restriction).
   // Appended as raw text (integers inlined, no params) so $-indices are unchanged.
   const visUser     = await getCurrentUser();
+
+  // "Only my accounts" — folded into each visibility fragment below rather
+  // than onto individual queries, for the same reason the archived-client
+  // guard is: the fragment is what every query already shares, so a tenth one
+  // written tomorrow inherits it instead of quietly ignoring the checkbox.
+  //
+  // ANDed on top of visibility, never instead of it. Ticking the box can only
+  // ever show less.
+  const own = (col: string) => {
+    if (!ownedOnly) return '';
+    const sql = ownedOnlySql(visUser, col);
+    return sql ? ` AND (${sql})` : '';
+  };
+
   const ownerVis    = clientScopeSql(visUser, 'o.client_id', OWN_OPEN.opportunity('o'));
   // Every one of these carries the archived-client guard, because an archived
   // client's opportunities must leave the board with it. Attached here rather
   // than to the nine queries below: the visibility fragment is what they all
   // already share, so a tenth query written tomorrow inherits it.
-  const ownerVisAnd = (ownerVis ? ` AND (${ownerVis})` : '') + AND_LIVE_CLIENT('o');
+  const ownerVisAnd = (ownerVis ? ` AND (${ownerVis})` : '') + AND_LIVE_CLIENT('o') + own('o.client_id');
   const ownerVisPo  = clientScopeSql(visUser, 'po.client_id');
-  const ownerVisPoAnd = (ownerVisPo ? ` AND (${ownerVisPo})` : '') + AND_LIVE_CLIENT('po');
+  const ownerVisPoAnd = (ownerVisPo ? ` AND (${ownerVisPo})` : '') + AND_LIVE_CLIENT('po') + own('po.client_id');
   const ownerVisBare  = clientScopeSql(visUser, 'client_id');
   const ownerVisBareAnd = (ownerVisBare ? ` AND (${ownerVisBare})` : '')
-    + ` AND ${LIVE_CLIENT('opportunities')}`;
+    + ` AND ${LIVE_CLIENT('opportunities')}` + own('client_id');
   const ownerVisCId   = clientScopeSql(visUser, 'c.id');
-  const ownerVisCIdAnd = ownerVisCId ? ` AND (${ownerVisCId})` : '';
+  const ownerVisCIdAnd = (ownerVisCId ? ` AND (${ownerVisCId})` : '') + own('c.id');
 
   const filterClause = (conds.length ? ` AND ${conds.join(' AND ')}` : '') + ownerVisAnd;
 
@@ -824,6 +842,9 @@ export default async function PipelinePage({
               {' · '}{fmtCr(openTotal)} open value
               {' · '}weighted forecast {fmtCr(probabilityWeighted)} (quoted + negotiating)
               {winRatePct > 0 && ` · win rate FY ${winRatePct}%`}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <OwnedOnlyToggle />
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
