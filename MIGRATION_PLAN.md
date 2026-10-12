@@ -423,16 +423,44 @@ Decided at the seed:
 
 #### What is left
 
-1. **The uuid bridge.** `identity_user_id uuid` on `users` and `users_pump`,
-   matching `apps/sales/migrations/0121`. Additive and nullable, but it is a
-   schema change to their database, so it goes through them.
-2. **Both apps swap their verify** for `@risansi/identity` and read their
-   grant. Neither codebase is in this repo — both are Python, against
-   `alembic_version` — so this is their work, with the shared session contract
-   from `packages/identity` as the interface.
-3. **Remap whatever points at the old uuids** through an email bridge, since
-   adopting them is not available (see above).
+1. **The uuid bridge**, written and ready for them to apply:
+   `migrations/testing-select/0001_identity_user_id.sql`. Additive, nullable,
+   inert — it is still a schema change to their database, so it goes through
+   them. `scripts/link-testing-select-identity.mjs` fills it from identity by
+   email.
+2. ~~**Remap whatever points at the old uuids.**~~ **Not needed, and should not
+   be done.** The audit below is why.
+3. **Both apps swap their verify** and read their grant. Neither codebase is
+   in this repo. (An earlier note here said both are Python on the strength of
+   `alembic_version`; the `app_roles` migration cites `.ts` files in both
+   projects, so the stack is genuinely unknown from here and is a question for
+   them. It barely matters: the contract is a cookie name, HS256, an issuer
+   and four claims.)
 4. `users_pump` becomes a profile row rather than an account table.
+
+#### Why the remap is off, measured 12 Oct 2026
+
+Only **four declared foreign keys** point at `users` / `users_pump`. Eighteen
+further uuid columns reference a user with **no constraint at all** —
+`audit_log.user_id`, `quotation.created_by`, `step_approval.decided_by`,
+`page_views.user_id` and the rest. Nothing in the database would stop a remap
+from silently orphaning those rows.
+
+And there is a trap in the data. **One uuid exists in both tables and means a
+different person in each**: `26651a64-b123-41b2-93d3-6d5cde7011a6` is
+`shambhavi.tiwari@` in Testing's `users` and `admin@` in Pump Selection's
+`users_pump`. Over 2,300 rows carry it. Resolved by value alone it conflates a
+Testing admin with the Pump Selection system account; resolved by which table
+the column belongs to it is unambiguous, and the audit confirms **every one of
+the 22 referencing columns resolves cleanly against exactly one table**.
+
+So the answer is the one sales already took: keep the local key, add a pointer.
+`identity_user_id` is what disambiguates the two from here on. Nothing moves.
+
+Two incidental findings worth passing on: `audit_log` (singular) is Pump
+Selection's log and `audit_logs` (plural) is Testing's — a genuinely dangerous
+pair of names — and `audit_log` holds **39 rows pointing at a user that no
+longer exists**, which predates all of this.
 
 **Blocked on**: the conversation with the Testing / Pump Selection developers,
 which also covers retiring `admin@` there.
