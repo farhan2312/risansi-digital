@@ -4,7 +4,7 @@ import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
-import { enquiryTags, projects, users } from "@/lib/db/schema";
+import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +90,8 @@ export async function GET(req: Request) {
       project: projects,
       derivedStatus: rollup,
       createdByName: users.name,
+      // Commercial opens only once the Quotation step has generated one.
+      quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
     })
     .from(projects)
     .leftJoin(users, eq(projects.createdBy, users.id))
@@ -105,6 +107,7 @@ export async function GET(req: Request) {
     // Overwrite status with the rollup so the Dashboard's status column and
     // stat cards read the tag-aware value automatically.
     status: r.derivedStatus,
+    quotation_count: r.quotationCount,
   }));
 
   if (!paginated) return json(items);

@@ -1,5 +1,11 @@
 import apiClient from "./apiClient";
-import type { QuotationInfo, TsmOption } from "../lib/commercial";
+import type { EnquiryQuotations, QuotationInfo, TsmOption } from "../lib/commercial";
+
+/** The enquiry's Quotation step: drive groups, their quotations, the client's rep. */
+export const getEnquiryQuotations = async (projectId: string): Promise<EnquiryQuotations> => {
+  const { data } = await apiClient.get<EnquiryQuotations>("/quotations/enquiry", { params: { projectId } });
+  return data;
+};
 
 /** One drive group's quotation for the enquiry (null if not created yet) and
  *  the client's rep in sales (the locked TSM; null if none). */

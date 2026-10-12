@@ -20,7 +20,6 @@ import {
 } from "../../lib/commercial";
 import {
   changeQuotationTsm,
-  createQuotation,
   setQuotationErpSerial,
   getQuotation,
   listTsmOptions,
@@ -55,6 +54,7 @@ export default function QuotationPanel({
   groupLabel,
   hasUnsavedPrices,
   pricesVersion,
+  onGenerate,
 }: {
   projectId: string;
   /** Drive group this panel quotes (GM / GB / VB / DD) — one quotation each. */
@@ -65,6 +65,8 @@ export default function QuotationPanel({
   hasUnsavedPrices: boolean;
   /** Bumped by the page after each price save, so the live version's totals refresh. */
   pricesVersion: number;
+  /** Opens the enquiry's Quotation step (quotations are generated there, not here). */
+  onGenerate: () => void;
 }) {
   const [quotation, setQuotation] = useState<QuotationInfo | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -186,50 +188,22 @@ export default function QuotationPanel({
     </select>
   );
 
-  // --- Not created yet --------------------------------------------------------
+  // --- Not generated yet ------------------------------------------------------
+  // Quotations are generated on the enquiry's Quotation step (Enquiries list),
+  // e.g. for a drive system added after the first quotation.
   if (!quotation) {
     return (
-      <section className="rounded-xl border border-line bg-paper">
+      <section className="rounded-xl border border-[var(--warn)] bg-paper">
         <header className="border-b border-line px-4 py-3">
           <h2 className="text-[14px] font-semibold text-fg">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
         </header>
-        <div className="flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
           <p className="text-[13px] text-fg-2">
-            No quotation for {groupLabel ? `the ${groupLabel} tags` : "this enquiry"} yet. Creating one fills in the number, date and client, and starts
-            internal V0.{" "}
-            {clientTsm
-              ? "The TSM is the client's rep in the sales portal."
-              : "This client has no rep in the sales portal, so pick the TSM."}
+            No quotation for {groupLabel ? `the ${groupLabel} tags` : "this enquiry"} yet — generate it on the Quotation step.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            {tsmField}
-            <label className="flex items-center gap-2 text-[12.5px] text-fg-2">
-              Quotation No. serial
-              <input
-                className="w-[130px] rounded-lg border border-line bg-paper px-2.5 py-1.5 font-mono text-[13px] text-fg uppercase outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                value={erpDraft}
-                maxLength={30}
-                placeholder="optional"
-                onChange={(e) => setErpDraft(e.target.value)}
-              />
-            </label>
-            <button
-              type="button"
-              className={btnPrimarySm}
-              disabled={busy || !picked}
-              onClick={() =>
-                picked &&
-                run(
-                  () => createQuotation(projectId, group, clientTsm ? undefined : picked.id, erpDraft.trim() || undefined),
-                  "Couldn't create the quotation.",
-                )
-              }
-            >
-              {busy ? "Creating…" : "Create Quotation"}
-            </button>
-          </div>
-          {optionsError && <p className="text-[12px] text-warn">The TSM list from the sales portal is unavailable right now.</p>}
-          {actionError && <p className="text-[12.5px] text-neg">{actionError}</p>}
+          <button type="button" className={btnPrimarySm} onClick={onGenerate}>
+            Generate quotation
+          </button>
         </div>
       </section>
     );

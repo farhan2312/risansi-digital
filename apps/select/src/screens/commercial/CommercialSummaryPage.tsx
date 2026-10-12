@@ -47,6 +47,8 @@ import {
   type DrpOption,
 } from "../../lib/commercial";
 import { getCommercialSummary, saveCommercialPrices, saveCommercialRemarks } from "../../services/commercialService";
+import { getEnquiryQuotations } from "../../services/quotationService";
+import QuotationStepModal from "../../components/projects/QuotationStepModal";
 
 // Commercial Summary (pricing v1, manual). Every tag of one enquiry on one
 // page: Pump & Accessories + BOI items typed in per unit, quantity pulled from
@@ -237,6 +239,24 @@ export default function CommercialSummaryPage() {
     load();
   }, [load]);
 
+  // Commercial is locked until the enquiry's Quotation step has generated a
+  // quotation (null = still checking). The step can also be opened from here.
+  const [quoteCount, setQuoteCount] = useState<number | null>(null);
+  const [showQuotationStep, setShowQuotationStep] = useState(false);
+  // Bumped after the Quotation step closes so each QuotationPanel re-reads.
+  const [quoteRefresh, setQuoteRefresh] = useState(0);
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    getEnquiryQuotations(projectId)
+      .then((d) => !cancelled && setQuoteCount(d.groups.filter((g) => g.quotation).length))
+      // If the check itself fails, don't lock the page over it.
+      .catch(() => !cancelled && setQuoteCount((c) => c ?? 1));
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, quoteRefresh]);
+
   const dirtyIds = useMemo(
     () => Object.keys(drafts).filter((id) => saved[id] && !sameDraft(drafts[id], saved[id])),
     [drafts, saved],
@@ -397,7 +417,7 @@ export default function CommercialSummaryPage() {
               type="button"
               className={btnSm}
               onClick={() => setShowOffer(true)}
-              disabled={!data || !tab || tab === "NONE"}
+              disabled={!data || !tab || tab === "NONE" || !quoteCount}
               title={
                 mixed && tab && tab !== "NONE"
                   ? `Commercial Offer sheet for ${tabLabel(tab)} (the open drive-system tab)`
@@ -449,7 +469,42 @@ export default function CommercialSummaryPage() {
         );
       })()}
 
-      {data && data.tags.length > 0 && (
+      {data && data.tags.length > 0 && quoteCount === 0 && (
+        <section className="flex flex-col items-center gap-3 rounded-xl border border-line bg-paper px-6 py-10 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--warn-soft)] text-[20px]" aria-hidden="true">
+            🔒
+          </span>
+          <h2 className="text-[16px] font-semibold text-fg">Generate the quotation first</h2>
+          <p className="max-w-[520px] text-[13px] text-fg-3">
+            Commercial opens once the enquiry&apos;s quotation is generated — one per drive system, with the TSM and the
+            quotation no. (ERP). It&apos;s the Quotation step, between Technical and Commercial on the Enquiries list.
+          </p>
+          <button
+            type="button"
+            className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90"
+            onClick={() => setShowQuotationStep(true)}
+          >
+            Generate quotation
+          </button>
+        </section>
+      )}
+
+      {showQuotationStep && data && (
+        <QuotationStepModal
+          project={{ id: projectId, project_code: data.project.code, name: data.project.name }}
+          onClose={() => {
+            setShowQuotationStep(false);
+            setQuoteRefresh((n) => n + 1);
+          }}
+          onDone={(n) => setQuoteCount(n)}
+          onOpenCommercial={() => {
+            setShowQuotationStep(false);
+            setQuoteRefresh((n) => n + 1);
+          }}
+        />
+      )}
+
+      {data && data.tags.length > 0 && quoteCount !== null && quoteCount > 0 && (
         <>
           {tabs.length > 1 && (
             <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Drive system">
@@ -483,12 +538,13 @@ export default function CommercialSummaryPage() {
           ) : (
             tab && (
               <QuotationPanel
-                key={tab}
+                key={`${tab}-${quoteRefresh}`}
                 projectId={projectId}
                 group={tab}
                 groupLabel={mixed ? tabLabel(tab) : undefined}
                 hasUnsavedPrices={groupDirty}
                 pricesVersion={pricesVersion}
+                onGenerate={() => setShowQuotationStep(true)}
               />
             )
           )}

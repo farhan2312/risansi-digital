@@ -17,6 +17,8 @@ export interface ProjectRecord {
   created_by_name: string | null;
   created_at: string;
   updated_at: string | null;
+  /** Quotations generated (list endpoint only); Commercial is locked at 0. */
+  quotation_count?: number;
 }
 
 /** Every enquiry, unpaginated. Used where the whole set is genuinely needed:

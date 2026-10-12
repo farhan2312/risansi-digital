@@ -6,6 +6,7 @@ import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
 import CopyTagModal, { type CopyDestination } from "../../components/projects/CopyTagModal";
 import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
+import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -87,6 +88,8 @@ const ProjectsPage = () => {
   // Technical Quotation for a whole enquiry - the same document the Reports
   // page shows, reachable from here too.
   const [viewingDocFor, setViewingDocFor] = useState<ProjectRecord | null>(null);
+  // Quotation step (between Technical and Commercial) for one enquiry.
+  const [quotationFor, setQuotationFor] = useState<ProjectRecord | null>(null);
 
   // Filters — client name matches project.name (the "Client Name" column;
   // that's what the Create/Edit forms actually call this field), enquiry
@@ -731,9 +734,31 @@ const ProjectsPage = () => {
                       </button>
                       <button
                         type="button"
+                        className={btn}
+                        onClick={() => setQuotationFor(project)}
+                        title={
+                          project.quotation_count
+                            ? "Quotation generated — view it or change the quotation no. (ERP)"
+                            : "Generate the quotation (opens Commercial)"
+                        }
+                        aria-label={`Quotation for ${project.project_code}`}
+                      >
+                        <QuoteIcon />
+                        <span className="hidden 2xl:inline">Quotation</span>
+                        {!project.quotation_count && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--warn)]" aria-hidden="true" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
                         className={btnCommercial}
                         onClick={() => router.push(`/commercial?projectId=${project.id}`)}
-                        title="Commercial Summary: P&A and BOI prices for every tag"
+                        disabled={!project.quotation_count}
+                        title={
+                          project.quotation_count
+                            ? "Commercial Summary: P&A and BOI prices for every tag"
+                            : "Generate the quotation first (Quotation button)"
+                        }
                         aria-label={`Commercial Summary for ${project.project_code}`}
                       >
                         <RupeeIcon />
@@ -953,6 +978,18 @@ const ProjectsPage = () => {
         onCreate={handleCreateProject}
       />
 
+      {quotationFor && (
+        <QuotationStepModal
+          project={quotationFor}
+          onClose={() => setQuotationFor(null)}
+          onDone={(n) => {
+            const id = quotationFor.id;
+            setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, quotation_count: n } : p)));
+          }}
+          onOpenCommercial={() => router.push(`/commercial?projectId=${quotationFor.id}`)}
+        />
+      )}
+
       {viewingDocFor && (
         <EnquiryDocumentModal
           source={{
@@ -1100,6 +1137,14 @@ const TrashIcon = () => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+  </svg>
+);
+
+// A tag with a tick — the Quotation step.
+const QuoteIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" />
+    <path d="m8.5 11.5 2 2 4-4" />
   </svg>
 );
 

@@ -441,6 +441,27 @@ export type TsmOption = {
   role: string;
 };
 
+/** GET /api/quotations/enquiry — the enquiry's Quotation step. */
+export type EnquiryQuotations = {
+  groups: {
+    group: DriveGroup;
+    /** Tag names on this drive system. */
+    tags: string[];
+    quotation: {
+      id: string;
+      number: string;
+      erpSerial: string | null;
+      erpNumber: string | null;
+      quoteDate: string;
+      tsmName: string | null;
+    } | null;
+  }[];
+  /** Tags with no drive system yet (no quotation possible). */
+  noDriveTags: string[];
+  /** The client's rep in sales — the locked TSM; null when none. */
+  clientTsm: TsmOption | null;
+};
+
 /** Frozen copy of the prices when a version was made. */
 export type QuotationSnapshot = {
   tags: {
