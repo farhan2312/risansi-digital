@@ -631,8 +631,6 @@ const PumpSelectionPage = () => {
             formData={formData}
             projectId={project?.id}
             tagId={project?.tagId}
-            projectCode={project?.code}
-            projectName={project?.name}
             savesSettled={() => pendingSaves.current}
           />
         );

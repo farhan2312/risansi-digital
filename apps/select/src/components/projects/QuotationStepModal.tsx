@@ -142,7 +142,7 @@ export default function QuotationStepModal({
               <span className="ml-2 text-[13px] font-normal text-fg-3">{project.project_code}</span>
             </h3>
             <p className="text-[12.5px] text-fg-3">
-              {project.name || "—"} · one quotation per drive system, sharing one serial. Commercial opens once it&apos;s generated.
+              {project.name || "—"} · one quotation per drive system, sharing one serial. Technical and Commercial open once it&apos;s generated.
             </p>
           </div>
           <button type="button" className={btn} onClick={onClose} disabled={busy}>
