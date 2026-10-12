@@ -150,14 +150,9 @@ const WETTED =
   "WETTED - in direct contact with the pumped media. Material must resist the media (corrosion/abrasion) at the stated pH, temperature and solids.";
 const DRY =
   "NON-WETTED structural part - no media contact. Choose for strength and cost; media resistance does not apply, so do not over-specify an expensive alloy here.";
-// Metals the MOC step's dropdowns offer. Preferred so the answer usually maps
-// straight onto a dropdown entry, but not mandatory - the media may need
-// something else.
-const METAL_PREFERENCE =
-  "Preferred metals (not mandatory): " +
-  MOC_AI_MATERIALS.join(", ") +
-  " - another material is fine when the media calls for it; say so explicitly.";
-const metal = (status: string) => `${status} ${METAL_PREFERENCE}`;
+// The preferred-metals list (the MOC step's dropdown entries) is stated once in
+// the system prompt; repeating it on every field only added noise.
+const metal = (status: string) => `${status} Answer a metal (preferred list in the instructions).`;
 
 // Component groups per pump type × wetted status. The prompt's wettable /
 // non-wettable listing is built from these arrays instead of hardcoded
@@ -202,26 +197,74 @@ const verticalNonWettableComp = (driveEnd: string) => [driveEnd, "Mounting Plate
 const STRUCTURAL_MOC_PREFERENCE =
   "HORIZONTAL - Stator Sleeve, Tie Rod, Base Plate and Nut & Bolt are dry structural parts, normally Mild Steel but can be other materials if necessary. " +
   "VERTICAL - the pump hangs in the liquid, so Stator Sleeve, Tie Rod and Nut & Bolt are wetted and normally take the SAME MOC as the Shaft; only the Mounting Plate is dry, normally Mild Steel but can be other materials if necessary. "
-// Cost-optimized MOC engineering precedents (distilled from real single-screw /
-// PCP enquiry recommendations) — fed to the model as strong guidance so its
-// picks follow the same "don't over-specify" logic: match on media CHEMISTRY,
-// not the liquid's name; prefer the economical build and step up only when the
-// chemistry / temperature / solids justify it, with a stated reason. Kept
-// compact on purpose. Update this block when new precedents are added.
+// Engineering guidance, sent as the SYSTEM prompt (fixed for every enquiry;
+// the enquiry's own data goes in the user message).
+//
+// Why it is built this way (2026-10-13): 60 of the first 108 saved answers -
+// across 41 different media, including an acidic pH-3 duty and sodium
+// hydrosulphite - were the same "CI IS210 FG 260 / SS410 / Nitrile" build.
+// The old prompt drove that: 7 of its 10 worked examples were that build, the
+// instruction said "low-cost" three times, and the model answered field by
+// field with no chemistry step first. So now:
+//   - the cheap default is stated WITH the conditions it needs, and the ways
+//     out of it are explicit rules by chemistry;
+//   - the reference cases are balanced and labelled as reasoning, not a list;
+//   - the tool's first field is a media assessment, written before any
+//     material (Haiku 4.5 can't use extended thinking with a forced tool
+//     call, so the schema order is how it reasons first).
+// Update the rules / cases here when new precedents are agreed.
+const MOC_DEFAULT_BUILD =
+  "CI IS210 FG 260 pump housing, SS410 shaft, SS410/SS420 hardened (hard-chrome) rotor, Nitrile stator";
+
+const MOC_RULES =
+  `The default economical build - ${MOC_DEFAULT_BUILD} - is right ONLY when ALL of these hold: ` +
+  "pH roughly 6-9; no significant chlorides, brine or sea/produced water; no oxidisers; not food, beverage, dairy, pharma or potable duty; " +
+  "temperature within Nitrile's range (about 90 C); and the media is a neutral water-based sludge/slurry, sewage, an oil, or a molasses/sugar-type liquid.\n" +
+  "When any condition fails, move away from it. Typical directions (judge concentration and temperature):\n" +
+  "- Acidic, pH below about 6: CI and SS410/SS420 corrode - SS316/SS316L wetted parts; strong or hot acid, or acid with chlorides -> Duplex 2205 / SDSS 2507 or Hastelloy.\n" +
+  "- Alkaline or caustic, pH above about 10: SS304/SS316 wetted parts; EPDM stator (not Natural rubber).\n" +
+  "- Chlorides, brine, sea or produced water: SS316L minimum; high chloride or hot -> Duplex 2205 / SDSS 2507.\n" +
+  "- Oxidisers (hypochlorite, peroxide, nitric, chlorine, ozone): SS316L only if dilute and cold, otherwise SDSS 2507 or Hastelloy; Viton or EPDM stator as the chemical requires - not Nitrile or Natural rubber.\n" +
+  "- Reducing / sulphur salts (hydrosulphite, dithionite, sulphides, bisulphite): corrosive to CI and SS410 - SS316/SS316L wetted parts.\n" +
+  "- Hydrocarbons, oils, fuels: CI is fine; Nitrile stator; aromatics, solvents or hot oils -> Viton. EPDM is not oil-resistant.\n" +
+  "- Food, beverage, dairy, pharma, potable: SS316L (or SS304) wetted parts; food-grade elastomer (FG Nitrile, White Nitrile or food-grade EPDM).\n" +
+  "- Abrasive solids: hardened / hard-chrome rotor; Natural rubber or abrasion-grade Nitrile (within temperature); Ni-Hard CI for very abrasive duty; gland packing or SiC/SiC seal faces.\n" +
+  "- Elastomer temperature limits (approx.): Natural rubber 70 C, Nitrile 90 C, EPDM 120 C (no oils), Viton higher.\n" +
+  "When several apply, the most demanding one governs.";
+
 const MOC_REFERENCE =
-  "It is just an example history for context, no need to follow it blindly. You should recommend the best low cost MOC for the given media and its conditions.\n" +
-  "Examples (media -> Pump Housing / Rotor / Shaft / Stator Rubber / Seal):\n" +
-  "Oil+water 15:85, 70C, 5-20cP: CI IS210 FG 260 / SS420 hardened / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC, NBR) [SS316 if produced/sea water or high chloride].\n" +
-  "Sewage / STP: CI IS210 FG 260 / alloy steel hard-chrome / SS410 / Nitrile / Gland Packing.\n" +
-  "Starch slurry, 80-95C, 100-5000cP: SS304 / SS410 hard-chrome / SS304 / EPDM / Single Mechanical Seal (Carbon-Ceramic) [SS316 if chlorides].\n" +
-  "Dairy cream + hot CIP (95C caustic/nitric): SS316L (product-contact) / SS410 / SS316L / food-grade HNBR / Single Mechanical Seal (SiC-Carbon).\n" +
-  "CPI feed pump (non-corrosive): CI IS210 FG 260 / SS304 / SS304 / Nitrile / Single Mechanical Seal (Carbon-Ceramic, SS304, NBR).\n" +
-  "Sodium sulfate + NaCl solution, 60C, 35-40% solids: SS316L / SS316L hard-chrome (or 17-4PH) / SS316L / EPDM / Single Mechanical Seal with external flush [Duplex 2205 if chloride high; avoid Super Duplex unless corrosion calc justifies].\n" +
-  "Molasses / sugar A-wash, 65C, Brix~85: CI IS210 FG 260 / SS420 hardened hard-chrome / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC) or PTFE-graphite Gland Packing.\n" +
-  "Calcium carbonate slurry, pH7-8: CI IS210 FG 260 / SS420 hard-chrome / SS410 / Nitrile (Natural Rubber for max abrasion) / Gland Packing (aramid/PTFE) or Single Mechanical Seal SiC-SiC.\n" +
-  "Neutral scrubber slurry, pH7, 60C, fine abrasive: SS304 / SS304 / SS304 / Natural Rubber / Single Mechanical Seal (Carbon-SiC, EPDM).\n" +
-  "Ceramic slurry, 60C, ~50cP, abrasive, high pressure: CI IS210 FG 260 / SS410 hardened / alloy steel / Nitrile (abrasion grade; EPDM if alkaline) / Single Mechanical Seal SiC-SiC (NBR/EPDM, SS316).\n"+
-  "Recommend CI IS210 FG 260 for Pump Housing only if it is reliable and suitable for the media"
+  "Reference cases (they show the reasoning - most enquiries are NOT like these, so never copy one by its media name).\n" +
+  "Format: media -> Pump Housing / Rotor / Shaft / Stator Rubber / Seal.\n" +
+  "Sewage / STP sludge, neutral: CI IS210 FG 260 / alloy steel hard-chrome / SS410 / Nitrile / Gland Packing.\n" +
+  "Molasses, 65 C, Brix ~85: CI IS210 FG 260 / SS420 hardened hard-chrome / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC) or PTFE-graphite Gland Packing.\n" +
+  "Oil + water 15:85, 70 C: CI IS210 FG 260 / SS420 hardened / SS410 / Nitrile / Single Mechanical Seal (Carbon-SiC, NBR) [SS316 if produced/sea water or high chloride].\n" +
+  "Calcium carbonate slurry, pH 7-8, abrasive: CI IS210 FG 260 / SS420 hard-chrome / SS410 / Natural Rubber / Gland Packing (aramid/PTFE) or SiC-SiC seal.\n" +
+  "Starch slurry, 80-95 C: SS304 / SS410 hard-chrome / SS304 / EPDM / Single Mechanical Seal (Carbon-Ceramic) [SS316 if chlorides].\n" +
+  "Dairy cream + hot CIP (caustic/nitric): SS316L / SS410 / SS316L / food-grade EPDM or HNBR / Single Mechanical Seal (SiC-Carbon).\n" +
+  "Sodium sulphate + NaCl, 60 C, 35-40% solids: SS316L / SS316L hard-chrome / SS316L / EPDM / Single Mechanical Seal with flush [Duplex 2205 if chloride high].\n" +
+  "Acidic effluent, pH 3, 70 C: SS316L / SS316L hard-chrome / SS316L / Viton / Single Mechanical Seal (SiC-SiC, Viton) [Hastelloy if chlorides or stronger acid].\n" +
+  "Sodium hypochlorite 10-15%: SDSS 2507 or Hastelloy / same / same / Viton / Single Mechanical Seal (SiC-SiC, Viton).\n" +
+  "Diesel / furnace oil: CI IS210 FG 260 / SS410 / SS410 / Nitrile (Viton if hot) / Single Mechanical Seal (Carbon-SiC, Viton).";
+
+const MOC_OUTPUT_RULES =
+  "summary: concise markdown engineering note. The report already prints the input parameters, the seal recommendation and the alternatives separately, so DO NOT repeat them (no operating-parameters table, no seal comparison table, no alternatives table). " +
+  "Cover only: a short Key Design Drivers list (bullets, from your media assessment, including any assumption about what the media is) and ONE Component / Material / Why | pipe table | for the wetted metals, stator elastomer and structural parts. Use ## headers and **bold**. Keep it tight.\n" +
+  "alternatives: markdown with ONE | pipe table | of alternative materials and their trade-offs - do not restate the primary selection or the summary.\n" +
+  'Use plain ASCII only. No emoji or unicode symbols (check-mark, cross, warning sign, approx sign, arrows, bullet dots) - use "OK" / "X" / "!" / "~" / "->" / "-" instead.';
+
+const MOC_SYSTEM_PROMPT =
+  "You are a senior materials engineer at Risansi, a maker of progressive cavity (PCP) pumps. For each enquiry you choose the material of construction (MOC) of every pump component, the stator elastomer, the shaft seal type and the seal's own MOC.\n\n" +
+  "How to decide:\n" +
+  "1. First assess the media chemistry (the mediaAssessment field, before any material): what the liquid actually is; its pH; chlorides or salts; oxidisers; reducing or sulphur compounds; solvents or hydrocarbons; abrasive solids; temperature; and whether the duty is food, pharma or hygienic. " +
+  "The media field is sometimes a duty or plant name (e.g. 'Sludge Recycle', 'Digester Feed Pump') - infer the likely liquid and say it is an assumption. Where data is missing, assume a typical value for that media and say so.\n" +
+  "2. Then choose, per component, the LOWEST-COST material that is reliable for THAT chemistry. Never trade corrosion resistance for cost on a wetted part; never over-alloy a dry structural part.\n" +
+  "3. Judge every enquiry on its own chemistry. Do not fall back to the common default just because it is common.\n\n" +
+  MOC_RULES + "\n\n" +
+  "Structural parts: " + STRUCTURAL_MOC_PREFERENCE + "\n" +
+  `Preferred metals (not mandatory - another is fine when the media calls for it, say so): ${MOC_AI_MATERIALS.join(", ")}.\n` +
+  `Preferred elastomers (not mandatory): ${MOC_AI_ELASTOMERS.join(", ")}.\n\n` +
+  MOC_REFERENCE + "\n\n" +
+  MOC_OUTPUT_RULES;
 
 // JSON-Schema property map driving Anthropic's tool input_schema (structured
 // output). Built per request because two components change meaning with the
@@ -234,6 +277,13 @@ function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null
   // field, so no "not present, repeat the other value" workaround is needed.
   const plateField = activePlateField(pumpType);
   return {
+    // FIRST on purpose: written before any material, so the picks follow
+    // from the chemistry (not returned to the UI).
+    mediaAssessment: {
+      type: "string",
+      description:
+        "Write this first. 3-6 short lines: what the liquid is (say if assumed from a duty name), pH, chlorides/salts, oxidisers, reducing/sulphur compounds, solvents/hydrocarbons, abrasive solids, temperature, food/hygienic - and which of the rules these trigger. Then choose the materials from it.",
+    },
     // Field name is historic; the part it refers to is named by the
     // arrangement (Bearing Housing or Close Coupled).
     bearingHousing: {
@@ -285,35 +335,39 @@ function schemaPropertiesFor(pumpType: string | null, pumpSupport: string | null
   };
 }
 
-// Kept short on purpose (token cost) — media/head/capacity are the 3
-// parameters that most determine the answer, so they're stated directly in
-// the instruction sentence; everything else goes in the compact "Other data"
-// block below, only when actually provided.
+/** A process value the user actually gave. Unfilled numeric fields are often
+ *  saved as "0" ("pH 0, 0 C, 0 cP" on many tags) - for pH, temperature,
+ *  viscosity and SG a bare 0 means "not entered", not a real reading, and
+ *  sending "pH: 0" to the model reads as concentrated acid. */
+function given(v: string | null): string | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  return Number(s) === 0 ? null : s;
+}
+
+// The enquiry itself (the user message). Media / head / capacity lead -
+// they most determine the answer; everything else follows only when given.
 function buildPrompt(context: MocAiContext, processData: string): string {
   const head = context.head ? `${context.head} ${context.headUnit || "MWC"}` : "n/a";
   const capacity = context.capacity
     ? `${context.capacity} ${context.capacityUnit ?? ""}`.trim()
     : "n/a";
-  // Enumerate which of the ancillary parameters the user did NOT enter, so
-  // the model knows to assume a typical value for the media and flag it
-  // (estimated). Kept to a one-line note in the summary — the input values
-  // themselves are already printed in the report's process-data table, so the
-  // summary must NOT reprint a full parameters table.
+  // Which ancillary parameters were NOT given, so the model assumes a typical
+  // value for the media and labels it (estimated) in one line of the summary.
   const missing: string[] = [];
-  if (!context.ph) missing.push("pH");
-  if (!context.temperatureC) missing.push("Temperature");
-  if (!context.viscosityCp) missing.push("Viscosity");
+  if (!given(context.ph)) missing.push("pH");
+  if (!given(context.temperatureC)) missing.push("Temperature");
+  if (!given(context.viscosityCp)) missing.push("Viscosity");
   const missingClause =
     missing.length > 0
-      ? `Not provided: ${missing.join(", ")}. In the summary, note the typical value you assumed for each, labeled (estimated), in one line - do not reprint the other parameters. `
+      ? `Not provided: ${missing.join(", ")}. In the summary, note the typical value you assumed for each, labeled (estimated), in one line.\n`
       : "";
   const pumpType = context.pumpType ? context.pumpType : "not specified";
   const vertical = context.pumpType === "Vertical";
   // Wetted status drives material choice, and two components change status with
-  // the pump type — so state the groups explicitly, built from the component
-  // arrays above (compact, and in sync with the on-screen grouping). Stator
-  // Rubber is its own elastomer group: it's wetted, but a metal answer is
-  // useless to the UI's rubber dropdown, so it's called out separately.
+  // the pump type - so state the groups explicitly, built from the component
+  // arrays above (in sync with the on-screen grouping). Stator Rubber is its
+  // own elastomer group: a metal answer is useless to the UI's rubber dropdown.
   const wettable = vertical ? VERTICAL_WETTABLE_COMP : HORIZONTAL_WETTABLE_COMP;
   // A close-coupled pump has no bearing housing, so the drive-end component
   // is named for the arrangement the user picked.
@@ -321,28 +375,21 @@ function buildPrompt(context: MocAiContext, processData: string): string {
   const nonWettable = vertical
     ? verticalNonWettableComp(driveEnd)
     : horizontalNonWettableComp(driveEnd);
-  const sleeveClause = context.pumpType
+  const groups = context.pumpType
     ? `This is a ${vertical ? "VERTICAL" : "HORIZONTAL"} pump.\n` +
-      `WETTABLE (media contact - spec metal for media resistance): ${wettable.join(", ")}.\n` +
-      `NON-WETTABLE (structural, no media contact - spec metal for strength/cost, do not over-alloy): ${nonWettable.join(", ")}.\n` +
-      `ELASTOMER (answer a rubber, not a metal): Stator Rubber. Preferred (not mandatory): ${MOC_AI_ELASTOMERS.join(", ")}.\n`
+      `WETTED (media contact - choose for resistance to this media): ${wettable.join(", ")}.\n` +
+      `NON-WETTED (structural - choose for strength and cost, do not over-alloy): ${nonWettable.join(", ")}.\n` +
+      `ELASTOMER (answer a rubber, not a metal): Stator Rubber.\n`
     : "";
   return (
-    `PCP pump. Media: ${context.media}. Pump type: ${pumpType}. Head: ${head}. Capacity: ${capacity}.\n` +
-    sleeveClause +
-    `METALS (every component except Stator Rubber): ${METAL_PREFERENCE}
-` +
-    MOC_REFERENCE +
-    `material choice should be optimum \n`+
-    `Recommend low-cost reliable MOC (per component), stator elastomer, the shaft seal type AND the seal's own MOC (mechanical seal: body/face/O-ring; gland packing: packing material).\n` +
-    `${missingClause}` +
-    `summary: concise markdown engineering note. The report already prints the input parameters, the seal recommendation, and the alternatives separately, so DO NOT repeat any of those here (no operating-parameters table, no seal comparison table, no alternatives table). Cover only: a short Key Design Drivers list (bullets) and ONE Component / Material / Why | pipe table | for the wetted metals, stator elastomer and structural parts. Use ## headers and **bold**. Keep it tight. ` +
-    `alternatives: markdown with ONE | pipe table | of alternative materials and their trade-offs - do not restate the primary selection or the summary. ` +
-    `IMPORTANT: use plain ASCII only. No emoji, no unicode symbols (avoid these: check-mark, cross, warning-triangle, approx-symbol, arrow, bullet-dot). Use "OK" / "X" / "!" / "~" / "->" / "-" instead.` +
-    (processData ? `\nOther data:\n${processData}` : "") +
+    `Enquiry - PCP pump. Media: ${context.media}. Pump type: ${pumpType}. Head: ${head}. Capacity: ${capacity}.\n` +
+    groups +
+    (processData ? `Process data:\n${processData}` : "") +
+    missingClause +
     (context.clientRequirementsFile
-      ? `\nClient requirements: SEE THE ATTACHED ${context.clientRequirementsFile.mediaType.startsWith("image/") ? "IMAGE" : "PDF"} in this message. Read it and factor its contents into the recommendation, the same as any other process data - the customer supplied it as part of the enquiry.`
-      : "")
+      ? `Client requirements: SEE THE ATTACHED ${context.clientRequirementsFile.mediaType.startsWith("image/") ? "IMAGE" : "PDF"} in this message. Read it and factor its contents into the recommendation, the same as any other process data - the customer supplied it as part of the enquiry.\n`
+      : "") +
+    "Assess the media first (mediaAssessment), then record the recommendation."
   );
 }
 
@@ -352,10 +399,10 @@ function line(label: string, value: string | null, unit = ""): string {
 
 function buildProcessData(context: MocAiContext): string {
   return (
-    line("pH", context.ph) +
-    line("Temperature", context.temperatureC, " °C") +
-    line("Viscosity", context.viscosityCp, " cP") +
-    line("SG", context.sg) +
+    line("pH", given(context.ph)) +
+    line("Temperature", given(context.temperatureC), " °C") +
+    line("Viscosity", given(context.viscosityCp), " cP") +
+    line("SG", given(context.sg)) +
     line("Solids", context.solidPct, "%") +
     line(
       "Particle size",
@@ -480,7 +527,8 @@ async function getMocAiSuggestionAnthropic(
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 3500,
+      max_tokens: 4000,
+      system: MOC_SYSTEM_PROMPT,
       tools: [
         {
           name: MOC_TOOL_NAME,
@@ -489,7 +537,7 @@ async function getMocAiSuggestionAnthropic(
           input_schema: {
             type: "object",
             properties: schemaPropertiesFor(context.pumpType, context.pumpSupport),
-            required: requiredFieldsFor(context.pumpType),
+            required: ["mediaAssessment", ...requiredFieldsFor(context.pumpType)],
           },
         },
       ],
