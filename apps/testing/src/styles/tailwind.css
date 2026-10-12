@@ -1,0 +1,93 @@
+/* Utilities only -- deliberately skips Tailwind's Preflight base reset
+ * (tailwindcss/preflight.css), since the rest of the app is plain CSS that
+ * doesn't expect it and a global element reset here would ripple into every
+ * existing screen. Pages that opt into Tailwind utility classes should keep
+ * doing their own local reset (see index.css) same as before.
+ *
+ * Deliberately NOT wrapped in `layer(...)`: the rest of the app's CSS
+ * (DashboardLayout.css, per-screen .css files, etc.) is plain, unlayered
+ * CSS. Per the CSS cascade-layers spec, ANY unlayered rule always beats ANY
+ * layered rule, regardless of specificity or source order -- so if these
+ * were imported into named layers, every Tailwind utility would silently
+ * lose to the app's existing CSS wherever the two touched the same element
+ * (this actually happened: colors worked since custom-property values still
+ * resolve, but padding/radius/shadow utilities were fully neutered).
+ * Importing unlayered instead makes Tailwind classes behave like any other
+ * CSS class here -- ordinary specificity + source-order cascade, same as
+ * the rest of the app. */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+@source "../app";
+@source "../screens";
+@source "../components";
+@source "../layouts";
+
+/* Map Tailwind's color/radius tokens onto this app's existing CSS variables
+ * (theme.css) instead of a separate palette, so utilities like bg-surface /
+ * text-accent automatically follow the app's dark mode and print-mode
+ * overrides -- no duplicated color values to keep in sync. */
+@theme inline {
+  --color-bg-app: var(--bg-app);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-bg-sunk: var(--bg-sunk);
+
+  --color-text: var(--text);
+  --color-text-h: var(--text-h);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-border-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+
+  --color-pos: var(--pos);
+  --color-pos-soft: var(--pos-soft);
+  --color-pos-strong: var(--pos-strong);
+  --color-neg: var(--neg);
+  --color-neg-soft: var(--neg-soft);
+  --color-neg-strong: var(--neg-strong);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --radius-DEFAULT: var(--radius);
+}
+
+/* Opt-in mini reset for screens built with Tailwind utilities. Because
+ * Preflight is skipped (see top of file), a <button> that only gets utility
+ * classes keeps the browser's grey bevelled default -- the "2010" look. Put
+ * `tw-reset` on a screen's root and its buttons start clean.
+ *
+ * Wrapped in :where() so it has ZERO specificity: any utility class
+ * (bg-*, border, px-*, ...) or plain-CSS class rule still wins, so this can
+ * never fight an existing style -- it only fills in what nothing else set. */
+:where(.tw-reset) :where(button) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
+  border: 0 solid transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+:where(.tw-reset) :where(button:disabled) {
+  cursor: not-allowed;
+}
+
+/* Same idea for lists: without Preflight a <ul> keeps its bullets and 40px
+ * indent, which shows up as stray dots beside every legend row. */
+:where(.tw-reset) :where(ul, ol) {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

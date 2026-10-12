@@ -1,0 +1,100 @@
+.assign-retest-modal {
+  width: 520px;
+}
+
+.retest-unmet-table {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.retest-unmet-head,
+.retest-unmet-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.retest-unmet-head {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.retest-unmet-row {
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text);
+  align-items: center;
+}
+
+.retest-unmet-bad {
+  color: var(--neg);
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.retest-unmet-bad em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--neg);
+  opacity: 0.8;
+}
+
+.retest-action-points {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.retest-action-point-row {
+  display: flex;
+  gap: 8px;
+}
+
+.retest-action-point-row input {
+  flex: 1;
+}
+
+.retest-action-point-remove {
+  width: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.retest-action-point-remove:hover {
+  border-color: var(--neg);
+  color: var(--neg);
+}
+
+.retest-action-point-remove:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.retest-action-point-add {
+  align-self: flex-start;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.retest-action-point-add:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}

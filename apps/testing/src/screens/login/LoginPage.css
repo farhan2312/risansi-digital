@@ -1,0 +1,1019 @@
+/* Login / Request Access -- one centred card on a soft blue wash. Built from
+ * the theme tokens (with light fallbacks) so it follows dark mode too. */
+
+/* Split layout: branding panel on the left, the sign-in card on the right. */
+.login-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(480px, 36%);
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ================= LEFT PANEL ================= */
+/* Auth surfaces are a fixed branded surface -- always this dark gradient,
+   regardless of light/dark theme elsewhere in the app. */
+
+.branding-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 40px 56px;
+  background: linear-gradient(150deg, #0a1628 0%, #0d2a52 55%, #0a3d6e 100%);
+  color: #ffffff;
+}
+
+.branding-panel .company-logo {
+  align-self: flex-start;
+  width: auto;
+  height: 46px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.branding-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 560px;
+}
+
+.branding-content h1 {
+  margin: 0 0 22px;
+  font-size: 52px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #ffffff;
+}
+
+.branding-content p {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.7;
+  color: #c9d4e3;
+}
+
+.branding-footer {
+  font-size: 13px;
+  color: #7d90ab;
+}
+
+/* ================= RIGHT PANEL ================= */
+
+.login-form-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px 28px;
+  background:
+    radial-gradient(700px 420px at 15% -10%, color-mix(in oklab, var(--accent, #1a5cb8) 14%, transparent), transparent 70%),
+    radial-gradient(620px 400px at 100% 110%, color-mix(in oklab, var(--accent, #1a5cb8) 10%, transparent), transparent 70%),
+    var(--bg-app, #eef2f9);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 32px 32px 26px;
+  border: 1px solid var(--border, rgba(10, 22, 40, 0.08));
+  border-radius: 26px;
+  background: var(--surface, #fff);
+  box-shadow:
+    0 1px 2px rgba(10, 22, 40, 0.05),
+    0 30px 70px -30px color-mix(in oklab, var(--accent, #1a5cb8) 40%, transparent);
+}
+
+.login-logo {
+  display: block;
+  width: auto;
+  height: 42px;
+  margin: 0 auto 26px;
+}
+
+.login-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-h, #0a1628);
+}
+
+.login-subtitle {
+  margin: 6px 0 22px;
+  font-size: 14px;
+  color: var(--text-muted, #64748b);
+}
+
+/* ---------- Fields ---------- */
+
+.login-field {
+  margin-bottom: 16px;
+}
+
+.login-field label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-h, #0a1628);
+}
+
+.login-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 48px;
+  border: 1px solid var(--border-strong, rgba(10, 22, 40, 0.14));
+  border-radius: 13px;
+  background: color-mix(in oklab, var(--bg-sunk, #e2e8f3) 40%, var(--surface, #fff));
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.login-input-wrap:focus-within {
+  border-color: var(--accent, #1a5cb8);
+  background: var(--surface, #fff);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent, #1a5cb8) 16%, transparent);
+}
+
+.login-input-wrap.has-error {
+  border-color: var(--neg, #dc2626);
+}
+.login-input-wrap.has-error:focus-within {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--neg, #dc2626) 16%, transparent);
+}
+
+.login-input-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  color: var(--text-faint, #94a3b8);
+  transition: color 0.15s ease;
+}
+.login-input-wrap:focus-within .login-input-icon {
+  color: var(--accent, #1a5cb8);
+}
+
+.login-input-wrap input,
+.login-input-wrap select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0 14px 0 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text-h, #0a1628);
+}
+.login-input-wrap input::placeholder {
+  color: var(--text-faint, #94a3b8);
+}
+
+/* Native select, styled to match: hide the arrow, draw our own. */
+.login-input-wrap select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+/* Keep the browser's yellow/blue autofill from painting over the well. */
+.login-input-wrap input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text-h, #0a1628);
+  box-shadow: 0 0 0 40px var(--surface, #fff) inset;
+  transition: background-color 9999s ease-out;
+}
+
+.login-eye {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0 13px 13px 0;
+  background: transparent;
+  color: var(--text-faint, #94a3b8);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.login-eye:hover,
+.login-eye:focus-visible {
+  color: var(--accent, #1a5cb8);
+  outline: none;
+}
+
+.login-field-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--neg, #dc2626);
+}
+
+/* ---------- Banners ---------- */
+
+.login-error,
+.login-success {
+  margin-bottom: 16px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.login-error {
+  background: var(--neg-soft, #fee2e2);
+  color: var(--neg-strong, #991b1b);
+}
+.login-success {
+  margin-bottom: 18px;
+  background: var(--pos-soft, #d1fae5);
+  color: var(--pos-strong, #065f46);
+}
+
+/* ---------- Submit ---------- */
+
+.login-submit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 50px;
+  margin: 8px 0 0;
+  padding: 0 60px;
+  border: 0;
+  border-radius: 13px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(100deg, var(--accent, #1a5cb8) 0%, color-mix(in oklab, var(--accent, #1a5cb8) 62%, #2aa0d8) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 14px 26px -12px color-mix(in oklab, var(--accent, #1a5cb8) 85%, transparent);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.login-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+.login-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+.login-submit:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--accent, #1a5cb8) 35%, transparent);
+  outline-offset: 2px;
+}
+.login-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-submit-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-50%);
+  transition: transform 0.15s ease;
+}
+.login-submit:hover:not(:disabled) .login-submit-arrow {
+  transform: translate(3px, -50%);
+}
+
+/* ---------- Switch link + footer ---------- */
+
+.login-switch {
+  margin: 22px 0 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted, #64748b);
+}
+.login-switch button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  color: var(--accent, #1a5cb8);
+  cursor: pointer;
+}
+.login-switch button:hover {
+  text-decoration: underline;
+}
+
+/* Stacked on narrow screens: branding becomes a compact header above the card. */
+@media (max-width: 992px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .branding-panel {
+    min-height: auto;
+    padding: 28px 32px;
+  }
+
+  .branding-content {
+    padding: 24px 0 8px;
+  }
+
+  .branding-content h1 {
+    margin-bottom: 12px;
+    font-size: 34px;
+  }
+
+  .branding-content p {
+    font-size: 15px;
+  }
+
+  .branding-footer {
+    display: none;
+  }
+
+  .login-form-container {
+    min-height: auto;
+    padding: 28px 16px 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 26px 20px 22px;
+    border-radius: 22px;
+  }
+  .login-title {
+    font-size: 23px;
+  }
+}
+
+/* theme.css forces every dark-mode <input>/<select> onto the "sunk" well with
+ * !important. Here the wrapper already draws the well (icon + field as one
+ * piece), so opt the inner controls back out or the icon strip looks like a
+ * separate block. */
+[data-theme="dark"] .login-input-wrap input,
+[data-theme="dark"] .login-input-wrap select {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: var(--text-h) !important;
+}
+[data-theme="dark"] .login-input-wrap {
+  background: var(--bg-sunk);
+}
+[data-theme="dark"] .login-input-wrap:focus-within {
+  background: var(--bg-sunk);
+}
+
+/* ================= LEFT PANEL: INTERACTIVE ================= */
+
+.branding-panel {
+  overflow: hidden;
+  isolation: isolate;
+  --mx: 30%;
+  --my: 35%;
+}
+
+/* Soft spotlight that follows the cursor. */
+.branding-glow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(420px circle at var(--mx) var(--my), rgba(84, 168, 255, 0.2), transparent 65%);
+}
+
+/* Two slow-drifting colour blobs behind everything. */
+.branding-blob {
+  position: absolute;
+  z-index: -2;
+  border-radius: 50%;
+  filter: blur(70px);
+  pointer-events: none;
+  opacity: 0.5;
+}
+.branding-blob-a {
+  top: -140px;
+  right: -100px;
+  width: 460px;
+  height: 460px;
+  background: #1d6fd8;
+  animation: blob-drift-a 18s ease-in-out infinite alternate;
+}
+.branding-blob-b {
+  bottom: -160px;
+  left: -120px;
+  width: 420px;
+  height: 420px;
+  background: #0aa5a5;
+  opacity: 0.32;
+  animation: blob-drift-b 22s ease-in-out infinite alternate;
+}
+@keyframes blob-drift-a {
+  to {
+    transform: translate(-70px, 60px) scale(1.08);
+  }
+}
+@keyframes blob-drift-b {
+  to {
+    transform: translate(80px, -50px) scale(1.12);
+  }
+}
+
+.branding-content {
+  max-width: 760px;
+}
+
+.branding-showcase {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 28px;
+  margin-top: 34px;
+}
+
+/* ---------- Feature list ---------- */
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Room for the tallest expanded item, so the headline above never shifts
+     as the active item changes. */
+  min-height: 340px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: #c9d4e3;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.feature-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.feature-item:focus-visible {
+  outline: 2px solid #6bb4ff;
+  outline-offset: 2px;
+}
+.feature-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateX(4px);
+  color: #ffffff;
+}
+
+.feature-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background-color 0.2s ease;
+}
+.feature-item.active .feature-icon {
+  background: linear-gradient(140deg, #3b8fe8, #1a5cb8);
+  box-shadow: 0 8px 18px -8px rgba(59, 143, 232, 0.9);
+}
+
+.feature-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.feature-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 38px; /* centres against the icon when collapsed */
+  transition: line-height 0.2s ease;
+}
+.feature-item.active .feature-title {
+  line-height: 1.3;
+  padding-top: 2px;
+}
+
+/* Detail only shows on the selected item. */
+.feature-text {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  max-height: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #b7c6da;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+}
+.feature-item.active .feature-text {
+  max-height: 96px;
+  margin-top: 4px;
+  opacity: 1;
+}
+
+.feature-progress {
+  display: block;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+.feature-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #6bb4ff, #3b8fe8);
+  transform-origin: left center;
+  animation: feature-progress linear forwards;
+}
+.feature-progress > span.paused {
+  animation-play-state: paused;
+}
+@keyframes feature-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ---------- Performance-curve card ---------- */
+
+.curve-card {
+  margin: 0;
+  padding: 16px 16px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 24px 50px -30px rgba(0, 0, 0, 0.6);
+}
+.curve-card figcaption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e4ecf7;
+}
+.curve-card figcaption em {
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+  color: #7d90ab;
+}
+.curve-card svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.curve-grid {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
+}
+.curve-axis {
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 1.2;
+}
+.curve-label {
+  font-size: 10px;
+  fill: #8fa3c0;
+}
+
+.curve-line {
+  stroke: #6bb4ff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: curve-draw 1.6s 0.2s ease-out forwards;
+  filter: drop-shadow(0 0 6px rgba(107, 180, 255, 0.6));
+}
+.curve-line.static {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+@keyframes curve-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.curve-point {
+  opacity: 0;
+  animation: curve-point-in 0.4s ease-out forwards;
+}
+.curve-dot {
+  fill: #0d2a52;
+  stroke: #9fd0ff;
+  stroke-width: 2;
+  transition: r 0.25s ease;
+}
+.curve-point.active .curve-dot {
+  fill: #ffffff;
+  stroke: #3b8fe8;
+  stroke-width: 3;
+}
+.curve-pulse {
+  fill: rgba(84, 168, 255, 0.28);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: curve-pulse 1.8s ease-out infinite;
+}
+@keyframes curve-point-in {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes curve-pulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 1280px) {
+  .branding-showcase {
+    grid-template-columns: 1fr;
+  }
+  .curve-card {
+    max-width: 420px;
+  }
+}
+
+@media (max-width: 992px) {
+  .branding-showcase {
+    margin-top: 20px;
+  }
+  .curve-card,
+  .branding-blob {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .branding-blob,
+  .curve-pulse,
+  .curve-point,
+  .curve-line {
+    animation: none;
+  }
+  .curve-point {
+    opacity: 1;
+  }
+  .curve-line {
+    stroke-dashoffset: 0;
+  }
+  .feature-item,
+  .feature-text,
+  .feature-title {
+    transition: none;
+  }
+}
+
+/* ================= RIGHT PANEL: INTERACTIVE ================= */
+
+.login-form-container {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Two soft accent orbs drifting behind the card. */
+.login-form-container::before,
+.login-form-container::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+}
+.login-form-container::before {
+  top: -120px;
+  right: -80px;
+  width: 340px;
+  height: 340px;
+  background: color-mix(in oklab, var(--accent, #1a5cb8) 30%, transparent);
+  animation: login-orb-a 16s ease-in-out infinite alternate;
+}
+.login-form-container::after {
+  bottom: -140px;
+  left: -100px;
+  width: 320px;
+  height: 320px;
+  background: color-mix(in oklab, #2aa0d8 26%, transparent);
+  animation: login-orb-b 20s ease-in-out infinite alternate;
+}
+@keyframes login-orb-a {
+  to {
+    transform: translate(-60px, 70px) scale(1.1);
+  }
+}
+@keyframes login-orb-b {
+  to {
+    transform: translate(70px, -60px) scale(1.12);
+  }
+}
+
+/* ---------- The card: entrance, tilt, sheen, travelling border ---------- */
+
+@property --login-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.login-card {
+  --rx: 0deg;
+  --ry: 0deg;
+  --gx: 50%;
+  --gy: 0%;
+  position: relative;
+  transform: perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform 0.25s ease-out, box-shadow 0.25s ease;
+  animation: login-card-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform;
+}
+@keyframes login-card-in {
+  from {
+    opacity: 0;
+    transform: perspective(1100px) translateY(26px) scale(0.97);
+  }
+}
+
+/* Sheen that follows the cursor. */
+.login-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(360px circle at var(--gx) var(--gy), color-mix(in oklab, var(--accent, #1a5cb8) 14%, transparent), transparent 62%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.login-card:hover::after {
+  opacity: 1;
+}
+
+/* A light travels around the border while a field has focus. */
+.login-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 2px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(from var(--login-angle), transparent 0 52%, var(--accent, #1a5cb8) 74%, #2aa0d8 90%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  animation: login-border-spin 3.5s linear infinite;
+}
+.login-card:focus-within::before {
+  opacity: 1;
+}
+@keyframes login-border-spin {
+  to {
+    --login-angle: 360deg;
+  }
+}
+
+/* ---------- Staggered content + animated form swap ---------- */
+
+.login-logo {
+  animation: login-rise 0.6s 0.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.login-form-swap > * {
+  animation: login-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.login-form-swap > *:nth-child(1) {
+  animation-delay: 0.08s;
+}
+.login-form-swap > *:nth-child(2) {
+  animation-delay: 0.14s;
+}
+.login-form-swap > *:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.login-form-swap > *:nth-child(4) {
+  animation-delay: 0.26s;
+}
+.login-form-swap > *:nth-child(5) {
+  animation-delay: 0.32s;
+}
+.login-form-swap > *:nth-child(6) {
+  animation-delay: 0.38s;
+}
+.login-form-swap > *:nth-child(7) {
+  animation-delay: 0.44s;
+}
+.login-form-swap > *:nth-child(8) {
+  animation-delay: 0.5s;
+}
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* ---------- Field feedback ---------- */
+
+/* Icon nudges when its field is focused. */
+.login-input-wrap:focus-within .login-input-icon svg {
+  animation: login-icon-pop 0.35s ease;
+}
+@keyframes login-icon-pop {
+  50% {
+    transform: scale(1.22);
+  }
+}
+
+.login-valid {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 12px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--pos, #059669);
+  animation: login-pop 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+@keyframes login-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+.login-field-error {
+  animation: login-slide-in 0.25s ease both;
+}
+@keyframes login-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.login-error {
+  animation: login-shake 0.45s ease both;
+}
+@keyframes login-shake {
+  15% {
+    transform: translateX(-7px);
+  }
+  35% {
+    transform: translateX(6px);
+  }
+  55% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+.login-caps {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--warn, #b45309);
+  background: var(--warn-soft, #fef3c7);
+  animation: login-slide-in 0.2s ease both;
+}
+
+/* Password strength: four segments that fill and change colour. */
+.login-strength {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.login-strength-bars {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+}
+.login-strength-bars span {
+  flex: 1;
+  height: 5px;
+  border-radius: 4px;
+  background: var(--bg-sunk, #e2e8f3);
+  transition: background-color 0.25s ease;
+}
+.login-strength.level-1 .login-strength-bars span.on {
+  background: var(--neg, #dc2626);
+}
+.login-strength.level-2 .login-strength-bars span.on {
+  background: var(--warn, #d97706);
+}
+.login-strength.level-3 .login-strength-bars span.on {
+  background: #65a30d;
+}
+.login-strength.level-4 .login-strength-bars span.on {
+  background: var(--pos, #059669);
+}
+.login-strength-label {
+  min-width: 46px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--text-muted, #64748b);
+}
+
+/* ---------- Submit: spinner ---------- */
+
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: login-spin 0.7s linear infinite;
+}
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card,
+  .login-card::before,
+  .login-logo,
+  .login-form-swap > *,
+  .login-form-container::before,
+  .login-form-container::after,
+  .login-input-wrap:focus-within .login-input-icon svg,
+  .login-valid,
+  .login-field-error,
+  .login-error,
+  .login-caps {
+    animation: none;
+  }
+  .login-card {
+    transform: none;
+  }
+}

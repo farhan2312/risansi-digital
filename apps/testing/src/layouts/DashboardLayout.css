@@ -1,0 +1,519 @@
+.testing-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-app);
+  color: var(--text);
+}
+
+.testing-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  overflow-y: auto;
+}
+
+/* White logo chip, matching the sales portal's sidebar header */
+.testing-sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 4px 4px 8px;
+}
+
+.testing-sidebar-logo img {
+  width: 110px;
+  height: auto;
+  object-fit: contain;
+}
+
+.testing-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.testing-nav-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--sidebar-accent);
+  margin: 20px 0 6px 8px;
+}
+
+.testing-nav-group-label:first-child {
+  margin-top: 4px;
+}
+
+.testing-nav a {
+  position: relative;
+  padding: 7px 10px;
+  border-radius: 5px;
+  color: var(--sidebar-text);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.testing-nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.testing-nav a.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.testing-nav a.active::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--sidebar-accent);
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: var(--neg);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.testing-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.testing-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-bell-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.topbar-bell-btn:hover {
+  background: var(--surface-hover);
+  box-shadow: var(--shadow);
+}
+
+.topbar-bell-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+@keyframes topbar-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.topbar-refresh-icon {
+  display: inline-block;
+}
+
+.topbar-refresh-icon.spinning {
+  animation: topbar-refresh-spin 0.7s linear infinite;
+}
+
+.topbar-bell-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--neg);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--surface);
+}
+
+.topbar-alerts-wrap {
+  position: relative;
+}
+
+.topbar-alerts-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.topbar-alerts-panel-header {
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-h);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-alerts-empty {
+  padding: 20px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+}
+
+.topbar-alerts-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+}
+
+.topbar-alerts-list li a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.topbar-alerts-list li a:hover {
+  background: var(--surface-hover);
+}
+
+.topbar-alerts-model {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.topbar-alerts-meta {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* One entry in the "Your bug reports" panel; unseen ones get an accent bar until the panel is closed. */
+.topbar-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.topbar-note-new .topbar-note {
+  background: var(--surface-hover);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.topbar-report-bug-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.topbar-report-bug-btn:hover {
+  background: var(--surface-hover);
+  box-shadow: var(--shadow);
+}
+
+.topbar-report-bug-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.topbar-breadcrumb a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.topbar-breadcrumb a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.topbar-breadcrumb-sep {
+  color: var(--text-muted);
+}
+
+.topbar-breadcrumb-current {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.testing-main {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  /* Explicit, not left to default: pages with a wide table (report forms,
+   * report detail) already scroll that table horizontally in its own
+   * wrapper (overflow-x: auto). Without this, setting only overflow-y here
+   * implicitly computes overflow-x to "auto" too (a CSS spec quirk), so the
+   * whole panel -- heading and all -- gained its own horizontal scrollbar
+   * and shifted sideways along with the table underneath it. */
+  overflow-x: hidden;
+}
+
+/* Default page-title size -- low specificity (one class + element) so any
+ * page with its own more-specific h1 rule (.dashboard-header h1, etc.)
+ * still wins; this only fills in for pages that never set one (several
+ * Admin screens were relying on the browser's much larger default h1). */
+.testing-main h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+/* Sidebar profile card, replacing the old top navbar */
+
+.sidebar-profile {
+  position: relative;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.sidebar-profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--sidebar-text);
+  cursor: pointer;
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+.sidebar-profile-trigger:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--sidebar-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sidebar-profile-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.sidebar-profile-text strong {
+  font-size: 13px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-profile-text span {
+  font-size: 12px;
+  color: var(--sidebar-text);
+}
+
+.sidebar-chevron {
+  font-size: 10px;
+  color: var(--sidebar-text);
+  transition: transform 0.15s ease;
+}
+
+.sidebar-chevron.open {
+  transform: rotate(180deg);
+}
+
+.sidebar-profile-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  z-index: 20;
+}
+
+.sidebar-profile-menu-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sidebar-profile-menu-header strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.sidebar-profile-menu-header span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sidebar-profile-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-profile-menu-item:hover {
+  background: var(--surface-hover);
+}
+
+.sidebar-profile-menu-item.danger {
+  color: var(--neg);
+}
+
+.theme-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--border-strong);
+  flex-shrink: 0;
+}
+
+.theme-switch-knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.theme-switch.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.theme-switch.on .theme-switch-knob {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+/* Export PDF (window.print()) — the sidebar/profile don't belong on a
+   printed report, and the content should flow as a plain page. */
+@media print {
+  .testing-sidebar {
+    display: none !important;
+  }
+
+  .testing-topbar {
+    display: none !important;
+  }
+
+  .testing-layout {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  .testing-content {
+    display: block;
+    height: auto;
+  }
+
+  .testing-main {
+    padding: 0;
+    overflow: visible;
+  }
+}

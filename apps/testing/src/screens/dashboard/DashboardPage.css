@@ -1,0 +1,365 @@
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Matches the Admin section's page padding convention (24px from the
+   * shared .testing-main wrapper + 40px here = 64px, same as
+   * .admin-requests-page) -- this page previously only got the 24px,
+   * noticeably tighter than every Admin screen for no functional reason. */
+  padding: 40px;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-header h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.new-requisition-btn {
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.new-requisition-btn:hover {
+  background: var(--accent-hover);
+}
+
+.status-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-tabs button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.status-tabs button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.filter-bar input,
+.filter-bar select {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.filter-bar input {
+  min-width: 180px;
+}
+
+.filter-date-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.filter-date-field input[type="date"] {
+  min-width: 0;
+  width: 140px;
+}
+
+.clear-filters-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.clear-filters-btn:hover {
+  background: var(--surface-hover);
+}
+
+/* Second-level filter, shown once a single Category is picked: how many of
+ * that category's filled reports met their rated requirements ("Green")
+ * vs didn't ("Red") -- clicking a pill filters the table down to just
+ * that subset. */
+.report-result-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-result-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.report-result-pill {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-muted);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.report-result-pill:hover {
+  background: var(--surface-hover);
+}
+
+.report-result-pill.active {
+  border-color: transparent;
+  color: #fff;
+  background: var(--text-muted);
+}
+
+.report-result-pill.green.active {
+  background: var(--pos);
+}
+
+.report-result-pill.red.active {
+  background: var(--neg);
+}
+
+/* Marks a Target Date that wasn't set by the source team -- auto-computed
+ * as Date of Requisition + 7 days instead. */
+.target-date-auto-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.dashboard-error {
+  color: var(--neg);
+  background: var(--neg-soft);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.dashboard-empty {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Scroll-pagination sentinel row -- invisible until there's something to say (loading the next
+ * batch, or confirming every row is in). Height still matters even when empty: the IntersectionObserver
+ * needs a real element to watch to know when it's scrolled near the bottom. */
+.dashboard-load-more-row {
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* The table is wider than most screens: it scrolls sideways inside this wrapper (the page itself never
+ * does -- .testing-main clips x-overflow), so no column is ever cut off at the right edge. */
+.requisition-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.requisition-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+/* Testing Summary only: the scroll wrapper supplies the card look, and the table itself must not clip
+ * (overflow: hidden on it would stop the pinned Actions column from sticking). */
+.testing-layout .testing-main .requisition-table.requisition-table--summary {
+  min-width: 1080px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Dates, retest and status stay on one line; long text columns (category, EC no.) wrap. */
+.requisition-table--summary td:nth-child(6),
+.requisition-table--summary td:nth-child(7),
+.requisition-table--summary td:nth-child(8),
+.requisition-table--summary td:nth-child(10) {
+  white-space: nowrap;
+}
+
+/* The Actions column stays pinned to the right edge while the rest scrolls beneath it. */
+.requisition-table .col-sticky-end {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  box-shadow: -6px 0 8px -6px rgba(0, 0, 0, 0.12);
+}
+.requisition-table th.col-sticky-end {
+  background: var(--bg-sunk);
+}
+
+.requisition-table th,
+.requisition-table td {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.requisition-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+  background: var(--bg-sunk);
+}
+
+.requisition-table a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.requisition-table a:hover {
+  text-decoration: underline;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-pending {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.status-in-testing {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.status-retest-needed {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+.status-closed {
+  background: var(--pos-soft);
+  color: var(--pos);
+}
+
+.status-view-report {
+  background: var(--pos-soft);
+  color: var(--pos) !important;
+  cursor: pointer;
+  font-weight: 600 !important;
+}
+
+.status-view-report:hover {
+  background: var(--pos);
+  color: #fff !important;
+  text-decoration: none !important;
+}
+
+/* Same "View Report" pill, but the report didn't reach its rated
+ * head/capacity/power -- still a valid, submittable report, just flagged
+ * red instead of green (informational only). */
+.status-view-report-unmet {
+  background: var(--neg-soft);
+  color: var(--neg) !important;
+  cursor: pointer;
+  font-weight: 600 !important;
+}
+
+.status-view-report-unmet:hover {
+  background: var(--neg);
+  color: #fff !important;
+  text-decoration: none !important;
+}
+
+/* "View Report" and "View Curve" sit side by side in the Status cell. */
+.status-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.status-view-curve {
+  background: var(--info-soft);
+  color: var(--info) !important;
+  cursor: pointer;
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+
+.status-view-curve:hover {
+  background: var(--info);
+  color: #fff !important;
+  text-decoration: none !important;
+}
+
+.res-reassign-select {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Small "who raised it" tag next to the Submitted By name -- text label first
+ * (colour is only a hint), so it reads without relying on colour. */
+.raised-by-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  background: var(--bg-sunk);
+  color: var(--text-muted);
+}
+.raised-by-source {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.raised-by-testing {
+  background: var(--pos-soft);
+  color: var(--pos-strong);
+}

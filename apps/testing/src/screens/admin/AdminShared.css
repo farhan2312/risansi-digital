@@ -1,0 +1,89 @@
+.admin-requests-page{
+    padding:40px;
+    background:var(--bg-app);
+    min-height:100vh;
+}
+
+.admin-requests-header{
+    margin-bottom:30px;
+}
+
+.admin-requests-header h1{
+    color:var(--text-h);
+    margin-bottom:6px;
+}
+
+.admin-requests-header p{
+    color:var(--text-muted);
+}
+
+.empty-state{
+    color:var(--text-muted);
+    background:var(--surface);
+    padding:30px;
+    border-radius:8px;
+    text-align:center;
+}
+
+.admin-requests-table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:var(--shadow);
+    border-radius:8px;
+    overflow:hidden;
+}
+
+.admin-requests-table th,
+.admin-requests-table td{
+    padding:16px;
+    border:1px solid var(--border);
+    text-align:left;
+}
+
+.admin-requests-table th{
+    background:var(--accent);
+    color:white;
+}
+
+.action-buttons{
+    display:flex;
+    gap:10px;
+}
+
+.action-buttons button{
+    border:none;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+    color:white;
+}
+
+.action-buttons button:disabled{
+    opacity:.6;
+    cursor:not-allowed;
+}
+
+.approve-btn{
+    background:var(--pos);
+}
+
+.reject-btn{
+    background:var(--neg);
+}
+
+.role-select{
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:var(--bg-app);
+    color:var(--text);
+    font-size:13px;
+    text-transform:capitalize;
+}
+
+.role-select:disabled{
+    opacity:.6;
+    cursor:not-allowed;
+}

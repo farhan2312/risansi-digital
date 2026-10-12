@@ -1,0 +1,42 @@
+{
+  "name": "testing-portal",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 5174",
+    "build": "next build",
+    "start": "next start -p 5174",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "dotenv -e .env.local -- drizzle-kit generate",
+    "db:migrate": "dotenv -e .env.local -- drizzle-kit migrate",
+    "db:push": "dotenv -e .env.local -- drizzle-kit push"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.4.0",
+    "axios": "^1.18.1",
+    "bcryptjs": "^3.0.2",
+    "drizzle-orm": "^0.45.3",
+    "jsonwebtoken": "^9.0.2",
+    "next": "^15.5.7",
+    "pdfkit": "0.15.2",
+    "pg": "^8.16.4",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-hook-form": "^7.81.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.13.2",
+    "@types/pdfkit": "^0.17.6",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "dotenv-cli": "^11.0.0",
+    "drizzle-kit": "^0.31.6",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.2"
+  }
+}

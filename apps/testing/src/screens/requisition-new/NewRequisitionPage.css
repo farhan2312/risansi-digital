@@ -1,0 +1,139 @@
+.requisition-form-page {
+  max-width: 900px;
+  margin-inline: auto; /* centred, matching the requisition detail page */
+}
+
+.requisition-form-page h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 20px;
+}
+
+.form-error-banner {
+  background: var(--neg-soft);
+  color: var(--neg);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  background: var(--surface);
+  padding: 20px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.field input,
+.field select,
+.field textarea {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.field-error {
+  color: var(--neg);
+  font-size: 12px;
+}
+
+.field-full {
+  grid-column: 1 / -1;
+}
+
+/* Only shown once Category is "Against R&D Trials". */
+.rd-trial-section {
+  margin-top: 16px;
+}
+
+.rd-trial-section h2 {
+  font-size: 14px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+}
+
+.unit-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.model-mode-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.form-actions button {
+  padding: 9px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.form-actions button[type="submit"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.form-actions button[type="submit"]:hover {
+  background: var(--accent-hover);
+}
+
+.form-actions button[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.form-actions button.secondary {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+
+.form-actions button.secondary:hover {
+  background: var(--surface-hover);
+}

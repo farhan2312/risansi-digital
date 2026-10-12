@@ -1,0 +1,79 @@
+.pump-dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+}
+
+.pump-dashboard-header h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.pump-dashboard-header .back-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.pump-dashboard-header .back-link:hover {
+  text-decoration: underline;
+}
+
+.pump-summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+}
+
+.pump-summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pump-summary-stat .stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.pump-summary-stat .stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pump-dashboard-page section.dashboard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pump-dashboard-page section.dashboard-section h2 {
+  font-size: 16px;
+  color: var(--text-h);
+  margin: 0;
+}
+
+/* Unlike the points table (many columns, needs horizontal scroll), this one
+ * has a column per report -- few enough to fit the container width by
+ * wrapping cell text instead of scrolling. */
+.header-history-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.header-history-table th,
+.header-history-table td {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.header-history-table .row-label-col {
+  width: 220px;
+}

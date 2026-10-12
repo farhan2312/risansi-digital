@@ -1,0 +1,248 @@
+.test-report-page {
+  max-width: 1200px;
+}
+
+.test-report-page h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.test-report-page .subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 20px;
+}
+
+.test-report-page .form-error-banner {
+  background: var(--neg-soft);
+  color: var(--neg);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.test-report-page .form-info-banner {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.test-report-page .form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  background: var(--surface);
+  padding: 20px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 24px;
+}
+
+.test-report-page .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.test-report-page .field label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.value-unit-group {
+  display: flex;
+  gap: 6px;
+}
+
+.value-unit-group input {
+  flex: 3;
+  min-width: 0;
+}
+
+.value-unit-group select {
+  flex: 2;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.test-report-page .required-hint {
+  font-weight: 400;
+  color: var(--accent);
+  text-transform: none;
+}
+
+.test-report-page .field input,
+.test-report-page .field select,
+.test-report-page .field textarea {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.test-report-page .field textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.test-report-page .field-full {
+  grid-column: 1 / -1;
+}
+
+.points-heading {
+  font-size: 15px;
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
+.points-table-wrapper {
+  overflow-x: auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.points-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1050px;
+}
+
+.points-table th,
+.points-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.points-table th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-sunk);
+}
+
+.points-table th.computed-col {
+  color: var(--accent);
+}
+
+.points-table input {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.computed-cell {
+  background: var(--warn-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Flags a column where testing never reached the rated value for that
+ * field (still a valid, submittable report -- this is informational). */
+.requirement-col-not-met {
+  color: var(--neg) !important;
+}
+
+.requirement-flag {
+  margin-left: 4px;
+  cursor: help;
+}
+
+td.requirement-cell-not-met {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+.computed-field {
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.remove-point-btn {
+  border: none;
+  background: var(--neg-soft);
+  color: var(--neg);
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.remove-point-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.add-point-btn {
+  margin-top: 10px;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--accent);
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.add-point-btn:hover {
+  background: var(--accent-soft);
+}
+
+.test-report-page .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.test-report-page .form-actions button {
+  padding: 9px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.test-report-page .form-actions button[type="submit"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.test-report-page .form-actions button[type="submit"]:hover {
+  background: var(--accent-hover);
+}
+
+.test-report-page .form-actions button[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.test-report-page .form-actions button.secondary {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+
+.test-report-page .form-actions button.secondary:hover {
+  background: var(--surface-hover);
+}

@@ -1,0 +1,199 @@
+.registry-page {
+  padding: 40px;
+  background: var(--bg-app);
+  min-height: 100vh;
+}
+
+.registry-header {
+  margin-bottom: 24px;
+}
+
+.registry-header h1 {
+  color: var(--text-h);
+  margin-bottom: 6px;
+}
+
+.registry-header p {
+  color: var(--text-muted);
+  max-width: 720px;
+  line-height: 1.5;
+}
+
+.registry-status {
+  color: var(--text-muted);
+}
+
+.registry-status-error {
+  color: var(--neg);
+}
+
+.registry-empty {
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 36px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.registry-table-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.registry-table-scroll {
+  overflow-x: auto;
+}
+
+.registry-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+}
+
+.registry-table th {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.registry-table td {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.registry-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.registry-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.registry-model {
+  font-weight: 700;
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.registry-report-no {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.registry-unmet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.registry-unmet-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.registry-unmet-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--neg-soft);
+  color: var(--neg);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.registry-unmet-values {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.registry-unmet-values strong {
+  color: var(--neg);
+  font-weight: 700;
+}
+
+.registry-unmet-arrow {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.registry-action-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 300px;
+}
+
+.registry-action-points li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.registry-action-points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.registry-dash {
+  color: var(--text-muted);
+}
+
+.registry-person {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.registry-date {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.registry-link-btn {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.registry-link-btn:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}

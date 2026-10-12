@@ -1,0 +1,110 @@
+/* Compact grouped KPI card: small header + a row of figure tiles.
+ * Built from theme tokens only, so light / dark / print follow for free. */
+
+.kg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(10, 22, 40, 0.04);
+}
+
+.kg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.kg-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.kg-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  color: var(--kg-tint);
+  background: color-mix(in oklab, var(--kg-tint) 14%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--kg-tint) 22%, transparent);
+}
+
+.kg-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kg-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 7px 10px 8px;
+  border-radius: 11px;
+  text-decoration: none;
+  background: color-mix(in oklab, var(--bg-sunk) 70%, var(--surface));
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+a.kg-tile--link:hover,
+a.kg-tile--link:focus-visible {
+  outline: none;
+  background: color-mix(in oklab, var(--kg-tint) 10%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--kg-tint) 35%, transparent);
+}
+
+.kg-tile-label {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.kg-tile-value {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+}
+
+.kg-tile-value--critical {
+  color: var(--neg);
+}
+
+.kg-tile-sub {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+/* Hover / focus tooltip on a KPI tile (see KpiGroupCard hint). The tile's own text clips with an ellipsis,
+ * so this also shows the full label and value. */
+.kg-tile--tip:hover > .kg-tip,
+.kg-tile--tip:focus-visible > .kg-tip,
+.kg-tile--tip:focus > .kg-tip {
+  display: flex;
+}

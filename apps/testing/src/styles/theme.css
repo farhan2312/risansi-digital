@@ -1,0 +1,143 @@
+:root {
+  /* Surfaces (back -> front) — mapped from the Risansi design system */
+  --bg-app: #f4f6fb;
+  --surface: #ffffff;
+  --surface-hover: #edf1f7;
+  --bg-sunk: #e2e8f3; /* input wells, progress tracks */
+
+  --text: #0d1b2e;
+  --text-h: #0a3d8f; /* panel titles / KPI accent — Risansi --title */
+  --text-muted: #6b7f96;
+  --text-faint: #a8bac8;
+
+  --border: rgba(10, 22, 40, 0.08);
+  --border-soft: rgba(10, 22, 40, 0.05);
+  --border-strong: rgba(10, 22, 40, 0.16);
+
+  --accent: #1a5cb8;
+  --accent-hover: #164d99;
+  --accent-soft: rgba(26, 92, 184, 0.1);
+  --accent-line: rgba(26, 92, 184, 0.25);
+
+  --shadow: 0 1px 3px rgba(10, 61, 143, 0.05);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.2);
+
+  /* Sidebar is dark navy in both themes — see Sidebar.css */
+  --sidebar-bg: #0a1628;
+  --sidebar-text: #b8c9e8;
+  --sidebar-accent: #00b4d8;
+
+  /* Semantic — solid / soft tint / strong-on-tint text (WCAG AA on the soft bg) */
+  --pos: #059669;
+  --pos-soft: #d1fae5;
+  --pos-strong: #065f46;
+  --neg: #dc2626;
+  --neg-soft: #fee2e2;
+  --neg-strong: #991b1b;
+  --warn: #d97706;
+  --warn-soft: #fef3c7;
+  --info: #2563eb;
+  --info-soft: #dbeafe;
+
+  --radius: 8px;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg-app: #0d1b2e;
+  --surface: #132240;
+  --surface-hover: #1a2e4a;
+  --bg-sunk: #0a1628;
+
+  --text: #f0f4f8;
+  --text-h: #4a8fe8;
+  --text-muted: #8fa3b8;
+  --text-faint: #6b7fa3;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-soft: rgba(255, 255, 255, 0.05);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --accent: #4a8fe8;
+  --accent-hover: #6ba3ee;
+  --accent-soft: rgba(74, 143, 232, 0.15);
+  --accent-line: rgba(74, 143, 232, 0.3);
+
+  --shadow: none;
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  --sidebar-bg: #0a1628;
+  --sidebar-text: #b8c9e8;
+  --sidebar-accent: #00b4d8;
+
+  --pos: #34d399;
+  --pos-soft: rgba(52, 211, 153, 0.15);
+  --pos-strong: #6ee7b7;
+  --neg: #f87171;
+  --neg-soft: rgba(248, 113, 113, 0.15);
+  --neg-strong: #fca5a5;
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.15);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.15);
+
+  color-scheme: dark;
+}
+
+[data-theme="dark"] input:not([type="hidden"]),
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background-color: var(--bg-sunk) !important;
+  color: var(--text) !important;
+  border-color: var(--border-strong) !important;
+}
+
+body,
+.dashboard-layout,
+.navbar,
+.sidebar,
+.stats-card,
+.welcome-card,
+.action-card,
+.dashboard-card,
+.settings-modal {
+  transition: background-color 0.2s ease, color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* Printing (Export PDF) always uses the light palette, regardless of the
+   viewer's current theme — dark backgrounds waste ink and print poorly. */
+@media print {
+  :root,
+  [data-theme="dark"] {
+    --bg-app: #ffffff;
+    --surface: #ffffff;
+    --surface-hover: #f4f6fb;
+    --bg-sunk: #f0f2f7;
+
+    --text: #0d1b2e;
+    --text-h: #0a3d8f;
+    --text-muted: #4b5b6e;
+    --text-faint: #7c8a9a;
+
+    --border: #d5dbe6;
+    --border-soft: #e6e9f0;
+    --border-strong: #b7c0cf;
+
+    --accent: #1a5cb8;
+    --shadow: none;
+    --shadow-lg: none;
+
+    --pos: #059669;
+    --pos-soft: #e3f7ee;
+    --neg: #dc2626;
+    --neg-soft: #fdeaea;
+    --warn: #b45309;
+    --warn-soft: #fdf3d9;
+    --info: #2563eb;
+    --info-soft: #e5eefd;
+
+    color-scheme: light;
+  }
+}

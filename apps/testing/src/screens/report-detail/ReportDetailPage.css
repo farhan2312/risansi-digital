@@ -1,0 +1,483 @@
+.report-detail-page {
+  max-width: 1200px;
+  margin-inline: auto; /* centred in the content area rather than hugging the sidebar */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-detail-page .detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.report-detail-page .detail-header h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.format-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.report-no-pill {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: monospace;
+  background: var(--bg-sunk);
+  color: var(--text-muted);
+  vertical-align: middle;
+}
+
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.print-header {
+  display: none;
+}
+
+.export-pdf-btn {
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.export-pdf-btn:hover {
+  background: var(--accent-soft);
+}
+
+.edit-report-btn {
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--accent);
+  color: #fff;
+}
+
+.edit-report-btn:hover {
+  background: var(--accent-hover);
+}
+
+.delete-report-btn {
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--neg);
+  background: transparent;
+  color: var(--neg);
+  cursor: pointer;
+}
+
+.delete-report-btn:hover:not(:disabled) {
+  background: var(--neg-soft);
+}
+
+.delete-report-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.assign-retest-btn {
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--warn);
+  background: transparent;
+  color: var(--warn);
+  cursor: pointer;
+}
+
+.assign-retest-btn:hover:not(:disabled) {
+  background: var(--warn-soft);
+}
+
+.assign-retest-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.report-detail-page .back-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.report-detail-page .back-link:hover {
+  text-decoration: underline;
+}
+
+.report-detail-page .detail-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.report-detail-page .detail-card h2 {
+  font-size: 15px;
+  margin: 0 0 14px;
+  color: var(--text);
+}
+
+.report-detail-page .detail-card a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.sheet-table-wrapper {
+  overflow-x: auto;
+}
+
+.sheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sheet-table th,
+.sheet-table td {
+  text-align: left;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.header-sheet-table th {
+  background: var(--bg-sunk);
+  color: var(--text-muted);
+  font-weight: 600;
+  width: 1%;
+}
+
+.header-sheet-table td {
+  color: var(--text);
+}
+
+.points-sheet-table {
+  min-width: 900px;
+}
+
+.points-sheet-table th {
+  background: var(--bg-sunk);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: center;
+}
+
+.points-sheet-table td {
+  text-align: right;
+}
+
+.row-label-col {
+  text-align: left !important;
+  white-space: normal !important;
+  min-width: 220px;
+  color: var(--text);
+}
+
+.row-unit-col {
+  text-align: center !important;
+  color: var(--text-muted);
+  font-size: 12px;
+  min-width: 60px;
+}
+
+.highlight {
+  background: var(--warn-soft);
+}
+
+/* Flags a field/row/column where testing never reached the rated value
+ * (still a valid, submittable report -- this is informational). */
+.requirement-not-met-banner {
+  background: var(--neg-soft);
+  color: var(--neg);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.requirement-flag {
+  margin-left: 4px;
+  cursor: help;
+}
+
+/* Marks a row-label with a formula tooltip (title attr on the cell) --
+ * matches the "Formulae" column the original Excel workbook prints next to
+ * a computed row. */
+.formula-flag {
+  margin-left: 4px;
+  color: var(--text-muted);
+  font-style: italic;
+  cursor: help;
+}
+
+td.requirement-cell-not-met {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+/* Capacity/Power vs Head performance curve. Inline SVG so it survives the
+ * window.print() PDF export -- see PerformanceCurve.tsx. Stretches to fill
+ * the card width (preserveAspectRatio keeps the square grid boxes square,
+ * just bigger), capped a bit short of the full card so it reads as a sleek
+ * chart rather than a blown-up one. */
+.performance-curve svg {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.performance-curve .curve-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.performance-curve .curve-axis {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.performance-curve .curve-tick {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.performance-curve .curve-axis-title {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.performance-curve .curve-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+.performance-curve .curve-capacity {
+  stroke: var(--accent);
+}
+
+.performance-curve circle.curve-capacity {
+  fill: var(--accent);
+}
+
+.performance-curve .curve-power {
+  stroke: var(--warn);
+}
+
+.performance-curve circle.curve-power {
+  fill: var(--warn);
+}
+
+.performance-curve .curve-torque {
+  stroke: var(--pos);
+}
+
+.performance-curve circle.curve-torque {
+  fill: var(--pos);
+}
+
+.performance-curves {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.performance-curve h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px;
+  text-align: center;
+}
+
+.curve-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.curve-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.curve-swatch {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.curve-swatch.curve-capacity {
+  background: var(--accent);
+}
+
+.curve-swatch.curve-power {
+  background: var(--warn);
+}
+
+.curve-swatch.curve-torque {
+  background: var(--pos);
+}
+
+.detail-empty {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.remarks-text {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* Witness/Inspector/Recorder: Name is typed/digital, Signature is always a
+ * blank line meant to be signed by hand on the printed sheet — even when
+ * Name is already filled in. */
+.sign-off-table thead th {
+  width: auto;
+  text-align: left;
+}
+
+.sign-off-table td.signature-line {
+  min-width: 160px;
+  border-bottom: 1px solid var(--text-muted);
+}
+
+.remarks-box {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  min-height: 70px;
+}
+
+.remarks-box-blank {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 21px,
+    var(--border) 22px
+  );
+  background-position: 0 26px;
+}
+
+.remarks-placeholder {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  .report-detail-page {
+    max-width: none;
+    gap: 12px;
+  }
+
+  .print-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 14px;
+    margin-bottom: 6px;
+    border-bottom: 2px solid var(--border-strong);
+  }
+
+  .print-header img {
+    height: 44px;
+    width: auto;
+  }
+
+  .print-header strong {
+    display: block;
+    font-size: 15px;
+    color: var(--text-h);
+  }
+
+  .print-header span {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .detail-header-actions,
+  .format-pill {
+    display: none !important;
+  }
+
+  .report-detail-page .detail-card {
+    box-shadow: none;
+    border: 1px solid var(--border);
+    break-inside: avoid;
+  }
+
+  .sheet-table-wrapper {
+    overflow: visible;
+  }
+
+  .points-sheet-table {
+    min-width: 0;
+    font-size: 9px;
+  }
+
+  .sheet-table th,
+  .sheet-table td {
+    padding: 4px 6px;
+  }
+
+  /* Keep the curve inside the A4 text block, and stop the browser dropping
+   * the series colours the way it does with background fills. */
+  .performance-curve svg {
+    max-width: 160mm;
+    margin: 0 auto;
+  }
+
+  .performance-curve .curve-line,
+  .performance-curve circle,
+  .curve-swatch {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

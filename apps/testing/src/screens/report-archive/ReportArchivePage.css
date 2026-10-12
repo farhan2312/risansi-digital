@@ -1,0 +1,174 @@
+.archive-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Matches the Admin section's page padding convention -- see
+   * DashboardPage.css's identical comment. */
+  padding: 40px;
+}
+
+.archive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.archive-header h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.archive-search {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+  width: 260px;
+}
+
+.archive-error {
+  color: var(--neg);
+  background: var(--neg-soft);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.archive-empty {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.archive-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.archive-table th,
+.archive-table td {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.archive-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+  background: var(--bg-sunk);
+}
+
+.archive-table a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.archive-table a:hover {
+  text-decoration: underline;
+}
+
+.pump-row {
+  cursor: pointer;
+}
+
+.pump-row:hover {
+  background: var(--surface-hover);
+}
+
+.expand-toggle {
+  width: 24px;
+  text-align: center !important;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.pump-model-cell {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.format-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.format-badge.present {
+  background: var(--pos-soft);
+  color: var(--pos);
+}
+
+.format-badge.missing {
+  background: var(--bg-sunk);
+  color: var(--text-muted);
+}
+
+.pump-detail-row td {
+  padding: 0 14px 14px !important;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.nested-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-sunk);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.nested-report-table th,
+.nested-report-table td {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.nested-report-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.nested-report-table tr:last-child td {
+  border-bottom: none;
+}
+
+.nested-report-table a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.nested-report-table a:hover {
+  text-decoration: underline;
+}
+
+/* Flags a report row that didn't reach its rated head/capacity/power --
+ * still a valid, submittable report (informational only). */
+.nested-report-table tr.requirement-row-not-met td {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+/* Flags a single Max VE / Max ME cell that's below the model's own acceptance criteria -- only that
+ * field turns red, never the whole row (a report can miss VE/ME while still meeting Head/Capacity/Power). */
+.nested-report-table td.requirement-cell-not-met {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+.nested-report-table .requirement-flag {
+  margin-left: 4px;
+  cursor: help;
+}

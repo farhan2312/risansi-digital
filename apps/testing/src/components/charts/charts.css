@@ -1,0 +1,172 @@
+/* Chart palette -- categorical slots in fixed order (validated with the
+ * dataviz skill's validate_palette.js against THIS app's surfaces: #ffffff
+ * light, #132240 dark -- all gates pass). Color follows the entity, never
+ * its rank: a given status/series keeps its slot on every chart. */
+.viz-root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-1-wash: rgba(42, 120, 214, 0.1);
+
+  /* Status -- reserved for good/bad meaning, always paired with icon + label. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
+
+  /* Sequential (heatmap) -- one hue, light -> dark. */
+  --seq-lo: #cde2fb;
+  --seq-hi: #184f95;
+  /* Text on the darkest sequential cells (flips in dark mode, where high = light). */
+  --seq-on-hi: #ffffff;
+
+  --viz-grid: #e9edf3;
+  --viz-axis: #c9d1dc;
+}
+
+[data-theme="dark"] .viz-root {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-1-wash: rgba(57, 135, 229, 0.14);
+
+  /* Dark is its own selected ramp, not a flip: near-zero sits close to
+   * the navy surface, high values run toward light. */
+  --seq-lo: #1c4a86;
+  --seq-hi: #9ec5f4;
+  --seq-on-hi: #0b1a33;
+
+  --viz-grid: rgba(255, 255, 255, 0.07);
+  --viz-axis: rgba(255, 255, 255, 0.16);
+}
+
+.viz-tooltip {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+  min-width: 132px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.viz-focusable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Premium KPI card ----------
+ * Tint (--kpi-tint) is set per card and only ever colors the decoration:
+ * top stripe, corner glow, icon chip, sparkline. Numbers and labels stay in
+ * ink; status meaning is carried by icon + label, never the tint alone. */
+.kpi-card {
+  --kpi-tint: var(--series-1);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  text-decoration: none;
+  background:
+    radial-gradient(230px 130px at 100% 0%, color-mix(in oklab, var(--kpi-tint) 17%, transparent), transparent 70%),
+    linear-gradient(165deg, var(--surface) 52%, color-mix(in oklab, var(--kpi-tint) 6%, var(--surface)));
+  box-shadow:
+    0 1px 2px rgba(10, 22, 40, 0.05),
+    0 12px 28px -20px color-mix(in oklab, var(--kpi-tint) 60%, transparent);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--kpi-tint), transparent 82%);
+}
+a.kpi-card {
+  cursor: pointer;
+}
+a.kpi-card:hover,
+a.kpi-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--kpi-tint) 42%, var(--border));
+  box-shadow:
+    0 2px 4px rgba(10, 22, 40, 0.06),
+    0 20px 36px -18px color-mix(in oklab, var(--kpi-tint) 70%, transparent);
+}
+a.kpi-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.kpi-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  font-size: 17px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--kpi-tint) 24%, var(--surface)), color-mix(in oklab, var(--kpi-tint) 8%, var(--surface)));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--kpi-tint) 28%, transparent);
+}
+
+.kpi-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.kpi-value {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+}
+
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-delta--good {
+  background: var(--pos-soft);
+  color: var(--pos-strong);
+}
+.kpi-delta--bad {
+  background: var(--neg-soft);
+  color: var(--neg-strong);
+}
+.kpi-delta--flat {
+  background: var(--bg-sunk);
+  color: var(--text-muted);
+}
+
+.kpi-arrow {
+  font-size: 13px;
+  color: var(--text-faint);
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+a.kpi-card:hover .kpi-arrow {
+  transform: translateX(3px);
+  color: var(--kpi-tint);
+}

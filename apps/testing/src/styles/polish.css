@@ -1,0 +1,356 @@
+/* Visual polish for every screen inside the signed-in shell.
+ *
+ * Loaded once by DashboardLayout. It restyles shared building blocks -- the
+ * sidebar, top bar, page background, list tables, filter bars, status tabs
+ * and pills -- rather than individual pages, so all of them move together.
+ * Everything is built from theme tokens (color-mix), so dark mode follows,
+ * and print (theme.css forces light tokens) is reset at the bottom.
+ *
+ * Selectors are scoped under .testing-layout / .testing-main so they out-rank
+ * the single-class rules in the per-page stylesheets without !important. */
+
+/* ================= SHELL ================= */
+
+/* A whisper of colour behind the content, so the page isn't a flat slab. */
+.testing-layout .testing-main {
+  background:
+    radial-gradient(900px 420px at 0% -8%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 70%),
+    radial-gradient(760px 380px at 100% 0%, color-mix(in oklab, #2aa0d8 7%, transparent), transparent 70%),
+    var(--bg-app);
+  background-attachment: local;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--text-muted) 40%, transparent) transparent;
+}
+
+/* ---------- Sidebar ---------- */
+
+.testing-layout .testing-sidebar {
+  background:
+    radial-gradient(260px 220px at 0% 0%, rgba(42, 160, 216, 0.16), transparent 70%),
+    linear-gradient(180deg, #0b1a30 0%, #0a1628 60%, #081221 100%);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.04), 12px 0 32px -22px rgba(0, 0, 0, 0.6);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.testing-layout .testing-sidebar-logo {
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(10, 22, 40, 0.05);
+}
+
+.testing-layout .testing-nav {
+  gap: 3px;
+}
+
+.testing-layout .testing-nav-group-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 0 8px 10px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  opacity: 0.85;
+}
+.testing-layout .testing-nav-group-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.14), transparent);
+}
+
+.testing-layout .testing-nav a {
+  display: flex;
+  align-items: center;
+  padding: 9px 12px;
+  border-radius: 11px;
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.testing-layout .testing-nav a:hover {
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateX(3px);
+}
+
+.testing-layout .testing-nav a.active {
+  color: #fff;
+  font-weight: 600;
+  background: linear-gradient(100deg, var(--accent) 0%, color-mix(in oklab, var(--accent) 58%, #2aa0d8) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 10px 22px -12px color-mix(in oklab, var(--accent) 90%, transparent);
+}
+.testing-layout .testing-nav a.active:hover {
+  transform: none;
+}
+.testing-layout .testing-nav a.active::before {
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--sidebar-accent);
+  box-shadow: 0 0 14px var(--sidebar-accent);
+}
+
+.testing-layout .testing-nav a:focus-visible {
+  outline: 2px solid var(--sidebar-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Top bar ---------- */
+
+.testing-layout .testing-topbar {
+  /* Above the page's own layers, so the notification dropdown is never painted under a card. */
+  position: relative;
+  z-index: 30;
+  height: 54px;
+  background: color-mix(in oklab, var(--surface) 84%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 10px 28px -22px rgba(10, 22, 40, 0.35);
+}
+
+.testing-layout .topbar-breadcrumb a {
+  padding: 3px 6px;
+  border-radius: 6px;
+  text-decoration: none;
+}
+.testing-layout .topbar-breadcrumb a:hover {
+  background: var(--accent-soft);
+  text-decoration: none;
+}
+.testing-layout .topbar-breadcrumb-current {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.testing-layout .topbar-bell-btn,
+.testing-layout .topbar-report-bug-btn {
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(10, 22, 40, 0.05);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.testing-layout .topbar-bell-btn:hover:not(:disabled),
+.testing-layout .topbar-report-bug-btn:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -12px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+.testing-layout .topbar-bell-btn:focus-visible,
+.testing-layout .topbar-report-bug-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.testing-layout .topbar-alerts-panel {
+  border-radius: 16px;
+  box-shadow: 0 24px 60px -24px rgba(10, 22, 40, 0.45);
+  animation: polish-pop 0.16s ease-out;
+}
+@keyframes polish-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+/* ---------- Page transition ---------- */
+
+/* Opacity + a small rise on every navigation. `backwards` (not `both`) so no
+ * transform lingers afterwards -- a lingering transform would trap any
+ * position:fixed modal inside the page's box. */
+.testing-layout .testing-main > * {
+  animation: polish-page-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+@keyframes polish-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* One consistent keyboard-focus ring. */
+.testing-layout .testing-main :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 28%, transparent);
+}
+
+/* ================= LISTS: TABLES, FILTERS, TABS, PILLS ================= */
+
+/* Standalone list tables become rounded, lightly shadowed cards with a quiet
+ * uppercase header. Direct-child selectors only, so nested tables inside an
+ * expanded row keep their own styling. */
+.testing-layout .testing-main :is(.requisition-table, .archive-table) {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px rgba(10, 22, 40, 0.04),
+    0 18px 38px -28px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
+.testing-layout .testing-main :is(.requisition-table, .archive-table) > thead > tr > th {
+  padding: 13px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: color-mix(in oklab, var(--bg-sunk) 50%, var(--surface));
+  border-bottom: 1px solid var(--border);
+}
+
+.testing-layout .testing-main :is(.requisition-table, .archive-table) > tbody > tr > td {
+  padding: 12px 14px;
+  vertical-align: middle;
+}
+
+.testing-layout .testing-main :is(.requisition-table, .archive-table) > tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.testing-layout .testing-main :is(.requisition-table, .archive-table) > tbody > tr {
+  transition: background-color 0.14s ease;
+}
+.testing-layout .testing-main :is(.requisition-table, .archive-table) > tbody > tr:hover {
+  background: color-mix(in oklab, var(--accent) 5%, var(--surface));
+}
+
+/* ---------- Filter bar: one tidy card ---------- */
+
+.testing-layout .testing-main .filter-bar {
+  padding: 14px 16px;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(10, 22, 40, 0.04);
+}
+
+.testing-layout .testing-main .filter-bar :is(input, select) {
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.testing-layout .testing-main .filter-bar :is(input, select):hover {
+  border-color: var(--accent-line);
+}
+.testing-layout .testing-main .filter-bar :is(input, select):focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+.testing-layout .testing-main .clear-filters-btn {
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 600;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.testing-layout .testing-main .clear-filters-btn:hover {
+  color: var(--neg);
+  border-color: color-mix(in oklab, var(--neg) 40%, var(--border));
+  background: var(--neg-soft);
+}
+
+/* ---------- Status tabs + result pills ---------- */
+
+.testing-layout .testing-main .status-tabs {
+  gap: 6px;
+}
+.testing-layout .testing-main .status-tabs button {
+  padding: 8px 18px;
+  font-weight: 600;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.testing-layout .testing-main .status-tabs button:hover:not(.active) {
+  color: var(--text-h);
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+}
+.testing-layout .testing-main .status-tabs button.active {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(100deg, var(--accent), color-mix(in oklab, var(--accent) 60%, #2aa0d8));
+  box-shadow: 0 10px 20px -12px color-mix(in oklab, var(--accent) 90%, transparent);
+}
+
+.testing-layout .testing-main .report-result-pill {
+  padding: 6px 14px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.testing-layout .testing-main .report-result-pill:hover {
+  transform: translateY(-1px);
+}
+
+/* A status dot in front of every status pill -- state reads from the label
+ * and the dot, not the tint alone. */
+.testing-layout .testing-main .status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  white-space: nowrap;
+}
+.testing-layout .testing-main .status-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.testing-layout .testing-main :is(.dashboard-error, .archive-error) {
+  border-radius: 14px;
+  border: 1px solid color-mix(in oklab, var(--neg) 30%, transparent);
+}
+
+/* ================= PRINT ================= */
+/* Export PDF prints straight from these pages: no glow, no motion, no cards. */
+@media print {
+  .testing-layout .testing-main {
+    background: none;
+  }
+  .testing-layout .testing-main > * {
+    animation: none;
+  }
+  .testing-layout .testing-main :is(.requisition-table, .archive-table),
+  .testing-layout .testing-main .filter-bar {
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .hero-card {
+    background: none;
+    box-shadow: none;
+    border: 0;
+  }
+  .hero-card::before,
+  .hero-card::after {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .testing-layout .testing-main > *,
+  .testing-layout .topbar-alerts-panel {
+    animation: none;
+  }
+  .testing-layout .testing-nav a,
+  .testing-layout .status-tabs button {
+    transition: none;
+  }
+}

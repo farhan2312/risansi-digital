@@ -1,0 +1,218 @@
+.pump-index-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Matches the Admin section's page padding convention -- see
+   * DashboardPage.css's identical comment. */
+  padding: 40px;
+}
+
+.pump-index-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pump-index-header h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.pump-index-search {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+  width: 260px;
+}
+
+.pump-index-stats {
+  display: grid;
+  /* Fixed 7-up (one tile per stat), shrinking rather than wrapping to a
+   * second row -- minmax(0, 1fr) lets a column go narrower than its
+   * content's natural width instead of forcing the grid to wrap. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  box-shadow: var(--shadow);
+}
+
+.pump-index-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pump-index-stat .stat-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-h);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.pump-index-stat .stat-value-pos {
+  color: var(--pos);
+}
+
+.pump-index-stat .stat-value-neg {
+  color: var(--neg);
+}
+
+/* "Not judged": neither good nor bad, so neither green nor red. */
+.pump-index-stat .stat-value-muted {
+  color: var(--text-muted);
+}
+
+/* Narrow screens: two or three tiles per row instead of crushing six into one. */
+@media (max-width: 1000px) {
+  .pump-index-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .pump-index-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.pump-index-stat .stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pump-index-stat-btn {
+  border: 1px solid transparent;
+  background: none;
+  border-radius: 8px;
+  /* Horizontal padding/margin must not exceed half the grid's gap (14px) --
+   * otherwise two adjacent tiles' expanded hit-areas overlap in the gutter
+   * between them, and a click near the boundary can land on the wrong tile. */
+  padding: 8px 7px;
+  margin: -8px -7px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.pump-index-stat-btn:hover {
+  background-color: var(--surface-hover);
+}
+
+/* Hover / keyboard-focus details for a tile: what it counts and how it relates to the other tiles. */
+.pump-index-stat-btn {
+  position: relative;
+}
+
+.pump-index-stat-tip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 280px;
+  max-width: 80vw;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--text-h);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+}
+
+/* The last two tiles sit at the right edge -- open their details leftwards so they stay on screen. */
+.pump-index-stat-tip--end {
+  left: auto;
+  right: 0;
+}
+
+.pump-index-stat-btn:hover > .pump-index-stat-tip,
+.pump-index-stat-btn:focus-visible > .pump-index-stat-tip {
+  display: block;
+}
+
+.pump-index-stat-btn.active {
+  background-color: var(--accent-soft, var(--surface-hover));
+  border-color: var(--accent);
+}
+
+.pump-index-match-pos {
+  color: var(--pos);
+  font-weight: 600;
+}
+
+.pump-index-match-neg {
+  color: var(--neg);
+  font-weight: 600;
+}
+
+/* "Assign Retest" pill, alongside View Report / View Curve -- a <button>,
+ * not a <Link>, so it needs the border/background reset .status-pill's
+ * <a>-oriented siblings get for free. */
+.assign-retest-pill {
+  border: none;
+  background: var(--warn-soft);
+  color: var(--warn);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.assign-retest-pill:hover:not(:disabled) {
+  background: var(--warn);
+  color: #fff;
+}
+
+.assign-retest-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Rated + every measured point for one field, in the Report Compilation
+ * expanded rows -- two short lines instead of a single slash-joined string. */
+.pump-index-rated-vs-measured {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+}
+
+.pump-index-rated-vs-measured > div:first-child {
+  font-weight: 600;
+}
+
+.pump-index-filter-note {
+  margin: -8px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pump-index-filter-clear {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pump-index-filter-clear:hover {
+  text-decoration: underline;
+}

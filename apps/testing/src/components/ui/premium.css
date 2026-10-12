@@ -1,0 +1,344 @@
+/* "Premium" page hero -- layered gradient + soft accent glow + a faint dot
+ * pattern, a gradient icon tile, and a frosted footer band. Everything is
+ * built from the app's theme tokens via color-mix, so light, dark and print
+ * (theme.css forces light tokens under @media print) all follow for free. */
+
+.hero-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background:
+    radial-gradient(760px 240px at 100% -30%, color-mix(in oklab, var(--accent) 24%, transparent), transparent 70%),
+    radial-gradient(520px 200px at -5% 130%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 70%),
+    linear-gradient(135deg, var(--surface) 30%, color-mix(in oklab, var(--accent) 7%, var(--surface)));
+  box-shadow:
+    0 1px 2px rgba(10, 22, 40, 0.05),
+    0 18px 40px -22px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+
+/* Dot pattern, fading out toward the left so it never sits behind the title. */
+.hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(color-mix(in oklab, var(--accent) 30%, transparent) 1px, transparent 1.4px);
+  background-size: 18px 18px;
+  opacity: 0.55;
+  -webkit-mask-image: linear-gradient(to left, #000 0%, transparent 52%);
+  mask-image: linear-gradient(to left, #000 0%, transparent 52%);
+}
+
+/* Hairline highlight along the top edge. */
+.hero-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--accent) 55%, transparent) 40%, transparent);
+}
+
+.hero-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  font-size: 24px;
+  line-height: 1;
+  color: #fff;
+  background: linear-gradient(140deg, color-mix(in oklab, var(--accent) 78%, #fff), var(--accent) 55%, color-mix(in oklab, var(--accent) 80%, #000));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 22px -8px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+
+.hero-eyebrow {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* Two classes so it beats `.testing-main h1 { font-size: 20px }` in DashboardLayout.css. */
+.hero-card .hero-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-h);
+}
+
+.hero-subtitle {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.hero-footer {
+  border-top: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* Primary call-to-action: a lit pill with a colored glow. */
+.hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  padding: 11px 20px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 650;
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 86%, #fff), var(--accent));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 10px 20px -10px color-mix(in oklab, var(--accent) 85%, transparent);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.hero-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 14px 24px -10px color-mix(in oklab, var(--accent) 90%, transparent);
+}
+.hero-btn:active {
+  transform: translateY(0);
+}
+
+/* A figure in the hero's stat strip. */
+.hero-stat-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  font-size: 18px;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--stat-tint, var(--accent)) 22%, var(--surface)), color-mix(in oklab, var(--stat-tint, var(--accent)) 8%, var(--surface)));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--stat-tint, var(--accent)) 26%, transparent);
+}
+
+.hero-stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+}
+
+/* ---------- Date-range control ----------
+ * A soft recessed track holding pill buttons (the active one is a lit accent
+ * gradient), next to a From -> To box with borderless native date fields.
+ * Every property is set explicitly, so it never depends on a reset. */
+.range-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--bg-sunk) 55%, var(--surface));
+  box-shadow: inset 0 1px 2px rgba(10, 22, 40, 0.06);
+}
+
+.range-pill {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.range-pill:hover {
+  color: var(--text-h);
+  background: color-mix(in oklab, var(--surface) 85%, transparent);
+}
+.range-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.range-pill[aria-pressed="true"] {
+  color: #fff;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 86%, #fff), var(--accent));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 6px 14px -6px color-mix(in oklab, var(--accent) 85%, transparent);
+}
+
+.range-dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(10, 22, 40, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.range-dates:focus-within {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.range-dates-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.range-dates-arrow {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.date-plain {
+  min-width: 112px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+  outline: none;
+  cursor: pointer;
+}
+.date-plain::-webkit-calendar-picker-indicator {
+  padding: 2px;
+  border-radius: 4px;
+  opacity: 0.5;
+  cursor: pointer;
+}
+.date-plain::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+/* theme.css forces every dark-mode <input> onto the "sunk" well with !important --
+ * this control sits on its own box, so opt back out (and light up the picker icon). */
+[data-theme="dark"] .date-plain {
+  color-scheme: dark;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: var(--text-h) !important;
+}
+
+/* ---------- Podium medals (Audit Log top-3) ---------- */
+.medal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.medal--1 {
+  color: #4a3200;
+  background: linear-gradient(140deg, #ffe58a, #f5b301 58%, #c98a00);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 8px 14px -8px rgba(245, 179, 1, 0.9);
+}
+.medal--2 {
+  color: #2b3442;
+  background: linear-gradient(140deg, #f4f6fa, #b4bdcb 58%, #838ea0);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 8px 14px -8px rgba(131, 142, 160, 0.9);
+}
+.medal--3 {
+  color: #3a1f08;
+  background: linear-gradient(140deg, #f5c9a2, #cd7f32 58%, #9a5a1c);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 8px 14px -8px rgba(205, 127, 50, 0.9);
+}
+
+/* ---------- Page-header variant (the shared PageHeader on every screen) ---------- */
+
+/* Decorative layers follow the card's rounded corners. */
+.hero-card::before,
+.hero-card::after {
+  border-radius: inherit;
+}
+
+/* Lets header actions (dropdowns, popovers) escape the card instead of being clipped. */
+.hero-card--open {
+  overflow: visible;
+}
+
+/* Tighter than the dashboard hero: same look, screen-header proportions. */
+.hero-card.hero-compact .hero-title {
+  font-size: 24px;
+}
+.hero-compact .hero-badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  font-size: 21px;
+}
+
+/* Secondary + danger buttons that sit beside .hero-btn. */
+.hero-btn--secondary {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 1px 2px rgba(10, 22, 40, 0.06);
+}
+.hero-btn--secondary:hover {
+  filter: none;
+  color: var(--text-h);
+  border-color: var(--accent-line);
+  background: var(--surface);
+  box-shadow: 0 10px 20px -14px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+.hero-btn--danger {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--neg) 86%, #fff), var(--neg));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 10px 20px -10px color-mix(in oklab, var(--neg) 85%, transparent);
+}
+.hero-btn:disabled,
+.hero-btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Dense hero (Overview): about half the height of the default. */
+.hero-card.hero-dense .hero-title {
+  font-size: 22px;
+}
+.hero-dense .hero-subtitle {
+  margin-top: 3px;
+  font-size: 13px;
+}
+.hero-dense .hero-btn {
+  padding: 9px 16px;
+  font-size: 13px;
+  border-radius: 10px;
+}

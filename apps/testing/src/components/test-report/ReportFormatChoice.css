@@ -1,0 +1,69 @@
+.format-choice-page {
+  max-width: 800px;
+}
+
+.format-choice-page .back-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+  display: inline-block;
+  margin-bottom: 12px;
+}
+
+.format-choice-page .back-link:hover {
+  text-decoration: underline;
+}
+
+.format-choice-page h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.format-choice-page .subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.format-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.format-card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-decoration: none;
+  color: var(--text);
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.format-card:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+}
+
+.format-card h2 {
+  font-size: 16px;
+  color: var(--text-h);
+  margin: 0 0 10px;
+}
+
+.format-card p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.format-card-cta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}

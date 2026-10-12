@@ -1,0 +1,218 @@
+.requisition-detail-page {
+  max-width: 900px;
+  margin-inline: auto; /* centred in the content area rather than hugging the sidebar */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.detail-header h1 {
+  font-size: 20px;
+  color: var(--text-h);
+  margin: 0 0 6px;
+}
+
+.back-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.edit-report-btn {
+  padding: 7px 16px;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  font-weight: 500;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.edit-report-btn:hover {
+  background: var(--surface-hover);
+}
+
+.detail-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.detail-card h2 {
+  font-size: 15px;
+  margin: 0 0 14px;
+  color: var(--text);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-grid .label,
+.prior-reports-table .label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.dedup-note {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+}
+
+.prior-reports-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14px;
+}
+
+.prior-reports-table th,
+.prior-reports-table td {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.prior-reports-table th {
+  color: var(--text-muted);
+  background: var(--bg-sunk);
+}
+
+.prior-reports-table a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.prior-reports-table a:hover {
+  text-decoration: underline;
+}
+
+/* Flags a report row that didn't reach its rated head/capacity/power --
+ * still a valid, submittable report (informational only). */
+.requirement-row-not-met td {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+.requirement-flag {
+  margin-left: 4px;
+  cursor: help;
+}
+
+/* Marks a Target Date that wasn't set by the source team -- auto-computed
+ * as Date of Requisition + 7 days instead. */
+.target-date-auto-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.retest-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.retest-actions button,
+.detail-card > button {
+  padding: 9px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+}
+
+.retest-actions button:hover,
+.detail-card > button:hover {
+  background: var(--accent-hover);
+}
+
+.retest-actions button.secondary {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+
+.retest-actions button.secondary:hover {
+  background: var(--surface-hover);
+}
+
+.retest-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.detail-empty {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-pending {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.status-in-testing {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.status-retest-needed {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+.status-closed {
+  background: var(--pos-soft);
+  color: var(--pos);
+}
+
+.status-view-report {
+  background: var(--pos-soft);
+  color: var(--pos) !important;
+  cursor: pointer;
+  text-decoration: none !important;
+}
+
+.status-view-report:hover {
+  background: var(--pos);
+  color: #fff !important;
+}
