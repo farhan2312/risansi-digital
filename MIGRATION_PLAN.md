@@ -347,6 +347,60 @@ proving unreliable, not a live escape hatch.
 - ~~Seed identity uuids to the existing testing uuids so nothing remaps.~~ **Not possible — see below.**
 - Both apps swap their verify for the shared one and read their grant. `users_pump` becomes a profile row.
 
+#### Phase 4a — move the code. No behaviour change.
+
+*Added 12 Oct 2026, and it should have been here from the start.* Decision
+§2.1 is one repository, but only sales ever got a written move step. Testing
+and Pump Selection need the same one, and it comes **before** the auth swap,
+not after.
+
+*Also decided 12 Oct: we run this migration ourselves rather than handing it
+to the portals' own developers. The "blocked on a conversation" note below
+now only covers retiring `admin@`.*
+
+**Why before.** The reason to be in this repo is to `import` from
+`packages/identity`. From outside it, those apps would reimplement the session
+format by hand and you would have two implementations of one contract drifting
+apart. Move first and the swap becomes an import. (`SESSION_CONTRACT.md`
+exists for the case where an app genuinely cannot import it.)
+
+**Why its own deploy.** Phase 1 is the model: move the code, change nothing,
+prove the site is the same application on the same domain, and only then
+change behaviour. That separation is what made the sales cutover survivable —
+when something broke, it was obvious which of the two changes did it.
+
+Per app, into `apps/testing` and `apps/select`:
+
+1. `git subtree` the repo in, history intact. Check for an orphan gitlink
+   first — sales carried a mode `160000` entry with no `.gitmodules`, which
+   leaves an empty directory on a fresh clone and makes `git submodule update`
+   fail.
+2. In that app's Vercel project, change the Git repository to
+   `risansi-digital` and set **Root Directory** to `apps/testing` /
+   `apps/select`.
+3. Leave every environment variable exactly as it is.
+4. Keep the domain on that project, and confirm any cron paths still resolve —
+   `vercel.json` travels with the app and is read relative to the root
+   directory.
+5. Move the CI workflow to `.github/workflows/<app>-ci.yml` at the repo root,
+   scoped with `paths`. GitHub only reads workflows from the root, so leaving
+   one inside the app silently stops it running.
+6. Deploy, then click through one page from each area before touching
+   anything else.
+
+Done when: the deployed site is the same application on the same domain, and
+nobody can tell it moved.
+
+**Two traps that will recur.** If the app is Next, `turbopack.root` and
+`outputFileTracingRoot` must both be set to the repo root *and agree* — Vercel
+sets `outputFileTracingRoot` itself, and when it disagrees Next discards yours
+and fails to resolve `@risansi/identity`. And on Windows the extra path depth
+plus Turbopack's long chunk filenames hits `MAX_PATH`; clone shallow or enable
+long paths.
+
+**Open before 4a can start:** neither repository is on this machine and the
+stack of each is unconfirmed. Both are needed before the subtree.
+
 #### Reconciliation, measured 11 Oct 2026
 
 Read-only, against the live databases. Four things the plan had wrong or had
@@ -430,12 +484,12 @@ Decided at the seed:
    email.
 2. ~~**Remap whatever points at the old uuids.**~~ **Not needed, and should not
    be done.** The audit below is why.
-3. **Both apps swap their verify** and read their grant. Neither codebase is
-   in this repo. (An earlier note here said both are Python on the strength of
-   `alembic_version`; the `app_roles` migration cites `.ts` files in both
-   projects, so the stack is genuinely unknown from here and is a question for
-   them. It barely matters: the contract is a cookie name, HS256, an issuer
-   and four claims.)
+3. **Both apps swap their verify** and read their grant — Phase 4b, after the
+   code move. The contract is written up in `SESSION_CONTRACT.md`. (An earlier
+   note here said both are Python on the strength of `alembic_version`; the
+   `app_roles` migration cites `.ts` files in both projects, so the stack is
+   still unconfirmed and settles whether they import `packages/identity` or
+   implement the contract.)
 4. `users_pump` becomes a profile row rather than an account table.
 
 #### Why the remap is off, measured 12 Oct 2026
