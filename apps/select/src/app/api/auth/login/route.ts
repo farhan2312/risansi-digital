@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME, createToken } from "@/lib/auth";
+import { resolveAccess } from "@/lib/effective-role";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { logAudit } from "@/lib/audit";
@@ -62,11 +63,27 @@ export async function POST(req: Request) {
     return error("Your account has been deactivated. Contact an administrator.", 403);
   }
 
+  // Phase 4b: the role in the token is the one identity grants, not
+  // users_pump.role. It has to be, because sessionVerdict() ends the session
+  // whenever the account's role stops matching the token's — so minting a
+  // local role here while the verdict reads the granted one would sign
+  // everybody out on their very next request, permanently.
+  const access = await resolveAccess(user.id);
+  if (!access || access.status !== "active") {
+    await logAudit(req, {
+      eventType: "login_failed",
+      action: "auth.login_denied",
+      actor: { id: user.id, email: user.email, role: user.role },
+      detail: access?.reason ?? "No access to Pump Selection",
+    });
+    return error(access?.reason ?? "You do not have access to Pump Selection.", 403);
+  }
+
   const token = createToken({
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
+    role: access.role,
     mustChangePassword: user.mustChangePassword,
   });
   await logAudit(req, {

@@ -53,6 +53,11 @@ export const users = pgTable("users_pump", {
   // change-password screen and can't reach the rest of the app until they pick
   // their own. Cleared by POST /api/auth/change-password.
   mustChangePassword: boolean("must_change_password").notNull().default(false),
+  // identity.users.id in the risansi_identity database. No FK: different
+  // database, and Postgres has no cross-database foreign key. Null for the
+  // accounts deliberately left out of the Phase 4 seed (admin@), which keep
+  // using `role` and `status` above until the cutover.
+  identityUserId: uuid("identity_user_id"),
   // Watermark for the top-bar bell's ADMIN feed: bug reports filed after this
   // instant are unread for this user. Opening the bell moves it to now().
   // A watermark rather than a per-report join table because the feed only

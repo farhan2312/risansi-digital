@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.72.0",
     "@hookform/resolvers": "^5.4.0",
+    "@risansi/identity": "file:../../packages/identity",
     "axios": "^1.18.1",
     "bcryptjs": "^3.0.2",
     "drizzle-orm": "^0.44.6",

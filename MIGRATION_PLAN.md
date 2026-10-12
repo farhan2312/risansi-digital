@@ -417,6 +417,44 @@ reference rather than a specification to implement. The Python that
 which has its own `shared/auth.py` — so Pump Selection authenticates in two
 runtimes and 4b has to change both.
 
+#### 4b, first half — the role comes from the grant. Done 12 Oct 2026.
+
+Both portals now read whether somebody may open them, and in which role,
+from `identity.app_grants`. Their own `users` / `users_pump` tables keep
+everything else and stay the primary key for all of it.
+
+Smaller than estimated, because neither app had the staleness bug sales did.
+Testing's `decodeToken` already re-read the account every request and
+overrode the token's role from it; Pump Selection ends the session whenever
+the account's role stops matching the token's. So it is two functions, not a
+sweep of 150 call sites.
+
+- **Testing** — `loadLiveUser()` in `src/lib/auth.ts`.
+- **Pump Selection** — `resolveAccess()` in `src/lib/effective-role.ts`,
+  shared by `session-guard.ts` *and* the login route. It has to be shared:
+  that app mints the role into the token and then signs people out when the
+  account's role stops matching it, so reading the role from two different
+  places would sign everybody out on their next request, permanently, with no
+  way for the mismatch to resolve.
+
+**Unlinked accounts keep the old behaviour**, and that is what makes this
+deployable on its own. The eight rows left out of the Phase 4 seed fall
+through to their local role and stop working at cutover, as agreed, rather
+than today.
+
+**Verified against live data before committing:** every linked account in
+both portals resolves to exactly the role it already holds. Deploying this
+changes nobody's access.
+
+Prerequisites done the same day: `0001_identity_user_id.sql` applied, and
+`identity_user_id` filled for 21 of 28 Testing rows and 12 of 13 Pump
+Selection rows — the gaps being exactly the deliberate exclusions.
+
+**Before either can run**, both need `IDENTITY_DB_HOST`, `IDENTITY_DB_NAME`,
+`IDENTITY_DB_USER`, `IDENTITY_DB_PASSWORD` (and optionally `_PORT`) in their
+environment. Neither is deployed from this repo yet, so nothing is live and
+nothing is broken; the variables go in when Vercel is repointed.
+
 **What 4b already has to deal with, found during the move:**
 
 - Both apps set `outputFileTracingRoot: import.meta.dirname`, pinning tracing

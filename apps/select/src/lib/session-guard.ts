@@ -7,10 +7,7 @@
  * admin carries on with their old access until the token expires. This
  * re-reads the account so any of those ends the session on the next request.
  */
-import { eq } from "drizzle-orm";
-
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { type Access, resolveAccess } from "@/lib/effective-role";
 
 /** The token fields the check compares against the account. */
 export interface SessionClaims {
@@ -18,12 +15,6 @@ export interface SessionClaims {
   role?: unknown;
   mustChangePassword?: unknown;
   iat?: unknown;
-}
-
-interface Account {
-  status: string | null;
-  role: string | null;
-  mustChangePassword: boolean;
 }
 
 /** How long a looked-up account is reused before the database is asked
@@ -37,11 +28,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // On globalThis so dev hot-reload keeps one cache rather than one per reload
 // (same reason the DB pool lives there).
 const globalForSession = globalThis as unknown as {
-  __pumpSessionAccounts?: Map<string, { account: Account | null; at: number }>;
+  __pumpSessionAccounts?: Map<string, { account: Access | null; at: number }>;
 };
 const accounts = (globalForSession.__pumpSessionAccounts ??= new Map());
 
-async function loadAccount(userId: string, issuedAtMs: number): Promise<Account | null> {
+async function loadAccount(userId: string, issuedAtMs: number): Promise<Access | null> {
   const cached = accounts.get(userId);
   // A cached read from before this token was issued can't be trusted for it:
   // someone reactivated or promoted a moment ago and then signing in must not
@@ -49,16 +40,12 @@ async function loadAccount(userId: string, issuedAtMs: number): Promise<Account 
   if (cached && cached.at >= issuedAtMs && Date.now() - cached.at < ACCOUNT_CACHE_MS) {
     return cached.account;
   }
-  const [row] = await db
-    .select({
-      status: users.status,
-      role: users.role,
-      mustChangePassword: users.mustChangePassword,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  const account = row ?? null;
+  // Phase 4b: the role now comes from identity.app_grants, not from
+  // users_pump.role. resolveAccess() is shared with the login route for a
+  // reason — see the note at the top of effective-role.ts. If these two ever
+  // read the role from different places, the mismatch test below can never
+  // be satisfied and everybody is signed out on their next request.
+  const account = await resolveAccess(userId);
   accounts.set(userId, { account, at: Date.now() });
   return account;
 }
