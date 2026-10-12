@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { Topbar, Sparkline, MiniBars, Donut, Tag } from '@/components/risansi';
 import { ExportPdfButton } from '@/components/risansi/ExportPdfButton';
+import { OwnedOnlyToggle } from '@/components/risansi/OwnedOnlyToggle';
 import { RefreshButton } from '@/components/risansi/RefreshButton';
 import Link from 'next/link';
 import risansiPool from '@/lib/db-risansi';
@@ -144,7 +145,11 @@ export default async function ExecDashboardPage({ searchParams }: {
 
   // Per-user visibility predicates (inline integer ids, no params).
   const currentUser = await getCurrentUser();
-  const scope = dashScope(currentUser);
+  // "Only my accounts": narrows every figure to the accounts this person is
+  // primary rep on. Off by default, which is what the page has always shown —
+  // owned plus covered. See OwnedOnlyToggle for why it exists.
+  const ownedOnly = sp.owned === '1';
+  const scope = dashScope(currentUser, ownedOnly);
   const { cVisAnd, oppOwnerAnd, visitOwnerAnd } = scope;
 
   // Only admin / sysadmin see the full company dashboard (incl. the target).
@@ -288,6 +293,9 @@ export default async function ExecDashboardPage({ searchParams }: {
             <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 3 }}>
               {formatIndianDate(today)}
               {!repId && ' · Rep profile not linked — contact admin to sync your account'}
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <OwnedOnlyToggle />
             </div>
           </div>
 

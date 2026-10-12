@@ -348,6 +348,30 @@ export function clientScopeSql(
   return `(${base} OR (${ownOpen.split(':uid').join(String(uid))}))`;
 }
 
+/**
+ * Narrow a view to the accounts this person actually owns.
+ *
+ * NOT a permission. `clientScopeSql` and `clientVisibilitySql` above decide
+ * what somebody is allowed to see, and this never widens that — it is only
+ * ever ANDed on top. It answers a different question: of the accounts I can
+ * see, which are mine rather than ones I cover for a colleague.
+ *
+ * It exists because the Executive Review counts owned accounts only while the
+ * Opportunities board counts owned plus covered, so the same rep saw two
+ * different Lost totals on 12 Oct — ₹1.69 Cr against ₹2.74 Cr — and had no
+ * way to tell which question either page was answering. Now they can ask.
+ *
+ * "Owned" is `primary_rep_id`, the same definition the Executive Review's own
+ * scope selector uses. Deliberately not widened to a manager's team: a
+ * manager ticking "only mine" is asking for their own book, and if it meant
+ * "my team's" the box would do nothing for them.
+ */
+export function ownedOnlySql(user: CurrentUser, clientIdCol: string): string | null {
+  const uid = intOrNull(user.id);
+  if (uid == null) return null;
+  return `${clientIdCol} IN (SELECT id FROM clients WHERE primary_rep_id = ${uid})`;
+}
+
 /** The same rule against a `clients` query aliased `alias`. */
 export function clientVisibilitySql(user: CurrentUser, alias = 'c'): string | null {
   if (hasRole(user.role, 'admin')) return null;
