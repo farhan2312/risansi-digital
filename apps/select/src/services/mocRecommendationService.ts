@@ -19,9 +19,30 @@ export const MOC_AI_MATERIALS = [
   "Others"
 ] as const;
 
-/** Rotor and Shaft only: the standard list plus Tool Steel (before "Others"). */
-export const ROTOR_SHAFT_MATERIALS = [
-  ...MOC_AI_MATERIALS.filter((m) => m !== "Others"),
+// Per-component lists (house rules, 2026-10-13). "Others" lets the user type
+// any material; the AI's answers follow the same lists (lib/moc-ai-suggestion.ts
+// MOC_COMPONENT_OPTIONS - keep the two in step).
+const SS_GRADES = ["SS304", "SS316", "SS316L"] as const;
+
+/** Bearing Housing (or close-coupled drive end): CI as standard. */
+export const BEARING_HOUSING_MATERIALS = ["CI IS210 FG 260", "Others"] as const;
+/** Base Plate / Mounting Plate. */
+export const PLATE_MATERIALS = ["Mild Steel", ...SS_GRADES, "Others"] as const;
+/** Tie Rod and Nut & Bolt. */
+export const FASTENER_MATERIALS = ["Mild Steel", ...SS_GRADES, "Others"] as const;
+/** Stator Sleeve. */
+export const STATOR_SLEEVE_MATERIALS = ["Mild Steel", ...SS_GRADES, "Others"] as const;
+/** Cast iron and mild steel are never a shaft or rotor material. */
+const NOT_FOR_SHAFT_OR_ROTOR: readonly string[] = ["Others", "CI IS210 FG 260", "Mild Steel"];
+/** Shaft: the standard list with SS410 as "SS410 HT" (heat treated), plus Tool Steel. */
+export const SHAFT_MATERIALS = [
+  ...MOC_AI_MATERIALS.filter((m) => !NOT_FOR_SHAFT_OR_ROTOR.includes(m)).map((m) => (m === "SS410" ? "SS410 HT" : m)),
+  "Tool Steel",
+  "Others",
+] as const;
+/** Rotor: the standard list with SS410 as "SS410 HT HCP" (heat treated, hard-chrome plated), plus Tool Steel. */
+export const ROTOR_MATERIALS = [
+  ...MOC_AI_MATERIALS.filter((m) => !NOT_FOR_SHAFT_OR_ROTOR.includes(m)).map((m) => (m === "SS410" ? "SS410 HT HCP" : m)),
   "Tool Steel",
   "Others",
 ] as const;
