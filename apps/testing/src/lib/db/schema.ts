@@ -43,6 +43,10 @@ export const users = pgTable("users", {
   // Forces a password change on first login. Defaults true for new accounts;
   // cleared once the user successfully changes their password.
   mustChangePassword: boolean("must_change_password").notNull().default(true),
+  // identity.users.id in the risansi_identity database. No FK: different
+  // database. Null for the accounts deliberately not carried across at the
+  // Phase 4 seed, which keep using `role` and `status` above until cutover.
+  identityUserId: uuid("identity_user_id"),
 });
 
 export const testRequisitions = pgTable("test_requisitions", {

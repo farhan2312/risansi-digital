@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -52,7 +54,14 @@ const securityHeaders = [
 // resolution, so it's kept external here, same reason "pg" is.
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg", "pdfkit"],
-  outputFileTracingRoot: import.meta.dirname,
+  // @risansi/identity ships raw TypeScript and arrives as a `file:` dependency,
+  // so npm installs it as a symlink and Next compiles nothing there by default.
+  transpilePackages: ["@risansi/identity"],
+  // The repo root, not this directory, now that the app imports from
+  // ../../packages. Vercel sets this itself for a monorepo; when its value and
+  // ours disagree Next discards ours, which is how the sales deploy failed with
+  // "Can't resolve '@risansi/identity'" after a clean local build.
+  outputFileTracingRoot: path.join(import.meta.dirname, "..", ".."),
   // The admin-only documentation PDFs are read from disk at request time, so Vercel must bundle them
   // with that route's function (they are deliberately not in /public).
   outputFileTracingIncludes: { "/api/admin-docs/[name]": ["./private-docs/**/*"] },

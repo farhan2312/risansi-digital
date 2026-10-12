@@ -7,11 +7,16 @@
  * sales-portal-next separately if it should also move off Authorization
  * headers -- this file only controls testing-portal's own cookie.
  */
+import { mayOpen } from "@risansi/identity";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 import { db } from "./db";
+import { identityDb } from "./db-identity";
 import { users } from "./db/schema";
+
+/** This portal, as `identity.apps.slug` spells it. */
+const APP_SLUG = "testing";
 
 const JWT_ALGORITHM = "HS256" as const;
 const JWT_EXPIRY_SECONDS = 60 * 60 * 12; // 12 hours
@@ -101,28 +106,76 @@ export function createToken(user: TokenUser): string {
  * admin changes that account (same server instance; others catch up within
  * the TTL). */
 const LIVE_USER_TTL_MS = 10_000;
-const liveUserCache = new Map<string, { at: number; status: string | null; role: string | null }>();
+
+interface LiveUser {
+  /** "active" or anything else; only "active" may act. */
+  status: string | null;
+  role: string | null;
+  /** Why they were refused, when identity is the one refusing. */
+  reason: string | null;
+}
+
+const liveUserCache = new Map<string, { at: number } & LiveUser>();
 
 export function forgetCachedUser(userId: string): void {
   liveUserCache.delete(userId);
 }
 
-async function loadLiveUser(userId: string): Promise<{ status: string | null; role: string | null }> {
+/**
+ * Phase 4b: the role comes from Risansi Digital, not from this database.
+ *
+ * `identity.app_grants` is the source of truth for whether somebody may open
+ * this portal and in which role. `users.role` and `users.status` stay in the
+ * table and are still written by the admin screens, but they are no longer
+ * what the answer is read from — for anybody who has been linked.
+ *
+ * **Unlinked accounts keep the old behaviour, deliberately.** Seven rows were
+ * left out of the Phase 4 seed on purpose: the shared mailboxes, the test
+ * logins, and Narendra's duplicate. They have no identity row, so there is no
+ * grant to read, and refusing them here would lock them out weeks before the
+ * cutover that is supposed to do that. They fall through to `status` and
+ * `role` below and stop working on the day, as agreed — not today.
+ *
+ * The fallback is what makes this change safe to deploy on its own. If the
+ * identity link is wrong for somebody, they are refused and we hear about it
+ * from one person; if the whole thing is wrong, the fallback is already
+ * carrying everyone who matters.
+ */
+async function loadLiveUser(userId: string): Promise<LiveUser> {
   const hit = liveUserCache.get(userId);
   if (hit && Date.now() - hit.at < LIVE_USER_TTL_MS) return hit;
 
-  let row: { status: string | null; role: string | null } | undefined;
+  let row: { status: string | null; role: string | null; identityUserId: string | null } | undefined;
   try {
-    [row] = await db.select({ status: users.status, role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+    [row] = await db
+      .select({ status: users.status, role: users.role, identityUserId: users.identityUserId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
   } catch (err) {
     // A signed token whose subject isn't even a uuid can't belong to anyone.
-    if (String(err).includes("invalid input syntax")) return { status: null, role: null };
+    if (String(err).includes("invalid input syntax")) {
+      return { status: null, role: null, reason: null };
+    }
     throw err;
   }
 
-  const entry = { at: Date.now(), status: row?.status ?? null, role: row?.role ?? null };
-  liveUserCache.set(userId, entry);
-  return entry;
+  let live: LiveUser;
+  if (row?.identityUserId) {
+    const verdict = await mayOpen(identityDb, row.identityUserId, APP_SLUG);
+    live = verdict.allowed
+      // An Approved grant with no role is a fault, not a default: the foreign
+      // key on (app_slug, app_role) is MATCH SIMPLE, so null satisfies it.
+      // Falling back to the local role keeps somebody working rather than
+      // handing them an unassigned one.
+      ? { status: "active", role: verdict.appRole ?? row.role, reason: null }
+      : { status: "refused", role: null, reason: verdict.reason };
+  } else {
+    live = { status: row?.status ?? null, role: row?.role ?? null, reason: null };
+  }
+
+  liveUserCache.set(userId, { at: Date.now(), ...live });
+  return live;
 }
 
 export async function decodeToken(req: Request): Promise<TokenClaims> {
@@ -145,7 +198,11 @@ export async function decodeToken(req: Request): Promise<TokenClaims> {
 
   const live = await loadLiveUser(claims.sub);
   if (live.status !== "active") {
-    throw new AuthError("This account is not active.", 401);
+    // Identity's own wording when it is the one refusing — "waiting to be
+    // approved" and "was withdrawn" are different problems with different
+    // next steps, and collapsing both into "not active" sends people to the
+    // wrong person.
+    throw new AuthError(live.reason ?? "This account is not active.", 401);
   }
   return { ...claims, role: live.role ?? claims.role };
 }
