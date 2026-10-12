@@ -80,6 +80,7 @@ export default function PumpQtyStep({
   tags,
   onSaved,
   onNext,
+  nextLabel,
 }: {
   projectId: string;
   /** For the Technical Data Sheet button. */
@@ -89,6 +90,8 @@ export default function PumpQtyStep({
   /** A tag's saved code, quantity and parts, so the page's data follows. */
   onSaved: (tagId: string, productCode: string, quantity: number, codeParts: CodeParts | null) => void;
   onNext: () => void;
+  /** Label of the save-and-continue button. */
+  nextLabel?: string;
 }) {
   const [options, setOptions] = useState<CodeOption[] | null>(null);
   const [known, setKnown] = useState<Set<string>>(new Set());
@@ -123,6 +126,7 @@ export default function PumpQtyStep({
       }}
       onSaved={onSaved}
       onNext={onNext}
+      nextLabel={nextLabel}
     />
   );
 }
@@ -136,6 +140,7 @@ function Editor({
   onOptionAdded,
   onSaved,
   onNext,
+  nextLabel = "Next →",
 }: {
   techSource: { projectId: string; projectCode: string; projectName: string | null };
   projectId: string;
@@ -145,6 +150,7 @@ function Editor({
   onOptionAdded: (o: CodeOption) => void;
   onSaved: (tagId: string, productCode: string, quantity: number, codeParts: CodeParts | null) => void;
   onNext: () => void;
+  nextLabel?: string;
 }) {
   // What is saved now, per tag — the baseline for "changed".
   const saved = useMemo(
@@ -251,7 +257,7 @@ function Editor({
       {showTech && <EnquiryDocumentModal source={techSource} onClose={() => setShowTech(false)} />}
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0">
-          <h2 className="text-[14px] font-semibold text-fg">Pump &amp; Qty</h2>
+          <h3 className="text-[14px] font-semibold text-fg">Pump &amp; Qty</h3>
           <p className="text-[12px] text-fg-3">
             Build each tag&apos;s pump product code from its parts (prefilled from the pump selection) or pick an existing
             one, and set the number of pumps.
@@ -271,7 +277,7 @@ function Editor({
             {saving ? "Saving…" : "Save"}
           </button>
           <button type="button" className={btnPrimary} onClick={() => void save().then((ok) => ok && onNext())} disabled={saving}>
-            Next: Summary →
+            {nextLabel}
           </button>
         </div>
       </header>
@@ -434,7 +440,7 @@ function Editor({
       {(saveError || (showErrors && invalidIds.length > 0)) && (
         <p className="border-t border-line px-4 py-2.5 text-[12.5px] text-neg">
           {saveError ||
-            `${invalidIds.length} tag${invalidIds.length === 1 ? " needs" : "s need"} a complete product code and quantity before the Summary.`}
+            `${invalidIds.length} tag${invalidIds.length === 1 ? " needs" : "s need"} a complete product code and quantity before moving on.`}
         </p>
       )}
     </section>

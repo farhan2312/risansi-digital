@@ -87,7 +87,7 @@ const ApprovalStep = ({ onNext, onPrevious, onStepClick, formData }: Props) => {
 
   return (
     <div className="step-container">
-      <Stepper currentStep={8} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
+      <Stepper currentStep={9} maxStep={formData.wizardMaxStep} onStepClick={onStepClick} />
 
       <div className="step-card">
         <h2>Approval</h2>

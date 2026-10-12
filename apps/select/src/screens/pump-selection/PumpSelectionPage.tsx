@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import GeneralInformationStep from "../../components/pump-selection/GeneralInformationStep";
@@ -11,6 +11,7 @@ import SealingDetailsStep from "../../components/pump-selection/SealingDetailsSt
 import MocDetailsStep from "../../components/pump-selection/MocDetailsStep";
 import MotorRatingStep from "../../components/pump-selection/MotorRatingStep";
 import ApprovalStep from "../../components/pump-selection/ApprovalStep";
+import PumpQtyWizardStep from "../../components/pump-selection/PumpQtyWizardStep";
 import { ApprovalProvider } from "../../components/pump-selection/approval/ApprovalContext";
 import RecommendationStep from "../../components/pump-selection/RecommendationStep";
 import ProjectHeader from "../../components/projects/ProjectHeader";
@@ -114,8 +115,8 @@ const TABLE_FIELDS: Record<WizardInputTable, readonly string[]> = {
     "gearboxOutputRpm", "gearboxServiceFactor", "gearboxRatePerNos", "gearboxConfirmed",
     "gearboxRpmManual",
   ],
-  // Product code + quantity are edited on the Commercial page, not here — the
-  // wizard neither restores nor saves them.
+  // Product code + quantity: the Pump & Qty step (8) saves them itself, per
+  // tag, so the wizard neither restores nor saves them here.
   "pump-model-qty": [],
 };
 
@@ -134,9 +135,9 @@ const BOOLEAN_FIELDS = new Set([
 // the "" every other (string) field falls back to.
 const NUMBER_FIELDS = new Set(["wizardStep", "wizardMaxStep"]);
 
-// Pump Model & Qty was step 8 for a while (Sep 2026) and moved to the
-// Commercial page (2026-10-01); tags saved on step 10 then reopen on 9.
-const TOTAL_STEPS = 9;
+// Pump & Qty is step 8 (after Drive; back from the Commercial page,
+// 2026-10-12): Approval 9, Recommendation 10. Saved steps were shifted then.
+const TOTAL_STEPS = 10;
 
 // Keep a restored step inside the wizard's real range — a corrupt/stale value
 // shouldn't strand the user on a step that doesn't exist.
@@ -150,10 +151,9 @@ const clampStep = (n: unknown): number => {
 // (or stepper jump, or Previous) saves ONLY the step being left, not every
 // table. Steps 4+5 both write moc-sealing (MOC and Sealing share one table);
 // step 7's drive-system-specific table is appended conditionally at save time
-// (see stepTablesToSave). Step 8 (Approval) keeps its state in step_approval
-// via its own route, and step 9 (read-only Recommendation) writes nothing, so
-// neither has a wizard-input table. (Pump Model & Qty lives on the Commercial
-// page, not in the wizard.)
+// (see stepTablesToSave). Step 8 (Pump & Qty) saves its own table, step 9
+// (Approval) keeps its state in step_approval via its own route, and step 10
+// (read-only Recommendation) writes nothing, so none has a wizard-input table here.
 const STEP_TABLES: Record<number, WizardInputTable[]> = {
   1: ["general-info"],
   2: ["fluid-properties"],
@@ -164,6 +164,7 @@ const STEP_TABLES: Record<number, WizardInputTable[]> = {
   7: ["motor-drive"],
   8: [],
   9: [],
+  10: [],
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -475,6 +476,9 @@ const PumpSelectionPage = () => {
 
   // Bumped after a step's saves land, so ApprovalProvider re-reads statuses.
   const [approvalRefresh, setApprovalRefresh] = useState(0);
+  // The latest step-leave saves, so a step that reads the saved tag (Pump &
+  // Qty) can wait for them instead of racing them.
+  const pendingSaves = useRef<Promise<unknown>>(Promise.resolve());
 
   // Persists ONLY the step being left — one PUT per its table(s), not all of
   // them. Called on every navigation (Next / Previous / stepper jump).
@@ -491,7 +495,9 @@ const PumpSelectionPage = () => {
     // A real change can send that step's approval back to Pending on the
     // server; once the saves land, have the approval state re-read.
     if (saves.length > 0) {
-      void Promise.all(saves).then(() => setApprovalRefresh((n) => n + 1));
+      const all = Promise.all(saves);
+      pendingSaves.current = all;
+      void all.then(() => setApprovalRefresh((n) => n + 1));
     }
   };
 
@@ -617,18 +623,33 @@ const PumpSelectionPage = () => {
 
       case 8:
         return (
-          <ApprovalStep
+          <PumpQtyWizardStep
             onPrevious={() => goToStep(7)}
             onNext={() => goToStep(9)}
             onStepClick={jumpToStep}
             formData={formData}
+            projectId={project?.id}
+            tagId={project?.tagId}
+            projectCode={project?.code}
+            projectName={project?.name}
+            savesSettled={() => pendingSaves.current}
           />
         );
 
       case 9:
         return (
-          <RecommendationStep
+          <ApprovalStep
             onPrevious={() => goToStep(8)}
+            onNext={() => goToStep(10)}
+            onStepClick={jumpToStep}
+            formData={formData}
+          />
+        );
+
+      case 10:
+        return (
+          <RecommendationStep
+            onPrevious={() => goToStep(9)}
             formData={formData}
             selectedPump={selectedPump}
             setSelectedPump={setSelectedPump}
