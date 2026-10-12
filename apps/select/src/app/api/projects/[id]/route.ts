@@ -13,9 +13,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // internal tool and created_by is often null on legacy rows, so ownership
 // isn't enforced. (The /api/* routes aren't covered by the page middleware,
 // so the guard has to live here.)
-function guardAuth(req: Request): Response | null {
+async function guardAuth(req: Request): Promise<Response | null> {
   try {
-    decodeToken(req);
+    await decodeToken(req);
     return null;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
@@ -33,7 +33,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const denied = guardAuth(req);
+  const denied = await guardAuth(req);
   if (denied) return denied;
 
   const { id } = await params;
@@ -54,7 +54,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const denied = guardAuth(req);
+  const denied = await guardAuth(req);
   if (denied) return denied;
 
   const { id } = await params;
@@ -139,7 +139,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const denied = guardAuth(req);
+  const denied = await guardAuth(req);
   if (denied) return denied;
 
   const { id } = await params;

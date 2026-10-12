@@ -23,7 +23,7 @@ export async function PATCH(
 ) {
   let claims;
   try {
-    claims = requireSystemAdmin(req);
+    claims = await requireSystemAdmin(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
@@ -153,7 +153,7 @@ export async function DELETE(
 ) {
   let claims;
   try {
-    claims = requireSystemAdmin(req);
+    claims = await requireSystemAdmin(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;

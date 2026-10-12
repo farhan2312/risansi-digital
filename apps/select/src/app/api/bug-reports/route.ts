@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   const mine = new URL(req.url).searchParams.get("mine") === "1";
   let callerId: string;
   try {
-    callerId = (mine ? decodeToken(req) : requireSystemAdmin(req)).sub;
+    callerId = (mine ? await decodeToken(req) : await requireSystemAdmin(req)).sub;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
@@ -132,7 +132,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   let claims;
   try {
-    claims = decodeToken(req);
+    claims = await decodeToken(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;

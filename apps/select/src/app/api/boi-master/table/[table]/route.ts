@@ -15,9 +15,9 @@ export const dynamic = "force-dynamic";
 //      (drp-probe | drp-panel | shaft-dia, see lib/boi-tables.ts).
 // POST /api/boi-master/table/[table] — add a row. Admin only.
 
-function guardAdmin(req: Request): Response | null {
+async function guardAdmin(req: Request): Promise<Response | null> {
   try {
-    requireAdmin(req);
+    await requireAdmin(req);
     return null;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
@@ -26,7 +26,7 @@ function guardAdmin(req: Request): Response | null {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ table: string }> }) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
   const { table } = await params;
   const def = boiTable(table);
@@ -36,7 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ table: s
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ table: string }> }) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
   const { table } = await params;
   const def = boiTable(table);

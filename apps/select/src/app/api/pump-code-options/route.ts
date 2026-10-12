@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     .limit(1);
   if (existing) return json(existing);
 
-  const claims = tryDecodeToken(req);
+  const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && /^[0-9a-f-]{36}$/i.test(claims.sub) ? claims.sub : null;
   const [{ next }] = await db
     .select({ next: sql<number>`coalesce(max(${pumpCodeOption.sortOrder}), 0) + 1` })

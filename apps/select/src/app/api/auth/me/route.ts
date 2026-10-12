@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   let claims;
   try {
-    claims = decodeToken(req);
+    claims = await decodeToken(req);
   } catch (err) {
     if (err instanceof AuthError) return error(err.message, err.statusCode);
     return error("Unauthorized", 401);

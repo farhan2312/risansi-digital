@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
 // GET  /api/boi-master/vfd — every VFD row (BOI Master, VFD tab), smallest first.
 // POST /api/boi-master/vfd — add a row. Admin only.
 
-function guardAdmin(req: Request): Response | null {
+async function guardAdmin(req: Request): Promise<Response | null> {
   try {
-    requireAdmin(req);
+    await requireAdmin(req);
     return null;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
@@ -24,14 +24,14 @@ function guardAdmin(req: Request): Response | null {
 }
 
 export async function GET(req: Request) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
   const rows = await db.select().from(boiVfd).orderBy(asc(boiVfd.pnKw), asc(boiVfd.listPrice), asc(boiVfd.driveDescription));
   return json(rows);
 }
 
 export async function POST(req: Request) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
 
   let body: Record<string, unknown>;

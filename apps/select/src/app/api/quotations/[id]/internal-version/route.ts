@@ -39,7 +39,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const [current] = await db.select().from(quotation).where(eq(quotation.id, id)).limit(1);
   if (!current) return error("Quotation not found", 404);
 
-  const claims = tryDecodeToken(req);
+  const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
   const snapshot = await buildSnapshot(current.projectId, current.driveGroup);
 

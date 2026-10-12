@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const snapshot = await buildSnapshot(current.projectId, current.driveGroup);
   if (snapshot.tags.length === 0) return error("This enquiry has no tags to quote.", 400);
 
-  const claims = tryDecodeToken(req);
+  const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
 
   const result = await db.transaction(async (tx) => {

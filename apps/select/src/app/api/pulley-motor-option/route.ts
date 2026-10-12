@@ -37,9 +37,9 @@ function intOrNull(v: unknown): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-function guardAdmin(req: Request): Response | null {
+async function guardAdmin(req: Request): Promise<Response | null> {
   try {
-    requirePulleyMasterAccess(req);
+    await requirePulleyMasterAccess(req);
     return null;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
@@ -51,7 +51,7 @@ function guardAdmin(req: Request): Response | null {
 // master (belt children live in pulley_belt_option with a cascade-delete FK
 // to this table, exposed read-only via /pulley-motor-option/[id]/belts).
 export async function GET(req: Request) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
 
   const rows = await db
@@ -66,7 +66,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
 
   let body: Record<string, unknown>;

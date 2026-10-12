@@ -76,7 +76,7 @@ async function loadTag(tagId: string) {
 
 export async function GET(req: Request) {
   try {
-    decodeToken(req);
+    await decodeToken(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
@@ -92,7 +92,7 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    decodeToken(req);
+    await decodeToken(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
@@ -172,7 +172,7 @@ export async function PUT(req: Request) {
 export async function POST(req: Request) {
   let claims;
   try {
-    claims = decodeToken(req);
+    claims = await decodeToken(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;

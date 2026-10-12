@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   const sheet = techDocSheet(data, group);
   if (sheet.tags.length === 0) return error("No confirmed tag on this sheet.", 400);
 
-  const claims = tryDecodeToken(req);
+  const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
   let version = 0;
   try {

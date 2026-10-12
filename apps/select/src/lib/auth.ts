@@ -5,6 +5,8 @@
  */
 import jwt from "jsonwebtoken";
 
+import { SHARED_COOKIE, sharedSessionPayload } from "@/lib/effective-role";
+
 const JWT_ALGORITHM = "HS256" as const;
 const JWT_EXPIRY_SECONDS = 60 * 60 * 12; // 12 hours
 
@@ -79,7 +81,40 @@ export function createToken(user: TokenUser): string {
 /** Extract and verify the session token — from the httpOnly auth cookie
  * (the normal path for browser requests), falling back to a Bearer
  * Authorization header for any direct/non-browser API callers. */
-export function decodeToken(req: Request): TokenClaims {
+/**
+ * A Risansi Digital session, as this portal's claims.
+ *
+ * The resolving lives in `effective-role.ts` and is shared with middleware,
+ * which gates pages on the role it returns. Two implementations here would
+ * be a door that opens on one side and not the other.
+ *
+ * The shared cookie's `sub` is an `identity.users.id`; everything downstream
+ * expects `claims.sub` to be this app's own `users_pump.id` — the foreign key
+ * on projects, quotations and audit rows — so the translation happens there
+ * and the rest of the app never learns anything changed.
+ */
+async function sharedClaims(req: Request): Promise<TokenClaims | null> {
+  const p = await sharedSessionPayload(readCookie(req, SHARED_COOKIE));
+  if (!p) return null;
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    sub: p.sub,
+    name: p.name,
+    email: p.email,
+    role: p.role ?? "user",
+    mustChangePassword: p.mustChangePassword,
+    iat: now,
+    exp: now + JWT_EXPIRY_SECONDS,
+  };
+}
+
+export async function decodeToken(req: Request): Promise<TokenClaims> {
+  // Risansi Digital first; this app's own cookie stays valid behind it so the
+  // swap ships on its own and admin@, which has no identity row, keeps
+  // working until the cutover retires it.
+  const shared = await sharedClaims(req);
+  if (shared) return shared;
+
   const header = req.headers.get("authorization") ?? "";
   const bearerToken = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
   const token = bearerToken ?? readCookie(req, AUTH_COOKIE_NAME);
@@ -100,9 +135,9 @@ export function decodeToken(req: Request): TokenClaims {
 
 /** Same as decodeToken, but returns null instead of throwing — for routes
  * where being logged in is optional (e.g. attributing "created by"). */
-export function tryDecodeToken(req: Request): TokenClaims | null {
+export async function tryDecodeToken(req: Request): Promise<TokenClaims | null> {
   try {
-    return decodeToken(req);
+    return await decodeToken(req);
   } catch {
     return null;
   }
@@ -113,8 +148,8 @@ export function tryDecodeToken(req: Request): TokenClaims | null {
 // (full control, including approving/rejecting access requests). Role is
 // assigned directly in the DB — there's no self-service promotion UI, same
 // as how the original single "admin" role has always been granted.
-export function requireAdmin(req: Request): TokenClaims {
-  const claims = decodeToken(req);
+export async function requireAdmin(req: Request): Promise<TokenClaims> {
+  const claims = await decodeToken(req);
   if (claims.role !== "admin" && claims.role !== "system_admin") {
     throw new AuthError("Admin access required", 403);
   }
@@ -128,8 +163,8 @@ export const PULLEY_MASTER_ROLES = ["pulley_owner", "admin", "system_admin"] as 
 export const canManagePulleyMaster = (role: string | null | undefined): boolean =>
   (PULLEY_MASTER_ROLES as readonly string[]).includes(role ?? "");
 
-export function requirePulleyMasterAccess(req: Request): TokenClaims {
-  const claims = decodeToken(req);
+export async function requirePulleyMasterAccess(req: Request): Promise<TokenClaims> {
+  const claims = await decodeToken(req);
   if (!canManagePulleyMaster(claims.role)) {
     throw new AuthError("Pulley Master access required", 403);
   }
@@ -138,8 +173,8 @@ export function requirePulleyMasterAccess(req: Request): TokenClaims {
 
 /** Selection heads and system admins — the roles that decide approvals
  * (APPROVER_ROLES in lib/approval.ts). */
-export function requireApprover(req: Request): TokenClaims {
-  const claims = decodeToken(req);
+export async function requireApprover(req: Request): Promise<TokenClaims> {
+  const claims = await decodeToken(req);
   if (claims.role !== "selection_head" && claims.role !== "system_admin") {
     throw new AuthError("Selection head access required", 403);
   }
@@ -148,8 +183,8 @@ export function requireApprover(req: Request): TokenClaims {
 
 /** Stricter than requireAdmin — for the handful of routes that "admin"
  * explicitly does NOT get (access-request review), per the 3-role spec. */
-export function requireSystemAdmin(req: Request): TokenClaims {
-  const claims = decodeToken(req);
+export async function requireSystemAdmin(req: Request): Promise<TokenClaims> {
+  const claims = await decodeToken(req);
   if (claims.role !== "system_admin") {
     throw new AuthError("System admin access required", 403);
   }

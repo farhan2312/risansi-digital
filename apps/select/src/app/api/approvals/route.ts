@@ -30,7 +30,7 @@ const VIEWS: readonly View[] = ["awaiting", "decided", "all"];
 
 export async function GET(req: Request) {
   try {
-    requireApprover(req);
+    await requireApprover(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;

@@ -37,9 +37,9 @@ function numOrNull(v: unknown): string | null {
   return Number.isNaN(n) ? null : String(n);
 }
 
-function guardAdmin(req: Request): Response | null {
+async function guardAdmin(req: Request): Promise<Response | null> {
   try {
-    requireAdmin(req);
+    await requireAdmin(req);
     return null;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
@@ -51,7 +51,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ table: string; id: string }> },
 ) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
 
   const { table: tableKey, id } = await params;
@@ -136,7 +136,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ table: string; id: string }> },
 ) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
 
   const { table: tableKey, id } = await params;

@@ -98,7 +98,7 @@ async function loadReview(tagId: string): Promise<ApprovalReview | null> {
 
 export async function GET(req: Request, { params }: { params: Promise<{ tagId: string }> }) {
   try {
-    requireApprover(req);
+    await requireApprover(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
@@ -114,7 +114,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ tagId: s
 export async function POST(req: Request, { params }: { params: Promise<{ tagId: string }> }) {
   let claims;
   try {
-    claims = requireApprover(req);
+    claims = await requireApprover(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;

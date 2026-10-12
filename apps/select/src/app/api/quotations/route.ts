@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     if (!tsm) return error("That TSM was not found in the sales user list.", 400);
   }
 
-  const claims = tryDecodeToken(req);
+  const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
   const quoteDate = todayIst();
   const snapshot = await buildSnapshot(projectId, group);

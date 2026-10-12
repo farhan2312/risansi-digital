@@ -50,9 +50,9 @@ function dateOrNull(v: unknown): string | null | undefined {
   return s;
 }
 
-function guardAdmin(req: Request): Response | null {
+async function guardAdmin(req: Request): Promise<Response | null> {
   try {
-    requireAdmin(req);
+    await requireAdmin(req);
     return null;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
@@ -63,7 +63,7 @@ function guardAdmin(req: Request): Response | null {
 // Admin-only master-data listing. The page lives under /admin/* (gated by
 // middleware), but this API route isn't, so it self-gates with requireAdmin.
 export async function GET(req: Request) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
 
   const rows = await db
@@ -75,7 +75,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const denied = guardAdmin(req);
+  const denied = await guardAdmin(req);
   if (denied) return denied;
 
   let body: Record<string, unknown>;

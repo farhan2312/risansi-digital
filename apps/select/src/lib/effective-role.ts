@@ -28,7 +28,7 @@
  */
 import { eq } from "drizzle-orm";
 
-import { mayOpen } from "@risansi/identity";
+import { COOKIE_NAME as SHARED_COOKIE, mayOpen, readToken } from "@risansi/identity";
 
 import { db } from "@/lib/db";
 import { identityDb } from "@/lib/db-identity";
@@ -97,3 +97,68 @@ export async function resolveAccess(userId: string): Promise<Access | null> {
         reason: verdict.reason,
       };
 }
+
+/** The local `users_pump.id` behind a Risansi Digital identity, or null. */
+export async function localUserIdFor(identityUserId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.identityUserId, identityUserId))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/** What `verifyToken` returns for a local cookie, built from a shared one. */
+export interface SharedPayload {
+  sub: string;
+  email: string;
+  name: string | null;
+  role: string | null;
+  mustChangePassword: boolean;
+  iat: number;
+}
+
+/**
+ * A Risansi Digital session, as this app's own session payload.
+ *
+ * Middleware and `lib/auth.ts` both need this and must agree, for the same
+ * reason login and sessionVerdict must: the middleware gates pages on
+ * `payload.role`, so a role resolved one way there and another way in the
+ * route handler is a door that opens on one side and not the other.
+ *
+ * Null for every ordinary "no shared session" case — including a missing
+ * RISANSI_SESSION_SECRET, which `readToken` throws on. Thrown here it would
+ * reject every request, including the ones carrying a perfectly good local
+ * cookie that does not need that variable at all.
+ */
+export async function sharedSessionPayload(
+  rawCookie: string | undefined | null,
+): Promise<SharedPayload | null> {
+  let session;
+  try {
+    session = await readToken(rawCookie);
+  } catch {
+    return null;
+  }
+  if (!session) return null;
+
+  const localId = await localUserIdFor(session.userId);
+  // Signed in to Risansi Digital with no account in this portal.
+  if (!localId) return null;
+
+  const access = await resolveAccess(localId);
+  if (!access || access.status !== "active") return null;
+
+  return {
+    sub: localId,
+    email: session.email,
+    name: session.name,
+    role: access.role,
+    mustChangePassword: access.mustChangePassword,
+    // "now" is always safe here: sessionVerdict compares its cached read
+    // against iat and a later iat can only force a fresh read.
+    iat: Math.floor(Date.now() / 1000),
+  };
+}
+
+export { SHARED_COOKIE };

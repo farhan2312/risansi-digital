@@ -48,7 +48,7 @@ function clientIp(req: Request): string | null {
 export async function logAudit(req: Request, entry: AuditEntry): Promise<void> {
   try {
     // The signed-in user, when there is one. tryDecodeToken never throws.
-    const claims = entry.actor ? null : tryDecodeToken(req);
+    const claims = entry.actor ? null : await tryDecodeToken(req);
     const actorId = entry.actor?.id ?? claims?.sub ?? null;
     const actorEmail = entry.actor?.email ?? claims?.email ?? null;
     const actorRole = entry.actor?.role ?? claims?.role ?? null;

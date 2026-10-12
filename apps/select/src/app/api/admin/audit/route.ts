@@ -32,7 +32,7 @@ const PAGE_SIZE = 30;
 
 export async function GET(req: Request) {
   try {
-    requireSystemAdmin(req);
+    await requireSystemAdmin(req);
   } catch (err) {
     if (err instanceof AuthError) return error(err.message, err.statusCode);
     throw err;

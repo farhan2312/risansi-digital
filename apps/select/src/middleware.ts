@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify, type JWTPayload } from "jose";
 
+import { SHARED_COOKIE, sharedSessionPayload } from "@/lib/effective-role";
 import { sessionVerdict } from "@/lib/session-guard";
 
 /** Server-side gate for pages AND the API. Runs before any protected page is
@@ -61,8 +62,22 @@ async function verifyToken(token: string | null | undefined): Promise<JWTPayload
   }
 }
 
-function verifySession(req: NextRequest) {
-  return verifyToken(req.cookies.get(AUTH_COOKIE_NAME)?.value);
+/**
+ * Phase 4b: a Risansi Digital session counts as signed in here too.
+ *
+ * This gate runs before anything that understands the shared cookie, so
+ * without this a person holding a perfectly good one is bounced to the login
+ * page and never reaches the code that would have recognised it. That is
+ * exactly what happened on the sales portal the first time its proxy was
+ * tested, and it is the same shape of mistake here.
+ *
+ * The shared path returns a payload whose role came from the grant, so the
+ * role gates further down read the same value the route handlers will.
+ */
+async function verifySession(req: NextRequest): Promise<JWTPayload | null> {
+  const local = await verifyToken(req.cookies.get(AUTH_COOKIE_NAME)?.value);
+  if (local) return local;
+  return (await sharedSessionPayload(req.cookies.get(SHARED_COOKIE)?.value)) as JWTPayload | null;
 }
 
 /** Page requests: whether the account behind a valid token still allows it.
@@ -97,7 +112,9 @@ async function guardApi(req: NextRequest, pathname: string) {
   const header = req.headers.get("authorization") ?? "";
   const bearer = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
   const cookie = req.cookies.get(AUTH_COOKIE_NAME)?.value;
-  const payload = await verifyToken(bearer ?? cookie);
+  const payload =
+    (await verifyToken(bearer ?? cookie)) ??
+    ((await sharedSessionPayload(req.cookies.get(SHARED_COOKIE)?.value)) as JWTPayload | null);
   if (!payload) {
     return apiError("Please sign in to continue.", 401, Boolean(cookie));
   }
@@ -122,7 +139,7 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname === "/api" || pathname.startsWith("/api/")) {
-    return guardApi(req, pathname);
+    return await guardApi(req, pathname);
   }
 
   // Login page ("/"): an already-signed-in user has no reason to see the

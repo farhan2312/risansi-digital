@@ -5,6 +5,25 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV !== "production";
 
 /**
+ * Risansi Digital, named in form-action below.
+ *
+ * A browser enforces form-action across the WHOLE redirect chain of a form
+ * submission, not just its first hop. Signing out posts here and ends at the
+ * hub, so with 'self' alone the browser blocks the redirect before it leaves
+ * — and it surfaces as a generic server error on the page the button was
+ * clicked from, with nothing in the server logs. That cost most of a day on
+ * the sales portal; it is named here before the sign-out exists rather than
+ * after.
+ */
+const HUB_ORIGIN = (() => {
+  try {
+    return new URL(process.env.HUB_URL || "https://digital.risansi.com").origin;
+  } catch {
+    return "https://digital.risansi.com";
+  }
+})();
+
+/**
  * Content-Security-Policy. The app loads nothing from other origins (no CDN,
  * no web fonts, no analytics), so everything is pinned to 'self'.
  *
@@ -27,7 +46,7 @@ const contentSecurityPolicy = [
   "object-src 'self' blob:",
   "frame-src 'self' blob:",
   "base-uri 'self'",
-  "form-action 'self'",
+  `form-action 'self' ${HUB_ORIGIN}`,
   "frame-ancestors 'none'",
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");

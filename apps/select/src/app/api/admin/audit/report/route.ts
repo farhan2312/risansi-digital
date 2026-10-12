@@ -31,7 +31,7 @@ const SECTION_CAP = 2000;
 
 export async function GET(req: Request) {
   try {
-    requireSystemAdmin(req);
+    await requireSystemAdmin(req);
   } catch (err) {
     if (err instanceof AuthError) return error(err.message, err.statusCode);
     throw err;

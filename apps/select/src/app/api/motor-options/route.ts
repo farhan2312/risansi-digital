@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 // read-only.
 export async function GET(req: Request) {
   try {
-    decodeToken(req);
+    await decodeToken(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;

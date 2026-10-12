@@ -143,7 +143,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
   }
   if ((prev?.remarks ?? "") !== next.remarks) changes.push("Remarks updated");
 
-  const claims = tryDecodeToken(req);
+  const claims = await tryDecodeToken(req);
   const updatedBy = claims?.sub && /^[0-9a-f-]{36}$/i.test(claims.sub) ? claims.sub : null;
   const values = {
     paPrice: next.paPrice?.toString() ?? null,

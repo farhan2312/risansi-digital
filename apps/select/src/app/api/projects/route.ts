@@ -72,7 +72,7 @@ export async function GET(req: Request) {
   if (createdTo) conditions.push(sql`${projects.createdAt} <= ${createdTo}`);
   // "Created by me" toggle: only enquiries the signed-in user created.
   if (params.get("mine") === "1") {
-    const me = tryDecodeToken(req)?.sub ?? null;
+    const me = (await tryDecodeToken(req))?.sub ?? null;
     conditions.push(me ? eq(projects.createdBy, me) : sql`false`);
   }
   const where = conditions.length ? and(...conditions) : undefined;
@@ -153,7 +153,7 @@ export async function POST(req: Request) {
 
   // Derived from the verified session cookie, not client input — a client
   // could otherwise attribute a project to any arbitrary user id.
-  const createdBy = tryDecodeToken(req)?.sub ?? null;
+  const createdBy = (await tryDecodeToken(req))?.sub ?? null;
 
   let project: typeof projects.$inferSelect;
   try {

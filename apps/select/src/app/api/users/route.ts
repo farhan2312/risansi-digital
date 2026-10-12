@@ -16,7 +16,7 @@ const VALID_ROLES = new Set(["user", "selection_head", "pulley_owner", "admin", 
 // 3-role spec.
 export async function GET(req: Request) {
   try {
-    requireSystemAdmin(req);
+    await requireSystemAdmin(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
@@ -66,7 +66,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   let claims;
   try {
-    claims = requireSystemAdmin(req);
+    claims = await requireSystemAdmin(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
