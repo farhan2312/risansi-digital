@@ -2427,3 +2427,21 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS so_assigned_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS so_assigned_by UUID REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS so_details_filled_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS orders_so_assignee_idx ON orders (so_assignee_id);
+
+-- ---------------------------------------------------------------------------
+-- Risansi Digital shared login (Phase 5): each account's identity in the
+-- risansi_identity database. No foreign key — a different database. Null
+-- until Farhan's seed links the account, and stays null for accounts not
+-- carried across (shared mailboxes, admin@). users.id is unchanged and stays
+-- the key every other table points at. Partial unique: one account per
+-- identity. Also in migrations/so2dispatch/0001_identity_user_id.sql at the
+-- monorepo root, for applying on its own. Idempotent.
+-- ---------------------------------------------------------------------------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS identity_user_id uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS users_identity_user_id_key
+    ON users (identity_user_id)
+ WHERE identity_user_id IS NOT NULL;
+COMMENT ON COLUMN users.identity_user_id IS
+    'identity.users.id in the risansi_identity database. No FK: different database. '
+    'Null means the account was deliberately not carried across and will not be able '
+    'to sign in once the local login is retired.';
