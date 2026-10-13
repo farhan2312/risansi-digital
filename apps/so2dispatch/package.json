@@ -11,6 +11,7 @@
     "db:seed:admin": "node scripts/seed-admin.mjs"
   },
   "dependencies": {
+    "@risansi/identity": "file:../../packages/identity",
     "bcryptjs": "^3.0.3",
     "exceljs": "^4.4.0",
     "jose": "^6.2.8",

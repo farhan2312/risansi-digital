@@ -45,10 +45,16 @@ function createPool(): Pool {
   return pool;
 }
 
-export const pool: Pool = global.__pgPool ?? createPool();
-
-if (process.env.NODE_ENV !== "production") {
-  global.__pgPool = pool;
+/**
+ * Built on the first query, never at import. `next build` imports every route
+ * to collect page data, so a pool made at module scope made the build need
+ * DATABASE_URL — and a build that needs production credentials cannot run in
+ * CI or on a laptop. Same pool, same reuse across hot reloads in development.
+ */
+let prodPool: Pool | undefined;
+function getPool(): Pool {
+  if (process.env.NODE_ENV !== "production") return (global.__pgPool ??= createPool());
+  return (prodPool ??= createPool());
 }
 
 // A broken/stale pooled connection typically fails with one of these before
@@ -68,10 +74,10 @@ export async function query<
   T extends Record<string, unknown> = Record<string, unknown>,
 >(text: string, params?: unknown[]) {
   try {
-    return await pool.query<T>(text, params);
+    return await getPool().query<T>(text, params);
   } catch (err) {
     if (err instanceof Error && RETRYABLE.test(err.message)) {
-      return await pool.query<T>(text, params);
+      return await getPool().query<T>(text, params);
     }
     throw err;
   }
@@ -88,7 +94,7 @@ export async function query<
 export async function withTransaction<T>(
   fn: (client: PoolClient) => Promise<T>
 ): Promise<T> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query("BEGIN");
     const result = await fn(client);

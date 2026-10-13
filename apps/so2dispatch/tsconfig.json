@@ -18,8 +18,15 @@
         "name": "next"
       }
     ],
+    "allowImportingTsExtensions": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      // @risansi/identity is a `file:` dependency, installed as a symlink and
+      // resolved through its real path, so its own `import ... from 'jose'`
+      // walks up packages/ and finds no node_modules (the repo has no root
+      // install). Point it at this app's copies, as apps/sales does.
+      "jose": ["./node_modules/jose"],
+      "bcryptjs": ["./node_modules/bcryptjs"]
     }
   },
   "include": [

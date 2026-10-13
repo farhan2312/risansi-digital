@@ -316,6 +316,21 @@ export async function verifyCredentials(
 }
 
 /** Fetch a single user by id, or null if not found. */
+/**
+ * The account linked to a Risansi Digital identity (users.identity_user_id),
+ * or null when nobody here is linked to it yet. Throws while the column does
+ * not exist — before the Phase 5 migration is applied — which the shared
+ * session reader treats as "not settled here".
+ */
+export async function getUserByIdentityId(identityUserId: string): Promise<User | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identityUserId)) return null;
+  const result = await query<User>(
+    `SELECT ${PUBLIC_COLUMNS} FROM users WHERE identity_user_id = $1`,
+    [identityUserId]
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function getUserById(id: string): Promise<User | null> {
   const result = await query<User>(
     `SELECT ${PUBLIC_COLUMNS} FROM users WHERE id = $1 LIMIT 1`,
