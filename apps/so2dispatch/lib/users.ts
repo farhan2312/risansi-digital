@@ -331,6 +331,32 @@ export async function getUserByIdentityId(identityUserId: string): Promise<User 
   return result.rows[0] ?? null;
 }
 
+/** Until when to skip asking for the link because the column is not there yet. */
+let identityColumnMissingUntil = 0;
+
+/**
+ * The Risansi Digital identity an account is linked to (users.identity_user_id),
+ * or null. Null too while the column does not exist — before the Phase 5
+ * migration is applied — and then not asked again for a minute, so every
+ * request does not pay for a failing query.
+ */
+export async function getIdentityLink(userId: string): Promise<string | null> {
+  if (Date.now() < identityColumnMissingUntil) return null;
+  try {
+    const result = await query<{ identity_user_id: string | null }>(
+      `SELECT identity_user_id FROM users WHERE id = $1`,
+      [userId]
+    );
+    return result.rows[0]?.identity_user_id ?? null;
+  } catch (error) {
+    if (/identity_user_id/.test(error instanceof Error ? error.message : String(error))) {
+      identityColumnMissingUntil = Date.now() + 60_000;
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function getUserById(id: string): Promise<User | null> {
   const result = await query<User>(
     `SELECT ${PUBLIC_COLUMNS} FROM users WHERE id = $1 LIMIT 1`,

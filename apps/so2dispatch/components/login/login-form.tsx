@@ -27,13 +27,14 @@ function validatePassword(value: string): string | undefined {
   return undefined;
 }
 
-export function LoginForm({ notice }: { notice?: string }) {
+export function LoginForm({ notice, refusal }: { notice?: string; refusal?: string | null }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  // Risansi Digital refused this person here: shown as the form's error until they try again.
+  const [formError, setFormError] = useState<string | null>(refusal ?? null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNotice, setShowNotice] = useState(Boolean(notice));
 

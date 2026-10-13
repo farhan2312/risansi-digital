@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { isAuthenticated } from "@/lib/session";
+import { getAccessRefusal, isAuthenticated } from "@/lib/session";
 import { BrandPanel } from "@/components/auth/brand-panel";
 import { LoginForm } from "@/components/login/login-form";
 
@@ -20,6 +20,9 @@ export default async function LoginPage({
   if (await isAuthenticated()) redirect("/risansi/dashboard");
 
   const { requested } = await searchParams;
+  // Signed in at Risansi Digital but refused here (no grant, pending, revoked):
+  // say so, rather than show a login form as if nothing had happened.
+  const refusal = await getAccessRefusal();
   const notice =
     requested === "1"
       ? "Request submitted — your access is now pending admin approval."
@@ -36,7 +39,7 @@ export default async function LoginPage({
       {/* RIGHT: form panel — a floating rounded card that overlaps the brand
           panel slightly on large screens (matches the sign-in mockup). */}
       <section className="relative z-10 flex flex-1 basis-[40%] items-center justify-center overflow-y-auto bg-card px-6 py-10 sm:px-10 lg:-ml-8 lg:rounded-l-[32px] lg:py-8 lg:shadow-[-24px_0_60px_-30px_rgba(10,42,94,0.45)]">
-        <LoginForm notice={notice} />
+        <LoginForm notice={notice} refusal={refusal} />
       </section>
     </main>
   );
