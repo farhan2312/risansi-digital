@@ -12,6 +12,7 @@ import ScopeControls, { ScopeLines } from "./ScopeControls";
 import { EMPTY_OFFER_CONFIG, isGearedGroup, type OfferConfig } from "../../lib/commercial-offer";
 import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
 import {
+  isStandardMechSeal,
   paBasisText,
   paInputsFor,
   paPrice,
@@ -1021,13 +1022,15 @@ function TagCard({
 
               {BOI_ITEMS.map((item) => {
                 const key = item.key;
-                // Mechanical seal on a non-mechanical sealing: one muted line
-                // until "Price anyway" (or a price is already there).
+                // Mechanical seal on a non-mechanical sealing - or the standard
+                // MSA seal, which is priced in P&A - is one muted line until
+                // "Price anyway" (or a price is already there).
                 const sealing = tag.codeHints.sealingType;
+                const msa = isStandardMechSeal(tag);
                 if (
                   key === "mechSealPrice" &&
                   sealing &&
-                  sealing !== "Mechanical Seal" &&
+                  (sealing !== "Mechanical Seal" || msa) &&
                   !draft.mechSealPrice &&
                   !draft.mechSealModel &&
                   !sealOpen
@@ -1040,7 +1043,9 @@ function TagCard({
                       <span className="text-[13px] font-semibold">{item.label}</span>
                       <span className="text-[12px] sm:col-span-4">
                         <span className="mr-2 rounded bg-paper px-1.5 py-px text-[11px] font-semibold text-fg-3">N/A</span>
-                        {tag.mechSealNote ?? `${sealing} — no mechanical seal`}
+                        {msa
+                          ? "MSA is the standard mechanical seal - priced in Pump & Accessories (P&A suggestion), not here"
+                          : (tag.mechSealNote ?? `${sealing} — no mechanical seal`)}
                         <button
                           type="button"
                           className="ml-2 text-[12px] font-semibold text-accent hover:underline"

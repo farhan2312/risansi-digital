@@ -22,7 +22,7 @@
  *
  * Client-safe (no DB).
  */
-import type { CommercialTag } from "./commercial";
+import { DEFAULT_MARKUP_PCT, netPrice, type CommercialTag } from "./commercial";
 import { rubberCodeFor } from "./pump-code";
 
 export type PaLevelKey = "L1" | "L2" | "L3" | "L4";
@@ -71,6 +71,11 @@ export interface PaInputs {
   vertical: boolean;
   /** Negative suction depth in metres (null when none / not entered). */
   negativeDepthM: number | null;
+  /** Sealing = Mechanical Seal, type MSA - the standard seal, priced inside
+   *  P&A rather than as a BOI line. `price` = its BOI Master price with the
+   *  default markup (what the BOI line would have charged); null when the
+   *  BOI Master has no matching seal. Absent / null = not an MSA seal. */
+  standardSeal?: { price: number | null; label: string | null } | null;
   /** "product code" (built or parsed) or "pump selection". */
   source: Partial<Record<"model" | "moc" | "rubber" | "subCategory", string>>;
 }
@@ -259,6 +264,20 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
       defaultOn: false,
     });
   adj.push(...verticalAdjustments(i, notes));
+  // MSA = the standard mechanical seal: it goes in the P&A price, not as a
+  // separate BOI line (user, 2026-10-13). Added last, as an amount.
+  if (i.standardSeal) {
+    if (i.standardSeal.price !== null)
+      adj.push({
+        key: "msa_seal",
+        label: `Standard mechanical seal (MSA) + ₹${i.standardSeal.price.toLocaleString("en-IN")}`,
+        short: `MSA seal +${i.standardSeal.price}`,
+        add: i.standardSeal.price,
+        defaultOn: true,
+        note: `${i.standardSeal.label ?? "BOI Master"} + ${DEFAULT_MARKUP_PCT}%`,
+      });
+    else notes.push("Standard mechanical seal (MSA): no BOI Master price for it - add the seal into the P&A price by hand");
+  }
   return { problem: null, row: found.row, col, notes, adjustments: adj };
 }
 
@@ -350,6 +369,16 @@ export function paInputsFor(t: CommercialTag): PaInputs {
     dischargeSize: t.paHints.dischargeSize,
     vertical: /vertical/i.test(t.paHints.pumpType ?? ""),
     negativeDepthM: depthMetres(t.paHints.negativeDepth, t.paHints.negativeDepthUnit),
+    standardSeal: isStandardMechSeal(t)
+      ? {
+          price: t.mechSealOption ? netPrice(t.mechSealOption.price, 0, DEFAULT_MARKUP_PCT) : null,
+          label: t.mechSealOption?.label ?? null,
+        }
+      : null,
     source,
   };
 }
+
+/** Mechanical Seal of type MSA - the standard seal, priced in P&A (not a BOI line). */
+export const isStandardMechSeal = (t: Pick<CommercialTag, "codeHints">): boolean =>
+  t.codeHints.sealingType === "Mechanical Seal" && t.codeHints.sealingSubType === "MSA";
