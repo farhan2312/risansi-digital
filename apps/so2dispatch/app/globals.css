@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode: `<html class="dark">`. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #eef1f5;
+  --foreground: #0f1b2d;
+  --card: #f6f8fb;
+  --card-border: #e5e7eb;
+  --muted: #6b7f96;
+  --muted-foreground: #9aa5b4;
+  --primary: #1a5fd0;
+  --primary-hover: #134aa8;
+  --primary-foreground: #ffffff;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --input-border: #d4dce6;
+  --ring: #1a5fd0;
+
+  /* app shell / sidebar */
+  --surface: #ffffff;
+  --sidebar: #0e1f3d;
+  --sidebar-foreground: #c7d4e8;
+  --sidebar-muted: #7f97ba;
+  --sidebar-active: #1a5fd0;
+  --sidebar-hover: rgba(255, 255, 255, 0.07);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+
+  /* login brand panel */
+  --brand-label: #334255;
+  --brand-navy-1: #0a2a5e;
+  --brand-navy-2: #123a7d;
+  --brand-navy-3: #0d4a8f;
+}
+
+.dark {
+  --background: #0b1220;
+  --foreground: #e6ecf5;
+  --card: #111b2e;
+  --card-border: #223049;
+  --muted: #94a5bd;
+  --muted-foreground: #64748b;
+  --primary: #3b82f6;
+  --primary-hover: #2f6fe0;
+  --primary-foreground: #ffffff;
+  --danger: #f87171;
+  --danger-bg: #2a1416;
+  --danger-border: #5b2626;
+  --input-border: #2a3a57;
+  --ring: #3b82f6;
+
+  --surface: #111b2e;
+  --sidebar: #0a1424;
+  --sidebar-foreground: #c7d4e8;
+  --sidebar-muted: #7f97ba;
+  --sidebar-active: #3b82f6;
+  --sidebar-hover: rgba(255, 255, 255, 0.06);
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+
+  --brand-label: #cbd5e1;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-border: var(--card-border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-input-border: var(--input-border);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-brand-label: var(--brand-label);
+  --color-brand-navy-1: var(--brand-navy-1);
+  --color-brand-navy-2: var(--brand-navy-2);
+  --color-brand-navy-3: var(--brand-navy-3);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-inter-tight);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
