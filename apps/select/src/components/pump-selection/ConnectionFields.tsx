@@ -12,6 +12,8 @@ export const SUCTION_CONNECTIONS = ["Flange", "BSP Type", "BSP with Flange"];
 export const END_CONNECTIONS = ["End Cover", "End Plate", "BSP Type", "BSP with Flange"];
 /** With AG & BK (bucket with auger) the suction side is the bucket — the only option. */
 export const BUCKET_CONNECTION = "Bucket";
+/** A Vertical pump hangs in the liquid: its suction end is open - the only option. */
+export const OPEN_CONNECTION = "Open";
 
 /** Flange standards: one list shared by the suction and discharge fields. */
 export function useFlangeStandards() {

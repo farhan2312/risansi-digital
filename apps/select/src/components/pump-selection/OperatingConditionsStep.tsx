@@ -8,6 +8,7 @@ import { actions, btnGhost, btnPrimary, control, fieldWrap, grid, hint, label } 
 import { Err, ErrorBanner, Req, hasErrors } from "./fieldBits";
 import {
   BUCKET_CONNECTION,
+  OPEN_CONNECTION,
   ConnectionSelect,
   END_CONNECTIONS,
   FlangeStdField,
@@ -32,7 +33,7 @@ type Props = {
 // Cascading options driven by Pump Type. Each pump type constrains which AG/BK
 // feed option and which suction housings are valid:
 //   Horizontal Standard       -> no AG/BK; standard / CIP housings only
-//   Vertical                  -> AG only; vertical suction housing only
+//   Vertical                  -> no AG/BK; vertical suction housing only; suction end Open
 //   Horizontal Bucket w/Auger -> AG & BK only; all housings
 //   Horizontal Auger Only     -> AG only; standard / CIP housings only
 const ALL_SUCTION_HOUSINGS = [
@@ -45,7 +46,7 @@ const STANDARD_CIP_HOUSINGS = ["Standard Pump Housing", "Pump Housing with CIP"]
 
 const AG_BK_OPTIONS_BY_PUMP_TYPE: Record<string, string[]> = {
   "Horizontal Standard": [],
-  Vertical: ["AG"],
+  Vertical: [],
   "Horizontal Bucket with Auger": ["AG & BK"],
   "Horizontal Auger Only": ["AG"],
 };
@@ -76,6 +77,11 @@ const suctionHousingOptionsFor = (pumpType: string): string[] =>
 /** "AG & BK" (bucket with auger): the suction connection is the bucket. */
 const AG_AND_BK = "AG & BK";
 const hasBucket = (agBk: unknown) => agBk === AG_AND_BK;
+/** The only suction connection a choice allows: Open on a Vertical pump,
+ *  Bucket with AG & BK; null = the normal list. No suction flange std then. */
+const fixedSuctionFor = (pumpType: unknown, agBk: unknown): string | null =>
+  pumpType === "Vertical" ? OPEN_CONNECTION : hasBucket(agBk) ? BUCKET_CONNECTION : null;
+const FIXED_SUCTIONS = [OPEN_CONNECTION, BUCKET_CONNECTION];
 
 const OperatingConditionsStep = ({
   onNext,
@@ -108,7 +114,7 @@ const OperatingConditionsStep = ({
       pumpType,
       agBk,
       agBkRemarks: agBk === AG_BK_NOT_REQUIRED ? formData.agBkRemarks ?? "" : "",
-      ...suctionConnectionFor(agBk),
+      ...suctionConnectionFor(agBk, pumpType),
       // Negative suction is asked for every pump type now, so the answer and
       // its depth survive a pump-type change.
       suctionHousing: suctionOpts.includes(formData.suctionHousing)
@@ -117,21 +123,22 @@ const OperatingConditionsStep = ({
     });
   };
 
-  // With AG & BK the suction connection is the bucket (the only option) and
-  // there is no suction flange std; any other choice clears "Bucket".
+  // Vertical -> suction end "Open"; AG & BK -> "Bucket". Either is the only
+  // option, with no suction flange std; leaving it clears the fixed value.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function suctionConnectionFor(agBk: string): Record<string, any> {
-    if (hasBucket(agBk)) return { suctionConnection: BUCKET_CONNECTION, suctionFlangeStd: "" };
-    return formData.suctionConnection === BUCKET_CONNECTION ? { suctionConnection: "" } : {};
+  function suctionConnectionFor(agBk: string, pumpType: string = formData.pumpType): Record<string, any> {
+    const fixed = fixedSuctionFor(pumpType, agBk);
+    if (fixed) return { suctionConnection: fixed, suctionFlangeStd: "" };
+    return FIXED_SUCTIONS.includes(formData.suctionConnection) ? { suctionConnection: "" } : {};
   }
-  const bucket = hasBucket(formData.agBk);
+  const fixedSuction = fixedSuctionFor(formData.pumpType, formData.agBk);
   // A tag saved before this rule (or before the fields moved here) is brought
   // in line when the step opens.
   useEffect(() => {
-    if (bucket && (formData.suctionConnection !== BUCKET_CONNECTION || formData.suctionFlangeStd))
-      setFormData({ ...formData, suctionConnection: BUCKET_CONNECTION, suctionFlangeStd: "" });
+    if (fixedSuction && (formData.suctionConnection !== fixedSuction || formData.suctionFlangeStd))
+      setFormData({ ...formData, suctionConnection: fixedSuction, suctionFlangeStd: "" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bucket, formData.suctionConnection, formData.suctionFlangeStd]);
+  }, [fixedSuction, formData.suctionConnection, formData.suctionFlangeStd]);
   const flangeStds = useFlangeStandards();
 
   const agBkOptions = agBkOptionsFor(formData.pumpType);
@@ -343,10 +350,10 @@ const OperatingConditionsStep = ({
           <ConnectionSelect
             fieldLabel="Suction Connection"
             value={formData.suctionConnection ?? ""}
-            options={bucket ? [BUCKET_CONNECTION] : SUCTION_CONNECTIONS}
+            options={fixedSuction ? [fixedSuction] : SUCTION_CONNECTIONS}
             onChange={(v) => setFormData({ ...formData, suctionConnection: v })}
           />
-          {!bucket && (
+          {!fixedSuction && (
             <FlangeStdField
               fieldLabel="Suction Flange Std"
               value={formData.suctionFlangeStd ?? ""}
