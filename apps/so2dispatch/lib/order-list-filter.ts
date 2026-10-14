@@ -6,6 +6,7 @@
 // route and the SQL builder all read one definition.
 
 import { DEPT_VIEWS } from "@/lib/dept-view";
+import { isRep } from "@/lib/roles";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
 import {
   BILL_MODE_OPTIONS,
@@ -132,8 +133,8 @@ export type OrderListFilter = {
   search: string;
   zones: string[];
   reps: string[];
-  /** Set for a Rep: the Rep filter is fixed to their own name. */
-  repLock?: string;
+  /** Set for a Rep or Rep Manager: the only reps they may see (their own, and a manager's team). */
+  repScope?: string[];
   markets: string[];
   /** Order type on the SO, or the item type on any of its ECs. */
   types: string[];
@@ -306,16 +307,21 @@ export function parseOrderListFilter(
 }
 
 /**
- * A Rep sees only their own SOs: their name replaces whatever Rep filter the
- * URL asks for. A Rep with no name linked sees nothing. Anyone else, as is.
+ * A Rep sees only their own SOs, a Rep Manager also their team's
+ * (User.rep_names). The Rep filter the URL asks for is kept to those names —
+ * a manager may narrow to some of their reps, never reach past them — and
+ * with nothing (or nothing of theirs) chosen it is all of them. No names
+ * sees nothing. Anyone else, as is.
  */
 export function scopeToRep<F extends { reps: string[] }>(
   filter: F,
-  user: { role: string; rep_name?: string | null }
+  user: { role: string; rep_names?: string[] }
 ): F {
-  if (user.role !== "rep") return filter;
-  const rep = (user.rep_name ?? "").trim() || "(no rep linked)";
-  return { ...filter, reps: [rep], repLock: rep };
+  if (!isRep(user.role)) return filter;
+  const scope = user.rep_names?.length ? user.rep_names : ["(no rep linked)"];
+  const allowed = new Map(scope.map((n) => [n.trim().toLowerCase(), n]));
+  const picked = filter.reps.map((r) => allowed.get(r.trim().toLowerCase())).filter((r): r is string => !!r);
+  return { ...filter, reps: picked.length ? picked : scope, repScope: scope };
 }
 
 /**

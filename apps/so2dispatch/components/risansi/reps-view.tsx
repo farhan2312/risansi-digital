@@ -1,23 +1,19 @@
-"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Check, Loader2, Pencil, X } from "lucide-react";
 import type { RepAccount, UnclaimedRep } from "@/lib/reps";
-import { setRepNameAction } from "@/app/risansi/reps/actions";
 
 function shortDate(iso: string | null): string {
   if (!iso) return "Never";
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function Chip({ tone, children }: { tone: "ok" | "warn" | "muted"; children: React.ReactNode }) {
+function Chip({ tone, children }: { tone: "ok" | "warn" | "muted" | "info"; children: React.ReactNode }) {
   const cls =
     tone === "ok"
       ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
       : tone === "warn"
         ? "bg-amber-50 text-amber-700 ring-amber-200"
-        : "bg-gray-100 text-gray-600 ring-gray-200";
+        : tone === "info"
+          ? "bg-sky-50 text-sky-700 ring-sky-200"
+          : "bg-gray-100 text-gray-600 ring-gray-200";
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${cls}`}>
       {children}
@@ -25,119 +21,77 @@ function Chip({ tone, children }: { tone: "ok" | "warn" | "muted"; children: Rea
   );
 }
 
-function RepNameCell({ account, repNames }: { account: RepAccount; repNames: string[] }) {
-  const router = useRouter();
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(account.rep_name ?? "");
-  const [busy, setBusy] = useState(false);
-
-  async function save() {
-    setBusy(true);
-    const res = await setRepNameAction(account.id, value);
-    setBusy(false);
-    if (!res.ok) {
-      alert(res.error);
-      return;
-    }
-    setEditing(false);
-    router.refresh();
+function TeamCell({ account, teamsRead }: { account: RepAccount; teamsRead: boolean }) {
+  if (!teamsRead && account.role === "rep_manager") {
+    return <span className="text-xs text-muted">Sales portal unavailable</span>;
   }
-
-  if (!editing) {
-    return (
-      <div className="flex items-center gap-2">
-        {account.rep_name ? (
-          <span className="font-medium text-foreground">{account.rep_name}</span>
-        ) : (
-          <Chip tone="warn">No rep linked</Chip>
-        )}
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          aria-label={`Change the rep for ${account.email}`}
-          className="rounded-md p-1 text-muted hover:bg-background hover:text-foreground"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    );
+  if (!account.team) return <span className="text-muted">—</span>;
+  if (account.team.length === 0) {
+    return <Chip tone="warn">Nobody under them in the sales portal</Chip>;
   }
-
   return (
-    <div className="flex items-center gap-1.5">
-      <select
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className="h-8 max-w-[220px] rounded-lg border border-input-border bg-surface px-2 text-sm text-foreground"
-      >
-        <option value="">— None —</option>
-        {repNames.map((r) => (
-          <option key={r} value={r}>
-            {r}
-          </option>
+    <div className="space-y-1">
+      {account.role === "rep" && (
+        <div>
+          <Chip tone="warn">Manages reps in sales: needs Rep Manager at the hub</Chip>
+        </div>
+      )}
+      <ul className="space-y-0.5 text-xs">
+        {account.team.map((t) => (
+          <li key={t.name}>
+            <span className="text-foreground">{t.name}</span>
+            <span className="text-muted"> · {t.orders} SOs</span>
+          </li>
         ))}
-      </select>
-      <button
-        type="button"
-        onClick={save}
-        disabled={busy}
-        aria-label="Save"
-        className="rounded-md p-1.5 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-      >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          setValue(account.rep_name ?? "");
-          setEditing(false);
-        }}
-        aria-label="Cancel"
-        className="rounded-md p-1.5 text-muted hover:bg-background"
-      >
-        <X className="h-4 w-4" />
-      </button>
+      </ul>
     </div>
   );
 }
 
 /**
- * Reps: which account is which rep on the orders. Accounts are made and
- * switched off at Risansi Digital; this only says which SOs a Rep sees.
+ * Reps and Rep Managers, and whose SOs each sees. Nothing on it is edited
+ * here: accounts and roles at Risansi Digital, teams in the sales portal.
  */
 export function RepsView({
   accounts,
   unclaimed,
-  repNames,
+  teamsRead,
 }: {
   accounts: RepAccount[];
   unclaimed: UnclaimedRep[];
-  repNames: string[];
+  teamsRead: boolean;
 }) {
-  const linkedReps = accounts.filter((a) => a.rep_name?.trim()).length;
+  const managers = accounts.filter((a) => a.role === "rep_manager").length;
   const th = "px-4 py-3";
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
       <div className="mb-6">
         <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Reps</h1>
         <p className="text-sm text-muted">
-          {accounts.length} Rep accounts · {linkedReps} linked to a rep on the orders
+          {accounts.length - managers} Reps · {managers} Rep Managers
           {unclaimed.length > 0 && ` · ${unclaimed.length} rep${unclaimed.length === 1 ? "" : "s"} on orders with no account`}
         </p>
         <p className="mt-2 max-w-3xl text-sm text-muted">
-          A Rep sees the SOs whose rep matches theirs. It is filled in from the sales portal, by email, the first
-          time they sign in. Change it here only if it is wrong. Accounts and roles are managed at Risansi Digital.
+          A Rep sees the SOs whose rep is their name. A Rep Manager also sees the SOs of the reps under them in the
+          sales portal. Accounts and roles are managed at Risansi Digital; teams in the sales portal.
         </p>
+        {!teamsRead && (
+          <p className="mt-2 text-sm text-danger">
+            The sales portal could not be read, so teams are not shown. Rep Managers see only their own SOs until it
+            can.
+          </p>
+        )}
       </div>
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-[900px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th className={th}>Account</th>
-                <th className={th}>Rep on orders</th>
-                <th className={`${th} text-right`}>SOs</th>
+                <th className={th}>Role</th>
+                <th className={`${th} text-right`}>Own SOs</th>
+                <th className={th}>Team (sales portal)</th>
                 <th className={th}>Risansi Digital</th>
                 <th className={th}>Last active</th>
               </tr>
@@ -145,21 +99,26 @@ export function RepsView({
             <tbody className="divide-y divide-card-border">
               {accounts.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted">
                     No Rep accounts yet.
                   </td>
                 </tr>
               )}
               {accounts.map((a) => (
-                <tr key={a.id}>
+                <tr key={a.id} className="align-top">
                   <td className="px-4 py-3">
                     <div className="font-medium text-foreground">{a.full_name}</div>
                     <div className="text-xs text-muted">{a.email}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <RepNameCell account={a} repNames={repNames} />
+                    {a.role === "rep_manager" ? <Chip tone="info">Rep Manager</Chip> : <Chip tone="muted">Rep</Chip>}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{a.rep_name ? a.orders : "—"}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {a.orders > 0 ? a.orders : <span className="text-muted">0</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <TeamCell account={a} teamsRead={teamsRead} />
+                  </td>
                   <td className="px-4 py-3">
                     {a.linked ? <Chip tone="ok">Linked</Chip> : <Chip tone="muted">Not linked</Chip>}
                   </td>
@@ -175,8 +134,9 @@ export function RepsView({
         <div className="mt-8">
           <h2 className="font-display text-lg font-semibold text-foreground">Reps on orders with no account</h2>
           <p className="mb-3 text-sm text-muted">
-            Nobody sees these SOs as their Rep. Give the person a Rep grant at Risansi Digital; their account is made,
-            and linked here, when they first sign in.
+            No Rep here has this name, so only a Rep Manager over them (if any) sees these SOs. Give the person a Rep
+            grant at Risansi Digital; their account is made when they first sign in. If they do have an account, its
+            name must match the orders exactly.
           </p>
           <div className="rounded-xl border border-card-border bg-surface shadow-sm">
             <table className="w-full text-sm">

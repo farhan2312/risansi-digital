@@ -60,8 +60,18 @@ const MESSAGE_COLUMNS = `m.id, m.dept_role, m.to_role, m.author_id,
 
 export const MAX_MESSAGE_LENGTH = 2000;
 
-/** The department roles a conversation can be with — every non-central role. */
-export const DEPARTMENT_LANES: Role[] = ALL_ROLES.filter((r) => !isCentral(r));
+/**
+ * The side of a conversation a role speaks for. A Rep Manager is on the Reps'
+ * side: the "rep" lane, scoped to their team's SOs by the callers (repOwns),
+ * so a manager and their reps read the same conversations rather than a
+ * second, empty lane.
+ */
+export function laneOf(role: string): string {
+  return role === "rep_manager" ? "rep" : role;
+}
+
+/** The department roles a conversation can be with — every non-central role that is its own side. */
+export const DEPARTMENT_LANES: Role[] = ALL_ROLES.filter((r) => !isCentral(r) && laneOf(r) === r);
 
 /** Central Visibility as a conversation partner. Admin shares this side. */
 export const CENTRAL_PEER = "central_visibility";
@@ -81,6 +91,7 @@ function isPeer(value: string): boolean {
  * to each department — one conversation per department, as before.
  */
 export function peersFor(role: string): string[] {
+  role = laneOf(role);
   if (isCentral(role)) return [...DEPARTMENT_LANES];
   if (!isDepartmentLane(role)) return [];
   return [...DEPARTMENT_LANES.filter((r) => r !== role), CENTRAL_PEER];
@@ -92,6 +103,7 @@ export function peersFor(role: string): string[] {
  * ordinary chatter, so it only carries notes.
  */
 export function canLogDelay(role: string, peer: string): boolean {
+  role = laneOf(role);
   return isCentral(role) ? isDepartmentLane(peer) : peer === CENTRAL_PEER;
 }
 
@@ -151,7 +163,7 @@ function withRole(
   params: unknown[]
 ): { param: string; params: unknown[] } {
   if (isCentral(viewer.role)) return { param: "", params };
-  return { param: `$${params.length + 1}`, params: [...params, viewer.role] };
+  return { param: `$${params.length + 1}`, params: [...params, laneOf(viewer.role)] };
 }
 
 // ---------------------------------------------------------------------------
@@ -446,6 +458,7 @@ export function sidesFor(
   role: string,
   peer: string
 ): { deptRole: string; toRole: string | null } | null {
+  role = laneOf(role);
   if (!canUsePeer(role, peer) || !isPeer(peer)) return null;
   if (isCentral(role)) return { deptRole: peer, toRole: null };
   return { deptRole: role, toRole: peer === CENTRAL_PEER ? null : peer };

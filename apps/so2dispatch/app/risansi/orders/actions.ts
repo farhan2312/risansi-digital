@@ -96,6 +96,7 @@ import {
   canEditSection,
   canViewAll,
   isCentral,
+  isRep,
 } from "@/lib/roles";
 import { parsePiWorkbook } from "@/lib/pi-import";
 import { isAssignedTo, markSoDetails } from "@/lib/so-assignment";
@@ -1063,7 +1064,7 @@ export async function getPackingPlanHistoryAction(
 ): Promise<{ ok: true; events: PackingPlanEvent[] } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!(isCentral(user.role) || user.role === "assembly" || user.role === "planning" || user.role === "rep")) {
+  if (!(isCentral(user.role) || user.role === "assembly" || user.role === "planning" || isRep(user.role))) {
     return { ok: false, error: "You don't have access to the packing plan history." };
   }
   if (!UUID_RE_ACTION.test(orderId)) return { ok: false, error: "Order not found." };
@@ -2515,10 +2516,10 @@ export async function linkPiAction(
 
 const UUID_RE_ACTION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** A Rep may read only their own SOs; anyone else is not limited here. */
-async function repMaySee(user: { role: string; rep_name?: string | null }, orderId: string): Promise<boolean> {
-  if (user.role !== "rep") return true;
-  return repMatches(await getOrderRep(orderId), user.rep_name);
+/** A Rep may read only their own SOs, a Rep Manager their team's too; anyone else is not limited here. */
+async function repMaySee(user: { role: string; rep_names?: string[] }, orderId: string): Promise<boolean> {
+  if (!isRep(user.role)) return true;
+  return repMatches(await getOrderRep(orderId), user.rep_names);
 }
 
 /** The SO's Accounts fields that, once it has a PI, come from its PIs. */

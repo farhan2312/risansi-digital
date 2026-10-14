@@ -5,8 +5,8 @@ import { COOKIE_NAME as SHARED_COOKIE, mayOpen, readToken, type Session } from "
 import { createLinkedUser, getUserById, getUserByIdentityId, getIdentityLink, type User } from "@/lib/users";
 import { identityDb } from "@/lib/db-identity";
 import { query } from "@/lib/db";
-import { ALL_ROLES, type Role } from "@/lib/roles";
-import { getRepNameByEmail } from "@/lib/market-intell";
+import { ALL_ROLES, isRep, type Role } from "@/lib/roles";
+import { getTeamRepNames } from "@/lib/market-intell";
 
 export const SESSION_COOKIE = "session";
 
@@ -108,6 +108,11 @@ export const getAccessRefusal = cache(async (): Promise<string | null> => (await
  * local login is retired, not before.
  */
 const readAccess = cache(async (): Promise<Access> => {
+  const access = await resolveAccess();
+  return access.user ? { ...access, user: await withRepScope(access.user) } : access;
+});
+
+async function resolveAccess(): Promise<Access> {
   const cookieStore = await cookies();
 
   const shared = await readSharedAccount(cookieStore.get(SHARED_COOKIE)?.value);
@@ -136,7 +141,7 @@ const readAccess = cache(async (): Promise<Access> => {
   const identityUserId = await getIdentityLink(user.id);
   if (identityUserId) return applyGrant(user, identityUserId);
   return user.status === "approved" ? { user, refusal: null } : { user: null, refusal: null };
-});
+}
 
 /**
  * Risansi Digital's verdict on a linked account: in with the grant's role, or
@@ -168,8 +173,7 @@ async function applyGrant(user: User, identityUserId: string): Promise<Access> {
     // more, but lists built from it — Users & Access, the SO member picker,
     // who a role notification reaches — should still say what is true.
     if (role !== user.role) await syncLocalRole(user.id, role);
-    const repName = role === "rep" && !user.rep_name?.trim() ? await fillRepName(user) : user.rep_name;
-    return { user: { ...user, role, rep_name: repName }, refusal: null };
+    return { user: { ...user, role }, refusal: null };
   } catch (error) {
     logOnce("grant", error instanceof Error ? error.message : String(error));
     return {
@@ -188,41 +192,34 @@ async function syncLocalRole(userId: string, role: Role): Promise<void> {
   }
 }
 
-/** Emails the sales portal had no name for, and until when not to ask again. */
-const repNameMissUntil = new Map<string, number>();
-
 /**
- * A Rep with no rep_name sees no orders: orders.reps holds the rep's name as
- * the sales portal spells it. So take it from there, by email, the first time
- * they arrive as a Rep — a new person approved at the hub, or somebody whose
- * grant became Rep — and keep it. Nobody types it; an admin can still
- * correct it on the Reps page.
+ * The rep names whose SOs a Rep or Rep Manager sees, as the orders carry them
+ * (orders.reps): their own name — the account's full name, which is the name
+ * the sales portal gives them — and, for a Rep Manager, the reps who report
+ * to them in the sales portal (manager_reps), read live so a team change
+ * there lands here on the next request.
  *
- * Best effort and never in the way: a miss or a failure leaves rep_name empty
- * ("(no rep linked)", shown on the Reps page) and is not asked again for ten
- * minutes, so a rep the sales portal does not know costs one query, not one
- * per click.
+ * Fails narrow: if the sales portal cannot be read, a manager sees their own
+ * SOs only until it can, never more than they should.
  */
-async function fillRepName(user: User): Promise<string | null> {
-  const key = user.email.toLowerCase();
-  if ((repNameMissUntil.get(key) ?? 0) > Date.now()) return null;
-  try {
-    const name = await getRepNameByEmail(user.email);
-    if (!name) {
-      repNameMissUntil.set(key, Date.now() + 10 * 60_000);
-      return null;
+async function withRepScope(user: User): Promise<User> {
+  if (!isRep(user.role)) return user;
+  const names = [user.full_name.trim()].filter(Boolean);
+  if (user.role === "rep_manager") {
+    try {
+      names.push(...(await getTeamRepNames(user.email)));
+    } catch (error) {
+      logOnce("team", `Could not read the team from the sales portal: ${error instanceof Error ? error.message : String(error)}`);
     }
-    // Only where still empty: never over a name an admin set.
-    await query(
-      `UPDATE users SET rep_name = $2, updated_at = now() WHERE id = $1 AND trim(coalesce(rep_name, '')) = ''`,
-      [user.id, name]
-    );
-    return name;
-  } catch (error) {
-    repNameMissUntil.set(key, Date.now() + 10 * 60_000);
-    logOnce("rep-name", `Could not read the rep name from the sales portal: ${error instanceof Error ? error.message : String(error)}`);
-    return null;
   }
+  const seen = new Set<string>();
+  const rep_names = names.filter((n) => {
+    const k = n.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  return { ...user, rep_names };
 }
 
 /** Each reason the shared session was passed over, logged once per server process. */

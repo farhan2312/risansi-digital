@@ -28,6 +28,10 @@ export const ROLE_LABELS = {
   // orders whose Rep is the name Admin linked to the user). May post in an
   // SO's discussion.
   rep: "Rep",
+  // A sales manager: a Rep's view of their own SOs and of every SO of the
+  // reps who report to them. Who reports to whom is the sales portal's
+  // manager_reps, read live (lib/market-intell.ts) — never kept here.
+  rep_manager: "Rep Manager",
 } as const;
 
 export type Role = keyof typeof ROLE_LABELS;
@@ -75,9 +79,12 @@ export function isCentral(role: string): boolean {
   return role === "admin" || role === "central_visibility";
 }
 
-/** A sales Rep: Central's view, read-only, of their own SOs. */
+/**
+ * A sales Rep or Rep Manager: Central's view, read-only, of the SOs whose rep
+ * is theirs — their own, and for a manager their team's too (User.rep_names).
+ */
 export function isRep(role: string): boolean {
-  return role === "rep";
+  return role === "rep" || role === "rep_manager";
 }
 
 /** Sees the whole tracker's screens (the Orders list, every department): Central, Admin, a Rep. */
@@ -155,7 +162,7 @@ export function canSeeEscalations(role: string): boolean {
 
 /** The central full-visibility dashboard is for Central Visibility and Admin. */
 export function canSeeCentralDashboard(role: string): boolean {
-  return role === "admin" || role === "central_visibility" || role === "rep";
+  return role === "admin" || role === "central_visibility" || isRep(role);
 }
 
 /**

@@ -9,6 +9,7 @@
 // Plain module (no server imports): the dashboards are client components.
 
 import type { OrderOverviewRow } from "@/lib/orders";
+import { isRep } from "@/lib/roles";
 import {
   DEPT_FILTER_LABELS,
   NOT_APPLICABLE,
@@ -378,10 +379,14 @@ export const LOT_DISPATCHED_ROW = "bg-sky-50 hover:bg-sky-100/70 dark:bg-sky-500
 export const FULLY_DISPATCHED_ROW =
   "bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15";
 
-/** Whether an SO's Rep is this Rep (trimmed, case-insensitive). No name sees nothing. */
-export function repMatches(orderRep: unknown, repName: string | null | undefined): boolean {
-  const mine = (repName ?? "").trim().toLowerCase();
-  return !!mine && String(orderRep ?? "").trim().toLowerCase() === mine;
+/**
+ * Whether an SO's Rep is one of this Rep's names (trimmed, case-insensitive):
+ * their own, or for a Rep Manager anyone in their team (User.rep_names). No
+ * names sees nothing.
+ */
+export function repMatches(orderRep: unknown, repNames: readonly string[] | null | undefined): boolean {
+  const theirs = String(orderRep ?? "").trim().toLowerCase();
+  return !!theirs && (repNames ?? []).some((n) => n.trim().toLowerCase() === theirs);
 }
 
 export function roleSeesOrder(
@@ -401,14 +406,14 @@ export function roleSeesOrder(
      */
     ec_types?: unknown[];
   },
-  // A Rep's own name (users.rep_name).
-  repName?: string | null
+  // A Rep's names: their own, and a Rep Manager's team (User.rep_names).
+  repNames?: readonly string[] | null
 ): boolean {
   // Order Making fills Client and PO details from its own page; the SO's
   // pages carry everything else.
   if (role === "order_making" || role === "order_making_so") return false;
-  // A Rep: their own SOs only.
-  if (role === "rep") return repMatches(order.reps, repName);
+  // A Rep: their own SOs only; a Rep Manager, their team's too.
+  if (isRep(role)) return repMatches(order.reps, repNames);
   const view = deptViewForRole(role);
   if (!view) return true;
   // Not yet cleared or held: not theirs to see.

@@ -138,9 +138,10 @@ export function OrderListFilterBar({
           selected={filter.zones}
           onChange={(next) => setParams({ zone: next })}
         />
-        {options.repLock ? (
+        {options.repScope && options.repScope.length <= 1 ? (
+          // A Rep: their own SOs, nothing to choose.
           <span className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-input-border bg-background px-3 text-sm text-foreground">
-            <span className="text-muted">Rep:</span> {options.repLock}
+            <span className="text-muted">Rep:</span> {options.repScope[0]}
           </span>
         ) : (
           <MultiSelectFilter

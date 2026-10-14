@@ -59,16 +59,26 @@ export function recipientRolesForUser(role: string): string[] {
   // Order Making SO hears only what is addressed to the member themselves —
   // the SOs assigned to them.
   if (role === "order_making_so") return [];
+  // A Rep Manager hears what is addressed to Reps — limited, by REP_SCOPE, to
+  // the SOs of their own and their team.
+  if (role === "rep_manager") return ["rep"];
   return [role];
 }
 
 /**
  * Every Rep shares the "rep" role, so a notification to it is shown only to
- * the Rep whose SO it is. No rep name (`param` NULL) — everyone else — no limit.
+ * the Rep whose SO it is — or a Rep Manager over them. `param` is their rep
+ * names, lower-cased and trimmed (repScopeParam); NULL — everyone else — no
+ * limit.
  */
 const REP_SCOPE = (n: string, param: string) =>
-  `(${param}::text IS NULL OR EXISTS (SELECT 1 FROM orders ro WHERE ro.id = ${n}.order_id
-     AND lower(btrim(COALESCE(ro.reps, ''))) = lower(btrim(${param}::text))))`;
+  `(${param}::text[] IS NULL OR EXISTS (SELECT 1 FROM orders ro WHERE ro.id = ${n}.order_id
+     AND lower(btrim(COALESCE(ro.reps, ''))) = ANY(${param}::text[])))`;
+
+/** A reader's rep names as REP_SCOPE compares them, or null for no limit. */
+function repScopeParam(repNames: readonly string[] | null): string[] | null {
+  return repNames ? repNames.map((n) => n.trim().toLowerCase()) : null;
+}
 
 // ---------------------------------------------------------------------------
 // Reads (for the bell)
@@ -86,8 +96,8 @@ export async function listNotificationsPage(
   page: number,
   /** The reader: their own notifications come alongside their role's. */
   userId: string | null = null,
-  /** A Rep: their role's notifications only for their own SOs. */
-  repName: string | null = null
+  /** A Rep or Rep Manager: their role's notifications only for these reps' SOs. */
+  repNames: readonly string[] | null = null
 ): Promise<PageResult<NotificationRow>> {
   if (roles.length === 0 && !userId) return pageResult([], 0, 1, FEED_PAGE_SIZE);
   return pageWithTotal(
@@ -117,13 +127,13 @@ export async function listNotificationsPage(
           WHERE (n.recipient_role = ANY($1) AND ${REP_SCOPE("n", "$5")}) OR n.recipient_user_id = $4
           ORDER BY n.created_at DESC
           LIMIT $2 OFFSET $3`,
-        [roles, FEED_PAGE_SIZE, offsetFor(p, FEED_PAGE_SIZE), userId, repName]
+        [roles, FEED_PAGE_SIZE, offsetFor(p, FEED_PAGE_SIZE), userId, repScopeParam(repNames)]
       ),
     async () => {
       const r = await query<{ count: string }>(
         `SELECT count(*)::text AS count FROM notifications n
           WHERE (n.recipient_role = ANY($1) AND ${REP_SCOPE("n", "$3")}) OR n.recipient_user_id = $2`,
-        [roles, userId, repName]
+        [roles, userId, repScopeParam(repNames)]
       );
       return Number(r.rows[0]?.count ?? 0);
     },
@@ -135,7 +145,7 @@ export async function countUnread(
   roles: string[],
   seenAt: string | null,
   userId: string | null = null,
-  repName: string | null = null
+  repNames: readonly string[] | null = null
 ): Promise<number> {
   if (roles.length === 0 && !userId) return 0;
   const result = await query<{ count: string }>(
@@ -143,7 +153,7 @@ export async function countUnread(
        FROM notifications n
       WHERE ((n.recipient_role = ANY($1) AND ${REP_SCOPE("n", "$4")}) OR n.recipient_user_id = $3)
         AND ($2::timestamptz IS NULL OR n.created_at > $2)`,
-    [roles, seenAt, userId, repName]
+    [roles, seenAt, userId, repScopeParam(repNames)]
   );
   return Number(result.rows[0]?.count ?? 0);
 }

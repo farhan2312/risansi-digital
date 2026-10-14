@@ -10,6 +10,7 @@ import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
 import { billModeLabel } from "@/lib/order-schema";
 import { dispatchRowTone } from "@/lib/dept-view";
+import { isRep } from "@/lib/roles";
 import { CLOSED, READY, assemblyView, planningText, reachedDepts, type ReachedDept } from "@/lib/order-row-view";
 import type { DeptCell, ItemSummary, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
 import { deleteOrderAction } from "@/app/risansi/orders/actions";
@@ -192,8 +193,8 @@ export function OrdersTable({
   const [popup, setPopup] = useState<{ order: OrderListRow; what: PopupKind } | null>(null);
   const [chatFor, setChatFor] = useState<OrderListRow | null>(null);
   const [detailsFor, setDetailsFor] = useState<OrderListRow | null>(null);
-  // A Rep views the list; nothing on it changes anything.
-  const readOnly = role === "rep";
+  // A Rep or Rep Manager views the list; nothing on it changes anything.
+  const readOnly = isRep(role);
   // The filter lives in the URL, so it narrows the whole table rather than
   // only the page already loaded.
   const { get: getParam } = useUrlTable();
