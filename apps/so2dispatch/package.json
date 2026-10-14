@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node scripts/migrate.mjs",
-    "db:seed:admin": "node scripts/seed-admin.mjs"
+    "db:seed:admin": "node scripts/seed-admin.mjs",
+    "db:seed:identity": "node scripts/seed-identity-links.mjs"
   },
   "dependencies": {
     "@risansi/identity": "file:../../packages/identity",
