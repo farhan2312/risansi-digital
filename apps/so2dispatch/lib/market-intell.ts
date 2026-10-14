@@ -156,6 +156,26 @@ export async function getRepContact(repName: string): Promise<MarketIntellRep | 
   return result.rows[0] ?? null;
 }
 
+/**
+ * A person's name in the sales portal, found by email — which, for a rep, is
+ * the name the orders carry (orders.reps). How a Rep account gets its
+ * rep_name without anybody typing it. An active account wins over an
+ * inactive one. Null when the sales portal has nobody with that email.
+ */
+export async function getRepNameByEmail(email: string): Promise<string | null> {
+  const e = email.trim().toLowerCase();
+  if (!e) return null;
+  const result = await getPool().query<{ name: string }>(
+    `SELECT trim(u.name) AS name
+       FROM public.users u
+      WHERE lower(trim(u.email)) = $1 AND trim(coalesce(u.name, '')) <> ''
+      ORDER BY (u.is_active IS TRUE) DESC, u.id
+      LIMIT 1`,
+    [e]
+  );
+  return result.rows[0]?.name ?? null;
+}
+
 /** Several reps at once, keyed by their lower-cased trimmed name. Same rules as getRepContact. */
 export async function listRepContacts(repNames: string[]): Promise<Map<string, MarketIntellRep>> {
   const keys = [...new Set(repNames.map((n) => n.trim().toLowerCase()).filter(Boolean))];

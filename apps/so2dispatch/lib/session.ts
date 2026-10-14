@@ -6,6 +6,7 @@ import { createLinkedUser, getUserById, getUserByIdentityId, getIdentityLink, ty
 import { identityDb } from "@/lib/db-identity";
 import { query } from "@/lib/db";
 import { ALL_ROLES, type Role } from "@/lib/roles";
+import { getRepNameByEmail } from "@/lib/market-intell";
 
 export const SESSION_COOKIE = "session";
 
@@ -167,7 +168,8 @@ async function applyGrant(user: User, identityUserId: string): Promise<Access> {
     // more, but lists built from it — Users & Access, the SO member picker,
     // who a role notification reaches — should still say what is true.
     if (role !== user.role) await syncLocalRole(user.id, role);
-    return { user: { ...user, role }, refusal: null };
+    const repName = role === "rep" && !user.rep_name?.trim() ? await fillRepName(user) : user.rep_name;
+    return { user: { ...user, role, rep_name: repName }, refusal: null };
   } catch (error) {
     logOnce("grant", error instanceof Error ? error.message : String(error));
     return {
@@ -183,6 +185,43 @@ async function syncLocalRole(userId: string, role: Role): Promise<void> {
     await query(`UPDATE users SET role = $2, updated_at = now() WHERE id = $1 AND role IS DISTINCT FROM $2`, [userId, role]);
   } catch (error) {
     logOnce("sync", `Could not copy the grant role locally: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/** Emails the sales portal had no name for, and until when not to ask again. */
+const repNameMissUntil = new Map<string, number>();
+
+/**
+ * A Rep with no rep_name sees no orders: orders.reps holds the rep's name as
+ * the sales portal spells it. So take it from there, by email, the first time
+ * they arrive as a Rep — a new person approved at the hub, or somebody whose
+ * grant became Rep — and keep it. Nobody types it; an admin can still
+ * correct it on the Reps page.
+ *
+ * Best effort and never in the way: a miss or a failure leaves rep_name empty
+ * ("(no rep linked)", shown on the Reps page) and is not asked again for ten
+ * minutes, so a rep the sales portal does not know costs one query, not one
+ * per click.
+ */
+async function fillRepName(user: User): Promise<string | null> {
+  const key = user.email.toLowerCase();
+  if ((repNameMissUntil.get(key) ?? 0) > Date.now()) return null;
+  try {
+    const name = await getRepNameByEmail(user.email);
+    if (!name) {
+      repNameMissUntil.set(key, Date.now() + 10 * 60_000);
+      return null;
+    }
+    // Only where still empty: never over a name an admin set.
+    await query(
+      `UPDATE users SET rep_name = $2, updated_at = now() WHERE id = $1 AND trim(coalesce(rep_name, '')) = ''`,
+      [user.id, name]
+    );
+    return name;
+  } catch (error) {
+    repNameMissUntil.set(key, Date.now() + 10 * 60_000);
+    logOnce("rep-name", `Could not read the rep name from the sales portal: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
   }
 }
 
