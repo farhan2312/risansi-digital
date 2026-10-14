@@ -11,6 +11,9 @@ import {
 } from "@/lib/moc-ai-suggestion";
 
 export const dynamic = "force-dynamic";
+// The AI thinks before answering (and may retry once), so allow it more
+// time than a plain API route on Vercel.
+export const maxDuration = 60;
 
 const str = (v: unknown): string | null =>
   typeof v === "string" && v.trim() ? v.trim() : null;

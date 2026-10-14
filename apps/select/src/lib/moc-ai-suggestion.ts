@@ -157,7 +157,8 @@ const MOC_RULES_PROMPT =
   "- Food, beverage, dairy, pharma, potable: SS316L (or SS304) wetted parts; food-grade elastomer (FG Nitrile, White Nitrile or food-grade EPDM).\n" +
   "- Abrasive solids: hardened / hard-chrome rotor; Natural rubber or abrasion-grade Nitrile within temperature; Ni-Hard CI for very abrasive duty.\n" +
   "- Stator elastomer temperature limits (approx.): Natural 70 C, Nitrile 90 C, EPDM 120 C, Viton higher.\n" +
-  "When several apply, the most demanding one governs. Explain the deciding reasons in the summary's Key Design Drivers - every component field holds the material name only.";
+  "When several apply, the most demanding one governs. Explain the deciding reasons in the summary's Key Design Drivers - every component field holds the material name only.\n\n" +
+  "Think it through, then answer by calling the moc_recommendation tool exactly once with every field filled. Do not reply in plain text.";
 
 const HORIZONTAL_WETTABLE_COMP = ["Pump Housing", "Rotor", "Shaft"];
 const horizontalNonWettableComp = (driveEnd: string) => [
@@ -496,9 +497,11 @@ function buildUserContent(context: MocAiContext, prompt: string):
 // --- Anthropic provider (Claude Haiku 5.5) ------------------------------
 
 // Haiku 5.5 (2026-10-14): better instruction following than 4.5 at a lower
-// price. It counts the same text as ~30% more tokens, hence the larger
-// max_tokens. The forced tool call below is still accepted (it skips the
-// model's built-in thinking; mediaAssessment is the reasoning-first step).
+// price; it counts the same text as ~30% more tokens. Thinking is on: the
+// model reasons privately before answering, which a FORCED tool call would
+// switch off - so the tool is offered (tool_choice auto) and the prompt says
+// to use it, with one retry if a reply comes back as plain text instead.
+// Thinking counts toward max_tokens, hence 16000.
 const ANTHROPIC_MODEL = "claude-haiku-5-5";
 const MOC_TOOL_NAME = "moc_recommendation";
 
@@ -522,9 +525,11 @@ async function getMocAiSuggestionAnthropic(
 
   try {
     const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
+    const ask = () => client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 10000,
+      max_tokens: 16000,
+      // Reason before answering (adaptive: as much as the case needs).
+      thinking: { type: "adaptive" },
       // Strict instruction following (pick from the lists, apply the rules);
       // Haiku 5.5 defaults to "medium".
       output_config: { effort: "high" },
@@ -541,20 +546,28 @@ async function getMocAiSuggestionAnthropic(
           },
         },
       ],
-    
-      tool_choice: { type: "tool", name: MOC_TOOL_NAME },
+          // Offered, not forced - forcing it would switch thinking off.
+      tool_choice: { type: "auto" },
       messages: [{ role: "user", content: buildUserContent(context, prompt) }],
     });
 
-    if (response.stop_reason === "refusal") {
-      console.warn("Anthropic MOC-suggestion request was refused");
-      return null;
+    // Up to two tries: a reply without the tool call (plain text, or cut
+    // off at max_tokens) is asked again once.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const response = await ask();
+      if (response.stop_reason === "refusal") {
+        console.warn("Anthropic MOC-suggestion request was refused");
+        return null;
+      }
+      // Read by type: the reply starts with thinking blocks.
+      const toolUse = response.content.find((b) => b.type === "tool_use");
+      if (toolUse && toolUse.type === "tool_use") {
+        const out = coerceSuggestions(toolUse.input as Partial<Record<string, unknown>>, context.pumpType);
+        if (out) return out;
+      }
+      console.warn(`MOC suggestion attempt ${attempt}: no usable tool call (stop_reason ${response.stop_reason})`);
     }
-
-    const toolUse = response.content.find((b) => b.type === "tool_use");
-    if (!toolUse || toolUse.type !== "tool_use") return null;
-
-    return coerceSuggestions(toolUse.input as Partial<Record<string, unknown>>, context.pumpType);
+    return null;
   } catch (err) {
     console.error("Anthropic MOC-suggestion request failed:", err instanceof Error ? err.message : err);
     return null;
