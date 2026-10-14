@@ -10,7 +10,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed:admin": "node scripts/seed-admin.mjs",
     "db:seed:identity": "node scripts/seed-identity-links.mjs",
-    "db:grant:identity": "node scripts/grant-identity-access.mjs"
+    "db:grant:identity": "node scripts/grant-identity-access.mjs",
+    "db:create:identity": "node scripts/create-identity-users.mjs"
   },
   "dependencies": {
     "@risansi/identity": "file:../../packages/identity",
