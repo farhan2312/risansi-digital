@@ -63,7 +63,7 @@ export const MOC_AI_ELASTOMERS = [
 // (that file has server-only concerns and can't be imported into a client
 // component). Gemini was removed; Anthropic is the only provider now.
 export const MOC_AI_PROVIDERS = [
-  { value: "anthropic", label: "Claude Haiku 4.5" },
+  { value: "anthropic", label: "Claude Haiku 5.5" },
 ] as const;
 export type MocAiProvider = (typeof MOC_AI_PROVIDERS)[number]["value"];
 
