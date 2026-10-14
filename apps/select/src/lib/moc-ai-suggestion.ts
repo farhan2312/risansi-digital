@@ -493,9 +493,13 @@ function buildUserContent(context: MocAiContext, prompt: string):
   ];
 }
 
-// --- Anthropic provider (Claude Haiku 4.5) ------------------------------
+// --- Anthropic provider (Claude Haiku 5.5) ------------------------------
 
-const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
+// Haiku 5.5 (2026-10-14): better instruction following than 4.5 at a lower
+// price. It counts the same text as ~30% more tokens, hence the larger
+// max_tokens. The forced tool call below is still accepted (it skips the
+// model's built-in thinking; mediaAssessment is the reasoning-first step).
+const ANTHROPIC_MODEL = "claude-haiku-5-5";
 const MOC_TOOL_NAME = "moc_recommendation";
 
 async function getMocAiSuggestionAnthropic(
@@ -520,7 +524,7 @@ async function getMocAiSuggestionAnthropic(
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 6000,
+      max_tokens: 10000,
       system: MOC_RULES_PROMPT,
       tools: [
         {
