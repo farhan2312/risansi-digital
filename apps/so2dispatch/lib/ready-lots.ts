@@ -109,6 +109,24 @@ export function packingLotsFromRows(rows: unknown): PackingLot[] {
   });
 }
 
+/**
+ * Lot n of an SO, for the Orders list: Lot 1 is Lot 1 of every EC, which
+ * carry the same status, so one line stands for all of them. `differ` says
+ * when they do not. `slips` are the numbered packing slips carrying the lot.
+ */
+export type SoLot = {
+  n: number;
+  status: string | null;
+  ready_date: string | null;
+  packing_plan_date: string | null;
+  packing_shift: string | null;
+  pdi: string | null;
+  packed_date: string | null;
+  ecs: number;
+  differ: boolean;
+  slips: string[];
+};
+
 /** The first thing wrong with the packing dates, or null. */
 export function packingError(lots: PackingLot[]): string | null {
   for (let i = 0; i < lots.length; i++) {

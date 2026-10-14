@@ -25,6 +25,7 @@ import { autoTargets, spareDeliveryDate } from "@/lib/target-rules";
 import { DEFAULT_GST_RATE } from "@/lib/order-validation";
 import { PLANNING_READY_SQL } from "@/lib/reminders";
 import type { LockFacts } from "@/lib/order-lock";
+import type { SoLot } from "@/lib/ready-lots";
 import {
   isPerEcDept,
   NOT_APPLICABLE,
@@ -147,6 +148,8 @@ export type OrderListRow = {
   /** Assembly & Packing's next packing plan on the SO's Spare lots. */
   packing_plan?: { date: string; shift: string | null; pdi: string | null } | null;
   in_dispatch?: boolean;
+  /** A Spare SO's readiness lots, Lot 1 to n across its ECs (Planning and Assembly & Packing columns). */
+  lots?: SoLot[];
 };
 
 /** Fields captured when creating an SO (the core `orders` identity row). */
@@ -3461,7 +3464,34 @@ export async function listOrdersPage(opts: {
                 WHERE ri.order_id = o.id) x) AS packed_on,
             EXISTS (SELECT 1 FROM order_packing_slips ps
                      WHERE ps.order_id = o.id AND ps.kind = 'actual'
-                       AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL) AS in_dispatch
+                       AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL) AS in_dispatch,
+            -- Lot n across the SO's ECs (Lot 1 is Lot 1 of every EC): the first
+            -- EC's values stand for all; "differ" says when they do not.
+            COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                        'n', z.n, 'status', z.status, 'ready_date', z.ready_date,
+                        'packing_plan_date', z.packing_plan_date, 'packing_shift', z.packing_shift,
+                        'pdi', z.pdi, 'packed_date', z.packed_date, 'ecs', z.ecs,
+                        'differ', z.differ, 'slips', z.slips) ORDER BY z.n)
+               FROM (SELECT lt.n,
+                            (array_agg(lt.status ORDER BY lt.ec_no))[1] AS status,
+                            (array_agg(to_char(lt.ready_date, 'YYYY-MM-DD') ORDER BY lt.ec_no))[1] AS ready_date,
+                            (array_agg(to_char(lt.packing_plan_date, 'YYYY-MM-DD') ORDER BY lt.ec_no))[1] AS packing_plan_date,
+                            (array_agg(lt.packing_shift ORDER BY lt.ec_no))[1] AS packing_shift,
+                            (array_agg(lt.pdi ORDER BY lt.ec_no))[1] AS pdi,
+                            (array_agg(to_char(lt.packed_date, 'YYYY-MM-DD') ORDER BY lt.ec_no))[1] AS packed_date,
+                            count(*)::int AS ecs,
+                            count(DISTINCT (lt.status, lt.ready_date, lt.packed_date)) > 1 AS differ,
+                            COALESCE((SELECT jsonb_agg(btrim(ps.packing_slip_no) ORDER BY ps.seq)
+                                        FROM order_packing_slips ps
+                                       WHERE ps.order_id = o.id AND ps.kind = 'actual'
+                                         AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL
+                                         AND lt.n = ANY(ps.lot_nos)), '[]'::jsonb) AS slips
+                       FROM (SELECT rl.status, rl.ready_date, rl.packing_plan_date, rl.packing_shift, rl.pdi,
+                                    rl.packed_date, ri.ec_no,
+                                    row_number() OVER (PARTITION BY rl.item_id ORDER BY rl.seq)::int AS n
+                               FROM order_ready_lots rl JOIN order_items ri ON ri.id = rl.item_id
+                              WHERE ri.order_id = o.id) lt
+                      GROUP BY lt.n) z), '[]'::jsonb) AS lots
        FROM orders o
        LEFT JOIN order_accounts a ON a.order_id = o.id
        LEFT JOIN (

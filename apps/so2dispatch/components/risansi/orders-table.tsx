@@ -10,7 +10,11 @@ import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
 import { billModeLabel } from "@/lib/order-schema";
 import { dispatchRowTone } from "@/lib/dept-view";
-import { isRep } from "@/lib/roles";
+import { isCentral, isRep } from "@/lib/roles";
+import { READY_LOT_LIMIT } from "@/lib/order-schema";
+import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
+import { ReadyLotHistoryButton } from "./ready-lot-history";
+import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { CLOSED, READY, assemblyView, planningText, reachedDepts, type ReachedDept } from "@/lib/order-row-view";
 import type { DeptCell, ItemSummary, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
 import { deleteOrderAction } from "@/app/risansi/orders/actions";
@@ -139,6 +143,77 @@ function StatusText({ text, tone = "pending", line, onClick }: {
   );
 }
 
+/** Lot 1 to n: one column each under Planning and under Assembly & Packing. */
+const LOT_COLUMNS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
+
+function LotButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Open"
+      className="-m-1 flex flex-col items-start rounded-md p-1 text-left transition-colors hover:bg-background"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Planning's half of a lot: its readiness status and date. */
+function PlanningLotCell({ lot, onClick }: { lot: SoLot | undefined; onClick: () => void }) {
+  if (!lot) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <LotButton onClick={onClick}>
+      <span className={`text-[13px] font-medium ${lot.status === "Fully ready" ? TEXT_TONE.done : TEXT_TONE.pending}`}>
+        {lot.status || "—"}
+      </span>
+      <span className="text-[11px] text-muted">Ready {formatDate(lot.ready_date)}</span>
+      {lot.differ && <span className="text-[11px] font-medium text-amber-700">ECs differ</span>}
+    </LotButton>
+  );
+}
+
+/**
+ * Assembly & Packing's half of a lot: packed, and on which slip; or its
+ * packing plan, red once that date has passed unpacked; or In Progress.
+ */
+function PackingLotCell({ lot, today, onClick }: { lot: SoLot | undefined; today: string; onClick: () => void }) {
+  if (!lot) return <span className="text-xs text-muted-foreground">—</span>;
+  if (lot.packed_date) {
+    return (
+      <LotButton onClick={onClick}>
+        <span className={`text-[13px] font-medium ${TEXT_TONE.done}`}>
+          {PACKED_FOR[lot.status ?? ""] ?? "Packed"} {formatDate(lot.packed_date)}
+        </span>
+        {lot.slips.length > 0 ? (
+          <span className="text-[11px] text-muted">{lot.slips.join(", ")}</span>
+        ) : (
+          <span className="mt-0.5 w-fit rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>
+        )}
+      </LotButton>
+    );
+  }
+  const plan = lot.packing_plan_date;
+  const late = !!plan && plan < today;
+  const extras = [lot.packing_shift, lot.pdi ? `PDI ${lot.pdi}` : ""].filter(Boolean).join(" · ");
+  return (
+    <LotButton onClick={onClick}>
+      {plan ? (
+        <span className={`text-[13px] font-medium ${late ? "text-rose-600" : "text-foreground"}`}>
+          Pack {formatDate(plan)}
+        </span>
+      ) : (
+        <span className="text-[13px] font-medium text-amber-700">{PACKING_IN_PROGRESS}</span>
+      )}
+      {(extras || late) && (
+        <span className={`text-[11px] ${late ? "font-medium text-rose-600" : "text-muted"}`}>
+          {[extras, late ? "overdue" : ""].filter(Boolean).join(" · ")}
+        </span>
+      )}
+    </LotButton>
+  );
+}
+
 /** The pop-up each department tag opens. */
 const DEPT_POPUP: Record<ReachedDept["key"], PopupKind> = {
   drawing: { kind: "ec", dept: "drawing" },
@@ -202,8 +277,13 @@ export function OrdersTable({
     parseOrderListFilter((key) => getParam(key) || undefined)
   );
   const pageRows = orders;
-  // expand-toggle + 18 data columns + open/add-on + optional delete.
-  const baseCols = 20;
+  // expand-toggle + 19 data columns (Planning and Assembly & Packing three lot
+  // columns each) + open/add-on + optional delete.
+  const baseCols = 25;
+  // The readiness history is Planning's and Central's, as on the Planning page.
+  const seesReadinessHistory = isCentral(role) || role === "planning";
+  // Today in the browser's calendar, to mark a packing plan that has passed.
+  const today = new Date().toLocaleDateString("en-CA");
   const colSpan = baseCols + (canDelete ? 1 : 0);
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -237,30 +317,41 @@ export function OrdersTable({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className="w-full min-w-[1700px] text-sm">
+          <table className="w-full min-w-[2150px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
-              <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th className="w-8 px-2 py-3" />
-                <th className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
-                <th className="px-4 py-3">SO No.</th>
-                <th className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
-                <th className="px-3 py-3">Chat</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Client Name</th>
-                <th className="px-4 py-3">Client Code</th>
-                <th className="px-4 py-3">Rep</th>
-                <th className="px-4 py-3">Zone</th>
-                <th className="px-4 py-3">Bill Mode</th>
-                <th className="px-4 py-3 text-right">Order Value</th>
-                <th className="px-4 py-3">Departments</th>
-                <th className="px-4 py-3">Payment terms, PIs &amp; payment</th>
-                <th className="px-4 py-3 whitespace-nowrap"><SortHeader label="Readiness Date" sortKey="readiness" /></th>
-                <th className="px-4 py-3">Planning</th>
-                <th className="px-4 py-3">Assembly &amp; Packing</th>
-                <th className="px-4 py-3">Dispatch</th>
-                <th className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
-                <th className="px-4 py-3" />
-                {canDelete && <th className="px-4 py-3" />}
+              <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                <th rowSpan={2} className="w-8 px-2 py-3" />
+                <th rowSpan={2} className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
+                <th rowSpan={2} className="px-4 py-3">SO No.</th>
+                <th rowSpan={2} className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
+                <th rowSpan={2} className="px-3 py-3">Chat</th>
+                <th rowSpan={2} className="px-4 py-3">Type</th>
+                <th rowSpan={2} className="px-4 py-3">Client Name</th>
+                <th rowSpan={2} className="px-4 py-3">Client Code</th>
+                <th rowSpan={2} className="px-4 py-3">Rep</th>
+                <th rowSpan={2} className="px-4 py-3">Zone</th>
+                <th rowSpan={2} className="px-4 py-3">Bill Mode</th>
+                <th rowSpan={2} className="px-4 py-3 text-right">Order Value</th>
+                <th rowSpan={2} className="px-4 py-3">Departments</th>
+                <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Readiness Date" sortKey="readiness" /></th>
+                {/* Assembly & Packing's planned packing date: the SO's next among its unpacked lots. */}
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Date" sortKey="packing" /></th>
+                {/* A Spare's readiness lots, one column each, under each department. */}
+                <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Planning</th>
+                <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Assembly &amp; Packing</th>
+                <th rowSpan={2} className="border-l border-card-border px-4 py-3">Dispatch</th>
+                <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
+                <th rowSpan={2} className="px-4 py-3" />
+                {canDelete && <th rowSpan={2} className="px-4 py-3" />}
+              </tr>
+              <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                {LOT_COLUMNS.map((n) => (
+                  <th key={`p${n}`} className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
+                ))}
+                {LOT_COLUMNS.map((n) => (
+                  <th key={`a${n}`} className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border">
@@ -281,6 +372,8 @@ export function OrdersTable({
                 const dispatch = order.dispatch_status || "Pending";
                 // A cancelled or diverted SO is nobody's work: no departments, no progress.
                 const closed = CLOSED.includes(dispatch);
+                const lots = order.lots ?? [];
+                const hasLots = lots.length > 0;
                 return (
                   <Fragment key={order.id}>
                     {/* A click on the row opens its Order details; the chevron
@@ -393,29 +486,96 @@ export function OrdersTable({
                           />
                         )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap align-top text-muted">
-                        {!closed && order.readiness_from
-                          ? order.readiness_to && order.readiness_to !== order.readiness_from
-                            ? `${formatDate(order.readiness_from)} – ${formatDate(order.readiness_to)}`
-                            : formatDate(order.readiness_from)
-                          : "—"}
+                      <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const readiness =
+                            !closed && order.readiness_from
+                              ? order.readiness_to && order.readiness_to !== order.readiness_from
+                                ? `${formatDate(order.readiness_from)} – ${formatDate(order.readiness_to)}`
+                                : formatDate(order.readiness_from)
+                              : "—";
+                          // How the readiness dates moved: Planning and Central see it, as on Planning.
+                          return seesReadinessHistory && !closed && (readiness !== "—" || hasLots) ? (
+                            <ReadyLotHistoryButton
+                              orderId={order.id}
+                              label={readiness === "—" ? "History" : readiness}
+                              soLabel={soLabel}
+                            />
+                          ) : (
+                            readiness
+                          );
+                        })()}
                       </td>
-                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                        <StatusText
-                          text={closed ? null : planning}
-                          tone={planning && READY.includes(planning.toLowerCase()) ? "done" : "pending"}
-                          onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
-                        />
+                      <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
+                        {/* Assembly & Packing's next planned packing date, and how it moved. */}
+                        {/* Nothing left to plan: when it was last packed, still opening the history. */}
+                        {!closed && hasLots && (order.packing_plan?.date || order.packed_on) ? (
+                          <>
+                            <PackingPlanHistoryButton
+                              orderId={order.id}
+                              label={
+                                order.packing_plan?.date
+                                  ? formatDate(order.packing_plan.date)
+                                  : `Packed ${formatDate(order.packed_on ?? null)}`
+                              }
+                              soLabel={soLabel}
+                            />
+                            {order.packing_plan?.shift && (
+                              <span className="block text-[11px] text-muted">{order.packing_plan.shift} shift</span>
+                            )}
+                          </>
+                        ) : (
+                          "—"
+                        )}
                       </td>
-                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                        <StatusText
-                          text={closed ? null : assemblyText}
-                          tone={assembly?.state ?? "pending"}
-                          line={closed ? undefined : assemblyLine}
-                          onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
-                        />
-                      </td>
-                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                      {/* Planning and Assembly & Packing lot by lot for a Spare; the SO's own status otherwise. */}
+                      {hasLots && !closed ? (
+                        LOT_COLUMNS.map((n) => (
+                          <td
+                            key={`p${n}`}
+                            className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <PlanningLotCell
+                              lot={lots[n - 1]}
+                              onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                            />
+                          </td>
+                        ))
+                      ) : (
+                        <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                          <StatusText
+                            text={closed ? null : planning}
+                            tone={planning && READY.includes(planning.toLowerCase()) ? "done" : "pending"}
+                            onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                          />
+                        </td>
+                      )}
+                      {hasLots && !closed ? (
+                        LOT_COLUMNS.map((n) => (
+                          <td
+                            key={`a${n}`}
+                            className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <PackingLotCell
+                              lot={lots[n - 1]}
+                              today={today}
+                              onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
+                            />
+                          </td>
+                        ))
+                      ) : (
+                        <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                          <StatusText
+                            text={closed ? null : assemblyText}
+                            tone={assembly?.state ?? "pending"}
+                            line={closed ? undefined : assemblyLine}
+                            onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
+                          />
+                        </td>
+                      )}
+                      <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <StatusText
                           text={dispatch}
                           tone={closed ? "na" : dispatch.toLowerCase() === "pending" ? "pending" : "done"}
