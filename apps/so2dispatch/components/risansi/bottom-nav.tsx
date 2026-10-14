@@ -31,7 +31,6 @@ import {
   type NavItem,
 } from "./nav-config";
 import { ThemeToggle } from "./theme-toggle";
-import { ChangePasswordModal } from "./change-password-modal";
 
 type ShellUser = { name: string; email: string; role: string };
 
@@ -53,7 +52,6 @@ export function BottomNav({
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
 
   // Close the sheet on navigation.
   useEffect(() => {
@@ -249,17 +247,14 @@ export function BottomNav({
                   </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowChangePassword(true);
-                    setMoreOpen(false);
-                  }}
+                {/* Passwords live at Risansi Digital (Phase 5, step 7). */}
+                <a
+                  href="/change-password"
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-hover"
                 >
                   <KeyRound className="h-5 w-5" />
                   Change password
-                </button>
+                </a>
 
                 <div className="px-1 py-1">
                   <ThemeToggle />
@@ -329,10 +324,6 @@ export function BottomNav({
           </button>
         </div>
       </nav>
-
-      {showChangePassword && (
-        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
-      )}
     </>
   );
 }

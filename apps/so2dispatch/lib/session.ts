@@ -110,7 +110,13 @@ const readAccess = cache(async (): Promise<Access> => {
   const cookieStore = await cookies();
 
   const shared = await readSharedAccount(cookieStore.get(SHARED_COOKIE)?.value);
-  if (shared) return applyGrant(shared.user, shared.identityUserId);
+  // Step 7: whether they still owe a password change comes from the shared
+  // session, never from users.must_change_password. The local column can no
+  // longer be cleared here — the set-password form went with the login — so
+  // a stale true would pin somebody to a screen with no way out.
+  if (shared) {
+    return applyGrant({ ...shared.user, must_change_password: shared.mustChangePassword }, shared.identityUserId);
+  }
 
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return { user: null, refusal: null };
@@ -205,14 +211,14 @@ function logOnce(key: string, message: string) {
  */
 async function readSharedAccount(
   token: string | undefined
-): Promise<{ user: User; identityUserId: string } | null> {
+): Promise<{ user: User; identityUserId: string; mustChangePassword: boolean } | null> {
   if (!token) return null;
   try {
     const session = await readToken(token);
     if (!session) return null;
     const user = (await getUserByIdentityId(session.userId)) ?? (await createOnFirstArrival(session));
     if (!user) return null;
-    return { user, identityUserId: session.userId };
+    return { user, identityUserId: session.userId, mustChangePassword: session.mustChangePassword };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     // Before the identity_user_id migration is applied the column is not there.
@@ -247,6 +253,22 @@ async function createOnFirstArrival(session: Session): Promise<User | null> {
   if (!user) logOnce("create-taken:" + session.userId, "An account with this email is linked to another identity; none made");
   return user;
 }
+
+/**
+ * Who the Risansi Digital cookie says this is, checked by signature and
+ * issuer only — or null. For the sign-in page, which must tell "signed in at
+ * the hub but refused here" (say why; sending them back to the hub would
+ * loop, since the hub returns anyone already signed in straight to `next`)
+ * from "not signed in anywhere" (send them to the hub). Never throws.
+ */
+export const getSharedSession = cache(async (): Promise<{ email: string; name: string } | null> => {
+  try {
+    const session = await readToken((await cookies()).get(SHARED_COOKIE)?.value);
+    return session ? { email: session.email, name: session.name } : null;
+  } catch {
+    return null;
+  }
+});
 
 /** True when the request carries a valid session for an approved user. */
 export async function isAuthenticated(): Promise<boolean> {
