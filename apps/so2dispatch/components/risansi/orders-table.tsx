@@ -374,6 +374,12 @@ export function OrdersTable({
                 const closed = CLOSED.includes(dispatch);
                 const lots = order.lots ?? [];
                 const hasLots = lots.length > 0;
+                const planDate =
+                  order.packing_plan?.date ??
+                  lots.reduce<string | null>(
+                    (latest, l) => (l.packing_plan_date && (!latest || l.packing_plan_date > latest) ? l.packing_plan_date : latest),
+                    null
+                  );
                 return (
                   <Fragment key={order.id}>
                     {/* A click on the row opens its Order details; the chevron
@@ -508,16 +514,13 @@ export function OrdersTable({
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
                         {/* Assembly & Packing's next planned packing date, and how it moved. */}
-                        {/* Nothing left to plan: when it was last packed, still opening the history. */}
-                        {!closed && hasLots && (order.packing_plan?.date || order.packed_on) ? (
+                        {/* Only the planned date: the next one among unpacked lots, or once all are
+                            packed the last one planned. Packed or not is the lot columns' to say. */}
+                        {!closed && planDate ? (
                           <>
                             <PackingPlanHistoryButton
                               orderId={order.id}
-                              label={
-                                order.packing_plan?.date
-                                  ? formatDate(order.packing_plan.date)
-                                  : `Packed ${formatDate(order.packed_on ?? null)}`
-                              }
+                              label={formatDate(planDate)}
                               soLabel={soLabel}
                             />
                             {order.packing_plan?.shift && (
