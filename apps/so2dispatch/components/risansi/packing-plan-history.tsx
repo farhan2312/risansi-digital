@@ -147,6 +147,7 @@ export function PackingPlanHistoryButton({
                       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                         <span className="text-xs font-semibold text-foreground">
                           {e.ec_no ? `${e.ec_no} · ` : ""}Lot {e.lot_no}
+                          {e.ecs > 1 ? ` · all ${e.ecs} ECs` : ""}
                         </span>
                         {!e.prev_plan_date && e.plan_date ? (
                           <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-800">Date given</span>

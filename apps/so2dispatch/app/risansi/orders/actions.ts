@@ -1045,7 +1045,10 @@ export async function getReadyLotHistoryAction(
 /** One change to a Spare lot's packing plan (date, shift, PDI). */
 export type PackingPlanEvent = {
   id: string;
+  /** The EC, when the change was on one EC only; null when it was on several. */
   ec_no: string | null;
+  /** How many of the SO's ECs the change was made on. */
+  ecs: number;
   lot_no: number;
   plan_date: string | null;
   prev_plan_date: string | null;
@@ -1071,17 +1074,23 @@ export async function getPackingPlanHistoryAction(
   if (!(await repMaySee(user, orderId))) return { ok: false, error: "Order not found." };
   try {
     const r = await query<PackingPlanEvent>(
-      `SELECT h.id, it.ec_no, h.lot_no,
+      // Assembly & Packing plans an SO as one, so the same change lands on
+      // every EC within the same minute: it is shown once, with how many ECs.
+      `SELECT (array_agg(h.id::text ORDER BY it.ec_no))[1] AS id,
+              CASE WHEN count(*) = 1 THEN min(it.ec_no) END AS ec_no,
+              count(*)::int AS ecs, h.lot_no,
               to_char(h.plan_date, 'YYYY-MM-DD') AS plan_date,
               to_char(h.prev_plan_date, 'YYYY-MM-DD') AS prev_plan_date,
               h.shift, h.prev_shift, h.pdi, h.prev_pdi,
-              u.full_name AS changed_by_name, h.changed_by_role,
-              to_char(h.changed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS changed_at
+              min(u.full_name) AS changed_by_name, h.changed_by_role,
+              to_char(max(h.changed_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS changed_at
          FROM order_packing_plan_history h
          JOIN order_items it ON it.id = h.item_id
          LEFT JOIN users u ON u.id = h.changed_by
         WHERE it.order_id = $1
-        ORDER BY h.changed_at DESC`,
+        GROUP BY h.lot_no, h.plan_date, h.prev_plan_date, h.shift, h.prev_shift, h.pdi, h.prev_pdi,
+                 h.changed_by, h.changed_by_role, date_trunc('minute', h.changed_at)
+        ORDER BY max(h.changed_at) DESC`,
       [orderId]
     );
     return { ok: true, events: r.rows };
