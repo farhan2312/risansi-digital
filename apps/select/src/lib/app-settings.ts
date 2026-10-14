@@ -1,7 +1,7 @@
 /**
  * Portal-wide settings (app_settings key/value rows). Server-only.
  *
- * usd_inr_rate — 1 USD in INR, set by an admin on Admin > USD to INR. An
+ * usd_inr_rate — 1 USD in INR, set on the USD to INR page (sidebar). An
  * enquiry that switches on Quote in USD copies the rate at that moment into
  * projects.usd_inr_rate, so changing it here never re-prices a quote.
  */

@@ -348,7 +348,7 @@ export default function CommercialSummaryPage() {
   // Quote in USD: prices stay in INR; the totals and the Commercial Offer
   // also show USD at the rate fixed on the enquiry when it was switched on.
   const fx = project ? quoteFxOf(project) : undefined;
-  // The current Admin > USD to INR rate (undefined while loading).
+  // The current USD to INR rate (sidebar page) (undefined while loading).
   const [rateNow, setRateNow] = useState<number | null | undefined>(undefined);
   const [fxBusy, setFxBusy] = useState(false);
   const [fxError, setFxError] = useState("");
@@ -644,7 +644,7 @@ export default function CommercialSummaryPage() {
                     className="text-[12px] font-semibold text-accent hover:underline disabled:opacity-50"
                     disabled={fxBusy}
                     onClick={() => changeCurrency("USD", true)}
-                    title="Fix today's Admin > USD to INR rate on this enquiry instead"
+                    title="Fix today's USD to INR rate on this enquiry instead"
                   >
                     Use current rate (₹{rateNow.toLocaleString("en-IN", { maximumFractionDigits: 4 })})
                   </button>
@@ -655,7 +655,7 @@ export default function CommercialSummaryPage() {
                   }`}
                   title={
                     !fx && rateNow === null
-                      ? "Set the USD to INR rate first (Admin > USD to INR)"
+                      ? "Set the USD to INR rate first (sidebar > USD to INR)"
                       : fx
                         ? "Back to INR"
                         : "Show the totals and the Commercial Offer in USD at the current rate (fixed for this enquiry)"

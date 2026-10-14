@@ -95,6 +95,7 @@ export const MAIN_LINKS: NavLink[] = [
   { href: "/selection-summary", label: "Reports", icon: "reports" },
   { href: "/head-calculator", label: "Head Calculator", shortLabel: "Calc", icon: "calculator" },
   { href: "/client-prices", label: "Client Quoted Prices", shortLabel: "Prices", icon: "reports" },
+  { href: "/usd-inr", label: "USD to INR", shortLabel: "USD", icon: "currency" },
 ];
 
 /** Master-data pages — admin and system_admin alike. */
@@ -104,7 +105,6 @@ export const ADMIN_LINKS: NavLink[] = [
   { href: "/admin/gearbox-master", label: "Gearbox Master", icon: "database" },
   { href: "/admin/motor-master", label: "Motor Master", icon: "database" },
   { href: "/admin/boi-master", label: "BOI Master", icon: "database" },
-  { href: "/admin/usd-inr", label: "USD to INR", shortLabel: "USD", icon: "currency" },
 ];
 
 /** system_admin only — plain "admin" explicitly does not get these. */

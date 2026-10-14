@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 // PUT /api/commercial/currency {projectId, currency: "INR" | "USD", refreshRate?}
 // The Commercial page's Quote in USD toggle. Switching USD on fixes the
-// current Admin > USD to INR rate on the enquiry (projects.usd_inr_rate);
+// current USD to INR rate (sidebar > USD to INR) on the enquiry (projects.usd_inr_rate);
 // refreshRate re-takes the current rate. INR clears it. Prices stay in INR.
 // Audited.
 export async function PUT(req: Request) {
@@ -50,7 +50,7 @@ export async function PUT(req: Request) {
     return json({ ok: true, changed: false, quoteCurrency: "USD", usdInrRate: oldRate });
 
   const { rate } = await getUsdInrSetting();
-  if (rate === null) return error("Set the USD to INR rate first (Admin > USD to INR)", 409);
+  if (rate === null) return error("Set the USD to INR rate first (sidebar > USD to INR)", 409);
   if (p.currency === "USD" && oldRate === rate)
     return json({ ok: true, changed: false, quoteCurrency: "USD", usdInrRate: rate });
 

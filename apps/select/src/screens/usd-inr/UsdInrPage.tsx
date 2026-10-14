@@ -6,7 +6,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import { parseUsdRate } from "../../lib/commercial";
 import { getUsdInrSetting, saveUsdInrRate, type UsdInrSetting } from "../../services/settingsService";
 
-// Admin > USD to INR: the one exchange rate for the portal. An enquiry that
+// USD to INR (sidebar, every user): the one exchange rate for the portal. An enquiry that
 // switches on Quote in USD (Commercial page) fixes the rate at that moment,
 // so a change here applies to enquiries switched to USD from now on (or
 // re-taken there with "Use current rate").

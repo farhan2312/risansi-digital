@@ -1,7 +1,7 @@
 import { error, json } from "@/lib/api";
 import { getUsdInrSetting, setUsdInrRate } from "@/lib/app-settings";
 import { logAudit } from "@/lib/audit";
-import { AuthError, requireAdmin } from "@/lib/auth";
+import { AuthError, decodeToken } from "@/lib/auth";
 import { parseUsdRate } from "@/lib/commercial";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +12,12 @@ export async function GET() {
   return json(await getUsdInrSetting());
 }
 
-// PUT /api/settings/usd-inr {rate} — admins only. Audited with before -> after.
+// PUT /api/settings/usd-inr {rate} — any signed-in user (sidebar > USD to
+// INR). Audited with before -> after.
 export async function PUT(req: Request) {
   let userId: string;
   try {
-    userId = (await requireAdmin(req)).sub;
+    userId = (await decodeToken(req)).sub;
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
