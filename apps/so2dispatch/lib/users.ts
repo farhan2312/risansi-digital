@@ -331,6 +331,42 @@ export async function getUserByIdentityId(identityUserId: string): Promise<User 
   return result.rows[0] ?? null;
 }
 
+/**
+ * Create the account for somebody approved at Risansi Digital who has no row
+ * here yet (Phase 5, step 5): name and email from the shared session, role
+ * from the grant, approved, linked by identity_user_id.
+ *
+ * They have no local password, but password_hash is NOT NULL: it holds the
+ * bcrypt hash of a random uuid that is thrown away — the right shape and
+ * impossible to match, so nothing else needs a special case.
+ *
+ * The email may already belong to an account here that the seed did not
+ * link. ON CONFLICT targets lower(email) — the unique index this table
+ * actually has; targeting email fails at runtime — and links that account
+ * instead, leaving its id, password and history alone. One already linked to
+ * a different identity is never taken over: null, and the caller refuses.
+ */
+export async function createLinkedUser(input: {
+  identityUserId: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+}): Promise<User | null> {
+  const passwordHash = await bcrypt.hash(crypto.randomUUID(), 12);
+  const result = await query<User>(
+    `INSERT INTO users (full_name, email, password_hash, role, status, must_change_password, identity_user_id)
+     VALUES ($1, $2, $3, $4, 'approved', false, $5)
+     ON CONFLICT (lower(email)) DO UPDATE
+        SET identity_user_id = EXCLUDED.identity_user_id, updated_at = now()
+      WHERE users.identity_user_id IS NULL
+     RETURNING ${PUBLIC_COLUMNS}`,
+    [input.fullName.trim() || input.email.trim(), input.email.trim(), passwordHash, input.role, input.identityUserId]
+  );
+  // Nothing returned: the email's account is linked already — to this
+  // identity if a second request raced us here, otherwise to someone else.
+  return result.rows[0] ?? (await getUserByIdentityId(input.identityUserId));
+}
+
 /** Until when to skip asking for the link because the column is not there yet. */
 let identityColumnMissingUntil = 0;
 

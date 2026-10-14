@@ -1,8 +1,8 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
-import { COOKIE_NAME as SHARED_COOKIE, mayOpen, readToken } from "@risansi/identity";
-import { getUserById, getUserByIdentityId, getIdentityLink, type User } from "@/lib/users";
+import { COOKIE_NAME as SHARED_COOKIE, mayOpen, readToken, type Session } from "@risansi/identity";
+import { createLinkedUser, getUserById, getUserByIdentityId, getIdentityLink, type User } from "@/lib/users";
 import { identityDb } from "@/lib/db-identity";
 import { query } from "@/lib/db";
 import { ALL_ROLES, type Role } from "@/lib/roles";
@@ -210,8 +210,7 @@ async function readSharedAccount(
   try {
     const session = await readToken(token);
     if (!session) return null;
-    const user = await getUserByIdentityId(session.userId);
-    // No account here yet: expected until the seed links everyone; step 5 creates it.
+    const user = (await getUserByIdentityId(session.userId)) ?? (await createOnFirstArrival(session));
     if (!user) return null;
     return { user, identityUserId: session.userId };
   } catch (error) {
@@ -221,6 +220,32 @@ async function readSharedAccount(
     logOnce(key, `${msg} — falling back to this portal's own login`);
     return null;
   }
+}
+
+/**
+ * No account here for this identity (Phase 5, step 5). A grant on its own
+ * cannot let anybody in — users.id is the foreign key on every order and
+ * audit row — so somebody Approved at the hub gets an account made now.
+ *
+ * Only on an Approved grant with a role this portal knows. Anything less is
+ * null: no row is created, and this portal's own cookie decides as before.
+ * The grant is asked again by applyGrant on this and every later request.
+ */
+async function createOnFirstArrival(session: Session): Promise<User | null> {
+  const verdict = await mayOpen(identityDb, session.userId, APP_SLUG);
+  if (!verdict.allowed) return null;
+  if (!verdict.appRole || !(ALL_ROLES as string[]).includes(verdict.appRole)) {
+    logOnce("create-role:" + verdict.appRole, `No account made for an Approved grant with role "${verdict.appRole}"`);
+    return null;
+  }
+  const user = await createLinkedUser({
+    identityUserId: session.userId,
+    fullName: session.name,
+    email: session.email,
+    role: verdict.appRole as Role,
+  });
+  if (!user) logOnce("create-taken:" + session.userId, "An account with this email is linked to another identity; none made");
+  return user;
 }
 
 /** True when the request carries a valid session for an approved user. */
