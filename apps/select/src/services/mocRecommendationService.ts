@@ -95,6 +95,9 @@ export interface MocComponentSuggestions {
   /** Per component (keyed like the fields above): why the material was picked
    *  and up to 2 alternatives with reasons - chips in the MOC table. */
   componentChoices?: Partial<Record<string, { reason: string; alternatives: { material: string; reason: string }[] }>>;
+  /** Tokens this generation used (all attempts together; output includes
+   *  thinking). Shown on the MOC step after Generate; not saved. */
+  usage?: { inputTokens: number; outputTokens: number; attempts: number };
 }
 
 /** Why the AI path produced no suggestion: "not_configured" = no usable API

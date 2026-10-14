@@ -148,7 +148,7 @@ type ComponentRow = {
   key: string;
   label: string;
   // The text fields only (not the componentChoices object).
-  aiKey: Exclude<keyof MocComponentSuggestions, "componentChoices">;
+  aiKey: Exclude<keyof MocComponentSuggestions, "componentChoices" | "usage">;
   options: readonly string[];
 };
 
@@ -341,6 +341,11 @@ const CLEARED_AI_FIELDS = {
   mocAiGeneratedAt: "",
   mocAiComponentChoices: null,
 } as const;
+
+/** Claude Haiku 5.5 list price per million tokens (prompts up to 100K tokens),
+ *  for the "≈ $" figure after Generate. Update if the model or price changes. */
+const HAIKU_IN_USD_PER_M = 0.1;
+const HAIKU_OUT_USD_PER_M = 0.5;
 
 const MocDetailsStep = ({
   onNext,
@@ -924,6 +929,21 @@ const MocDetailsStep = ({
                             resultProvider}{" "}
                           based on the provided process conditions
                         </p>
+                        {aiSuggestion.usage && (
+                          // This generation only (not saved, so not shown after a reload).
+                          <p className="mt-0.5 text-[11.5px] text-slate-500" title="Output includes the AI's thinking">
+                            Tokens: {aiSuggestion.usage.inputTokens.toLocaleString("en-IN")} in ·{" "}
+                            {aiSuggestion.usage.outputTokens.toLocaleString("en-IN")} out ·{" "}
+                            {(aiSuggestion.usage.inputTokens + aiSuggestion.usage.outputTokens).toLocaleString("en-IN")} total
+                            {" · "}≈ $
+                            {(
+                              (aiSuggestion.usage.inputTokens * HAIKU_IN_USD_PER_M +
+                                aiSuggestion.usage.outputTokens * HAIKU_OUT_USD_PER_M) /
+                              1_000_000
+                            ).toFixed(4)}
+                            {aiSuggestion.usage.attempts > 1 ? ` · ${aiSuggestion.usage.attempts} attempts` : ""}
+                          </p>
+                        )}
                       </div>
                     </div>
 
