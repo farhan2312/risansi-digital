@@ -69,6 +69,21 @@ export interface TokenClaims {
   sub: string;
   email: string;
   role: string;
+  /**
+   * Still holding a password somebody else chose for them.
+   *
+   * From the shared session, not from `users.must_change_password`. That
+   * column is no longer clearable here — the change-password form went with
+   * the login — so anybody it still says `true` for is stuck behind a modal
+   * that cannot save and cannot be dismissed. amit.sharma@ hit exactly that
+   * on 14 Oct, and four more rows were one visit away from it.
+   *
+   * Always false on the shared path, because `sharedClaims` refuses the
+   * request outright when the session says otherwise and sends them to the
+   * hub to deal with it. Carried as a field anyway so `/api/auth/me` reads it
+   * from one place instead of going back to the table.
+   */
+  mustChangePassword: boolean;
   iat: number;
   exp: number;
 }
@@ -300,6 +315,9 @@ async function sharedClaims(req: Request): Promise<TokenClaims | null> {
     sub: localId,
     email: session.email,
     role: live.role ?? "user",
+    // Reached only when the session says false — the check above throws
+    // otherwise.
+    mustChangePassword: false,
     // Synthesised. The shared token's own lifetime was already checked by
     // readToken; nothing downstream reads these for an auth decision.
     iat: now,
@@ -340,7 +358,14 @@ export async function decodeToken(req: Request): Promise<TokenClaims> {
     // wrong person.
     throw new AuthError(live.reason ?? "This account is not active.", 401);
   }
-  return { ...claims, role: live.role ?? claims.role };
+  // The local path keeps its old source. Nothing can mint one of these
+  // cookies any more, so this drains on its own; until it does, a local
+  // session behaves exactly as it did.
+  return {
+    ...claims,
+    role: live.role ?? claims.role,
+    mustChangePassword: claims.mustChangePassword ?? false,
+  };
 }
 
 export async function requireAdmin(req: Request): Promise<TokenClaims> {

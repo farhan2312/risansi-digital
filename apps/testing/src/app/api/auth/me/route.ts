@@ -39,6 +39,10 @@ export async function GET(req: Request) {
     name: user.name,
     email: user.email,
     role: user.role,
-    must_change_password: user.mustChangePassword,
+    // From the session, not from users.must_change_password. That column
+    // cannot be cleared from here any more, and DashboardLayout renders a
+    // modal with no dismiss when this is true — so a stale `true` locked
+    // somebody out of the portal entirely.
+    must_change_password: claims.mustChangePassword,
   });
 }
