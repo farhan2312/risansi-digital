@@ -112,6 +112,20 @@ export const projects = pgTable("projects", {
    *  versions with the prices. */
   commercialRemarks: text("commercial_remarks"),
   commercialOfferConfig: jsonb("commercial_offer_config").$type<Record<string, unknown>>().notNull().default({}),
+  /** "INR" or "USD" - the Commercial page's Quote in USD toggle. */
+  quoteCurrency: varchar("quote_currency", { length: 3 }).notNull().default("INR"),
+  /** The USD -> INR rate fixed for this enquiry when Quote in USD was switched
+   *  on (app_settings usd_inr_rate at that moment), so a later rate change
+   *  never silently re-prices a quote. */
+  usdInrRate: numeric("usd_inr_rate", { precision: 12, scale: 4 }),
+});
+
+/** Key/value settings for the portal (e.g. usd_inr_rate - Admin > USD to INR). */
+export const appSettings = pgTable("app_settings", {
+  key: varchar("key", { length: 60 }).primaryKey(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
 });
 
 

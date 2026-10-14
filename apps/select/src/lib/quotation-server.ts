@@ -18,6 +18,7 @@ import {
   type TsmOption,
   erpQuotationNumber,
   quotationNumber,
+  quoteFxOf,
   subTotal,
   unitTotal,
 } from "@/lib/commercial";
@@ -102,6 +103,8 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
     grandTotal: tags.reduce((s, t) => s + t.sub, 0),
     offer,
     ...(summary?.project.remarks ? { remarks: summary.project.remarks } : {}),
+    // Quoted in USD: the version keeps the rate it was made with.
+    ...(summary && quoteFxOf(summary.project) ? { fx: quoteFxOf(summary.project) } : {}),
   };
 }
 

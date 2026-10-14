@@ -20,3 +20,14 @@ export const saveCommercialPrices = async (
   const { data } = await apiClient.put(`/commercial/${tagId}`, prices);
   return data;
 };
+
+/** The Quote in USD toggle: USD fixes the current USD -> INR rate on the
+ *  enquiry (refreshRate re-takes it); INR clears it. */
+export const setQuoteCurrency = async (
+  projectId: string,
+  currency: "INR" | "USD",
+  refreshRate = false,
+): Promise<{ quoteCurrency: "INR" | "USD"; usdInrRate: number | null }> => {
+  const { data } = await apiClient.put("/commercial/currency", { projectId, currency, refreshRate });
+  return data;
+};

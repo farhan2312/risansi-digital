@@ -15,6 +15,8 @@ import {
   boiNet,
   boiTotal,
   formatInr,
+  formatUsd,
+  usdGrandTotal,
   otherNet,
   versionLabel,
 } from "../../lib/commercial";
@@ -478,6 +480,7 @@ function VersionList({
                   {fmtDate(v.createdAt)}
                   {v.createdByName ? ` · ${v.createdByName}` : ""} · TSM {v.tsmInitials ?? "—"} ·{" "}
                   {formatInr(v.snapshot.grandTotal)}
+                  {v.snapshot.fx ? ` · ${formatUsd(usdGrandTotal(v.snapshot.tags, v.snapshot.fx.rate))}` : ""}
                 </p>
               </div>
               <button type="button" className={btnSm} onClick={() => onView(v)}>
@@ -565,6 +568,7 @@ function SnapshotModal({
               sub: t.sub,
             }))}
             version={{ label, config: normalizeOfferConfig(version.snapshot.offer) }}
+            fx={version.snapshot.fx}
             onClose={() => setShowOffer(false)}
           />
         )}
@@ -597,6 +601,16 @@ function SnapshotModal({
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono font-bold text-fg">{formatInr(s.grandTotal)}</td>
               </tr>
+              {s.fx && (
+                <tr className="bg-sunk">
+                  <td colSpan={4} className="px-4 pb-2.5 text-right text-[12px] text-fg-3">
+                    Quoted in USD · 1 USD = ₹{s.fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}
+                  </td>
+                  <td className="px-4 pb-2.5 text-right font-mono font-bold text-accent">
+                    {formatUsd(usdGrandTotal(s.tags, s.fx.rate))}
+                  </td>
+                </tr>
+              )}
             </tfoot>
           </table>
 

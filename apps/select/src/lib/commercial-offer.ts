@@ -22,7 +22,7 @@
  *
  * Client-safe (no DB / DOM): the modal, print and Excel all build from here.
  */
-import { boiNet, boiTotal, otherNet, type CommercialPrices, type DriveGroup, type TagTech } from "./commercial";
+import { boiNet, boiTotal, otherNet, scalePrices, subTotal, unitTotal, type CommercialPrices, type DriveGroup, type QuoteFx, type TagTech } from "./commercial";
 import { SCOPE_CSS, esc, headerHiddenList, scopeRowsHtml, sheetHtml, type HeaderKey, type TechDocHeader, type TechDocRow } from "./tech-doc";
 
 export const OFFER_TITLE = "Commercial Offer";
@@ -91,6 +91,8 @@ export interface OfferSheet {
   group?: string;
   /** e.g. "Internal V2" — for the file name of a version's sheet. */
   versionLabel?: string;
+  /** Quoted in USD at this fixed rate (prices are converted on the sheet). */
+  fx?: QuoteFx;
 }
 
 export const isGearedGroup = (g: DriveGroup | string | null | undefined) => g === "GM" || g === "GB";
@@ -113,7 +115,11 @@ export interface CommercialOfferData {
 // --- Rows -------------------------------------------------------------------
 
 const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
-const money = (n: number | null | undefined): string => (n === null || n === undefined ? "" : INR.format(n));
+const USD = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+/** Grouping of the sheet being built: 1,23,456 for INR, 123,456 for USD
+ *  (set by buildOffer for the length of one synchronous build). */
+let moneyFmt = INR;
+const money = (n: number | null | undefined): string => (n === null || n === undefined ? "" : moneyFmt.format(n));
 
 interface OfferField {
   key: string;
@@ -299,14 +305,45 @@ export interface OfferBlock {
   rows: TechDocRow[];
 }
 
+/** An offer tag in USD: prices divided by the rate, totals recomputed from
+ *  them (whole USD, so the columns add up). */
+function usdTag(t: OfferTag, rate: number): OfferTag {
+  const prices = scalePrices(t.prices, rate);
+  return { ...t, prices, unit: unitTotal(prices), sub: subTotal(prices, t.quantity) };
+}
+
+/** "1 USD = ₹84.25" */
+export const fxLine = (fx: QuoteFx) =>
+  `All prices in USD · 1 USD = ₹${fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}`;
+
 /** The sheet's rows with the customisation applied (TechDocEditor reads the
  *  same row shape). Removed rows only with `includeHidden`. */
 export function buildOffer(
   tags: OfferTag[],
   config: OfferConfig,
   geared: boolean,
-  opts: { includeHidden?: boolean } = {},
+  opts: { includeHidden?: boolean; fx?: QuoteFx } = {},
 ): OfferBlock[] {
+  moneyFmt = opts.fx ? USD : INR;
+  try {
+    return offerRows(tags, config, geared, opts);
+  } finally {
+    moneyFmt = INR;
+  }
+}
+
+function offerRows(
+  tags: OfferTag[],
+  config: OfferConfig,
+  geared: boolean,
+  opts: { includeHidden?: boolean; fx?: QuoteFx },
+): OfferBlock[] {
+  // Quoted in USD: the same sheet with every price converted at the fixed
+  // rate and "INR" read as "USD" in the automatic labels (a renamed label or
+  // an edited cell stays as typed).
+  const fx = opts.fx;
+  if (fx) tags = tags.map((t) => usdTag(t, fx.rate));
+  const cur = (label: string) => (fx ? label.replace(/\bINR\b/g, "USD") : label);
   const picked = new Set(config.extras);
   const hidden = new Set(config.hidden);
   const rows: TechDocRow[] = [];
@@ -318,8 +355,8 @@ export function buildOffer(
     rows.push({
       key,
       kind,
-      label: config.labels[key] || autoLabel,
-      autoLabel,
+      label: config.labels[key] || cur(autoLabel),
+      autoLabel: cur(autoLabel),
       values: ids.map((id, i) => (edited[i] ? edits[id] : autoValues[i])),
       autoValues,
       edited,
@@ -369,7 +406,7 @@ export const sheetGroup = (sheet: OfferSheet): string | null => sheet.driveGroup
 export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string {
   const n = Math.max(sheet.tags.length, 1);
   const cols = n + 1;
-  const [block] = buildOffer(sheet.tags, sheet.config, sheet.geared);
+  const [block] = buildOffer(sheet.tags, sheet.config, sheet.geared, { fx: sheet.fx });
   const tagHead = `<tr class="tags"><th scope="row">Tag No.</th>${sheet.tags.map((t) => `<td>${esc(t.tagName)}</td>`).join("")}</tr>`;
   const rows = block.rows
     .map((r) =>
@@ -384,7 +421,8 @@ export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string
     `<tr class="offer-band"><td colspan="${cols}">${esc(OFFER_TITLE)}</td></tr>` +
     tagHead +
     rows +
-    scopeRowsHtml({ scope, out }, cols);
+    scopeRowsHtml({ scope, out }, cols) +
+    (sheet.fx ? `<tr class="oos"><td colspan="${cols}">${esc(fxLine(sheet.fx))}</td></tr>` : "");
   return sheetHtml({
     projectCode: sheet.projectCode,
     title: OFFER_TITLE,

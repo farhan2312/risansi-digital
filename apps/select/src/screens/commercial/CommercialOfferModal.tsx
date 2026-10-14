@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import TechDocEditor, { DocHeaderEditor } from "../../components/reports/TechDocEditor";
-import { DRIVE_GROUP_LABEL, type DriveGroup } from "../../lib/commercial";
+import { DRIVE_GROUP_LABEL, type DriveGroup, type QuoteFx } from "../../lib/commercial";
 import {
   EMPTY_OFFER_CONFIG,
   OFFER_EXTRAS,
@@ -38,6 +38,7 @@ export default function CommercialOfferModal({
   tags,
   version,
   unsavedPrices,
+  fx,
   onClose,
 }: {
   projectId: string;
@@ -47,6 +48,8 @@ export default function CommercialOfferModal({
   version?: { label: string; config: OfferConfig };
   /** The Commercial Summary has unsaved prices (not in the sheet). */
   unsavedPrices?: boolean;
+  /** Quote in USD: the sheet's prices converted at this fixed rate. */
+  fx?: QuoteFx;
   onClose: () => void;
 }) {
   const editable = !version;
@@ -134,8 +137,9 @@ export default function CommercialOfferModal({
       driveGroup: group,
       group: data.mixed ? group : undefined,
       versionLabel: version?.label,
+      fx,
     };
-  }, [data, group, tags, config, geared, version]);
+  }, [data, group, tags, config, geared, version, fx]);
   const html = useMemo(
     () => (sheet ? buildOfferHtml(sheet, typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png") : ""),
     [sheet],
@@ -269,7 +273,7 @@ export default function CommercialOfferModal({
                   />
                   <TechDocEditor
                     tags={tags}
-                    blocks={buildOffer(tags, config, geared, { includeHidden: true })}
+                    blocks={buildOffer(tags, config, geared, { includeHidden: true, fx })}
                     config={config}
                     onChange={update}
                     valueHint="Saved price"

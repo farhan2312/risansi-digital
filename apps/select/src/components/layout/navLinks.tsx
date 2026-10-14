@@ -72,6 +72,12 @@ export const navIcons: Record<string, ReactNode> = {
       <path d="m9.2 12 2 2 3.6-3.8" />
     </>,
   ),
+  currency: icon(
+    <>
+      <path d="M3 8h8M3 12h8M7 8c2.2 0 3.5 1.2 3.5 3S9.2 15 7 15H5l5 5" />
+      <path d="M17 4v16M20.5 7.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1.1-3.5 2.5 1.6 2.3 3.5 2.5 3.5 1.1 3.5 2.5-1.6 2.5-3.5 2.5-3.5-1.1-3.5-2.5" />
+    </>,
+  ),
 };
 
 export type NavLink = {
@@ -98,6 +104,7 @@ export const ADMIN_LINKS: NavLink[] = [
   { href: "/admin/gearbox-master", label: "Gearbox Master", icon: "database" },
   { href: "/admin/motor-master", label: "Motor Master", icon: "database" },
   { href: "/admin/boi-master", label: "BOI Master", icon: "database" },
+  { href: "/admin/usd-inr", label: "USD to INR", shortLabel: "USD", icon: "currency" },
 ];
 
 /** system_admin only — plain "admin" explicitly does not get these. */
