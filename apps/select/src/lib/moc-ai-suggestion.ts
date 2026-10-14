@@ -83,6 +83,9 @@ export interface MocComponentSuggestions {
    *  shows them as chips to choose from. Absent on suggestions made before
    *  2026-10-13. */
   componentChoices?: ComponentChoices;
+  /** Tokens this generation used (all attempts together; output includes
+   *  thinking). Shown on the MOC step after Generate; not saved. */
+  usage?: { inputTokens: number; outputTokens: number; attempts: number };
 }
 
 export type ComponentChoice = {
@@ -552,9 +555,13 @@ async function getMocAiSuggestionAnthropic(
     });
 
     // Up to two tries: a reply without the tool call (plain text, or cut
-    // off at max_tokens) is asked again once.
+    // off at max_tokens) is asked again once. Tokens add up across tries.
+    const usage = { inputTokens: 0, outputTokens: 0, attempts: 0 };
     for (let attempt = 1; attempt <= 2; attempt++) {
       const response = await ask();
+      usage.inputTokens += response.usage?.input_tokens ?? 0;
+      usage.outputTokens += response.usage?.output_tokens ?? 0;
+      usage.attempts = attempt;
       if (response.stop_reason === "refusal") {
         console.warn("Anthropic MOC-suggestion request was refused");
         return null;
@@ -563,7 +570,7 @@ async function getMocAiSuggestionAnthropic(
       const toolUse = response.content.find((b) => b.type === "tool_use");
       if (toolUse && toolUse.type === "tool_use") {
         const out = coerceSuggestions(toolUse.input as Partial<Record<string, unknown>>, context.pumpType);
-        if (out) return out;
+        if (out) return { ...out, usage };
       }
       console.warn(`MOC suggestion attempt ${attempt}: no usable tool call (stop_reason ${response.stop_reason})`);
     }
