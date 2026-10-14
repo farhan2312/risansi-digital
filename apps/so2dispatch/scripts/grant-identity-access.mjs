@@ -6,6 +6,7 @@
 //   npm run db:grant:identity                      dry run: shows what would happen, writes nothing
 //   npm run db:grant:identity -- --report FILE.md  dry run, plus the list as Markdown
 //   npm run db:grant:identity -- --apply           writes the grants (agree it with Farhan first)
+//   --role email=role                             grant a different role than the one held here (repeatable)
 //
 // Never overlaps with what exists. A grant is added only when ALL of these hold:
 //   - the account here is approved
@@ -53,6 +54,12 @@ const NOTE = "Bulk grant: role carried over from SO to Dispatch (Phase 5)";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
+// --role a@x.com=admin: the grant gets this role instead of the one held here.
+const roleOverride = new Map(
+  args.flatMap((a, i) => (a === "--role" ? [args[i + 1]] : []))
+    .map((v) => v.split("=").map((p) => p.trim()))
+    .map(([email, role]) => [email.toLowerCase(), role])
+);
 const reportPath = args.includes("--report") ? args[args.indexOf("--report") + 1] : null;
 
 const env = process.env;
@@ -102,7 +109,9 @@ try {
   const grant = [];    // { user, identity }
   const existing = []; // { user, identity } — grant already there, untouched
   const skip = [];     // { user, reason }
-  for (const user of users) {
+  for (const raw of users) {
+    const override = roleOverride.get(raw.email.toLowerCase());
+    const user = override ? { ...raw, role: override } : raw;
     const found = byEmail.get(user.email.toLowerCase());
     if (!found) skip.push({ user, reason: "no identity at the hub" });
     else if (found.status) existing.push({ user, identity: found });
