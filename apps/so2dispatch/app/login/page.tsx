@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getAccessRefusal, isAuthenticated } from "@/lib/session";
-import { BrandPanel } from "@/components/auth/brand-panel";
-import { LoginForm } from "@/components/login/login-form";
+import { getAccessRefusal, getSharedSession, isAuthenticated } from "@/lib/session";
+import { HUB_SIGN_OUT_URL, HUB_URL, hubSignInUrl } from "@/lib/hub";
+import { HubNotice } from "@/components/auth/hub-notice";
 
 export const metadata: Metadata = {
   title: "Sign in | SO to Dispatch",
@@ -11,36 +12,51 @@ export const metadata: Metadata = {
 // Session state is per-request, so this page can't be statically cached.
 export const dynamic = "force-dynamic";
 
+/**
+ * Retired (Phase 5, step 7). Signing in happens at Risansi Digital; this page
+ * only decides where to send people.
+ *
+ * - Signed in and admitted: into the app.
+ * - Signed in at the hub but refused here: say why, with links. Not a
+ *   redirect to the hub — the hub sends anyone already signed in straight
+ *   back to `next`, which would bring them here again, round and round.
+ * - Not signed in at the hub: to its sign-in, carrying `next` so a link out
+ *   of a notification email still lands where it was going.
+ *
+ * The local cookie is still read (lib/session.ts) — nothing mints new ones,
+ * so the existing ones drain on their own.
+ */
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ requested?: string }>;
+  searchParams: Promise<{ next?: string }>;
 }) {
-  // Already signed in? Skip the form and go straight to the app.
-  if (await isAuthenticated()) redirect("/risansi/dashboard");
+  const { next } = await searchParams;
+  // A path on this portal only: never somewhere else by way of ?next=.
+  const path = next && next.startsWith("/") && !next.startsWith("//") ? next : "/risansi/dashboard";
 
-  const { requested } = await searchParams;
-  // Signed in at Risansi Digital but refused here (no grant, pending, revoked):
-  // say so, rather than show a login form as if nothing had happened.
-  const refusal = await getAccessRefusal();
-  const notice =
-    requested === "1"
-      ? "Request submitted — your access is now pending admin approval."
-      : undefined;
+  if (await isAuthenticated()) redirect(path);
 
-  return (
-    // lg:h-screen + per-panel scrolling keeps the desktop layout inside the
-    // viewport — the page itself never scrolls, and a short viewport scrolls
-    // the form panel rather than pushing the whole page down.
-    <main className="flex min-h-screen w-full bg-background lg:h-screen lg:overflow-hidden">
-      {/* LEFT: brand panel */}
-      <BrandPanel />
+  const shared = await getSharedSession();
+  if (shared) {
+    const refusal = await getAccessRefusal();
+    return (
+      <HubNotice
+        title="No access to SO to Dispatch"
+        tone="danger"
+        message={`You are signed in to Risansi Digital as ${shared.email}. ${
+          refusal ?? "SO to Dispatch could not open your account. Ask for access from Risansi Digital."
+        }`}
+        actions={[
+          { label: "Back to Risansi Digital", href: HUB_URL, primary: true },
+          { label: "Sign in as someone else", href: HUB_SIGN_OUT_URL },
+        ]}
+      />
+    );
+  }
 
-      {/* RIGHT: form panel — a floating rounded card that overlaps the brand
-          panel slightly on large screens (matches the sign-in mockup). */}
-      <section className="relative z-10 flex flex-1 basis-[40%] items-center justify-center overflow-y-auto bg-card px-6 py-10 sm:px-10 lg:-ml-8 lg:rounded-l-[32px] lg:py-8 lg:shadow-[-24px_0_60px_-30px_rgba(10,42,94,0.45)]">
-        <LoginForm notice={notice} refusal={refusal} />
-      </section>
-    </main>
-  );
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+  redirect(hubSignInUrl(host ? `${proto}://${host}${path}` : undefined));
 }

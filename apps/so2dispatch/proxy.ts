@@ -1,5 +1,5 @@
 /**
- * The front door (Phase 5, step 6), and nothing else.
+ * The front door (Phase 5, steps 6 and 7), and nothing else.
  *
  * Somebody arriving already signed in at Risansi Digital must not be met by a
  * login form: the shared session would never be examined, their account never
@@ -20,6 +20,17 @@
  * Matching /login too would loop that refused person — inside, back to
  * /login, inside again. /login already reads the shared session server-side
  * and sends anyone it admits inside, so it does not need this.
+ *
+ * ── Step 7: nobody signed in goes to the hub ───────────────────
+ *
+ * This portal no longer has a sign-in form. On `/`, and on a page inside
+ * the app opened with no session of either kind, they go to the hub's
+ * sign-in carrying `next` — the page they asked for, so a link out of a
+ * notification email lands there once they are in. The hub checks `next`
+ * with safeReturnUrl(); this deliberately does not, so the two cannot drift.
+ * A local cookie still counts as a session: they drain on their own.
+ * GET only — a server action posted without a session is answered by the
+ * action itself, and a redirect to another site is no answer to a POST.
  *
  * ── Why jose is inlined rather than imported ────────────────────
  *
@@ -49,14 +60,28 @@ async function hasSharedSession(req: NextRequest): Promise<boolean> {
   }
 }
 
+const LOCAL_COOKIE = "session";
+const HUB = (process.env.HUB_URL || "https://digital.risansi.com").replace(/\/+$/, "");
+
+function toHub(next: string) {
+  return NextResponse.redirect(`${HUB}/sign-in?next=${encodeURIComponent(next)}`);
+}
+
 export async function proxy(req: NextRequest) {
-  if (await hasSharedSession(req)) {
-    return NextResponse.redirect(new URL("/risansi/dashboard", req.url));
+  const shared = await hasSharedSession(req);
+  if (req.nextUrl.pathname === "/") {
+    if (shared) return NextResponse.redirect(new URL("/risansi/dashboard", req.url));
+    // Somebody still holding a local cookie goes in by the root page, as before.
+    if (req.cookies.has(LOCAL_COOKIE)) return NextResponse.next();
+    return toHub(new URL("/risansi/dashboard", req.url).href);
   }
-  // No shared session: the root page decides, as it always has.
+  // Inside the app.
+  if (!shared && !req.cookies.has(LOCAL_COOKIE) && req.method === "GET") return toHub(req.nextUrl.href);
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/"],
+  // `/` and the app itself. Not /login, which reads the shared session and
+  // says why somebody was refused — matching it would loop them.
+  matcher: ["/", "/risansi/:path*"],
 };

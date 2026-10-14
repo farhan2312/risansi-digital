@@ -31,7 +31,6 @@ import {
   type NavItem,
 } from "./nav-config";
 import { ThemeToggle } from "./theme-toggle";
-import { ChangePasswordModal } from "./change-password-modal";
 
 type SidebarUser = { name: string; email: string; role: string };
 
@@ -51,7 +50,6 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const initials = user.name
     .split(" ")
@@ -192,17 +190,14 @@ export function Sidebar({
               aria-hidden
             />
             <div className="absolute bottom-full left-3 right-3 z-20 mb-2 overflow-hidden rounded-xl border border-sidebar-border bg-sidebar p-1.5 shadow-xl">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowChangePassword(true);
-                  setMenuOpen(false);
-                }}
+              {/* Passwords live at Risansi Digital (Phase 5, step 7). */}
+              <a
+                href="/change-password"
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-hover"
               >
                 <KeyRound className="h-4 w-4" />
                 Change password
-              </button>
+              </a>
 
               <div className="my-1 border-t border-sidebar-border" />
               <ThemeToggle />
@@ -240,10 +235,6 @@ export function Sidebar({
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-sidebar-muted" />
         </button>
       </div>
-
-      {showChangePassword && (
-        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
-      )}
     </aside>
   );
 }
