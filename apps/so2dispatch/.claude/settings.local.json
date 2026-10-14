@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx --yes create-next-app@latest . --use-npm --yes)",
+      "Bash(rm -rf .next)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(chromium-cli --session pumptesting)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(node -e \"require.resolve\\('playwright'\\)\")",
+      "Bash(taskkill //F //IM node.exe //FI \"WINDOWTITLE eq *\")",
+      "Bash(pkill -f \"next dev\")",
+      "PowerShell($conns = Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue; if \\($conns\\) { $conns | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force; \"Killed PID $\\($_.OwningProcess\\)\" } } else { \"No process listening on 3001\" })",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"try{require.resolve\\('next/font/google'\\);console.log\\('next/font/google OK'\\)}catch\\(e\\){console.log\\('MISSING',e.message\\)}\")",
+      "Bash(npx tsc *)",
+      "Bash(node scripts/migrate.mjs)",
+      "Bash(node -e \"try{require.resolve\\('server-only'\\);console.log\\('server-only OK'\\)}catch\\(e\\){console.log\\('MISSING server-only'\\)}\")",
+      "Skill(dataviz)",
+      "Skill(dataviz:*)",
+      "Bash(node _vh.mjs)"
+    ]
+  }
+}
