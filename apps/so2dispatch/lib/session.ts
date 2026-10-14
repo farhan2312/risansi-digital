@@ -5,7 +5,8 @@ import { COOKIE_NAME as SHARED_COOKIE, mayOpen, readToken, type Session } from "
 import { createLinkedUser, getUserById, getUserByIdentityId, getIdentityLink, type User } from "@/lib/users";
 import { identityDb } from "@/lib/db-identity";
 import { query } from "@/lib/db";
-import { ALL_ROLES, type Role } from "@/lib/roles";
+import { ALL_ROLES, isRep, type Role } from "@/lib/roles";
+import { getTeamRepNames } from "@/lib/market-intell";
 
 export const SESSION_COOKIE = "session";
 
@@ -107,6 +108,11 @@ export const getAccessRefusal = cache(async (): Promise<string | null> => (await
  * local login is retired, not before.
  */
 const readAccess = cache(async (): Promise<Access> => {
+  const access = await resolveAccess();
+  return access.user ? { ...access, user: await withRepScope(access.user) } : access;
+});
+
+async function resolveAccess(): Promise<Access> {
   const cookieStore = await cookies();
 
   const shared = await readSharedAccount(cookieStore.get(SHARED_COOKIE)?.value);
@@ -135,7 +141,7 @@ const readAccess = cache(async (): Promise<Access> => {
   const identityUserId = await getIdentityLink(user.id);
   if (identityUserId) return applyGrant(user, identityUserId);
   return user.status === "approved" ? { user, refusal: null } : { user: null, refusal: null };
-});
+}
 
 /**
  * Risansi Digital's verdict on a linked account: in with the grant's role, or
@@ -184,6 +190,36 @@ async function syncLocalRole(userId: string, role: Role): Promise<void> {
   } catch (error) {
     logOnce("sync", `Could not copy the grant role locally: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+/**
+ * The rep names whose SOs a Rep or Rep Manager sees, as the orders carry them
+ * (orders.reps): their own name — the account's full name, which is the name
+ * the sales portal gives them — and, for a Rep Manager, the reps who report
+ * to them in the sales portal (manager_reps), read live so a team change
+ * there lands here on the next request.
+ *
+ * Fails narrow: if the sales portal cannot be read, a manager sees their own
+ * SOs only until it can, never more than they should.
+ */
+async function withRepScope(user: User): Promise<User> {
+  if (!isRep(user.role)) return user;
+  const names = [user.full_name.trim()].filter(Boolean);
+  if (user.role === "rep_manager") {
+    try {
+      names.push(...(await getTeamRepNames(user.email)));
+    } catch (error) {
+      logOnce("team", `Could not read the team from the sales portal: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  const seen = new Set<string>();
+  const rep_names = names.filter((n) => {
+    const k = n.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  return { ...user, rep_names };
 }
 
 /** Each reason the shared session was passed over, logged once per server process. */

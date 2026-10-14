@@ -25,7 +25,7 @@ export default async function ItemDetailPage({
 
   const detail = await getItemDetail(itemId);
   if (!detail || String(detail.order.id) !== id) notFound();
-  if (!roleSeesOrder(user.role, { ...detail.order, ec_types: [detail.item.item_type] }, user.rep_name)) {
+  if (!roleSeesOrder(user.role, { ...detail.order, ec_types: [detail.item.item_type] }, user.rep_names)) {
     notFound();
   }
 

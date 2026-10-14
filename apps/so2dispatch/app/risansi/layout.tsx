@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { canSeeEscalations } from "@/lib/roles";
+import { canSeeEscalations, isRep } from "@/lib/roles";
 import { countAlerts } from "@/lib/alerts";
 import { countRemindersForRole } from "@/lib/reminders";
 import { countUnread, recipientRolesForUser } from "@/lib/notifications";
@@ -33,7 +33,7 @@ export default async function RisansiLayout({
         recipientRolesForUser(user.role),
         user.notifications_seen_at,
         user.id,
-        user.role === "rep" ? user.rep_name?.trim() || "(no rep linked)" : null
+        isRep(user.role) ? (user.rep_names?.length ? user.rep_names : ["(no rep linked)"]) : null
       ),
       // The tracker is the admin's to run; everyone else follows their own
       // reports through the bell.

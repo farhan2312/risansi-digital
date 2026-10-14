@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   PackageCheck,
   Truck,
+  UserRound,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -95,6 +96,8 @@ export const ADMIN_NAV: NavItem[] = [
     href: "/risansi/user-access-control",
     icon: ShieldCheck,
   },
+  // Which account is which rep on the orders: this portal's own, not the hub's.
+  { label: "Reps", href: "/risansi/reps", icon: UserRound },
   { label: "Audit Log", href: "/risansi/audit-log", icon: ScrollText },
   { label: "Reports", href: "/risansi/reports", icon: ChartPie },
   { label: "Bug Tracker", href: "/risansi/bug-reports", icon: Bug },

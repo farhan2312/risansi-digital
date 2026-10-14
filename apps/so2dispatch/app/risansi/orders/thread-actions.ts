@@ -3,6 +3,7 @@
 import { getCurrentUser } from "@/lib/session";
 import { getOrderRep } from "@/lib/orders";
 import { repMatches } from "@/lib/dept-view";
+import { isRep } from "@/lib/roles";
 
 import {
   canLogDelay,
@@ -24,14 +25,15 @@ import {
 import { isAssignedTo } from "@/lib/so-assignment";
 
 /**
- * A Rep talks only on their own SOs: every Rep shares the one "rep" lane, so
- * the SO itself must be theirs. Anyone else is not limited here.
+ * A Rep talks only on their own SOs, a Rep Manager on their team's too: every
+ * Rep and Rep Manager shares the one "rep" lane, so the SO itself must be
+ * theirs. Anyone else is not limited here.
  */
-async function repOwns(user: { id?: string; role: string; rep_name?: string | null }, orderId: string): Promise<boolean> {
+async function repOwns(user: { id?: string; role: string; rep_names?: string[] }, orderId: string): Promise<boolean> {
   // An Order Making SO member: only the SOs assigned to them.
   if (user.role === "order_making_so") return !!user.id && (await isAssignedTo(orderId, user.id));
-  if (user.role !== "rep") return true;
-  return repMatches(await getOrderRep(orderId), user.rep_name);
+  if (!isRep(user.role)) return true;
+  return repMatches(await getOrderRep(orderId), user.rep_names);
 }
 
 export type ThreadResult =
@@ -143,7 +145,7 @@ export async function discussionInboxAction(): Promise<InboxResult> {
   if (!user) return { ok: false, error: "You are not signed in." };
   try {
     const entries = await listDiscussionInbox(user);
-    if (user.role !== "rep" && user.role !== "order_making_so") return { ok: true, entries };
+    if (!isRep(user.role) && user.role !== "order_making_so") return { ok: true, entries };
     // A Rep: only the discussions on their own SOs.
     const owned = await Promise.all(entries.map((e) => repOwns(user, e.order_id)));
     return { ok: true, entries: entries.filter((_, i) => owned[i]) };

@@ -3335,14 +3335,14 @@ export type OrderListOptions = {
   reps: string[];
   markets: string[];
   types: string[];
-  /** A Rep's own name: the Rep filter is fixed to it and not offered. */
-  repLock?: string;
+  /** A Rep's names (their own, a Rep Manager's team): the only reps offered. One name is shown fixed. */
+  repScope?: string[];
 };
 
 /** Each facet's distinct trimmed values, in one trip. */
-export async function listOrderListOptions(scope?: { repLock?: string }): Promise<OrderListOptions> {
+export async function listOrderListOptions(scope?: { repScope?: string[] }): Promise<OrderListOptions> {
   const options = await allOrderListOptions();
-  return scope?.repLock ? { ...options, reps: [scope.repLock], repLock: scope.repLock } : options;
+  return scope?.repScope ? { ...options, reps: scope.repScope, repScope: scope.repScope } : options;
 }
 
 async function allOrderListOptions(): Promise<OrderListOptions> {

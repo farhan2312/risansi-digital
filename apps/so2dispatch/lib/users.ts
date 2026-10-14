@@ -28,8 +28,15 @@ export type User = {
   must_change_password: boolean;
   // Sessions issued before this are refused — set by an admin password reset.
   sessions_valid_after: string | null;
-  // A Rep's name as it appears on orders (orders.reps): the SOs they see.
+  // Superseded for scoping by rep_names; still a column, because the
+  // standalone ECtoDispatch portal on the same database reads it.
   rep_name: string | null;
+  /**
+   * A Rep or Rep Manager: the rep names (as orders.reps carries them) whose
+   * SOs they see — their own, plus a manager's team. Set on the signed-in
+   * user only (lib/session.ts), never read from the table.
+   */
+  rep_names?: string[];
 };
 
 export type NewUser = {

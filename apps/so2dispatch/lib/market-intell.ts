@@ -156,6 +156,42 @@ export async function getRepContact(repName: string): Promise<MarketIntellRep | 
   return result.rows[0] ?? null;
 }
 
+/**
+ * The reps who report to a manager in the sales portal (manager_reps), by
+ * the manager's email — their names as the orders carry them (orders.reps).
+ * What a Rep Manager sees beyond their own SOs. A rep may report to more than
+ * one manager; each of them sees that rep. Empty when the sales portal has
+ * no such manager or nobody under them. Read live: a change to a team in the
+ * sales portal shows here on the next request.
+ */
+export async function getTeamRepNames(managerEmail: string): Promise<string[]> {
+  const e = managerEmail.trim().toLowerCase();
+  if (!e) return [];
+  const result = await getPool().query<{ name: string }>(
+    `SELECT DISTINCT trim(r.name) AS name
+       FROM public.manager_reps x
+       JOIN public.users m ON m.id = x.manager_id
+       JOIN public.users r ON r.id = x.rep_id
+      WHERE lower(trim(m.email)) = $1 AND trim(coalesce(r.name, '')) <> ''
+      ORDER BY 1`,
+    [e]
+  );
+  return result.rows.map((r) => r.name);
+}
+
+/** Every manager in the sales portal with the reps under them, by manager email. For the Reps page. */
+export async function listTeams(): Promise<Map<string, string[]>> {
+  const result = await getPool().query<{ email: string; reps: string[] }>(
+    `SELECT lower(trim(m.email)) AS email, array_agg(DISTINCT trim(r.name) ORDER BY trim(r.name)) AS reps
+       FROM public.manager_reps x
+       JOIN public.users m ON m.id = x.manager_id
+       JOIN public.users r ON r.id = x.rep_id
+      WHERE trim(coalesce(m.email, '')) <> '' AND trim(coalesce(r.name, '')) <> ''
+      GROUP BY 1`
+  );
+  return new Map(result.rows.map((r) => [r.email, r.reps]));
+}
+
 /** Several reps at once, keyed by their lower-cased trimmed name. Same rules as getRepContact. */
 export async function listRepContacts(repNames: string[]): Promise<Map<string, MarketIntellRep>> {
   const keys = [...new Set(repNames.map((n) => n.trim().toLowerCase()).filter(Boolean))];

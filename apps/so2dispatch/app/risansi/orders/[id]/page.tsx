@@ -40,7 +40,7 @@ export default async function OrderDetailPage({
     !roleSeesOrder(user.role, {
       ...detail.order,
       ec_types: detail.items.map((i) => i.item_type),
-    }, user.rep_name)
+    }, user.rep_names)
   ) {
     notFound();
   }

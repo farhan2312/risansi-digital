@@ -12,7 +12,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
-import { canSeeEscalations, departmentHrefForRole, canSeeClient } from "@/lib/roles";
+import { canSeeEscalations, departmentHrefForRole, canSeeClient, isRep } from "@/lib/roles";
 import { ALERTS_PAGE_SIZE, listAlertsPage, type AlertRow } from "@/lib/alerts";
 import {
   listNotificationsPage,
@@ -323,7 +323,7 @@ export default async function NotificationsPage({
       recipientRolesForUser(user.role),
       parsePage(params.npage),
       user.id,
-      user.role === "rep" ? user.rep_name?.trim() || "(no rep linked)" : null
+      isRep(user.role) ? (user.rep_names?.length ? user.rep_names : ["(no rep linked)"]) : null
     ),
     oversight
       ? listAlertsPage(parsePage(params.epage))
