@@ -120,6 +120,19 @@ export async function updateBugReportStatusAction(
   try {
     const before = await getBugReportOwner(id);
     await updateBugReportStatus(id, status as BugStatus);
+    // Who moved which report from what to what. Without it, a batch of moves
+    // (46 in two minutes on 14 Oct) could be seen only from the reporters'
+    // notifications, which do not say who did it.
+    if (before && before.status !== status) {
+      const label = (s: string) => BUG_STATUS_LABELS[s as BugStatus] ?? s;
+      await logAudit({
+        actor: { id: user.id, email: user.email, role: user.role },
+        action: "bug.status",
+        category: "activity",
+        target: before.title ?? id,
+        details: `Bug report "${before.title ?? id}": ${label(before.status)} → ${label(status)}`,
+      });
+    }
     // The reporter hears each move, unless they moved it themselves.
     if (before && before.status !== status && before.user_id && before.user_id !== user.id) {
       await emitToUser({
