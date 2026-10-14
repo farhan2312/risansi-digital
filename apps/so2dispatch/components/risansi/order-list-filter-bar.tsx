@@ -1,8 +1,9 @@
 "use client";
 
-import { AlertTriangle, PackageCheck, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, X } from "lucide-react";
 import { UrlSearchInput, useUrlTable } from "./url-table";
-import { MultiSelectFilter, SingleSelectFilter } from "./multi-select-filter";
+import { MultiSelectFilter, SingleSelectFilter, useShownValue } from "./multi-select-filter";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import {
   DEPTS_WITHOUT_PARTY,
@@ -28,6 +29,7 @@ import {
   SIGN_OFF_OPTIONS,
   isOrderListFiltered,
   parseDeptFilter,
+  serializeDeptStatusMulti,
   presetRange,
 } from "@/lib/order-list-filter";
 import type { OrderListOptions } from "@/lib/orders";
@@ -49,11 +51,13 @@ const FILTER_KEYS = [
   "to",
   "overdue",
   "ready",
+  "noslip",
   "field",
   "fstate",
   "pterm",
   "bmode",
   "pstat",
+  "dsm",
   "dispst",
   "dstage",
   "pack",
@@ -240,7 +244,7 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ dstage: next })}
           />
         )}
-        {/* Billing: where Dispatch has got to on the SO. */}
+        {/* Billing, Planning, Assembly & Packing: where Dispatch has got to on the SO. */}
         {dept && DISPATCH_STATUS_FILTER_DEPTS.includes(dept) && (
           <MultiSelectFilter
             label="Dispatch status"
@@ -278,6 +282,15 @@ export function OrderListFilterBar({
             options={PAYMENT_STATUS_FILTER_OPTIONS}
             selected={filter.paymentStatuses}
             onChange={(next) => setParams({ pstat: next })}
+          />
+        )}
+        {/* The orders list: statuses in several departments at once. */}
+        {noDispatchTarget && (
+          <DeptStatusMultiFilter
+            value={filter.deptStatusMulti}
+            spareOnly={filter.types.length > 0 && filter.types.every((t) => t.toLowerCase() === "spare")}
+            types={filter.types}
+            onChange={(next) => setParams({ dsm: serializeDeptStatusMulti(next) })}
           />
         )}
         {/* The orders list: Central Visibility's clearance, and why SOs are held. */}
@@ -351,6 +364,22 @@ export function OrderListFilterBar({
             Overdue only
           </button>
         )}
+        {/* Planning, Assembly & Packing, the Orders list: a lot packed but on no packing slip. */}
+        {(!dept || dept === "planning" || dept === "assembly") && (
+          <button
+            type="button"
+            onClick={() => setParams({ noslip: filter.noSlip ? null : "1" })}
+            aria-pressed={filter.noSlip}
+            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+              filter.noSlip
+                ? "border-rose-500/40 bg-rose-500/10 text-rose-700"
+                : "border-input-border text-foreground hover:bg-background"
+            }`}
+          >
+            <PackageX className="h-3.5 w-3.5" />
+            Packed, no slip
+          </button>
+        )}
         {/* Dispatch comes after Assembly & Packing: this is the shortlist
             of orders they have packed and that have not gone out. */}
         {activeDept === "dispatch" && (
@@ -392,6 +421,8 @@ export function OrderListFilterBar({
             // Assembly & Packing, Billing and Dispatch work from Planning's readiness date too.
             if (f.value === "readiness")
               return !dept || ["planning", "assembly", "billing", "dispatch"].includes(activeDept ?? "");
+            // Assembly & Packing's planned packing date (Spare lots).
+            if (f.value === "packing") return !dept || ["planning", "assembly", "dispatch"].includes(activeDept ?? "");
             if (f.value === "dispatch_target") return !dept && !noDispatchTarget;
             // Completion dates come from sign-offs, which are switched off.
             if (f.value === "completed_on") return SIGN_OFF_ENABLED;
@@ -403,7 +434,9 @@ export function OrderListFilterBar({
           selected={filter.dateField}
           onChange={(next) => {
             const fallback =
-              dept === "planning" || dept === "assembly"
+              dept === "assembly"
+                ? "packing"
+                : dept === "planning"
                 ? "readiness"
                 : dept
                   ? hasTarget
@@ -473,6 +506,120 @@ export function OrderListFilterBar({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Statuses in several departments at once, each department under its own
+ * heading: "Planning: Fully ready" and "Billing: Pending" together. Any of a
+ * department's ticked statuses; every department ticked.
+ */
+function DeptStatusMultiFilter({
+  value: valueProp,
+  spareOnly,
+  types,
+  onChange: onChangeProp,
+}: {
+  value: Partial<Record<DeptFilterKey, string[]>>;
+  /** A Spare has no drawing, bought-out items or QC documents. */
+  spareOnly: boolean;
+  types: string[];
+  onChange: (next: Partial<Record<DeptFilterKey, string[]>>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // Ticks show at once, not when the page reloads.
+  const [value, setValue] = useShownValue(valueProp, JSON.stringify(valueProp));
+  const onChange = (next: Partial<Record<DeptFilterKey, string[]>>) => {
+    setValue(next);
+    onChangeProp(next);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const depts = DEPT_FILTER_KEYS.filter((k) => !spareOnly || !["drawing", "purchase", "quality"].includes(k));
+  const picked = Object.entries(value).filter(([, v]) => v?.length) as [DeptFilterKey, string[]][];
+  const summary =
+    picked.length === 0
+      ? "Any"
+      : picked.length === 1
+        ? `${DEPT_FILTER_LABELS[picked[0][0]]}: ${picked[0][1].join(", ")}`
+        : `${picked.length} departments`;
+  function toggle(dept: DeptFilterKey, status: string) {
+    const cur = value[dept] ?? [];
+    const next = cur.includes(status) ? cur.filter((s) => s !== status) : [...cur, status];
+    onChange({ ...value, [dept]: next });
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label="Department statuses filter"
+        className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${
+          picked.length ? "border-primary/40 bg-primary/[0.06] text-foreground" : "border-input-border bg-surface text-foreground hover:bg-background"
+        }`}
+      >
+        <span className="text-muted">Dept statuses:</span>
+        <span className="max-w-[16rem] truncate font-medium">{summary}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-30 mt-1.5 max-h-96 w-64 overflow-y-auto rounded-lg border border-card-border bg-surface py-1 shadow-lg">
+          {picked.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange({})}
+              className="mb-1 flex w-full items-center gap-1.5 border-b border-card-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+              Clear selection
+            </button>
+          )}
+          <p className="px-3 pb-1 pt-1 text-[11px] text-muted">Any status within a department · every department ticked</p>
+          {depts.map((dept) => (
+            <div key={dept}>
+              <p className="mt-1 border-t border-card-border px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                {DEPT_FILTER_LABELS[dept]}
+              </p>
+              {statusesFor(dept, types).map((status) => {
+                const checked = (value[dept] ?? []).includes(status);
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => toggle(dept, status)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-background"
+                  >
+                    <span
+                      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        checked ? "border-primary bg-primary text-primary-foreground" : "border-input-border"
+                      }`}
+                    >
+                      {checked && <Check className="h-3 w-3" />}
+                    </span>
+                    {status}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

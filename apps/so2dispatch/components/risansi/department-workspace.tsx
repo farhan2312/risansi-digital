@@ -23,6 +23,7 @@ import {
   selectOptionsFor,
   type OrderField,
   type OrderTable,
+  READY_LOT_LIMIT,
 } from "@/lib/order-schema";
 import { OrderChildList } from "./order-children";
 import { SortHeader } from "./sort-header";
@@ -31,6 +32,7 @@ import { AccountsHoldButton } from "./accounts-hold";
 import { TermPis } from "./term-pis";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
+import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { ReadyLotsEditor } from "./ready-lots-editor";
 import {
   PACKING_LOTS_FIELD,
@@ -44,11 +46,12 @@ import {
   type ReadyLot,
 } from "@/lib/ready-lots";
 import { PackingLotsEditor } from "./packing-lots-editor";
-import { PACKED_FOR } from "@/lib/ready-lots";
+import { PACKED_FOR, lotNosLabel, lotOnSlip, PACKING_IN_PROGRESS } from "@/lib/ready-lots";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import type { OrderListOptions } from "@/lib/orders";
 import { DEPT_VIEWS, dispatchRowTone } from "@/lib/dept-view";
+import { DispatchStatusPill } from "./dispatch-status-pill";
 import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { lockReason } from "@/lib/order-lock";
 import type { PageResult } from "@/lib/pagination";
@@ -81,6 +84,9 @@ type DocumentsConfig = {
 };
 
 type Row = Record<string, unknown>;
+
+/** Planning's Lot columns: one per readiness lot a Spare can have. */
+const LOT_COLUMNS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
 
 function toInput(value: unknown): string {
   return value === null || value === undefined ? "" : String(value);
@@ -375,7 +381,15 @@ export function DepartmentWorkspace({
     if (last) {
       return last.packed_date
         ? { status: PACKED_FOR[last.status] ?? "Packed", date: `Packed ${shortDate(last.packed_date)}` }
-        : { status: last.status, date: last.ready_date ? `Ready ${shortDate(last.ready_date)}` : "" };
+        : {
+            // Ready, not packed yet: In Progress, and when Assembly & Packing plans to pack it.
+            status: PACKING_IN_PROGRESS,
+            date: last.packing_plan_date
+              ? [`Packing ${shortDate(last.packing_plan_date)}`, last.packing_shift].filter(Boolean).join(" · ")
+              : last.ready_date
+                ? `Ready ${shortDate(last.ready_date)}`
+                : "",
+          };
     }
     return toInput(ec.actual_packing_date)
       ? { status: "Fully packed", date: `Packed ${shortDate(ec.actual_packing_date)}` }
@@ -402,7 +416,10 @@ export function DepartmentWorkspace({
     const owed = (ec: Row): string[] => {
       const lots = Array.isArray(ec.ready_lots) ? (ec.ready_lots as Row[]) : [];
       if (lots.length) {
-        return lots.filter((l) => !toInput(l.packed_date)).map((l) => toInput(l.ready_date).slice(0, 10));
+        // Assembly & Packing's own packing date — overdue only against it.
+        return lots
+          .filter((l) => !toInput(l.packed_date))
+          .map((l) => toInput(l.packing_plan_date).slice(0, 10));
       }
       return toInput(ec.actual_packing_date) ? [] : [toInput(ec.planning_readiness_date).slice(0, 10)];
     };
@@ -429,13 +446,75 @@ export function DepartmentWorkspace({
     };
     return { status: one("status"), date: one("date") };
   };
+  /**
+   * The SO's packing plan for its Spare lots: the earliest packing date among
+   * lots not packed yet (with that lot's shift and PDI); once everything is
+   * packed, the last lot's. How often any lot's packing date moved, summed.
+   */
+  const packingPlanOf = (ecs: Row[]) => {
+    const lots = ecs.flatMap((ec) => packingLotsFromRows(ec.ready_lots));
+    const moves = lots.reduce((n, l) => n + (l.plan_moves ?? 0), 0);
+    const open = lots.filter((l) => !l.packed_date && l.packing_plan_date).sort((a, b) => a.packing_plan_date.localeCompare(b.packing_plan_date));
+    const pick = open[0] ?? [...lots].reverse().find((l) => l.packing_plan_date) ?? null;
+    return {
+      spare: lots.length > 0,
+      date: pick?.packing_plan_date ?? "",
+      shift: pick?.packing_shift ?? "",
+      pdi: pick?.pdi ?? "",
+      moves,
+    };
+  };
   const ecContextFor = (ecs: Row[]) =>
     ecContext.filter((f) => !f.dependsOn || ecs.some((ec) => fieldApplies(f, ec)));
   // Assembly & Packing: a Spare's readiness lots, and how far packing has got.
   const showLots = (ecs: Row[]) =>
     table === "order_assembly_dispatch" &&
     ecs.some((ec) => Array.isArray(ec.ready_lots) && (ec.ready_lots as unknown[]).length > 0);
-  const lotsCell = (ec: Row) => {
+  /**
+   * Lot n across the SO's ECs, for Planning's Lot columns: its status and
+   * ready date, and whether it is packed. ECs that differ say so.
+   */
+  const lotCell = (ecs: Row[], n: number, slips?: Row[]) => {
+    const lots = ecs.map((ec) => packingLotsFromRows(ec.ready_lots)[n - 1]).filter(Boolean);
+    if (lots.length === 0) return <span className="text-muted">—</span>;
+    const key = (l: (typeof lots)[number]) => `${l.status}|${l.ready_date}|${l.packed_date}`;
+    if (new Set(lots.map(key)).size > 1) {
+      const packed = lots.filter((l) => l.packed_date).length;
+      return (
+        <span className="text-foreground" title={lots.map((l) => `${l.status} ${shortDate(l.ready_date)}`).join(", ")}>
+          {lots.length} ECs differ
+          <span className="block text-[11px] text-muted">
+            {packed}/{lots.length} packed
+          </span>
+        </span>
+      );
+    }
+    const l = lots[0];
+    // Assembly & Packing (given the slips) also sees its plan, and a packed lot no slip carries.
+    const plan = slips && !l.packed_date
+      ? [l.packing_plan_date ? `Pack ${shortDate(l.packing_plan_date)}` : "", l.packing_shift, l.pdi ? `PDI ${l.pdi}` : ""].filter(Boolean).join(" · ")
+      : "";
+    const noSlip = !!slips && !!l.packed_date && !lotOnSlip(n, slips);
+    return (
+      <span>
+        <span className={`font-medium ${l.status === "Fully ready" ? "text-emerald-700" : "text-foreground"}`}>{l.status || "—"}</span>
+        <span className="block text-[11px] text-muted">Ready {shortDate(l.ready_date) || "—"}</span>
+        {plan && <span className="block text-[11px] text-foreground">{plan}</span>}
+        <span className={`block text-[11px] font-medium ${l.packed_date ? "text-emerald-700" : "text-amber-700"}`}>
+          {l.packed_date ? `Packed ${shortDate(l.packed_date)}` : PACKING_IN_PROGRESS}
+        </span>
+        {noSlip && <span className="mt-0.5 block w-fit rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>}
+      </span>
+    );
+  };
+  /** The SO's lot numbers for its packing slips: how many lots at most, and which have something packed. */
+  const slipLotsOf = (ecs: Row[]) => {
+    const per = ecs.map((ec) => packingLotsFromRows(ec.ready_lots));
+    const lotCount = Math.max(0, ...per.map((l) => l.length));
+    const packedLots = [...new Set(per.flatMap((l) => l.flatMap((x, i) => (x.packed_date ? [i + 1] : []))))].sort((a, b) => a - b);
+    return { lotCount, packedLots };
+  };
+  const lotsCell = (ec: Row, slips: Row[] = []) => {
     const lots = packingLotsFromRows(ec.ready_lots);
     if (lots.length === 0) return "—";
     const d = (v: string) =>
@@ -449,9 +528,23 @@ export function DepartmentWorkspace({
             {l.packed_date ? (
               <span className="font-medium text-foreground">
                 {PACKED_FOR[l.status] ?? "Packed"} {d(l.packed_date)}
+                {/* Packed but on no packing slip yet: Dispatch has nothing to send. */}
+                {!lotOnSlip(i + 1, slips) && (
+                  <span className="ml-1 rounded bg-rose-50 px-1 font-semibold text-rose-700">· no slip</span>
+                )}
               </span>
             ) : (
-              <span className="text-amber-700">not packed</span>
+              <span className="text-amber-700">
+                {PACKING_IN_PROGRESS}
+                {l.packing_plan_date && (
+                  <>
+                    {" "}· packing {d(l.packing_plan_date)}
+                    {l.packing_shift ? ` ${l.packing_shift}` : ""}
+                    {l.pdi ? ` · PDI ${l.pdi}` : ""}
+                    {(l.plan_moves ?? 0) > 0 ? ` · moved ${l.plan_moves}×` : ""}
+                  </>
+                )}
+              </span>
             )}
           </div>
         ))}
@@ -538,7 +631,7 @@ export function DepartmentWorkspace({
 
   const colCount = groupBySo
     ? 4 + (showParty ? 1 : 0) + soContext.length + 1 + // toggle + Sl. + SO + client_name? + context + ECs + chat
-      (soEdit ? 2 + (canEdit ? 1 : 0) + (table === "order_planning" ? 2 : 0) : 0) + // SO status + date (+ assembly, dispatch) + edit
+      (soEdit ? 2 + (canEdit ? 1 : 0) + (table === "order_planning" ? 3 + LOT_COLUMNS.length : table === "order_assembly_dispatch" ? 4 + LOT_COLUMNS.length : 0) : 0) + // SO status + date (+ assembly, dispatch) + edit
       (section?.soChild ? 1 : 0) // packing slips on the row
     : 3 +
       (showEcNo ? 1 : 0) +
@@ -568,9 +661,10 @@ export function DepartmentWorkspace({
       </div>
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
-        <div className="overflow-x-auto">
+        {/* The header row stays under the top bar as the page scrolls (AppShell). */}
+        <div className="overflow-x-auto" data-sticky-head>
           <table className="w-full min-w-[900px] text-sm">
-            <thead>
+            <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {groupBySo && <th className="w-8 px-2 py-3" />}
                 <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
@@ -608,10 +702,28 @@ export function DepartmentWorkspace({
                         {/* Planning sees how far Assembly & Packing and Dispatch have got. */}
                         {table === "order_planning" && (
                           <>
+                            {/* A Spare's readiness lots, one column each. */}
+                            {LOT_COLUMNS.map((n) => (
+                              <th key={n} className="px-4 py-3 whitespace-nowrap">Lot {n}</th>
+                            ))}
                             <th className="px-4 py-3 whitespace-nowrap">Assembly &amp; Packing</th>
+                            <th className="px-4 py-3 whitespace-nowrap">Packing slips</th>
                             <th className="px-4 py-3">Dispatch</th>
                           </>
                         )}
+                        {/* Assembly & Packing's own plan for a Spare: packing date, shift, PDI. */}
+                        {table === "order_assembly_dispatch" && (
+                          <>
+                            {LOT_COLUMNS.map((n) => (
+                              <th key={n} className="px-4 py-3 whitespace-nowrap">Lot {n}</th>
+                            ))}
+                            <th className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Date" sortKey="packing" /></th>
+                            <th className="px-4 py-3">Shift</th>
+                            <th className="px-4 py-3">PDI</th>
+                          </>
+                        )}
+                        {/* Assembly & Packing sees where Dispatch has got to. */}
+                        {table === "order_assembly_dispatch" && <th className="px-4 py-3">Dispatch</th>}
                         {canEdit && <th className="px-4 py-3 text-right">Edit</th>}
                       </>
                     )}
@@ -854,16 +966,74 @@ export function DepartmentWorkspace({
                                 const asm = soSummary(g.ecs, "order_assembly_dispatch");
                                 return (
                                   <>
+                                    {LOT_COLUMNS.map((n) => (
+                                      <td key={n} className="px-4 py-3 whitespace-nowrap text-xs">
+                                        {lotCell(g.ecs, n)}
+                                      </td>
+                                    ))}
                                     <td className="px-4 py-3 whitespace-nowrap">
                                       {asm.status}
                                       {asm.date !== "—" && asm.date !== "Mixed" && (
                                         <div className="text-[11px] text-muted">{asm.date}</div>
                                       )}
                                     </td>
-                                    <td className="px-4 py-3 whitespace-nowrap">{toInput(g.head.so_dispatch_status) || "Pending"}</td>
+                                    {/* The SO's packing slips, read-only: number, date, lots. */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-xs">
+                                      {Array.isArray(g.head.so_slips) && (g.head.so_slips as Row[]).length ? (
+                                        <div className="space-y-0.5">
+                                          {(g.head.so_slips as Row[]).map((s, i) => (
+                                            <div key={i}>
+                                              <span className="font-medium text-foreground">{toInput(s.packing_slip_no)}</span>
+                                              <span className="text-muted">
+                                                {[shortDate(s.packing_slip_date), lotNosLabel(s.lot_nos)].filter(Boolean).map((x) => ` · ${x}`).join("")}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <span className="text-muted">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
+                                    </td>
                                   </>
                                 );
                               })()}
+                              {table === "order_assembly_dispatch" && (() => {
+                                const plan = packingPlanOf(g.ecs);
+                                const soLabel = toInput(g.head.so_no) || String(g.head.sl_no ?? "");
+                                return (
+                                  <>
+                                    {LOT_COLUMNS.map((n) => (
+                                      <td key={n} className="px-4 py-3 whitespace-nowrap text-xs">
+                                        {lotCell(g.ecs, n, (g.head.so_child_rows ?? []) as Row[])}
+                                      </td>
+                                    ))}
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      {plan.date || plan.moves > 0 ? (
+                                        <PackingPlanHistoryButton
+                                          orderId={String(g.head.order_id)}
+                                          label={plan.date ? shortDate(plan.date) : "History"}
+                                          soLabel={soLabel}
+                                        />
+                                      ) : (
+                                        <span className="text-muted">—</span>
+                                      )}
+                                      {plan.moves > 0 && (
+                                        <div className="text-[11px] font-medium text-amber-700">moved {plan.moves}×</div>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">{plan.shift || "—"}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap">{plan.pdi || "—"}</td>
+                                  </>
+                                );
+                              })()}
+                              {table === "order_assembly_dispatch" && (
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
+                                </td>
+                              )}
                               {canEdit && (
                                 <td className="px-4 py-3 text-right">
                                   {mixed || lockReason(table, g.head) ? (
@@ -911,6 +1081,7 @@ export function DepartmentWorkspace({
                               }
                               canEdit={canEdit}
                               canEditCentral={canEditCentral}
+                              {...slipLotsOf(g.ecs)}
                             />
                           </td>
                         )}
@@ -970,7 +1141,7 @@ export function DepartmentWorkspace({
                                         {toInput(ec.ec_no) || "—"}
                                       </td>
                                       {showLots(g.ecs) && (
-                                        <td className="px-3 py-2">{lotsCell(ec)}</td>
+                                        <td className="px-3 py-2">{lotsCell(ec, (g.head.so_child_rows ?? []) as Row[])}</td>
                                       )}
                                       {ecContextFor(g.ecs).map((f) => (
                                         <td

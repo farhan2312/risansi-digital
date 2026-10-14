@@ -17,7 +17,13 @@ const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim
 
 /** What a pop-up opened from an Orders-list row shows. */
 export type PopupKind =
-  | { kind: "so"; section: "orders" | "order_billing" | "order_accounts" | "order_dispatch"; title: string }
+  | {
+      kind: "so";
+      section: "orders" | "order_billing" | "order_accounts" | "order_dispatch";
+      title: string;
+      /** Open straight into the form (the details pop-up's Edit). */
+      edit?: boolean;
+    }
   | { kind: "ec"; dept: DeptKey };
 
 /**
@@ -123,6 +129,7 @@ export function OrderPopupHost({
           role={role}
           targetRevisions={data.targetRevisions}
           only={what.section}
+          startEditing={what.edit}
         />
       </div>
     </Shell>

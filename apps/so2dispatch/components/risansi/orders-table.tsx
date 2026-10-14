@@ -234,9 +234,10 @@ export function OrdersTable({
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
-        <div className="overflow-x-auto">
+        {/* The header row stays under the top bar as the page scrolls (AppShell). */}
+        <div className="overflow-x-auto" data-sticky-head>
           <table className="w-full min-w-[1700px] text-sm">
-            <thead>
+            <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th className="w-8 px-2 py-3" />
                 <th className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
@@ -377,14 +378,19 @@ export function OrdersTable({
                       </td>
                       {/* Each term with its PI and what came in — as Accounts sees it. */}
                       <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                        <TermPis
-                          orderId={order.id}
-                          soLabel={soLabel}
-                          terms={order.term_lines ?? []}
-                          pis={order.pi_docs ?? []}
-                          canEdit={false}
-                          payments={{ canEdit: false }}
-                        />
+                        {/* An FR order is a replacement: no payment terms to show. */}
+                        {order.bill_mode === "FR" ? (
+                          <span className="text-xs font-medium text-muted">Replacement · no payment terms</span>
+                        ) : (
+                          <TermPis
+                            orderId={order.id}
+                            soLabel={soLabel}
+                            terms={order.term_lines ?? []}
+                            pis={order.pi_docs ?? []}
+                            canEdit={false}
+                            payments={{ canEdit: false }}
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap align-top text-muted">
                         {!closed && order.readiness_from
@@ -506,7 +512,7 @@ export function OrdersTable({
           onEdit={readOnly ? undefined : () => {
             const order = detailsFor;
             setDetailsFor(null);
-            setPopup({ order, what: { kind: "so", section: "orders", title: "Order details" } });
+            setPopup({ order, what: { kind: "so", section: "orders", title: "Order details", edit: true } });
           }}
         />
       )}

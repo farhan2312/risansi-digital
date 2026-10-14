@@ -29,6 +29,7 @@ import {
   saveTermPayment,
   lockFactsForItem,
   getOrderLabel,
+  recomputeDispatchStatus,
   insertQcDocument,
   listQcDocuments,
   addTargetRevision,
@@ -69,6 +70,7 @@ import {
   PAYMENT_STATUS_OPTIONS,
   SECTION_BY_TABLE,
   BILL_TYPE_FOR_MODE,
+  FR_PAYMENT_TERMS_REMARKS,
   ORDER_MAKING_EDITABLE,
   ORDER_MAKING_FIELDS,
   ORDER_MAKING_SO_EDITABLE,
@@ -113,6 +115,8 @@ import {
 import { logAudit } from "@/lib/audit";
 import {
   PACKING_LOTS_FIELD,
+  LOT_NOS_FIELD,
+  parseLotNos,
   READY_LOTS_FIELD,
   lotsError,
   lotsFromRows,
@@ -185,6 +189,8 @@ export async function createOrderAction(
 
   try {
     const { id, sl_no } = await createOrder(input);
+    // An FR order is a replacement: no payment terms, and its remarks say so.
+    await markReplacementTerms(id);
     const label = (input.so_no ?? `#${sl_no}`).trim();
     await logAudit({
       actor: { id: user.id, email: user.email, role: user.role },
@@ -736,6 +742,7 @@ export async function updateOrderSectionAction(
           id,
           BILL_TYPE_FOR_MODE[allowedValues.bill_mode] ?? null,
         ]);
+        await markReplacementTerms(id);
       }
       const after = before ? await getOrderDetail(id) : null;
       const pick = (d: NonNullable<typeof before>) =>
@@ -811,7 +818,7 @@ export async function updateOrderSectionAction(
         }
       }
       // …and their packing dates ride along with Assembly & Packing's.
-      let packing: { id: string; packed_date: string }[] | null = null;
+      let packing: { id: string; packed_date: string; packing_plan_date: string; packing_shift: string; pdi: string }[] | null = null;
       const packingJson = allowedValues[PACKING_LOTS_FIELD];
       if (tbl === "order_assembly_dispatch" && typeof packingJson === "string") {
         let sent: unknown;
@@ -823,13 +830,22 @@ export async function updateOrderSectionAction(
         // Checked against the lots as saved: only this EC's, each date on or
         // after the day its lot was ready.
         const saved = packingLotsFromRows(before?.order_ready_lots);
-        const byId = new Map(
-          packingLotsFromRows(sent).map((l) => [l.id, l.packed_date])
-        );
-        const merged = saved.map((l) => ({ ...l, packed_date: byId.get(l.id) ?? l.packed_date }));
+        const byId = new Map(packingLotsFromRows(sent).map((l) => [l.id, l]));
+        const merged = saved.map((l) => {
+          const s = byId.get(l.id);
+          return s
+            ? { ...l, packed_date: s.packed_date, packing_plan_date: s.packing_plan_date, packing_shift: s.packing_shift, pdi: s.pdi }
+            : l;
+        });
         const problem = packingError(merged);
         if (problem) return { ok: false, error: problem };
-        packing = merged.map((l) => ({ id: l.id, packed_date: l.packed_date }));
+        packing = merged.map((l) => ({
+          id: l.id,
+          packed_date: l.packed_date,
+          packing_plan_date: l.packing_plan_date,
+          packing_shift: l.packing_shift,
+          pdi: l.pdi,
+        }));
       }
       if (lots && lots.length > 0) {
         delete allowedValues.actual_spare_status;
@@ -837,7 +853,7 @@ export async function updateOrderSectionAction(
       }
       await updateOrderSection(id, tbl, allowedValues);
       if (lots) await saveReadyLots(id, lots, { id: user.id, role: user.role });
-      if (packing) await saveLotPacking(id, packing);
+      if (packing) await saveLotPacking(id, packing, { id: user.id, role: user.role });
       const after = before ? await getItemDetail(id) : null;
       // Planning's status / readiness date on an EC without lots joins the
       // readiness history (the lots record their own changes).
@@ -867,7 +883,9 @@ export async function updateOrderSectionAction(
         packingLotsFromRows(rows)
           .map(
             (l, i) =>
-              `Lot ${i + 1} ${l.status} ${dmy(l.ready_date)}${l.packed_date ? ` · packed ${dmy(l.packed_date)}` : ""}`
+              `Lot ${i + 1} ${l.status} ${dmy(l.ready_date)}${
+                l.packing_plan_date ? ` · packing ${dmy(l.packing_plan_date)}${l.packing_shift ? ` ${l.packing_shift}` : ""}${l.pdi ? ` PDI ${l.pdi}` : ""}` : ""
+              }${l.packed_date ? ` · packed ${dmy(l.packed_date)}` : ""}`
           )
           .join("; ") || "none";
       const lotsChange =
@@ -938,10 +956,10 @@ export async function updateSectionForSoAction(
     return { ok: false, error: "This SO has both Pump and Spare ECs — edit each EC on its own." };
   }
   // Packing dates arrive by position; each EC's own lot ids take them.
-  let packed: string[] | null = null;
+  let packed: ReturnType<typeof packingLotsFromRows> | null = null;
   if (typeof values[PACKING_LOTS_FIELD] === "string") {
     try {
-      packed = packingLotsFromRows(JSON.parse(values[PACKING_LOTS_FIELD])).map((l) => l.packed_date);
+      packed = packingLotsFromRows(JSON.parse(values[PACKING_LOTS_FIELD]));
     } catch {
       return { ok: false, error: "The packing dates could not be read." };
     }
@@ -951,7 +969,13 @@ export async function updateSectionForSoAction(
       ? {
           ...values,
           [PACKING_LOTS_FIELD]: JSON.stringify(
-            ec.lot_ids.map((id, i) => ({ id, packed_date: packed![i] ?? "" }))
+            ec.lot_ids.map((id, i) => ({
+              id,
+              packed_date: packed![i]?.packed_date ?? "",
+              packing_plan_date: packed![i]?.packing_plan_date ?? "",
+              packing_shift: packed![i]?.packing_shift ?? "",
+              pdi: packed![i]?.pdi ?? "",
+            }))
           ),
         }
       : values;
@@ -1013,6 +1037,55 @@ export async function getReadyLotHistoryAction(
     return { ok: true, events: await listReadyLotHistory(orderId) };
   } catch (error) {
     console.error("getReadyLotHistory failed:", error);
+    return { ok: false, error: "Could not load the history." };
+  }
+}
+
+/** One change to a Spare lot's packing plan (date, shift, PDI). */
+export type PackingPlanEvent = {
+  id: string;
+  ec_no: string | null;
+  lot_no: number;
+  plan_date: string | null;
+  prev_plan_date: string | null;
+  shift: string | null;
+  prev_shift: string | null;
+  pdi: string | null;
+  prev_pdi: string | null;
+  changed_by_name: string | null;
+  changed_by_role: string | null;
+  changed_at: string;
+};
+
+/** How an SO's packing plan moved — Assembly & Packing, Planning and Central. */
+export async function getPackingPlanHistoryAction(
+  orderId: string
+): Promise<{ ok: true; events: PackingPlanEvent[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!(isCentral(user.role) || user.role === "assembly" || user.role === "planning" || user.role === "rep")) {
+    return { ok: false, error: "You don't have access to the packing plan history." };
+  }
+  if (!UUID_RE_ACTION.test(orderId)) return { ok: false, error: "Order not found." };
+  if (!(await repMaySee(user, orderId))) return { ok: false, error: "Order not found." };
+  try {
+    const r = await query<PackingPlanEvent>(
+      `SELECT h.id, it.ec_no, h.lot_no,
+              to_char(h.plan_date, 'YYYY-MM-DD') AS plan_date,
+              to_char(h.prev_plan_date, 'YYYY-MM-DD') AS prev_plan_date,
+              h.shift, h.prev_shift, h.pdi, h.prev_pdi,
+              u.full_name AS changed_by_name, h.changed_by_role,
+              to_char(h.changed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS changed_at
+         FROM order_packing_plan_history h
+         JOIN order_items it ON it.id = h.item_id
+         LEFT JOIN users u ON u.id = h.changed_by
+        WHERE it.order_id = $1
+        ORDER BY h.changed_at DESC`,
+      [orderId]
+    );
+    return { ok: true, events: r.rows };
+  } catch (error) {
+    console.error("getPackingPlanHistory failed:", error);
     return { ok: false, error: "Could not load the history." };
   }
 }
@@ -1199,6 +1272,26 @@ export async function updateOrderChildAction(
 
   const rowLock = lockReason(tbl, lockFacts, user.role);
   if (rowLock) return { ok: false, error: rowLock };
+  // A packing slip names the readiness lots it carries (Lot 1, Lot 2…).
+  let slipLots: number[] | null = null;
+  if (tbl === "order_packing_slips" && LOT_NOS_FIELD in values) {
+    slipLots = parseLotNos(values[LOT_NOS_FIELD]);
+    const facts = await query<{ max_lots: number; order_id: string | null }>(
+      `SELECT ps.order_id,
+              COALESCE((SELECT max(c) FROM (SELECT count(*)::int AS c FROM order_ready_lots rl
+                                              JOIN order_items it ON it.id = rl.item_id
+                                             WHERE it.order_id = ps.order_id GROUP BY rl.item_id) x), 0) AS max_lots
+         FROM order_packing_slips ps WHERE ps.id = $1`,
+      [id]
+    );
+    const maxLots = facts.rows[0]?.max_lots ?? 0;
+    const bad = slipLots.find((n) => n > maxLots);
+    if (bad) return { ok: false, error: `This SO has no Lot ${bad}.` };
+    const slipNo = ("packing_slip_no" in clean ? clean.packing_slip_no : String(rowBefore?.packing_slip_no ?? "")).trim();
+    if (maxLots > 0 && slipNo && slipLots.length === 0) {
+      return { ok: false, error: "Tick the lot(s) this packing slip carries." };
+    }
+  }
   // The audit line, once the row is saved — kept outside the try so a failure
   // later in the save still waits for it before answering.
   let audited: Promise<void> | null = null;
@@ -1211,6 +1304,11 @@ export async function updateOrderChildAction(
     }
 
     await updateChildRow(tbl, id, clean);
+    if (slipLots) {
+      await query(`UPDATE order_packing_slips SET lot_nos = $2 WHERE id = $1`, [id, slipLots.length ? slipLots : null]);
+      // Which lots have gone out decides whether the SO is Fully dispatched.
+      if (soOrderId) await recomputeDispatchStatus(soOrderId);
+    }
 
     const rowAfter = await childValues(tbl, id);
     const changes = describeChanges(CHILD_FIELDS[tbl], rowBefore, rowAfter);
@@ -1366,6 +1464,15 @@ async function drawingHandoffs(id: string): Promise<DrawingHandoffs | null> {
     [id]
   );
   return result.rows[0] ?? null;
+}
+
+/** An FR (replacement) order with blank Payment Terms Remarks gets "REPLACEMENT". */
+async function markReplacementTerms(orderId: string): Promise<void> {
+  await query(
+    `UPDATE orders SET payment_terms_remarks = $2
+      WHERE id = $1 AND bill_mode = 'FR' AND NULLIF(btrim(payment_terms_remarks), '') IS NULL`,
+    [orderId, FR_PAYMENT_TERMS_REMARKS]
+  );
 }
 
 /**
@@ -2309,8 +2416,8 @@ export async function setDeptCompleteAction(
  * when it can, else why not.
  */
 async function termTakesPi(orderId: string, termId: string, piId: string | null): Promise<string | null> {
-  const r = await query<{ order_id: string; taken: boolean }>(
-    `SELECT t.order_id,
+  const r = await query<{ order_id: string; taken: boolean; after_receipt: boolean }>(
+    `SELECT t.order_id, btrim(coalesce(t.term, '')) = 'After Receipt' AS after_receipt,
             EXISTS (SELECT 1 FROM order_billing_docs d
                      WHERE d.payment_term_id = t.id AND ($2::uuid IS NULL OR d.id <> $2::uuid)) AS taken
        FROM order_payment_terms t WHERE t.id = $1`,
@@ -2318,6 +2425,8 @@ async function termTakesPi(orderId: string, termId: string, piId: string | null)
   );
   const row = r.rows[0];
   if (!row || row.order_id !== orderId) return "That payment term is not on this SO.";
+  // Paid after receipt: there is nothing to raise a PI for.
+  if (row.after_receipt) return "An After Receipt term has no PI.";
   if (row.taken) return "That payment term already has a PI.";
   return null;
 }

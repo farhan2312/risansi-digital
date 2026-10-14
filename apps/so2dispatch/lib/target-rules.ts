@@ -7,6 +7,12 @@
 //   SO Hand Over date       →  Drawing target    = hand-over + 2 days (up to 4 qty)
 //                                                 = hand-over + 3 days (5 qty or more)
 //
+// A Spare SO created on or after SPARE_DELIVERY_RULES_FROM works from its
+// delivery date instead:
+//   SO date                 →  Delivery date as per SO = SO date + 2 weeks (if blank)
+//   Delivery date as per SO →  Dispatch target   = delivery − 3 days
+//                              Packing target    = delivery − 5 days
+//
 // Only a target that has never been set is filled: once a date exists, every
 // change to it is a revision someone makes on purpose, with a reason. Days are
 // calendar days.
@@ -27,7 +33,26 @@ export type TargetInputs = {
   qc_required?: unknown;
   /** Whether Drawing has any work on the order (not Spares only). */
   drawing_involved?: boolean;
+  /** When the SO was created (IST date) — the Spare delivery rules apply from SPARE_DELIVERY_RULES_FROM. */
+  created_on?: unknown;
 };
+
+/** The day the Spare delivery-date rules start: SOs created before it keep the older rules. */
+export const SPARE_DELIVERY_RULES_FROM = "2026-10-14";
+/** A new Spare's delivery date as per SO, from its SO date. */
+export const SPARE_DELIVERY_DAYS_FROM_SO = 14;
+
+/** Whether an SO is a Spare under the delivery-date rules. */
+export function spareDeliveryRules(o: Pick<TargetInputs, "order_type" | "created_on">): boolean {
+  const created = isoDate(o.created_on);
+  return String(o.order_type ?? "").trim().toLowerCase() === "spare" && !!created && created >= SPARE_DELIVERY_RULES_FROM;
+}
+
+/** A new Spare's delivery date as per SO: SO date + 2 weeks, or null when it does not apply. */
+export function spareDeliveryDate(o: Pick<TargetInputs, "order_type" | "created_on" | "so_date">): string | null {
+  const soDate = isoDate(o.so_date);
+  return soDate && spareDeliveryRules(o) ? shift(soDate, SPARE_DELIVERY_DAYS_FROM_SO) : null;
+}
 
 export type AutoTarget = {
   key: TargetKey;
@@ -75,6 +100,16 @@ export function autoTargets(o: TargetInputs): AutoTarget[] {
   const soDate = isoDate(o.so_date);
   const type = String(o.order_type ?? "").trim().toLowerCase();
   const dispatchDays = DISPATCH_DAYS_FROM_SO[type];
+  const delivery = isoDate(o.delivery_date_as_per_so);
+  // A new Spare: Dispatch and Packing both work back from the delivery date.
+  if (spareDeliveryRules(o)) {
+    if (delivery) {
+      const from = `Delivery date as per SO (${readable(delivery)})`;
+      out.push({ key: "dispatch", date: shift(delivery, -3), reason: `Auto: 3 days before ${from}, Spare` });
+      out.push({ key: "packing", date: shift(delivery, -5), reason: `Auto: 5 days before ${from}, Spare` });
+    }
+    return out;
+  }
   if (soDate && dispatchDays) {
     out.push({
       key: "dispatch",
@@ -83,7 +118,6 @@ export function autoTargets(o: TargetInputs): AutoTarget[] {
     });
   }
 
-  const delivery = isoDate(o.delivery_date_as_per_so);
   if (delivery) {
     const from = `Delivery date as per SO (${readable(delivery)})`;
     out.push({ key: "packing", date: shift(delivery, -4), reason: `Auto: 4 days before ${from}` });

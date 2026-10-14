@@ -64,10 +64,13 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   // A Spare stands where its latest readiness lot does: ready, then packed.
   // A Pump is Fully packed once its packing date is in.
   // No Pending: what reaches Assembly & Packing is ready or packed already.
-  assembly: ["Partial ready", "Fully ready", "Partially packed", "Fully packed"],
+  // A Spare lot ready but not packed yet is In Progress.
+  assembly: ["In Progress", "Partially packed", "Fully packed"],
   // Which one depends on the SO's Bill Type — a Challan order never gets a PI.
   // N/A is the paid-after-receipt case: no PI is due at all.
-  billing: ["PI raised", PENDING],
+  // PIs raised against the SO's payment terms — After Receipt lines are not
+  // counted (no PI is raised for them); N/A when every line is After Receipt.
+  billing: ["Fully raised", "Partially raised", PENDING, NOT_APPLICABLE],
   accounts: [...values(PAYMENT_STATUS_OPTIONS), PENDING, NOT_APPLICABLE],
   // "Pending" is itself a stored dispatch status, so it covers both a blank
   // column and an explicit Pending rather than appearing twice.

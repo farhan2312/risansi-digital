@@ -128,9 +128,10 @@ export function BillingWorkspace({
       </div>
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
-        <div className="overflow-x-auto">
+        {/* The header row stays under the top bar as the page scrolls (AppShell). */}
+        <div className="overflow-x-auto" data-sticky-head>
           <table className="w-full min-w-[880px] text-sm">
-            <thead>
+            <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
                 <th className="px-4 py-3">SO No.</th>
@@ -146,6 +147,7 @@ export function BillingWorkspace({
                 <th className="px-4 py-3">Bill Mode</th>
                 <th className="px-4 py-3">{mode === "billing" ? "Payment terms & PIs" : "Packing slips & dispatches"}</th>
                 <th className="px-4 py-3 text-right">Order Value</th>
+                {mode === "billing" && <th className="px-4 py-3">PI Status</th>}
                 <th className="px-4 py-3">Dispatch Status</th>
                 {mode === "dispatch" && <th className="px-4 py-3">Stage</th>}
               </tr>
@@ -153,7 +155,7 @@ export function BillingWorkspace({
             <tbody className="divide-y divide-card-border">
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={mode === "dispatch" ? 14 : 13} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -239,6 +241,11 @@ export function BillingWorkspace({
                         {formatValue(row.order_value)}
                         {row.order_currency ? ` ${row.order_currency}` : ""}
                       </td>
+                      {mode === "billing" && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <PiStatePill state={row.billing_state} />
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <DispatchStatusPill status={row.dispatch_status} />
                       </td>
@@ -295,4 +302,22 @@ function StagePill({ stage }: { stage: string | null | undefined }) {
           ? "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300"
           : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300";
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{s}</span>;
+}
+
+/** How far the SO's PIs are raised against its terms, as a coloured pill. */
+function PiStatePill({ state }: { state: string | null | undefined }) {
+  const s = (state ?? "").trim() || "Pending";
+  const tone =
+    s === "Fully raised"
+      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
+      : s === "Partially raised"
+        ? "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300"
+        : s === "N/A"
+          ? "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"
+          : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300";
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>
+      {s === "N/A" ? "N/A · after receipt" : s}
+    </span>
+  );
 }

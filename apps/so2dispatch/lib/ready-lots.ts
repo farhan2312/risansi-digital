@@ -72,12 +72,24 @@ export const PACKED_FOR: Record<string, string> = {
   "Fully ready": "Fully packed",
 };
 
+/** Assembly & Packing's shifts, and whether a lot needs a PDI. */
+export const PACKING_SHIFTS = ["Day", "Night"];
+export const PDI_OPTIONS = ["Yes", "No"];
+/** A Spare lot ready but not packed yet, as Assembly & Packing reads it. */
+export const PACKING_IN_PROGRESS = "In Progress";
+
 /** A lot as Assembly & Packing sees it: Planning's half read-only, theirs to fill. */
 export type PackingLot = {
   id: string;
   status: string;
   ready_date: string;
+  /** Assembly & Packing's own plan: when it will pack the lot, the shift, PDI. */
+  packing_plan_date: string;
+  packing_shift: string;
+  pdi: string;
   packed_date: string;
+  /** How many times the packing date has moved (read-only). */
+  plan_moves?: number;
 };
 
 export function packingLotsFromRows(rows: unknown): PackingLot[] {
@@ -88,7 +100,11 @@ export function packingLotsFromRows(rows: unknown): PackingLot[] {
       id: String(row.id ?? ""),
       status: String(row.status ?? "").trim(),
       ready_date: String(row.ready_date ?? "").slice(0, 10),
+      packing_plan_date: String(row.packing_plan_date ?? "").slice(0, 10),
+      packing_shift: String(row.packing_shift ?? "").trim(),
+      pdi: String(row.pdi ?? "").trim(),
       packed_date: String(row.packed_date ?? "").slice(0, 10),
+      plan_moves: Number(row.plan_moves ?? 0) || 0,
     };
   });
 }
@@ -97,6 +113,9 @@ export function packingLotsFromRows(rows: unknown): PackingLot[] {
 export function packingError(lots: PackingLot[]): string | null {
   for (let i = 0; i < lots.length; i++) {
     const l = lots[i];
+    if (l.packing_plan_date && !ISO.test(l.packing_plan_date)) return `Lot ${i + 1}: enter a valid packing date.`;
+    if (l.packing_shift && !PACKING_SHIFTS.includes(l.packing_shift)) return `Lot ${i + 1}: choose Day or Night shift.`;
+    if (l.pdi && !PDI_OPTIONS.includes(l.pdi)) return `Lot ${i + 1}: choose PDI Yes or No.`;
     if (!l.packed_date) continue;
     if (!ISO.test(l.packed_date)) return `Lot ${i + 1}: enter a valid packing date.`;
     if (l.ready_date && l.packed_date < l.ready_date) {
@@ -108,3 +127,27 @@ export function packingError(lots: PackingLot[]): string | null {
 
 /** The form field that carries the packing dates to the server, as JSON. */
 export const PACKING_LOTS_FIELD = "__packing_lots";
+
+/** The form field that carries a packing slip's lot numbers ("1,2"). */
+export const LOT_NOS_FIELD = "__lot_nos";
+
+/** "1, 3" / [1,3] / "Lot 1,Lot 3" → [1, 3]: whole numbers ≥ 1, sorted, once each. */
+export function parseLotNos(v: unknown): number[] {
+  const parts = Array.isArray(v) ? v : String(v ?? "").split(/[,\s]+/);
+  const nums = parts
+    .map((p) => Number(String(p).replace(/[^0-9]/g, "")))
+    .filter((n) => Number.isInteger(n) && n >= 1);
+  return [...new Set(nums)].sort((a, b) => a - b);
+}
+
+/** [1, 2] → "Lot 1, Lot 2"; nothing → "". */
+export function lotNosLabel(v: unknown): string {
+  return parseLotNos(v).map((n) => `Lot ${n}`).join(", ");
+}
+
+/** Whether a packed lot is on a packing slip: a numbered slip that names its lot number. */
+export function lotOnSlip(lotNo: number, slips: Record<string, unknown>[]): boolean {
+  return slips.some(
+    (s) => String(s.packing_slip_no ?? "").trim() !== "" && parseLotNos(s.lot_nos).includes(lotNo)
+  );
+}

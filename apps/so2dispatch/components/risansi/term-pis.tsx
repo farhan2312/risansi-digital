@@ -25,6 +25,11 @@ function day(v: unknown): string {
     : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+/** Paid after receipt: no PI is raised against this line. */
+function isAfterReceipt(t: Row): boolean {
+  return str(t.term) === "After Receipt";
+}
+
 /** "30% Advance Against ABG · 45 days" — the term line as it reads. */
 function termLabel(t: Row): string {
   const pct = str(t.percent);
@@ -67,7 +72,8 @@ export function TermPis({
 
   const piFor = new Map(pis.filter((p) => str(p.payment_term_id)).map((p) => [str(p.payment_term_id), p]));
   const unlinked = pis.filter((p) => !str(p.payment_term_id) || !terms.some((t) => str(t.id) === str(p.payment_term_id)));
-  const freeTerms = terms.filter((t) => !piFor.has(str(t.id)));
+  // A PI can go only on a term that is paid against one: not After Receipt.
+  const freeTerms = terms.filter((t) => !piFor.has(str(t.id)) && !isAfterReceipt(t));
 
   async function remove(pi: Row) {
     if (!confirm(`Delete PI ${str(pi.pi_no) || "(blank)"}?`)) return;
@@ -145,7 +151,9 @@ export function TermPis({
       // against the term line; it moves onto the PI once Billing raises it.
       <>
         <td colSpan={3} className="py-1.5 pr-1.5">
-          {canEdit ? (
+          {isAfterReceipt(term) ? (
+            <span className="text-muted">No PI · after receipt</span>
+          ) : canEdit ? (
             <button
               type="button"
               onClick={() => setEditing({ pi: null, termId, label })}
@@ -178,7 +186,9 @@ export function TermPis({
       </>
     ) : (
       <td colSpan={payments ? 5 : 4} className="py-1.5">
-        {canEdit ? (
+        {term && isAfterReceipt(term) ? (
+          <span className="text-muted">No PI · after receipt</span>
+        ) : canEdit ? (
           <button
             type="button"
             onClick={() => setEditing({ pi: null, termId, label })}

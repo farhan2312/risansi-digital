@@ -89,11 +89,14 @@ export function assemblyView(
 ): { cell: DeptCell | null; text: string | null; line?: string } {
   const cell = acrossEcs(status, "assembly");
   const text = cell?.label ?? null;
+  const plan = order.packing_plan;
   const line =
     text && /packed/i.test(text) && order.packed_on
       ? `Packed ${formatDate(order.packed_on)}`
-      : text && /ready/i.test(text) && order.ready_on
-        ? `Ready ${formatDate(order.ready_on)}`
-        : undefined;
+      : plan?.date && text && !/^fully packed$/i.test(text)
+        ? [`Packing ${formatDate(plan.date)}`, plan.shift, plan.pdi === "Yes" ? "PDI" : null].filter(Boolean).join(" · ")
+        : text && /ready|in progress/i.test(text) && order.ready_on
+          ? `Ready ${formatDate(order.ready_on)}`
+          : undefined;
   return { cell, text, line };
 }

@@ -334,7 +334,7 @@ function BarList({ items, total }: { items: BarItem[]; total: number }) {
 // Same completion condition each department uses in the pipeline/notification
 // logic. Kept local (and small) to avoid a dependency on lib/notifications.
 const done = {
-  billing: (r: OrderOverviewRow) => r.has_pi,
+  billing: (r: OrderOverviewRow) => r.billing_state === "Fully raised" || r.billing_state === "Challan filed",
   accounts: (r: OrderOverviewRow) => {
     const p = (r.payment_status ?? "").trim().toLowerCase();
     return p === "payment rcvd" || p === "after receipt";
@@ -525,6 +525,7 @@ export function CentralDashboard({
     // hold one value for the whole order, so repeating them per EC said
     // nothing. Their deadlines ride along.
     has_pi: boolean;
+    billing_state: string | null;
     payment_status: string | null;
     payment_terms: string | null;
     dispatch_status: string | null;
@@ -559,6 +560,7 @@ export function CentralDashboard({
           so_no: r.so_no,
           client_name: r.client_name,
           has_pi: r.has_pi,
+          billing_state: r.billing_state,
           payment_status: r.payment_status,
           payment_terms: r.payment_terms,
           dispatch_status: r.dispatch_status,
@@ -583,7 +585,7 @@ export function CentralDashboard({
         card.ecs.length > 0 &&
         card.ecs.every(ecSettled) &&
         allDeptsSettled([
-          { done: card.has_pi, na: card.billing_na },
+          { done: card.billing_state === "Fully raised" || card.billing_state === "Challan filed", na: card.billing_na },
           { done: done.accounts(card.ecs[0]), na: card.accounts_na },
           { done: card.dispatch_done, na: false },
         ]);
@@ -820,9 +822,17 @@ export function CentralDashboard({
                       <td className="px-3 py-3 align-top">
                         <Chip
                           value={
-                            card.billing_na ? "N/A" : card.has_pi ? "PI done" : null
+                            card.billing_na || card.billing_state === "N/A"
+                              ? "N/A"
+                              : card.billing_state && card.billing_state !== "Pending"
+                                ? card.billing_state
+                                : null
                           }
-                          tone={card.has_pi && !card.billing_na ? "green" : "neutral"}
+                          tone={
+                            !card.billing_na && (card.billing_state === "Fully raised" || card.billing_state === "Challan filed")
+                              ? "green"
+                              : "neutral"
+                          }
                         />
                         <Signed
                           completion={card.signed.billing}

@@ -31,6 +31,8 @@ export const ORDER_DATE_FIELDS = [
   { value: "dept_target", label: "Target date" },
   // Planning's own date: when it says an EC will be ready.
   { value: "readiness", label: "Readiness date" },
+  // Assembly & Packing's own: when it plans to pack a Spare's lot.
+  { value: "packing", label: "Packing date" },
   { value: "dispatch_target", label: "Dispatch target" },
   { value: "so_date", label: "SO date" },
   { value: "ec_date", label: "EC date" },
@@ -77,12 +79,15 @@ export const PAYMENT_FILTER_DEPTS: readonly string[] = ["billing", "accounts"];
 /** The departments that filter by Bill Mode: those two, Planning and Assembly & Packing. */
 export const BILL_MODE_FILTER_DEPTS: readonly string[] = ["billing", "accounts", "planning", "assembly"];
 /** The queues that filter by the SO's dispatch status beside their own status. */
-export const DISPATCH_STATUS_FILTER_DEPTS: readonly string[] = ["billing"];
+export const DISPATCH_STATUS_FILTER_DEPTS: readonly string[] = ["billing", "planning", "assembly"];
 
 export const DATE_PRESETS = [
   "Today",
   "Yesterday",
+  "Tomorrow",
   "Last 7 days",
+  // Readiness, packing and target dates lie ahead: what is coming up.
+  "Next 7 days",
   "Last 30 days",
   "This month",
   "This year",
@@ -108,8 +113,12 @@ export function presetRange(preset: DatePreset): [string, string] {
       return [today, today];
     case "Yesterday":
       return [shift(-1), shift(-1)];
+    case "Tomorrow":
+      return [shift(1), shift(1)];
     case "Last 7 days":
       return [shift(-6), today];
+    case "Next 7 days":
+      return [today, shift(7)];
     case "Last 30 days":
       return [shift(-29), today];
     case "This month":
@@ -131,6 +140,11 @@ export type OrderListFilter = {
   dept: DeptFilterKey | null;
   /** Only with a department — its own words; any of them matches. */
   deptStatuses: string[];
+  /**
+   * The Orders list: statuses in several departments at once — any of a
+   * department's ticked statuses, and every department ticked. URL `dsm`.
+   */
+  deptStatusMulti: Partial<Record<DeptFilterKey, string[]>>;
   /** Only with a department — whose sign-off it is. */
   signOff: SignOff | null;
   dateField: OrderDateField;
@@ -148,6 +162,8 @@ export type OrderListFilter = {
    * says so without hiding anything.
    */
   ready: boolean;
+  /** A Spare lot packed but on no packing slip yet (Planning, Assembly & Packing, the Orders list). */
+  noSlip: boolean;
   /**
    * One of the SO's own fields, filled or still pending. Pending only counts
    * where the field applies — PO No. on an FR order is not owed.
@@ -232,6 +248,8 @@ export function parseOrderListFilter(
       ? (dept ? "so_date" : fallbackDate)
       : dateFieldRaw === "readiness" && dept && !["planning", "assembly", "billing", "dispatch"].includes(dept)
         ? (dept ? "so_date" : fallbackDate)
+        : dateFieldRaw === "packing" && dept && !["planning", "assembly", "dispatch"].includes(dept)
+          ? (dept ? "so_date" : fallbackDate)
         : dateFieldRaw;
 
   // Picked backwards, the two dates still mean the span between them.
@@ -252,6 +270,7 @@ export function parseOrderListFilter(
     types: list(get("type")),
     dept,
     deptStatuses: statuses,
+    deptStatusMulti: opts.noDispatchTarget ? parseDeptStatusMulti(get("dsm")) : {},
     signOff,
     dateField,
     from,
@@ -259,6 +278,7 @@ export function parseOrderListFilter(
     // Dispatch is not chased against its dispatch target any more.
     overdue: get("overdue") === "1" && dept !== "dispatch",
     ready: get("ready") === "1",
+    noSlip: get("noslip") === "1" && (!dept || dept === "planning" || dept === "assembly"),
     field,
     // Only where the controls are shown — a hidden filter would narrow
     // without saying so.
@@ -298,6 +318,31 @@ export function scopeToRep<F extends { reps: string[] }>(
   return { ...filter, reps: [rep], repLock: rep };
 }
 
+/**
+ * `dsm`: "planning~Fully ready,In plan;billing~Pending". A status only counts
+ * when that department has it; anything else is dropped.
+ */
+export function parseDeptStatusMulti(raw: string | undefined): Partial<Record<DeptFilterKey, string[]>> {
+  const out: Partial<Record<DeptFilterKey, string[]>> = {};
+  for (const part of (raw ?? "").split(";")) {
+    const [key, list] = part.split("~");
+    if (!(DEPT_FILTER_KEYS as readonly string[]).includes(key ?? "")) continue;
+    const dept = key as DeptFilterKey;
+    const allowed = statusesFor(dept);
+    const picked = [...new Set((list ?? "").split(",").map((s) => s.trim()).filter((s) => allowed.includes(s)))];
+    if (picked.length) out[dept] = picked;
+  }
+  return out;
+}
+
+/** The URL form of the above, or null when nothing is ticked. */
+export function serializeDeptStatusMulti(m: Partial<Record<DeptFilterKey, string[]>>): string | null {
+  const parts = Object.entries(m)
+    .filter(([, v]) => v && v.length)
+    .map(([k, v]) => `${k}~${(v as string[]).join(",")}`);
+  return parts.length ? parts.join(";") : null;
+}
+
 /** Whether anything narrows the list at all. */
 export function isOrderListFiltered(f: OrderListFilter): boolean {
   return !!(
@@ -308,9 +353,11 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.paymentStatuses.length ||
     f.dispatchStatuses.length ||
     f.dispatchStages.length ||
+    Object.keys(f.deptStatusMulti).length ||
     f.packingStatuses.length ||
     f.field ||
     f.ready ||
+    f.noSlip ||
     f.overdue ||
     f.search ||
     f.zones.length ||
@@ -334,6 +381,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.dept) p.set("dept", f.dept);
   if (f.overdue) p.set("overdue", "1");
   if (f.ready) p.set("ready", "1");
+  if (f.noSlip) p.set("noslip", "1");
   if (f.clearance.length) p.set("clear", f.clearance.join(","));
   if (f.holdReasons.length) p.set("hreason", f.holdReasons.join(","));
   if (f.paymentTerms.length) p.set("pterm", f.paymentTerms.join(","));
@@ -347,6 +395,8 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
     p.set("fstate", f.field.state);
   }
   if (f.deptStatuses.length) p.set("dstatus", f.deptStatuses.join(","));
+  const dsm = serializeDeptStatusMulti(f.deptStatusMulti);
+  if (dsm) p.set("dsm", dsm);
   if (f.signOff) p.set("signoff", f.signOff);
   if (f.from || f.to) {
     p.set("datefield", f.dateField);
@@ -362,6 +412,7 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.search) parts.push(`Search: ${f.search}`);
   if (f.overdue) parts.push("Overdue only");
   if (f.ready) parts.push("Ready to dispatch");
+  if (f.noSlip) parts.push("Packed, no slip");
   if (f.field) {
     const label = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column)?.label ?? f.field.column;
     parts.push(`${label}: ${f.field.state === "filled" ? "filled" : "pending"}`);
@@ -385,6 +436,9 @@ export function describeOrderListFilter(f: OrderListFilter): string {
         .filter(Boolean)
         .join(" · ")
     );
+  }
+  for (const [k, v] of Object.entries(f.deptStatusMulti)) {
+    if (v?.length) parts.push(`${DEPT_FILTER_LABELS[k as DeptFilterKey]}: ${v.join(" / ")}`);
   }
   if (f.from || f.to) {
     const field = ORDER_DATE_FIELDS.find((d) => d.value === f.dateField)?.label;
@@ -413,11 +467,13 @@ export function parseDeptFilter(
     // all (Billing, Accounts), when the order's own date is the useful one.
     // An explicit choice still wins.
     if (key === "datefield" && dept) {
-      // Planning, and Assembly & Packing after it, read by the readiness date
-      // rather than a target.
+      // Planning reads by its readiness date; Assembly & Packing by its own
+      // packing date — neither by a target.
       return (
         get(key) ??
-        (dept === "planning" || dept === "assembly"
+        (dept === "assembly"
+          ? "packing"
+          : dept === "planning"
           ? "readiness"
           : DEPT_VIEWS[dept].hasTarget && dept !== "dispatch"
             ? "dept_target"

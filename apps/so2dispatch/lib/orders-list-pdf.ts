@@ -184,7 +184,8 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined): SoRow {
     pay.push({ text: piLine(pi), color: C.muted });
     payment(str(pi.pi_payment_status), str(pi.pi_amount_received), str(pi.pi_confirmed_date), str(pi.pi_hold_reason));
   });
-  if (!pay.length) pay.push({ text: "No payment terms yet", color: C.muted });
+  if (o.bill_mode === "FR") pay.splice(0, pay.length, { text: "Replacement · no payment terms", color: C.muted });
+  else if (!pay.length) pay.push({ text: "No payment terms yet", color: C.muted });
 
   const readiness =
     !closed && o.readiness_from

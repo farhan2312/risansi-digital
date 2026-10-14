@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { lotNosLabel } from "@/lib/ready-lots";
 import { Truck } from "lucide-react";
 import { dispatchStage } from "@/lib/dispatch-steps";
 import { DispatchWizard } from "./dispatch-wizard";
@@ -45,7 +46,7 @@ export function DispatchSlipPicker({
   const waiting = slips.filter((s) => !str(s.invoice_id));
   const pickedLabel = slips
     .filter((s) => picked.has(str(s.id)))
-    .map((s) => str(s.packing_slip_no) || "—")
+    .map((s) => [str(s.packing_slip_no) || "—", lotNosLabel(s.lot_nos)].filter(Boolean).join(" · "))
     .join(", ");
 
   return (
@@ -107,7 +108,12 @@ export function DispatchSlipPicker({
                         )}
                       </td>
                     )}
-                    <td className="px-2 py-1.5 whitespace-nowrap font-medium">{str(s.packing_slip_no) || "—"}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap font-medium">
+                      {str(s.packing_slip_no) || "—"}
+                      {lotNosLabel(s.lot_nos) && (
+                        <span className="ml-1.5 text-xs font-normal text-muted">{lotNosLabel(s.lot_nos)}</span>
+                      )}
+                    </td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-muted">{formatDate(s.packing_slip_date)}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap">
                       {on ? (

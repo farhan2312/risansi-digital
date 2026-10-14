@@ -65,9 +65,15 @@ type SoLine = {
   dispatchTarget: string;
   ld: string;
   notes: string;
+  /** The readiness lots, and Planning's remarks — each its own column. */
+  lots: string;
+  remarks: string;
   /** How often the readiness date moved, and the dates it went through. */
   history: string;
   dateMoves: number;
+  /** Where Assembly & Packing and Dispatch have got to on the SO. */
+  assembly: string;
+  dispatch: string;
   /** For the summary. */
   statusKey: string;
   ready: boolean;
@@ -125,7 +131,14 @@ function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): SoLine[]
       summary.dateMoves > 0
         ? `${summary.dateMoves}× · ${summary.dates.map((d) => day(d, false)).join(" → ")}`
         : "";
+    // Assembly & Packing across the ECs: one state, or how they split.
+    const asm = ecs.map((ec) => str(ec.assembly_state) || "Pending");
+    const asmUniq = [...new Set(asm)];
+    const assembly =
+      asmUniq.length === 1 ? asmUniq[0] : asmUniq.map((s) => `${asm.filter((x) => x === s).length} ${s}`).join(", ");
     return {
+      assembly,
+      dispatch: str(head.so_dispatch_status) || "Pending",
       sl: str(head.sl_no),
       so: str(head.so_no) || `#${str(head.sl_no)}`,
       soDate: day(head.so_date),
@@ -137,6 +150,8 @@ function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): SoLine[]
       dispatchTarget: day(head.dispatch_target_date),
       ld: str(head.ld).toLowerCase() === "yes" ? day(head.ld_date) || "Yes" : "",
       notes: [lots, remarks].filter(Boolean).join(" · "),
+      lots,
+      remarks,
       history,
       dateMoves: summary.dateMoves,
       statusKey: uniq.length === 1 ? uniq[0] : "Mixed",
@@ -150,18 +165,21 @@ const PAGE = { w: 842, h: 595 };
 const MARGIN = 36;
 const WIDTH = PAGE.w - MARGIN * 2;
 const COLUMNS: { label: string; width: number; key: keyof SoLine }[] = [
-  { label: "Sl.", width: 28, key: "sl" },
-  { label: "SO No.", width: 80, key: "so" },
-  { label: "SO date", width: 50, key: "soDate" },
-  { label: "Type", width: 38, key: "type" },
-  { label: "ECs", width: 24, key: "ecs" },
-  { label: "Status", width: 92, key: "status" },
-  { label: "Readiness date", width: 84, key: "readiness" },
-  { label: "Overdue", width: 42, key: "overdue" },
-  { label: "Dispatch target", width: 68, key: "dispatchTarget" },
-  { label: "LD date", width: 42, key: "ld" },
-  { label: "Date moved", width: 118, key: "history" },
-  { label: "Lots / remarks", width: 104, key: "notes" },
+  { label: "Sl.", width: 24, key: "sl" },
+  { label: "SO No.", width: 70, key: "so" },
+  { label: "SO date", width: 46, key: "soDate" },
+  { label: "Type", width: 32, key: "type" },
+  { label: "ECs", width: 22, key: "ecs" },
+  { label: "Status", width: 70, key: "status" },
+  { label: "Readiness date", width: 68, key: "readiness" },
+  { label: "Overdue", width: 40, key: "overdue" },
+  { label: "Dispatch target", width: 50, key: "dispatchTarget" },
+  { label: "LD date", width: 36, key: "ld" },
+  { label: "Date moved", width: 70, key: "history" },
+  { label: "Lots", width: 64, key: "lots" },
+  { label: "Remarks", width: 64, key: "remarks" },
+  { label: "Assembly & Packing", width: 62, key: "assembly" },
+  { label: "Dispatch", width: 52, key: "dispatch" },
 ];
 
 /** Planning's queue as one PDF: a summary, then every SO. */
@@ -237,13 +255,16 @@ export async function buildPlanningReportPdf(
     y -= 30 + (sl.length - 1) * 11;
   }
 
+  // Long labels wrap onto a second line rather than running into the next column.
+  const headLines = COLUMNS.map((c) => wrap(c.label.toUpperCase(), bold, 6.5, c.width - 5));
+  const headH = Math.max(...headLines.map((l) => l.length)) * 7.5 + 5.5;
   function headerRow() {
     let cx = MARGIN;
-    for (const c of COLUMNS) {
-      text(c.label.toUpperCase(), cx, y - 8, 6.5, bold, muted);
+    COLUMNS.forEach((c, i) => {
+      headLines[i].forEach((l, k) => text(l, cx, y - 8 - k * 7.5, 6.5, bold, muted));
       cx += c.width;
-    }
-    y -= 13;
+    });
+    y -= headH;
     page.drawLine({ start: { x: MARGIN, y }, end: { x: MARGIN + WIDTH, y }, thickness: 0.75, color: rule });
     y -= 2;
   }
@@ -276,6 +297,10 @@ export async function buildPlanningReportPdf(
             ? amber
           : key === "status" && l.ready
             ? green
+          : key === "assembly"
+            ? /fully packed/i.test(l.assembly) && !/,/.test(l.assembly) ? green : amber
+          : key === "dispatch"
+            ? l.dispatch === "Fully dispatch" ? green : l.dispatch === "LOT dispatch" ? rgb(0.03, 0.45, 0.7) : amber
             : cl[0] === "—"
               ? muted
               : ink;

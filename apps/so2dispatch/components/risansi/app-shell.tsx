@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useEffect, useMemo, useRef, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, ChevronRight, PlayCircle, RotateCw } from "lucide-react";
+import { Bell, ChevronRight, PlayCircle, RotateCw, ZoomOut } from "lucide-react";
 import { ReportBugTrigger } from "./report-bug";
 import { DiscussionBell } from "./discussion-bell";
 import { Sidebar } from "./sidebar";
@@ -86,6 +86,8 @@ export function AppShell({
   const showBugBell = user.role === "admin";
   // On mobile the breadcrumb's last segment doubles as the page title.
   const mobileTitle = crumbs.length > 0 ? crumbs[crumbs.length - 1].label : "Risansi";
+  const headerRef = useRef<HTMLElement>(null);
+  useStickyTableHeads(headerRef);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -100,7 +102,7 @@ export function AppShell({
         {/* Top bar — mobile shows the current page title; desktop shows the
             breadcrumb on the left and Demo / Report a Bug / Bug bell on the
             right. */}
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-card-border bg-surface px-4">
+        <header ref={headerRef} className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-card-border bg-surface px-4">
           <span className="min-w-0 truncate font-display text-[15px] font-semibold text-foreground lg:hidden">
             {mobileTitle}
           </span>
@@ -146,6 +148,11 @@ export function AppShell({
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            {/* The queues are wide: a smaller browser zoom shows whole rows. Desktop only. */}
+            <span className="hidden items-center gap-1.5 rounded-lg bg-primary/[0.08] px-2.5 py-1 text-xs font-medium text-primary xl:inline-flex">
+              <ZoomOut className="h-3.5 w-3.5" aria-hidden />
+              Use browser zoom below 75% for a better view
+            </span>
             <button
               type="button"
               onClick={() => startRefresh(() => router.refresh())}
@@ -209,4 +216,49 @@ export function AppShell({
       />
     </div>
   );
+}
+
+/**
+ * Every queue table marked `data-sticky-head` keeps its header row in view:
+ * once the table's top passes under the top bar, the header row follows the
+ * page down, just below the bar, until the table ends.
+ *
+ * Done by moving the header rather than with CSS `position: sticky`: each
+ * table sits in its own horizontal scroller (they are wider than the screen),
+ * and sticky only works against the nearest scroller — which would have meant
+ * giving each table a vertical scroll of its own. This way the page scrolls as
+ * it always has, and the header still scrolls sideways with its table.
+ */
+function useStickyTableHeads(headerRef: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const update = () => {
+      const top = headerRef.current?.getBoundingClientRect().bottom ?? 0;
+      document.querySelectorAll<HTMLElement>("[data-sticky-head]").forEach((box) => {
+        const table = box.querySelector<HTMLElement>(":scope > table");
+        const head = table?.querySelector<HTMLElement>(":scope > thead");
+        if (!table || !head) return;
+        const rect = table.getBoundingClientRect();
+        // How far the header has to come down to sit under the bar — never
+        // above its own place, and never past the table's last rows.
+        const shift = Math.max(0, Math.min(top - rect.top, rect.height - head.offsetHeight * 2));
+        head.style.transform = shift > 0 ? `translateY(${shift}px)` : "";
+        if (shift > 0) head.dataset.stuck = "1";
+        else delete head.dataset.stuck;
+      });
+    };
+    // Run straight away on every scroll: a handful of tables, cheap to place,
+    // and it keeps the header from lagging a frame behind the page.
+    const schedule = update;
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    // Rows load and pages change without a scroll; keep up with those too.
+    const watch = new MutationObserver(schedule);
+    watch.observe(document.body, { childList: true, subtree: true });
+    schedule();
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      watch.disconnect();
+    };
+  }, [headerRef]);
 }

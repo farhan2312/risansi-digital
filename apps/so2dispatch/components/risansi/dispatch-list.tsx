@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { lotNosLabel } from "@/lib/ready-lots";
 import { useRouter } from "next/navigation";
 import { Check, ExternalLink, Loader2, Pencil, Trash2 } from "lucide-react";
 import { deleteOrderChildAction } from "@/app/risansi/orders/actions";
@@ -27,7 +28,9 @@ const line = (...parts: (string | false | null | undefined)[]) => parts.filter(B
 /** The slips a dispatch covers, as its header says them. */
 export function slipsOf(inv: Row): string {
   const slips = Array.isArray(inv.slips) ? (inv.slips as Row[]) : [];
-  const nos = slips.length ? slips.map((s) => str(s.packing_slip_no) || "—") : [str(inv.packing_slip_no)].filter(Boolean);
+  const nos = slips.length
+    ? slips.map((s) => [str(s.packing_slip_no) || "—", lotNosLabel(s.lot_nos)].filter(Boolean).join(" · "))
+    : [str(inv.packing_slip_no)].filter(Boolean);
   return nos.length ? `Packing Slip${nos.length > 1 ? "s" : ""} ${nos.join(", ")}` : "No packing slip";
 }
 

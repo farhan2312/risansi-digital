@@ -2445,3 +2445,45 @@ COMMENT ON COLUMN users.identity_user_id IS
     'identity.users.id in the risansi_identity database. No FK: different database. '
     'Null means the account was deliberately not carried across and will not be able '
     'to sign in once the local login is retired.';
+
+-- ---------------------------------------------------------------------------
+-- Assembly & Packing's own plan for each readiness lot of a Spare: the date it
+-- will pack the lot, the shift, and whether a PDI is needed — the way Planning
+-- commits a readiness date. Overdue is judged against it. Every change to the
+-- plan is kept, like the readiness history. Idempotent.
+-- ---------------------------------------------------------------------------
+ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS packing_plan_date DATE;
+ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS packing_shift TEXT;
+ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS pdi TEXT;
+ALTER TABLE order_ready_lots DROP CONSTRAINT IF EXISTS order_ready_lots_packing_shift_check;
+ALTER TABLE order_ready_lots ADD CONSTRAINT order_ready_lots_packing_shift_check
+    CHECK (packing_shift IS NULL OR packing_shift IN ('Day', 'Night'));
+ALTER TABLE order_ready_lots DROP CONSTRAINT IF EXISTS order_ready_lots_pdi_check;
+ALTER TABLE order_ready_lots ADD CONSTRAINT order_ready_lots_pdi_check
+    CHECK (pdi IS NULL OR pdi IN ('Yes', 'No'));
+
+CREATE TABLE IF NOT EXISTS order_packing_plan_history (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id         UUID NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+    lot_id          UUID REFERENCES order_ready_lots(id) ON DELETE SET NULL,
+    lot_no          INT  NOT NULL,
+    plan_date       DATE,
+    prev_plan_date  DATE,
+    shift           TEXT,
+    prev_shift      TEXT,
+    pdi             TEXT,
+    prev_pdi        TEXT,
+    changed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    changed_by_role TEXT,
+    changed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_packing_plan_history_lot_idx
+    ON order_packing_plan_history (lot_id, changed_at);
+
+-- ---------------------------------------------------------------------------
+-- Which readiness lots a packing slip carries — lot numbers across the SO
+-- ("Lot 1" is Lot 1 of every EC). A Spare SO is Fully dispatched only when
+-- every packed lot is on a slip that has gone out (lib/orders.ts
+-- recomputeDispatchStatus). Idempotent.
+-- ---------------------------------------------------------------------------
+ALTER TABLE order_packing_slips ADD COLUMN IF NOT EXISTS lot_nos INT[];

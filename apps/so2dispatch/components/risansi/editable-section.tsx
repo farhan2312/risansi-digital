@@ -101,6 +101,7 @@ export function EditableSection({
   clientLookup = false,
   fieldExtra,
   soWideOrderId,
+  startEditing = false,
 }: {
   targetId: string;
   section: OrderSection;
@@ -118,9 +119,11 @@ export function EditableSection({
   // Planning / Assembly & Packing on a Spare SO edited as one: the save goes
   // to every EC of this SO, as the department queues' "Edit SO" does.
   soWideOrderId?: string;
+  /** Open straight into the form (an Edit button that brought them here already said so). */
+  startEditing?: boolean;
 }) {
   const router = useRouter();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing && canEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openDocs, setOpenDocs] = useState<DocumentsConfig | null>(null);

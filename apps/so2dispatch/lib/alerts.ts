@@ -81,8 +81,8 @@ const ALERTS_SQL = `
      AND qc.qc_doc_actual_date IS NULL
 
   UNION ALL
-  -- Assembly & Packing: the EC (or a readiness lot of it) is not packed by
-  -- Planning's readiness date.
+  -- Assembly & Packing: a readiness lot not packed by its packing date, or an
+  -- EC without lots not packed by Planning's readiness date.
   -- Judged on the packing date alone — whether the order has since been
   -- dispatched is Dispatch's arm, below.
   SELECT o.id, it.id, o.sl_no::int, o.so_no, it.ec_no, o.client_name,

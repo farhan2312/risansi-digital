@@ -298,9 +298,10 @@ export function OrderMakingWorkspace({
       </div>
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
-        <div className="overflow-x-auto">
+        {/* The header row stays under the top bar as the page scrolls (AppShell). */}
+        <div className="overflow-x-auto" data-sticky-head>
           <table className="w-full min-w-[960px] text-sm">
-            <thead>
+            <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th className="px-4 py-3">
                   <SortHeader label="Sl." sortKey="sl" />

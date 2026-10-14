@@ -121,7 +121,8 @@ const REMINDERS_SQL = `
    WHERE r.due <= ${TODAY_IST} + 7
 
   UNION ALL
-  -- Assembly & Packing due to complete, against Planning's readiness date:
+  -- Assembly & Packing due to complete, against its own packing date (a
+  -- Spare lot) or Planning's readiness date (an EC without lots):
   -- the earliest one among the SO's ECs not packed yet — past it, the SO is
   -- overdue, as Planning's is. Whether the order has since gone out is
   -- Dispatch's arm, below.

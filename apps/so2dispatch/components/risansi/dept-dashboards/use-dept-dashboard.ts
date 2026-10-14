@@ -6,7 +6,6 @@ import type { DeptCompletion } from "@/lib/dept-completion";
 import { DEPT_VIEWS, type DeptKey } from "@/lib/dept-view";
 import {
   DATE_PRESETS,
-  PAST_PRESETS,
   daysFromToday,
   presetRange,
   todayIso,
@@ -88,7 +87,7 @@ export function useDeptDashboard(
   const dateOf = (r: OrderOverviewRow) =>
     view.hasTarget ? view.target(r) : r.so_date;
   const dateLabel = view.hasTarget ? "Target date" : "SO date";
-  const presets = view.hasTarget ? DATE_PRESETS : PAST_PRESETS;
+  const presets = DATE_PRESETS;
 
   // Facet options come from the rows themselves, so a value nobody uses never
   // appears in the dropdown.

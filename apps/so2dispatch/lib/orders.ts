@@ -21,7 +21,7 @@ import {
   spareEcSql,
   assemblyDueSql,
 } from "@/lib/dept-view";
-import { autoTargets } from "@/lib/target-rules";
+import { autoTargets, spareDeliveryDate } from "@/lib/target-rules";
 import { DEFAULT_GST_RATE } from "@/lib/order-validation";
 import { PLANNING_READY_SQL } from "@/lib/reminders";
 import type { LockFacts } from "@/lib/order-lock";
@@ -144,6 +144,8 @@ export type OrderListRow = {
   // Dispatch (a numbered packing slip).
   ready_on?: string | null;
   packed_on?: string | null;
+  /** Assembly & Packing's next packing plan on the SO's Spare lots. */
+  packing_plan?: { date: string; shift: string | null; pdi: string | null } | null;
   in_dispatch?: boolean;
 };
 
@@ -519,7 +521,15 @@ export async function getOrderDetail(id: string): Promise<OrderDetail | null> {
         to_jsonb(o) || jsonb_build_object(
           'after_receipt_only', ${AFTER_RECEIPT_ONLY},
           -- Who set the order status, by name, for the banner.
-          'status_set_by_name', (SELECT u.full_name FROM users u WHERE u.id = o.status_set_by)
+          'status_set_by_name', (SELECT u.full_name FROM users u WHERE u.id = o.status_set_by),
+          -- A Spare's readiness lots across its ECs, for the packing slips' Lot ticks.
+          'lot_count', COALESCE((SELECT max(c) FROM (SELECT count(*)::int AS c FROM order_ready_lots lc
+                                   JOIN order_items li ON li.id = lc.item_id
+                                  WHERE li.order_id = o.id GROUP BY lc.item_id) x), 0),
+          'packed_lots', COALESCE((SELECT jsonb_agg(DISTINCT n) FROM (
+                                     SELECT (row_number() OVER (PARTITION BY lp.item_id ORDER BY lp.seq))::int AS n, lp.packed_date
+                                       FROM order_ready_lots lp JOIN order_items pi2 ON pi2.id = lp.item_id
+                                      WHERE pi2.order_id = o.id) y WHERE y.packed_date IS NOT NULL), '[]'::jsonb)
         ) AS order,
         to_jsonb(b)  AS order_billing,
         to_jsonb(ac) AS order_accounts,
@@ -532,7 +542,7 @@ export async function getOrderDetail(id: string): Promise<OrderDetail | null> {
         COALESCE((SELECT jsonb_agg((to_jsonb(inv) - 'lr_file_data') || jsonb_build_object(
                     'slips', COALESCE((SELECT jsonb_agg(jsonb_build_object(
                          'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
-                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity)
+                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos)
                          ORDER BY ps.seq)
                        FROM order_invoice_slips l JOIN order_packing_slips ps ON ps.id = l.packing_slip_id
                       WHERE l.invoice_id = inv.id), '[]'::jsonb)) ORDER BY inv.seq)
@@ -1034,21 +1044,57 @@ export async function inheritSparePlanning(
  */
 export async function saveLotPacking(
   itemId: string,
-  entries: { id: string; packed_date: string }[]
+  entries: { id: string; packed_date: string; packing_plan_date?: string; packing_shift?: string; pdi?: string }[],
+  actor?: { id: string; role: string }
 ): Promise<void> {
   if (!UUID_RE.test(itemId)) return;
   await withTransaction(async (c) => {
+    // The plan as it stood, to record what changed (Assembly & Packing's
+    // packing date moves are kept like Planning's readiness date moves).
+    const prev = await c.query<{ id: string; n: number; packing_plan_date: string | null; packing_shift: string | null; pdi: string | null }>(
+      `SELECT id, (row_number() OVER (ORDER BY seq))::int AS n,
+              to_char(packing_plan_date, 'YYYY-MM-DD') AS packing_plan_date, packing_shift, pdi
+         FROM order_ready_lots WHERE item_id = $1`,
+      [itemId]
+    );
+    const before = new Map(prev.rows.map((r) => [r.id, r]));
+    const blank = (v: string | null | undefined) => (v ?? "").trim() || null;
     for (const e of entries) {
       if (!UUID_RE.test(e.id)) continue;
+      const was = before.get(e.id);
+      const plan = e.packing_plan_date !== undefined;
       await c.query(
         `UPDATE order_ready_lots
             SET packed_date = NULLIF($3, '')::date,
                 packing_status = CASE WHEN NULLIF($3, '') IS NULL THEN NULL
                                       WHEN status = 'Fully ready' THEN 'Fully packed'
-                                      ELSE 'Partially packed' END
+                                      ELSE 'Partially packed' END,
+                packing_plan_date = CASE WHEN $4 THEN NULLIF($5, '')::date ELSE packing_plan_date END,
+                packing_shift = CASE WHEN $4 THEN NULLIF($6, '') ELSE packing_shift END,
+                pdi = CASE WHEN $4 THEN NULLIF($7, '') ELSE pdi END
           WHERE id = $1 AND item_id = $2`,
-        [e.id, itemId, e.packed_date]
+        [e.id, itemId, e.packed_date, plan, e.packing_plan_date ?? "", e.packing_shift ?? "", e.pdi ?? ""]
       );
+      if (
+        plan &&
+        was &&
+        (blank(was.packing_plan_date) !== blank(e.packing_plan_date) ||
+          blank(was.packing_shift) !== blank(e.packing_shift) ||
+          blank(was.pdi) !== blank(e.pdi))
+      ) {
+        await c.query(
+          `INSERT INTO order_packing_plan_history
+             (item_id, lot_id, lot_no, plan_date, prev_plan_date, shift, prev_shift, pdi, prev_pdi, changed_by, changed_by_role)
+           VALUES ($1, $2, $3, $4::date, $5::date, $6, $7, $8, $9, $10, $11)`,
+          [
+            itemId, e.id, was.n,
+            blank(e.packing_plan_date), blank(was.packing_plan_date),
+            blank(e.packing_shift), blank(was.packing_shift),
+            blank(e.pdi), blank(was.pdi),
+            actor?.id ?? null, actor?.role ?? null,
+          ]
+        );
+      }
     }
     await syncPackedFromLots(c, itemId);
   });
@@ -1548,6 +1594,10 @@ export async function recomputeDispatchStatus(orderId: string): Promise<void> {
                    AND NOT EXISTS (SELECT 1 FROM order_packing_slips s
                                     WHERE s.order_id = o.id AND s.kind = 'actual'
                                       AND NOT EXISTS (${SENT_SLIPS_SQL("o")} AND l.packing_slip_id = s.id))
+                   -- A Spare's readiness lots: every packed lot must be on a
+                   -- slip that has gone out — packing a lot never makes the
+                   -- SO Fully dispatched by itself.
+                   AND NOT EXISTS (${UNSENT_PACKED_LOT_SQL("o")})
                     THEN 'Fully dispatch'
                   ELSE 'LOT dispatch'
                 END
@@ -2041,6 +2091,8 @@ export type OrderOverviewRow = {
   /** order_value in INR — the conversion for a non-INR order. For totals. */
   order_value_inr: string | null;
   has_pi: boolean;
+  /** Fully raised / Partially raised / Pending / N/A / Challan filed — see BILLING_STATE. */
+  billing_state: string | null;
   payment_status: string | null;
   drg_status: string | null;
   boi: string | null;
@@ -2115,6 +2167,7 @@ const overviewColumns = () => `it.id,
                  THEN (${ORDER_VALUE_INR})::text END AS order_value_inr,
             -- Billing's progress: a PI with a number on it, or a challan.
             ${BILLING_RAISED} AS has_pi,
+            ${BILLING_STATE} AS billing_state,
             a.payment_status,
             -- Drawing progress derives from the EC revision list: the
             -- furthest hand-off any revision has reached — approved, then
@@ -2440,14 +2493,24 @@ export async function listItemsForSection(
       : "";
   const readyLotsSelect =
     table === "order_planning" || table === "order_assembly_dispatch"
-      ? `, COALESCE((SELECT jsonb_agg(to_jsonb(rl) ORDER BY rl.seq)
+      ? `, COALESCE((SELECT jsonb_agg(to_jsonb(rl) || jsonb_build_object('plan_moves',
+                       (SELECT count(*) FROM order_packing_plan_history ph
+                         WHERE ph.lot_id = rl.id AND ph.prev_plan_date IS NOT NULL
+                           AND ph.plan_date IS DISTINCT FROM ph.prev_plan_date)) ORDER BY rl.seq)
                      FROM order_ready_lots rl WHERE rl.item_id = it.id),
                   '[]'::jsonb) AS ready_lots${
            table === "order_planning"
-             ? // …and where Assembly & Packing has got to on it.
+             ? // …and where Assembly & Packing has got to on it, and the SO's packing slips.
                `, d.readiness_date_status, ${ASSEMBLY_STATE_SQL("it")} AS assembly_state,
                  (SELECT to_char(pad.actual_packing_date, 'YYYY-MM-DD')
-                    FROM order_assembly_dispatch pad WHERE pad.item_id = it.id) AS actual_packing_date`
+                    FROM order_assembly_dispatch pad WHERE pad.item_id = it.id) AS actual_packing_date,
+                 COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                             'packing_slip_no', ps.packing_slip_no,
+                             'packing_slip_date', to_char(ps.packing_slip_date, 'YYYY-MM-DD'),
+                             'lot_nos', ps.lot_nos) ORDER BY ps.seq)
+                             FROM order_packing_slips ps
+                            WHERE ps.order_id = it.order_id AND ps.kind = 'actual'
+                              AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL), '[]'::jsonb) AS so_slips`
              : // Assembly & Packing is overdue against Planning's readiness date.
                `, (SELECT to_char(rpl.planning_readiness_date, 'YYYY-MM-DD')
                     FROM order_planning rpl WHERE rpl.item_id = it.id) AS planning_readiness_date`
@@ -2482,6 +2545,8 @@ export type BillingQueueRow = {
   id: string;
   /** Dispatch: the SO's stage in Invoice → Dispatch → Docket & LR. */
   dispatch_stage?: string | null;
+  /** Billing: Fully raised / Partially raised / Pending / N/A. */
+  billing_state?: string | null;
   sl_no: number;
   so_no: string | null;
   so_date: string | null;
@@ -2531,6 +2596,7 @@ export async function listOrdersForBilling(
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
             ${dispatchStageSql("o")} AS dispatch_stage,
+            ${BILLING_STATE} AS billing_state,
             o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             o.bill_type,
             ${PAYMENT_TERMS_SQL("o")} AS payment_terms,
@@ -2571,7 +2637,7 @@ export async function listOrdersForBilling(
             COALESCE((SELECT jsonb_agg((to_jsonb(inv) - 'lr_file_data') || jsonb_build_object(
                         'slips', COALESCE((SELECT jsonb_agg(jsonb_build_object(
                          'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
-                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity)
+                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos)
                          ORDER BY ps.seq)
                        FROM order_invoice_slips l JOIN order_packing_slips ps ON ps.id = l.packing_slip_id
                       WHERE l.invoice_id = inv.id), '[]'::jsonb)) ORDER BY inv.seq)
@@ -2579,7 +2645,7 @@ export async function listOrdersForBilling(
                      '[]'::jsonb) AS invoices,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(
                         'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
-                        'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity,
+                        'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos,
                         'invoice_id', (SELECT l.invoice_id FROM order_invoice_slips l WHERE l.packing_slip_id = ps.id))
                         ORDER BY ps.seq)
                       FROM order_packing_slips ps WHERE ps.order_id = o.id AND ps.kind = 'actual'
@@ -2701,6 +2767,35 @@ const BILLING_RAISED = `(EXISTS (SELECT 1 FROM order_billing_docs d
                                      WHERE bl.order_id = o.id
                                        AND COALESCE(bl.challan_no, '') <> ''))`;
 
+/**
+ * How far Billing has raised the SO's PIs, against its payment terms:
+ *   Fully raised      every term line that takes a PI has one (with a number)
+ *   Partially raised  some do
+ *   Pending           none do
+ *   N/A               every term line is After Receipt — no PI is due
+ * After Receipt lines are not counted. An SO with no term lines yet reads
+ * Fully raised once any PI has a number, else Pending. A Challan order is
+ * Challan filed once its challan has a number.
+ */
+const BILLING_STATE = `(CASE
+    WHEN btrim(COALESCE(o.bill_type, '')) = 'Challan' THEN
+      CASE WHEN EXISTS (SELECT 1 FROM order_billing bl WHERE bl.order_id = o.id AND COALESCE(bl.challan_no, '') <> '')
+           THEN 'Challan filed' ELSE 'Pending' END
+    WHEN NOT EXISTS (SELECT 1 FROM order_payment_terms bt WHERE bt.order_id = o.id) THEN
+      CASE WHEN EXISTS (SELECT 1 FROM order_billing_docs d WHERE d.order_id = o.id AND COALESCE(d.pi_no, '') <> '')
+           THEN 'Fully raised' ELSE 'Pending' END
+    WHEN NOT EXISTS (SELECT 1 FROM order_payment_terms bt WHERE bt.order_id = o.id
+                       AND btrim(COALESCE(bt.term, '')) <> 'After Receipt') THEN 'N/A'
+    WHEN NOT EXISTS (SELECT 1 FROM order_payment_terms bt WHERE bt.order_id = o.id
+                       AND btrim(COALESCE(bt.term, '')) <> 'After Receipt'
+                       AND NOT EXISTS (SELECT 1 FROM order_billing_docs d
+                                        WHERE d.payment_term_id = bt.id AND COALESCE(d.pi_no, '') <> '')) THEN 'Fully raised'
+    WHEN EXISTS (SELECT 1 FROM order_payment_terms bt WHERE bt.order_id = o.id
+                   AND btrim(COALESCE(bt.term, '')) <> 'After Receipt'
+                   AND EXISTS (SELECT 1 FROM order_billing_docs d
+                                WHERE d.payment_term_id = bt.id AND COALESCE(d.pi_no, '') <> '')) THEN 'Partially raised'
+    ELSE 'Pending' END)`;
+
 // ---------------------------------------------------------------------------
 // Master SO list
 // ---------------------------------------------------------------------------
@@ -2812,7 +2907,7 @@ export async function listSoEcsForSection(
  */
 export const ASSEMBLY_STATE_SQL = (it: string) => `(CASE
     WHEN EXISTS (SELECT 1 FROM order_ready_lots asl WHERE asl.item_id = ${it}.id)
-      THEN (SELECT COALESCE(asl.packing_status, asl.status) FROM order_ready_lots asl
+      THEN (SELECT COALESCE(asl.packing_status, 'In Progress') FROM order_ready_lots asl
              WHERE asl.item_id = ${it}.id ORDER BY asl.seq DESC LIMIT 1)
     WHEN EXISTS (SELECT 1 FROM order_assembly_dispatch asd
                   WHERE asd.item_id = ${it}.id AND asd.actual_packing_date IS NOT NULL)
@@ -2948,14 +3043,8 @@ function planningPackingOnEc(f: OrderListFilter): string {
 /** The state of the SO itself for an SO-scope department. */
 function soState(dept: DeptFilterKey, status: string): string {
   if (dept === "billing") {
-    if (status === NOT_APPLICABLE) return PAID_AFTER_RECEIPT;
-    if (status === "PI raised") {
-      return `${BILL_RAISED} AND NOT (${IS_CHALLAN}) AND NOT ${PAID_AFTER_RECEIPT}`;
-    }
-    if (status === "Challan filed") {
-      return `${BILL_RAISED} AND ${IS_CHALLAN} AND NOT ${PAID_AFTER_RECEIPT}`;
-    }
-    return `NOT ${BILL_RAISED} AND NOT ${PAID_AFTER_RECEIPT}`;
+    // The same reading as the status column (BILLING_STATE).
+    return `${BILLING_STATE} = ${lit(status === NOT_APPLICABLE ? "N/A" : status)}`;
   }
   if (dept === "accounts") {
     if (status === NOT_APPLICABLE) return `(${IS_CHALLAN} OR ${PAID_AFTER_RECEIPT})`;
@@ -3154,10 +3243,19 @@ function orderListClauses(
     const dept = f.dept;
     clauses.push(`(${f.deptStatuses.map((s) => deptStatusPredicate(dept, s)).join(" OR ")})`);
   }
+  // The Orders list: several departments at once — any ticked status within
+  // a department, every department ticked.
+  for (const [k, statuses] of Object.entries(f.deptStatusMulti ?? {})) {
+    if (!statuses?.length) continue;
+    const dept = k as DeptFilterKey;
+    clauses.push(`(${statuses.map((s) => deptStatusPredicate(dept, s)).join(" OR ")})`);
+  }
   if (f.dept && f.signOff) clauses.push(signOffPredicate(f.dept, f.signOff));
   if (f.dept && f.overdue) clauses.push(deptOverduePredicate(f.dept));
   // Packed by Assembly & Packing and not yet gone: Dispatch's own shortlist.
   if (f.ready) clauses.push(READY_TO_DISPATCH);
+  // A Spare lot packed but on no packing slip: nothing for Dispatch to send.
+  if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // One SO field, filled or pending. Pending is blank where the field applies.
   if (f.field) {
     const def = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column);
@@ -3189,6 +3287,10 @@ function orderListClauses(
     else if (f.dateField === "readiness") {
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_planning rpl ON rpl.item_id = s.id
                              WHERE s.order_id = o.id AND ${range("rpl.planning_readiness_date")})`);
+    } else if (f.dateField === "packing") {
+      // Assembly & Packing's planned packing date on any of the SO's Spare lots.
+      clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_ready_lots prl ON prl.item_id = s.id
+                             WHERE s.order_id = o.id AND ${range("prl.packing_plan_date")})`);
     } else if (f.dateField === "ec_date") {
       clauses.push(`EXISTS (SELECT 1 FROM order_items s
                              WHERE s.order_id = o.id AND ${range("s.ec_date")})`);
@@ -3344,6 +3446,13 @@ export async function listOrdersPage(opts: {
             (SELECT to_char(max(rl.ready_date), 'YYYY-MM-DD')
                FROM order_ready_lots rl JOIN order_items ri ON ri.id = rl.item_id
               WHERE ri.order_id = o.id) AS ready_on,
+            -- Assembly & Packing's next plan: the earliest packing date among
+            -- the SO's lots not packed yet, with its shift and PDI.
+            (SELECT jsonb_build_object('date', to_char(rl.packing_plan_date, 'YYYY-MM-DD'),
+                                       'shift', rl.packing_shift, 'pdi', rl.pdi)
+               FROM order_ready_lots rl JOIN order_items ri ON ri.id = rl.item_id
+              WHERE ri.order_id = o.id AND rl.packed_date IS NULL AND rl.packing_plan_date IS NOT NULL
+              ORDER BY rl.packing_plan_date LIMIT 1) AS packing_plan,
             (SELECT to_char(max(d), 'YYYY-MM-DD') FROM (
                SELECT rl.packed_date AS d FROM order_ready_lots rl JOIN order_items ri ON ri.id = rl.item_id
                 WHERE ri.order_id = o.id
@@ -3614,9 +3723,12 @@ const REPORT_LIMIT = 2000;
  * How a queue (or the orders list) can be sorted ("-" = latest first). With
  * none chosen it runs newest Sl. No. first.
  */
-export type QueueSort = "sl" | "-sl" | "readiness" | "-readiness" | "so_date" | "-so_date" | "ecs" | "-ecs";
+export type QueueSort =
+  | "sl" | "-sl" | "readiness" | "-readiness" | "packing" | "-packing" | "so_date" | "-so_date" | "ecs" | "-ecs";
 
-const QUEUE_SORTS: QueueSort[] = ["sl", "-sl", "readiness", "-readiness", "so_date", "-so_date", "ecs", "-ecs"];
+const QUEUE_SORTS: QueueSort[] = [
+  "sl", "-sl", "readiness", "-readiness", "packing", "-packing", "so_date", "-so_date", "ecs", "-ecs",
+];
 
 export function parseQueueSort(value: string | undefined): QueueSort | null {
   return QUEUE_SORTS.includes(value as QueueSort) ? (value as QueueSort) : null;
@@ -3631,6 +3743,11 @@ function queueOrderBy(sort: QueueSort | null | undefined): string | undefined {
   // How many ECs the SO has (the Orders list).
   if (sort.replace("-", "") === "ecs") {
     return `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id) ${dir}, o.sl_no DESC`;
+  }
+  // Assembly & Packing's planned packing date: the SO's earliest among its lots.
+  if (sort.replace("-", "") === "packing") {
+    return `(SELECT min(prl.packing_plan_date) FROM order_items s
+               JOIN order_ready_lots prl ON prl.item_id = s.id WHERE s.order_id = o.id) ${dir} NULLS LAST, o.sl_no DESC`;
   }
   const key =
     sort.replace("-", "") === "readiness"
@@ -3755,6 +3872,8 @@ export async function listOrdersForBillingPage(opts: {
   /** Dispatch: only SOs with a filled-in packing slip (a number) — there is nothing to send before. */
   onlyPacked?: boolean;
   sort?: QueueSort | null;
+  /** Every matching SO rather than one page — for a printed report. */
+  all?: boolean;
 }): Promise<PageResult<BillingQueueRow>> {
   const { ids, total, page } = await pageOfOrderIds({
     page: opts.page,
@@ -3771,6 +3890,7 @@ export async function listOrdersForBillingPage(opts: {
     searchable: (term) =>
       `(o.so_no ILIKE ${term} OR o.client_name ILIKE ${term} OR o.sl_no::text ILIKE ${term})`,
     filter: opts.filter,
+    all: opts.all,
   });
 
   const rows = ids.length === 0 ? [] : await listOrdersForBilling(ids);
@@ -3850,6 +3970,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
     bill_type: string | null;
     after_receipt_only: boolean;
     has_pi: boolean;
+    billing_state: string;
     payment_status: string | null;
     drg_target_date: string | null;
     purchase_target_date: string | null;
@@ -3861,6 +3982,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
     `SELECT o.id AS order_id, ${DISPATCH_STATUS} AS dispatch_status, o.bill_type,
             ${AFTER_RECEIPT_ONLY} AS after_receipt_only,
             ${BILLING_RAISED} AS has_pi,
+            ${BILLING_STATE} AS billing_state,
             a.payment_status,
             to_char(o.drg_target_date, 'YYYY-MM-DD') AS drg_target_date,
             to_char(o.purchase_target_date, 'YYYY-MM-DD') AS purchase_target_date,
@@ -3965,11 +4087,12 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
     // PIs and payments are recorded on every order, whatever its terms.
     const paidAfterReceipt = false;
     out.set(head.order_id, {
-      billing: paidAfterReceipt
-        ? NA
-        : head.has_pi
-          ? done(isChallan ? "Challan filed" : "PI raised")
-          : pending(),
+      billing:
+        paidAfterReceipt || head.billing_state === "N/A"
+          ? NA
+          : head.billing_state === "Fully raised" || head.billing_state === "Challan filed"
+            ? done(head.billing_state)
+            : pending(head.billing_state === "Partially raised" ? "Partially raised" : undefined),
       // Accounts is skipped for Challan orders (no A/R), matching the workspace.
       accounts: isChallan || paidAfterReceipt
         ? NA
@@ -4148,6 +4271,38 @@ export const dispatchStageSql = (o: string) => `(CASE
       THEN 'Docket & LR pending'
     ELSE 'Docket & LR done' END)`;
 
+/**
+ * A packed readiness lot of the SO not yet on a slip that has gone out: no
+ * sent slip names its lot number (its position among its EC's lots). A lot
+ * is packed once — partial packing is a lot of its own — so the lot number
+ * alone says whether it went.
+ */
+export const UNSENT_PACKED_LOT_SQL = (o: string) => `SELECT 1 FROM order_ready_lots ul
+      JOIN order_items ui ON ui.id = ul.item_id
+     WHERE ui.order_id = ${o}.id AND ul.packed_date IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM order_packing_slips us
+           JOIN order_invoice_slips usl ON usl.packing_slip_id = us.id
+           JOIN order_invoices usi ON usi.id = usl.invoice_id
+          WHERE us.order_id = ${o}.id AND us.kind = 'actual'
+            AND ${INVOICE_STARTED("usi")}
+            AND (SELECT count(*) FROM order_ready_lots u2
+                  WHERE u2.item_id = ul.item_id AND u2.seq <= ul.seq) = ANY(us.lot_nos))`;
+
+/**
+ * A packed readiness lot of the SO that no numbered packing slip names (by
+ * its lot number) — packed, but nothing yet for Dispatch to send.
+ */
+export const PACKED_LOT_WITHOUT_SLIP_SQL = (o: string) => `SELECT 1 FROM order_ready_lots nl
+      JOIN order_items ni ON ni.id = nl.item_id
+     WHERE ni.order_id = ${o}.id AND nl.packed_date IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM order_packing_slips ns
+          WHERE ns.order_id = ${o}.id AND ns.kind = 'actual'
+            AND NULLIF(btrim(ns.packing_slip_no), '') IS NOT NULL
+            AND (SELECT count(*) FROM order_ready_lots n2
+                  WHERE n2.item_id = nl.item_id AND n2.seq <= nl.seq) = ANY(ns.lot_nos))`;
+
 /** The SO's slips that have gone out: linked to a dispatch that has started. */
 const SENT_SLIPS_SQL = (o: string) => `SELECT 1 FROM order_invoice_slips l
       JOIN order_invoices si ON si.id = l.invoice_id
@@ -4280,9 +4435,11 @@ export async function fillFirstTargets(
     quality: boolean;
     packing: boolean;
     dispatch: boolean;
+    created_on: string | null;
   }>(
     `SELECT to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
             o.order_type,
+            to_char(o.created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS created_on,
             to_char(o.delivery_date_as_per_so, 'YYYY-MM-DD') AS delivery,
             to_char(o.so_handover_date, 'YYYY-MM-DD') AS handover,
             -- The SO's quantity, else what its ECs add up to.
@@ -4303,6 +4460,18 @@ export async function fillFirstTargets(
   );
   const o = r.rows[0];
   if (!o) return [];
+  // A new Spare with no delivery date as per SO takes SO date + 2 weeks — a
+  // plain field, so it stays editable; only a blank is ever filled.
+  if (!o.delivery) {
+    const delivery = spareDeliveryDate(o);
+    if (delivery) {
+      await query(
+        `UPDATE orders SET delivery_date_as_per_so = $2::date WHERE id = $1 AND delivery_date_as_per_so IS NULL`,
+        [orderId, delivery]
+      );
+      o.delivery = delivery;
+    }
+  }
   const already = new Set<string>(o.set_keys);
   const columnSet: Record<TargetKey, boolean> = {
     drawing: o.drg,
@@ -4321,6 +4490,7 @@ export async function fillFirstTargets(
     total_quantity: o.qty,
     qc_required: o.qc_required,
     drawing_involved: o.drawing_involved,
+    created_on: o.created_on,
   })) {
     if (already.has(auto.key) || columnSet[auto.key]) continue;
     const target = TARGET_BY_KEY.get(auto.key);
@@ -4521,6 +4691,8 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
     const signed = `EXISTS (SELECT 1 FROM order_dept_completions c WHERE ${signedHere(f.dept)})`;
     clauses.push(f.signOff === "completed" ? signed : `NOT ${signed}`);
   }
+  // A Spare lot packed but on no packing slip.
+  if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
 
   if (f.from || f.to) {
     const range = (column: string) =>
@@ -4542,6 +4714,10 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
     else if (f.dateField === "readiness") {
       clauses.push(`EXISTS (SELECT 1 FROM order_planning rpl
                              WHERE rpl.item_id = it.id AND ${range("rpl.planning_readiness_date")})`);
+    }
+    else if (f.dateField === "packing") {
+      clauses.push(`EXISTS (SELECT 1 FROM order_ready_lots prl
+                             WHERE prl.item_id = it.id AND ${range("prl.packing_plan_date")})`);
     }
     else {
       // Completed on: the chosen department's sign-off on this row, or with

@@ -9,6 +9,7 @@ import {
   updateOrderChildAction,
 } from "@/app/risansi/orders/actions";
 import { PACKING_SLIP_FIELDS, dependsOnSatisfied, type OrderField } from "@/lib/order-schema";
+import { LOT_NOS_FIELD, lotNosLabel, parseLotNos } from "@/lib/ready-lots";
 
 type Row = Record<string, unknown>;
 
@@ -37,10 +38,16 @@ export function PackingSlipsInline({
   gateOk,
   canEdit,
   canEditCentral,
+  lotCount = 0,
+  packedLots = [],
 }: {
   orderId: string;
   soLabel: string;
   slips: Row[];
+  /** How many readiness lots the SO's ECs have at most (Lot 1…N); 0 for no lots. */
+  lotCount?: number;
+  /** Lot numbers with something packed. */
+  packedLots?: number[];
   // The SO's market type and Packing Details Required: which fields apply.
   context: Row;
   // Packing slips need a Market Type on the SO first.
@@ -96,6 +103,12 @@ export function PackingSlipsInline({
               <tr key={str(s.id)} className="align-top">
                 <td className="rounded-l-md py-1.5 pl-1.5 pr-1.5 break-words font-medium text-foreground">
                   {str(s.packing_slip_no) || <span className="text-amber-700">—</span>}
+                  {/* The lots it carries; a Spare slip without them is flagged. */}
+                  {lotNosLabel(s.lot_nos) ? (
+                    <span className="block text-[10.5px] font-normal text-muted">{lotNosLabel(s.lot_nos)}</span>
+                  ) : lotCount > 0 && str(s.packing_slip_no) ? (
+                    <span className="block text-[10.5px] font-semibold text-amber-700">Lots not set</span>
+                  ) : null}
                 </td>
                 <td className="py-1.5 pr-1.5 whitespace-nowrap">{day(s.packing_slip_date) || "—"}</td>
                 <td className="rounded-r-md py-1.5 pr-1 text-right whitespace-nowrap">
@@ -173,6 +186,8 @@ export function PackingSlipsInline({
           slip={editing.slip}
           fields={fields}
           canEditCentral={canEditCentral}
+          lotCount={lotCount}
+          packedLots={packedLots}
           onClose={() => setEditing(null)}
         />
       )}
@@ -186,6 +201,8 @@ function SlipForm({
   slip,
   fields,
   canEditCentral,
+  lotCount,
+  packedLots,
   onClose,
 }: {
   orderId: string;
@@ -193,9 +210,13 @@ function SlipForm({
   slip: Row | null;
   fields: OrderField[];
   canEditCentral: boolean;
+  lotCount: number;
+  packedLots: number[];
   onClose: () => void;
 }) {
   const router = useRouter();
+  // The readiness lots this slip carries: Lot 1, Lot 2…
+  const [lots, setLots] = useState<number[]>(() => parseLotNos(slip?.lot_nos));
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       fields.map((f) => [f.column, f.type === "date" ? str(slip?.[f.column]).slice(0, 10) : str(slip?.[f.column])])
@@ -228,7 +249,18 @@ function SlipForm({
       id = added.id;
       created = true;
     }
-    const res = await updateOrderChildAction(id, "order_packing_slips", values, orderId);
+    if (lotCount > 0 && (values.packing_slip_no ?? "").trim() && lots.length === 0) {
+      if (created) await deleteOrderChildAction(id, "order_packing_slips", orderId);
+      setSaving(false);
+      setError("Tick the lot(s) this packing slip carries.");
+      return;
+    }
+    const res = await updateOrderChildAction(
+      id,
+      "order_packing_slips",
+      lotCount > 0 ? { ...values, [LOT_NOS_FIELD]: lots.join(",") } : values,
+      orderId
+    );
     if (!res.ok) {
       // A new slip that could not be filled is not left behind blank.
       if (created) await deleteOrderChildAction(id, "order_packing_slips", orderId);
@@ -299,6 +331,39 @@ function SlipForm({
             </label>
           ))}
         </div>
+        {lotCount > 0 && (
+          <fieldset className="mt-4 rounded-xl border border-card-border p-3">
+            <legend className="px-1 text-[13px] font-medium text-brand-label">
+              Lots in this slip <span className="text-danger">*</span>
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: lotCount }, (_, i) => i + 1).map((n) => {
+                const on = lots.includes(n);
+                const packed = packedLots.includes(n);
+                return (
+                  <label
+                    key={n}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      on ? "border-primary bg-primary/[0.06] text-foreground" : "border-input-border text-foreground hover:bg-background"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      checked={on}
+                      onChange={() => setLots((cur) => (on ? cur.filter((x) => x !== n) : [...cur, n].sort((a, b) => a - b)))}
+                    />
+                    Lot {n}
+                    {!packed && <span className="text-[11px] text-muted">not packed yet</span>}
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted">
+              Lot 1 is Lot 1 of every EC.
+            </p>
+          </fieldset>
+        )}
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
@@ -370,6 +435,11 @@ function SlipView({
             <X className="h-4 w-4" />
           </button>
         </div>
+        {lotNosLabel(slip.lot_nos) && (
+          <p className="mb-3 text-sm text-foreground">
+            <span className="text-muted">Lots:</span> <span className="font-semibold">{lotNosLabel(slip.lot_nos)}</span>
+          </p>
+        )}
         <dl className="grid gap-x-4 gap-y-3 rounded-xl border border-card-border p-4 sm:grid-cols-2">
           {fields.map((f) => (
             <div

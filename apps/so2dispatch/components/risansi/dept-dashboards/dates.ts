@@ -34,6 +34,7 @@ export function describeDue(days: number): string {
 export const PAST_PRESETS = [
   "Today",
   "Yesterday",
+  "Tomorrow",
   "Last 7 days",
   "This month",
   "This year",
@@ -57,6 +58,8 @@ export function presetRange(preset: DatePreset): [string, string] {
       return [today, today];
     case "Yesterday":
       return [shift(-1), shift(-1)];
+    case "Tomorrow":
+      return [shift(1), shift(1)];
     case "Last 7 days":
       return [shift(-6), today];
     case "Next 7 days":

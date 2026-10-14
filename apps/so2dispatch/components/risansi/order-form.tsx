@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { createOrderAction } from "@/app/risansi/orders/actions";
+import { addOrderChildAction, createOrderAction, updateOrderChildAction } from "@/app/risansi/orders/actions";
 import type { NewOrderInput } from "@/lib/orders";
 import type { MarketIntellClient } from "@/lib/market-intell";
 import { ClientLookup } from "./client-lookup";
@@ -17,6 +17,8 @@ import {
   YES_NO_OPTIONS,
   withValueRules,
 } from "@/lib/order-schema";
+import { spareDeliveryDate, spareDeliveryRules } from "@/lib/target-rules";
+import { NewOrderTerms, blankTermLine, termLineValues, termLinesError, type NewTermLine } from "./new-order-terms";
 
 type FieldType = "text" | "date" | "number" | "select";
 type Field = {
@@ -152,7 +154,8 @@ const SECTIONS: Section[] = [
         type: "date",
       },
       { name: "so_handover_date", label: "SO Hand Over Date", type: "date" },
-      { name: "payment_terms", label: "Payment Terms", type: "text" },
+      // A replacement (FR) is not paid for: no payment terms; its remarks read REPLACEMENT.
+      { name: "payment_terms", label: "Payment Terms", type: "text", dependsOn: { name: "bill_mode", value: "FR", not: true } },
       { name: "payment_terms_remarks", label: "Payment Terms Remarks", type: "text" },
       { name: "ld", label: "LD", type: "select", options: YES_NO_OPTIONS },
       {
@@ -246,6 +249,40 @@ const SECTIONS: Section[] = [
 const inputClass =
   "h-11 w-full rounded-[10px] border border-input-border bg-surface px-[13px] text-[14px] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20";
 
+/**
+ * A new Spare's dates (lib/target-rules): delivery as per SO = SO date + 2
+ * weeks, dispatch target = delivery − 3 days, packing team target = delivery
+ * − 5 days. Filled where blank, or where the form filled them before; a date
+ * typed by hand is left alone. The server fills the same rule if the form
+ * did not.
+ */
+function withSpareDates(values: NewOrderInput, auto: Set<string>): { values: NewOrderInput; auto: Set<string> } {
+  const next = { ...values } as Record<string, string | undefined>;
+  const nextAuto = new Set(auto);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const own = (col: string) => !(next[col] ?? "").trim() || nextAuto.has(col);
+  const shift = (date: string, days: number) => {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  const delivery = spareDeliveryDate({ order_type: next.order_type, so_date: next.so_date, created_on: today });
+  if (delivery && own("delivery_date_as_per_so")) {
+    next.delivery_date_as_per_so = delivery;
+    nextAuto.add("delivery_date_as_per_so");
+  }
+  const from = spareDeliveryRules({ order_type: next.order_type, created_on: today }) ? (next.delivery_date_as_per_so ?? "").trim() : "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    for (const [col, days] of [["dispatch_target_date", -3], ["dispatch_team_target_date", -5]] as const) {
+      if (own(col)) {
+        next[col] = shift(from, days);
+        nextAuto.add(col);
+      }
+    }
+  }
+  return { values: next as NewOrderInput, auto: nextAuto };
+}
+
 export function OrderForm() {
   const router = useRouter();
   // Every new SO starts Clear; Central Visibility holds it when needed.
@@ -253,8 +290,19 @@ export function OrderForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Dates the form worked out itself (a new Spare's delivery date and the
+  // targets it gives). They follow the SO date until someone types over them.
+  const [autoDates, setAutoDates] = useState<Set<string>>(new Set());
+  // The payment terms as lines, saved with the SO (not the old free text).
+  const [termLines, setTermLines] = useState<NewTermLine[]>([blankTermLine()]);
+
   function update(name: keyof NewOrderInput, value: string) {
-    setValues((prev) => withValueRules(prev, name, value));
+    // Typing a date by hand keeps it: it no longer follows the SO date.
+    const typed = new Set(autoDates);
+    typed.delete(name);
+    const next = withSpareDates(withValueRules(values, name, value), typed);
+    setValues(next.values);
+    setAutoDates(next.auto);
   }
 
   // Whether a field applies to the order as filled so far: FR takes a
@@ -304,11 +352,19 @@ export function OrderForm() {
       return;
     }
 
+    // An FR order is a replacement: no payment terms.
+    const lines = values.bill_mode === "FR" ? [] : termLines.filter((l) => l.term);
+    const termsProblem = termLinesError(lines);
+    if (termsProblem) {
+      setError(termsProblem);
+      return;
+    }
+
     setIsSubmitting(true);
     const sending = Object.fromEntries(
       SECTIONS
         .flatMap((sec) => sec.fields)
-        .filter((f) => applies(f) && (values[f.name] ?? "") !== "")
+        .filter((f) => f.name !== "payment_terms" && applies(f) && (values[f.name] ?? "") !== "")
         .map((f) => [f.name, values[f.name]])
     ) as NewOrderInput;
     const result = await createOrderAction(sending);
@@ -316,6 +372,18 @@ export function OrderForm() {
       setIsSubmitting(false);
       setError(result.error);
       return;
+    }
+    // Each term line, as the SO's own page adds them (Billing and Accounts are told).
+    for (const line of lines) {
+      const added = await addOrderChildAction(result.id, "order_payment_terms");
+      const saved = added.ok && added.id
+        ? await updateOrderChildAction(added.id, "order_payment_terms", termLineValues(line), result.id)
+        : added;
+      if (!saved.ok) {
+        setIsSubmitting(false);
+        setError(`The order was created, but a payment term could not be saved: ${saved.error ?? "try adding it on the order"}`);
+        return;
+      }
     }
     router.push("/risansi/orders");
   }
@@ -345,6 +413,15 @@ export function OrderForm() {
             <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
               {section.fields.map((field) => {
                 if (!applies(field)) return null;
+                // Payment Terms: the lines themselves, the full width of the section.
+                if (field.name === "payment_terms") {
+                  return (
+                    <div key={field.name} className="sm:col-span-2 lg:col-span-3">
+                      <p className="mb-1.5 block text-[13px] font-medium text-brand-label">{field.label}</p>
+                      <NewOrderTerms lines={termLines} onChange={setTermLines} />
+                    </div>
+                  );
+                }
                 const disabled = challanLocked(field);
                 return (
                 <div key={field.name}>

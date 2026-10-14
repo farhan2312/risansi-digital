@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Boxes } from "lucide-react";
+import { Boxes, Download, FileText } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   canEditSection,
@@ -89,9 +89,21 @@ export default async function AssemblyDispatchWorkspacePage({
     unreadByOrder(orderIds, user),
   ]);
 
+  // The PDF report carries the queue's filter, search and sort — not which
+  // page is open, nor a row being edited.
+  const reportQuery = new URLSearchParams(
+    Object.entries(params).filter(
+      (e): e is [string, string] =>
+        !!e[1] && !["page", "edit", "thread", "focus"].includes(e[0])
+    )
+  ).toString();
+  const reportHref = `/risansi/departments/assembly-dispatch/report${reportQuery ? `?${reportQuery}` : ""}`;
+  const reportLink =
+    "inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background";
+
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Boxes className="h-6 w-6" />
         </div>
@@ -102,6 +114,17 @@ export default async function AssemblyDispatchWorkspacePage({
           <p className="text-sm text-muted">
             Record assembly and packing for each EC. Dispatch takes it from there.
           </p>
+        </div>
+        {/* Every SO in the queue as filtered, on one PDF. */}
+        <div className="ml-auto flex items-center gap-2">
+          <a href={reportHref} target="_blank" rel="noopener" className={reportLink}>
+            <FileText className="h-4 w-4" />
+            View PDF
+          </a>
+          <a href={`${reportHref}${reportQuery ? "&" : "?"}download=1`} className={reportLink}>
+            <Download className="h-4 w-4" />
+            Download PDF
+          </a>
         </div>
       </div>
 

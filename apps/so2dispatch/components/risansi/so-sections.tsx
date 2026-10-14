@@ -6,7 +6,6 @@
 
 import {
   BILLING_DOC_FIELDS,
-  CHILD_FIELDS,
   SO_SECTIONS,
 } from "@/lib/order-schema";
 import { paymentTermsExtra } from "./payment-terms-control";
@@ -21,6 +20,7 @@ import {
 import type { OrderDetail as OrderDetailData } from "@/lib/orders";
 import { EditableSection } from "./editable-section";
 import { OrderChildList } from "./order-children";
+import { PackingSlipsInline } from "./packing-slips-inline";
 import { DispatchSlipPicker } from "./dispatch-slip-picker";
 import { DispatchList } from "./dispatch-list";
 import { targetDateExtra } from "./target-date-control";
@@ -52,6 +52,7 @@ export function SoSections({
   targetRevisions,
   middle,
   only,
+  startEditing = false,
 }: {
   detail: OrderDetailData;
   orderId: string;
@@ -61,6 +62,8 @@ export function SoSections({
   middle?: React.ReactNode;
   /** Just this section (a table, or "order_packing_slips") — the Orders list's quick view pop-up. */
   only?: string;
+  /** Open the shown section straight into its form (with `only`). */
+  startEditing?: boolean;
 }) {
   const order = detail.order;
   const central = isCentral(role);
@@ -172,6 +175,7 @@ export function SoSections({
           data={data ?? null}
           canEdit={canEditSection(role, section.table)}
           canEditCentral={central}
+          startEditing={startEditing && !!only && section.table === only}
           // Order details carries the client columns — offer the directory
           // search there so a wrong client can be corrected.
           clientLookup={section.table === "orders" && canManageItems}
@@ -204,22 +208,24 @@ export function SoSections({
       {canViewDepartment(role, "order_assembly_dispatch") &&
         (!only || only === "order_packing_slips") &&
         (String(order.market_type ?? "").trim() !== "" ? (
-          <OrderChildList
-            orderId={orderId}
-            table="order_packing_slips"
-            title="Packing slips"
-            fields={CHILD_FIELDS.order_packing_slips}
-            rows={(detail.order_packing_slips ?? []).filter(
-              (r) => String(r.kind ?? "actual") === "actual"
-            )}
-            canEdit={canEditChild(role, "order_packing_slips")}
-            canEditCentral={central}
-            kind="actual"
-            context={{
-              market_type: order.market_type,
-              packing_details_required: order.packing_details_required,
-            }}
-          />
+          <section className="rounded-xl border border-card-border bg-surface p-6 shadow-sm">
+            <h2 className="mb-3 font-display text-base font-semibold text-foreground">Packing slips</h2>
+            {/* Each slip with the readiness lots it carries (Lot 1, Lot 2…). */}
+            <PackingSlipsInline
+              orderId={orderId}
+              soLabel={String(order.so_no ?? `#${order.sl_no}`)}
+              slips={(detail.order_packing_slips ?? []).filter((r) => String(r.kind ?? "actual") === "actual")}
+              context={{
+                market_type: order.market_type,
+                packing_details_required: order.packing_details_required,
+              }}
+              gateOk
+              canEdit={canEditChild(role, "order_packing_slips")}
+              canEditCentral={central}
+              lotCount={Number(order.lot_count ?? 0)}
+              packedLots={Array.isArray(order.packed_lots) ? (order.packed_lots as number[]) : []}
+            />
+          </section>
         ) : (
           <section className="rounded-xl border border-card-border bg-surface p-6 shadow-sm">
             <h2 className="font-display text-base font-semibold text-foreground">Packing slips</h2>

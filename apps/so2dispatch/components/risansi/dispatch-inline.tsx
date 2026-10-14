@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { lotNosLabel } from "@/lib/ready-lots";
 import { CheckCircle2, Circle, ExternalLink, Loader2, Pencil, Trash2, Truck } from "lucide-react";
 import { deleteOrderChildAction } from "@/app/risansi/orders/actions";
 import { nextStep, stepsDone, type DispatchStepKey } from "@/lib/dispatch-steps";
@@ -49,7 +50,8 @@ export function DispatchInline({
   const challan = str(billType) === "Challan";
 
   const waiting = slips.filter((s) => !str(s.invoice_id));
-  const slipName = (s: Row) => str(s.packing_slip_no) || "—";
+  // "581 · Lot 1, Lot 2": the slip and the readiness lots it carries.
+  const slipName = (s: Row) => [str(s.packing_slip_no) || "—", lotNosLabel(s.lot_nos)].filter(Boolean).join(" · ");
   const slipsOf = (inv: Row) => {
     const own = Array.isArray(inv.slips) ? (inv.slips as Row[]) : [];
     return own.length ? own.map(slipName).join(", ") : "—";

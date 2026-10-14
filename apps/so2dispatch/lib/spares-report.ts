@@ -101,11 +101,11 @@ export type SparesReport = {
 export const PLANNING_ORDER = ["Fully ready", "Partial ready", "In plan", "Date awaited"];
 // A Spare with no readiness lot is not with Assembly & Packing yet — it has no
 // status there, shown as "Not ready yet".
-export const ASSEMBLY_ORDER = ["Fully ready", "Partial ready", "Partially packed", "Fully packed", "Not ready yet"];
+export const ASSEMBLY_ORDER = ["In Progress", "Partially packed", "Fully packed", "Not ready yet"];
 
 function stageOf(r: { assembly_status: string; dispatch_status: string }): SpareStage {
   if (r.dispatch_status === "Fully dispatch") return "dispatched";
-  if (r.assembly_status === "Fully ready" || r.assembly_status === "Partial ready") return "to_pack";
+  if (r.assembly_status === "In Progress" || r.assembly_status === "Fully ready" || r.assembly_status === "Partial ready") return "to_pack";
   if (r.assembly_status === "Fully packed" || r.assembly_status === "Partially packed") return "packed";
   return "not_ready";
 }
