@@ -525,6 +525,9 @@ async function getMocAiSuggestionAnthropic(
     const response = await client.messages.create({
       model: ANTHROPIC_MODEL,
       max_tokens: 10000,
+      // Strict instruction following (pick from the lists, apply the rules);
+      // Haiku 5.5 defaults to "medium".
+      output_config: { effort: "high" },
       system: MOC_RULES_PROMPT,
       tools: [
         {

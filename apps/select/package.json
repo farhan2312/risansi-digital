@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.72.0",
+    "@anthropic-ai/sdk": "^0.133.0",
     "@hookform/resolvers": "^5.4.0",
     "@risansi/identity": "file:../../packages/identity",
     "axios": "^1.18.1",
