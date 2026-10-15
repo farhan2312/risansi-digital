@@ -3813,7 +3813,7 @@ export async function listOrdersForOrderMaking(opts: {
                         'head_unit', i.head_unit, 'drive_motor_rating', i.drive_motor_rating,
                         'drive_motor_rating_unit', i.drive_motor_rating_unit,
                         'drive_motor_speed', i.drive_motor_speed, 'pump_speed', i.pump_speed,
-                        'liquid', i.liquid, 'tag_no', i.tag_no)
+                        'liquid', i.liquid, 'tag_no', i.tag_no, 'boi', i.boi)
                         ORDER BY i.ec_no)
                         FROM order_items i WHERE i.order_id = o.id), '[]'::jsonb) AS items
        FROM orders o

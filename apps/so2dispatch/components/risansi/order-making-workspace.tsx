@@ -2,11 +2,12 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, FileText, Loader2, MessageSquare, Pencil, Plus, Trash2, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
+import { OmEcsModal } from "./om-ecs-modal";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
   BILL_MODE_FILTER_OPTIONS,
@@ -114,15 +115,10 @@ export function OrderMakingWorkspace({
   const manageEcs = canManageEcs(role);
   // An EC being edited, and the SOs whose ECs are shown.
   const [editEc, setEditEc] = useState<{ row: OrderMakingRow; item: Record<string, unknown> } | null>(null);
-  const [openEcs, setOpenEcs] = useState<Set<string>>(new Set());
+  // The SO whose ECs are open in the pop-up (by id, so a refresh shows the new list).
+  const [ecsFor, setEcsFor] = useState<string | null>(null);
+  const ecsRow = ecsFor ? queue.rows.find((r) => r.id === ecsFor) ?? null : null;
   const [deletingEc, setDeletingEc] = useState<string | null>(null);
-  const toggleEcs = (id: string) =>
-    setOpenEcs((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   async function removeEc(item: Record<string, unknown>) {
     const ec = str(item.ec_no) || "this EC";
     if (!confirm(`Delete ${ec}? This removes the EC and all its department data.`)) return;
@@ -417,7 +413,15 @@ export function OrderMakingWorkspace({
               )}
               {queue.rows.map((row) => (
                 <Fragment key={row.id}>
-                <tr className="text-foreground transition-colors hover:bg-background/60">
+                <tr
+                  onClick={(e) => {
+                    // A click on a control (or inside one of its pop-ups) does its own job.
+                    if ((e.target as HTMLElement).closest("button, a, select, input, textarea, label, [role=dialog]")) return;
+                    setEcsFor(row.id);
+                  }}
+                  title="Open the SO's ECs"
+                  className="cursor-pointer text-foreground transition-colors hover:bg-background/60"
+                >
                   <td className="px-4 py-3 font-medium tabular-nums">{row.sl_no}</td>
                   {cols.map((c) => (
                     <Fragment key={c.column}>
@@ -496,13 +500,12 @@ export function OrderMakingWorkspace({
                     {row.ec_count > 0 ? (
                       <button
                         type="button"
-                        onClick={() => toggleEcs(row.id)}
-                        aria-expanded={openEcs.has(row.id)}
-                        title={openEcs.has(row.id) ? "Hide ECs" : "Show ECs"}
+                        onClick={() => setEcsFor(row.id)}
+                        title="Show ECs"
                         className="mr-2 inline-flex items-center gap-0.5 rounded-md px-1 text-sm tabular-nums text-foreground underline decoration-dotted underline-offset-2 hover:bg-background"
                       >
                         {row.ec_count}
-                        {openEcs.has(row.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        <ChevronRight className="h-3.5 w-3.5" />
                       </button>
                     ) : (
                       <span className="mr-2 text-sm tabular-nums text-muted">0</span>
@@ -574,63 +577,23 @@ export function OrderMakingWorkspace({
                     </td>
                   )}
                 </tr>
-                {openEcs.has(row.id) && (
-                  <tr className="bg-background/40">
-                    <td colSpan={cols.length + 8} className="px-4 py-3">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            <th className="px-3 py-1.5">EC No.</th>
-                            <th className="px-3 py-1.5">EC Date</th>
-                            <th className="px-3 py-1.5">Model No.</th>
-                            <th className="px-3 py-1.5">Internal Model</th>
-                            <th className="px-3 py-1.5">Version</th>
-                            <th className="px-3 py-1.5">Qty</th>
-                            {manageEcs && <th className="px-3 py-1.5" />}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-card-border">
-                          {row.items.map((it) => (
-                            <tr key={str(it.id)}>
-                              <td className="px-3 py-1.5 font-medium">{str(it.ec_no) || "—"}</td>
-                              <td className="px-3 py-1.5">{formatDisplay(field("so_date"), it.ec_date) || "—"}</td>
-                              <td className="px-3 py-1.5">{str(it.model_no) || "—"}</td>
-                              <td className="px-3 py-1.5">{str(it.internal_model) || "—"}</td>
-                              <td className="px-3 py-1.5">{str(it.version) || "—"}</td>
-                              <td className="px-3 py-1.5 tabular-nums">{str(it.quantity) || "—"}</td>
-                              {manageEcs && (
-                                <td className="px-3 py-1.5 text-right whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditEc({ row, item: it })}
-                                    className="mr-2 inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-[11px] font-medium text-foreground hover:bg-background"
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeEc(it)}
-                                    disabled={deletingEc === str(it.id)}
-                                    aria-label={`Delete ${str(it.ec_no) || "EC"}`}
-                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
-                                  >
-                                    {deletingEc === str(it.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                  </button>
-                                </td>
-                              )}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </td>
-                  </tr>
-                )}
                 </Fragment>
               ))}
             </tbody>
           </table>
         </div>
+        {ecsRow && (
+          <OmEcsModal
+            order={ecsRow}
+            items={ecsRow.items}
+            canManage={manageEcs}
+            deletingId={deletingEc}
+            onAdd={() => setAddFor(ecsRow)}
+            onEdit={(item) => setEditEc({ row: ecsRow, item })}
+            onDelete={removeEc}
+            onClose={() => setEcsFor(null)}
+          />
+        )}
         {editEc && (
           <AddOnForm
             orderId={editEc.row.id}
