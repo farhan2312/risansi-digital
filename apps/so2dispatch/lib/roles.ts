@@ -117,6 +117,15 @@ export function canCreateOrders(role: string): boolean {
   return role === "admin" || role === "central_visibility" || role === "order_making";
 }
 
+/**
+ * Who fills an SO's EC form (Pump or Spare Add-On) and edits or deletes its
+ * ECs: an Order Making SO member, on the SOs assigned to them, and Central
+ * Visibility / Admin on any.
+ */
+export function canManageEcs(role: string): boolean {
+  return isCentral(role) || role === "order_making_so";
+}
+
 /** Bulk Excel import of orders: Admin and Central Visibility only. */
 export function canImportOrders(role: string): boolean {
   return role === "admin" || role === "central_visibility";

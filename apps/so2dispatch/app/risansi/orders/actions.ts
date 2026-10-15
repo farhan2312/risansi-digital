@@ -89,6 +89,7 @@ import {
 import {
   canAccessDepartment,
   canCreateOrders,
+  canManageEcs,
   isOrderMaking,
   isOrderMakingAny,
   isOrderMakingSo,
@@ -358,9 +359,8 @@ export async function createItemAction(
 ): Promise<CreateItemResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!canCreateOrders(user.role)) {
-    return { ok: false, error: "You don't have permission to add EC items." };
-  }
+  const denied = await ecDenied(user, orderId);
+  if (denied) return { ok: false, error: denied };
 
   const order = await getOrderDetail(orderId);
   if (!order) return { ok: false, error: "Order not found." };
@@ -478,9 +478,8 @@ export async function createSpareItemAction(
 ): Promise<CreateItemResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!canCreateOrders(user.role)) {
-    return { ok: false, error: "You don't have permission to add EC items." };
-  }
+  const denied = await ecDenied(user, orderId);
+  if (denied) return { ok: false, error: denied };
 
   const file = formData.get("order_copy");
   const hasFile = file instanceof File && file.size > 0;
@@ -543,9 +542,8 @@ export async function uploadItemOrderCopyAction(
 ): Promise<ChildActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!canCreateOrders(user.role)) {
-    return { ok: false, error: "You don't have permission to change the Order Copy." };
-  }
+  const denied = await ecDenied(user, orderId);
+  if (denied) return { ok: false, error: denied };
   const file = formData.get("order_copy");
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, error: "Choose a file to attach." };
@@ -584,12 +582,14 @@ export type DeleteItemResult = { ok: true } | { ok: false; error: string };
 export async function deleteItemAction(itemId: string): Promise<DeleteItemResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!canCreateOrders(user.role)) {
+  if (!canManageEcs(user.role)) {
     return { ok: false, error: "You don't have permission to delete EC items." };
   }
   try {
     const detail = await getItemDetail(itemId);
     const orderId = detail ? String(detail.order.id) : null;
+    const denied = orderId ? await ecDenied(user, orderId) : null;
+    if (denied) return { ok: false, error: denied };
     await deleteItem(itemId);
     await logAudit({
       actor: { id: user.id, email: user.email, role: user.role },
@@ -615,6 +615,19 @@ export async function deleteItemAction(itemId: string): Promise<DeleteItemResult
     console.error("deleteItem failed:", error);
     return { ok: false, error: "Could not delete the EC item. Please try again." };
   }
+}
+
+/**
+ * Why this user may not add, edit or delete the ECs of this SO, or null when
+ * they may: Central Visibility and Admin on any SO, an Order Making SO member
+ * on the SOs assigned to them.
+ */
+async function ecDenied(user: { id: string; role: string }, orderId: string): Promise<string | null> {
+  if (!canManageEcs(user.role)) return "You don't have permission to change EC items.";
+  if (isOrderMakingSo(user.role) && !(await isAssignedTo(orderId, user.id))) {
+    return "This SO is not assigned to you.";
+  }
+  return null;
 }
 
 export type DeleteOrderResult = { ok: true } | { ok: false; error: string };
@@ -674,9 +687,14 @@ export async function updateOrderSectionAction(
   }
 
   const orderMaker = isOrderMakingAny(user.role) && table === "orders";
-  // Order Making PO fills the EC form (Pump or Spare Add-On), so it may
-  // correct those fields on an EC — and nothing else on it.
-  const omEc = isOrderMaking(user.role) && table === "order_items";
+  // Order Making SO fills the EC form (Pump or Spare Add-On), so it may
+  // correct those fields on an EC of an SO assigned to it — nothing else.
+  const omEc = isOrderMakingSo(user.role) && table === "order_items";
+  if (omEc) {
+    const ec = await getItemDetail(id);
+    const denied = ec ? await ecDenied(user, String(ec.order.id)) : "EC not found.";
+    if (denied) return { ok: false, error: denied };
+  }
   if (orderMaker && isOrderMakingSo(user.role) && !(await isAssignedTo(id, user.id))) {
     return { ok: false, error: "This SO is not assigned to you." };
   }

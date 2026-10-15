@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Loader2, MessageSquare, Pencil, Plus, Trash2, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
+import { canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
@@ -95,6 +96,9 @@ export function OrderMakingWorkspace({
   const [editing, setEditing] = useState<OrderMakingRow | "new" | null>(null);
   // The SO an EC is being added to (Pump or Spare Add-On), by Order Making PO.
   const [addFor, setAddFor] = useState<OrderMakingRow | null>(null);
+  // Order Making SO members (on their own SOs) and Central / Admin fill the
+  // EC form, and edit or delete ECs. Order Making PO sees them.
+  const manageEcs = canManageEcs(role);
   // An EC being edited, and the SOs whose ECs are shown.
   const [editEc, setEditEc] = useState<{ row: OrderMakingRow; item: Record<string, unknown> } | null>(null);
   const [openEcs, setOpenEcs] = useState<Set<string>>(new Set());
@@ -449,7 +453,7 @@ export function OrderMakingWorkspace({
                     ) : (
                       <span className="mr-2 text-sm tabular-nums text-muted">0</span>
                     )}
-                    {mode === "po" && (
+                    {manageEcs && (
                       <button
                         type="button"
                         onClick={() => setAddFor(row)}
@@ -528,7 +532,7 @@ export function OrderMakingWorkspace({
                             <th className="px-3 py-1.5">Internal Model</th>
                             <th className="px-3 py-1.5">Version</th>
                             <th className="px-3 py-1.5">Qty</th>
-                            {mode === "po" && <th className="px-3 py-1.5" />}
+                            {manageEcs && <th className="px-3 py-1.5" />}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-card-border">
@@ -540,7 +544,7 @@ export function OrderMakingWorkspace({
                               <td className="px-3 py-1.5">{str(it.internal_model) || "—"}</td>
                               <td className="px-3 py-1.5">{str(it.version) || "—"}</td>
                               <td className="px-3 py-1.5 tabular-nums">{str(it.quantity) || "—"}</td>
-                              {mode === "po" && (
+                              {manageEcs && (
                                 <td className="px-3 py-1.5 text-right whitespace-nowrap">
                                   <button
                                     type="button"
