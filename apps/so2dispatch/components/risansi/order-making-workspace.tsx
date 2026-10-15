@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ChevronRight, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { canManageEcs } from "@/lib/roles";
@@ -497,19 +497,8 @@ export function OrderMakingWorkspace({
                   </td>
                   {/* The SO's ECs: Order Making PO fills the EC form (Pump or Spare Add-On). */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {row.ec_count > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => setEcsFor(row.id)}
-                        title="Show ECs"
-                        className="mr-2 inline-flex items-center gap-0.5 rounded-md px-1 text-sm tabular-nums text-foreground underline decoration-dotted underline-offset-2 hover:bg-background"
-                      >
-                        {row.ec_count}
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </button>
-                    ) : (
-                      <span className="mr-2 text-sm tabular-nums text-muted">0</span>
-                    )}
+                    {/* The row itself opens the ECs; the count is just the count. */}
+                    <span className={`mr-2 text-sm tabular-nums ${row.ec_count > 0 ? "text-foreground" : "text-muted"}`}>{row.ec_count}</span>
                     {manageEcs && (
                       <button
                         type="button"
