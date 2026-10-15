@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { Fragment, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import {
@@ -170,8 +170,15 @@ export function AddOnForm({
           )}
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-            {fields.map((field) => (
-              <div key={field.column}>
+            {fields.map((field, i) => (
+              <Fragment key={field.column}>
+              {/* A pump's name plate, under its own heading. */}
+              {field.group && field.group !== fields[i - 1]?.group && (
+                <h3 className="col-span-full mt-2 border-t border-card-border pt-4 text-sm font-semibold text-foreground">
+                  {field.group}
+                </h3>
+              )}
+              <div>
                 <label
                   htmlFor={`addon-${field.column}`}
                   className="mb-1.5 block text-[13px] font-medium text-brand-label"
@@ -220,6 +227,7 @@ export function AddOnForm({
                   />
                 )}
               </div>
+              </Fragment>
             ))}
           </div>
 

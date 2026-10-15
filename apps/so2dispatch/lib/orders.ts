@@ -224,6 +224,17 @@ export type NewItemInput = {
   pump_sno?: string;
   application?: string;
   version?: string;
+  // Name plate (Pump Add-On).
+  capacity?: string;
+  capacity_unit?: string;
+  head?: string;
+  head_unit?: string;
+  drive_motor_rating?: string;
+  drive_motor_rating_unit?: string;
+  drive_motor_speed?: string;
+  pump_speed?: string;
+  liquid?: string;
+  tag_no?: string;
 };
 
 function nullify(value?: string): string | null {
@@ -427,9 +438,12 @@ export async function createItem(
   const result = await exec<{ id: string; seq: number }>(
     `INSERT INTO order_items (
         order_id, ec_no, ec_date, item_type, pump_type, model_no, internal_model,
-        quantity, orientation, suction, delivery, pump_sno, application, version
+        quantity, orientation, suction, delivery, pump_sno, application, version,
+        capacity, capacity_unit, head, head_unit, drive_motor_rating, drive_motor_rating_unit,
+        drive_motor_speed, pump_speed, liquid, tag_no
      ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24
      )
      RETURNING id, seq::int AS seq`,
     [
@@ -447,6 +461,16 @@ export async function createItem(
       nullify(input.pump_sno),
       nullify(input.application),
       nullify(input.version),
+      toNumeric(input.capacity),
+      nullify(input.capacity_unit),
+      toNumeric(input.head),
+      nullify(input.head_unit),
+      toNumeric(input.drive_motor_rating),
+      nullify(input.drive_motor_rating_unit),
+      toNumeric(input.drive_motor_speed),
+      toNumeric(input.pump_speed),
+      nullify(input.liquid),
+      nullify(input.tag_no),
     ]
   );
   return result.rows[0];
@@ -3781,7 +3805,12 @@ export async function listOrdersForOrderMaking(opts: {
                         'id', i.id, 'ec_no', i.ec_no, 'ec_date', to_char(i.ec_date, 'YYYY-MM-DD'),
                         'pump_type', i.pump_type, 'model_no', i.model_no, 'internal_model', i.internal_model,
                         'quantity', i.quantity, 'suction', i.suction, 'delivery', i.delivery,
-                        'pump_sno', i.pump_sno, 'application', i.application, 'version', i.version)
+                        'pump_sno', i.pump_sno, 'application', i.application, 'version', i.version,
+                        'capacity', i.capacity, 'capacity_unit', i.capacity_unit, 'head', i.head,
+                        'head_unit', i.head_unit, 'drive_motor_rating', i.drive_motor_rating,
+                        'drive_motor_rating_unit', i.drive_motor_rating_unit,
+                        'drive_motor_speed', i.drive_motor_speed, 'pump_speed', i.pump_speed,
+                        'liquid', i.liquid, 'tag_no', i.tag_no)
                         ORDER BY i.ec_no)
                         FROM order_items i WHERE i.order_id = o.id), '[]'::jsonb) AS items
        FROM orders o
