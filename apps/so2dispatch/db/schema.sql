@@ -2287,14 +2287,16 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS complaint_ec_no TEXT;
 -- value, typed as the SO gives them. Idempotent.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS file_no TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS packing_forwarding_percent NUMERIC(5,2);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(5,2);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS taxable_value NUMERIC(14,2);
 
--- When the PO came in, and the Handover: when the EC went to Operations
--- (Order Making SO) and to PPC (Central Visibility). Idempotent.
+-- When the PO came in, and the Handover: when the SO went to Operations
+-- (Order Making SO). When it went to PPC is so_handover_date. Idempotent.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS po_received_date DATE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS ec_sent_operation_date DATE;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS ec_sent_ppc_date DATE;
+-- Briefly a column of its own; it is so_handover_date. Never filled.
+ALTER TABLE orders DROP COLUMN IF EXISTS ec_sent_ppc_date;
 
 -- No separate revised dispatch date: dispatch_target_date holds the latest
 -- value, like every other target (its history is order_target_revisions).

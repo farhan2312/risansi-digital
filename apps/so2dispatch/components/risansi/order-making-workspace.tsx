@@ -691,12 +691,8 @@ function OrderMakingEdit({
           const isSo = section.title === "Sales Order";
           const isHandover = section.title === "Handover";
           // An SO member sees the client and PO as they stand, to fill against;
-          // the Handover's first date is theirs too.
+          // the Handover's date is theirs too.
           const readOnly = mode === "so" && !isSo && !isHandover;
-          // EC Sent to PPC Date is Central Visibility's: shown here, filled on the SO.
-          const centralFields = isHandover
-            ? ORDER_MAKING_FIELDS.filter((f) => section.fields(f) && f.centralOnly)
-            : [];
           return (
             <section
               key={section.title}
@@ -748,15 +744,6 @@ function OrderMakingEdit({
                         <span className="mt-1 block text-[11px] text-muted">0 INR on a Challan order</span>
                       )}
                     </label>
-                  ))}
-                  {centralFields.map((f) => (
-                    <div key={f.column} className="block text-sm">
-                      <span className="mb-1 block text-[13px] font-medium text-brand-label">{f.label}</span>
-                      <span className="block py-2 font-medium text-foreground">
-                        {formatDisplay(f, row?.[f.column]) || "—"}
-                      </span>
-                      <span className="block text-[11px] text-muted">Filled by Central Visibility</span>
-                    </div>
                   ))}
                 </div>
               )}

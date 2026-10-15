@@ -175,7 +175,7 @@ export type NewOrderInput = {
   taxable_value?: string;
   po_received_date?: string;
   ec_sent_operation_date?: string;
-  ec_sent_ppc_date?: string;
+  packing_forwarding_percent?: string;
   boi?: string;
   qc_required?: string;
   quotation_no?: string;
@@ -291,7 +291,7 @@ export async function createOrder(
           complaint_no, complaint_date,
           clearance_status, clearance_hold_reason, clearance_remarks,
           complaint_ec_no, file_no, discount_percent, gst_percent, taxable_value,
-          po_received_date, ec_sent_operation_date, ec_sent_ppc_date
+          po_received_date, ec_sent_operation_date, packing_forwarding_percent
        ) VALUES (
           -- The next free number, under the lock above.
           (SELECT COALESCE(max(sl_no), 0) + 1 FROM orders),
@@ -356,7 +356,7 @@ export async function createOrder(
         // An FR has no PO.
         input.bill_mode === "FR" ? null : nullify(input.po_received_date),
         nullify(input.ec_sent_operation_date),
-        nullify(input.ec_sent_ppc_date),
+        toNumeric(input.packing_forwarding_percent),
       ]
     );
     return result.rows[0];
