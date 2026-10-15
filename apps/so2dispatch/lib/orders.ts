@@ -3682,6 +3682,8 @@ export type OrderMakingRow = Record<string, unknown> & {
   /** How many ECs the SO has, and its BOI flag — for Order Making's Add-On. */
   ec_count: number;
   boi: string | null;
+  /** The SO's ECs with their Add-On fields, for Order Making to edit or delete. */
+  items: Record<string, unknown>[];
 };
 
 /**
@@ -3774,7 +3776,14 @@ export async function listOrdersForOrderMaking(opts: {
             to_char(o.so_details_filled_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_details_filled_at,
             o.clearance_status, o.clearance_hold_reason,
             (SELECT count(*)::int FROM order_items i WHERE i.order_id = o.id) AS ec_count,
-            o.boi
+            o.boi,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                        'id', i.id, 'ec_no', i.ec_no, 'ec_date', to_char(i.ec_date, 'YYYY-MM-DD'),
+                        'pump_type', i.pump_type, 'model_no', i.model_no, 'internal_model', i.internal_model,
+                        'quantity', i.quantity, 'suction', i.suction, 'delivery', i.delivery,
+                        'pump_sno', i.pump_sno, 'application', i.application, 'version', i.version)
+                        ORDER BY i.ec_no)
+                        FROM order_items i WHERE i.order_id = o.id), '[]'::jsonb) AS items
        FROM orders o
        LEFT JOIN users au ON au.id = o.so_assignee_id
       WHERE o.id = ANY($1::uuid[])`,

@@ -6,6 +6,7 @@ import { Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import {
   createItemAction,
   createSpareItemAction,
+  updateOrderSectionAction,
 } from "@/app/risansi/orders/actions";
 import {
   ADD_ON_SPARE_FIELDS,
@@ -42,6 +43,7 @@ export function AddOnForm({
   soLabel,
   orderType,
   boiFlag,
+  item,
   onClose,
 }: {
   orderId: string;
@@ -52,14 +54,23 @@ export function AddOnForm({
   // The SO's BOI field. The bought-out list is offered only when it is Yes —
   // on any other SO there is nothing bought out to list.
   boiFlag?: string | null;
+  /** An existing EC to edit: its Add-On fields only (no BOI list, no file). */
+  item?: Record<string, unknown> | null;
   onClose: () => void;
 }) {
   const router = useRouter();
   const isSpare = orderType === "Spare";
   const fields = addOnFieldsFor(orderType);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const editing = !!item;
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    item
+      ? Object.fromEntries(
+          fields.map((f) => [f.column, item[f.column] == null ? "" : String(item[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
+        )
+      : {}
+  );
   const [boi, setBoi] = useState<BoiRow[]>([]);
-  const listsBoi = (boiFlag ?? "") === "Yes";
+  const listsBoi = !editing && (boiFlag ?? "") === "Yes";
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +101,15 @@ export function AddOnForm({
 
     let ok: boolean;
     let err: string | undefined;
-    if (isSpare) {
+    if (item) {
+      const res = await updateOrderSectionAction(
+        String(item.id),
+        "order_items",
+        Object.fromEntries(fields.map((f) => [f.column, values[f.column] ?? ""]))
+      );
+      ok = res.ok;
+      err = res.ok ? undefined : res.error;
+    } else if (isSpare) {
       const fd = new FormData();
       for (const f of ADD_ON_SPARE_FIELDS) fd.append(f.column, values[f.column] ?? "");
       // FormData carries only strings, so the rows travel as JSON.
@@ -118,7 +137,11 @@ export function AddOnForm({
     onClose();
   }
 
-  const title = isSpare ? "Add spare order" : "Add pump order";
+  const title = editing
+    ? `Edit EC ${String(item?.ec_no ?? "")}`.trim()
+    : isSpare
+      ? "Add spare order"
+      : "Add pump order";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
@@ -328,7 +351,7 @@ export function AddOnForm({
           </div>
           )}
 
-          {isSpare && (
+          {isSpare && !editing && (
             // Spare form's Order Copy file upload — the one field on either
             // Add-On that is not mandatory.
             <div className="mt-5">
@@ -380,7 +403,7 @@ export function AddOnForm({
               className="flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-70"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {saving ? "Adding…" : "Add EC"}
+              {saving ? (editing ? "Saving…" : "Adding…") : editing ? "Save changes" : "Add EC"}
             </button>
           </div>
         </form>

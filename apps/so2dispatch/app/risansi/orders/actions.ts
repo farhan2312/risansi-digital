@@ -74,6 +74,8 @@ import {
   ORDER_MAKING_EDITABLE,
   ORDER_MAKING_FIELDS,
   ORDER_MAKING_SO_EDITABLE,
+  ADD_ON_PUMP_FIELDS,
+  ADD_ON_SPARE_FIELDS,
   firstMissingAddOnField,
   paymentTermsText,
   type ChildTable,
@@ -672,10 +674,13 @@ export async function updateOrderSectionAction(
   }
 
   const orderMaker = isOrderMakingAny(user.role) && table === "orders";
+  // Order Making PO fills the EC form (Pump or Spare Add-On), so it may
+  // correct those fields on an EC — and nothing else on it.
+  const omEc = isOrderMaking(user.role) && table === "order_items";
   if (orderMaker && isOrderMakingSo(user.role) && !(await isAssignedTo(id, user.id))) {
     return { ok: false, error: "This SO is not assigned to you." };
   }
-  if (!canEditSection(user.role, table as OrderTable) && !orderMaker) {
+  if (!canEditSection(user.role, table as OrderTable) && !orderMaker && !omEc) {
     return {
       ok: false,
       error: "You don't have permission to edit this section.",
@@ -692,6 +697,10 @@ export async function updateOrderSectionAction(
     if (allowedValues.order_type === "Spare") {
       allowedValues = { ...allowedValues, boi: "No", qc_required: "No" };
     }
+  }
+  if (omEc) {
+    const own = new Set([...ADD_ON_PUMP_FIELDS, ...ADD_ON_SPARE_FIELDS].map((f) => f.column));
+    allowedValues = Object.fromEntries(Object.entries(allowedValues).filter(([k]) => own.has(k)));
   }
   if (!isCentral(user.role)) {
     const centralOnly = new Set(
