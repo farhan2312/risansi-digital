@@ -235,8 +235,8 @@ async function emit(
   // An SO Central Visibility has not yet cleared or held is no department's
   // business: only Central, Admin and Order Making hear about it.
   const cleared = await query<{ clear: boolean }>(
-    // Held by Order Making, it is not forwarded to anyone either.
-    `SELECT COALESCE(NULLIF(clearance_status, ''), 'Clear') IN ('Clear', 'Hold')
+    // Held by Order Making or by Central Visibility, it is forwarded to no one.
+    `SELECT COALESCE(NULLIF(clearance_status, ''), 'Clear') = 'Clear'
             AND COALESCE(NULLIF(om_status, ''), 'Clear') <> 'Hold' AS clear
        FROM orders WHERE id = $1`,
     [input.orderId]
