@@ -385,13 +385,19 @@ export async function createItemAction(
   // that names nothing, or an item outside the list, is not.
   const boiRows = cleanBoiRows(boi);
   if (!boiRows.ok) return { ok: false, error: boiRows.error };
-  // The list belongs to an SO that says it has bought-out items. The form
-  // offers it only then; this is the same rule on the endpoint.
-  if (boiRows.rows.length > 0 && String(order.order.boi ?? "") !== "Yes") {
+  // The list belongs to a pump whose own BOI is Yes: the form offers it only
+  // then, and this is the same rule on the endpoint.
+  const ecBoi = String(itemInput.boi ?? "").trim();
+  if (boiRows.rows.length > 0 && ecBoi !== "Yes") {
     return {
       ok: false,
-      error: "This order's BOI is not set to Yes, so it cannot list bought-out items.",
+      error: "This EC's BOI is not set to Yes, so it cannot list bought-out items.",
     };
+  }
+  // A pump with bought-out items brings Purchase in on the SO: Purchase's
+  // queue is keyed on the SO's BOI.
+  if (ecBoi === "Yes" && String(order.order.boi ?? "") !== "Yes") {
+    await query(`UPDATE orders SET boi = 'Yes', updated_at = now() WHERE id = $1`, [orderId]);
   }
 
   try {
@@ -738,6 +744,15 @@ export async function updateOrderSectionAction(
   const tbl = table as OrderTable;
   const bounds = checkFieldBounds(section.fields, allowedValues);
   if (bounds) return { ok: false, error: bounds };
+  // A pump EC turned to BOI Yes brings Purchase in on its SO, as when it is added.
+  if (tbl === "order_items" && allowedValues.boi === "Yes") {
+    await query(
+      `UPDATE orders o SET boi = 'Yes', updated_at = now()
+         FROM order_items i
+        WHERE i.id = $1 AND o.id = i.order_id AND COALESCE(o.boi, '') <> 'Yes'`,
+      [id]
+    );
+  }
   try {
     if (section.scope === "so") {
       const before = await getOrderDetail(id);

@@ -128,20 +128,33 @@ export type SoMemberSummary = {
   unassigned: { total: number; pending: number };
 };
 
-/** Per Order Making SO member: open SOs assigned, still pending, filled. And what nobody has yet. */
-export async function soMemberSummary(): Promise<SoMemberSummary> {
+/** The assignment cards and PDF: today's (the default), or all time. */
+export type AssignPeriod = "daily" | "all";
+export function parseAssignPeriod(v: string | undefined): AssignPeriod {
+  return v === "all" ? "all" : "daily";
+}
+
+/**
+ * Per Order Making SO member: open SOs assigned, still pending, filled. And
+ * what nobody has yet. Daily: SOs assigned today, and the unassigned ones
+ * made today; all time: every open SO.
+ */
+export async function soMemberSummary(period: AssignPeriod = "daily"): Promise<SoMemberSummary> {
+  const today = `(now() AT TIME ZONE 'Asia/Kolkata')::date`;
+  const assignedToday = period === "daily" ? `AND (o.so_assigned_at AT TIME ZONE 'Asia/Kolkata')::date = ${today}` : "";
+  const madeToday = period === "daily" ? `AND (o.created_at AT TIME ZONE 'Asia/Kolkata')::date = ${today}` : "";
   const [members, counts, unassigned] = await Promise.all([
     listSoMembers(),
     query<{ id: string; assigned: number; filled: number }>(
       `SELECT o.so_assignee_id AS id, count(*)::int AS assigned,
               count(*) FILTER (WHERE ${SO_DETAILS_FILLED_SQL})::int AS filled
          FROM orders o
-        WHERE o.so_assignee_id IS NOT NULL AND ${orderOpenSql("o")}
+        WHERE o.so_assignee_id IS NOT NULL AND ${orderOpenSql("o")} ${assignedToday}
         GROUP BY 1`
     ),
     query<{ total: number; pending: number }>(
       `SELECT count(*)::int AS total, count(*) FILTER (WHERE NOT ${SO_DETAILS_FILLED_SQL})::int AS pending
-         FROM orders o WHERE o.so_assignee_id IS NULL AND ${orderOpenSql("o")}`
+         FROM orders o WHERE o.so_assignee_id IS NULL AND ${orderOpenSql("o")} ${madeToday}`
     ),
   ]);
   const by = new Map(counts.rows.map((c) => [c.id, c]));

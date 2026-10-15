@@ -82,6 +82,24 @@ export const ORDER_TYPE_OPTIONS = opts(["Pump", "Spare", "ROLB"]);
 // ROLB is handled exactly like a Pump (same Add-On form, same per-EC fields);
 // only the name differs. Pump-only gates accept either.
 export const PUMP_LIKE = ["Pump", "ROLB"];
+
+// A pump's name plate: what is stamped on it, captured on the Pump Add-On.
+export const CAPACITY_UNIT_OPTIONS = opts(["M³/hr", "LPH", "LPM", "GPM", "KLPD", "TPH"]);
+export const HEAD_UNIT_OPTIONS = opts(["MWC", "MLC", "Bar", "Kg/cm²"]);
+export const MOTOR_RATING_UNIT_OPTIONS = opts(["KW", "HP"]);
+export const NAME_PLATE_GROUP = "Name Plate Details";
+export const NAME_PLATE_FIELDS: OrderField[] = [
+  { column: "capacity", label: "Capacity", type: "number", min: 0, group: NAME_PLATE_GROUP },
+  { column: "capacity_unit", label: "Capacity Unit", type: "select", options: CAPACITY_UNIT_OPTIONS, group: NAME_PLATE_GROUP },
+  { column: "head", label: "Head", type: "number", min: 0, group: NAME_PLATE_GROUP },
+  { column: "head_unit", label: "Head Unit", type: "select", options: HEAD_UNIT_OPTIONS, group: NAME_PLATE_GROUP },
+  { column: "drive_motor_rating", label: "Drive Motor Rating", type: "number", min: 0, group: NAME_PLATE_GROUP },
+  { column: "drive_motor_rating_unit", label: "Drive Motor Rating Unit", type: "select", options: MOTOR_RATING_UNIT_OPTIONS, group: NAME_PLATE_GROUP },
+  { column: "drive_motor_speed", label: "Drive Motor Speed (RPM)", type: "number", min: 0, group: NAME_PLATE_GROUP },
+  { column: "pump_speed", label: "Pump Speed (RPM)", type: "number", min: 0, group: NAME_PLATE_GROUP },
+  { column: "liquid", label: "Liquid", type: "text", group: NAME_PLATE_GROUP },
+  { column: "tag_no", label: "Tag No.", type: "text", group: NAME_PLATE_GROUP },
+];
 // Per-EC pump family, only shown on Pump Add-Ons.
 export const PUMP_TYPE_OPTIONS = opts(["PCP", "MMP", "RBL", "OLB"]);
 // Bill Type (SO-level) — decides which billing document fields apply to each
@@ -544,6 +562,10 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "delivery", label: "Delivery", type: "text", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
       { column: "pump_sno", label: "Pump Serial No.", type: "text", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
       { column: "application", label: "Application", type: "text", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
+      // A pump's name plate (not a Spare's).
+      ...NAME_PLATE_FIELDS.map((f) => ({ ...f, dependsOn: [{ column: "item_type", value: PUMP_LIKE }] })),
+      // Whether this pump has bought-out items (its list is Purchase's to work).
+      { column: "boi", label: "BOI", type: "select", options: YES_NO, group: "BOI", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
     ],
   },
   {
@@ -1015,6 +1037,9 @@ export const ADD_ON_PUMP_FIELDS: OrderField[] = [
   { column: "pump_sno", label: "Pump Serial No.", type: "text" },
   { column: "application", label: "Application", type: "text" },
   { column: "version", label: "Series Version", type: "text" },
+  ...NAME_PLATE_FIELDS,
+  // Yes opens the bought-out item list on the form (item, make, description).
+  { column: "boi", label: "BOI", type: "select", options: YES_NO, group: "BOI" },
 ];
 
 /** Spare Add-On: EC identity + model/version + quantity. */
@@ -1091,7 +1116,8 @@ export function addOnFieldsFor(orderType?: string | null): OrderField[] {
 }
 
 /** Add-On fields that may be left blank; every other one is mandatory. */
-export const ADD_ON_OPTIONAL = new Set<string>(["version"]);
+// The name plate may not be to hand when the EC is made: it can follow.
+export const ADD_ON_OPTIONAL = new Set<string>(["version", ...NAME_PLATE_FIELDS.map((f) => f.column)]);
 
 /** A Spare EC needs only its EC No. and EC Date; the rest may be filled later. */
 const SPARE_ADD_ON_REQUIRED = new Set<string>(["ec_no", "ec_date"]);

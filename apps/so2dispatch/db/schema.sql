@@ -2303,6 +2303,18 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS taxable_value NUMERIC(14,2);
 -- When the PO came in, and the Handover: when the SO went to Operations
 -- (Order Making SO). When it went to PPC is so_handover_date. Idempotent.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS po_received_date DATE;
+
+-- A pump's name plate, on the Pump Add-On. Idempotent.
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS capacity NUMERIC(14,3);
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS capacity_unit TEXT;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS head NUMERIC(14,3);
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS head_unit TEXT;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS drive_motor_rating NUMERIC(14,3);
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS drive_motor_rating_unit TEXT;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS drive_motor_speed NUMERIC(10,2);
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS pump_speed NUMERIC(10,2);
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS liquid TEXT;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS tag_no TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS ec_sent_operation_date DATE;
 -- Briefly a column of its own; it is so_handover_date. Never filled.
 ALTER TABLE orders DROP COLUMN IF EXISTS ec_sent_ppc_date;

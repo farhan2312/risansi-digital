@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { FilePlus2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { canAccessOrderMaking, canAssignSo, canCreateOrders, isOrderMakingSo } from "@/lib/roles";
-import { listSoMembers, soMemberSummary } from "@/lib/so-assignment";
+import { listSoMembers, parseAssignPeriod, soMemberSummary } from "@/lib/so-assignment";
 import { listOrderListOptions, listOrdersForOrderMaking } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseOrderMakingFilter } from "@/lib/order-making-filter";
@@ -37,6 +37,8 @@ export default async function OrderMakingPage({
   // An Order Making SO member works only on the SOs assigned to them.
   const soMember = isOrderMakingSo(user.role);
   const canAssign = canAssignSo(user.role);
+  // The assignment cards: today's by default, or all time.
+  const period = parseAssignPeriod(params.period);
   const [queue, options, members, summary] = await Promise.all([
     listOrdersForOrderMaking({
       page: parsePage(params.page),
@@ -46,7 +48,7 @@ export default async function OrderMakingPage({
     }),
     listOrderListOptions(),
     canAssign ? listSoMembers() : Promise.resolve([]),
-    canAssign ? soMemberSummary() : Promise.resolve(null),
+    canAssign ? soMemberSummary(period) : Promise.resolve(null),
   ]);
   const canCreate = canCreateOrders(user.role);
   // Unread discussion messages per SO, for the chat badge.
@@ -76,6 +78,7 @@ export default async function OrderMakingPage({
         canCreate={canCreate}
         mode={soMember ? "so" : "po"}
         canAssign={canAssign}
+        period={period}
         members={members}
         summary={summary}
         role={user.role}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { Fragment, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import {
@@ -67,10 +67,14 @@ export function AddOnForm({
       ? Object.fromEntries(
           fields.map((f) => [f.column, item[f.column] == null ? "" : String(item[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
         )
-      : {}
+      : // A new pump: BOI No until said otherwise (the SO's own answer, if Yes).
+        isSpare
+        ? {}
+        : { boi: (boiFlag ?? "") === "Yes" ? "Yes" : "No" }
   );
   const [boi, setBoi] = useState<BoiRow[]>([]);
-  const listsBoi = !editing && (boiFlag ?? "") === "Yes";
+  // A pump's BOI Yes opens its bought-out item list (when adding the EC).
+  const listsBoi = !editing && !isSpare && values.boi === "Yes";
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +150,8 @@ export function AddOnForm({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
-      <div className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl border border-card-border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-2xl sm:p-6 sm:pb-6">
+      {/* A pump has many fields (name plate, BOI): a wide form, several to a row. */}
+      <div className={`relative max-h-[92vh] w-full ${isSpare ? "max-w-2xl" : "max-w-6xl"} overflow-y-auto rounded-t-2xl border border-card-border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-2xl sm:p-6 sm:pb-6`}>
         <button
           type="button"
           onClick={onClose}
@@ -169,19 +174,22 @@ export function AddOnForm({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-            {fields.map((field) => (
-              <div key={field.column}>
+          <div className={`grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 ${isSpare ? "" : "lg:grid-cols-3 xl:grid-cols-4"}`}>
+            {fields.map((field, i) => (
+              <Fragment key={field.column}>
+              {/* A pump's name plate, under its own heading. */}
+              {field.group && field.group !== fields[i - 1]?.group && (
+                <h3 className="col-span-full mt-2 border-t border-card-border pt-4 text-sm font-semibold text-foreground">
+                  {field.group}
+                </h3>
+              )}
+              <div>
                 <label
                   htmlFor={`addon-${field.column}`}
                   className="mb-1.5 block text-[13px] font-medium text-brand-label"
                 >
                   {field.label}
-                  {isAddOnOptional(orderType, field.column) ? (
-                    <span className="font-normal text-muted"> (optional)</span>
-                  ) : (
-                    <span className="text-danger"> *</span>
-                  )}
+                  {!isAddOnOptional(orderType, field.column) && <span className="text-danger"> *</span>}
                 </label>
                 {field.type === "select" ? (
                   <select
@@ -220,6 +228,7 @@ export function AddOnForm({
                   />
                 )}
               </div>
+              </Fragment>
             ))}
           </div>
 
@@ -233,9 +242,6 @@ export function AddOnForm({
               <div>
                 <p className="text-[13px] font-medium text-brand-label">
                   Bought-out items
-                  <span className="ml-1 font-normal text-muted-foreground">
-                    (optional)
-                  </span>
                 </p>
                 <p className="text-xs text-muted">
                   What is bought out for this EC. Purchase records the expected
@@ -357,9 +363,6 @@ export function AddOnForm({
             <div className="mt-5">
               <label className="mb-1.5 block text-[13px] font-medium text-brand-label">
                 Order Copy (file)
-                <span className="ml-1 font-normal text-muted-foreground">
-                  (optional)
-                </span>
               </label>
               <label className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-dashed border-input-border bg-surface px-4 py-3 text-sm transition-colors hover:bg-background">
                 <Upload className="h-4 w-4 text-muted-foreground" />
