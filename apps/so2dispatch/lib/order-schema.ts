@@ -564,6 +564,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "application", label: "Application", type: "text", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
       // A pump's name plate (not a Spare's).
       ...NAME_PLATE_FIELDS.map((f) => ({ ...f, dependsOn: [{ column: "item_type", value: PUMP_LIKE }] })),
+      // Whether this pump has bought-out items (its list is Purchase's to work).
+      { column: "boi", label: "BOI", type: "select", options: YES_NO, group: "BOI", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
     ],
   },
   {
@@ -1036,6 +1038,8 @@ export const ADD_ON_PUMP_FIELDS: OrderField[] = [
   { column: "application", label: "Application", type: "text" },
   { column: "version", label: "Series Version", type: "text" },
   ...NAME_PLATE_FIELDS,
+  // Yes opens the bought-out item list on the form (item, make, description).
+  { column: "boi", label: "BOI", type: "select", options: YES_NO, group: "BOI" },
 ];
 
 /** Spare Add-On: EC identity + model/version + quantity. */

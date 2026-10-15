@@ -67,10 +67,14 @@ export function AddOnForm({
       ? Object.fromEntries(
           fields.map((f) => [f.column, item[f.column] == null ? "" : String(item[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
         )
-      : {}
+      : // A new pump: BOI No until said otherwise (the SO's own answer, if Yes).
+        isSpare
+        ? {}
+        : { boi: (boiFlag ?? "") === "Yes" ? "Yes" : "No" }
   );
   const [boi, setBoi] = useState<BoiRow[]>([]);
-  const listsBoi = !editing && (boiFlag ?? "") === "Yes";
+  // A pump's BOI Yes opens its bought-out item list (when adding the EC).
+  const listsBoi = !editing && !isSpare && values.boi === "Yes";
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

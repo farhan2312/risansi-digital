@@ -235,6 +235,8 @@ export type NewItemInput = {
   pump_speed?: string;
   liquid?: string;
   tag_no?: string;
+  /** This pump's own BOI, Yes or No. */
+  boi?: string;
 };
 
 function nullify(value?: string): string | null {
@@ -440,10 +442,10 @@ export async function createItem(
         order_id, ec_no, ec_date, item_type, pump_type, model_no, internal_model,
         quantity, orientation, suction, delivery, pump_sno, application, version,
         capacity, capacity_unit, head, head_unit, drive_motor_rating, drive_motor_rating_unit,
-        drive_motor_speed, pump_speed, liquid, tag_no
+        drive_motor_speed, pump_speed, liquid, tag_no, boi
      ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24
+        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
      )
      RETURNING id, seq::int AS seq`,
     [
@@ -471,6 +473,7 @@ export async function createItem(
       toNumeric(input.pump_speed),
       nullify(input.liquid),
       nullify(input.tag_no),
+      nullify(input.boi),
     ]
   );
   return result.rows[0];
