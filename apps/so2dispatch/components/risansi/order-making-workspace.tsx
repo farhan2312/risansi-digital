@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Loader2, MessageSquare, Pencil, Plus, Trash2, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, FileText, Loader2, MessageSquare, Pencil, Plus, Trash2, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { canManageEcs } from "@/lib/roles";
@@ -62,6 +62,7 @@ export function OrderMakingWorkspace({
   canAssign = false,
   members = [],
   summary = null,
+  period = "daily",
   role,
   unreadThreads,
 }: {
@@ -78,6 +79,8 @@ export function OrderMakingWorkspace({
   canAssign?: boolean;
   members?: SoMember[];
   summary?: SoMemberSummary | null;
+  /** The cards' period: today's assignments (default) or all time. */
+  period?: "daily" | "all";
   /** The viewer's role, for the SO discussion. */
   role: string;
   /** Unread discussion messages per SO, for the chat badge. */
@@ -141,6 +144,35 @@ export function OrderMakingWorkspace({
 
   return (
     <div>
+      {/* Today's assignments or all time, and the same as a PDF grid. */}
+      {summary && (
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="Period" className="inline-flex rounded-lg border border-input-border p-0.5">
+            {(["daily", "all"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setParams({ period: p === "daily" ? null : p })}
+                aria-pressed={period === p}
+                className={`h-8 rounded-md px-3 text-xs font-semibold transition-colors ${
+                  period === p ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
+                }`}
+              >
+                {p === "daily" ? "Daily" : "All time"}
+              </button>
+            ))}
+          </div>
+          <a
+            href={`/risansi/departments/order-making/assignments-pdf?period=${period}`}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-3 text-xs font-semibold text-foreground hover:bg-background"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Assignment PDF
+          </a>
+        </div>
+      )}
       {/* Per Order Making SO member: what is assigned, still pending, filled. */}
       {summary && (
         <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">

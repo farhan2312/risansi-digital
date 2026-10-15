@@ -184,11 +184,7 @@ export function AddOnForm({
                   className="mb-1.5 block text-[13px] font-medium text-brand-label"
                 >
                   {field.label}
-                  {isAddOnOptional(orderType, field.column) ? (
-                    <span className="font-normal text-muted"> (optional)</span>
-                  ) : (
-                    <span className="text-danger"> *</span>
-                  )}
+                  {!isAddOnOptional(orderType, field.column) && <span className="text-danger"> *</span>}
                 </label>
                 {field.type === "select" ? (
                   <select
@@ -241,9 +237,6 @@ export function AddOnForm({
               <div>
                 <p className="text-[13px] font-medium text-brand-label">
                   Bought-out items
-                  <span className="ml-1 font-normal text-muted-foreground">
-                    (optional)
-                  </span>
                 </p>
                 <p className="text-xs text-muted">
                   What is bought out for this EC. Purchase records the expected
@@ -365,9 +358,6 @@ export function AddOnForm({
             <div className="mt-5">
               <label className="mb-1.5 block text-[13px] font-medium text-brand-label">
                 Order Copy (file)
-                <span className="ml-1 font-normal text-muted-foreground">
-                  (optional)
-                </span>
               </label>
               <label className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-dashed border-input-border bg-surface px-4 py-3 text-sm transition-colors hover:bg-background">
                 <Upload className="h-4 w-4 text-muted-foreground" />
