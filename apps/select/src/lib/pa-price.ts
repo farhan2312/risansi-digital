@@ -16,6 +16,7 @@
  *   Suction / delivery size     +3 % larger / −3 % smaller than standard (27-03-2026)
  *   CI casing, SS304 internals  BBBN price − 10 % (22-01-2026; off by default)
  *   MOC chart (22-07-2026)      AABN price = ABBN
+ *   AB1B1N                      BBBN price − 10 % (user, 2026-10-15)
  *   Vertical (VM), by negative depth:  × 1.2 (H15–H60) / × 1.3 (H70–H120);
  *                               5 m depth × 1.5 · 7 m depth × 1.6
  * Percentages multiply; the Viton/HNBR amount is added last.
@@ -137,8 +138,9 @@ function findAddon(data: PaPriceData, model: string): { addon: PaAddon; exact: b
   return near ? { addon: near, exact: false } : null;
 }
 
-/** MOC code → the list's column. AAB is priced as ABBN (MOC chart). */
-export const MOC_COLUMN: Record<string, PaMocCol> = { ABB: "abbn", AAB: "abbn", BBB: "bbbn", CCC: "cccn", ACC: "accn" };
+/** MOC code → the list's column. AAB is priced as ABBN (MOC chart); AB1B1
+ *  from BBBN, less 10 % (the "ab1b1" adjustment). */
+export const MOC_COLUMN: Record<string, PaMocCol> = { ABB: "abbn", AAB: "abbn", BBB: "bbbn", CCC: "cccn", ACC: "accn", AB1B1: "bbbn" };
 
 const SUBCAT_PCT: Record<string, Partial<Record<PaMocCol, number>>> = {
   BAG: { abbn: 15, bbbn: 20, cccn: 25 },
@@ -209,7 +211,7 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
   const col = MOC_COLUMN[i.moc] ?? null;
   if (!col) {
     return {
-      problem: `MOC ${i.moc} is not priced in the L1–L4 list (ABBN, BBBN, ACCN, CCCN; AABN = ABBN).`,
+      problem: `MOC ${i.moc} is not priced in the L1–L4 list (ABBN, BBBN, ACCN, CCCN; AABN = ABBN; AB1B1N = BBBN −10%).`,
       row: found.row,
       col: null,
       notes,
@@ -219,6 +221,10 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
   if (i.moc === "AAB") notes.push("AABN priced as ABBN (MOC chart 22-07-2026)");
 
   const adj: PaAdjustment[] = [];
+  // AB1B1N: the BBBN price less 10 % (user, 2026-10-15). First, so it reads
+  // as the base the other notes build on.
+  if (i.moc === "AB1B1")
+    adj.push({ key: "ab1b1", label: "AB1B1N: BBBN price −10%", short: "AB1B1N = BBBN −10%", pct: -10, defaultOn: true });
   if (i.subCategory === "BAG" || i.subCategory === "AG") {
     const pct = SUBCAT_PCT[i.subCategory][col];
     const label = i.subCategory === "BAG" ? "With bucket & auger (BAG)" : "Auger only, no bucket (AG)";
