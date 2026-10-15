@@ -312,10 +312,6 @@ function usdTag(t: OfferTag, rate: number): OfferTag {
   return { ...t, prices, unit: unitTotal(prices), sub: subTotal(prices, t.quantity) };
 }
 
-/** "1 USD = ₹84.25" */
-export const fxLine = (fx: QuoteFx) =>
-  `All prices in USD · 1 USD = ₹${fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}`;
-
 /** The sheet's rows with the customisation applied (TechDocEditor reads the
  *  same row shape). Removed rows only with `includeHidden`. */
 export function buildOffer(
@@ -421,8 +417,7 @@ export function buildOfferHtml(sheet: OfferSheet, logoUrl = "/logo.png"): string
     `<tr class="offer-band"><td colspan="${cols}">${esc(OFFER_TITLE)}</td></tr>` +
     tagHead +
     rows +
-    scopeRowsHtml({ scope, out }, cols) +
-    (sheet.fx ? `<tr class="oos"><td colspan="${cols}">${esc(fxLine(sheet.fx))}</td></tr>` : "");
+    scopeRowsHtml({ scope, out }, cols);
   return sheetHtml({
     projectCode: sheet.projectCode,
     title: OFFER_TITLE,
