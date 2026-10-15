@@ -7,8 +7,8 @@ import { listClientPriceRefs, type ClientPriceRef } from "../../services/clientP
 // "Client Price Ref" viewer on the Commercial Summary: the client's old pump
 // price reference files (Excel on SharePoint). Read-only — each file opens in
 // SharePoint in a new tab; nothing is downloaded or changed. With no search it
-// lists the enquiry client's files; typing searches every file by name
-// (including files not matched to a sales client).
+// lists the enquiry client's files; typing searches every file by file name,
+// client name or code (including files not matched to a sales client).
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -104,13 +104,13 @@ export default function ClientPriceRefModal({
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search all files by name, e.g. athani or A037"
+            placeholder="Search by file name, client name or code, e.g. athani or A037"
             className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
             aria-label="Search price reference files"
           />
           <p className="mt-1 text-[11.5px] text-fg-3">
             {searching
-              ? "Showing files from any client whose name matches."
+              ? "Showing files of any client whose file name, client name or code matches."
               : clientCode
                 ? "Showing this client's files. Search to look through every client's files."
                 : "This enquiry has no client code, so there's no linked client — search by name instead."}
@@ -122,7 +122,7 @@ export default function ClientPriceRefModal({
           {failed && <p className="px-4 py-6 text-center text-[13px] text-neg">Couldn&apos;t load the reference files.</p>}
           {rows && !failed && rows.length === 0 && (
             <p className="px-4 py-6 text-center text-[13px] text-fg-3">
-              {searching ? "No file name matches that search." : clientCode ? "No price reference files for this client." : ""}
+              {searching ? "No file matches that search." : clientCode ? "No price reference files for this client." : ""}
             </p>
           )}
           {rows && rows.length > 0 && (

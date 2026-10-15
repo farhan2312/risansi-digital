@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 // GET /api/client-price-refs?clientCode=…&q=… — client pump price reference
 // files (links to SharePoint; the files are never read or changed here).
 //   clientCode  the files matched to that sales client
-//   q           words in the file name (any client, incl. unmatched files)
+//   q           words, each in the file name, client name or client code
+//               (any client, incl. files not matched to a client)
 // At least one is required. Newest file date first; undated names last.
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
@@ -19,7 +20,12 @@ export async function GET(req: Request) {
 
   const filters: SQL[] = [];
   if (clientCode) filters.push(eq(clientPriceRef.clientCode, clientCode));
-  for (const w of words) filters.push(ilike(clientPriceRef.fileName, `%${w.replace(/[\\%_]/g, (c) => "\\" + c)}%`));
+  for (const w of words) {
+    const like = `%${w.replace(/[\\%_]/g, (c) => "\\" + c)}%`;
+    filters.push(
+      or(ilike(clientPriceRef.fileName, like), ilike(clientPriceRef.clientName, like), ilike(clientPriceRef.clientCode, like))!,
+    );
+  }
 
   const rows = await db
     .select({

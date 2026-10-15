@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import PageHeader from "../../components/ui/PageHeader";
 import { browserViewUrl } from "../commercial/ClientPriceRefModal";
+import { listClientPriceRefs, type ClientPriceRef } from "../../services/clientPriceRefService";
 import {
   DRIVE_GROUP_LABEL,
   boiTotal,
@@ -39,6 +40,8 @@ export default function ClientPricesPage() {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<ClientQuoteHit[] | null>(null);
   const [searchError, setSearchError] = useState(false);
+  // SharePoint price files whose file name (or client) matches the search.
+  const [fileHits, setFileHits] = useState<ClientPriceRef[] | null>(null);
   const [client, setClient] = useState<ClientQuoteHit | null>(null);
   const [history, setHistory] = useState<ClientQuoteHistory | null>(null);
   const [historyError, setHistoryError] = useState(false);
@@ -52,16 +55,24 @@ export default function ClientPricesPage() {
   useEffect(() => {
     if (!query) {
       setHits(null);
+      setFileHits(null);
       return;
     }
     const controller = new AbortController();
     setSearchError(false);
+    setFileHits(null);
     searchClientQuotes(query, controller.signal)
       .then(setHits)
       .catch((e) => {
         if (controller.signal.aborted || e?.code === "ERR_CANCELED") return;
         setSearchError(true);
         setHits([]);
+      });
+    listClientPriceRefs({ q: query }, controller.signal)
+      .then(setFileHits)
+      .catch((e) => {
+        if (controller.signal.aborted || e?.code === "ERR_CANCELED") return;
+        setFileHits([]);
       });
     return () => controller.abort();
   }, [query]);
@@ -94,10 +105,10 @@ export default function ClientPricesPage() {
             <input
               type="search"
               className={inputCls}
-              placeholder="Client name or code, e.g. mawana"
+              placeholder="Client name, code or file name, e.g. mawana"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search clients"
+              aria-label="Search clients and price files"
               autoFocus
             />
           </div>
@@ -105,8 +116,11 @@ export default function ClientPricesPage() {
             {!query && <p className="px-4 py-6 text-center text-[12.5px] text-fg-3">Type to search clients.</p>}
             {query && hits === null && <p className="px-4 py-6 text-center text-[12.5px] text-fg-3">Searching…</p>}
             {searchError && <p className="px-4 py-6 text-center text-[12.5px] text-neg">Couldn&apos;t search right now.</p>}
-            {hits && hits.length === 0 && !searchError && (
-              <p className="px-4 py-6 text-center text-[12.5px] text-fg-3">No client with quoted prices matches.</p>
+            {hits && hits.length === 0 && !searchError && fileHits?.length === 0 && (
+              <p className="px-4 py-6 text-center text-[12.5px] text-fg-3">No client or price file matches.</p>
+            )}
+            {query && hits && hits.length > 0 && (
+              <p className="px-4 pt-3 pb-1 text-[11px] font-semibold tracking-[0.09em] text-fg-3 uppercase">Clients</p>
             )}
             {hits && hits.length > 0 && (
               <ul className="divide-y divide-line">
@@ -130,6 +144,47 @@ export default function ClientPricesPage() {
                   );
                 })}
               </ul>
+            )}
+            {/* Price files by file name (or client) — open in SharePoint, or pick the linked client. */}
+            {query && fileHits && fileHits.length > 0 && (
+              <>
+                <p className="border-t border-line px-4 pt-3 pb-1 text-[11px] font-semibold tracking-[0.09em] text-fg-3 uppercase">
+                  Price files ({fileHits.length === 100 ? "first 100" : fileHits.length})
+                </p>
+                <ul className="divide-y divide-line">
+                  {fileHits.map((f) => (
+                    <li key={f.id} className="flex items-center justify-between gap-2 px-4 py-2">
+                      <div className="min-w-0">
+                        <a
+                          href={browserViewUrl(f.url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block truncate font-mono text-[12px] text-accent hover:underline"
+                          title={`${f.fileName} — opens in Excel for the web`}
+                        >
+                          {f.fileName}
+                        </a>
+                        <span className="text-[11.5px] text-fg-3">
+                          {fmtDate(f.fileDate)}
+                          {f.clientName ? ` · ${f.clientName}` : " · not linked to a client"}
+                        </span>
+                      </div>
+                      {f.clientCode && (
+                        <button
+                          type="button"
+                          className="shrink-0 text-[11.5px] font-semibold text-accent hover:underline"
+                          onClick={() =>
+                            setClient({ clientCode: f.clientCode, clientName: f.clientName ?? f.clientCode ?? "—", quotations: 0, files: 0 })
+                          }
+                          title="Show this client's quoted prices"
+                        >
+                          Client →
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
         </section>
