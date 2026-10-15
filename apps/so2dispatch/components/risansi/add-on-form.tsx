@@ -150,7 +150,8 @@ export function AddOnForm({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
-      <div className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl border border-card-border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-2xl sm:p-6 sm:pb-6">
+      {/* A pump has many fields (name plate, BOI): a wide form, several to a row. */}
+      <div className={`relative max-h-[92vh] w-full ${isSpare ? "max-w-2xl" : "max-w-6xl"} overflow-y-auto rounded-t-2xl border border-card-border bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-2xl sm:p-6 sm:pb-6`}>
         <button
           type="button"
           onClick={onClose}
@@ -173,7 +174,7 @@ export function AddOnForm({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+          <div className={`grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 ${isSpare ? "" : "lg:grid-cols-3 xl:grid-cols-4"}`}>
             {fields.map((field, i) => (
               <Fragment key={field.column}>
               {/* A pump's name plate, under its own heading. */}
