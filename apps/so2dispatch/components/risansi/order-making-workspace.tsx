@@ -2,9 +2,10 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Loader2, MessageSquare, Pencil, Plus, Trash2, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
+import { canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
@@ -19,7 +20,7 @@ import type { SoMember, SoMemberSummary } from "@/lib/so-assignment";
 import { assignSoAction } from "@/app/risansi/departments/order-making/actions";
 import type { OrderListOptions } from "@/lib/orders";
 import { SortHeader } from "./sort-header";
-import { createOrderAction, updateOrderSectionAction } from "@/app/risansi/orders/actions";
+import { createOrderAction, deleteItemAction, updateOrderSectionAction } from "@/app/risansi/orders/actions";
 import type { NewOrderInput } from "@/lib/orders";
 import {
   ORDER_MAKING_EDITABLE,
@@ -95,6 +96,29 @@ export function OrderMakingWorkspace({
   const [editing, setEditing] = useState<OrderMakingRow | "new" | null>(null);
   // The SO an EC is being added to (Pump or Spare Add-On), by Order Making PO.
   const [addFor, setAddFor] = useState<OrderMakingRow | null>(null);
+  // Order Making SO members (on their own SOs) and Central / Admin fill the
+  // EC form, and edit or delete ECs. Order Making PO sees them.
+  const manageEcs = canManageEcs(role);
+  // An EC being edited, and the SOs whose ECs are shown.
+  const [editEc, setEditEc] = useState<{ row: OrderMakingRow; item: Record<string, unknown> } | null>(null);
+  const [openEcs, setOpenEcs] = useState<Set<string>>(new Set());
+  const [deletingEc, setDeletingEc] = useState<string | null>(null);
+  const toggleEcs = (id: string) =>
+    setOpenEcs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  async function removeEc(item: Record<string, unknown>) {
+    const ec = str(item.ec_no) || "this EC";
+    if (!confirm(`Delete ${ec}? This removes the EC and all its department data.`)) return;
+    setDeletingEc(str(item.id));
+    const res = await deleteItemAction(str(item.id));
+    setDeletingEc(null);
+    if (!res.ok) alert(res.error);
+    else router.refresh();
+  }
   const [assigning, setAssigning] = useState<string | null>(null);
   async function assign(row: OrderMakingRow, assigneeId: string) {
     setAssigning(row.id);
@@ -338,7 +362,8 @@ export function OrderMakingWorkspace({
                 </tr>
               )}
               {queue.rows.map((row) => (
-                <tr key={row.id} className="text-foreground transition-colors hover:bg-background/60">
+                <Fragment key={row.id}>
+                <tr className="text-foreground transition-colors hover:bg-background/60">
                   <td className="px-4 py-3 font-medium tabular-nums">{row.sl_no}</td>
                   {cols.map((c) => (
                     <Fragment key={c.column}>
@@ -414,8 +439,21 @@ export function OrderMakingWorkspace({
                   </td>
                   {/* The SO's ECs: Order Making PO fills the EC form (Pump or Spare Add-On). */}
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="mr-2 text-sm tabular-nums text-foreground">{row.ec_count}</span>
-                    {mode === "po" && (
+                    {row.ec_count > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleEcs(row.id)}
+                        aria-expanded={openEcs.has(row.id)}
+                        title={openEcs.has(row.id) ? "Hide ECs" : "Show ECs"}
+                        className="mr-2 inline-flex items-center gap-0.5 rounded-md px-1 text-sm tabular-nums text-foreground underline decoration-dotted underline-offset-2 hover:bg-background"
+                      >
+                        {row.ec_count}
+                        {openEcs.has(row.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      </button>
+                    ) : (
+                      <span className="mr-2 text-sm tabular-nums text-muted">0</span>
+                    )}
+                    {manageEcs && (
                       <button
                         type="button"
                         onClick={() => setAddFor(row)}
@@ -482,10 +520,72 @@ export function OrderMakingWorkspace({
                     </td>
                   )}
                 </tr>
+                {openEcs.has(row.id) && (
+                  <tr className="bg-background/40">
+                    <td colSpan={cols.length + 8} className="px-4 py-3">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <th className="px-3 py-1.5">EC No.</th>
+                            <th className="px-3 py-1.5">EC Date</th>
+                            <th className="px-3 py-1.5">Model No.</th>
+                            <th className="px-3 py-1.5">Internal Model</th>
+                            <th className="px-3 py-1.5">Version</th>
+                            <th className="px-3 py-1.5">Qty</th>
+                            {manageEcs && <th className="px-3 py-1.5" />}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-card-border">
+                          {row.items.map((it) => (
+                            <tr key={str(it.id)}>
+                              <td className="px-3 py-1.5 font-medium">{str(it.ec_no) || "—"}</td>
+                              <td className="px-3 py-1.5">{formatDisplay(field("so_date"), it.ec_date) || "—"}</td>
+                              <td className="px-3 py-1.5">{str(it.model_no) || "—"}</td>
+                              <td className="px-3 py-1.5">{str(it.internal_model) || "—"}</td>
+                              <td className="px-3 py-1.5">{str(it.version) || "—"}</td>
+                              <td className="px-3 py-1.5 tabular-nums">{str(it.quantity) || "—"}</td>
+                              {manageEcs && (
+                                <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditEc({ row, item: it })}
+                                    className="mr-2 inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-[11px] font-medium text-foreground hover:bg-background"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeEc(it)}
+                                    disabled={deletingEc === str(it.id)}
+                                    aria-label={`Delete ${str(it.ec_no) || "EC"}`}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                                  >
+                                    {deletingEc === str(it.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
         </div>
+        {editEc && (
+          <AddOnForm
+            orderId={editEc.row.id}
+            soLabel={str(editEc.row.so_no) || `#${editEc.row.sl_no}`}
+            orderType={str(editEc.row.order_type) || null}
+            item={editEc.item}
+            onClose={() => setEditEc(null)}
+          />
+        )}
         {addFor && (
           <AddOnForm
             orderId={addFor.id}

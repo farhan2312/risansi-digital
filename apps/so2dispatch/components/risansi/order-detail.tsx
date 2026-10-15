@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { deleteItemAction } from "@/app/risansi/orders/actions";
 import { OrderStatusPanel } from "./order-status-panel";
-import { canCreateOrders, canSeeClient } from "@/lib/roles";
+import { canManageEcs, canSeeClient } from "@/lib/roles";
 import type { ItemDetail, OrderDetail as OrderDetailData, SoDeptStatus } from "@/lib/orders";
 import { EcDeptGrid } from "./ec-dept-grid";
 import { AddOnForm } from "./add-on-form";
@@ -59,7 +59,7 @@ export function OrderDetail({
 }) {
   const router = useRouter();
   const order = detail.order;
-  const canManageItems = canCreateOrders(role);
+  const canManageItems = canManageEcs(role);
   const [addOpen, setAddOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
