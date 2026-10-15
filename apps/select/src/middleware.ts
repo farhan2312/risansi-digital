@@ -49,6 +49,7 @@ const PROTECTED_PREFIXES = [
   "/client-prices",
   "/my-bug-reports",
   "/approvals",
+  "/usd-inr",
   "/admin",
 ];
 
@@ -230,6 +231,7 @@ export const config = {
     "/commercial/:path*",
     "/client-prices/:path*",
     "/my-bug-reports/:path*",
+    "/usd-inr/:path*",
     "/approvals/:path*",
     "/admin/:path*",
   ],

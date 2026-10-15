@@ -145,9 +145,53 @@ export type CommercialSummary = {
     clientCode: string | null;
     /** The one remarks note for the whole Commercial Summary. */
     remarks: string;
+    /** Quote in USD toggle: "USD" with the rate fixed for this enquiry. */
+    quoteCurrency: "INR" | "USD";
+    usdInrRate: number | null;
   };
   tags: CommercialTag[];
 };
+
+// --- USD quoting ------------------------------------------------------------
+// Prices are entered and stored in INR. With Quote in USD on, the totals and
+// the Commercial Offer show USD at the enquiry's fixed rate.
+
+/** USD at a fixed rate (1 USD = rate INR). */
+export type QuoteFx = { code: "USD"; rate: number };
+
+/** The enquiry's fx, or undefined when it quotes in INR. */
+export const quoteFxOf = (p: { quoteCurrency: string; usdInrRate: number | null }): QuoteFx | undefined =>
+  p.quoteCurrency === "USD" && p.usdInrRate && p.usdInrRate > 0 ? { code: "USD", rate: p.usdInrRate } : undefined;
+
+/** The same prices in USD: every price divided by the rate (discount and
+ *  markup % unchanged), so unitTotal / boiNet on the result give whole USD. */
+export function scalePrices(p: CommercialPrices, rate: number): CommercialPrices {
+  const d = (v: number | null | undefined) => (v === null || v === undefined ? null : v / rate);
+  return {
+    ...p,
+    paPrice: d(p.paPrice),
+    motorPrice: d(p.motorPrice),
+    gearboxPrice: d(p.gearboxPrice),
+    vfdPrice: d(p.vfdPrice),
+    mechSealPrice: d(p.mechSealPrice),
+    strainerPrice: d(p.strainerPrice),
+    prvPrice: d(p.prvPrice),
+    drpPrice: d(p.drpPrice),
+    others: (p.others ?? []).map((o) => ({ ...o, price: d(o.price) })),
+  };
+}
+
+const USD_FMT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+/** "$1,234"; "—" for null. */
+export const formatUsd = (n: number | null | undefined): string =>
+  n === null || n === undefined ? "—" : `$${USD_FMT.format(n)}`;
+
+/** A USD -> INR rate as typed: > 0 and <= 1000, 4 decimals; undefined when invalid. */
+export function parseUsdRate(raw: unknown): number | undefined {
+  const n = typeof raw === "number" ? raw : Number(String(raw ?? "").trim());
+  if (!Number.isFinite(n) || n <= 0 || n > 1000) return undefined;
+  return Math.round(n * 10000) / 10000;
+}
 
 export const MAX_OTHER_ITEMS = 10;
 
@@ -404,6 +448,12 @@ export const subTotal = (p: CommercialPrices, quantity: number | null): number =
 export const grandTotal = (tags: { prices: CommercialPrices; quantity: number | null }[]): number =>
   tags.reduce((s, t) => s + subTotal(t.prices, t.quantity), 0);
 
+/** The totals in USD exactly as the Commercial Offer shows them (each price
+ *  converted, then rounded and added up - so they match the sheet). */
+export const usdUnitTotal = (p: CommercialPrices, rate: number): number => unitTotal(scalePrices(p, rate));
+export const usdGrandTotal = (tags: { prices: CommercialPrices; quantity: number | null }[], rate: number): number =>
+  tags.reduce((s, t) => s + subTotal(scalePrices(t.prices, rate), t.quantity), 0);
+
 /** Whole number ≥ 1, else null. */
 export function parseQuantity(raw: unknown): number | null {
   const s = String(raw ?? "").trim();
@@ -483,6 +533,8 @@ export type QuotationSnapshot = {
   offer?: OfferConfig;
   /** The Commercial Summary's remarks when the version was made. */
   remarks?: string;
+  /** Quoted in USD at this rate when the version was made (absent = INR). */
+  fx?: QuoteFx;
 };
 
 export type QuotationVersionInfo = {

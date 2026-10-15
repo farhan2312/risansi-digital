@@ -94,6 +94,8 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       customerName: projects.customerName,
       clientCode: projects.clientCode,
       remarks: projects.commercialRemarks,
+      quoteCurrency: projects.quoteCurrency,
+      usdInrRate: projects.usdInrRate,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -314,7 +316,15 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     };
   });
 
-  return { project: { ...project, remarks: project.remarks ?? "" }, tags };
+  return {
+    project: {
+      ...project,
+      remarks: project.remarks ?? "",
+      quoteCurrency: project.quoteCurrency === "USD" ? "USD" : "INR",
+      usdInrRate: project.usdInrRate === null ? null : Number(project.usdInrRate),
+    },
+    tags,
+  };
 }
 
 /** Each tag's drive group (null = no drive system yet), keyed by tag id. */

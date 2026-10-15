@@ -37,8 +37,11 @@ import {
   MAX_OTHER_ITEMS,
   boiTotal,
   formatInr,
+  formatUsd,
   parsePrice,
+  quoteFxOf,
   rupees,
+  scalePrices,
   subTotal,
   unitTotal,
   DRIVE_GROUP_LABEL,
@@ -47,7 +50,13 @@ import {
   type VfdOption,
   type DrpOption,
 } from "../../lib/commercial";
-import { getCommercialSummary, saveCommercialPrices, saveCommercialRemarks } from "../../services/commercialService";
+import {
+  getCommercialSummary,
+  saveCommercialPrices,
+  saveCommercialRemarks,
+  setQuoteCurrency,
+} from "../../services/commercialService";
+import { getUsdInrSetting } from "../../services/settingsService";
 import { getEnquiryQuotations } from "../../services/quotationService";
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 
@@ -335,6 +344,35 @@ export default function CommercialSummaryPage() {
   const missingQty = groupRows.filter((r) => r.tag.quantity === null).length;
 
   const project = data?.project;
+
+  // Quote in USD: prices stay in INR; the totals and the Commercial Offer
+  // also show USD at the rate fixed on the enquiry when it was switched on.
+  const fx = project ? quoteFxOf(project) : undefined;
+  // The current USD to INR rate (sidebar page) (undefined while loading).
+  const [rateNow, setRateNow] = useState<number | null | undefined>(undefined);
+  const [fxBusy, setFxBusy] = useState(false);
+  const [fxError, setFxError] = useState("");
+  useEffect(() => {
+    getUsdInrSetting()
+      .then((s) => setRateNow(s.rate))
+      .catch(() => setRateNow(null));
+  }, []);
+  const changeCurrency = async (currency: "INR" | "USD", refreshRate = false) => {
+    if (!projectId) return;
+    setFxBusy(true);
+    setFxError("");
+    try {
+      const r = await setQuoteCurrency(projectId, currency, refreshRate);
+      setData((d) => (d ? { ...d, project: { ...d.project, quoteCurrency: r.quoteCurrency, usdInrRate: r.usdInrRate } } : d));
+      if (r.usdInrRate !== null) setRateNow((n) => n ?? r.usdInrRate);
+    } catch (e) {
+      setFxError((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Couldn't change the currency.");
+    } finally {
+      setFxBusy(false);
+    }
+  };
+  const usd = (p: CommercialPrices) => scalePrices(p, fx?.rate ?? 1);
+
   // Commercial Offer sheet of the open drive group — from the SAVED prices.
   const [showOffer, setShowOffer] = useState(false);
   // Each group's Commercial Offer edits — the page sets its scope lists; the
@@ -590,7 +628,57 @@ export default function CommercialSummaryPage() {
                 Summary{mixed && tab && tab !== "NONE" ? ` — ${tabLabel(tab)}` : ""}
               </h2>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-[12px] text-fg-3">All prices in INR, per unit unless marked</span>
+                <span className="text-[12px] text-fg-3">
+                  {fx ? (
+                    <>
+                      Entered in INR · quoted in USD at{" "}
+                      <b className="font-mono text-fg-2">1 USD = ₹{fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}</b>
+                    </>
+                  ) : (
+                    "All prices in INR, per unit unless marked"
+                  )}
+                </span>
+                {fx && rateNow && rateNow !== fx.rate && (
+                  <button
+                    type="button"
+                    className="text-[12px] font-semibold text-accent hover:underline disabled:opacity-50"
+                    disabled={fxBusy}
+                    onClick={() => changeCurrency("USD", true)}
+                    title="Fix today's USD to INR rate on this enquiry instead"
+                  >
+                    Use current rate (₹{rateNow.toLocaleString("en-IN", { maximumFractionDigits: 4 })})
+                  </button>
+                )}
+                <label
+                  className={`inline-flex items-center gap-2 text-[12.5px] font-semibold ${fx ? "text-accent" : "text-fg-2"} ${
+                    fxBusy || (!fx && !rateNow) ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                  }`}
+                  title={
+                    !fx && rateNow === null
+                      ? "Set the USD to INR rate first (sidebar > USD to INR)"
+                      : fx
+                        ? "Back to INR"
+                        : "Show the totals and the Commercial Offer in USD at the current rate (fixed for this enquiry)"
+                  }
+                >
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!!fx}
+                    disabled={fxBusy || (!fx && !rateNow)}
+                    onClick={() => changeCurrency(fx ? "INR" : "USD")}
+                    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed ${
+                      fx ? "bg-accent" : "bg-line-strong"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                        fx ? "translate-x-4" : ""
+                      }`}
+                    />
+                  </button>
+                  Quote in USD
+                </label>
                 {tab && tab !== "NONE" && (
                   <button
                     type="button"
@@ -603,6 +691,7 @@ export default function CommercialSummaryPage() {
                 )}
               </div>
             </header>
+            {fxError && <p className="border-b border-line px-4 py-2 text-[12.5px] text-neg">{fxError}</p>}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-[13px]">
                 <thead>
@@ -635,11 +724,19 @@ export default function CommercialSummaryPage() {
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">{formatInr(prices.paPrice)}</td>
                       <td className="px-4 py-2.5 text-right font-mono">{formatInr(boiTotal(prices))}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">{formatInr(unit)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        {formatInr(unit)}
+                        {fx && <span className="block text-[11.5px] text-accent">{formatUsd(unitTotal(usd(prices)))}</span>}
+                      </td>
                       <td className="px-4 py-2.5 text-right font-mono">
                         {tag.quantity ?? <span className="text-neg">not set</span>}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-fg">{formatInr(sub)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-fg">
+                        {formatInr(sub)}
+                        {fx && (
+                          <span className="block text-[11.5px] text-accent">{formatUsd(subTotal(usd(prices), tag.quantity))}</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -663,6 +760,27 @@ export default function CommercialSummaryPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-[15px] font-bold text-fg">{formatInr(grand)}</td>
                   </tr>
+                  {fx && (
+                    // The same sums in USD, as the Commercial Offer shows them.
+                    <tr className="bg-sunk text-accent">
+                      <td colSpan={2} className="px-4 pb-3 text-[13px] font-semibold">
+                        Grand Total (USD)
+                      </td>
+                      <td className="px-4 pb-3 text-right font-mono text-[13px] font-semibold">
+                        {formatUsd(groupRows.reduce((s, r) => s + rupees(usd(r.prices).paPrice ?? 0), 0))}
+                      </td>
+                      <td className="px-4 pb-3 text-right font-mono text-[13px] font-semibold">
+                        {formatUsd(groupRows.reduce((s, r) => s + boiTotal(usd(r.prices)), 0))}
+                      </td>
+                      <td className="px-4 pb-3 text-right font-mono text-[13px] font-semibold">
+                        {formatUsd(groupRows.reduce((s, r) => s + unitTotal(usd(r.prices)), 0))}
+                      </td>
+                      <td />
+                      <td className="px-4 pb-3 text-right font-mono text-[15px] font-bold">
+                        {formatUsd(groupRows.reduce((s, r) => s + subTotal(usd(r.prices), r.tag.quantity), 0))}
+                      </td>
+                    </tr>
+                  )}
                 </tfoot>
               </table>
             </div>
@@ -738,6 +856,7 @@ export default function CommercialSummaryPage() {
           group={tab}
           tags={offerTags}
           unsavedPrices={groupDirty}
+          fx={fx}
           onClose={() => {
             setShowOffer(false);
             loadOfferConfigs();
