@@ -280,6 +280,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
       // An FR stands on a complaint instead.
       { column: "complaint_no", label: "Complaint No.", type: "text", dependsOn: [{ column: "bill_mode", value: "FR" }], group: "Purchase Order" },
       { column: "complaint_date", label: "Complaint Date", type: "date", dependsOn: [{ column: "bill_mode", value: "FR" }], group: "Purchase Order" },
+      // Which EC the complaint is about: the earlier supply this FR replaces.
+      { column: "complaint_ec_no", label: "Complaint Against EC No.", type: "text", dependsOn: [{ column: "bill_mode", value: "FR" }], group: "Purchase Order" },
       { column: "quotation_no", label: "Quotation No.", type: "text", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
       { column: "po_no", label: "Purchase Order Number", type: "text", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
       { column: "customer_po_date", label: "Purchase Order Date", type: "date", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
@@ -320,6 +322,12 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "so_date", label: "Sales Order Date", type: "date", group: "Purchase Order" },
       // A Spare order is counted by value, not by a total quantity.
       { column: "total_quantity", label: "Sales Order Total Quantity", type: "int", min: 0, dependsOn: [{ column: "order_type", value: "Spare", not: true }], group: "Purchase Order" },
+      // More of the Sales Order, as typed from it. Taxable Value is entered as
+      // the SO gives it, not worked out from the value and discount.
+      { column: "file_no", label: "File No.", type: "text", group: "Purchase Order" },
+      { column: "discount_percent", label: "Discount %", type: "number", min: 0, group: "Purchase Order" },
+      { column: "gst_percent", label: "GST %", type: "number", min: 0, group: "Purchase Order" },
+      { column: "taxable_value", label: "Taxable Value", type: "number", min: 0, group: "Purchase Order" },
 
       // Terms & Conditions — customer requirements + freight/packing + commercial
       // terms rolled into one section. Visible read-only to Billing.
@@ -738,14 +746,24 @@ export const ORDER_MAKING_EDITABLE: OrderField[] = ORDER_MAKING_FIELDS.filter(
  * The Sales Order details: what an Order Making SO member fills on an SO
  * assigned to them. The rest of Order Making's fields are the PO's.
  */
-export const SO_DETAIL_COLUMNS = ["so_no", "so_date", "order_value", "order_currency", "total_quantity"];
+export const SO_DETAIL_COLUMNS = [
+  "so_no", "so_date", "order_value", "order_currency", "total_quantity",
+  "file_no", "discount_percent", "gst_percent", "taxable_value",
+];
+/**
+ * The Sales Order details an SO must have for them to count as filled. The
+ * later additions (File No., Discount %, GST %, Taxable Value) are shown and
+ * filled under the same heading but do not hold an SO back: every SO before
+ * them would otherwise read as unfilled overnight.
+ */
+const SO_REQUIRED_COLUMNS = ["so_no", "so_date", "order_value", "order_currency", "total_quantity"];
 /** What Order Making SO types into. */
 export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter((f) =>
   SO_DETAIL_COLUMNS.includes(f.column)
 );
 /** The Sales Order details that must be in for the SO's details to count as filled. */
 export const SO_DETAIL_FIELDS: OrderField[] = ORDER_MAKING_FIELDS.filter(
-  (f) => SO_DETAIL_COLUMNS.includes(f.column) && !f.computed
+  (f) => SO_REQUIRED_COLUMNS.includes(f.column) && !f.computed
 );
 export const ITEM_SECTIONS = ORDER_SECTIONS.filter((s) => s.scope === "item");
 

@@ -2280,6 +2280,15 @@ UPDATE orders SET boi = 'No', qc_required = 'No'
 -- An FR stands on a complaint: its number and date.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS complaint_no TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS complaint_date DATE;
+-- Which EC the complaint is about: the earlier supply this FR replaces.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS complaint_ec_no TEXT;
+
+-- More of the Sales Order: its file number, discount, GST rate and taxable
+-- value, typed as the SO gives them. Idempotent.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS file_no TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(5,2);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS taxable_value NUMERIC(14,2);
 
 -- No separate revised dispatch date: dispatch_target_date holds the latest
 -- value, like every other target (its history is order_target_revisions).

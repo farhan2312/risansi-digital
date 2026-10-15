@@ -70,6 +70,7 @@ const SECTIONS: Section[] = [
       // An FR stands on a complaint, with no quotation or purchase order.
       { name: "complaint_no", label: "Complaint No.", type: "text", dependsOn: { name: "bill_mode", value: "FR" } },
       { name: "complaint_date", label: "Complaint Date", type: "date", dependsOn: { name: "bill_mode", value: "FR" } },
+      { name: "complaint_ec_no", label: "Complaint Against EC No.", type: "text", dependsOn: { name: "bill_mode", value: "FR" } },
       { name: "quotation_no", label: "Quotation No.", type: "text", dependsOn: { name: "bill_mode", value: "FR", not: true } },
       { name: "po_no", label: "Purchase Order Number", type: "text", dependsOn: { name: "bill_mode", value: "FR", not: true } },
       { name: "customer_po_date", label: "Purchase Order Date", type: "date", dependsOn: { name: "bill_mode", value: "FR", not: true } },
@@ -95,6 +96,10 @@ const SECTIONS: Section[] = [
         // A Spare order is counted by value.
         dependsOn: { name: "order_type", value: "Spare", not: true },
       },
+      { name: "file_no", label: "File No.", type: "text" },
+      { name: "discount_percent", label: "Discount %", type: "number", min: 0 },
+      { name: "gst_percent", label: "GST %", type: "number", min: 0 },
+      { name: "taxable_value", label: "Taxable Value", type: "number", min: 0 },
     ],
   },
   {
