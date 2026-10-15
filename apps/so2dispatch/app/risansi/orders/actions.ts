@@ -619,8 +619,8 @@ export async function deleteItemAction(itemId: string): Promise<DeleteItemResult
 
 /**
  * Why this user may not add, edit or delete the ECs of this SO, or null when
- * they may: Central Visibility and Admin on any SO, an Order Making SO member
- * on the SOs assigned to them.
+ * they may: Order Making PO, Central Visibility and Admin on any SO, an Order
+ * Making SO member on the SOs assigned to them.
  */
 async function ecDenied(user: { id: string; role: string }, orderId: string): Promise<string | null> {
   if (!canManageEcs(user.role)) return "You don't have permission to change EC items.";
@@ -687,9 +687,9 @@ export async function updateOrderSectionAction(
   }
 
   const orderMaker = isOrderMakingAny(user.role) && table === "orders";
-  // Order Making SO fills the EC form (Pump or Spare Add-On), so it may
-  // correct those fields on an EC of an SO assigned to it — nothing else.
-  const omEc = isOrderMakingSo(user.role) && table === "order_items";
+  // Order Making fills the EC form (Pump or Spare Add-On), so it may correct
+  // those fields on an EC — nothing else; an SO member only on its own SOs.
+  const omEc = isOrderMakingAny(user.role) && table === "order_items";
   if (omEc) {
     const ec = await getItemDetail(id);
     const denied = ec ? await ecDenied(user, String(ec.order.id)) : "EC not found.";
