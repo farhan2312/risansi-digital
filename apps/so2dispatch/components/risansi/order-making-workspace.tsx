@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
+import { AddOnForm } from "./add-on-form";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
   BILL_MODE_FILTER_OPTIONS,
@@ -92,6 +93,8 @@ export function OrderMakingWorkspace({
   const { setParams } = useUrlTable();
   // A row being edited, or "new" for the New order form.
   const [editing, setEditing] = useState<OrderMakingRow | "new" | null>(null);
+  // The SO an EC is being added to (Pump or Spare Add-On), by Order Making PO.
+  const [addFor, setAddFor] = useState<OrderMakingRow | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
   async function assign(row: OrderMakingRow, assigneeId: string) {
     setAssigning(row.id);
@@ -317,6 +320,7 @@ export function OrderMakingWorkspace({
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">PO details</th>
                 <th className="px-4 py-3">SO details</th>
+                <th className="px-4 py-3">ECs</th>
                 {mode === "po" && <th className="px-4 py-3">Assigned to</th>}
                 {canEdit && <th className="px-4 py-3" />}
               </tr>
@@ -324,7 +328,7 @@ export function OrderMakingWorkspace({
             <tbody className="divide-y divide-card-border">
               {queue.rows.length === 0 && (
                 <tr>
-                  <td colSpan={cols.length + 7} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={cols.length + 8} className="px-4 py-10 text-center text-sm text-muted">
                     {mode === "so"
                       ? "No SOs assigned to you match."
                       : missingOnly
@@ -408,6 +412,21 @@ export function OrderMakingWorkspace({
                       </span>
                     )}
                   </td>
+                  {/* The SO's ECs: Order Making PO fills the EC form (Pump or Spare Add-On). */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className="mr-2 text-sm tabular-nums text-foreground">{row.ec_count}</span>
+                    {mode === "po" && (
+                      <button
+                        type="button"
+                        onClick={() => setAddFor(row)}
+                        title={`${str(row.order_type) || "Pump"} Add-On`}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {str(row.order_type) === "Spare" ? "Spare Add-On" : "Pump Add-On"}
+                      </button>
+                    )}
+                  </td>
                   {mode === "po" && (
                     <td className="px-4 py-3 whitespace-nowrap">
                       {canAssign ? (
@@ -467,6 +486,15 @@ export function OrderMakingWorkspace({
             </tbody>
           </table>
         </div>
+        {addFor && (
+          <AddOnForm
+            orderId={addFor.id}
+            soLabel={str(addFor.so_no) || `#${addFor.sl_no}`}
+            orderType={str(addFor.order_type) || null}
+            boiFlag={addFor.boi}
+            onClose={() => setAddFor(null)}
+          />
+        )}
         <div className="border-t border-card-border px-4 py-3">
           <UrlPagination
             page={queue.page}
