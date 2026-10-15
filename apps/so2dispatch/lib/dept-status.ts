@@ -34,7 +34,7 @@ export const DEPT_FILTER_LABELS: Record<DeptFilterKey, string> = {
   quality: "Quality",
   planning: "Planning",
   assembly: "Assembly & Packing",
-  billing: "Billing & Operations",
+  billing: "Proforma Invoice",
   accounts: "Accounts",
   dispatch: "Dispatch",
 };

@@ -55,6 +55,8 @@ const SECTIONS: Section[] = [
   {
     title: "Purchase Order",
     fields: [
+      // When the PO came in. An FR has no PO.
+      { name: "po_received_date", label: "PO Receiving Date", type: "date", dependsOn: { name: "bill_mode", value: "FR", not: true } },
       {
         name: "order_type",
         label: "Order Type",
@@ -100,6 +102,14 @@ const SECTIONS: Section[] = [
       { name: "discount_percent", label: "Discount %", type: "number", min: 0 },
       { name: "gst_percent", label: "GST %", type: "number", min: 0 },
       { name: "taxable_value", label: "Taxable Value", type: "number", min: 0 },
+    ],
+  },
+  {
+    // When the EC went to Operations (Order Making SO) and to PPC (Central).
+    title: "Handover",
+    fields: [
+      { name: "ec_sent_operation_date", label: "EC Sent to Operation Date", type: "date" },
+      { name: "ec_sent_ppc_date", label: "EC Sent to PPC Date", type: "date" },
     ],
   },
   {

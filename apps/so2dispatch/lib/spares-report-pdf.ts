@@ -96,7 +96,7 @@ export async function buildSparesReportPdf(report: SparesReport): Promise<Uint8A
   y -= 13;
   const tiles = [
     { label: "SOs created", by: "Order Making", value: activity.created.length },
-    { label: "PIs raised", by: "Billing", value: activity.pis.length },
+    { label: "PIs raised", by: "Proforma Invoice", value: activity.pis.length },
     { label: "Payments confirmed", by: "Accounts", value: activity.payments.length },
     { label: "SOs made ready", by: "Planning", value: activity.readySos },
     { label: "SOs packed", by: "Assembly & Packing", value: activity.packedSos },

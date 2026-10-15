@@ -508,11 +508,12 @@ export function OrderMakingWorkspace({
  * Purchase Order details — the only ones Order Making owns. The client
  * directory fills the Client fields.
  */
-/** The form's three parts: the Client, the PO's own details, and the Sales Order details. */
+/** The form's parts: the Client, the PO's own details, the Sales Order details, and the Handover. */
 const FORM_SECTIONS: { title: string; fields: (f: OrderField) => boolean }[] = [
   { title: "Client", fields: (f) => f.group === "Client" },
   { title: "Purchase Order", fields: (f) => f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) },
   { title: "Sales Order", fields: (f) => SO_DETAIL_COLUMNS.includes(f.column) },
+  { title: "Handover", fields: (f) => f.group === "Handover" },
 ];
 
 function OrderMakingEdit({
@@ -688,8 +689,14 @@ function OrderMakingEdit({
           // quantity.
           const fields = ORDER_MAKING_EDITABLE.filter((f) => section.fields(f) && dependsOnSatisfied(f, read));
           const isSo = section.title === "Sales Order";
-          // An SO member sees the client and PO as they stand, to fill against.
-          const readOnly = mode === "so" && !isSo;
+          const isHandover = section.title === "Handover";
+          // An SO member sees the client and PO as they stand, to fill against;
+          // the Handover's first date is theirs too.
+          const readOnly = mode === "so" && !isSo && !isHandover;
+          // EC Sent to PPC Date is Central Visibility's: shown here, filled on the SO.
+          const centralFields = isHandover
+            ? ORDER_MAKING_FIELDS.filter((f) => section.fields(f) && f.centralOnly)
+            : [];
           return (
             <section
               key={section.title}
@@ -741,6 +748,15 @@ function OrderMakingEdit({
                         <span className="mt-1 block text-[11px] text-muted">0 INR on a Challan order</span>
                       )}
                     </label>
+                  ))}
+                  {centralFields.map((f) => (
+                    <div key={f.column} className="block text-sm">
+                      <span className="mb-1 block text-[13px] font-medium text-brand-label">{f.label}</span>
+                      <span className="block py-2 font-medium text-foreground">
+                        {formatDisplay(f, row?.[f.column]) || "—"}
+                      </span>
+                      <span className="block text-[11px] text-muted">Filled by Central Visibility</span>
+                    </div>
                   ))}
                 </div>
               )}

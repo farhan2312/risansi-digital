@@ -221,7 +221,7 @@ const DEPT_POPUP: Record<ReachedDept["key"], PopupKind> = {
   quality: { kind: "ec", dept: "quality" },
   planning: { kind: "ec", dept: "planning" },
   assembly: { kind: "ec", dept: "assembly" },
-  billing: { kind: "so", section: "order_billing", title: "Billing & Operations" },
+  billing: { kind: "so", section: "order_billing", title: "Proforma Invoice" },
   accounts: { kind: "so", section: "order_accounts", title: "Accounts" },
   dispatch: { kind: "so", section: "order_dispatch", title: "Dispatch" },
 };

@@ -262,6 +262,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "reps", label: "Rep(s)", type: "text", group: "Client" },
 
       // Purchase Order Details — SO Order Type is inherited by every EC.
+      // First: when the PO came in. An FR has no PO.
+      { column: "po_received_date", label: "PO Receiving Date", type: "date", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
       {
         column: "order_type",
         label: "Order Type",
@@ -328,6 +330,11 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "discount_percent", label: "Discount %", type: "number", min: 0, group: "Purchase Order" },
       { column: "gst_percent", label: "GST %", type: "number", min: 0, group: "Purchase Order" },
       { column: "taxable_value", label: "Taxable Value", type: "number", min: 0, group: "Purchase Order" },
+
+      // Handover: when the EC went to Operations (Order Making SO), and when
+      // it went to PPC (Central Visibility).
+      { column: "ec_sent_operation_date", label: "EC Sent to Operation Date", type: "date", group: "Handover" },
+      { column: "ec_sent_ppc_date", label: "EC Sent to PPC Date", type: "date", centralOnly: true, group: "Handover" },
 
       // Terms & Conditions — customer requirements + freight/packing + commercial
       // terms rolled into one section. Visible read-only to Billing.
@@ -522,7 +529,7 @@ export const ORDER_SECTIONS: OrderSection[] = [
     // Challan orders skip Operation entirely — their challan fields live
     // inside each Dispatch invoice card (see INVOICE_FIELDS).
     key: "billing",
-    title: "Billing & Operations",
+    title: "Proforma Invoice",
     table: "order_billing",
     scope: "so",
     fields: [],
@@ -734,13 +741,14 @@ export const SO_SECTIONS = ORDER_SECTIONS.filter((s) => s.scope === "so");
  * Order Making fills an SO's Client and Purchase Order details — those groups
  * of the Order details form, the same columns Central Visibility edits.
  */
-export const ORDER_MAKING_GROUPS = ["Client", "Purchase Order"];
+export const ORDER_MAKING_GROUPS = ["Client", "Purchase Order", "Handover"];
 export const ORDER_MAKING_FIELDS: OrderField[] = (
   ORDER_SECTIONS.find((s) => s.table === "orders")?.fields ?? []
 ).filter((f) => ORDER_MAKING_GROUPS.includes(f.group ?? ""));
 /** The ones Order Making types into — not the worked-out INR value or rate. */
 export const ORDER_MAKING_EDITABLE: OrderField[] = ORDER_MAKING_FIELDS.filter(
-  (f) => !f.computed && !f.readOnly
+  // Not Central's own either: EC Sent to PPC Date is Central Visibility's.
+  (f) => !f.computed && !f.readOnly && !f.centralOnly
 );
 /**
  * The Sales Order details: what an Order Making SO member fills on an SO
@@ -758,8 +766,8 @@ export const SO_DETAIL_COLUMNS = [
  */
 const SO_REQUIRED_COLUMNS = ["so_no", "so_date", "order_value", "order_currency", "total_quantity"];
 /** What Order Making SO types into. */
-export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter((f) =>
-  SO_DETAIL_COLUMNS.includes(f.column)
+export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter(
+  (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.column === "ec_sent_operation_date"
 );
 /** The Sales Order details that must be in for the SO's details to count as filled. */
 export const SO_DETAIL_FIELDS: OrderField[] = ORDER_MAKING_FIELDS.filter(

@@ -32,7 +32,7 @@ const OWNER: Record<string, string> = {
   Orders: "Central Visibility",
   "EC Items": "Central Visibility",
   Accounts: "Accounts",
-  PIs: "Billing & Operations",
+  PIs: "Proforma Invoice",
   "Payment terms": "Central Visibility",
   Invoices: "Dispatch",
   "Drawing revisions": "Drawing",

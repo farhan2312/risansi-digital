@@ -2290,6 +2290,12 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(5,2);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS taxable_value NUMERIC(14,2);
 
+-- When the PO came in, and the Handover: when the EC went to Operations
+-- (Order Making SO) and to PPC (Central Visibility). Idempotent.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS po_received_date DATE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS ec_sent_operation_date DATE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS ec_sent_ppc_date DATE;
+
 -- No separate revised dispatch date: dispatch_target_date holds the latest
 -- value, like every other target (its history is order_target_revisions).
 -- Idempotent.

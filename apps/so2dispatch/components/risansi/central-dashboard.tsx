@@ -760,7 +760,7 @@ export function CentralDashboard({
                 <th className="px-4 py-3">Sl.</th>
                 <th className="px-4 py-3">SO No.</th>
                 <th className="px-4 py-3">Client Name</th>
-                <th className="px-3 py-3">Billing</th>
+                <th className="px-3 py-3">Proforma Invoice</th>
                 <th className="px-3 py-3">Accounts</th>
                 <th className="px-3 py-3">Dispatch</th>
                 <th className="px-3 py-3 text-center normal-case">ECs</th>

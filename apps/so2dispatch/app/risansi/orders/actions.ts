@@ -2454,7 +2454,7 @@ export async function savePiAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   if (!canEditChild(user.role, "order_billing_docs")) {
-    return { ok: false, error: "Only Billing can raise PIs." };
+    return { ok: false, error: "Only Proforma Invoice can raise PIs." };
   }
   if (!UUID_RE_ACTION.test(orderId)) return { ok: false, error: "Order not found." };
   const termId = input.termId && UUID_RE_ACTION.test(input.termId) ? input.termId : null;
@@ -2496,7 +2496,7 @@ export async function linkPiAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   if (!canEditChild(user.role, "order_billing_docs")) {
-    return { ok: false, error: "Only Billing can link PIs." };
+    return { ok: false, error: "Only Proforma Invoice can link PIs." };
   }
   if (!UUID_RE_ACTION.test(orderId) || !UUID_RE_ACTION.test(piId)) return { ok: false, error: "PI not found." };
   if (termId) {

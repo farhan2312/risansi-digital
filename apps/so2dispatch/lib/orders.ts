@@ -173,6 +173,9 @@ export type NewOrderInput = {
   discount_percent?: string;
   gst_percent?: string;
   taxable_value?: string;
+  po_received_date?: string;
+  ec_sent_operation_date?: string;
+  ec_sent_ppc_date?: string;
   boi?: string;
   qc_required?: string;
   quotation_no?: string;
@@ -287,13 +290,14 @@ export async function createOrder(
           payment_terms_remarks, order_value_inr, bill_mode,
           complaint_no, complaint_date,
           clearance_status, clearance_hold_reason, clearance_remarks,
-          complaint_ec_no, file_no, discount_percent, gst_percent, taxable_value
+          complaint_ec_no, file_no, discount_percent, gst_percent, taxable_value,
+          po_received_date, ec_sent_operation_date, ec_sent_ppc_date
        ) VALUES (
           -- The next free number, under the lock above.
           (SELECT COALESCE(max(sl_no), 0) + 1 FROM orders),
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
           $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
-          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46
+          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49
        )
        RETURNING id, sl_no::int AS sl_no`,
       [
@@ -349,6 +353,10 @@ export async function createOrder(
         toNumeric(input.discount_percent),
         toNumeric(input.gst_percent),
         toNumeric(input.taxable_value),
+        // An FR has no PO.
+        input.bill_mode === "FR" ? null : nullify(input.po_received_date),
+        nullify(input.ec_sent_operation_date),
+        nullify(input.ec_sent_ppc_date),
       ]
     );
     return result.rows[0];
@@ -3681,7 +3689,11 @@ export async function listOrdersForOrderMaking(opts: {
 }): Promise<PageResult<OrderMakingRow>> {
   const f = opts.filter;
   // The PO's fields; the Sales Order details are counted on their own.
-  const own = ORDER_MAKING_FIELDS.filter((x) => !x.computed && !SO_DETAIL_COLUMNS.includes(x.column));
+  const own = ORDER_MAKING_FIELDS.filter(
+    // PO Receiving Date came later: shown and filled, but it does not make
+    // every SO before it read as missing a PO detail.
+    (x) => !x.computed && !SO_DETAIL_COLUMNS.includes(x.column) && x.group !== "Handover" && x.column !== "po_received_date"
+  );
   const missingSql = `array_remove(ARRAY[
       ${own.map((x) => `CASE WHEN (${appliesSql(x)}) AND NOT (${filledSql(x)}) THEN ${lit(x.label)} END`).join(",\n      ")}
     ]::text[], NULL)`;
