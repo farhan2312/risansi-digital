@@ -3679,6 +3679,9 @@ export type OrderMakingRow = Record<string, unknown> & {
   so_assignee_name: string | null;
   so_assigned_at: string | null;
   so_details_filled_at: string | null;
+  /** How many ECs the SO has, and its BOI flag — for Order Making's Add-On. */
+  ec_count: number;
+  boi: string | null;
 };
 
 /**
@@ -3769,7 +3772,9 @@ export async function listOrdersForOrderMaking(opts: {
             o.so_assignee_id, au.full_name AS so_assignee_name,
             to_char(o.so_assigned_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_assigned_at,
             to_char(o.so_details_filled_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_details_filled_at,
-            o.clearance_status, o.clearance_hold_reason
+            o.clearance_status, o.clearance_hold_reason,
+            (SELECT count(*)::int FROM order_items i WHERE i.order_id = o.id) AS ec_count,
+            o.boi
        FROM orders o
        LEFT JOIN users au ON au.id = o.so_assignee_id
       WHERE o.id = ANY($1::uuid[])`,
