@@ -119,11 +119,11 @@ export function canCreateOrders(role: string): boolean {
 
 /**
  * Who fills an SO's EC form (Pump or Spare Add-On) and edits or deletes its
- * ECs: an Order Making SO member, on the SOs assigned to them, and Central
- * Visibility / Admin on any.
+ * ECs: Order Making PO, Central Visibility and Admin on any SO, and an Order
+ * Making SO member on the SOs assigned to them.
  */
 export function canManageEcs(role: string): boolean {
-  return isCentral(role) || role === "order_making_so";
+  return isCentral(role) || role === "order_making" || role === "order_making_so";
 }
 
 /** Bulk Excel import of orders: Admin and Central Visibility only. */

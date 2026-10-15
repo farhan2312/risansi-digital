@@ -96,8 +96,8 @@ export function OrderMakingWorkspace({
   const [editing, setEditing] = useState<OrderMakingRow | "new" | null>(null);
   // The SO an EC is being added to (Pump or Spare Add-On), by Order Making PO.
   const [addFor, setAddFor] = useState<OrderMakingRow | null>(null);
-  // Order Making SO members (on their own SOs) and Central / Admin fill the
-  // EC form, and edit or delete ECs. Order Making PO sees them.
+  // Order Making PO, Order Making SO members (on their own SOs) and Central /
+  // Admin fill the EC form, and edit or delete ECs.
   const manageEcs = canManageEcs(role);
   // An EC being edited, and the SOs whose ECs are shown.
   const [editEc, setEditEc] = useState<{ row: OrderMakingRow; item: Record<string, unknown> } | null>(null);
