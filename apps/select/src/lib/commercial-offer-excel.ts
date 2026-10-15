@@ -6,7 +6,7 @@
 import { downloadXlsx, type XlsxCell } from "./xlsx";
 import { sheetFileStem } from "./tech-doc";
 import { BAND as OFFER_BAND, ROW_LABEL, sheetHeaderRows } from "./tech-doc-excel";
-import { OFFER_TITLE, buildOffer, fxLine, offerOutOfScope, offerScope, sheetGroup, type OfferSheet } from "./commercial-offer";
+import { OFFER_TITLE, buildOffer, offerOutOfScope, offerScope, sheetGroup, type OfferSheet } from "./commercial-offer";
 
 export function downloadOfferExcel(sheet: OfferSheet): string {
   const n = Math.max(sheet.tags.length, 1);
@@ -29,7 +29,6 @@ export function downloadOfferExcel(sheet: OfferSheet): string {
   const out = offerOutOfScope(sheet.config);
   if (scope) rows.push([{ value: `Scope of supply :- ${scope}`, colSpan: width, color: "C00000", bold: true, align: "center", wrap: true }]);
   if (out) rows.push([{ value: `Out Of Scope :- ${out}`, colSpan: width, align: "center", wrap: true }]);
-  if (sheet.fx) rows.push([{ value: fxLine(sheet.fx), colSpan: width, align: "center", bold: true }]);
 
   const filename = `${sheetFileStem("Commercial-Offer", sheet, sheet.versionLabel)}.xlsx`;
   downloadXlsx(filename, [{ name: OFFER_TITLE, columnWidths: [44, ...Array.from({ length: n }, () => 24)], rows }]);
