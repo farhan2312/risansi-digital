@@ -38,6 +38,10 @@ const NOT_A_GAP = new Set([
   "master_reason_of_delay",
   "so_remarks",
   "clearance_remarks",
+  // Order Making's hold is a decision, not a detail to fill.
+  "om_status",
+  "om_hold_reason",
+  "om_hold_remarks",
 ]);
 
 /** The fields the check covers: everything the Order details form asks for. */

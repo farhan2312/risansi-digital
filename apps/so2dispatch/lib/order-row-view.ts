@@ -61,7 +61,7 @@ export function reachedDepts(order: OrderListRow, status: SoDeptStatus | undefin
   const hasTerms = (order.term_lines ?? []).length > 0;
   const hasPi = (order.pi_docs ?? []).length > 0;
   if (!challan && status.billing.state !== "na" && (hasTerms || hasPi)) {
-    tags.push({ key: "billing", name: "Billing", cell: status.billing });
+    tags.push({ key: "billing", name: "PI", cell: status.billing });
   }
   if (status.accounts.state !== "na" && (hasPi || status.accounts.state === "done")) {
     tags.push({ key: "accounts", name: "Accounts", cell: status.accounts });

@@ -19,7 +19,7 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { BillingWorkspace } from "@/components/risansi/billing-workspace";
 
 export const metadata: Metadata = {
-  title: "Billing & Operations | Risansi",
+  title: "Proforma Invoice | Risansi",
 };
 
 export const dynamic = "force-dynamic";
@@ -74,7 +74,7 @@ export default async function BillingWorkspacePage({
         </div>
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Billing &amp; Operations
+            Proforma Invoice
           </h1>
           <p className="text-sm text-muted">
             Add one or more PIs per SO and fill their document fields (PI

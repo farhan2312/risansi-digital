@@ -326,7 +326,7 @@ function collect(orders: OrderExportRow[]) {
     },
     {
       name: "PIs",
-      about: "Proforma invoices raised by Billing & Operations, per SO.",
+      about: "Proforma invoices raised by Proforma Invoice, per SO.",
       perEc: false,
       fields: BILLING_DOC_FIELDS,
       rows: pis,

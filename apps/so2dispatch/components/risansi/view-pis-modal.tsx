@@ -56,7 +56,7 @@ export function ViewPisModal({
   }, [orderId]);
 
   const isChallan = data?.bill_type === "Challan";
-  const title = isChallan ? "Challan — filed by Billing" : "PIs — filed by Billing";
+  const title = isChallan ? "Challan — filed by Proforma Invoice" : "PIs — filed by Proforma Invoice";
   const empty = isChallan
     ? !data?.challan || !data.challan.challan_no
     : !data?.pis || data.pis.length === 0;

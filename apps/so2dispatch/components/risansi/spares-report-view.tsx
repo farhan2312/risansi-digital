@@ -333,7 +333,7 @@ export function SparesReportView({ report }: { report: SparesReport }) {
         </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Metric label="SOs created" value={activity.created.length} by="Order Making" href="#created" />
-          <Metric label="PIs raised" value={activity.pis.length} by="Billing" href="#pis" />
+          <Metric label="PIs raised" value={activity.pis.length} by="Proforma Invoice" href="#pis" />
           <Metric label="Payments confirmed" value={activity.payments.length} by="Accounts" href="#payments" />
           <Metric label="SOs made ready" value={activity.readySos} by="Planning" />
           <Metric label="SOs packed" value={activity.packedSos} by="Assembly & Packing" />

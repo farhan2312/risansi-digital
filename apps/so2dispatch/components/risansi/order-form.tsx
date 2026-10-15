@@ -55,6 +55,8 @@ const SECTIONS: Section[] = [
   {
     title: "Purchase Order",
     fields: [
+      // When the PO came in. An FR has no PO.
+      { name: "po_received_date", label: "PO Receiving Date", type: "date", dependsOn: { name: "bill_mode", value: "FR", not: true } },
       {
         name: "order_type",
         label: "Order Type",
@@ -98,8 +100,17 @@ const SECTIONS: Section[] = [
       },
       { name: "file_no", label: "File No.", type: "text" },
       { name: "discount_percent", label: "Discount %", type: "number", min: 0 },
+      { name: "packing_forwarding_percent", label: "Packing & Forwarding %", type: "number", min: 0 },
       { name: "gst_percent", label: "GST %", type: "number", min: 0 },
       { name: "taxable_value", label: "Taxable Value", type: "number", min: 0 },
+    ],
+  },
+  {
+    // When the SO went to Operations (Order Making SO) and to PPC (Central).
+    title: "Handover",
+    fields: [
+      { name: "ec_sent_operation_date", label: "SO Sent to Operation Date", type: "date" },
+      { name: "so_handover_date", label: "SO Sent to PPC Date", type: "date" },
     ],
   },
   {
@@ -158,7 +169,6 @@ const SECTIONS: Section[] = [
         label: "Delivery date As per SO",
         type: "date",
       },
-      { name: "so_handover_date", label: "SO Hand Over Date", type: "date" },
       // A replacement (FR) is not paid for: no payment terms; its remarks read REPLACEMENT.
       { name: "payment_terms", label: "Payment Terms", type: "text", dependsOn: { name: "bill_mode", value: "FR", not: true } },
       { name: "payment_terms_remarks", label: "Payment Terms Remarks", type: "text" },

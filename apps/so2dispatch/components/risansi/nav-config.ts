@@ -40,7 +40,7 @@ export const DEPARTMENT_NAV: DeptNavItem[] = [
     table: "orders",
   },
   {
-    label: "Billing & Operations",
+    label: "Proforma Invoice",
     href: "/risansi/departments/billing",
     icon: Receipt,
     table: "order_billing",

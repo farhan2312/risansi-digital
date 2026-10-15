@@ -6,7 +6,7 @@ import type { OrderTable } from "@/lib/order-schema";
 export const ROLE_LABELS = {
   admin: "Admin",
   central_visibility: "Central Visibility",
-  operations: "Billing & Operations",
+  operations: "Proforma Invoice",
   accounts: "Accounts",
   drawing: "Drawing",
   planning: "Planning",

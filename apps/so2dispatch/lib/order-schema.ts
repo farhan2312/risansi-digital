@@ -252,6 +252,25 @@ export const ORDER_SECTIONS: OrderSection[] = [
         group: "Clearance",
       },
 
+      // Order Making's own Clear / Hold, before Central's clearance: an SO
+      // Order Making holds goes to no department (lib/dept-view releasedSql).
+      { column: "om_status", label: "Order Making Status", type: "select", options: CLEARANCE_OPTIONS, defaultValue: "Clear", group: "Order Making Hold" },
+      // Typed: Order Making says why in its own words.
+      {
+        column: "om_hold_reason",
+        label: "Order Making Reason of Delay",
+        type: "text",
+        dependsOn: [{ column: "om_status", value: "Hold" }],
+        group: "Order Making Hold",
+      },
+      {
+        column: "om_hold_remarks",
+        label: "Order Making Hold Remarks",
+        type: "text",
+        dependsOn: [{ column: "om_status", value: "Hold" }],
+        group: "Order Making Hold",
+      },
+
       // Client — client_code and client_type are compulsory at creation.
       { column: "client_code", label: "Client Code", type: "text", group: "Client" },
       { column: "client_name", label: "Client Name", type: "text", group: "Client" },
@@ -262,6 +281,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "reps", label: "Rep(s)", type: "text", group: "Client" },
 
       // Purchase Order Details — SO Order Type is inherited by every EC.
+      // First: when the PO came in. An FR has no PO.
+      { column: "po_received_date", label: "PO Receiving Date", type: "date", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
       {
         column: "order_type",
         label: "Order Type",
@@ -322,12 +343,17 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "so_date", label: "Sales Order Date", type: "date", group: "Purchase Order" },
       // A Spare order is counted by value, not by a total quantity.
       { column: "total_quantity", label: "Sales Order Total Quantity", type: "int", min: 0, dependsOn: [{ column: "order_type", value: "Spare", not: true }], group: "Purchase Order" },
-      // More of the Sales Order, as typed from it. Taxable Value is entered as
-      // the SO gives it, not worked out from the value and discount.
+      // More of the Sales Order. Taxable Value is worked out as the figures
+      // are typed (see withValueRules) and can still be typed over.
       { column: "file_no", label: "File No.", type: "text", group: "Purchase Order" },
       { column: "discount_percent", label: "Discount %", type: "number", min: 0, group: "Purchase Order" },
+      { column: "packing_forwarding_percent", label: "Packing & Forwarding %", type: "number", min: 0, group: "Purchase Order" },
       { column: "gst_percent", label: "GST %", type: "number", min: 0, group: "Purchase Order" },
       { column: "taxable_value", label: "Taxable Value", type: "number", min: 0, group: "Purchase Order" },
+
+      // Handover: when the SO went to Operations (Order Making SO fills it).
+      // When it went to PPC is the SO Hand Over Date, below — Central's.
+      { column: "ec_sent_operation_date", label: "SO Sent to Operation Date", type: "date", group: "Handover" },
 
       // Terms & Conditions — customer requirements + freight/packing + commercial
       // terms rolled into one section. Visible read-only to Billing.
@@ -375,13 +401,16 @@ export const ORDER_SECTIONS: OrderSection[] = [
         type: "date",
         group: "Terms & Conditions",
       },
-      // When the SO reaches Operations. Drawing's first target is counted from
-      // it — see lib/target-rules.ts.
+      // When the SO went to PPC: the SO Hand Over Date, now under Handover.
+      // Drawing's first target is counted from it — see lib/target-rules.ts.
+      // Central Visibility's alone: not shown to Order Making. Planning sees it
+      // as a column (PLANNING_CONTEXT_FIELDS).
       {
         column: "so_handover_date",
-        label: "SO Hand Over Date",
+        label: "SO Sent to PPC Date",
         type: "date",
-        group: "Terms & Conditions",
+        centralOnly: true,
+        group: "Handover",
       },
       // The prose the PO used, kept as written. The terms the workflow acts on
       // are the lines beneath it (PaymentTermsControl), so this is never typed
@@ -522,7 +551,7 @@ export const ORDER_SECTIONS: OrderSection[] = [
     // Challan orders skip Operation entirely — their challan fields live
     // inside each Dispatch invoice card (see INVOICE_FIELDS).
     key: "billing",
-    title: "Billing & Operations",
+    title: "Proforma Invoice",
     table: "order_billing",
     scope: "so",
     fields: [],
@@ -734,13 +763,15 @@ export const SO_SECTIONS = ORDER_SECTIONS.filter((s) => s.scope === "so");
  * Order Making fills an SO's Client and Purchase Order details — those groups
  * of the Order details form, the same columns Central Visibility edits.
  */
-export const ORDER_MAKING_GROUPS = ["Client", "Purchase Order"];
+export const ORDER_MAKING_GROUPS = ["Client", "Purchase Order", "Handover", "Order Making Hold"];
 export const ORDER_MAKING_FIELDS: OrderField[] = (
   ORDER_SECTIONS.find((s) => s.table === "orders")?.fields ?? []
-).filter((f) => ORDER_MAKING_GROUPS.includes(f.group ?? ""));
+  // Central Visibility's own (SO Sent to PPC Date) is not Order Making's to see.
+).filter((f) => ORDER_MAKING_GROUPS.includes(f.group ?? "") && !f.centralOnly);
 /** The ones Order Making types into — not the worked-out INR value or rate. */
 export const ORDER_MAKING_EDITABLE: OrderField[] = ORDER_MAKING_FIELDS.filter(
-  (f) => !f.computed && !f.readOnly
+  // Not Central's own either: EC Sent to PPC Date is Central Visibility's.
+  (f) => !f.computed && !f.readOnly && !f.centralOnly
 );
 /**
  * The Sales Order details: what an Order Making SO member fills on an SO
@@ -748,7 +779,7 @@ export const ORDER_MAKING_EDITABLE: OrderField[] = ORDER_MAKING_FIELDS.filter(
  */
 export const SO_DETAIL_COLUMNS = [
   "so_no", "so_date", "order_value", "order_currency", "total_quantity",
-  "file_no", "discount_percent", "gst_percent", "taxable_value",
+  "file_no", "discount_percent", "packing_forwarding_percent", "gst_percent", "taxable_value",
 ];
 /**
  * The Sales Order details an SO must have for them to count as filled. The
@@ -758,8 +789,8 @@ export const SO_DETAIL_COLUMNS = [
  */
 const SO_REQUIRED_COLUMNS = ["so_no", "so_date", "order_value", "order_currency", "total_quantity"];
 /** What Order Making SO types into. */
-export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter((f) =>
-  SO_DETAIL_COLUMNS.includes(f.column)
+export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter(
+  (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.column === "ec_sent_operation_date"
 );
 /** The Sales Order details that must be in for the SO's details to count as filled. */
 export const SO_DETAIL_FIELDS: OrderField[] = ORDER_MAKING_FIELDS.filter(
@@ -1026,7 +1057,32 @@ export function withValueRules<T extends Record<string, unknown>>(
     next.boi = "No";
     next.qc_required = "No";
   }
+  // Taxable Value, worked out as the figures are typed: the value less the
+  // discount, plus packing & forwarding on that, plus GST on that. Typing
+  // into Taxable Value itself overrides it until one of these changes again.
+  if (TAXABLE_INPUTS.includes(column)) {
+    const taxable = taxableValueOf(next);
+    if (taxable !== null) next.taxable_value = taxable;
+  }
   return next as T;
+}
+
+const TAXABLE_INPUTS = ["order_value", "discount_percent", "packing_forwarding_percent", "gst_percent"];
+
+/** Value × (1 − Discount %) × (1 + P&F %) × (1 + GST %), to 2 places; null without a value. */
+export function taxableValueOf(v: Record<string, unknown>): string | null {
+  const num = (k: string) => {
+    const s = String(v[k] ?? "").trim();
+    return s === "" ? null : Number(s);
+  };
+  const value = num("order_value");
+  if (value === null || !Number.isFinite(value)) return null;
+  const pct = (k: string) => {
+    const n = num(k);
+    return n !== null && Number.isFinite(n) ? n / 100 : 0;
+  };
+  const t = value * (1 - pct("discount_percent")) * (1 + pct("packing_forwarding_percent")) * (1 + pct("gst_percent"));
+  return (Math.round(t * 100) / 100).toFixed(2);
 }
 
 /** Which Add-On field set an SO's order type uses. */
@@ -1422,6 +1478,8 @@ export const PLANNING_CONTEXT_FIELDS: OrderField[] = [
   { column: "boi", label: "BOI", type: "select", options: YES_NO },
   // Billing / Tax Invoice or Challan / FR — what the SO goes out on.
   { column: "bill_mode", label: "Bill Mode", type: "select", options: BILL_MODE_OPTIONS },
+  // When the SO reached PPC (Central fills it under Handover).
+  { column: "so_handover_date", label: "SO Sent to PPC Date", type: "date" },
 ];
 
 /** Coerce a raw form string to the storable value for a field type. */
