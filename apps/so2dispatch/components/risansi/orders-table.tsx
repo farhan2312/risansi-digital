@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
+import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
@@ -411,6 +412,8 @@ export function OrdersTable({
                         <div className="font-medium">{cell(order.so_no)}</div>
                         <span onClick={(e) => e.stopPropagation()}>
                           <ClearanceBadge order={order as unknown as Record<string, unknown>} readOnly={readOnly} />
+                          {/* Held by Order Making: no department has it yet. */}
+                          <OmHoldChip order={order as unknown as Record<string, unknown>} />
                         </span>
                         {order.accounts_hold_status === "Hold" && (
                           <span

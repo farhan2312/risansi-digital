@@ -115,6 +115,16 @@ export const CLEARANCE_HOLD_REASONS = opts([
   "Client amended Order Awaited",
   "Dispatch Instructions Awaited from client",
 ]);
+// Order Making's own hold, the first step: why an SO is not going on yet.
+export const OM_HOLD_REASONS = opts([
+  "Hold by Client",
+  "Client Indent pending",
+  "Client Order Awaited",
+  "Client amended Order Awaited",
+  "Technical clarification pending",
+  "Commercial clarification pending",
+  "Other",
+]);
 // FR (financial reconciliation) reason for a Challan.
 export const FR_REASON_OPTIONS = opts([
   "Wrong supply",
@@ -250,6 +260,25 @@ export const ORDER_SECTIONS: OrderSection[] = [
         type: "text",
         dependsOn: [{ column: "clearance_status", value: "Hold" }],
         group: "Clearance",
+      },
+
+      // Order Making's own Clear / Hold, before Central's clearance: an SO
+      // Order Making holds goes to no department (lib/dept-view releasedSql).
+      { column: "om_status", label: "Order Making Status", type: "select", options: CLEARANCE_OPTIONS, defaultValue: "Clear", group: "Order Making Hold" },
+      {
+        column: "om_hold_reason",
+        label: "Order Making Reason of Delay",
+        type: "select",
+        options: OM_HOLD_REASONS,
+        dependsOn: [{ column: "om_status", value: "Hold" }],
+        group: "Order Making Hold",
+      },
+      {
+        column: "om_hold_remarks",
+        label: "Order Making Hold Remarks",
+        type: "text",
+        dependsOn: [{ column: "om_status", value: "Hold" }],
+        group: "Order Making Hold",
       },
 
       // Client — client_code and client_type are compulsory at creation.
@@ -744,7 +773,7 @@ export const SO_SECTIONS = ORDER_SECTIONS.filter((s) => s.scope === "so");
  * Order Making fills an SO's Client and Purchase Order details — those groups
  * of the Order details form, the same columns Central Visibility edits.
  */
-export const ORDER_MAKING_GROUPS = ["Client", "Purchase Order", "Handover"];
+export const ORDER_MAKING_GROUPS = ["Client", "Purchase Order", "Handover", "Order Making Hold"];
 export const ORDER_MAKING_FIELDS: OrderField[] = (
   ORDER_SECTIONS.find((s) => s.table === "orders")?.fields ?? []
   // Central Visibility's own (SO Sent to PPC Date) is not Order Making's to see.

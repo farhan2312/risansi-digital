@@ -126,6 +126,10 @@ export type OrderListRow = {
   /** Central Visibility's clearance, and why a held SO is held. */
   clearance_status: string | null;
   clearance_hold_reason: string | null;
+  /** Order Making's own hold: held, the SO goes to no department. */
+  om_status?: string | null;
+  om_hold_reason?: string | null;
+  om_hold_remarks?: string | null;
   ec_count: number;
   items: ItemSummary[];
   // The Orders list page only: the rest of the holds, the payment terms with
@@ -3416,6 +3420,7 @@ export async function listOrdersPage(opts: {
             o.zone,
             o.clearance_status,
             o.clearance_hold_reason,
+            o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
             o.order_value::text AS order_value,
@@ -3540,6 +3545,7 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.zone,
             o.clearance_status,
             o.clearance_hold_reason,
+            o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
             o.order_value::text AS order_value,
@@ -3692,7 +3698,12 @@ export async function listOrdersForOrderMaking(opts: {
   const own = ORDER_MAKING_FIELDS.filter(
     // PO Receiving Date came later: shown and filled, but it does not make
     // every SO before it read as missing a PO detail.
-    (x) => !x.computed && !SO_DETAIL_COLUMNS.includes(x.column) && x.group !== "Handover" && x.column !== "po_received_date"
+    (x) =>
+      !x.computed &&
+      !SO_DETAIL_COLUMNS.includes(x.column) &&
+      x.group !== "Handover" &&
+      x.group !== "Order Making Hold" &&
+      x.column !== "po_received_date"
   );
   const missingSql = `array_remove(ARRAY[
       ${own.map((x) => `CASE WHEN (${appliesSql(x)}) AND NOT (${filledSql(x)}) THEN ${lit(x.label)} END`).join(",\n      ")}

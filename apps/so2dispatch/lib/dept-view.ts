@@ -312,9 +312,14 @@ export { isPerEcDept };
  * with BOI, Quality only those needing QC docs, Accounts only those carrying a
  * receivable. The rest work every order.
  */
-/** Central Visibility has cleared the SO: departments work on it. */
+/** Order Making has not held the SO. Held there, it goes to no department at all. */
+export function omClearSql(order = "o"): string {
+  return `COALESCE(NULLIF(${order}.om_status, ''), 'Clear') <> 'Hold'`;
+}
+
+/** Central Visibility has cleared the SO (and Order Making has not held it): departments work on it. */
 export function clearedSql(order = "o"): string {
-  return `COALESCE(NULLIF(${order}.clearance_status, ''), 'Clear') = 'Clear'`;
+  return `COALESCE(NULLIF(${order}.clearance_status, ''), 'Clear') = 'Clear' AND ${omClearSql(order)}`;
 }
 
 /**
@@ -323,7 +328,7 @@ export function clearedSql(order = "o"): string {
  * not see at all.
  */
 export function releasedSql(order = "o"): string {
-  return `COALESCE(NULLIF(${order}.clearance_status, ''), 'Clear') IN ('Clear', 'Hold')`;
+  return `COALESCE(NULLIF(${order}.clearance_status, ''), 'Clear') IN ('Clear', 'Hold') AND ${omClearSql(order)}`;
 }
 
 /**
@@ -400,6 +405,8 @@ export function roleSeesOrder(
     order_type?: unknown;
     /** Until Central Visibility clears it, no department sees the SO. */
     clearance_status?: unknown;
+    /** Held by Order Making: no department sees the SO. */
+    om_status?: unknown;
     /**
      * The types of the ECs in view — every EC on an SO page, the one EC on an
      * EC page. Drawing reaches the page while any of them is not a Spare.
@@ -418,6 +425,8 @@ export function roleSeesOrder(
   if (!view) return true;
   // Not yet cleared or held: not theirs to see.
   if (!["Clear", "Hold"].includes(String(order.clearance_status || "Clear"))) return false;
+  // Held by Order Making, the first step: not forwarded to anyone yet.
+  if (String(order.om_status || "") === "Hold") return false;
   if (view.key === "drawing") {
     const orderType = order.order_type == null ? null : String(order.order_type);
     const types = order.ec_types ?? [];

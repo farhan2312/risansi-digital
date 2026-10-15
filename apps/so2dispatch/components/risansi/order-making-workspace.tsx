@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
-import { ClearanceChip } from "./orders-table";
+import { OmHoldBadge } from "./om-hold";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
   BILL_MODE_FILTER_OPTIONS,
@@ -314,7 +314,7 @@ export function OrderMakingWorkspace({
                     {c.column === "so_no" && <th className="px-4 py-3">Chat</th>}
                   </Fragment>
                 ))}
-                <th className="px-4 py-3">Clearance</th>
+                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">PO details</th>
                 <th className="px-4 py-3">SO details</th>
                 {mode === "po" && <th className="px-4 py-3">Assigned to</th>}
@@ -367,12 +367,10 @@ export function OrderMakingWorkspace({
                       )}
                     </Fragment>
                   ))}
-                  {/* Central Visibility's call: cleared, held (and why), or still to do. */}
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <ClearanceChip
-                      status={(row.clearance_status as string | null) ?? null}
-                      reason={(row.clearance_hold_reason as string | null) ?? null}
-                    />
+                  {/* Order Making's own Clear / Hold, the first step. Central's
+                      clearance comes after and is not Order Making's to see. */}
+                  <td className="px-4 py-3">
+                    <OmHoldBadge order={row} readOnly={mode === "so"} />
                   </td>
                   <td className="px-4 py-3">
                     {row.missing.length === 0 ? (

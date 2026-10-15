@@ -2288,6 +2288,15 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS complaint_ec_no TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS file_no TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS packing_forwarding_percent NUMERIC(5,2);
+
+-- Order Making's own Clear / Hold, the first step. Held, the SO goes to no
+-- department until Order Making clears it. Idempotent.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS om_status TEXT;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_om_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_om_status_check
+    CHECK (om_status IS NULL OR om_status IN ('Clear', 'Hold'));
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS om_hold_reason TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS om_hold_remarks TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(5,2);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS taxable_value NUMERIC(14,2);
 
