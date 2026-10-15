@@ -168,6 +168,11 @@ export type NewOrderInput = {
   bill_mode?: string;
   complaint_no?: string;
   complaint_date?: string;
+  complaint_ec_no?: string;
+  file_no?: string;
+  discount_percent?: string;
+  gst_percent?: string;
+  taxable_value?: string;
   boi?: string;
   qc_required?: string;
   quotation_no?: string;
@@ -281,13 +286,14 @@ export async function createOrder(
           packing_details_required, dispatch_team_target_date, so_handover_date,
           payment_terms_remarks, order_value_inr, bill_mode,
           complaint_no, complaint_date,
-          clearance_status, clearance_hold_reason, clearance_remarks
+          clearance_status, clearance_hold_reason, clearance_remarks,
+          complaint_ec_no, file_no, discount_percent, gst_percent, taxable_value
        ) VALUES (
           -- The next free number, under the lock above.
           (SELECT COALESCE(max(sl_no), 0) + 1 FROM orders),
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
           $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
-          $37,$38,$39,$40,$41
+          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46
        )
        RETURNING id, sl_no::int AS sl_no`,
       [
@@ -337,6 +343,12 @@ export async function createOrder(
         // A reason only goes with a Hold.
         input.clearance_status === "Hold" ? nullify(input.clearance_hold_reason) : null,
         input.clearance_status === "Hold" ? nullify(input.clearance_remarks) : null,
+        // An FR's complaint EC only goes with an FR.
+        input.bill_mode === "FR" ? nullify(input.complaint_ec_no) : null,
+        nullify(input.file_no),
+        toNumeric(input.discount_percent),
+        toNumeric(input.gst_percent),
+        toNumeric(input.taxable_value),
       ]
     );
     return result.rows[0];
