@@ -3,7 +3,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
-import { OM_HOLD_REASONS } from "@/lib/order-schema";
 import { updateOrderSectionAction } from "@/app/risansi/orders/actions";
 
 type Row = Record<string, unknown>;
@@ -71,8 +70,8 @@ function OmHoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (status === "Hold" && !reason) {
-      setError("Choose the reason for the delay.");
+    if (status === "Hold" && !reason.trim()) {
+      setError("Enter the reason for the delay.");
       return;
     }
     setSaving(true);
@@ -152,14 +151,14 @@ function OmHoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
                 <span className="mb-1 block text-[13px] font-medium text-brand-label">
                   Reason of delay <span className="text-danger">*</span>
                 </span>
-                <select value={reason} onChange={(e) => setReason(e.target.value)} className={input}>
-                  <option value="">Choose a reason</option>
-                  {[...new Set([...OM_HOLD_REASONS.map((o) => o.value), ...(reason ? [reason] : [])])].map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Client order awaited"
+                  maxLength={300}
+                  className={input}
+                />
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-[13px] font-medium text-brand-label">Remarks</span>
