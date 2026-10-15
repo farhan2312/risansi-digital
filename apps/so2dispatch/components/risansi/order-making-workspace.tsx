@@ -94,7 +94,17 @@ export function OrderMakingWorkspace({
       const [from, to] = presetRange(p);
       return from === filter.from && to === filter.to;
     }) ?? null;
-  const { setParams } = useUrlTable();
+  const { setParams, pending } = useUrlTable();
+  // The Daily / All time toggle switches the moment it is clicked; the cards
+  // follow when the counts arrive (dimmed meanwhile).
+  const [requestedPeriod, setShownPeriod] = useState<"daily" | "all" | null>(null);
+  // When the page catches up (or moves by Back), the page's period rules again.
+  const [seenPeriod, setSeenPeriod] = useState(period);
+  if (seenPeriod !== period) {
+    setSeenPeriod(period);
+    setShownPeriod(null);
+  }
+  const shownPeriod = requestedPeriod ?? period;
   // A row being edited, or "new" for the New order form.
   const [editing, setEditing] = useState<OrderMakingRow | "new" | null>(null);
   // The SO an EC is being added to (Pump or Spare Add-On), by Order Making PO.
@@ -152,10 +162,14 @@ export function OrderMakingWorkspace({
               <button
                 key={p}
                 type="button"
-                onClick={() => setParams({ period: p === "daily" ? null : p })}
-                aria-pressed={period === p}
+                onClick={() => {
+                  if (p === shownPeriod) return;
+                  setShownPeriod(p);
+                  setParams({ period: p === "daily" ? null : p });
+                }}
+                aria-pressed={shownPeriod === p}
                 className={`h-8 rounded-md px-3 text-xs font-semibold transition-colors ${
-                  period === p ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
+                  shownPeriod === p ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
                 }`}
               >
                 {p === "daily" ? "Daily" : "All time"}
@@ -163,7 +177,7 @@ export function OrderMakingWorkspace({
             ))}
           </div>
           {/* The PDF is the day's assignments only. */}
-          {period === "daily" && (
+          {shownPeriod === "daily" && (
           <a
             href="/risansi/departments/order-making/assignments-pdf"
             target="_blank"
@@ -178,7 +192,12 @@ export function OrderMakingWorkspace({
       )}
       {/* Per Order Making SO member: what is assigned, still pending, filled. */}
       {summary && (
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <div
+          aria-busy={shownPeriod !== period}
+          className={`mb-4 grid grid-cols-2 gap-2 transition-opacity sm:grid-cols-3 lg:grid-cols-5 ${
+            shownPeriod !== period && pending ? "pointer-events-none opacity-50" : ""
+          }`}
+        >
           {summary.members.map((m) => {
             const on = pickedMember === m.id;
             return (
