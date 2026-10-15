@@ -162,8 +162,10 @@ export function OrderMakingWorkspace({
               </button>
             ))}
           </div>
+          {/* The PDF is the day's assignments only. */}
+          {period === "daily" && (
           <a
-            href={`/risansi/departments/order-making/assignments-pdf?period=${period}`}
+            href="/risansi/departments/order-making/assignments-pdf"
             target="_blank"
             rel="noopener"
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-3 text-xs font-semibold text-foreground hover:bg-background"
@@ -171,6 +173,7 @@ export function OrderMakingWorkspace({
             <FileText className="h-3.5 w-3.5" />
             Assignment PDF
           </a>
+          )}
         </div>
       )}
       {/* Per Order Making SO member: what is assigned, still pending, filled. */}
