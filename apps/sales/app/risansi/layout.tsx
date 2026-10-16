@@ -2,6 +2,7 @@ import { IBM_Plex_Sans, IBM_Plex_Mono, Instrument_Serif } from 'next/font/google
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
+import { mayOpen, narrowSurface } from '@/lib/risansi-role-paths';
 import { cache } from 'react';
 import { Sidebar } from '@/components/risansi';
 import type { SidebarRole } from '@/components/risansi/Sidebar';
@@ -43,10 +44,20 @@ function getInitials(name: string): string {
   return ((parts[0][0] ?? '') + (parts[parts.length - 1][0] ?? '')).toUpperCase();
 }
 
+/**
+ * The role the sidebar draws itself from.
+ *
+ * The narrow roles are passed through by name. They used to fall to the `rep`
+ * default, which is why `staff` has been shown a ten-item Sales menu since the
+ * role was added: the Sidebar's own filter keys on `role === 'staff'` and was
+ * never reached. Every link but two then redirected, which teaches somebody
+ * the portal is broken for them rather than that it is not theirs.
+ */
 function toSidebarRole(role: string): SidebarRole {
   if (role === 'sysadmin') return 'sysadmin';
   if (role === 'admin')    return 'admin';
   if (role === 'manager')  return 'manager';
+  if (narrowSurface(role)) return role as SidebarRole;
   return 'rep';
 }
 
@@ -97,12 +108,15 @@ export default async function RisansiLayout({ children }: { children: React.Reac
     if (pathname.startsWith('/risansi/admin') && !hasRole(current.role, 'admin')) {
       redirect('/risansi');
     }
-    // Staff reach Client 360 and Complaints and nothing else — an allowlist,
-    // so a screen added later fails closed rather than quietly inheriting.
-    if (current.role === 'staff') {
-      const allowed = ['/risansi/clients', '/risansi/complaints']
-        .some(p => pathname === p || pathname.startsWith(`${p}/`));
-      if (!allowed) redirect('/risansi/complaints');
+    // The narrow roles reach the screens they were created for and nothing
+    // else — an allowlist, so a screen added later fails closed rather than
+    // quietly inheriting an audience it was not designed for.
+    //
+    // Shared the module with proxy.ts rather than restating it. This copy used
+    // to name two paths and omit /print/client, so a staff member could be
+    // bounced out of the print view the proxy had just let them into.
+    if (!mayOpen(current.role, pathname)) {
+      redirect(narrowSurface(current.role)?.home ?? '/risansi');
     }
   }
 

@@ -12,7 +12,7 @@ import { fyShortLabel, formatRev, formatLastVisit, fmtUsdFromCr } from '@/lib/ri
 import { getUsdRate } from '@/lib/risansi-settings';
 import { OfferRevisionsList } from '@/components/risansi/OfferRevisionsField';
 import type { OfferRevision } from '@/lib/risansi-offer-revisions';
-import { canViewClient, getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
+import { canReadClient, canViewClient, getCurrentUser, getSession, hasRole, isRegistry } from '@/lib/risansi-auth';
 import {
   clientPrimaryRepSql, clientRepNamesSql, clientSecondaryNamesSql, clientManagerNamesSql,
 } from '@/lib/risansi-client-rep';
@@ -220,15 +220,35 @@ export default async function ClientProfilePage({
 
   if (!client) notFound();
 
-  // Visibility guard — viewer must be able to SEE this client (admin/sysadmin always can).
+  // Two questions, deliberately asked separately.
+  //
+  // `owns` is the old one: is this account mine — owner, covering rep, or the
+  // manager of one. `canRead` is whether the page opens at all, which is a
+  // wider set, because staff and the two 16 Oct roles read every client and own
+  // none. Collapsing them, as this did, had two consequences: staff saw every
+  // client in the list and 404'd on all of them, and widening the single check
+  // to fix that would have handed contact editing to a read-only role.
   const currentUser = await getCurrentUser();
-  const canViewThisClient = await canViewClient(currentUser, Number(client.id));
-  if (!canViewThisClient) notFound();
+  const owns    = await canViewClient(currentUser, Number(client.id));
+  const canRead = owns || await canReadClient(currentUser, Number(client.id));
+  if (!canRead) notFound();
 
   // Contacts may be managed by admins and by any rep/manager who can see this
-  // client. canViewClient restricts reps to clients assigned to them, so a rep
-  // can only add/edit/remove contacts for their own assigned clients.
-  const canManageContacts = canViewThisClient;
+  // client. Keyed on ownership, not on readability: a Client 360 viewer can
+  // read the page in full and change nothing on it.
+  const canManageContacts = owns;
+
+  // Raising an action here, and which of the existing ones are theirs to close.
+  //
+  // `owns` covers admins and the account's own people: everything, as before.
+  // The Action Register role owns no accounts and may raise an action against
+  // any of them, but only its own are editable — created by them or assigned
+  // to them, both counting. Everyone else reading this page without owning it
+  // is a read-only role and gets neither control.
+  //
+  // Hints for the UI. app/actions/risansi-tasks.ts enforces the same rule and
+  // is the one that decides.
+  const canAddAction = owns || isRegistry(currentUser.role);
 
   // ── Fetch supporting data in parallel ─────────────────────
 
@@ -449,6 +469,7 @@ export default async function ClientProfilePage({
              t.assigned_to_external, t.assigned_to_external_email,
              t.due_date::text AS due_date, t.priority, t.status,
              t.created_by, t.created_at::text AS created_at, t.resolution_note,
+             t.assigned_to_rep,
              (t.visit_id IS NOT NULL) AS from_visit
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assigned_to_rep
@@ -481,6 +502,24 @@ export default async function ClientProfilePage({
       return rows[0] ?? null;
     }, null),
   ]);
+
+  // Which of this client's actions are the viewer's own to close or delete.
+  //
+  // null means all of them, which is the answer for an admin and for the
+  // account's own people. Anybody else reading this page owns no accounts, so
+  // the list is their own rows: raised by them, or assigned to them. Both
+  // count — an action somebody else logged against your name is still yours.
+  //
+  // Computed here rather than above because it needs the rows.
+  const manageableActionIds: number[] | null = owns
+    ? null
+    : clientActions
+        .filter(a =>
+          (!!currentUser.email && !!a.created_by
+            && a.created_by.toLowerCase() === currentUser.email.toLowerCase())
+          || (currentUser.id != null && a.assigned_to_rep != null
+            && Number(a.assigned_to_rep) === Number(currentUser.id)))
+        .map(a => a.id);
 
   // ── Derived values ────────────────────────────────────────
 
@@ -1118,6 +1157,8 @@ export default async function ClientProfilePage({
               actions={clientActions}
               reps={reps.map(r => ({ id: Number(r.id), name: r.name, zone: r.route }))}
               ownerRepId={client.primary_rep_id ? Number(client.primary_rep_id) : null}
+              canAdd={canAddAction}
+              manageableIds={manageableActionIds}
             />
 
             {/* Visit Timeline */}

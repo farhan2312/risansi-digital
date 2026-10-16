@@ -19,6 +19,8 @@ export interface ActionItem {
   priority: string;
   status: string;                   // open | completed
   created_by: string | null;
+  /** Needed to work out whose action this is. Null for an external assignee. */
+  assigned_to_rep?: number | null;
   created_at: string | null;        // ISO
   from_visit: boolean;
 }
@@ -28,13 +30,34 @@ const PRIORITY_COLOR: Record<string, string> = { High: 'var(--neg)', Medium: 'va
 // The Client 360 "Activity Register": every action item logged for this client
 // (via a visit or added directly here), plus a New Activity button that opens
 // the same action form used in the visit report.
-export function ClientActivityRegister({ clientId, actions, reps, ownerRepId }: {
+export function ClientActivityRegister({
+  clientId, actions, reps, ownerRepId, canAdd = true, manageableIds = null,
+}: {
   clientId: number;
   actions: ActionItem[];
   reps: ActionRep[];
   /** The client's owner, preselected in the new-action form. */
   ownerRepId?: number | null;
+  /**
+   * May this person raise a new action here? False for a read-only role.
+   *
+   * Hiding the form rather than letting the server refuse it: the Client 360
+   * View role can read every account and change nothing on one, and a button
+   * that is always there and always fails is how somebody concludes the portal
+   * is broken rather than that this is not theirs to do.
+   */
+  canAdd?: boolean;
+  /**
+   * Which actions this person may complete or delete. `null` means all of them
+   * — an admin, or the rep whose account this is.
+   *
+   * A UI hint only. app/actions/risansi-tasks.ts is the authority and refuses
+   * on its own terms; this just keeps the controls off rows somebody cannot
+   * act on.
+   */
+  manageableIds?: number[] | null;
 }) {
+  const mayManage = (id: number) => manageableIds == null || manageableIds.includes(id);
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
   const [err, setErr]   = useState('');
@@ -97,7 +120,8 @@ export function ClientActivityRegister({ clientId, actions, reps, ownerRepId }: 
                   opacity: done ? 0.6 : 1,
                 }}>
                   <button
-                    type="button" onClick={() => setDone(a.id, !done, a.title, a.resolution_note ?? null)} disabled={busy === a.id}
+                    type="button" onClick={() => setDone(a.id, !done, a.title, a.resolution_note ?? null)}
+                    disabled={busy === a.id || !mayManage(a.id)}
                     aria-label={done ? 'Reopen' : 'Mark complete'} title={done ? 'Reopen' : 'Mark complete'}
                     style={{
                       flexShrink: 0, marginTop: 1, width: 16, height: 16, borderRadius: 4, cursor: 'pointer',
@@ -125,13 +149,15 @@ export function ClientActivityRegister({ clientId, actions, reps, ownerRepId }: 
                     </div>
                   </div>
 
-                  <button
-                    type="button" onClick={() => remove(a.id)} disabled={busy === a.id}
-                    aria-label="Delete action"
-                    style={{ flexShrink: 0, background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}
-                  >
-                    ×
-                  </button>
+                  {mayManage(a.id) && (
+                    <button
+                      type="button" onClick={() => remove(a.id)} disabled={busy === a.id}
+                      aria-label="Delete action"
+                      style={{ flexShrink: 0, background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -140,13 +166,15 @@ export function ClientActivityRegister({ clientId, actions, reps, ownerRepId }: 
 
         {err && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--neg)' }}>{err}</div>}
 
-        <AddActionForm
-          clientId={clientId}
-          reps={reps}
-          defaultRepId={ownerRepId ?? null}
-          onAdded={() => router.refresh()}
-          triggerLabel="+ New Activity"
-        />
+        {canAdd && (
+          <AddActionForm
+            clientId={clientId}
+            reps={reps}
+            defaultRepId={ownerRepId ?? null}
+            onAdded={() => router.refresh()}
+            triggerLabel="+ New Activity"
+          />
+        )}
       </div>
 
       {resolving && (

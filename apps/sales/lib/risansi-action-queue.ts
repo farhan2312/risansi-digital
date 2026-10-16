@@ -64,7 +64,17 @@ export interface TaskFilters {
 }
 
 export interface TaskQueryOpts {
-  isAdmin: boolean;
+  /**
+   * Unrestricted visibility: every action, not just the caller's own.
+   *
+   * Was `isAdmin`, and renamed when it stopped being only admins. The
+   * `registry` role added on 16 Oct sees every action and may edit only its
+   * own, so the two halves of what `isAdmin` used to mean here had to come
+   * apart: this flag is the visibility half. The editing half is
+   * guardCanManageTask in app/actions/risansi-tasks.ts and still answers to
+   * creator-or-assignee.
+   */
+  seesAll: boolean;
   repId: number | null;
   email: string;
   filters?: TaskFilters;
@@ -99,8 +109,9 @@ function repVisibilitySql(): string {
   )`;
 }
 
-// Compose the shared WHERE (visibility + filters) and its params. Admins see
-// every task; reps/managers see only what belongs to them. Filters are ANDed on
+// Compose the shared WHERE (visibility + filters) and its params. Admins and
+// the registry role see every task; reps/managers see only what belongs to
+// them. Filters are ANDed on
 // top. A non-empty `due` list whose labels all fail to map yields FALSE (match
 // nothing) rather than silently dropping the filter.
 function buildWhere(opts: TaskQueryOpts): { where: string; params: (string | number | string[])[] } {
@@ -109,10 +120,10 @@ function buildWhere(opts: TaskQueryOpts): { where: string; params: (string | num
 
   // $1 = repId, $2 = email — pushed whenever the visibility clause (non-admin) or
   // the "mine" scope needs them; both reference $1/$2 directly.
-  if (!opts.isAdmin || opts.mine) {
+  if (!opts.seesAll || opts.mine) {
     params.push(opts.repId ?? 0, opts.email);   // $1, $2
   }
-  if (!opts.isAdmin) conds.push(repVisibilitySql());
+  if (!opts.seesAll) conds.push(repVisibilitySql());
   if (opts.mine)     conds.push(`(t.assigned_to_rep = $1 OR t.created_by = $2)`);
 
   const f = opts.filters ?? {};

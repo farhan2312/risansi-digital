@@ -31,7 +31,10 @@ export interface UserRow {
 // Complaints and nothing else, whatever their department.
 // Exported because it is the only ladder for a role in the codebase, and the
 // reps roster sorts its Role column by it rather than by the alphabet.
-export const ROLES = ['staff', 'rep', 'manager', 'admin', 'sysadmin'];
+// Order matters twice over: it is the role dropdown's order and the sort order
+// of the Role column. The three narrow roles lead, as they do in
+// identity.app_roles — they are not rungs on the rep → admin ladder.
+export const ROLES = ['staff', 'viewer', 'registry', 'rep', 'manager', 'admin', 'sysadmin'];
 // The same list as lib/risansi-auth DEPARTMENTS, which is what the server accepts.
 const DEPARTMENTS = ['Complaint Team', 'QC', 'Quotation Team', 'Billing Team', 'Purchase'];
 

@@ -5,6 +5,7 @@
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse, type NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { mayOpen, narrowSurface } from '@/lib/risansi-role-paths';
 
 /**
  * Does this request carry a valid Risansi Digital session?
@@ -30,14 +31,6 @@ async function sharedSessionIsValid(req: NextRequest): Promise<boolean> {
 }
 
 
-/** Every page prefix a `staff` user may open. Client 360 is read-only for them
- *  (nothing in the client write path accepts a non-admin), and the print view is
- *  the same client data they can already see on screen. */
-const STAFF_PATHS = [
-  '/risansi/clients',
-  '/risansi/complaints',
-  '/print/client',
-];
 
 const proxy = withAuth(
   async function proxy(req) {
@@ -141,22 +134,27 @@ const proxy = withAuth(
       return deny(403, 'Admins only.', '/risansi');
     }
 
-    // Staff reach Client 360 and Complaints, and nothing else.
+    // The narrow roles reach the screens they were created for, and nothing
+    // else. staff → Complaints and Client 360; viewer → Client 360; registry →
+    // the Action Registry and Client 360.
     //
     // An allowlist rather than a list of things to block: a role defined by the
-    // two screens it may open should fail closed when a third screen is added,
-    // not quietly inherit it. The auth helpers already refuse staff every
-    // visit, opportunity and action record — this stops them landing on the
-    // pages at all, so they get a redirect rather than a page of zeroes.
+    // screens it may open should fail closed when a new screen is added, not
+    // quietly inherit it. The auth helpers already refuse these roles every
+    // visit and opportunity record — this stops them landing on the pages at
+    // all, so they get a redirect rather than a page of zeroes.
+    //
+    // The list itself lives in lib/risansi-role-paths.ts, because
+    // app/risansi/layout.tsx applies the same rule and is the end that
+    // actually fires for shared-session requests. It was written out twice
+    // before, and the two copies had already drifted.
     //
     // /api/** is deliberately not filtered here: those handlers authorise
-    // themselves through getCurrentUser, and the scope helpers answer FALSE for
-    // staff on everything outside these two areas.
-    if (token.role === 'staff' && !pathname.startsWith('/api/')) {
-      const allowed = STAFF_PATHS.some(
-        p => pathname === p || pathname.startsWith(`${p}/`),
-      );
-      if (!allowed) return deny(403, 'Not available for your role.', '/risansi/complaints');
+    // themselves through getCurrentUser, and clientScopeSql answers FALSE for
+    // these roles on every record outside their own area.
+    if (!pathname.startsWith('/api/') && !mayOpen(token.role as string, pathname)) {
+      const home = narrowSurface(token.role as string)?.home ?? '/risansi';
+      return deny(403, 'Not available for your role.', home);
     }
 
     return NextResponse.next();

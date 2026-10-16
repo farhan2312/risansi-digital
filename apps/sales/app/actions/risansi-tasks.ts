@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
-import { canEditVisitReport, canViewClient, getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
+import { canEditVisitReport, canViewClient, getCurrentUser, getSession, hasRole, isRegistry, readsEveryClient } from '@/lib/risansi-auth';
 import { notifyActionAssigned } from '@/lib/risansi-email';
 import { pushInApp } from '@/lib/risansi-inapp';
 
@@ -33,8 +33,27 @@ async function guardCanManageTask(taskId: number): Promise<SaveResult> {
   const t = rows[0];
   if (!t) throw new Error('Task not found.');
   if (hasRole(user.role, 'admin')) return { ok: true };
-  if (user.email && t.created_by && t.created_by.toLowerCase() === user.email.toLowerCase()) return { ok: true };
-  if (user.id != null && t.assigned_to_rep != null && Number(t.assigned_to_rep) === Number(user.id)) return { ok: true };
+
+  // Theirs: they raised it, or it is assigned to them. Both count — an action
+  // somebody else logged against your name is still yours to close.
+  const mine =
+    (!!user.email && !!t.created_by && t.created_by.toLowerCase() === user.email.toLowerCase())
+    || (user.id != null && t.assigned_to_rep != null && Number(t.assigned_to_rep) === Number(user.id));
+  if (mine) return { ok: true };
+
+  // The client limb stops here for a role that reads every client.
+  //
+  // It is what lets a rep close an action on an account they work but were not
+  // named on, which is right for somebody who owns accounts. The `registry`
+  // role owns none and reads all of them, so the same limb would quietly mean
+  // "may edit every action in the company" — the opposite of what the role is
+  // for. canViewClient is ownership-based and already answers false for them,
+  // so this is belt and braces; it is here because the next person to widen
+  // that helper should not silently hand over the entire register.
+  if (readsEveryClient(user.role)) {
+    return fail('You can only change actions you raised or that are assigned to you.');
+  }
+
   if (t.client_id != null && await canViewClient(user, Number(t.client_id))) return { ok: true };
   return fail('You do not have permission to change this task. Ask whoever raised it, or an admin.');
 }
@@ -127,7 +146,12 @@ export async function addTask({
   // fall back to the visit's own edit rule. The visit must actually belong to the
   // client being filed against, otherwise a caller could pair their own visit id
   // with somebody else's client id and write a task outside their scope.
-  let allowed = await canViewClient(user, clientId);
+  // The `registry` role reads every client and may raise an action against
+  // any of them; that is the "add" in "add and remove their own". It does not
+  // get the visit-report fallback below, having no visits, and what it raises
+  // it owns — guardCanManageTask keys on creator, so it can edit and delete
+  // exactly what it created and nothing else.
+  let allowed = isRegistry(user.role) || await canViewClient(user, clientId);
   if (!allowed && visitId) {
     const { rows } = await risansiPool.query<{ rep_id: number | null; client_id: number | null }>(
       'SELECT rep_id, client_id FROM visits WHERE id = $1', [visitId],

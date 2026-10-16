@@ -13,6 +13,11 @@ type UserMenuProps = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
+  // The three narrow roles first, in the order identity.app_roles lists them.
+  // `staff` was missing and showed as the bare word "staff" in the menu.
+  staff:    'Complaints + Client 360',
+  viewer:   'Client 360 View',
+  registry: 'Action Register',
   rep:      'Sales Representative',
   manager:  'Sales Manager',
   admin:    'Admin',

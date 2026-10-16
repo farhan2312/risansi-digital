@@ -4,7 +4,7 @@ import { Topbar, MultiSelectFilter, ActiveFilterBar } from '@/components/risansi
 import { DateRangeFilter } from '@/components/risansi/DateRangeFilter';
 import { ActionQueueRow, type QueueTask } from '@/components/risansi/ActionQueueRow';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser, getSession, hasRole } from '@/lib/risansi-auth';
+import { getCurrentUser, getSession, hasRole, isRegistry } from '@/lib/risansi-auth';
 import {
   buildTasksQuery, buildTasksCountQuery, buildTasksStatsQuery, TASK_DUE_BUCKETS,
   RESP_EXTERNAL, type TaskFilters,
@@ -32,7 +32,11 @@ export default async function ActionRegistryPage({
   const session = await getSession();
   const email = session?.user?.email ?? '';
   const user  = await getCurrentUser();
-  const isAdmin = hasRole(user.role, 'admin');
+  // Who sees every action, as opposed to only their own. Admins, and the
+  // `registry` role, which exists for exactly this board: see everything,
+  // raise anything, change only what is yours. The "change only yours" half is
+  // enforced in app/actions/risansi-tasks.ts, not here — this page is a read.
+  const seesAll = hasRole(user.role, 'admin') || isRegistry(user.role);
 
   // Resolve the user's users.id for the scoped query (sessions usually carry it).
   let repId: number | null = user.id;
@@ -81,11 +85,11 @@ export default async function ActionRegistryPage({
   // could only ever return an empty list and imply the data was missing.
   const responsibleOptions = [...respOpts, RESP_EXTERNAL];
 
-  const blocked = !isAdmin && repId == null;
+  const blocked = !seesAll && repId == null;
 
   const tasks = await q<QueueTask[]>(async () => {
     if (blocked) return [];
-    const { sql, params } = buildTasksQuery({ isAdmin, repId, email, filters, mine });
+    const { sql, params } = buildTasksQuery({ seesAll, repId, email, filters, mine });
     const { rows } = await risansiPool.query<QueueTask>(sql, params as (string | number)[]);
     return rows;
   }, []);
@@ -95,7 +99,7 @@ export default async function ActionRegistryPage({
   // uses the same < today, non-completed rule as the Overdue filter bucket.
   const counts = await q<{ open: number; overdue: number }>(async () => {
     if (blocked) return { open: 0, overdue: 0 };
-    const { sql, params } = buildTasksCountQuery({ isAdmin, repId, email, filters, mine });
+    const { sql, params } = buildTasksCountQuery({ seesAll, repId, email, filters, mine });
     const { rows } = await risansiPool.query<{ open_count: string; overdue_count: string }>(sql, params as (string | number)[]);
     return { open: Number(rows[0]?.open_count ?? 0), overdue: Number(rows[0]?.overdue_count ?? 0) };
   }, { open: 0, overdue: 0 });
@@ -108,7 +112,7 @@ export default async function ActionRegistryPage({
   const todayIst = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
   const stats = !mine && !blocked
     ? await q(async () => {
-        const { sql, params } = buildTasksStatsQuery({ isAdmin, repId, email, filters, mine });
+        const { sql, params } = buildTasksStatsQuery({ seesAll, repId, email, filters, mine });
         const { rows } = await risansiPool.query<ActionStatRow>(sql, params as (string | number)[]);
         return summariseActions(rows, todayIst);
       }, null)

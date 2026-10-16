@@ -5,9 +5,13 @@ import { usePathname } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import { UserMenu } from './UserMenu';
 
+import { narrowSurface } from '@/lib/risansi-role-paths';
+
 // ── Types ─────────────────────────────────────────────────────
 
-export type SidebarRole = 'staff' | 'rep' | 'manager' | 'exec' | 'admin' | 'sysadmin';
+export type SidebarRole =
+  | 'staff' | 'viewer' | 'registry'
+  | 'rep' | 'manager' | 'exec' | 'admin' | 'sysadmin';
 
 export interface SidebarUser {
   name: string;
@@ -131,12 +135,20 @@ export function Sidebar({ active, role, user, alerts = {}, pendingCount = 0 }: S
 
   const isAdmin    = role === 'admin' || role === 'sysadmin';
   const isSysAdmin = role === 'sysadmin';
-  // Staff get the two screens they are allowed to open. Showing them the rest
-  // greyed out or clickable-then-refused teaches people the portal is broken
-  // for them; proxy.ts enforces the same list on the way in.
-  const isStaffRole = role === 'staff';
-  const salesNav = isStaffRole
-    ? SALES_NAV.filter(i => i.id === 'client360' || i.id === 'complaints')
+  // A narrow role gets the screens it is allowed to open, in the order the
+  // allowlist names them, and no others. Showing somebody the rest greyed out
+  // or clickable-then-refused teaches them the portal is broken for them.
+  //
+  // Both gates read the same module, so the menu and the door cannot disagree:
+  // proxy.ts and app/risansi/layout.tsx enforce these exact paths on the way
+  // in. Ordered by navIds rather than by SALES_NAV, so the registry role opens
+  // on Action Registry and the viewer on Client 360 — their landing page is
+  // the first item in their own menu.
+  const surface = narrowSurface(role);
+  const salesNav = surface
+    ? surface.navIds
+        .map(id => SALES_NAV.find(i => i.id === id))
+        .filter((i): i is NavItem => i != null)
     : SALES_NAV;
 
   return (
@@ -148,8 +160,9 @@ export function Sidebar({ active, role, user, alerts = {}, pendingCount = 0 }: S
         </div>
       </div>
 
-      {/* GROUP 1: Sales — all roles. Staff see two of these. */}
-      <NavGroup label={isStaffRole ? 'Complaints' : 'Sales'}>
+      {/* GROUP 1: Sales — all roles. A narrow role sees a subset, under a
+          heading that names what they actually do here. */}
+      <NavGroup label={surface?.navLabel ?? 'Sales'}>
         {salesNav.map((item) => (
           <NavLink
             key={item.id}

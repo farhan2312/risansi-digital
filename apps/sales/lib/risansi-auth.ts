@@ -6,7 +6,9 @@ import risansiPool from '@/lib/db-risansi';
 import identityPool from '@/lib/db-identity';
 import { readSharedSession } from '@/lib/risansi-shared-session';
 
-export type RisansiRole = 'staff' | 'rep' | 'manager' | 'admin' | 'sysadmin';
+export type RisansiRole =
+  | 'staff' | 'viewer' | 'registry'      // narrow, functional, level 0
+  | 'rep' | 'manager' | 'admin' | 'sysadmin';   // the ladder
 
 /** The complaint-module functions a person can work in, as the specification
  *  names them (migration 0075). Flat: none of these outranks another, and a
@@ -31,6 +33,8 @@ export const isDepartment = (v: unknown): v is Department =>
 // rather than by outranking somebody.
 const ROLE_LEVEL: Record<RisansiRole, number> = {
   staff:    0,
+  viewer:   0,
+  registry: 0,
   rep:      1,
   manager:  2,
   admin:    3,
@@ -46,6 +50,39 @@ const ROLE_LEVEL: Record<RisansiRole, number> = {
  */
 export function isStaff(role: string | null | undefined): boolean {
   return role === 'staff';
+}
+
+/** Client 360, read-only, and nothing else. */
+export function isViewer(role: string | null | undefined): boolean {
+  return role === 'viewer';
+}
+
+/** Client 360 read-only, plus the Action Registry: every action visible, only
+ *  their own editable. */
+export function isRegistry(role: string | null | undefined): boolean {
+  return role === 'registry';
+}
+
+/**
+ * Reads every client, owns none of them.
+ *
+ * The three narrow roles share one trait: they were created so somebody could
+ * LOOK SOMETHING UP. None of them owns an account — of the thirteen admins on
+ * 16 Oct, twelve owned nothing and were carrying full admin for exactly this —
+ * so scoping them to the accounts they own would show them an empty portal and
+ * send them straight back to asking for admin.
+ *
+ * Read only. Every client write path tests `hasRole(role, 'admin')`, and level
+ * 0 fails it, so this widens what is visible without widening what is
+ * writable. The one deliberate exception is the Action Registry, which is the
+ * whole point of the `registry` role and is still narrowed to their own rows.
+ *
+ * Identity checks, never levels: level 0 is also what an unrecognised role
+ * scores, so `hasRole(role, 'staff')` is true for a signed-out caller. Nothing
+ * may gate on that.
+ */
+export function readsEveryClient(role: string | null | undefined): boolean {
+  return isStaff(role) || isViewer(role) || isRegistry(role);
 }
 
 /**
@@ -338,7 +375,13 @@ export function clientScopeSql(
   // this helper scopes VISITS, OPPORTUNITIES and ACTIONS, and for staff the
   // answer to all three is none. Refusing here rather than relying on the
   // pages: this is the predicate every record query shares.
-  if (isStaff(user.role)) return 'FALSE';
+  // Same for the two roles added on 16 Oct. A Client 360 viewer and an Action
+  // Registry user have no visits and no opportunities of their own, and this
+  // helper is what every visit/opportunity query shares. The Registry board
+  // does NOT come through here — it builds its own predicate in
+  // lib/risansi-action-queue.ts — so returning FALSE closes the records they
+  // should not see without closing the one thing they are here to do.
+  if (readsEveryClient(user.role)) return 'FALSE';
   const uid = intOrNull(user.id);
   if (uid == null) return 'FALSE';
   const base = clientRuleSql(uid, clientIdCol);
@@ -379,7 +422,12 @@ export function clientVisibilitySql(user: CurrentUser, alias = 'c'): string | nu
   // book, and a quality engineer who can only see the accounts they own — none —
   // could not open the client a complaint is about. Read-only: nothing in the
   // client write path accepts a caller who is not admin.
-  if (isStaff(user.role)) return null;
+  // And the two roles added on 16 Oct, for the same reason stated at
+  // readsEveryClient: they own nothing, so any narrower answer is an empty
+  // screen. This single predicate is what both the Client 360 list and its
+  // Excel export go through (lib/risansi-client-filter.ts), so read and export
+  // open together, which is what was asked for.
+  if (readsEveryClient(user.role)) return null;
   const uid = intOrNull(user.id);
   if (uid == null) return 'FALSE';
   return clientRuleSql(uid, `${alias}.id`);
@@ -415,6 +463,29 @@ export async function canViewClient(user: CurrentUser, clientId: number): Promis
     [clientId, uid],
   );
   return rows[0]?.ok ?? false;
+}
+
+/**
+ * May this person OPEN this client's 360 page?
+ *
+ * Deliberately a different question from canViewClient above, and splitting
+ * the two is what made the narrow roles possible.
+ *
+ * canViewClient answers "is this account yours" — owner, covering rep, or the
+ * manager of one. Three things lean on that answer and must keep leaning on
+ * it: who may edit the client's contacts, who may raise a visit, and which
+ * actions somebody may change. Widening it to let a Client 360 viewer read an
+ * account would have silently handed them all three.
+ *
+ * So reading the page gets its own gate. It also repairs `staff`, which has
+ * been broken since the role was introduced: staff pass clientVisibilitySql
+ * and so see every client in the list, then every row 404s, because the page
+ * itself gated on canViewClient and a quality engineer owns no accounts. The
+ * list worked and nothing in it opened.
+ */
+export async function canReadClient(user: CurrentUser, clientId: number): Promise<boolean> {
+  if (readsEveryClient(user.role)) return true;
+  return canViewClient(user, clientId);
 }
 
 /**
@@ -625,7 +696,14 @@ export function complaintVisibilitySql(user: CurrentUser, alias = 'cm'): string 
   // one record between departments and a stores clerk cannot be shown only the
   // complaints they happen to be named on before they are named on them. The
   // same for a rep or manager who also sits in a complaint department.
-  if (isStaff(user.role) || user.departments.length > 0) return null;
+  //
+  // The 16 Oct roles are here for a different reason: a client's complaints are
+  // part of its 360, and "everything on the page" was the requirement. This is
+  // the READ predicate only. canAccessComplaint — which gates opening and
+  // acting on a single complaint — deliberately does NOT widen, and neither
+  // role can reach /risansi/complaints at all (lib/risansi-role-paths.ts). They
+  // see a client's complaints on the client's own page and nowhere else.
+  if (readsEveryClient(user.role) || user.departments.length > 0) return null;
   const uid = intOrNull(user.id);
   if (uid == null) return 'FALSE';
   const email = (user.email ?? '').replace(/'/g, "''").toLowerCase();
