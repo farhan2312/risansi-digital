@@ -8,7 +8,7 @@ import { isCentral } from "@/lib/roles";
 import { OrderChildList } from "./order-children";
 import { SortHeader } from "./sort-header";
 import { HoldBadge } from "./hold-badge";
-import { boiInHand, dispatchRowTone } from "@/lib/dept-view";
+import { boiInHand, boiStatus, dispatchRowTone } from "@/lib/dept-view";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import type { OrderListOptions } from "@/lib/orders";
@@ -157,9 +157,9 @@ export function PurchaseWorkspace({
                 <th className="px-3 py-2 whitespace-nowrap">Purchase Target</th>
                 <th className="px-3 py-2">SO Status</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
+                <th className="px-3 py-2">EC Date</th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
-                <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">EC Status</th>
                 <th className="px-3 py-2">Bought-out items</th>
                 <th className="px-3 py-2" />
@@ -230,9 +230,9 @@ export function PurchaseWorkspace({
                             </>
                           )}
                           <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>{row.ec_no ?? "—"}</td>
+                          <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date ?? null)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.pump_type ?? "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.model_no ?? "—"}</td>
-                          <td className={`${ecCell} tabular-nums`}>{row.quantity ?? "—"}</td>
                           <td className={ecCell}>
                             <StateChip state={ecState(row)} />
                             {items.length > 0 && (
@@ -259,26 +259,16 @@ export function PurchaseWorkspace({
                                     >
                                       <span className="font-semibold text-foreground">{boiName(b)}</span>
                                       {b.boi_qty != null && <span className="text-muted">Qty {String(b.boi_qty)}</span>}
-                                      {Number(b.stock_allocated_qty ?? 0) > 0 && (
-                                        <span className="text-muted">· RIL {String(b.stock_allocated_qty)}</span>
-                                      )}
-                                      {b.vendor_order === "Yes" && (
+                                      {b.vendor_order === "Yes" ? (
                                         <span className="text-muted">
-                                          · PO {String(b.order_qty ?? "—")}
-                                          {b.received_qty != null ? ` (recd ${String(b.received_qty)})` : ""}
+                                          · Vendor {String(b.received_qty ?? 0)}/{String(b.order_qty ?? "—")} recd
                                         </span>
+                                      ) : (
+                                        Number(b.stock_allocated_qty ?? 0) > 0 && (
+                                          <span className="text-muted">· RIL {String(b.stock_allocated_qty)}</span>
+                                        )
                                       )}
-                                      <span
-                                        className={`rounded-full px-1.5 text-[10px] font-semibold ${
-                                          boiInHand(b)
-                                            ? "bg-emerald-50 text-emerald-700"
-                                            : b.vendor_status === "Partially received"
-                                              ? "bg-sky-50 text-sky-700"
-                                              : "bg-amber-50 text-amber-700"
-                                        }`}
-                                      >
-                                        {boiInHand(b) ? "In hand" : String(b.vendor_status ?? "Pending")}
-                                      </span>
+                                      <BoiTag item={b} />
                                     </button>
                                   </li>
                                 ))}
@@ -384,7 +374,7 @@ export function PurchaseWorkspace({
                             >
                               <span className="text-sm font-semibold">{boiName(b)}</span>
                               <span className={`text-[11px] ${on ? "text-primary-foreground/80" : "text-muted"}`}>
-                                {boiInHand(b) ? "In hand" : String(b.vendor_status ?? "Pending")}
+                                {boiStatus(b).label}
                               </span>
                             </button>
                           );
@@ -397,11 +387,10 @@ export function PurchaseWorkspace({
                 title="Bought-out items"
                 fields={BOI_ITEM_FIELDS}
                 rows={shown ? [shown] : []}
-                startOpen
+                plain
                 canEdit={canEdit}
                 canEditCentral={isCentral(role)}
-                canAdd={isCentral(role)}
-                bulkSave
+                canAdd={false}
                 // How the vendor's expected date has moved, newest first.
                 renderExtra={{
                   label: "Vendor expected date history",
@@ -479,4 +468,12 @@ function StateChip({ state }: { state: "open" | "closed" | "na" }) {
 function boiName(b: Row): string {
   const item = String(b.boi_item ?? "").trim();
   return item === "Others" ? String(b.boi_item_other ?? "").trim() || "Others" : item || "Item";
+}
+
+/** An item's status as a tag: vendor order's, else RIL stock's (boiStatus). */
+function BoiTag({ item }: { item: Row }) {
+  const s = boiStatus(item);
+  const cls =
+    s.tone === "done" ? "bg-emerald-50 text-emerald-700" : s.tone === "part" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700";
+  return <span className={`rounded-full px-1.5 text-[10px] font-semibold ${cls}`}>{s.label}</span>;
 }

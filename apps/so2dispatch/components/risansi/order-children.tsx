@@ -39,6 +39,7 @@ export function OrderChildList({
   headerAction,
   bulkSave = false,
   startOpen = false,
+  plain = false,
 }: {
   orderId: string;
   table: ChildTable;
@@ -82,6 +83,8 @@ export function OrderChildList({
   bulkSave?: boolean;
   /** Cards open rather than folded to a summary line. */
   startOpen?: boolean;
+  /** Cards as a plain form: always open, no folding header. */
+  plain?: boolean;
 }) {
   const router = useRouter();
   // Edits overlay keyed by row id; the row list itself always comes from props.
@@ -257,7 +260,8 @@ export function OrderChildList({
               rowIndex={rowIndex}
               groups={groupBuckets}
               renderExtra={renderExtra}
-              startOpen={startOpen}
+              startOpen={startOpen || plain}
+              plain={plain}
               canEdit={canEdit}
               fieldEditable={fieldEditable}
               busy={busyId === String(row.id)}
@@ -434,8 +438,10 @@ function RowCard({
   headerContent,
   headerAction,
   startOpen = false,
+  plain = false,
 }: {
   startOpen?: boolean;
+  plain?: boolean;
   row: Row;
   rowIndex: number;
   groups: Bucket[];
@@ -487,6 +493,7 @@ function RowCard({
     <div className="rounded-xl border border-card-border bg-surface shadow-sm">
       {/* The action sits beside the toggle rather than inside it: a button
           cannot hold another button, and clicking it must not fold the card. */}
+      {!plain && (
       <div className="flex items-center rounded-t-xl transition-colors hover:bg-background/60">
       <button
         type="button"
@@ -512,10 +519,11 @@ function RowCard({
       </button>
       {headerAction && <div className="shrink-0 pr-3">{headerAction}</div>}
       </div>
+      )}
 
       {!collapsed && (
         <>
-          <div className="space-y-5 border-t border-card-border px-4 py-4">
+          <div className={`space-y-5 px-4 py-4 ${plain ? "" : "border-t border-card-border"}`}>
         {groups
           .map((g) => ({ label: g.label, fields: g.fields.filter((f) => applies(f, row)) }))
           .filter((g) => g.fields.length > 0)

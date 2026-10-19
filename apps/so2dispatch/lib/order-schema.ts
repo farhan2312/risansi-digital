@@ -1301,8 +1301,9 @@ export const LOT_FIELDS: OrderField[] = [
 // One bought-out item. The item itself comes with the EC (item, make, qty,
 // description — Central's, read-only to Purchase). Purchase covers its qty two
 // ways: RIL stock allocated, and — for what stock cannot cover — an order
-// placed with a vendor, tracked to its receipt. An item is in hand once RIL
-// stock and what the vendor has delivered cover its qty (boiReceivedSql).
+// placed with a vendor, tracked to its receipt. With a vendor order the item
+// stands where that order does; without one, where its RIL stock does
+// (boiReceivedSql, boiStatus).
 export const BOI_ITEM_FIELDS: OrderField[] = [
   {
     column: "boi_item",
