@@ -2,8 +2,8 @@
 
 import { Fragment, useState } from "react";
 import { MessageSquare, Pencil } from "lucide-react";
-import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, type OrderField } from "@/lib/order-schema";
-import type { DeptCell, EcDeptStatus } from "@/lib/orders";
+import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, type OrderField } from "@/lib/order-schema";
+import { lotsFromRows } from "@/lib/ready-lots";
 import { formatDisplay } from "./editable-section";
 
 type Row = Record<string, unknown>;
@@ -20,29 +20,24 @@ const UNIT_COLUMNS = new Set(Object.values(WITH_UNIT));
 /** The pump's EC form, as columns: the Pump Add-On fields, a value and its unit as one. */
 const EC_COLUMNS: OrderField[] = ADD_ON_PUMP_FIELDS.filter((f) => !UNIT_COLUMNS.has(f.column));
 
-const TONE: Record<DeptCell["state"], string> = {
-  done: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
-  pending: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
-  na: "bg-gray-100 text-gray-500 dark:bg-white/5 dark:text-gray-400",
-};
-const DEPTS: { key: "drawing" | "purchase" | "quality" | "assembly"; label: string }[] = [
-  { key: "drawing", label: "Drawing" },
-  { key: "purchase", label: "Purchase" },
-  { key: "quality", label: "Quality" },
-  { key: "assembly", label: "Assembly" },
-];
+/** Lot 1 to n of the SO's readiness, as on a Spare. */
+const LOT_COLUMNS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
+
+function shortDate(v: string): string {
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 /**
- * Planning's Pump view: each SO once on the left — its context and Planning's
- * SO-wide fields, edited for the whole SO as a Spare is — and its pump ECs on
- * the right, one row each: the EC's whole form, where every other department
- * stands on it, and its own Ready Qty and status, edited per EC.
+ * Planning's Pump view: each SO once on the left — its context and its
+ * readiness lot by lot, edited for the whole SO as a Spare is — and its pump
+ * ECs on the right, one row each: the EC's whole form and its own Ready Qty
+ * and status, edited per EC.
  */
 export function PlanningPumpTable({
   rows,
   planningFields,
   soColumns,
-  statuses,
   unreadThreads,
   canEdit,
   fieldApplies,
@@ -56,8 +51,6 @@ export function PlanningPumpTable({
   planningFields: OrderField[];
   /** SO-level context Planning reads (dispatch target, LD, BOI, bill mode…). */
   soColumns: OrderField[];
-  /** Where each department stands, by EC id. */
-  statuses: Record<string, EcDeptStatus>;
   unreadThreads: Record<string, number>;
   canEdit: boolean;
   fieldApplies: (f: OrderField, row: Row) => boolean;
@@ -76,21 +69,19 @@ export function PlanningPumpTable({
     else sos.push({ orderId: id, ecs: [r] });
   }
   const applies = (f: OrderField) => pumps.some((r) => fieldApplies(f, r));
-  // Planning's SO-wide fields, and the two that are each EC's own.
-  const soPlanCols = planningFields.filter((f) => !PUMP_EC_PLANNING_COLUMNS.includes(f.column) && applies(f));
+  // Each EC's own Planning fields; the SO's readiness is its lots.
   const ecPlanCols = planningFields.filter((f) => PUMP_EC_PLANNING_COLUMNS.includes(f.column) && applies(f));
 
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
-  const soSpan = 4 + soColumns.length + soPlanCols.length + (canEdit ? 1 : 0);
+  const soSpan = 4 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
 
   return (
-    <table className="w-full min-w-[2600px] text-sm">
+    <table className="w-full min-w-[2200px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
           <th colSpan={soSpan} className="px-3 pt-2.5 pb-1">SO</th>
           <th colSpan={EC_COLUMNS.length} className={group}>EC details</th>
-          <th colSpan={DEPTS.length} className={group}>Departments</th>
           <th colSpan={ecPlanCols.length + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
         </tr>
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -101,17 +92,14 @@ export function PlanningPumpTable({
           {soColumns.map((f) => (
             <th key={f.column} className={th}>{f.label}</th>
           ))}
-          {soPlanCols.map((f) => (
-            <th key={f.column} className={th}>{f.label}</th>
+          {LOT_COLUMNS.map((n) => (
+            <th key={n} className={th}>Lot {n}</th>
           ))}
           {canEdit && <th className={th} />}
           {EC_COLUMNS.map((f, i) => (
             <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>
               {f.column === "boi" ? "BOI" : f.label}
             </th>
-          ))}
-          {DEPTS.map((d, i) => (
-            <th key={d.key} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{d.label}</th>
           ))}
           {ecPlanCols.map((f, i) => (
             <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{f.label}</th>
@@ -139,7 +127,6 @@ export function PlanningPumpTable({
               {ecs.map((r, k) => {
                 const ec = (r.ec ?? {}) as Row;
                 const id = str(r.id);
-                const st = statuses[id];
                 const last = k === ecs.length - 1;
                 const ecCell = `px-3 py-2 ${last ? "border-b border-card-border" : "border-b border-card-border/50"}`;
                 return (
@@ -174,11 +161,24 @@ export function PlanningPumpTable({
                             {formatDisplay(f, head[f.column]) || "—"}
                           </td>
                         ))}
-                        {soPlanCols.map((f) => (
-                          <td key={f.column} rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            {fieldApplies(f, head) ? formatPlanning(f, head[f.column]) : <span className="text-muted">—</span>}
-                          </td>
-                        ))}
+                        {LOT_COLUMNS.map((n) => {
+                          // The SO's lots are the same on every EC: the first's stand for all.
+                          const lot = lotsFromRows(head.ready_lots)[n - 1];
+                          return (
+                            <td key={n} rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                              {lot ? (
+                                <span>
+                                  <span className={`block font-medium ${lot.status === "Fully ready" ? "text-emerald-700" : "text-foreground"}`}>
+                                    {lot.status || "—"}
+                                  </span>
+                                  <span className="block text-[11px] text-muted">{lot.ready_date ? shortDate(lot.ready_date) : "—"}</span>
+                                </span>
+                              ) : (
+                                <span className="text-muted">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         {canEdit && (
                           <td rowSpan={span} className={soCell}>
                             <button
@@ -202,20 +202,6 @@ export function PlanningPumpTable({
                           className={`${ecCell} whitespace-nowrap ${i === 0 ? "border-l border-card-border font-semibold" : ""}`}
                         >
                           {v ? (unit && str(ec[unit]) ? `${v} ${str(ec[unit])}` : v) : <span className="text-muted">—</span>}
-                        </td>
-                      );
-                    })}
-                    {DEPTS.map((d, i) => {
-                      const cell = st?.[d.key];
-                      return (
-                        <td key={d.key} className={`${ecCell} ${i === 0 ? "border-l border-card-border" : ""}`}>
-                          {cell ? (
-                            <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONE[cell.state]}`}>
-                              {cell.label}
-                            </span>
-                          ) : (
-                            <span className="text-muted">—</span>
-                          )}
                         </td>
                       );
                     })}

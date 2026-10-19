@@ -14,8 +14,6 @@ import { listItemsForSectionPage,
   resolveFocusOrderId,
   listDeptCompletions,
   listOrderListOptions,
-  listOrderDeptStatuses,
-  type SoDeptStatus,
 } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
@@ -91,17 +89,12 @@ export default async function PlanningWorkspacePage({
   // The rows' sign-offs unread messages and drawing documents all hang off the queue's SOs and
   // not off one another, so they load together.
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
-  const [completions, unreadThreads, drawingDocCounts, deptStatuses] = await Promise.all([
+  const [completions, unreadThreads, drawingDocCounts] = await Promise.all([
     listDeptCompletions(orderIds),
     unreadByOrder(orderIds, user),
     // Drawing documents shared with Planning, per EC, for the button badge.
     countEcDocuments(queue.rows.map((o) => String(o.id)), user.role),
-    // The Pump view shows where every department stands on each EC.
-    ecKind === "pump" ? listOrderDeptStatuses(orderIds) : Promise.resolve(new Map<string, SoDeptStatus>()),
   ]);
-  const ecStatuses = Object.fromEntries(
-    [...deptStatuses.values()].flatMap((s) => s.ecs.map((e) => [e.id, e]))
-  );
 
   // The PDF report carries the queue's filter, search and sort — not which
   // page is open, nor a row being edited.
@@ -164,7 +157,6 @@ export default async function PlanningWorkspacePage({
         openOrderId={edit}
         drawingDocCounts={drawingDocCounts}
         ecKind={ecKind}
-        ecStatuses={ecStatuses}
       />
     </div>
   );

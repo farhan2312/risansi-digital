@@ -856,9 +856,7 @@ export async function updateOrderSectionAction(
         }
         const problem = lotsError(lots);
         if (problem) return { ok: false, error: problem };
-        if (lots.length > 0 && String(before?.item.item_type ?? "").trim().toLowerCase() !== "spare") {
-          return { ok: false, error: "Readiness lots are for Spare ECs only." };
-        }
+
       }
       // …and their packing dates ride along with Assembly & Packing's.
       let packing: { id: string; packed_date: string; packing_plan_date: string; packing_shift: string; pdi: string }[] | null = null;
@@ -894,6 +892,7 @@ export async function updateOrderSectionAction(
         delete allowedValues.actual_spare_status;
         delete allowedValues.planning_readiness_date;
       }
+      // (A pump's lots give its readiness date; its Actual Pump Status stays its own.)
       await updateOrderSection(id, tbl, allowedValues);
       if (lots) await saveReadyLots(id, lots, { id: user.id, role: user.role });
       if (packing) await saveLotPacking(id, packing, { id: user.id, role: user.role });

@@ -998,14 +998,20 @@ export async function saveReadyLots(
           }
         }
       }
+      // A Spare's status is its latest lot's; a pump's is its own (Actual Pump
+      // Status, per EC) — its lots give only the readiness date.
+      const spare = await c.query<{ spare: boolean }>(
+        `SELECT lower(btrim(coalesce(item_type, ''))) = 'spare' AS spare FROM order_items WHERE id = $1`,
+        [itemId]
+      );
       await c.query(
         `INSERT INTO order_planning (item_id, actual_spare_status, planning_readiness_date, readiness_date_status)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (item_id) DO UPDATE
-            SET actual_spare_status = EXCLUDED.actual_spare_status,
+            SET actual_spare_status = CASE WHEN $5 THEN EXCLUDED.actual_spare_status ELSE order_planning.actual_spare_status END,
                 planning_readiness_date = EXCLUDED.planning_readiness_date,
                 readiness_date_status = EXCLUDED.readiness_date_status`,
-        [itemId, last.status, date, dateStatus]
+        [itemId, spare.rows[0]?.spare !== false ? last.status : null, date, dateStatus, spare.rows[0]?.spare !== false]
       );
     }
   });

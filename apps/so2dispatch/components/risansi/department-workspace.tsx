@@ -3,7 +3,6 @@
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
 import { PUMP_EC_PLANNING_COLUMNS } from "@/lib/order-schema";
-import type { EcDeptStatus } from "@/lib/orders";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -191,7 +190,6 @@ export function DepartmentWorkspace({
   drawingDocCounts,
   filterOptions,
   ecKind,
-  ecStatuses = {},
 }: {
   table: OrderTable;
   fields: OrderField[];
@@ -225,13 +223,11 @@ export function DepartmentWorkspace({
   filterOptions?: OrderListOptions;
   /** Planning: Spare (the SO view) or Pump (one row per pump EC). */
   ecKind?: "spare" | "pump";
-  /** The Pump view: where each department stands, by EC id. */
-  ecStatuses?: Record<string, EcDeptStatus>;
 }) {
   const [editRow, setEditRow] = useState<Row | null>(null);
   // Planning / Assembly & Packing edit a whole SO at once: one form for all
   // its ECs.
-  const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number; fields?: OrderField[] } | null>(null);
+  const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number; fields?: OrderField[]; lotsOnly?: boolean } | null>(null);
   // Planning's Pump view: an EC's own fields only (Ready Qty, status).
   const [editEcFields, setEditEcFields] = useState<OrderField[] | null>(null);
   // Accounts: a click on an SO's row opens its Order details.
@@ -680,7 +676,6 @@ export function DepartmentWorkspace({
               rows={orders}
               planningFields={fields}
               soColumns={soContext.filter((f) => !["so_date", "order_type"].includes(f.column))}
-              statuses={ecStatuses}
               unreadThreads={unreadThreads}
               canEdit={canEdit}
               fieldApplies={fieldApplies}
@@ -690,8 +685,9 @@ export function DepartmentWorkspace({
                   orderId,
                   head: ecs[0],
                   count: ecs.length,
-                  // Everything but each EC's own Ready Qty and status — as a Spare's SO form.
-                  fields: fields.filter((f) => !PUMP_EC_PLANNING_COLUMNS.includes(f.column)),
+                  // Lot-wise readiness only, as a Spare's SO form.
+                  fields: [],
+                  lotsOnly: true,
                 })
               }
               onEditEc={(row) => {
@@ -1340,6 +1336,7 @@ export function DepartmentWorkspace({
           table={table}
           title={title}
           fields={editSo.fields ?? fields}
+          lotsOnly={editSo.lotsOnly}
           readonlyFields={readonlyFields}
           canEditCentral={canEditCentral}
           data={editSo.head}
@@ -1408,10 +1405,13 @@ function EditSectionModal({
   drawingDocCount,
   onClose,
   soTarget,
+  lotsOnly = false,
 }: {
   orderId: string;
   /** Set for an SO-level edit: the form's values go to every EC of this SO. */
   soTarget?: { orderId: string; count: number };
+  /** Planning's pump SO form: the readiness lots and nothing else, as a Spare's. */
+  lotsOnly?: boolean;
   table: OrderTable;
   title: string;
   fields: OrderField[];
@@ -1446,7 +1446,7 @@ function EditSectionModal({
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    const lotProblem = spareLots ? lotsError(lots) : spareAssembly ? packingError(packLots) : null;
+    const lotProblem = spareLots || lotsOnly ? lotsError(lots) : spareAssembly ? packingError(packLots) : null;
     if (lotProblem) {
       setError(lotProblem);
       return;
@@ -1457,7 +1457,9 @@ function EditSectionModal({
       ? (t: string, v: Record<string, string>) => updateSectionForSoAction(soTarget.orderId, t, v)
       : (t: string, v: Record<string, string>) => updateOrderSectionAction(orderId, t, v))(
       table,
-      spareLots
+      lotsOnly
+        ? { [READY_LOTS_FIELD]: JSON.stringify(lots) }
+        : spareLots
         ? {
             ...values,
             ...(lotsLead
@@ -1601,6 +1603,13 @@ function EditSectionModal({
           )}
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+            {/* A pump SO is planned lot by lot, as a Spare is: Partial or Fully
+                ready, with the date — the same lots on every EC of the SO. */}
+            {lotsOnly && (
+              <div className="sm:col-span-2">
+                <ReadyLotsEditor lots={lots} onChange={setLots} editing />
+              </div>
+            )}
             {spareAssembly && (
               <PackingLotsEditor lots={packLots} onChange={setPackLots} editing />
             )}
