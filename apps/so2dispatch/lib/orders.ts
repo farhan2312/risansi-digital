@@ -2556,6 +2556,7 @@ export async function listItemsForSection(
            table === "order_planning"
              ? // …and where Assembly & Packing has got to on it, and the SO's packing slips.
                `, d.readiness_date_status, ${ASSEMBLY_STATE_SQL("it")} AS assembly_state,
+                 to_jsonb(it) - 'order_copy_file_data' AS ec,
                  (SELECT to_char(pad.actual_packing_date, 'YYYY-MM-DD')
                     FROM order_assembly_dispatch pad WHERE pad.item_id = it.id) AS actual_packing_date,
                  COALESCE((SELECT jsonb_agg(jsonb_build_object(

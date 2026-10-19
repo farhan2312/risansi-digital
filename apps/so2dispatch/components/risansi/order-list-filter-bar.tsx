@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { EcKindToggle } from "./planning-pump-table";
 import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, X } from "lucide-react";
 import { UrlSearchInput, useUrlTable } from "./url-table";
 import { MultiSelectFilter, SingleSelectFilter, useShownValue } from "./multi-select-filter";
@@ -77,6 +78,7 @@ export function OrderListFilterBar({
   searchPlaceholder = "Search SO, client name, client code, EC…",
   hasTarget: hasTargetProp = true,
   noDispatchTarget = false,
+  kindToggle,
 }: {
   options: OrderListOptions;
   total: number;
@@ -91,6 +93,11 @@ export function OrderListFilterBar({
   hasTarget?: boolean;
   /** The orders list: no Dispatch target date filter; SO date by default. */
   noDispatchTarget?: boolean;
+  /**
+   * Planning: Spare or Pump, as a toggle at the start of the bar in place of
+   * the Type filter — the queue looks different for each.
+   */
+  kindToggle?: "spare" | "pump";
 }) {
   // Who the customer is does not change what these departments do: they work
   // to dates and statuses, so the party facets are noise on their queues.
@@ -98,12 +105,14 @@ export function OrderListFilterBar({
   const { get, setParams } = useUrlTable();
   // Dispatch no longer dates by, or chases, its dispatch target.
   const hasTarget = hasTargetProp && dept !== "dispatch";
-  const filter = parseDeptFilter(
+  const parsed = parseDeptFilter(
     (key) => get(key) || undefined,
     dept ?? null,
     { noDispatchTarget }
   );
-  const filtered = isOrderListFiltered(filter);
+  // With the toggle, the type is pinned to it (statuses read that type's words).
+  const filter = kindToggle ? { ...parsed, types: kindToggle === "pump" ? ["Pump", "ROLB"] : ["Spare"] } : parsed;
+  const filtered = isOrderListFiltered(parsed);
   const activeDept = dept ?? filter.dept;
   // "Target date" only means something once a department is settled, and only
   // for one that works to a date at all. On the order list, where the
@@ -129,6 +138,13 @@ export function OrderListFilterBar({
   return (
     <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
+        {kindToggle && (
+          <EcKindToggle
+            value={kindToggle}
+            // A status is a Pump word or a Spare word: none carries over.
+            onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : null, dstatus: null, page: null })}
+          />
+        )}
         <UrlSearchInput placeholder={searchPlaceholder} />
         {showsParty && (
         <>
@@ -160,6 +176,7 @@ export function OrderListFilterBar({
         </>
         )}
         {/* Pump or Spare — every queue, since a department's work differs by type. */}
+        {!kindToggle && (
         <MultiSelectFilter
           label="Type"
           options={options.types}
@@ -174,6 +191,7 @@ export function OrderListFilterBar({
             });
           }}
         />
+        )}
         {!dept && (
         <SingleSelectFilter
           label="Department"

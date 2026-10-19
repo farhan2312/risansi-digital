@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { PlanningPumpTable } from "./planning-pump-table";
+import type { EcDeptStatus } from "@/lib/orders";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -187,6 +189,8 @@ export function DepartmentWorkspace({
   completions = [],
   drawingDocCounts,
   filterOptions,
+  ecKind,
+  ecStatuses = {},
 }: {
   table: OrderTable;
   fields: OrderField[];
@@ -218,6 +222,10 @@ export function DepartmentWorkspace({
   // Facet values for the filter bar. Omitted, the queue keeps its plain
   // search box.
   filterOptions?: OrderListOptions;
+  /** Planning: Spare (the SO view) or Pump (one row per pump EC). */
+  ecKind?: "spare" | "pump";
+  /** The Pump view: where each department stands, by EC id. */
+  ecStatuses?: Record<string, EcDeptStatus>;
 }) {
   const [editRow, setEditRow] = useState<Row | null>(null);
   // Planning / Assembly & Packing edit a whole SO at once: one form for all
@@ -654,6 +662,7 @@ export function DepartmentWorkspace({
             dept={dept}
             hasTarget={DEPT_VIEWS[dept].hasTarget}
             searchPlaceholder={searchPlaceholder}
+            kindToggle={ecKind}
           />
         ) : (
           <UrlSearchInput placeholder={searchPlaceholder} />
@@ -663,6 +672,20 @@ export function DepartmentWorkspace({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
+          {ecKind === "pump" ? (
+            <PlanningPumpTable
+              rows={orders}
+              planningFields={fields}
+              soColumns={soContext.filter((f) => !["so_date", "order_type"].includes(f.column))}
+              statuses={ecStatuses}
+              unreadThreads={unreadThreads}
+              canEdit={canEdit}
+              fieldApplies={fieldApplies}
+              formatPlanning={formatValue}
+              onEdit={(row) => setEditRow(row)}
+              onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
+            />
+          ) : (
           <table className="w-full min-w-[900px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
@@ -1284,6 +1307,7 @@ export function DepartmentWorkspace({
                 })}
             </tbody>
           </table>
+          )}
         </div>
         <UrlPagination
           page={queue.page}
