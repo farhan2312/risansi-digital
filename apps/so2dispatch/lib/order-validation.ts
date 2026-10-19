@@ -57,7 +57,12 @@ export function cleanBoiRows(
     const other = get("boi_item_other");
     const make = get("boi_make");
     const description = get("boi_description");
-    if (!item && !other && !make && !description) continue;
+    const qtyRaw = get("boi_qty");
+    if (!item && !other && !make && !description && !qtyRaw) continue;
+    const qty = qtyRaw === "" ? null : Number(qtyRaw);
+    if (qty !== null && (!Number.isInteger(qty) || qty < 0)) {
+      return { ok: false, error: "A bought-out item's qty must be a whole number." };
+    }
     if (!item) return { ok: false, error: "Pick an item for each bought-out row." };
     if (!known.has(item)) return { ok: false, error: `"${item}" is not a bought-out item.` };
     if (item === "Others" && !other) {
@@ -67,6 +72,7 @@ export function cleanBoiRows(
       boi_item: item,
       boi_item_other: item === "Others" ? other : "",
       boi_make: make,
+      boi_qty: qty,
       boi_description: description,
     });
   }

@@ -1,5 +1,5 @@
 import { query } from "@/lib/db";
-import { assemblyDueSql, orderOpenSql, orderStatusSql, releasedSql, spareEcSql } from "@/lib/dept-view";
+import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, releasedSql, spareEcSql } from "@/lib/dept-view";
 import { isCentral, reminderDeptForRole, type ReminderDept } from "@/lib/roles";
 
 // The DB session runs in UTC, but the business operates on IST days. Deadlines
@@ -83,7 +83,7 @@ const REMINDERS_SQL = `
           AND (
             NOT EXISTS (SELECT 1 FROM order_boi_items b WHERE b.item_id = it.id)
             OR EXISTS (SELECT 1 FROM order_boi_items b
-                        WHERE b.item_id = it.id AND b.receipt_date IS NULL)
+                        WHERE b.item_id = it.id AND NOT ${boiReceivedSql("b")})
           )
      )
 

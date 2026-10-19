@@ -1361,6 +1361,20 @@ export async function updateOrderChildAction(
     }
 
     const rowAfter = await childValues(tbl, id);
+    // A vendor's expected date keeps every change, as readiness dates do.
+    if (tbl === "order_boi_items") {
+      const day = (v: unknown) =>
+        v instanceof Date ? v.toLocaleDateString("en-CA") : v == null ? "" : String(v).slice(0, 10);
+      const prev = day(rowBefore?.expected_receipt_date);
+      const next = day(rowAfter?.expected_receipt_date);
+      if (prev !== next) {
+        await query(
+          `INSERT INTO order_boi_expected_history (boi_item_id, prev_date, new_date, changed_by, changed_by_role)
+           VALUES ($1, NULLIF($2, '')::date, NULLIF($3, '')::date, $4, $5)`,
+          [id, prev, next, user.id, user.role]
+        );
+      }
+    }
     const changes = describeChanges(CHILD_FIELDS[tbl], rowBefore, rowAfter);
     // The audit line and the notices below are independent writes: the line
     // is started here and awaited once the notices are done, so the save waits

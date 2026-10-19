@@ -312,6 +312,15 @@ export { isPerEcDept };
  * with BOI, Quality only those needing QC docs, Accounts only those carrying a
  * receivable. The rest work every order.
  */
+/**
+ * A bought-out item is in hand: its Received Date is in, or RIL stock covers
+ * its whole qty. Over an order_boi_items alias.
+ */
+export function boiReceivedSql(b: string): string {
+  return `(${b}.receipt_date IS NOT NULL
+          OR (COALESCE(${b}.boi_qty, 0) > 0 AND COALESCE(${b}.stock_allocated_qty, 0) >= ${b}.boi_qty))`;
+}
+
 /** Order Making has not held the SO. Held there, it goes to no department at all. */
 export function omClearSql(order = "o"): string {
   return `COALESCE(NULLIF(${order}.om_status, ''), 'Clear') <> 'Hold'`;

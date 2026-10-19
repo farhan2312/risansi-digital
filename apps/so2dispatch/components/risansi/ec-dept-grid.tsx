@@ -43,7 +43,10 @@ function keyLine(dept: DeptKey, e: ItemDetail): string {
     case "purchase": {
       const boi = e.order_boi_items ?? [];
       if (!boi.length) return "";
-      return `${boi.filter((b) => str(b.receipt_date)).length}/${boi.length} received`;
+      // Received: its date is in, or RIL stock covers its whole qty.
+      const got = (b: Record<string, unknown>) =>
+        !!str(b.receipt_date) || (Number(b.boi_qty) > 0 && Number(b.stock_allocated_qty ?? 0) >= Number(b.boi_qty));
+      return `${boi.filter(got).length}/${boi.length} received`;
     }
     case "quality":
       return day(e.order_qc?.qc_doc_actual_date) ? `Docs ${day(e.order_qc?.qc_doc_actual_date)}` : "";

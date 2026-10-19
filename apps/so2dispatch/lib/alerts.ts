@@ -1,5 +1,5 @@
 import { query } from "@/lib/db";
-import { assemblyDueSql, orderOpenSql, orderStatusSql, spareEcSql } from "@/lib/dept-view";
+import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, spareEcSql } from "@/lib/dept-view";
 
 /** A cancelled or diverted order raises no escalation. `a.id` is the SO. */
 const OPEN_ONLY = `EXISTS (SELECT 1 FROM orders oo WHERE oo.id = a.id AND ${orderOpenSql("oo")})`;
@@ -65,7 +65,7 @@ const ALERTS_SQL = `
      AND (
        NOT EXISTS (SELECT 1 FROM order_boi_items b WHERE b.item_id = it.id)
        OR EXISTS (SELECT 1 FROM order_boi_items b
-                   WHERE b.item_id = it.id AND b.receipt_date IS NULL)
+                   WHERE b.item_id = it.id AND NOT ${boiReceivedSql("b")})
      )
 
   UNION ALL

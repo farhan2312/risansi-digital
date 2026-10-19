@@ -16,6 +16,7 @@ import {
   deptInvolvementSql,
   deptQueueSql,
   releasedSql,
+  boiReceivedSql,
   orderOpenSql,
   orderStatusSql,
   spareEcSql,
@@ -396,6 +397,7 @@ export type NewBoiItem = {
   boi_item: string;
   boi_item_other?: string;
   boi_make?: string;
+  boi_qty?: number | null;
   boi_description?: string;
 };
 
@@ -415,13 +417,14 @@ export async function createItemWithBoiItems(
     const item = await createItem(orderId, input, exec);
     for (const row of boi) {
       await exec(
-        `INSERT INTO order_boi_items (item_id, boi_item, boi_item_other, boi_make, boi_description)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO order_boi_items (item_id, boi_item, boi_item_other, boi_make, boi_qty, boi_description)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           item.id,
           nullify(row.boi_item),
           nullify(row.boi_item_other),
           nullify(row.boi_make),
+          row.boi_qty ?? null,
           nullify(row.boi_description),
         ]
       );
@@ -2242,7 +2245,7 @@ const overviewColumns = () => `it.id,
             (CASE
                WHEN COALESCE(o.boi, '') <> 'Yes' THEN true
                WHEN NOT EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id) THEN false
-               WHEN EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id AND bi.receipt_date IS NULL) THEN false
+               WHEN EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id AND NOT ${boiReceivedSql("bi")}) THEN false
                ELSE true
              END) AS purchase_done,
             (qc.qc_doc_actual_date IS NOT NULL) AS qc_submitted,
@@ -2758,7 +2761,15 @@ export async function listItemsForPurchase(
             o.ld,
             to_char(o.ld_date, 'YYYY-MM-DD') AS ld_date,
             to_char(o.purchase_target_date, 'YYYY-MM-DD') AS purchase_target_date,
-            COALESCE((SELECT jsonb_agg(to_jsonb(bi) ORDER BY bi.created_at)
+            COALESCE((SELECT jsonb_agg(to_jsonb(bi) || jsonb_build_object('expected_history', COALESCE((
+                        SELECT jsonb_agg(jsonb_build_object(
+                                 'prev', to_char(h.prev_date, 'YYYY-MM-DD'),
+                                 'next', to_char(h.new_date, 'YYYY-MM-DD'),
+                                 'by', u.full_name, 'role', h.changed_by_role,
+                                 'at', to_char(h.changed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+                                 ORDER BY h.changed_at DESC)
+                          FROM order_boi_expected_history h LEFT JOIN users u ON u.id = h.changed_by
+                         WHERE h.boi_item_id = bi.id), '[]'::jsonb)) ORDER BY bi.created_at)
                       FROM order_boi_items bi WHERE bi.item_id = it.id), '[]'::jsonb) AS boi_items
        FROM order_items it
        JOIN orders o ON o.id = it.order_id
@@ -2906,7 +2917,7 @@ const DRG_TO_OPS = `EXISTS (SELECT 1 FROM order_drawing_revisions rv
 const BOI_RECEIVED = `EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id)
                       AND NOT EXISTS (SELECT 1 FROM order_boi_items bi
                                        WHERE bi.item_id = it.id
-                                         AND bi.receipt_date IS NULL)`;
+                                         AND NOT ${boiReceivedSql("bi")})`;
 const QC_SUBMITTED = `EXISTS (SELECT 1 FROM order_qc q
                               WHERE q.item_id = it.id
                                 AND q.qc_doc_actual_date IS NOT NULL)`;
@@ -4141,7 +4152,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
             (CASE
                WHEN COALESCE(o.boi, '') <> 'Yes' THEN 'na'
                WHEN NOT EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id) THEN 'pending'
-               WHEN EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id AND bi.receipt_date IS NULL) THEN 'pending'
+               WHEN EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id AND NOT ${boiReceivedSql("bi")}) THEN 'pending'
                ELSE 'done' END) AS purchase,
             o.qc_required,
             (qc.qc_doc_actual_date IS NOT NULL) AS qc_submitted,

@@ -1298,6 +1298,12 @@ export const LOT_FIELDS: OrderField[] = [
 // A bought-out item. Central Visibility decides *what* is bought out (the item
 // and its make/description); Purchase only records what happened to it — so
 // the first three are centralOnly and Purchase sees them read-only.
+// One bought-out item. The item itself comes with the EC (item, make, qty,
+// description — Central's, read-only to Purchase). Purchase covers its qty two
+// ways: RIL stock allocated, and — for what stock cannot cover — an order
+// placed with a vendor, tracked to its receipt. An item counts as received
+// once its Received Date is in, or once stock covers its whole qty
+// (boiReceivedSql).
 export const BOI_ITEM_FIELDS: OrderField[] = [
   {
     column: "boi_item",
@@ -1305,6 +1311,7 @@ export const BOI_ITEM_FIELDS: OrderField[] = [
     type: "select",
     options: BOI_ITEM_OPTIONS,
     centralOnly: true,
+    group: "Item",
   },
   {
     column: "boi_item_other",
@@ -1312,14 +1319,37 @@ export const BOI_ITEM_FIELDS: OrderField[] = [
     type: "text",
     dependsOn: [{ column: "boi_item", value: "Others" }],
     centralOnly: true,
+    group: "Item",
   },
-  { column: "boi_make", label: "BOI Make", type: "text", centralOnly: true },
-  { column: "boi_description", label: "Description", type: "text", centralOnly: true },
-  // Filled by Purchase: when the item is expected, then when it actually
-  // arrives. Only the actual date marks the item received.
-  { column: "expected_receipt_date", label: "Expected Receipt Date", type: "date" },
-  { column: "receipt_date", label: "Actual Receipt Date", type: "date" },
-  { column: "remarks", label: "Remarks", type: "text" },
+  { column: "boi_make", label: "BOI Make", type: "text", centralOnly: true, group: "Item" },
+  { column: "boi_qty", label: "Qty", type: "int", min: 0, centralOnly: true, group: "Item" },
+  { column: "boi_description", label: "Description", type: "text", centralOnly: true, group: "Item" },
+
+  // Purchase: what RIL already has in stock for it.
+  { column: "stock_allocated_qty", label: "Allocated Qty", type: "int", min: 0, group: "In stock (RIL allocated)" },
+
+  // Purchase: what is not in stock is ordered from a vendor.
+  { column: "vendor_order", label: "Order placed to vendor", type: "select", options: YES_NO, group: "Order placed to vendor" },
+  ...(
+    [
+      { column: "vendor_code", label: "Vendor Code", type: "text" },
+      { column: "vendor_name", label: "Vendor Name", type: "text" },
+      { column: "ril_po_no", label: "RIL PO No.", type: "text" },
+      { column: "ril_po_date", label: "RIL PO Date", type: "date" },
+      { column: "vendor_so_no", label: "Vendor SO No.", type: "text" },
+      { column: "vendor_so_date", label: "Vendor SO Date", type: "date" },
+      { column: "order_qty", label: "Order Qty", type: "int", min: 0 },
+      // Every change is kept (order_boi_expected_history).
+      { column: "expected_receipt_date", label: "Vendor Expected Date", type: "date" },
+      { column: "rate_per_unit", label: "Rate per Unit", type: "number", min: 0 },
+      // Rate x Order Qty, worked out by the database.
+      { column: "total_value", label: "Total Value", type: "number", computed: true },
+      { column: "received_qty", label: "Received Qty", type: "int", min: 0 },
+      { column: "receipt_date", label: "Received Date", type: "date" },
+    ] as OrderField[]
+  ).map((f) => ({ ...f, group: "Order placed to vendor", dependsOn: [{ column: "vendor_order", value: "Yes" }] })),
+
+  { column: "remarks", label: "Remarks", type: "text", group: "Remarks" },
 ];
 
 // One drawing revision for an EC, as a chain of hand-offs, each a Yes/No plus

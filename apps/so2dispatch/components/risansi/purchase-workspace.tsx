@@ -286,6 +286,11 @@ export function PurchaseWorkspace({
                                     title="Bought-out items"
                                     fields={BOI_ITEM_FIELDS}
                                     rows={(row.boi_items ?? []) as Row[]}
+                                    // How the vendor's expected date has moved, newest first.
+                                    renderExtra={{
+                                      label: "Vendor expected date history",
+                                      render: (item) => <ExpectedHistory item={item} />,
+                                    }}
                                     canEdit={canEdit}
                                     canEditCentral={isCentral(role)}
                                     canAdd={isCentral(role)}
@@ -328,5 +333,28 @@ export function PurchaseWorkspace({
         />
       )}
     </div>
+  );
+}
+
+/** Each change to a bought-out item's Vendor Expected Date: from, to, who and when. */
+function ExpectedHistory({ item }: { item: Row }) {
+  const events = (Array.isArray(item.expected_history) ? item.expected_history : []) as Row[];
+  const day = (v: unknown) =>
+    v ? new Date(String(v)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "no date";
+  if (events.length === 0) return <p className="text-xs text-muted">No changes yet.</p>;
+  return (
+    <ol className="space-y-1 text-xs">
+      {events.map((e, i) => (
+        <li key={i} className="flex flex-wrap gap-x-2">
+          <span className="text-muted line-through">{day(e.prev)}</span>
+          <span>→</span>
+          <span className="font-semibold text-foreground">{day(e.next)}</span>
+          <span className="text-muted">
+            · {new Date(String(e.at)).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit" })}
+            {e.by ? ` · ${String(e.by)}` : ""}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }

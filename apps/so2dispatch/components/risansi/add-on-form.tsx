@@ -28,6 +28,7 @@ type BoiRow = {
   boi_item: string;
   boi_item_other: string;
   boi_make: string;
+  boi_qty: string;
   boi_description: string;
 };
 
@@ -35,6 +36,7 @@ const blankBoiRow = (): BoiRow => ({
   boi_item: "",
   boi_item_other: "",
   boi_make: "",
+  boi_qty: "",
   boi_description: "",
 });
 
@@ -308,17 +310,34 @@ export function AddOnForm({
                           </div>
                           <div>
                             <label
+                              htmlFor={`boi-qty-${i}`}
+                              className="mb-1.5 block text-[12px] font-medium text-brand-label"
+                            >
+                              Qty
+                            </label>
+                            <input
+                              id={`boi-qty-${i}`}
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={row.boi_qty}
+                              onChange={(e) => set({ boi_qty: e.target.value })}
+                              className={inputClass}
+                            />
+                          </div>
+                          <div className="sm:col-span-full">
+                            <label
                               htmlFor={`boi-desc-${i}`}
                               className="mb-1.5 block text-[12px] font-medium text-brand-label"
                             >
                               Description
                             </label>
-                            <input
+                            <textarea
                               id={`boi-desc-${i}`}
-                              type="text"
+                              rows={2}
                               value={row.boi_description}
                               onChange={(e) => set({ boi_description: e.target.value })}
-                              className={inputClass}
+                              className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
                             />
                           </div>
                           {/* Others has to say which item it actually is. */}
