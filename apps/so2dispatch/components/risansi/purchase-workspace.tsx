@@ -1,11 +1,10 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { MessageSquare, PackageSearch, X } from "lucide-react";
+import { History, MessageSquare, PackageSearch, X } from "lucide-react";
 import type { PurchaseQueueRow } from "@/lib/orders";
-import { BOI_ITEM_FIELDS } from "@/lib/order-schema";
 import { isCentral } from "@/lib/roles";
-import { OrderChildList } from "./order-children";
+import { BoiItemForm } from "./boi-item-form";
 import { SortHeader } from "./sort-header";
 import { HoldBadge } from "./hold-badge";
 import { boiInHand, boiStatus, dispatchRowTone } from "@/lib/dept-view";
@@ -74,6 +73,8 @@ export function PurchaseWorkspace({
   const [boiFor, setBoiFor] = useState<string | null>(null);
   // …and which of its items is shown (the first until another is picked).
   const [boiItem, setBoiItem] = useState<string | null>(null);
+  // A bought-out item whose Vendor Expected Date history is open.
+  const [historyFor, setHistoryFor] = useState<Row | null>(null);
   const [threadFor, setThreadFor] = useState<{
     orderId: string;
     soLabel: string;
@@ -248,6 +249,7 @@ export function PurchaseWorkspace({
                             ) : (
                               <BoiDetailTable
                                 items={items}
+                                onHistory={(b) => setHistoryFor(b)}
                                 onOpen={(b) => {
                                   setBoiFor(row.id);
                                   setBoiItem(String(b.id));
@@ -361,22 +363,17 @@ export function PurchaseWorkspace({
                         })}
                       </div>
                     )}
-              <OrderChildList
-                orderId={ec.id}
-                table="order_boi_items"
-                title="Bought-out items"
-                fields={BOI_ITEM_FIELDS}
-                rows={shown ? [shown] : []}
-                plain
-                canEdit={canEdit}
-                canEditCentral={isCentral(role)}
-                canAdd={false}
-                // How the vendor's expected date has moved, newest first.
-                renderExtra={{
-                  label: "Vendor expected date history",
-                  render: (item) => <ExpectedHistory item={item} />,
-                }}
-              />
+              {shown ? (
+                <BoiItemForm
+                  key={String(shown.id)}
+                  item={shown}
+                  ecId={ec.id}
+                  canEdit={canEdit}
+                  canEditItem={isCentral(role)}
+                />
+              ) : (
+                <p className="text-sm text-muted">No bought-out items listed on this EC.</p>
+              )}
                   </>
                 );
               })()}
@@ -384,6 +381,36 @@ export function PurchaseWorkspace({
           </div>
         );
       })()}
+
+      {historyFor && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vendor expected date history"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+          onClick={() => setHistoryFor(null)}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-t-2xl bg-surface p-5 shadow-xl sm:rounded-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-base font-semibold text-foreground">Vendor expected date history</h2>
+                <p className="text-xs text-muted">
+                  {[boiName(historyFor), historyFor.vendor_name ? String(historyFor.vendor_name) : ""].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryFor(null)}
+                aria-label="Close"
+                className="rounded-lg p-1.5 text-muted hover:bg-background hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ExpectedHistory item={historyFor} />
+          </div>
+        </div>
+      )}
 
       {threadFor && (
         <OrderThreadModal
@@ -463,7 +490,15 @@ function BoiTag({ item }: { item: Row }) {
  * RIL stock allocated, the vendor order and what has come in, and its status.
  * A row opens that item's form.
  */
-function BoiDetailTable({ items, onOpen }: { items: Row[]; onOpen: (b: Row) => void }) {
+function BoiDetailTable({
+  items,
+  onOpen,
+  onHistory,
+}: {
+  items: Row[];
+  onOpen: (b: Row) => void;
+  onHistory: (b: Row) => void;
+}) {
   const t = (v: unknown) => (v == null || String(v).trim() === "" ? "—" : String(v));
   const d = (v: unknown) => (v ? formatDate(String(v)) : "—");
   const money = (v: unknown) =>
@@ -505,7 +540,24 @@ function BoiDetailTable({ items, onOpen }: { items: Row[]; onOpen: (b: Row) => v
               <td className="whitespace-nowrap px-1.5 py-1">{t(v(b.vendor_so_no))}</td>
               <td className="whitespace-nowrap px-1.5 py-1">{d(v(b.vendor_so_date))}</td>
               <td className="px-1.5 py-1 tabular-nums">{t(v(b.order_qty))}</td>
-              <td className="whitespace-nowrap px-1.5 py-1">{d(v(b.expected_receipt_date))}</td>
+              <td className="whitespace-nowrap px-1.5 py-1">
+                {d(v(b.expected_receipt_date))}
+                {/* How the vendor's date has moved. */}
+                {vendor && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onHistory(b);
+                    }}
+                    title={`Expected date history${Array.isArray(b.expected_history) && b.expected_history.length ? ` (${b.expected_history.length} change${b.expected_history.length === 1 ? "" : "s"})` : ""}`}
+                    aria-label="Expected date history"
+                    className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-surface hover:text-primary"
+                  >
+                    <History className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </td>
               <td className="px-1.5 py-1 tabular-nums">{money(v(b.rate_per_unit))}</td>
               <td className="px-1.5 py-1 tabular-nums">{money(v(b.total_value))}</td>
               <td className="px-1.5 py-1 tabular-nums">{t(v(b.received_qty))}</td>
