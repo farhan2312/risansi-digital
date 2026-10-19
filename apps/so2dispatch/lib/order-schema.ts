@@ -1301,9 +1301,8 @@ export const LOT_FIELDS: OrderField[] = [
 // One bought-out item. The item itself comes with the EC (item, make, qty,
 // description — Central's, read-only to Purchase). Purchase covers its qty two
 // ways: RIL stock allocated, and — for what stock cannot cover — an order
-// placed with a vendor, tracked to its receipt. An item counts as received
-// once its Received Date is in, or once stock covers its whole qty
-// (boiReceivedSql).
+// placed with a vendor, tracked to its receipt. An item is in hand once RIL
+// stock and what the vendor has delivered cover its qty (boiReceivedSql).
 export const BOI_ITEM_FIELDS: OrderField[] = [
   {
     column: "boi_item",
@@ -1346,6 +1345,8 @@ export const BOI_ITEM_FIELDS: OrderField[] = [
       { column: "total_value", label: "Total Value", type: "number", computed: true },
       { column: "received_qty", label: "Received Qty", type: "int", min: 0 },
       { column: "receipt_date", label: "Received Date", type: "date" },
+      // Pending, Partially received or Fully received — from the quantities.
+      { column: "vendor_status", label: "Status", type: "text", computed: true },
     ] as OrderField[]
   ).map((f) => ({ ...f, group: "Order placed to vendor", dependsOn: [{ column: "vendor_order", value: "Yes" }] })),
 

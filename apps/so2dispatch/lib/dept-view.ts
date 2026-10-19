@@ -313,12 +313,27 @@ export { isPerEcDept };
  * receivable. The rest work every order.
  */
 /**
- * A bought-out item is in hand: its Received Date is in, or RIL stock covers
- * its whole qty. Over an order_boi_items alias.
+ * A bought-out item is in hand: RIL stock allocated and what the vendor has
+ * delivered cover its qty. Without a qty on the item, a vendor order fully
+ * received is in hand (as is a receipt dated before quantities were kept).
+ * Over an order_boi_items alias; boiInHand is the same rule in the browser.
  */
 export function boiReceivedSql(b: string): string {
-  return `(${b}.receipt_date IS NOT NULL
-          OR (COALESCE(${b}.boi_qty, 0) > 0 AND COALESCE(${b}.stock_allocated_qty, 0) >= ${b}.boi_qty))`;
+  return `(CASE WHEN COALESCE(${b}.boi_qty, 0) > 0
+               THEN COALESCE(${b}.stock_allocated_qty, 0) + COALESCE(${b}.received_qty, 0) >= ${b}.boi_qty
+               ELSE ${b}.vendor_status = 'Fully received'
+                    OR (${b}.receipt_date IS NOT NULL AND ${b}.order_qty IS NULL AND ${b}.received_qty IS NULL)
+          END)`;
+}
+
+/** The same rule as boiReceivedSql, for a row already in the browser. */
+export function boiInHand(b: Record<string, unknown>): boolean {
+  const n = (k: string) => Number(b[k] ?? 0) || 0;
+  if (n("boi_qty") > 0) return n("stock_allocated_qty") + n("received_qty") >= n("boi_qty");
+  return (
+    b.vendor_status === "Fully received" ||
+    (!!String(b.receipt_date ?? "").trim() && b.order_qty == null && b.received_qty == null)
+  );
 }
 
 /** Order Making has not held the SO. Held there, it goes to no department at all. */

@@ -38,6 +38,7 @@ export function OrderChildList({
   rowAction,
   headerAction,
   bulkSave = false,
+  startOpen = false,
 }: {
   orderId: string;
   table: ChildTable;
@@ -79,6 +80,8 @@ export function OrderChildList({
   // One Save for the whole list instead of a button per row — add every item
   // first, then commit them together (Purchase's bought-out items).
   bulkSave?: boolean;
+  /** Cards open rather than folded to a summary line. */
+  startOpen?: boolean;
 }) {
   const router = useRouter();
   // Edits overlay keyed by row id; the row list itself always comes from props.
@@ -254,6 +257,7 @@ export function OrderChildList({
               rowIndex={rowIndex}
               groups={groupBuckets}
               renderExtra={renderExtra}
+              startOpen={startOpen}
               canEdit={canEdit}
               fieldEditable={fieldEditable}
               busy={busyId === String(row.id)}
@@ -429,7 +433,9 @@ function RowCard({
   onDelete,
   headerContent,
   headerAction,
+  startOpen = false,
 }: {
+  startOpen?: boolean;
   row: Row;
   rowIndex: number;
   groups: Bucket[];
@@ -460,7 +466,7 @@ function RowCard({
   const isNew = groups.every((g) =>
     g.fields.every((f) => !valueFor(row, f.column))
   );
-  const [collapsed, setCollapsed] = useState(!isNew);
+  const [collapsed, setCollapsed] = useState(!isNew && !startOpen);
 
   // Pick a couple of leading fields for the summary line (first non-empty
   // values, skipping conditional fields that don't apply to this row).

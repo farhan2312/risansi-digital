@@ -2339,6 +2339,17 @@ CREATE TABLE IF NOT EXISTS order_boi_expected_history (
 CREATE INDEX IF NOT EXISTS order_boi_expected_history_item_idx
     ON order_boi_expected_history (boi_item_id, changed_at);
 
+-- A vendor order's status, from what has come in (migrations/so2dispatch/0009).
+ALTER TABLE order_boi_items ADD COLUMN IF NOT EXISTS vendor_status TEXT
+    GENERATED ALWAYS AS (
+      CASE
+        WHEN vendor_order IS DISTINCT FROM 'Yes' THEN NULL
+        WHEN COALESCE(order_qty, 0) > 0 AND COALESCE(received_qty, 0) >= order_qty THEN 'Fully received'
+        WHEN COALESCE(received_qty, 0) > 0 THEN 'Partially received'
+        ELSE 'Pending'
+      END
+    ) STORED;
+
 -- A pump's name plate, on the Pump Add-On. Idempotent.
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS capacity NUMERIC(14,3);
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS capacity_unit TEXT;

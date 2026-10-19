@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { boiInHand } from "@/lib/dept-view";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { DEPT_LABELS } from "@/lib/dept-completion";
 import type { DeptCell, EcDeptStatus, ItemDetail, SoDeptStatus } from "@/lib/orders";
@@ -43,10 +44,7 @@ function keyLine(dept: DeptKey, e: ItemDetail): string {
     case "purchase": {
       const boi = e.order_boi_items ?? [];
       if (!boi.length) return "";
-      // Received: its date is in, or RIL stock covers its whole qty.
-      const got = (b: Record<string, unknown>) =>
-        !!str(b.receipt_date) || (Number(b.boi_qty) > 0 && Number(b.stock_allocated_qty ?? 0) >= Number(b.boi_qty));
-      return `${boi.filter(got).length}/${boi.length} received`;
+      return `${boi.filter(boiInHand).length}/${boi.length} received`;
     }
     case "quality":
       return day(e.order_qc?.qc_doc_actual_date) ? `Docs ${day(e.order_qc?.qc_doc_actual_date)}` : "";

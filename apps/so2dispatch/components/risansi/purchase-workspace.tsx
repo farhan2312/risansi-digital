@@ -6,10 +6,9 @@ import type { PurchaseQueueRow } from "@/lib/orders";
 import { BOI_ITEM_FIELDS } from "@/lib/order-schema";
 import { isCentral } from "@/lib/roles";
 import { OrderChildList } from "./order-children";
-import { EcDrawingDocsButton } from "./drawing-docs";
 import { SortHeader } from "./sort-header";
 import { HoldBadge } from "./hold-badge";
-import { dispatchRowTone } from "@/lib/dept-view";
+import { boiInHand, dispatchRowTone } from "@/lib/dept-view";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import type { OrderListOptions } from "@/lib/orders";
@@ -33,9 +32,6 @@ function formatDate(value: string | null): string {
   });
 }
 
-function rowSearchText(o: PurchaseQueueRow): string {
-  return [o.sl_no, o.so_no, o.ec_no].filter(Boolean).join(" ");
-}
 
 export function PurchaseWorkspace({
   queue,
@@ -47,7 +43,6 @@ export function PurchaseWorkspace({
   unreadThreads = {},
   completions = [],
   filterOptions,
-  drawingDocCounts = {},
 }: {
   // One server-fetched page of SOs, with every EC of those SOs.
   queue: PageResult<PurchaseQueueRow>;
@@ -77,6 +72,8 @@ export function PurchaseWorkspace({
     : "No orders yet.";
   // The EC whose bought-out items are open in the pop-up.
   const [boiFor, setBoiFor] = useState<string | null>(null);
+  // …and which of its items is shown (the first until another is picked).
+  const [boiItem, setBoiItem] = useState<string | null>(null);
   const [threadFor, setThreadFor] = useState<{
     orderId: string;
     soLabel: string;
@@ -146,7 +143,7 @@ export function PurchaseWorkspace({
           <table className="w-full min-w-[1100px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={8} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={9} className="px-3 pt-2.5 pb-1">SO</th>
                 <th colSpan={7} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -158,19 +155,20 @@ export function PurchaseWorkspace({
                 <th className="px-3 py-2">LD</th>
                 <th className="px-3 py-2">LD Date</th>
                 <th className="px-3 py-2 whitespace-nowrap">Purchase Target</th>
+                <th className="px-3 py-2">SO Status</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
                 <th className="px-3 py-2">Qty</th>
+                <th className="px-3 py-2">EC Status</th>
                 <th className="px-3 py-2">Bought-out items</th>
-                <th className="px-3 py-2" />
                 <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={15} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={16} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -178,6 +176,9 @@ export function PurchaseWorkspace({
               {soGroups.map((g) => {
                 const span = g.ecs.length;
                 const soCell = "px-3 py-2 align-top border-b border-card-border";
+                // Closed once every EC with bought-out items has them all in hand.
+                const ecStates = g.ecs.map(ecState);
+                const soState = ecStates.every((s) => s === "na") ? "na" : ecStates.some((s) => s === "open") ? "open" : "closed";
                 return (
                   <Fragment key={g.key}>
                     {g.ecs.map((row, k) => {
@@ -223,6 +224,9 @@ export function PurchaseWorkspace({
                               <td rowSpan={span} className={soCell}>{g.head.ld ?? "—"}</td>
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.ld_date)}</td>
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.purchase_target_date)}</td>
+                              <td rowSpan={span} className={soCell}>
+                                <StateChip state={soState} />
+                              </td>
                             </>
                           )}
                           <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>{row.ec_no ?? "—"}</td>
@@ -230,35 +234,70 @@ export function PurchaseWorkspace({
                           <td className={`${ecCell} whitespace-nowrap`}>{row.model_no ?? "—"}</td>
                           <td className={`${ecCell} tabular-nums`}>{row.quantity ?? "—"}</td>
                           <td className={ecCell}>
-                            {items.length === 0 ? (
-                              <span className="text-xs text-muted">{(row.ec_boi ?? "") === "Yes" ? "None listed" : "No BOI"}</span>
-                            ) : (
-                              <span className="whitespace-nowrap text-xs">
-                                <span className="font-semibold text-foreground">{items.length}</span> item{items.length === 1 ? "" : "s"}
-                                <span className={`ml-1.5 font-semibold ${got === items.length ? "text-emerald-700" : "text-amber-700"}`}>
-                                  · {got}/{items.length} in hand
-                                </span>
+                            <StateChip state={ecState(row)} />
+                            {items.length > 0 && (
+                              <span className={`block text-[11px] font-semibold ${got === items.length ? "text-emerald-700" : "text-amber-700"}`}>
+                                {got}/{items.length} in hand
                               </span>
                             )}
                           </td>
-                          <td className={`${ecCell} whitespace-nowrap`}>
-                            <button
-                              type="button"
-                              onClick={() => setBoiFor(row.id)}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
-                            >
-                              <PackageSearch className="h-3.5 w-3.5" />
-                              BOI
-                            </button>
+                          {/* Each item and where it stands, without opening anything. */}
+                          <td className={ecCell}>
+                            {items.length === 0 ? (
+                              <span className="text-xs text-muted">{(row.ec_boi ?? "") === "Yes" ? "None listed" : "No BOI"}</span>
+                            ) : (
+                              <ul className="space-y-1">
+                                {items.map((b) => (
+                                  <li key={String(b.id)}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBoiFor(row.id);
+                                        setBoiItem(String(b.id));
+                                      }}
+                                      className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-1 py-0.5 text-left text-xs hover:bg-background"
+                                    >
+                                      <span className="font-semibold text-foreground">{boiName(b)}</span>
+                                      {b.boi_qty != null && <span className="text-muted">Qty {String(b.boi_qty)}</span>}
+                                      {Number(b.stock_allocated_qty ?? 0) > 0 && (
+                                        <span className="text-muted">· RIL {String(b.stock_allocated_qty)}</span>
+                                      )}
+                                      {b.vendor_order === "Yes" && (
+                                        <span className="text-muted">
+                                          · PO {String(b.order_qty ?? "—")}
+                                          {b.received_qty != null ? ` (recd ${String(b.received_qty)})` : ""}
+                                        </span>
+                                      )}
+                                      <span
+                                        className={`rounded-full px-1.5 text-[10px] font-semibold ${
+                                          boiInHand(b)
+                                            ? "bg-emerald-50 text-emerald-700"
+                                            : b.vendor_status === "Partially received"
+                                              ? "bg-sky-50 text-sky-700"
+                                              : "bg-amber-50 text-amber-700"
+                                        }`}
+                                      >
+                                        {boiInHand(b) ? "In hand" : String(b.vendor_status ?? "Pending")}
+                                      </span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </td>
                           <td className={`${ecCell} whitespace-nowrap`}>
                             <span className="inline-flex items-center gap-2">
-                              {/* Drawing documents shared with Purchase against this EC. */}
-                              <EcDrawingDocsButton
-                                itemId={String(row.id)}
-                                label={[row.so_no, row.ec_no].filter(Boolean).join(" · ")}
-                                count={drawingDocCounts[String(row.id)] ?? 0}
-                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBoiFor(row.id);
+                                  setBoiItem(null);
+                                }}
+                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                              >
+                                <PackageSearch className="h-3.5 w-3.5" />
+                                BOI
+                              </button>
                               <DeptCompleteCheck
                                 scopeId={String(row.id)}
                                 dept="purchase"
@@ -296,7 +335,10 @@ export function PurchaseWorkspace({
             aria-modal="true"
             aria-label={`Bought-out items of ${ec.ec_no ?? "EC"}`}
             className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
-            onClick={() => setBoiFor(null)}
+            onClick={() => {
+              setBoiFor(null);
+              setBoiItem(null);
+            }}
           >
             <div
               onClick={(e) => e.stopPropagation()}
@@ -320,12 +362,42 @@ export function PurchaseWorkspace({
                   <X className="h-4 w-4" />
                 </button>
               </div>
+              {(() => {
+                const all = (ec.boi_items ?? []) as Row[];
+                const shown = all.find((b) => String(b.id) === boiItem) ?? all[0];
+                return (
+                  <>
+                    {all.length > 0 && (
+                      <div role="tablist" aria-label="Bought-out items" className="mb-4 flex flex-wrap gap-2">
+                        {all.map((b) => {
+                          const on = shown && String(b.id) === String(shown.id);
+                          return (
+                            <button
+                              key={String(b.id)}
+                              type="button"
+                              role="tab"
+                              aria-selected={!!on}
+                              onClick={() => setBoiItem(String(b.id))}
+                              className={`inline-flex flex-col items-start rounded-lg border px-3 py-1.5 text-left transition-colors ${
+                                on ? "border-primary bg-primary text-primary-foreground" : "border-input-border text-foreground hover:bg-background"
+                              }`}
+                            >
+                              <span className="text-sm font-semibold">{boiName(b)}</span>
+                              <span className={`text-[11px] ${on ? "text-primary-foreground/80" : "text-muted"}`}>
+                                {boiInHand(b) ? "In hand" : String(b.vendor_status ?? "Pending")}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
               <OrderChildList
                 orderId={ec.id}
                 table="order_boi_items"
                 title="Bought-out items"
                 fields={BOI_ITEM_FIELDS}
-                rows={(ec.boi_items ?? []) as Row[]}
+                rows={shown ? [shown] : []}
+                startOpen
                 canEdit={canEdit}
                 canEditCentral={isCentral(role)}
                 canAdd={isCentral(role)}
@@ -336,6 +408,9 @@ export function PurchaseWorkspace({
                   render: (item) => <ExpectedHistory item={item} />,
                 }}
               />
+                  </>
+                );
+              })()}
             </div>
           </div>
         );
@@ -376,10 +451,32 @@ function ExpectedHistory({ item }: { item: Row }) {
   );
 }
 
-/** In hand: its received date is in, or RIL stock covers its whole qty (as boiReceivedSql). */
-function boiInHand(b: Row): boolean {
+/**
+ * An EC is Closed once every bought-out item it lists is in hand (RIL stock
+ * plus what the vendor delivered); Open while any is not; N/A with none.
+ */
+function ecState(row: PurchaseQueueRow): "open" | "closed" | "na" {
+  const items = (row.boi_items ?? []) as Row[];
+  if (items.length === 0) return "na";
+  return items.every(boiInHand) ? "closed" : "open";
+}
+
+function StateChip({ state }: { state: "open" | "closed" | "na" }) {
+  const cls =
+    state === "closed"
+      ? "bg-emerald-50 text-emerald-700"
+      : state === "open"
+        ? "bg-amber-50 text-amber-700"
+        : "bg-gray-100 text-gray-500";
   return (
-    !!String(b.receipt_date ?? "").trim() ||
-    (Number(b.boi_qty) > 0 && Number(b.stock_allocated_qty ?? 0) >= Number(b.boi_qty))
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
+      {state === "closed" ? "Close" : state === "open" ? "Open" : "N/A"}
+    </span>
   );
+}
+
+/** A bought-out item's name: the list's, or what Others was called. */
+function boiName(b: Row): string {
+  const item = String(b.boi_item ?? "").trim();
+  return item === "Others" ? String(b.boi_item_other ?? "").trim() || "Others" : item || "Item";
 }
