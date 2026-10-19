@@ -892,7 +892,6 @@ export async function updateOrderSectionAction(
         delete allowedValues.actual_spare_status;
         delete allowedValues.planning_readiness_date;
       }
-      // (A pump's lots give its readiness date; its Actual Pump Status stays its own.)
       await updateOrderSection(id, tbl, allowedValues);
       if (lots) await saveReadyLots(id, lots, { id: user.id, role: user.role });
       if (packing) await saveLotPacking(id, packing, { id: user.id, role: user.role });

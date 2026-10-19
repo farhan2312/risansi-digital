@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
-import { PUMP_EC_PLANNING_COLUMNS } from "@/lib/order-schema";
+import { PUMP_EC_PLANNING_COLUMNS, PUMP_SO_PLANNING_FIELDS } from "@/lib/order-schema";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -227,7 +227,7 @@ export function DepartmentWorkspace({
   const [editRow, setEditRow] = useState<Row | null>(null);
   // Planning / Assembly & Packing edit a whole SO at once: one form for all
   // its ECs.
-  const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number; fields?: OrderField[]; lotsOnly?: boolean } | null>(null);
+  const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number; fields?: OrderField[]; spareLike?: boolean } | null>(null);
   // Planning's Pump view: an EC's own fields only (Ready Qty, status).
   const [editEcFields, setEditEcFields] = useState<OrderField[] | null>(null);
   // Accounts: a click on an SO's row opens its Order details.
@@ -685,9 +685,9 @@ export function DepartmentWorkspace({
                   orderId,
                   head: ecs[0],
                   count: ecs.length,
-                  // Lot-wise readiness only, as a Spare's SO form.
-                  fields: [],
-                  lotsOnly: true,
+                  // The Spare SO form: status, readiness date, remarks; lots once ready.
+                  fields: PUMP_SO_PLANNING_FIELDS,
+                  spareLike: true,
                 })
               }
               onEditEc={(row) => {
@@ -1336,7 +1336,7 @@ export function DepartmentWorkspace({
           table={table}
           title={title}
           fields={editSo.fields ?? fields}
-          lotsOnly={editSo.lotsOnly}
+          spareLike={editSo.spareLike}
           readonlyFields={readonlyFields}
           canEditCentral={canEditCentral}
           data={editSo.head}
@@ -1405,13 +1405,13 @@ function EditSectionModal({
   drawingDocCount,
   onClose,
   soTarget,
-  lotsOnly = false,
+  spareLike = false,
 }: {
   orderId: string;
   /** Set for an SO-level edit: the form's values go to every EC of this SO. */
   soTarget?: { orderId: string; count: number };
-  /** Planning's pump SO form: the readiness lots and nothing else, as a Spare's. */
-  lotsOnly?: boolean;
+  /** Planning's pump SO form: planned as a Spare is — status, date, remarks and lots. */
+  spareLike?: boolean;
   table: OrderTable;
   title: string;
   fields: OrderField[];
@@ -1436,7 +1436,7 @@ function EditSectionModal({
   // A Spare's readiness lots live in Planning's form; once there is one, the
   // status and readiness date are the latest lot's.
   const spareLots =
-    table === "order_planning" && toInput(data.item_type).trim().toLowerCase() === "spare";
+    table === "order_planning" && (spareLike || toInput(data.item_type).trim().toLowerCase() === "spare");
   const [lots, setLots] = useState<ReadyLot[]>(() => lotsFromRows(data.ready_lots));
   const lotsLead = spareLots ? lotsSummary(lots) : null;
   // …and Assembly & Packing records when each lot was packed.
@@ -1446,7 +1446,7 @@ function EditSectionModal({
 
   async function save(e: FormEvent) {
     e.preventDefault();
-    const lotProblem = spareLots || lotsOnly ? lotsError(lots) : spareAssembly ? packingError(packLots) : null;
+    const lotProblem = spareLots ? lotsError(lots) : spareAssembly ? packingError(packLots) : null;
     if (lotProblem) {
       setError(lotProblem);
       return;
@@ -1457,13 +1457,16 @@ function EditSectionModal({
       ? (t: string, v: Record<string, string>) => updateSectionForSoAction(soTarget.orderId, t, v)
       : (t: string, v: Record<string, string>) => updateOrderSectionAction(orderId, t, v))(
       table,
-      lotsOnly
-        ? { [READY_LOTS_FIELD]: JSON.stringify(lots) }
-        : spareLots
+      spareLots
         ? {
             ...values,
             ...(lotsLead
               ? { actual_spare_status: lotsLead.status, planning_readiness_date: lotsLead.date }
+              : {}),
+            // A pump SO still Date awaited or In plan: every EC stands there too.
+            // Once Partial or Fully ready, each EC's own status is Planning's to set.
+            ...(spareLike && !lotsLead && values.actual_spare_status
+              ? { actual_pump_status: values.actual_spare_status }
               : {}),
             [READY_LOTS_FIELD]: JSON.stringify(lots),
           }
@@ -1603,13 +1606,6 @@ function EditSectionModal({
           )}
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-            {/* A pump SO is planned lot by lot, as a Spare is: Partial or Fully
-                ready, with the date — the same lots on every EC of the SO. */}
-            {lotsOnly && (
-              <div className="sm:col-span-2">
-                <ReadyLotsEditor lots={lots} onChange={setLots} editing />
-              </div>
-            )}
             {spareAssembly && (
               <PackingLotsEditor lots={packLots} onChange={setPackLots} editing />
             )}

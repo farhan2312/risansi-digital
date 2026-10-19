@@ -74,7 +74,7 @@ export function PlanningPumpTable({
 
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
-  const soSpan = 4 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
+  const soSpan = 7 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
 
   return (
     <table className="w-full min-w-[2200px] text-sm">
@@ -89,9 +89,12 @@ export function PlanningPumpTable({
           <th className={th}>SO No.</th>
           <th className={th}>Chat</th>
           <th className={th}>Client</th>
+          <th className={th}>SO Date</th>
           {soColumns.map((f) => (
             <th key={f.column} className={th}>{f.label}</th>
           ))}
+          <th className={th}>Status</th>
+          <th className={th}>Readiness Date</th>
           {LOT_COLUMNS.map((n) => (
             <th key={n} className={th}>Lot {n}</th>
           ))}
@@ -156,11 +159,30 @@ export function PlanningPumpTable({
                           </button>
                         </td>
                         <td rowSpan={span} className={`${soCell} max-w-[16rem]`}>{str(head.client_name) || "—"}</td>
+                        <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                          {str(head.so_date) ? shortDate(str(head.so_date)) : "—"}
+                        </td>
                         {soColumns.map((f) => (
                           <td key={f.column} rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>
                             {formatDisplay(f, head[f.column]) || "—"}
                           </td>
                         ))}
+                        {/* The SO's own status (as a Spare's) and its readiness date. */}
+                        <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                          <span
+                            className={`font-medium ${/ready/i.test(str(head.actual_spare_status)) ? "text-emerald-700" : "text-foreground"}`}
+                          >
+                            {str(head.actual_spare_status) || "—"}
+                          </span>
+                          {str(head.pump_readiness_remarks) && (
+                            <span className="block max-w-[14rem] whitespace-normal text-[11px] text-muted">
+                              {str(head.pump_readiness_remarks)}
+                            </span>
+                          )}
+                        </td>
+                        <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                          {str(head.planning_readiness_date) ? shortDate(str(head.planning_readiness_date)) : "—"}
+                        </td>
                         {LOT_COLUMNS.map((n) => {
                           // The SO's lots are the same on every EC: the first's stand for all.
                           const lot = lotsFromRows(head.ready_lots)[n - 1];

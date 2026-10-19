@@ -159,16 +159,28 @@ export const BOI_ITEM_OPTIONS = opts([
 /** Planning's fields that are each pump EC's own; the rest are set for the whole SO. */
 export const PUMP_EC_PLANNING_COLUMNS = ["actual_pump_status", "ready_qty"];
 
-export const PUMP_PLANNING_STATUSES = [
-  "Date awaited",
-  "EC under preparation",
-  "Partial assembled",
-  "In plan",
-  "Assembled",
-  "Packed",
-];
+// The same four as a Spare: a pump SO is planned as a Spare is. (Older
+// values — Assembled, Packed… — still show where they were recorded.)
+export const PUMP_PLANNING_STATUSES = ["Date awaited", "In plan", "Partial ready", "Fully ready"];
 /** Where a Spare EC stands in Planning (Actual Spare Status). */
 export const SPARE_PLANNING_STATUSES = ["Date awaited", "Partial ready", "In plan", "Fully ready"];
+
+/**
+ * Planning's form for a pump SO, as a Spare SO's: the SO's status (kept, as
+ * a Spare's, in actual_spare_status — on a pump EC that is the SO's readiness,
+ * while Actual Pump Status is the EC's own), its readiness date, remarks; and
+ * the readiness lots once it is Partial or Fully ready.
+ */
+export const PUMP_SO_PLANNING_FIELDS: OrderField[] = [
+  { column: "actual_spare_status", label: "Status", type: "select", options: opts(SPARE_PLANNING_STATUSES) },
+  {
+    column: "planning_readiness_date",
+    label: "Readiness Date",
+    type: "date",
+    dependsOn: [{ column: "actual_spare_status", value: "Date awaited", not: true }],
+  },
+  { column: "pump_readiness_remarks", label: "Remarks", type: "text" },
+];
 /** Every Planning status, Pump and Spare together — the queue's Status filter. */
 export const PLANNING_STATUS_VALUES = [
   ...new Set([...PUMP_PLANNING_STATUSES, ...SPARE_PLANNING_STATUSES]),
