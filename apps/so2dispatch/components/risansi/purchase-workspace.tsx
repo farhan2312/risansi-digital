@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { ChevronDown, MessageSquare, Plus } from "lucide-react";
+import { MessageSquare, PackageSearch, X } from "lucide-react";
 import type { PurchaseQueueRow } from "@/lib/orders";
 import { BOI_ITEM_FIELDS } from "@/lib/order-schema";
 import { isCentral } from "@/lib/roles";
@@ -75,7 +75,8 @@ export function PurchaseWorkspace({
   const emptyMessage = getParam("q")
     ? "No orders match your search."
     : "No orders yet.";
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // The EC whose bought-out items are open in the pop-up.
+  const [boiFor, setBoiFor] = useState<string | null>(null);
   const [threadFor, setThreadFor] = useState<{
     orderId: string;
     soLabel: string;
@@ -96,32 +97,22 @@ export function PurchaseWorkspace({
 
   useEffect(() => {
     if (!openItemId) return;
-    const row = rows.find((r) => r.id === openItemId);
-    if (row && (row.boi ?? "") === "Yes") {
-      const soKey = String(row.so_no ?? row.sl_no ?? "");
-      if (soKey) setExpanded((prev) => new Set(prev).add(soKey));
-    }
+    // A notification about an EC opens its bought-out items.
+    if (rows.some((r) => r.id === openItemId)) setBoiFor(openItemId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openItemId]);
 
   const focusClass = useFocusRow([openItemId, focusOrderId], rows.length > 0);
   useConsumeFocusParam(queue.page);
 
-  function toggle(key: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
 
 
   // Group EC queue rows by SO so the workspace lists one row per SO with a
   // chevron to reveal the ECs and their per-EC "Manage" buttons.
   type SoGroup = { key: string; head: PurchaseQueueRow; ecs: PurchaseQueueRow[] };
+  // Purchase is for pumps: a Spare EC has nothing bought out.
   const soGroups: SoGroup[] = Array.from(
-    pageRows.reduce((map, r) => {
+    pageRows.filter((r) => String(r.item_type ?? "").trim().toLowerCase() !== "spare").reduce((map, r) => {
       const key = String(r.so_no ?? r.sl_no ?? "");
       const g = map.get(key);
       if (g) g.ecs.push(r);
@@ -142,6 +133,7 @@ export function PurchaseWorkspace({
             dept={"purchase"}
             hasTarget={DEPT_VIEWS["purchase"].hasTarget}
             searchPlaceholder={"Search SO, EC…"}
+            noTypeFilter
           />
         ) : (
           <UrlSearchInput placeholder={"Search SO, EC…"} />
@@ -151,164 +143,134 @@ export function PurchaseWorkspace({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
-              <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th className="w-8 px-2 py-3" />
-                <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="px-4 py-3">SO No.</th>
-                <th className="px-4 py-3">Chat</th>
-                <th className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
-                <th className="px-4 py-3">Order Type</th>
-                <th className="px-4 py-3">BOI</th>
-                <th className="px-4 py-3">LD</th>
-                <th className="px-4 py-3">LD Date</th>
-                <th className="px-4 py-3">Purchase Target</th>
-                <th className="px-4 py-3 text-center normal-case">ECs</th>
+              <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                <th colSpan={8} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={7} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+              </tr>
+              <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
+                <th className="px-3 py-2">SO No.</th>
+                <th className="px-3 py-2">Chat</th>
+                <th className="px-3 py-2"><SortHeader label="SO Date" sortKey="so_date" /></th>
+                <th className="px-3 py-2">BOI</th>
+                <th className="px-3 py-2">LD</th>
+                <th className="px-3 py-2">LD Date</th>
+                <th className="px-3 py-2 whitespace-nowrap">Purchase Target</th>
+                <th className="border-l border-card-border px-3 py-2">EC No.</th>
+                <th className="px-3 py-2">Pump Type</th>
+                <th className="px-3 py-2">Model No.</th>
+                <th className="px-3 py-2">Qty</th>
+                <th className="px-3 py-2">Bought-out items</th>
+                <th className="px-3 py-2" />
+                <th className="px-3 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-card-border">
+            <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={15} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
               )}
               {soGroups.map((g) => {
-                const isOpen = expanded.has(g.key);
-                const boiYes = (g.head.boi ?? "") === "Yes";
+                const span = g.ecs.length;
+                const soCell = "px-3 py-2 align-top border-b border-card-border";
                 return (
                   <Fragment key={g.key}>
-                    <tr
-                      data-focus-row={String(g.head.order_id)}
-                      className={`text-foreground transition-colors ${
-                        dispatchRowTone(g.head) ?? "hover:bg-background/60"
-                      } ${focusClass(String(g.head.order_id))}`}
-                    >
-                      <td className="px-2 py-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggle(g.key)}
-                          aria-label={isOpen ? "Collapse" : "Expand"}
-                          aria-expanded={isOpen}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-input-border text-muted-foreground transition-colors hover:bg-background"
+                    {g.ecs.map((row, k) => {
+                      const last = k === g.ecs.length - 1;
+                      const ecCell = `px-3 py-2 ${last ? "border-b border-card-border" : "border-b border-card-border/50"}`;
+                      const items = (row.boi_items ?? []) as Row[];
+                      const got = items.filter(boiInHand).length;
+                      return (
+                        <tr
+                          key={row.id}
+                          data-focus-row={String(row.id)}
+                          className={`text-foreground ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${focusClass(String(row.id))}`}
                         >
-                          {isOpen ? (
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          ) : (
-                            <Plus className="h-3.5 w-3.5" />
+                          {k === 0 && (
+                            <>
+                              <td rowSpan={span} data-focus-row={String(g.head.order_id)} className={`${soCell} font-medium tabular-nums ${focusClass(String(g.head.order_id))}`}>
+                                {g.head.sl_no}
+                              </td>
+                              <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>
+                                {g.head.so_no ?? "—"}
+                                <HoldBadge order={g.head} />
+                              </td>
+                              <td rowSpan={span} className={soCell}>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setThreadFor({ orderId: String(g.head.order_id), soLabel: g.head.so_no ?? String(g.head.sl_no) })
+                                  }
+                                  aria-label="Chat"
+                                  title="Chat"
+                                  className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" />
+                                  {(unreadThreads[String(g.head.order_id)] ?? 0) > 0 && (
+                                    <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+                                      {unreadThreads[String(g.head.order_id)]}
+                                    </span>
+                                  )}
+                                </button>
+                              </td>
+                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.so_date)}</td>
+                              <td rowSpan={span} className={soCell}>{g.head.boi ?? "—"}</td>
+                              <td rowSpan={span} className={soCell}>{g.head.ld ?? "—"}</td>
+                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.ld_date)}</td>
+                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.purchase_target_date)}</td>
+                            </>
                           )}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 font-medium tabular-nums">{g.head.sl_no}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{g.head.so_no ?? "—"}
-                        <HoldBadge order={g.head} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setThreadFor({ orderId: String(g.head.order_id), soLabel: g.head.so_no ?? String(g.head.sl_no) })
-                          }
-                          aria-label="Chat"
-                          title="Chat"
-                          className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          {(unreadThreads[String(g.head.order_id)] ?? 0) > 0 && (
-                            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
-                              {unreadThreads[String(g.head.order_id)]}
+                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>{row.ec_no ?? "—"}</td>
+                          <td className={`${ecCell} whitespace-nowrap`}>{row.pump_type ?? "—"}</td>
+                          <td className={`${ecCell} whitespace-nowrap`}>{row.model_no ?? "—"}</td>
+                          <td className={`${ecCell} tabular-nums`}>{row.quantity ?? "—"}</td>
+                          <td className={ecCell}>
+                            {items.length === 0 ? (
+                              <span className="text-xs text-muted">{(row.ec_boi ?? "") === "Yes" ? "None listed" : "No BOI"}</span>
+                            ) : (
+                              <span className="whitespace-nowrap text-xs">
+                                <span className="font-semibold text-foreground">{items.length}</span> item{items.length === 1 ? "" : "s"}
+                                <span className={`ml-1.5 font-semibold ${got === items.length ? "text-emerald-700" : "text-amber-700"}`}>
+                                  · {got}/{items.length} in hand
+                                </span>
+                              </span>
+                            )}
+                          </td>
+                          <td className={`${ecCell} whitespace-nowrap`}>
+                            <button
+                              type="button"
+                              onClick={() => setBoiFor(row.id)}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <PackageSearch className="h-3.5 w-3.5" />
+                              BOI
+                            </button>
+                          </td>
+                          <td className={`${ecCell} whitespace-nowrap`}>
+                            <span className="inline-flex items-center gap-2">
+                              {/* Drawing documents shared with Purchase against this EC. */}
+                              <EcDrawingDocsButton
+                                itemId={String(row.id)}
+                                label={[row.so_no, row.ec_no].filter(Boolean).join(" · ")}
+                                count={drawingDocCounts[String(row.id)] ?? 0}
+                              />
+                              <DeptCompleteCheck
+                                scopeId={String(row.id)}
+                                dept="purchase"
+                                label={String(row.ec_no ?? row.id)}
+                                completion={completionFor(completions, "purchase", String(row.id), true)}
+                                canEdit={canEdit}
+                              />
                             </span>
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-muted">{formatDate(g.head.so_date)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{g.head.order_type ?? "—"}</td>
-                      <td className="px-4 py-3">{g.head.boi ?? "—"}</td>
-                      <td className="px-4 py-3">{g.head.ld ?? "—"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-muted">
-                        {formatDate(g.head.ld_date)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-muted">
-                        {formatDate(g.head.purchase_target_date)}
-                      </td>
-                      <td className="px-4 py-3 text-center tabular-nums">
-                        {g.ecs.length}
-                      </td>
-                    </tr>
-                    {isOpen && (
-                      <tr className="bg-background/40">
-                        <td colSpan={11} className="p-0">
-                          <div className="space-y-4 px-4 py-3">
-                            {g.ecs.map((row) => (
-                              <div
-                                key={row.id}
-                                data-focus-row={String(row.id)}
-                                className={`rounded-lg border border-card-border bg-surface p-3 shadow-sm ${focusClass(
-                                  String(row.id)
-                                )}`}
-                              >
-                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-                                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                                    EC · {row.ec_no ?? "—"}
-                                  </span>
-                                  <span className="ml-auto" />
-                                  {/* Drawing documents shared with Purchase
-                                      against this EC's revisions. */}
-                                  <EcDrawingDocsButton
-                                    itemId={String(row.id)}
-                                    label={[row.so_no, row.ec_no].filter(Boolean).join(" · ")}
-                                    count={drawingDocCounts[String(row.id)] ?? 0}
-                                  />
-                                  <DeptCompleteCheck
-                                    scopeId={String(row.id)}
-                                    dept="purchase"
-                                    label={String(row.ec_no ?? row.id)}
-                                    completion={completionFor(
-                                      completions,
-                                      "purchase",
-                                      String(row.id),
-                                      true
-                                    )}
-                                    canEdit={canEdit}
-                                  />
-                                </div>
-                                {boiYes ? (
-                                  // Central Visibility decides which items are
-                                  // bought out and describes them; Purchase only
-                                  // records the receipt date and remarks. So the
-                                  // item/make fields are read-only here, and the
-                                  // add and delete controls belong to Central.
-                                  <OrderChildList
-                                    orderId={row.id}
-                                    table="order_boi_items"
-                                    title="Bought-out items"
-                                    fields={BOI_ITEM_FIELDS}
-                                    rows={(row.boi_items ?? []) as Row[]}
-                                    // How the vendor's expected date has moved, newest first.
-                                    renderExtra={{
-                                      label: "Vendor expected date history",
-                                      render: (item) => <ExpectedHistory item={item} />,
-                                    }}
-                                    canEdit={canEdit}
-                                    canEditCentral={isCentral(role)}
-                                    canAdd={isCentral(role)}
-                                    // Add every item first, then commit them
-                                    // together — one Save for the whole list.
-                                    bulkSave
-                                  />
-                                ) : (
-                                  <p className="text-xs text-muted">
-                                    No BOI — nothing to record for this EC.
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </Fragment>
                 );
               })}
@@ -323,6 +285,61 @@ export function PurchaseWorkspace({
           total={queue.total}
         />
       </div>
+
+      {/* One EC's bought-out items, as cards to fill: the item, RIL stock, the vendor order. */}
+      {(() => {
+        const ec = boiFor ? rows.find((r) => r.id === boiFor) : null;
+        if (!ec) return null;
+        return (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Bought-out items of ${ec.ec_no ?? "EC"}`}
+            className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+            onClick={() => setBoiFor(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-t-2xl bg-surface p-5 shadow-xl sm:rounded-2xl"
+            >
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-lg font-semibold text-foreground">
+                    Bought-out items · EC {ec.ec_no ?? "—"}
+                  </h2>
+                  <p className="text-xs text-muted">
+                    {[ec.so_no, ec.pump_type, ec.model_no, ec.quantity != null ? `Qty ${ec.quantity}` : ""].filter(Boolean).join(" · ")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBoiFor(null)}
+                  aria-label="Close"
+                  className="rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <OrderChildList
+                orderId={ec.id}
+                table="order_boi_items"
+                title="Bought-out items"
+                fields={BOI_ITEM_FIELDS}
+                rows={(ec.boi_items ?? []) as Row[]}
+                canEdit={canEdit}
+                canEditCentral={isCentral(role)}
+                canAdd={isCentral(role)}
+                bulkSave
+                // How the vendor's expected date has moved, newest first.
+                renderExtra={{
+                  label: "Vendor expected date history",
+                  render: (item) => <ExpectedHistory item={item} />,
+                }}
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {threadFor && (
         <OrderThreadModal
@@ -356,5 +373,13 @@ function ExpectedHistory({ item }: { item: Row }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** In hand: its received date is in, or RIL stock covers its whole qty (as boiReceivedSql). */
+function boiInHand(b: Row): boolean {
+  return (
+    !!String(b.receipt_date ?? "").trim() ||
+    (Number(b.boi_qty) > 0 && Number(b.stock_allocated_qty ?? 0) >= Number(b.boi_qty))
   );
 }

@@ -2736,6 +2736,12 @@ export type PurchaseQueueRow = {
   ld_date: string | null;
   purchase_target_date: string | null;
   boi_items: Row[];
+  /** The EC itself: its type, model, qty and own BOI. */
+  item_type?: string | null;
+  model_no?: string | null;
+  pump_type?: string | null;
+  quantity?: number | null;
+  ec_boi?: string | null;
 };
 
 /**
@@ -2754,6 +2760,7 @@ export async function listItemsForPurchase(
             to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
             o.order_type,
             it.ec_no,
+            it.item_type, it.model_no, it.pump_type, it.quantity, it.boi AS ec_boi,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
             o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,

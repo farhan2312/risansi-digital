@@ -79,6 +79,7 @@ export function OrderListFilterBar({
   hasTarget: hasTargetProp = true,
   noDispatchTarget = false,
   kindToggle,
+  noTypeFilter = false,
 }: {
   options: OrderListOptions;
   total: number;
@@ -98,6 +99,8 @@ export function OrderListFilterBar({
    * the Type filter — the queue looks different for each.
    */
   kindToggle?: "spare" | "pump";
+  /** A queue of one type only (Purchase: pumps) has no Type to choose. */
+  noTypeFilter?: boolean;
 }) {
   // Who the customer is does not change what these departments do: they work
   // to dates and statuses, so the party facets are noise on their queues.
@@ -176,7 +179,7 @@ export function OrderListFilterBar({
         </>
         )}
         {/* Pump or Spare — every queue, since a department's work differs by type. */}
-        {!kindToggle && (
+        {!kindToggle && !noTypeFilter && (
         <MultiSelectFilter
           label="Type"
           options={options.types}
