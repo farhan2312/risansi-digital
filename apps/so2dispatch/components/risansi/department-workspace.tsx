@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
 import { PUMP_EC_PLANNING_COLUMNS, PUMP_SO_PLANNING_FIELDS } from "@/lib/order-schema";
+import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -680,6 +681,7 @@ export function DepartmentWorkspace({
               canEdit={canEdit}
               fieldApplies={fieldApplies}
               formatPlanning={formatValue}
+              seesReadinessHistory={isCentral(role) || role === "planning"}
               onEditSo={(orderId, ecs) =>
                 setEditSo({
                   orderId,
@@ -1526,7 +1528,7 @@ function EditSectionModal({
         <div className="flex items-center justify-between gap-3 pr-8">
           <h2 className="font-display text-lg font-semibold text-foreground">
             {title}
-            {soTarget && (
+            {soTarget && !spareLike && (
               <span className="ml-2 align-middle rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                 All {soTarget.count} EC{soTarget.count === 1 ? "" : "s"}
               </span>
@@ -1570,8 +1572,9 @@ function EditSectionModal({
           )}
         </div>
         <p className="mb-5 text-sm text-muted">
-          Order #{String(data.sl_no ?? "—")}
-          {soTarget
+          {/* A pump SO is planned as one: no per-EC wording. */}
+          {spareLike ? `SO ${toInput(data.so_no) || `#${String(data.sl_no ?? "—")}`}` : `Order #${String(data.sl_no ?? "—")}`}
+          {soTarget && !spareLike
             ? ` · ${toInput(data.so_no)} · saved to every EC of this SO (shown from ${toInput(data.ec_no) || "the first EC"})`
             : identity
               ? ` · ${identity}`

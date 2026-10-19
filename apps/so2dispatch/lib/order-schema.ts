@@ -172,7 +172,8 @@ export const SPARE_PLANNING_STATUSES = ["Date awaited", "Partial ready", "In pla
  * the readiness lots once it is Partial or Fully ready.
  */
 export const PUMP_SO_PLANNING_FIELDS: OrderField[] = [
-  { column: "actual_spare_status", label: "Status", type: "select", options: opts(SPARE_PLANNING_STATUSES) },
+  // A new pump SO starts Date awaited.
+  { column: "actual_spare_status", label: "Status", type: "select", options: opts(SPARE_PLANNING_STATUSES), defaultValue: "Date awaited" },
   {
     column: "planning_readiness_date",
     label: "Readiness Date",

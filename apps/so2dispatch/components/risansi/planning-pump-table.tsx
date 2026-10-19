@@ -5,6 +5,7 @@ import { MessageSquare, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
 import { formatDisplay } from "./editable-section";
+import { ReadyLotHistoryButton } from "./ready-lot-history";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -40,6 +41,7 @@ export function PlanningPumpTable({
   soColumns,
   unreadThreads,
   canEdit,
+  seesReadinessHistory = false,
   fieldApplies,
   formatPlanning,
   onEditSo,
@@ -53,6 +55,8 @@ export function PlanningPumpTable({
   soColumns: OrderField[];
   unreadThreads: Record<string, number>;
   canEdit: boolean;
+  /** Planning and Central read how the readiness date moved, as on a Spare. */
+  seesReadinessHistory?: boolean;
   fieldApplies: (f: OrderField, row: Row) => boolean;
   formatPlanning: (f: OrderField, value: unknown) => string;
   onEditSo: (orderId: string, ecs: Row[]) => void;
@@ -172,7 +176,7 @@ export function PlanningPumpTable({
                           <span
                             className={`font-medium ${/ready/i.test(str(head.actual_spare_status)) ? "text-emerald-700" : "text-foreground"}`}
                           >
-                            {str(head.actual_spare_status) || "—"}
+                            {str(head.actual_spare_status) || "Date awaited"}
                           </span>
                           {str(head.pump_readiness_remarks) && (
                             <span className="block max-w-[14rem] whitespace-normal text-[11px] text-muted">
@@ -181,7 +185,18 @@ export function PlanningPumpTable({
                           )}
                         </td>
                         <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                          {str(head.planning_readiness_date) ? shortDate(str(head.planning_readiness_date)) : "—"}
+                          {/* How the readiness date moved, as on a Spare SO. */}
+                          {seesReadinessHistory ? (
+                            <ReadyLotHistoryButton
+                              orderId={orderId}
+                              label={str(head.planning_readiness_date) ? shortDate(str(head.planning_readiness_date)) : "History"}
+                              soLabel={soLabel}
+                            />
+                          ) : str(head.planning_readiness_date) ? (
+                            shortDate(str(head.planning_readiness_date))
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         {LOT_COLUMNS.map((n) => {
                           // The SO's lots are the same on every EC: the first's stand for all.
