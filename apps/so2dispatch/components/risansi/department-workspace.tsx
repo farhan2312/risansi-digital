@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
+import { PUMP_EC_PLANNING_COLUMNS } from "@/lib/order-schema";
 import type { EcDeptStatus } from "@/lib/orders";
 import { useRouter } from "next/navigation";
 import {
@@ -230,7 +231,9 @@ export function DepartmentWorkspace({
   const [editRow, setEditRow] = useState<Row | null>(null);
   // Planning / Assembly & Packing edit a whole SO at once: one form for all
   // its ECs.
-  const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number } | null>(null);
+  const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number; fields?: OrderField[] } | null>(null);
+  // Planning's Pump view: an EC's own fields only (Ready Qty, status).
+  const [editEcFields, setEditEcFields] = useState<OrderField[] | null>(null);
   // Accounts: a click on an SO's row opens its Order details.
   const [detailsFor, setDetailsFor] = useState<string | null>(null);
   const [docsPanel, setDocsPanel] = useState<{ row: Row; config: DocumentsConfig } | null>(
@@ -682,7 +685,19 @@ export function DepartmentWorkspace({
               canEdit={canEdit}
               fieldApplies={fieldApplies}
               formatPlanning={formatValue}
-              onEdit={(row) => setEditRow(row)}
+              onEditSo={(orderId, ecs) =>
+                setEditSo({
+                  orderId,
+                  head: ecs[0],
+                  count: ecs.length,
+                  // Everything but each EC's own Ready Qty and status — as a Spare's SO form.
+                  fields: fields.filter((f) => !PUMP_EC_PLANNING_COLUMNS.includes(f.column)),
+                })
+              }
+              onEditEc={(row) => {
+                setEditEcFields(fields.filter((f) => PUMP_EC_PLANNING_COLUMNS.includes(f.column)));
+                setEditRow(row);
+              }}
               onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
             />
           ) : (
@@ -1324,7 +1339,7 @@ export function DepartmentWorkspace({
           soTarget={{ orderId: editSo.orderId, count: editSo.count }}
           table={table}
           title={title}
-          fields={fields}
+          fields={editSo.fields ?? fields}
           readonlyFields={readonlyFields}
           canEditCentral={canEditCentral}
           data={editSo.head}
@@ -1337,14 +1352,17 @@ export function DepartmentWorkspace({
           orderId={String(editRow.id)}
           table={table}
           title={title}
-          fields={fields}
+          fields={editEcFields ?? fields}
           readonlyFields={readonlyFields}
           canEditCentral={canEditCentral}
           data={editRow}
           drawingDocCount={
             drawingDocCounts ? (drawingDocCounts[String(editRow.id)] ?? 0) : undefined
           }
-          onClose={() => setEditRow(null)}
+          onClose={() => {
+            setEditRow(null);
+            setEditEcFields(null);
+          }}
         />
       )}
 

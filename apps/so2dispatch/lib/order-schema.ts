@@ -156,6 +156,9 @@ export const BOI_ITEM_OPTIONS = opts([
 // text one); these are the values its two selects offer, deduped, for anything
 // that needs the vocabulary rather than the fields.
 /** Where a Pump EC stands in Planning (Actual Pump Status). */
+/** Planning's fields that are each pump EC's own; the rest are set for the whole SO. */
+export const PUMP_EC_PLANNING_COLUMNS = ["actual_pump_status", "ready_qty"];
+
 export const PUMP_PLANNING_STATUSES = [
   "Date awaited",
   "EC under preparation",
@@ -705,6 +708,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
         options: opts(PUMP_PLANNING_STATUSES),
         dependsOn: [{ column: "item_type", value: PUMP_LIKE }],
       },
+      // How many of the EC's pumps are ready — with the status, each EC's own.
+      { column: "ready_qty", label: "Ready Qty", type: "int", min: 0, dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
       { column: "assembled_packed_qty", label: "Assembled / Packed Qty", type: "text", dependsOn: [{ column: "item_type", value: "Spare", not: true }] },
 
       // Assembly is planned for every item type; packing only for pumps — a

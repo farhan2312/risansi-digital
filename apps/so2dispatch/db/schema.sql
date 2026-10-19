@@ -2304,6 +2304,9 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS taxable_value NUMERIC(14,2);
 -- (Order Making SO). When it went to PPC is so_handover_date. Idempotent.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS po_received_date DATE;
 
+-- How many of a pump EC's pumps are ready (Planning, per EC). Idempotent.
+ALTER TABLE order_planning ADD COLUMN IF NOT EXISTS ready_qty INT;
+
 -- A pump's name plate, on the Pump Add-On. Idempotent.
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS capacity NUMERIC(14,3);
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS capacity_unit TEXT;
