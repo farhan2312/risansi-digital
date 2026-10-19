@@ -719,6 +719,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
         label: "Actual Pump Status",
         type: "select",
         options: opts(PUMP_PLANNING_STATUSES),
+        // A pump EC starts Date awaited, as its SO does.
+        defaultValue: "Date awaited",
         dependsOn: [{ column: "item_type", value: PUMP_LIKE }],
       },
       // How many of the EC's pumps are ready — with the status, each EC's own.

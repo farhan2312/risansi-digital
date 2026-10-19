@@ -244,7 +244,9 @@ export function PlanningPumpTable({
                     })}
                     {ecPlanCols.map((f, i) => (
                       <td key={f.column} className={`${ecCell} whitespace-nowrap ${i === 0 ? "border-l border-card-border" : ""}`}>
-                        {fieldApplies(f, r) ? formatPlanning(f, r[f.column]) : <span className="text-muted">—</span>}
+                        {fieldApplies(f, r)
+                          ? formatPlanning(f, str(r[f.column]) ? r[f.column] : (f.defaultValue ?? null))
+                          : <span className="text-muted">—</span>}
                       </td>
                     ))}
                     {canEdit && (
