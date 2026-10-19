@@ -140,7 +140,7 @@ export function PurchaseWorkspace({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className="w-full min-w-[1100px] text-sm">
+          <table className="w-full min-w-[2200px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th colSpan={9} className="px-3 pt-2.5 pb-1">SO</th>
@@ -246,33 +246,13 @@ export function PurchaseWorkspace({
                             {items.length === 0 ? (
                               <span className="text-xs text-muted">{(row.ec_boi ?? "") === "Yes" ? "None listed" : "No BOI"}</span>
                             ) : (
-                              <ul className="space-y-1">
-                                {items.map((b) => (
-                                  <li key={String(b.id)}>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBoiFor(row.id);
-                                        setBoiItem(String(b.id));
-                                      }}
-                                      className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-1 py-0.5 text-left text-xs hover:bg-background"
-                                    >
-                                      <span className="font-semibold text-foreground">{boiName(b)}</span>
-                                      {b.boi_qty != null && <span className="text-muted">Qty {String(b.boi_qty)}</span>}
-                                      {b.vendor_order === "Yes" ? (
-                                        <span className="text-muted">
-                                          · Vendor {String(b.received_qty ?? 0)}/{String(b.order_qty ?? "—")} recd
-                                        </span>
-                                      ) : (
-                                        Number(b.stock_allocated_qty ?? 0) > 0 && (
-                                          <span className="text-muted">· RIL {String(b.stock_allocated_qty)}</span>
-                                        )
-                                      )}
-                                      <BoiTag item={b} />
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
+                              <BoiDetailTable
+                                items={items}
+                                onOpen={(b) => {
+                                  setBoiFor(row.id);
+                                  setBoiItem(String(b.id));
+                                }}
+                              />
                             )}
                           </td>
                           <td className={`${ecCell} whitespace-nowrap`}>
@@ -476,4 +456,65 @@ function BoiTag({ item }: { item: Row }) {
   const cls =
     s.tone === "done" ? "bg-emerald-50 text-emerald-700" : s.tone === "part" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700";
   return <span className={`rounded-full px-1.5 text-[10px] font-semibold ${cls}`}>{s.label}</span>;
+}
+
+/**
+ * Every bought-out item of an EC with all its details, on the front: the item,
+ * RIL stock allocated, the vendor order and what has come in, and its status.
+ * A row opens that item's form.
+ */
+function BoiDetailTable({ items, onOpen }: { items: Row[]; onOpen: (b: Row) => void }) {
+  const t = (v: unknown) => (v == null || String(v).trim() === "" ? "—" : String(v));
+  const d = (v: unknown) => (v ? formatDate(String(v)) : "—");
+  const money = (v: unknown) =>
+    v == null || v === "" ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  const head = [
+    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO No.", "RIL PO Date",
+    "Vendor SO No.", "Vendor SO Date", "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
+  ];
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {head.map((h) => (
+            <th key={h} className="whitespace-nowrap px-1.5 pb-1">{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-card-border/60">
+        {items.map((b) => {
+          const vendor = b.vendor_order === "Yes";
+          const v = (x: unknown) => (vendor ? x : null);
+          return (
+            <tr
+              key={String(b.id)}
+              onClick={() => onOpen(b)}
+              title="Open this item"
+              className="cursor-pointer align-top hover:bg-background"
+            >
+              <td className="whitespace-nowrap px-1.5 py-1 font-semibold text-foreground">{boiName(b)}</td>
+              <td className="whitespace-nowrap px-1.5 py-1">{t(b.boi_make)}</td>
+              <td className="px-1.5 py-1 tabular-nums">{t(b.boi_qty)}</td>
+              <td className="max-w-[14rem] px-1.5 py-1 text-muted">{t(b.boi_description)}</td>
+              <td className="px-1.5 py-1 tabular-nums">{t(b.stock_allocated_qty)}</td>
+              <td className="whitespace-nowrap px-1.5 py-1">
+                {vendor ? [b.vendor_code, b.vendor_name].filter((x) => x != null && String(x).trim()).join(" · ") || "—" : "No order"}
+              </td>
+              <td className="whitespace-nowrap px-1.5 py-1">{t(v(b.ril_po_no))}</td>
+              <td className="whitespace-nowrap px-1.5 py-1">{d(v(b.ril_po_date))}</td>
+              <td className="whitespace-nowrap px-1.5 py-1">{t(v(b.vendor_so_no))}</td>
+              <td className="whitespace-nowrap px-1.5 py-1">{d(v(b.vendor_so_date))}</td>
+              <td className="px-1.5 py-1 tabular-nums">{t(v(b.order_qty))}</td>
+              <td className="whitespace-nowrap px-1.5 py-1">{d(v(b.expected_receipt_date))}</td>
+              <td className="px-1.5 py-1 tabular-nums">{money(v(b.rate_per_unit))}</td>
+              <td className="px-1.5 py-1 tabular-nums">{money(v(b.total_value))}</td>
+              <td className="px-1.5 py-1 tabular-nums">{t(v(b.received_qty))}</td>
+              <td className="whitespace-nowrap px-1.5 py-1">{d(v(b.receipt_date))}</td>
+              <td className="whitespace-nowrap px-1.5 py-1"><BoiTag item={b} /></td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
 }
