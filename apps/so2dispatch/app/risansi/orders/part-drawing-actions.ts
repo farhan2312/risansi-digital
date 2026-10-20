@@ -188,3 +188,65 @@ export async function savePartProgressAction(
     return { ok: false, error: "Could not save the part drawings." };
   }
 }
+
+/** Planning marks the parts a pump EC is short of; the list replaces the last. */
+export async function saveShortageAction(itemId: string, parts: PartListItem[]): Promise<PartDrawingResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!canEditSection(user.role, "order_planning")) {
+    return { ok: false, error: "Only Planning can mark shortages." };
+  }
+  const ec = await ecFacts(itemId);
+  if (!ec) return { ok: false, error: "EC not found." };
+  if (!PUMP_LIKE.includes(String(ec.item_type ?? ""))) {
+    return { ok: false, error: "Shortages are for pump ECs." };
+  }
+  const wanted = new Map<string, PartListItem>();
+  for (const p of Array.isArray(parts) ? parts : []) {
+    const name = String(p?.part_name ?? "").trim().slice(0, 200);
+    if (!name) continue;
+    const item = {
+      section: String(p.section ?? OTHER_PART_SECTION).trim().slice(0, 100) || OTHER_PART_SECTION,
+      part_no: String(p.part_no ?? "").trim().slice(0, 50),
+      part_name: name,
+    };
+    wanted.set(keyOf(item), item);
+  }
+  try {
+    const existing = await query<Record<string, unknown>>(
+      `SELECT * FROM order_part_shortages WHERE item_id = $1 ORDER BY seq`,
+      [itemId]
+    );
+    const have = new Set(existing.rows.map(keyOf));
+    const drop = existing.rows.filter((r) => !wanted.has(keyOf(r))).map((r) => String(r.id));
+    if (drop.length > 0) {
+      await query(`DELETE FROM order_part_shortages WHERE item_id = $1 AND id = ANY($2)`, [itemId, drop]);
+    }
+    let added = 0;
+    for (const [k, p] of wanted) {
+      if (have.has(k)) continue;
+      await query(
+        `INSERT INTO order_part_shortages (item_id, section, part_no, part_name) VALUES ($1, $2, NULLIF($3, ''), $4)`,
+        [itemId, p.section, p.part_no, p.part_name]
+      );
+      added++;
+    }
+    if (added > 0 || drop.length > 0) {
+      await logAudit({
+        actor: { id: user.id, email: user.email, role: user.role },
+        action: "order.update",
+        category: "activity",
+        target: "Shortage",
+        details: wanted.size
+          ? `Shortage: ${[...wanted.values()].map((p) => p.part_name).join(", ")}`
+          : "Shortage cleared",
+        subject: await subjectForItem(itemId),
+      });
+    }
+    refresh();
+    return { ok: true };
+  } catch (error) {
+    console.error("saveShortage failed:", error);
+    return { ok: false, error: "Could not save the shortage." };
+  }
+}

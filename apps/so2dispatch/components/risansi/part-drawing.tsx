@@ -10,7 +10,7 @@ import {
   type PartDrawingTone,
   type PartListItem,
 } from "@/lib/part-drawings";
-import { savePartProgressAction, savePartSelectionAction } from "@/app/risansi/orders/part-drawing-actions";
+import { savePartProgressAction, savePartSelectionAction, saveShortageAction } from "@/app/risansi/orders/part-drawing-actions";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -82,18 +82,23 @@ export function PartPickerModal({
   parts,
   canEdit,
   onClose,
+  mode = "drawing",
 }: {
+  /** Part drawings (Yes / No and the parts), or the parts the EC is short of. */
+  mode?: "drawing" | "shortage";
   itemId: string;
   label: string;
   pumpType: unknown;
-  required: unknown;
+  required?: unknown;
   parts: Row[];
   canEdit: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
   const lists = partListsFor(pumpType);
-  const [yes, setYes] = useState(str(required).toLowerCase() === "yes");
+  const shortage = mode === "shortage";
+  // A shortage is just its parts: there is no Yes / No to it.
+  const [yes, setYes] = useState(shortage || str(required).toLowerCase() === "yes");
   // Picked parts by key; the list's parts and any others already named.
   const [picked, setPicked] = useState<Map<string, PartListItem>>(
     () =>
@@ -134,7 +139,9 @@ export function PartPickerModal({
   async function save() {
     setSaving(true);
     setError(null);
-    const res = await savePartSelectionAction(itemId, yes ? "Yes" : "No", yes ? [...picked.values()] : []);
+    const res = shortage
+      ? await saveShortageAction(itemId, [...picked.values()])
+      : await savePartSelectionAction(itemId, yes ? "Yes" : "No", yes ? [...picked.values()] : []);
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -145,7 +152,12 @@ export function PartPickerModal({
   }
 
   return (
-    <Shell title={`Part drawing · ${label}`} subtitle={lists.map((l) => l.title).join(" / ")} onClose={onClose}>
+    <Shell title={`${shortage ? "Shortage" : "Part drawing"} · ${label}`} subtitle={lists.map((l) => l.title).join(" / ")} onClose={onClose}>
+      {shortage ? (
+        <p className="mb-4 text-sm text-muted">
+          Tick the parts this EC is short of. <span className="font-medium text-foreground">{picked.size} short</span>
+        </p>
+      ) : (
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <span className="text-sm font-medium text-foreground">Part drawing required</span>
         <div role="radiogroup" className="inline-flex h-10 rounded-lg border border-input-border p-0.5">
@@ -167,6 +179,7 @@ export function PartPickerModal({
         </div>
         {yes && <span className="text-sm text-muted">{picked.size} picked</span>}
       </div>
+      )}
 
       {yes && (
         <div className="space-y-4">
@@ -384,5 +397,22 @@ export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts
         </div>
       )}
     </div>
+  );
+}
+
+/** The parts an EC is short of, on the front: none, or how many and which. */
+export function ShortageCell({ parts }: { parts: Row[] }) {
+  if (parts.length === 0) return <span className="text-xs text-muted">None</span>;
+  const names = parts.map((p) => str(p.part_name));
+  return (
+    <span title={names.join(", ")} className="flex flex-col items-start gap-0.5">
+      <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
+        {parts.length} short
+      </span>
+      <span className="max-w-[12rem] truncate text-[11px] text-muted">
+        {names.slice(0, 2).join(", ")}
+        {names.length > 2 ? ` +${names.length - 2}` : ""}
+      </span>
+    </span>
   );
 }

@@ -1,13 +1,13 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ExternalLink, ListChecks, MessageSquare, Pencil } from "lucide-react";
+import { ExternalLink, ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
 import { drawingDocStatus, drawingVersions } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
-import { PartDrawingCell, PartPickerModal } from "./part-drawing";
+import { PartDrawingCell, PartPickerModal, ShortageCell } from "./part-drawing";
 import { OmEcsModal } from "./om-ecs-modal";
 
 type Row = Record<string, unknown>;
@@ -72,6 +72,8 @@ export function PlanningPumpTable({
   const pumps = rows.filter((r) => PUMP_LIKE.includes(str(r.item_type)));
   // The EC whose part drawings are open to pick.
   const [partsFor, setPartsFor] = useState<string | null>(null);
+  // The EC whose shortage is open to mark.
+  const [shortFor, setShortFor] = useState<string | null>(null);
   // The EC whose whole form is open, with its SO's other ECs beside it.
   const [ecFor, setEcFor] = useState<{ orderId: string; id: string } | null>(null);
   // The SOs in page order, each with its pump ECs.
@@ -98,7 +100,7 @@ export function PlanningPumpTable({
           <th colSpan={soSpan} className="px-3 pt-2.5 pb-1">SO</th>
           <th colSpan={EC_COLUMNS.length} className={group}>EC details</th>
           <th colSpan={2} className={group}>Drawing</th>
-          <th colSpan={ecPlanCols.length + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
+          <th colSpan={ecPlanCols.length + 1 + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
         </tr>
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={th}>Sl.</th>
@@ -125,6 +127,7 @@ export function PlanningPumpTable({
           {ecPlanCols.map((f, i) => (
             <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{f.label}</th>
           ))}
+          <th className={th}>Shortage</th>
           {canEdit && <th className={th} />}
         </tr>
       </thead>
@@ -289,6 +292,20 @@ export function PlanningPumpTable({
                         )}
                       </td>
                     ))}
+                    <td className={ecCell}>
+                      <div className="flex items-start gap-2">
+                        <ShortageCell parts={Array.isArray(r.part_shortages) ? (r.part_shortages as Row[]) : []} />
+                        <button
+                          type="button"
+                          onClick={() => setShortFor(str(r.id))}
+                          title={canEdit ? "Mark the parts short" : "Parts short"}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
+                        >
+                          <PackageX className="h-3.5 w-3.5" />
+                          Parts
+                        </button>
+                      </div>
+                    </td>
                     {canEdit && (
                       <td className={`${ecCell} text-right`}>
                         <button
@@ -323,6 +340,23 @@ export function PlanningPumpTable({
             parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []}
             canEdit={canEdit}
             onClose={() => setPartsFor(null)}
+          />
+        );
+      })()}
+      {(() => {
+        const r = shortFor ? pumps.find((x) => str(x.id) === shortFor) : null;
+        if (!r) return null;
+        const ec = (r.ec ?? {}) as Row;
+        return (
+          <PartPickerModal
+            key={`short:${str(r.id)}`}
+            mode="shortage"
+            itemId={str(r.id)}
+            label={[str(r.so_no), `EC ${str(r.ec_no) || "—"}`].filter(Boolean).join(" · ")}
+            pumpType={ec.pump_type}
+            parts={Array.isArray(r.part_shortages) ? (r.part_shortages as Row[]) : []}
+            canEdit={canEdit}
+            onClose={() => setShortFor(null)}
           />
         );
       })()}

@@ -2609,6 +2609,9 @@ export async function listItemsForSection(
                             WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'), '[]'::jsonb) AS gad_versions,
                  -- Part drawings: whether Planning asked for them, and the parts.
                  d.part_drawing,
+                 -- The parts the EC is short of.
+                 COALESCE((SELECT jsonb_agg(to_jsonb(ps) ORDER BY ps.seq)
+                             FROM order_part_shortages ps WHERE ps.item_id = it.id), '[]'::jsonb) AS part_shortages,
                  COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
                              FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings,
                  (SELECT to_char(pad.actual_packing_date, 'YYYY-MM-DD')
