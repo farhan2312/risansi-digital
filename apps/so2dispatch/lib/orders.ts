@@ -181,6 +181,7 @@ export type NewOrderInput = {
   po_received_date?: string;
   ec_sent_operation_date?: string;
   packing_forwarding_percent?: string;
+  performance_curve_required?: string;
   boi?: string;
   qc_required?: string;
   quotation_no?: string;
@@ -309,13 +310,14 @@ export async function createOrder(
           complaint_no, complaint_date,
           clearance_status, clearance_hold_reason, clearance_remarks,
           complaint_ec_no, file_no, discount_percent, gst_percent, taxable_value,
-          po_received_date, ec_sent_operation_date, packing_forwarding_percent
+          po_received_date, ec_sent_operation_date, packing_forwarding_percent,
+          performance_curve_required
        ) VALUES (
           -- The next free number, under the lock above.
           (SELECT COALESCE(max(sl_no), 0) + 1 FROM orders),
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
           $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
-          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49
+          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50
        )
        RETURNING id, sl_no::int AS sl_no`,
       [
@@ -375,6 +377,8 @@ export async function createOrder(
         input.bill_mode === "FR" ? null : nullify(input.po_received_date),
         nullify(input.ec_sent_operation_date),
         toNumeric(input.packing_forwarding_percent),
+        // A Spare has no drawing to curve.
+        input.order_type === "Spare" ? null : nullify(input.performance_curve_required),
       ]
     );
     return result.rows[0];
@@ -1562,6 +1566,19 @@ export async function addChildRow(
     );
     if ((n.rows[0]?.n ?? 0) >= READY_LOT_LIMIT) return null;
   }
+  // A drawing version: of a GAD or a Performance Curve, numbered on from
+  // that document's last.
+  if (table === "order_drawing_revisions") {
+    const docType = kind === "Performance Curve" ? "Performance Curve" : "GAD";
+    const res = await query<{ id: string }>(
+      `INSERT INTO order_drawing_revisions (item_id, doc_type, revision_no)
+       VALUES ($1, $2, (SELECT (count(*) + 1)::text FROM order_drawing_revisions
+                         WHERE item_id = $1 AND doc_type = $2))
+       RETURNING id`,
+      [parentId, docType]
+    );
+    return res.rows[0] ?? null;
+  }
   const useKind = table === "order_packing_slips" && kind;
   const result = await query<{ id: string }>(
     useKind
@@ -2240,7 +2257,7 @@ const overviewColumns = () => `it.id,
                         THEN 'Drg. issued to Operations'
                       ELSE NULL
                     END
-               FROM order_drawing_revisions rv WHERE rv.item_id = it.id) AS drg_status,
+               FROM order_drawing_revisions rv WHERE rv.item_id = it.id AND rv.doc_type = 'GAD') AS drg_status,
             o.boi,
             (CASE
                WHEN COALESCE(o.boi, '') <> 'Yes' THEN true
@@ -2915,13 +2932,13 @@ function lit(value: string): string {
 }
 
 const DRG_APPROVED = `EXISTS (SELECT 1 FROM order_drawing_revisions rv
-                              WHERE rv.item_id = it.id
+                              WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'
                                 AND lower(coalesce(rv.approved, '')) = 'yes')`;
 const DRG_ISSUED = `EXISTS (SELECT 1 FROM order_drawing_revisions rv
-                            WHERE rv.item_id = it.id
+                            WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'
                               AND lower(coalesce(rv.issued_to_client, '')) = 'yes')`;
 const DRG_TO_OPS = `EXISTS (SELECT 1 FROM order_drawing_revisions rv
-                            WHERE rv.item_id = it.id
+                            WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'
                               AND lower(coalesce(rv.issued_to_operations, '')) = 'yes')`;
 const BOI_RECEIVED = `EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id)
                       AND NOT EXISTS (SELECT 1 FROM order_boi_items bi
@@ -4157,7 +4174,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
                       WHEN bool_or(lower(coalesce(rv.issued_to_operations,'')) = 'yes')
                         THEN 'Issued to Operations'
                       ELSE NULL END
-               FROM order_drawing_revisions rv WHERE rv.item_id = it.id) AS drg,
+               FROM order_drawing_revisions rv WHERE rv.item_id = it.id AND rv.doc_type = 'GAD') AS drg,
             (CASE
                WHEN COALESCE(o.boi, '') <> 'Yes' THEN 'na'
                WHEN NOT EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id) THEN 'pending'

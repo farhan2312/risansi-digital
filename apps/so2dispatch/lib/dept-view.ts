@@ -351,6 +351,41 @@ export function boiStatus(b: Record<string, unknown>): { label: string; tone: "d
   return { label: "Pending", tone: "pending" };
 }
 
+/** One document's versions on an EC, oldest first (a row's doc_type, GAD when blank). */
+export function drawingVersions(rows: Record<string, unknown>[], docType: string): Record<string, unknown>[] {
+  return rows
+    .filter((r) => String(r.doc_type ?? "GAD") === docType)
+    .sort((x, y) => Number(x.seq ?? 0) - Number(y.seq ?? 0));
+}
+
+export type DrawingStatusTone = "done" | "part" | "pending" | "rework";
+
+/**
+ * Where a drawing document stands, from its latest version: pending until a
+ * version goes to the client; then awaiting approval; sent back to resubmit;
+ * approved; and a GAD, finally, issued to the workshop.
+ */
+export function drawingDocStatus(
+  rows: Record<string, unknown>[],
+  docType: string
+): { label: string; tone: DrawingStatusTone; version: number } {
+  const versions = drawingVersions(rows, docType);
+  const last = versions[versions.length - 1];
+  const gad = docType === "GAD";
+  const yes = (v: unknown) => String(v ?? "").trim().toLowerCase() === "yes";
+  const no = (v: unknown) => String(v ?? "").trim().toLowerCase() === "no";
+  const version = versions.length;
+  if (!last || !yes(last.issued_to_client)) {
+    return { label: gad ? "Drawing pending" : "Pending", tone: "pending", version };
+  }
+  if (gad && yes(last.approved) && yes(last.issued_to_production)) {
+    return { label: "Issued to workshop", tone: "done", version };
+  }
+  if (yes(last.approved)) return { label: "Approved by client", tone: gad ? "part" : "done", version };
+  if (no(last.approved)) return { label: "Resubmit", tone: "rework", version };
+  return { label: gad ? "Sent to client, approval pending" : "Sent to client for approval", tone: "part", version };
+}
+
 /** Order Making has not held the SO. Held there, it goes to no department at all. */
 export function omClearSql(order = "o"): string {
   return `COALESCE(NULLIF(${order}.om_status, ''), 'Clear') <> 'Hold'`;

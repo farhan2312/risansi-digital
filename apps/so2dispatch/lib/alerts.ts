@@ -46,7 +46,7 @@ const ALERTS_SQL = `
      AND NOT (${spareEcSql("it", "o")})
      AND NOT EXISTS (
        SELECT 1 FROM order_drawing_revisions rv
-        WHERE rv.item_id = it.id
+        WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'
           -- Drawing's part ends at its hand-off to Operations (or, on
           -- revisions from before that step, straight to the client).
           AND (lower(coalesce(rv.issued_to_operations, '')) = 'yes'

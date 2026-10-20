@@ -476,6 +476,17 @@ export const ORDER_SECTIONS: OrderSection[] = [
         group: "Terms & Conditions",
       },
 
+      // The drawings the client wants. Every pump EC has a GAD, so it is not
+      // asked; a Yes here gives each EC of the SO a Performance Curve in Drawing.
+      {
+        column: "performance_curve_required",
+        label: "Performance Curve",
+        type: "select",
+        options: YES_NO,
+        dependsOn: [{ column: "order_type", value: "Spare", not: true }],
+        group: "Document Required",
+      },
+
       // Target dates (per SO — the same target applies across every EC on
       // this order). Set by Central Visibility at intake; departments see them
       // read-only in their workspaces.
@@ -1354,102 +1365,58 @@ export const BOI_ITEM_FIELDS: OrderField[] = [
   { column: "remarks", label: "Remarks", type: "text", group: "Remarks" },
 ];
 
-// One drawing revision for an EC, as a chain of hand-offs, each a Yes/No plus
-// its date — "No" reads as "not issued / not approved":
-//
-//   Drawing → Operations → Client → Approved → Production
-//
-// Drawing issues to Operations. Central Visibility takes it from there — the
-// issue to the client and the approval are theirs, so Drawing sees those
-// read-only — and Drawing issues to Production once it is approved. Each step
-// only appears once the one before it is Yes.
+// Drawing's documents for a pump EC: a GAD always, and a Performance Curve
+// when the SO asks for one (orders.performance_curve_required). Each is kept
+// as versions — rows of order_drawing_revisions with that doc_type, the
+// version number in revision_no. A version is sent to the client, who
+// approves it or sends it back to resubmit as a new version; an approved GAD
+// is then issued to the workshop. Status follows (drawingDocStatus).
+export const DRAWING_DOC_TYPES = ["GAD", "Performance Curve"] as const;
+export type DrawingDocType = (typeof DRAWING_DOC_TYPES)[number];
+
+/** What the client said of a version: approved, or comments to resubmit. */
+export const CLIENT_RESPONSE_OPTIONS = [
+  { value: "Yes", label: "Approved" },
+  { value: "No", label: "Resubmit" },
+];
+
 export const DRAWING_REVISION_FIELDS: OrderField[] = [
-  // `group` renders each hand-off as its own labelled subsection with a
-  // divider between them (same card layout the invoice phases use).
-  {
-    column: "revision_no",
-    label: "Revision No.",
-    type: "text",
-    group: "Revision",
-    hideOnFirstRow: true,
-  },
-
-  // Filled by Drawing.
-  {
-    column: "issued_to_operations",
-    label: "Drg. issued to Operations",
-    type: "select",
-    options: YES_NO,
-    group: "Issued to Operations",
-  },
-  {
-    column: "issued_to_operations_date",
-    label: "Issued to Operations Dt.",
-    type: "date",
-    group: "Issued to Operations",
-  },
-  {
-    column: "issued_to_operations_remarks",
-    label: "Remarks",
-    type: "text",
-    group: "Issued to Operations",
-  },
-
-  // Filled by Central Visibility, once Drawing has issued to Operations.
-  {
-    column: "issued_to_client",
-    label: "Drg. issued to Client",
-    type: "select",
-    options: YES_NO,
-    centralOnly: true,
-    group: "Issued to Client",
-    dependsOn: [{ column: "issued_to_operations", value: "Yes" }],
-  },
-  {
-    column: "issued_to_client_date",
-    label: "Issued to Client Dt.",
-    type: "date",
-    centralOnly: true,
-    group: "Issued to Client",
-    dependsOn: [{ column: "issued_to_operations", value: "Yes" }],
-  },
-
-  // Approval only matters once the drawing has gone to the client — gate the
-  // whole Approval group on Issued to Client = Yes.
+  { column: "doc_type", label: "Document", type: "text", readOnly: true, group: "Version" },
+  { column: "revision_no", label: "Version", type: "text", readOnly: true, group: "Version" },
+  { column: "issued_to_client", label: "Sent to Client", type: "select", options: YES_NO, group: "Client" },
+  { column: "issued_to_client_date", label: "Sent to Client Date", type: "date", group: "Client" },
   {
     column: "approved",
-    label: "Drg. Approved",
+    label: "Client Response",
     type: "select",
-    options: YES_NO,
-    centralOnly: true,
-    group: "Approval",
+    options: CLIENT_RESPONSE_OPTIONS,
+    group: "Client",
     dependsOn: [{ column: "issued_to_client", value: "Yes" }],
   },
   {
     column: "approved_date",
-    label: "Approved Dt.",
+    label: "Response Date",
     type: "date",
-    centralOnly: true,
-    group: "Approval",
+    group: "Client",
     dependsOn: [{ column: "issued_to_client", value: "Yes" }],
   },
-
-  // Production issue only follows approval — gate on Drg. Approved = Yes.
+  // A GAD's last step: the approved drawing goes to the workshop.
   {
     column: "issued_to_production",
-    label: "Drg. issued to Production",
+    label: "Issued to Workshop",
     type: "select",
     options: YES_NO,
-    group: "Issued to Production",
-    dependsOn: [{ column: "approved", value: "Yes" }],
+    group: "Workshop",
+    dependsOn: [{ column: "approved", value: "Yes" }, { column: "doc_type", value: "GAD" }],
   },
   {
     column: "issued_to_production_date",
-    label: "Issued to Production Dt.",
+    label: "Issued to Workshop Date",
     type: "date",
-    group: "Issued to Production",
-    dependsOn: [{ column: "approved", value: "Yes" }],
+    group: "Workshop",
+    dependsOn: [{ column: "approved", value: "Yes" }, { column: "doc_type", value: "GAD" }],
   },
+  { column: "remarks", label: "Remarks", type: "text", group: "Remarks" },
 ];
 
 export const CHILD_FIELDS: Record<ChildTable, OrderField[]> = {
@@ -1495,6 +1462,11 @@ export const PAYMENT_TERMS_CONTEXT_FIELDS: OrderField[] = [
 export const DRAWING_CONTEXT_FIELDS: OrderField[] = [
   ...SO_CONTEXT_FIELDS,
   { column: "drg_target_date", label: "Target Date for Drawing", type: "date" },
+  { column: "performance_curve_required", label: "Performance Curve", type: "select", options: YES_NO },
+  // The EC itself, beside its drawings.
+  { column: "ec_date", label: "EC Date", type: "date", from: "order_items" },
+  { column: "pump_type", label: "Pump Type", type: "text", from: "order_items" },
+  { column: "model_no", label: "Model No.", type: "text", from: "order_items" },
 ];
 
 // QC target date — SO-level, in Purchase Order Details. Shown read-only in

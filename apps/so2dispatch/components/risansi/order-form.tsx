@@ -182,6 +182,13 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    // Every pump EC has a GAD; a Performance Curve only when asked for.
+    title: "Document Required",
+    fields: [
+      { name: "performance_curve_required", label: "Performance Curve", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "order_type", value: "Spare", not: true } },
+    ],
+  },
+  {
     title: "Target Dates",
     fields: [
       // A Spare has no drawing.

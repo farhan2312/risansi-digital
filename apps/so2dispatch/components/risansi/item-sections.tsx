@@ -111,7 +111,7 @@ export function ItemSections({
                     : "Actual packing Details"
                 }`
               : child === "order_drawing_revisions"
-                ? `${section.title} — Revisions`
+                ? `${section.title} — Versions`
                 : `${section.title} — BOI Items`;
 
           return (
@@ -156,9 +156,7 @@ export function ItemSections({
                             label={[
                               order.so_no,
                               item.ec_no,
-                              String(rev.revision_no ?? "").trim()
-                                ? `Rev. ${String(rev.revision_no).trim()}`
-                                : "First issue",
+                              `${String(rev.doc_type ?? "GAD")} V${String(rev.revision_no ?? "").trim() || "1"}`,
                             ]
                               .filter(Boolean)
                               .join(" · ")}

@@ -60,7 +60,7 @@ export type SaveDrawingDocResult = { ok: true } | { ok: false; error: string };
 
 function revisionLabel(rev: { revision_no: string | null }): string {
   const no = (rev.revision_no ?? "").trim();
-  return no ? `Rev. ${no}` : "first issue";
+  return `V${no || "1"}`;
 }
 
 /**

@@ -1519,7 +1519,7 @@ export async function updateOrderChildAction(
 /** Read one revision's hand-off state, before and after the write. */
 async function drawingHandoffs(id: string): Promise<DrawingHandoffs | null> {
   const result = await query<DrawingHandoffs>(
-    `SELECT rv.revision_no, it.ec_no, rv.issued_to_operations,
+    `SELECT rv.revision_no, rv.doc_type, it.ec_no, rv.issued_to_operations,
             rv.issued_to_operations_remarks, rv.issued_to_client, rv.approved,
             rv.issued_to_production
        FROM order_drawing_revisions rv

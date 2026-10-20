@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { boiInHand } from "@/lib/dept-view";
+import { boiInHand, drawingDocStatus } from "@/lib/dept-view";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { DEPT_LABELS } from "@/lib/dept-completion";
 import type { DeptCell, EcDeptStatus, ItemDetail, SoDeptStatus } from "@/lib/orders";
@@ -34,12 +34,11 @@ export const SO_WIDE: DeptKey[] = ["planning", "assembly"];
 function keyLine(dept: DeptKey, e: ItemDetail): string {
   switch (dept) {
     case "drawing": {
+      // Where the GAD stands, and which version.
       const revs = e.order_drawing_revisions ?? [];
-      const last = revs[revs.length - 1];
-      if (!last) return "";
-      const rev = str(last.revision_no) ? `Rev ${str(last.revision_no)}` : "First issue";
-      const when = day(last.issued_to_client_date) || day(last.issued_to_operations_date);
-      return [rev, when].filter(Boolean).join(" · ");
+      const gad = drawingDocStatus(revs, "GAD");
+      if (!gad.version) return "";
+      return `GAD V${gad.version} · ${gad.label}`;
     }
     case "purchase": {
       const boi = e.order_boi_items ?? [];

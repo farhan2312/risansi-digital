@@ -408,6 +408,8 @@ export async function notifySectionSaved(params: {
 /** The hand-offs on one drawing revision, plus what it belongs to. */
 export type DrawingHandoffs = {
   revision_no: string | null;
+  /** GAD or Performance Curve. */
+  doc_type?: string | null;
   ec_no: string | null;
   issued_to_operations: string | null;
   issued_to_operations_remarks: string | null;
@@ -467,36 +469,37 @@ export function drawingHandoffEvents(
     });
   }
 
+  // Drawing now sends to the client and records the answer itself: those go
+  // up to Central Visibility. Should Central record one, Drawing hears.
+  const other = actorIsCentral ? ["drawing"] : ["central_visibility"];
   const client = answered("issued_to_client");
   if (client) {
-    events.push({ roles: ["drawing"], what: phrase(client, "issued to Client") });
+    events.push({ roles: other, what: phrase(client, "sent to Client") });
   }
 
   const approved = answered("approved");
   if (approved) {
-    events.push({ roles: ["drawing"], what: phrase(approved, "approved") });
+    events.push({ roles: other, what: approved === "Yes" ? "approved by Client" : "sent back by Client to resubmit" });
   }
 
   const production = answered("issued_to_production");
   if (production && !actorIsCentral) {
     events.push({
       roles: ["central_visibility"],
-      what: phrase(production, "issued to Production"),
+      what: phrase(production, "issued to Workshop"),
     });
   }
 
   return events;
 }
 
-/** "SO26/1/999 · EC 123TEST · Rev. 2" — the first issue has no number. */
+/** "SO26/1/999 · EC 123TEST · GAD V2" — a version from before numbering is V1. */
 export function drawingHandoffDetail(
   soLabel: string,
   after: DrawingHandoffs
 ): string {
   const rev = (after.revision_no ?? "").trim();
-  return `${soLabel} · EC ${after.ec_no ?? "—"} · ${
-    rev ? `Rev. ${rev}` : "first issue"
-  }`;
+  return `${soLabel} · EC ${after.ec_no ?? "—"} · ${after.doc_type ?? "GAD"} V${rev || "1"}`;
 }
 
 /**

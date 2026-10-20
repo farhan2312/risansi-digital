@@ -29,7 +29,7 @@ function dayOnly(iso: string): string {
 
 function revisionLabel(doc: Pick<DrawingDocument, "revision_no">): string {
   const no = (doc.revision_no ?? "").trim();
-  return no ? `Rev. ${no}` : "First issue";
+  return `V${no || "1"}`;
 }
 
 const inputClass =

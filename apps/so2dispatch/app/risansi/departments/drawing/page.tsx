@@ -3,9 +3,8 @@ import { redirect } from "next/navigation";
 import { PenTool } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
-  canEditSection,
+  canEditChild,
   canViewDepartment,
-  isCentral,
   isRep,
   reminderDeptForTable,
 } from "@/lib/roles";
@@ -18,12 +17,9 @@ import { listItemsForSectionPage,
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { listRemindersForDepartment } from "@/lib/reminders";
-import {
-  DRAWING_CONTEXT_FIELDS,
-  SECTION_BY_TABLE,
-} from "@/lib/order-schema";
+import { DRAWING_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
-import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
+import { DrawingWorkspace } from "@/components/risansi/drawing-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 
 export const metadata: Metadata = {
@@ -54,7 +50,6 @@ export default async function DrawingWorkspacePage({
   // immediate; everything else below loads side by side.
   // A reminder (?focus=) lands on its SO in this queue, like a notification.
   const focusOrderId = await resolveFocusOrderId(params.focus ?? thread ?? edit);
-  const section = SECTION_BY_TABLE.get(TABLE)!;
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,
@@ -96,32 +91,25 @@ export default async function DrawingWorkspacePage({
             Drawing
           </h1>
           <p className="text-sm text-muted">
-            Record a revision per drawing issue. You fill the hand-offs to
-            Operations and Production; issue to the Client and approval are
-            recorded by Central Visibility and shown here read-only.
+            Every pump EC&apos;s GAD, and its Performance Curve when the SO asks
+            for one — each kept as versions: sent to the client, approved or
+            resubmitted, and the GAD issued to the workshop.
           </p>
         </div>
       </div>
 
       <RemindersPanel reminders={reminders} focusInQueue />
 
-      <DepartmentWorkspace
-        canEdit={canEditSection(user.role, TABLE)}
+      <DrawingWorkspace
+        canEdit={canEditChild(user.role, "order_drawing_revisions")}
         completions={completions}
         openThreadId={thread}
+        openItemId={edit}
         focusOrderId={focusOrderId ?? undefined}
         role={user.role}
         unreadThreads={unreadThreads}
-        table={TABLE}
-        fields={section.fields}
         queue={queue}
         filterOptions={filterOptions}
-        readonlyFields={DRAWING_CONTEXT_FIELDS}
-        // Approval on a revision is Central Visibility's to set — Drawing sees
-        // it read-only. Without this the prop defaults to true and Drawing
-        // could edit it.
-        canEditCentral={isCentral(user.role)}
-        openOrderId={edit}
       />
     </div>
   );
