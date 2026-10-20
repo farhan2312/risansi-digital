@@ -18,6 +18,12 @@ import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { listRemindersForDepartment } from "@/lib/reminders";
 import { DRAWING_CONTEXT_FIELDS } from "@/lib/order-schema";
+import {
+  drawingFilterActive,
+  drawingFilterSql,
+  ecMatchesDrawingFilter,
+  parseDrawingFilter,
+} from "@/lib/drawing-filter";
 import { unreadByOrder } from "@/lib/order-messages";
 import { DrawingWorkspace } from "@/components/risansi/drawing-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
@@ -50,6 +56,9 @@ export default async function DrawingWorkspacePage({
   // immediate; everything else below loads side by side.
   // A reminder (?focus=) lands on its SO in this queue, like a notification.
   const focusOrderId = await resolveFocusOrderId(params.focus ?? thread ?? edit);
+  // Drawing's own filters: the SO Open / Closed, and each EC's GAD,
+  // Performance Curve and Part Drawing status.
+  const drawingFilter = parseDrawingFilter((key) => params[key]);
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,
@@ -61,7 +70,14 @@ export default async function DrawingWorkspacePage({
         from: f.from ?? ("orders" as const),
       }))
     ,
-      { page: parsePage(page), search: parseQuery(q), focusOrderId, filter, sort: parseQueueSort(params.sort) }
+      {
+        page: parsePage(page),
+        search: parseQuery(q),
+        focusOrderId,
+        filter,
+        sort: parseQueueSort(params.sort),
+        extraRestrict: drawingFilterSql(drawingFilter),
+      }
     ),
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),
     listOrderListOptions(filter),
@@ -74,6 +90,11 @@ export default async function DrawingWorkspacePage({
   // so the order id comes from whichever the row carries.
   // The rows' sign-offs and unread messages both hang off the queue's SOs and
   // not off each other, so they load together.
+  // An SO matched on one of its ECs: show the ECs that match. Open / Closed is
+  // the SO's own, so it keeps every EC.
+  if (drawingFilterActive(drawingFilter)) {
+    queue.rows = queue.rows.filter((r) => ecMatchesDrawingFilter(r, drawingFilter));
+  }
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
   const [completions, unreadThreads] = await Promise.all([
     listDeptCompletions(orderIds),

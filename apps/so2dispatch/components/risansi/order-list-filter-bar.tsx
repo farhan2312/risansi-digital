@@ -80,7 +80,15 @@ export function OrderListFilterBar({
   noDispatchTarget = false,
   kindToggle,
   noTypeFilter = false,
+  noStatusFilter = false,
+  extraFilters,
+  extraKeys = [],
 }: {
+  /** A queue with statuses of its own (Drawing) drops the department Status filter… */
+  noStatusFilter?: boolean;
+  /** …and shows its own filters here, under these URL params. */
+  extraFilters?: React.ReactNode;
+  extraKeys?: string[];
   options: OrderListOptions;
   total: number;
   /**
@@ -115,7 +123,7 @@ export function OrderListFilterBar({
   );
   // With the toggle, the type is pinned to it (statuses read that type's words).
   const filter = kindToggle ? { ...parsed, types: kindToggle === "pump" ? ["Pump", "ROLB"] : ["Spare"] } : parsed;
-  const filtered = isOrderListFiltered(parsed);
+  const filtered = isOrderListFiltered(parsed) || extraKeys.some((k) => !!get(k));
   const activeDept = dept ?? filter.dept;
   // "Target date" only means something once a department is settled, and only
   // for one that works to a date at all. On the order list, where the
@@ -236,7 +244,8 @@ export function OrderListFilterBar({
         />
         )}
         {/* Any of several statuses — "Partial ready" and "Fully ready" together. */}
-        {activeDept && (
+        {extraFilters}
+        {activeDept && !noStatusFilter && (
           <MultiSelectFilter
             label="Status"
             allLabel="Any status"
@@ -515,7 +524,7 @@ export function OrderListFilterBar({
           <>
             <button
               type="button"
-              onClick={() => setParams(Object.fromEntries(FILTER_KEYS.map((k) => [k, null])))}
+              onClick={() => setParams(Object.fromEntries([...FILTER_KEYS, ...extraKeys].map((k) => [k, null])))}
               className="inline-flex h-8 items-center gap-1 rounded-lg border border-input-border bg-surface px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
             >
               <X className="h-3.5 w-3.5" />

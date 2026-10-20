@@ -3955,12 +3955,14 @@ export async function listItemsForSectionPage(
     sort?: QueueSort | null;
     /** Every matching SO, not one page — the queue's PDF report. */
     all?: boolean;
+    /** A department's own condition on the SO (alias o), e.g. Drawing's status filters. */
+    extraRestrict?: string;
   }
 ): Promise<PageResult<Row>> {
   // A department does not see an order it has nothing to do with (QC when
   // the SO says QC is not needed). One rule, in lib/dept-view.
   const dept = deptForTable(table);
-  const restrict = dept ? deptQueueSql(dept) : "TRUE";
+  const restrict = `${dept ? deptQueueSql(dept) : "TRUE"} AND (${opts.extraRestrict ?? "TRUE"})`;
 
   const { ids, total, page } = await pageOfOrderIds({
     page: opts.page,

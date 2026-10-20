@@ -15,6 +15,15 @@ import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { OrderThreadModal } from "./order-thread-modal";
+import { MultiSelectFilter } from "./multi-select-filter";
+import {
+  CURVE_STATUSES,
+  DRAWING_FILTER_KEYS,
+  GAD_STATUSES,
+  PART_STATUSES,
+  SO_STATES,
+  ecDrawingDone,
+} from "@/lib/drawing-filter";
 import { PartDrawingCell, PartProgress } from "./part-drawing";
 import { partDrawingStatus } from "@/lib/part-drawings";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
@@ -69,7 +78,7 @@ export function DrawingWorkspace({
   filterOptions?: OrderListOptions;
 }) {
   const rows = queue.rows;
-  const { get: getParam } = useUrlTable();
+  const { get: getParam, getList, setParams } = useUrlTable();
   const emptyMessage = getParam("q") ? "No orders match your search." : "No orders yet.";
   // The EC whose drawings are open, and which document of it. A notification
   // about an EC arrives with it open.
@@ -113,6 +122,40 @@ export function DrawingWorkspace({
             hasTarget={DEPT_VIEWS["drawing"].hasTarget}
             searchPlaceholder="Search SO, EC…"
             noTypeFilter
+            noStatusFilter
+            extraKeys={Object.values(DRAWING_FILTER_KEYS)}
+            extraFilters={
+              <>
+                <MultiSelectFilter
+                  label="SO status"
+                  allLabel="Open or closed"
+                  options={SO_STATES}
+                  selected={getList(DRAWING_FILTER_KEYS.so)}
+                  onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.so]: next })}
+                />
+                <MultiSelectFilter
+                  label="GAD"
+                  allLabel="Any GAD status"
+                  options={GAD_STATUSES}
+                  selected={getList(DRAWING_FILTER_KEYS.gad)}
+                  onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.gad]: next })}
+                />
+                <MultiSelectFilter
+                  label="Performance Curve"
+                  allLabel="Any curve status"
+                  options={CURVE_STATUSES}
+                  selected={getList(DRAWING_FILTER_KEYS.curve)}
+                  onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.curve]: next })}
+                />
+                <MultiSelectFilter
+                  label="Part Drawing"
+                  allLabel="Any part drawing status"
+                  options={PART_STATUSES}
+                  selected={getList(DRAWING_FILTER_KEYS.part)}
+                  onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.part]: next })}
+                />
+              </>
+            }
           />
         ) : (
           <UrlSearchInput placeholder="Search SO, EC…" />
@@ -125,7 +168,7 @@ export function DrawingWorkspace({
           <table className="w-full min-w-[1500px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={7} className="px-3 pt-2.5 pb-1">SO</th>
                 <th colSpan={8} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -135,6 +178,7 @@ export function DrawingWorkspace({
                 <th className="px-3 py-2">Client</th>
                 <th className="px-3 py-2 whitespace-nowrap">Drawing Target</th>
                 <th className="px-3 py-2 whitespace-nowrap">Perf. Curve</th>
+                <th className="px-3 py-2 whitespace-nowrap">SO Status</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
                 <th className="px-3 py-2">EC Date</th>
                 <th className="px-3 py-2">Pump Type</th>
@@ -148,7 +192,7 @@ export function DrawingWorkspace({
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={15} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -205,6 +249,14 @@ export function DrawingWorkspace({
                                   <span className="font-semibold text-foreground">Yes</span>
                                 ) : (
                                   <span className="text-muted">No</span>
+                                )}
+                              </td>
+                              <td rowSpan={span} className={soCell}>
+                                {/* Closed once Drawing is done with every EC on it. */}
+                                {g.ecs.every(ecDrawingDone) ? (
+                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
+                                ) : (
+                                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
                                 )}
                               </td>
                             </>
