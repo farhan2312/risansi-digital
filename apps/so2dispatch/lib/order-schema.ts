@@ -159,6 +159,19 @@ export const BOI_ITEM_OPTIONS = opts([
 /** Planning's fields that are each pump EC's own; the rest are set for the whole SO. */
 export const PUMP_EC_PLANNING_COLUMNS = ["actual_pump_status", "ready_qty"];
 
+/**
+ * A pump EC's status, worked out from its Ready Qty against its quantity:
+ * Pending until something is ready, Fully ready once all of it is, and
+ * Partially ready between. Never typed; saved by syncPumpEcStatus.
+ */
+export const PUMP_EC_STATUSES = ["Pending", "Partially ready", "Fully ready"];
+export function pumpEcStatus(readyQty: unknown, quantity: unknown): string {
+  const ready = Number(readyQty ?? 0) || 0;
+  const qty = Number(quantity ?? 0) || 0;
+  if (ready <= 0) return "Pending";
+  return qty > 0 && ready >= qty ? "Fully ready" : "Partially ready";
+}
+
 // The same four as a Spare: a pump SO is planned as a Spare is. (Older
 // values — Assembled, Packed… — still show where they were recorded.)
 export const PUMP_PLANNING_STATUSES = ["Date awaited", "In plan", "Partial ready", "Fully ready"];
@@ -184,7 +197,7 @@ export const PUMP_SO_PLANNING_FIELDS: OrderField[] = [
 ];
 /** Every Planning status, Pump and Spare together — the queue's Status filter. */
 export const PLANNING_STATUS_VALUES = [
-  ...new Set([...PUMP_PLANNING_STATUSES, ...SPARE_PLANNING_STATUSES]),
+  ...new Set([...PUMP_PLANNING_STATUSES, ...SPARE_PLANNING_STATUSES, ...PUMP_EC_STATUSES]),
 ];
 
 export const DISPATCH_STATUS_OPTIONS = opts([
@@ -729,9 +742,10 @@ export const ORDER_SECTIONS: OrderSection[] = [
         column: "actual_pump_status",
         label: "Actual Pump Status",
         type: "select",
-        options: opts(PUMP_PLANNING_STATUSES),
-        // A pump EC starts Date awaited, as its SO does.
-        defaultValue: "Date awaited",
+        options: opts(PUMP_EC_STATUSES),
+        // Worked out from Ready Qty against the EC's quantity (pumpEcStatus).
+        computed: true,
+        defaultValue: "Pending",
         dependsOn: [{ column: "item_type", value: PUMP_LIKE }],
       },
       // How many of the EC's pumps are ready — with the status, each EC's own.

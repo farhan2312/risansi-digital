@@ -37,6 +37,7 @@ import {
   deleteLatestTargetRevision,
   deptInvolvedInOrder,
   saveReadyLots,
+  syncPumpEcStatus,
   inheritSparePlanning,
   saveLotPacking,
   logReadinessChange,
@@ -893,6 +894,8 @@ export async function updateOrderSectionAction(
         delete allowedValues.planning_readiness_date;
       }
       await updateOrderSection(id, tbl, allowedValues);
+      // A pump EC's status follows its Ready Qty.
+      if (tbl === "order_planning") await syncPumpEcStatus(id);
       if (lots) await saveReadyLots(id, lots, { id: user.id, role: user.role });
       if (packing) await saveLotPacking(id, packing, { id: user.id, role: user.role });
       const after = before ? await getItemDetail(id) : null;

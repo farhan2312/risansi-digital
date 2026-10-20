@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { ExternalLink, MessageSquare, Pencil } from "lucide-react";
-import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, type OrderField } from "@/lib/order-schema";
+import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
 import { drawingDocStatus, drawingVersions } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
@@ -249,9 +249,16 @@ export function PlanningPumpTable({
                     </td>
                     {ecPlanCols.map((f, i) => (
                       <td key={f.column} className={`${ecCell} whitespace-nowrap ${i === 0 ? "border-l border-card-border" : ""}`}>
-                        {fieldApplies(f, r)
-                          ? formatPlanning(f, str(r[f.column]) ? r[f.column] : (f.defaultValue ?? null))
-                          : <span className="text-muted">—</span>}
+                        {!fieldApplies(f, r) ? (
+                          <span className="text-muted">—</span>
+                        ) : f.column === "actual_pump_status" ? (
+                          // Always as Ready Qty against the EC's quantity says.
+                          <PumpStatus status={pumpEcStatus(r.ready_qty, ec.quantity)} />
+                        ) : f.column === "ready_qty" ? (
+                          `${str(r.ready_qty) || "0"} / ${str(ec.quantity) || "—"}`
+                        ) : (
+                          formatPlanning(f, str(r[f.column]) ? r[f.column] : (f.defaultValue ?? null))
+                        )}
                       </td>
                     ))}
                     {canEdit && (
@@ -345,4 +352,15 @@ function GadCell({ versions }: { versions: Row[] }) {
       )}
     </span>
   );
+}
+
+/** A pump EC's status as a chip: Pending, Partially ready, Fully ready. */
+function PumpStatus({ status }: { status: string }) {
+  const cls =
+    status === "Fully ready"
+      ? "bg-emerald-50 text-emerald-700"
+      : status === "Partially ready"
+        ? "bg-sky-50 text-sky-700"
+        : "bg-amber-50 text-amber-700";
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{status}</span>;
 }

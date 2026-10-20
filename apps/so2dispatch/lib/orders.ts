@@ -47,6 +47,7 @@ import {
 } from "@/lib/pagination";
 import {
   CHILD_FIELDS,
+  PUMP_LIKE,
   READY_LOT_LIMIT,
   PAYMENT_HOLD_VALUE,
   coerceField,
@@ -902,6 +903,24 @@ export async function updateOrderSection(
  * the status never disagrees with its lots. The lots are validated by the
  * caller (lib/ready-lots.ts).
  */
+/**
+ * A pump EC's Actual Pump Status, from its Ready Qty against its quantity —
+ * the rule pumpEcStatus states for the browser. A Spare EC is left alone.
+ */
+export async function syncPumpEcStatus(itemId: string): Promise<void> {
+  if (!UUID_RE.test(itemId)) return;
+  await query(
+    `UPDATE order_planning pl
+        SET actual_pump_status = CASE
+              WHEN COALESCE(pl.ready_qty, 0) <= 0 THEN 'Pending'
+              WHEN COALESCE(it.quantity, 0) > 0 AND pl.ready_qty >= it.quantity THEN 'Fully ready'
+              ELSE 'Partially ready' END
+       FROM order_items it
+      WHERE it.id = pl.item_id AND pl.item_id = $1 AND it.item_type = ANY($2)`,
+    [itemId, PUMP_LIKE]
+  );
+}
+
 export async function saveReadyLots(
   itemId: string,
   lots: { status: string; ready_date: string | null }[],

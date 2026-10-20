@@ -2,14 +2,13 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
-import { PUMP_EC_PLANNING_COLUMNS, PUMP_SO_PLANNING_FIELDS } from "@/lib/order-schema";
+import { PUMP_SO_PLANNING_FIELDS } from "@/lib/order-schema";
 import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   ClipboardList,
   Loader2,
-  Package,
   MessageSquare,
   Paperclip,
   Pencil,
@@ -60,7 +59,6 @@ import { lockReason } from "@/lib/order-lock";
 import type { PageResult } from "@/lib/pagination";
 import { QcDocumentsModal } from "./qc-documents-modal";
 import { OrderDetailsModal } from "./order-details-modal";
-import { BoiItemsModal } from "./boi-items-modal";
 import { EcDrawingDocsButton, RevisionDocsButton } from "./drawing-docs";
 import { OrderThreadModal } from "./order-thread-modal";
 import {
@@ -693,7 +691,7 @@ export function DepartmentWorkspace({
                 })
               }
               onEditEc={(row) => {
-                setEditEcFields(fields.filter((f) => PUMP_EC_PLANNING_COLUMNS.includes(f.column)));
+                setEditEcFields(fields.filter((f) => f.column === "ready_qty"));
                 setEditRow(row);
               }}
               onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
@@ -1434,7 +1432,6 @@ function EditSectionModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showOrder, setShowOrder] = useState(false);
-  const [showBoi, setShowBoi] = useState(false);
   // A Spare's readiness lots live in Planning's form; once there is one, the
   // status and readiness date are the latest lot's.
   const spareLots =
@@ -1464,11 +1461,6 @@ function EditSectionModal({
             ...values,
             ...(lotsLead
               ? { actual_spare_status: lotsLead.status, planning_readiness_date: lotsLead.date }
-              : {}),
-            // A pump SO still Date awaited or In plan: every EC stands there too.
-            // Once Partial or Fully ready, each EC's own status is Planning's to set.
-            ...(spareLike && !lotsLead && values.actual_spare_status
-              ? { actual_pump_status: values.actual_spare_status }
               : {}),
             [READY_LOTS_FIELD]: JSON.stringify(lots),
           }
@@ -1534,26 +1526,13 @@ function EditSectionModal({
               </span>
             )}
           </h2>
-          {/* Planning schedules around bought-out receipts, so they can read
-              this EC's BOI rows — filled by Central and Purchase, never here.
-              Only worth offering when the SO is actually flagged BOI = Yes. */}
           {/* A Spare has no drawing, so no drawing documents to read. */}
-          {drawingDocCount !== undefined && toInput(data.item_type).trim().toLowerCase() !== "spare" && (
+          {drawingDocCount !== undefined && table !== "order_planning" && toInput(data.item_type).trim().toLowerCase() !== "spare" && (
             <EcDrawingDocsButton
               itemId={orderId}
               label={identity || "This EC"}
               count={drawingDocCount}
             />
-          )}
-          {table === "order_planning" && String(data.boi ?? "") === "Yes" && (
-            <button
-              type="button"
-              onClick={() => setShowBoi(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-input-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
-            >
-              <Package className="h-3.5 w-3.5" />
-              View BOI items
-            </button>
           )}
           {/* orderId is the SO's order_id only for SO-scope sections — the rest
               are keyed by item_id. Accounts sees PIs and order details on its
@@ -1757,15 +1736,6 @@ function EditSectionModal({
 
       {showOrder && (
         <OrderDetailsModal orderId={orderId} onClose={() => setShowOrder(false)} />
-      )}
-      {/* Item-scope sections key `orderId` by item_id, which is exactly what
-          the BOI rows hang off. */}
-      {showBoi && (
-        <BoiItemsModal
-          itemId={orderId}
-          label={identity}
-          onClose={() => setShowBoi(false)}
-        />
       )}
     </div>
   );
