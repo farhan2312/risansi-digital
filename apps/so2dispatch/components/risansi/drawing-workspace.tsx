@@ -15,6 +15,8 @@ import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { OrderThreadModal } from "./order-thread-modal";
+import { PartDrawingCell, PartProgress } from "./part-drawing";
+import { partDrawingStatus } from "@/lib/part-drawings";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 
 type Row = Record<string, unknown>;
@@ -34,6 +36,11 @@ const wantsCurve = (r: Row) => yes(r.performance_curve_required);
 /** The documents an EC has: a GAD always, a Performance Curve when asked for. */
 const docsFor = (r: Row): DrawingDocType[] => DRAWING_DOC_TYPES.filter((d) => d === "GAD" || wantsCurve(r));
 const versionsOf = (r: Row) => (Array.isArray(r.child_rows) ? (r.child_rows as Row[]) : []);
+/** Planning asked for part drawings on this EC. */
+const wantsParts = (r: Row) => str(r.part_drawing).trim().toLowerCase() === "yes";
+const partsOf = (r: Row) => (Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []);
+/** A tab of the pop-up: a document, or the EC's part drawings. */
+type DrawingTab = DrawingDocType | "Part Drawing";
 
 /**
  * Drawing's queue, pump ECs only: each SO once on the left with its ECs
@@ -69,7 +76,7 @@ export function DrawingWorkspace({
   const [drawingsFor, setDrawingsFor] = useState<string | null>(() =>
     openItemId && rows.some((r) => r.id === openItemId) ? openItemId : null
   );
-  const [docFor, setDocFor] = useState<DrawingDocType>("GAD");
+  const [docFor, setDocFor] = useState<DrawingTab>("GAD");
   // The discussion icon's deep link arrives with that SO's thread open.
   const [threadFor, setThreadFor] = useState<{ orderId: string; soLabel: string } | null>(() => {
     const row = openThreadId ? rows.find((r) => String(r.order_id) === openThreadId) : null;
@@ -90,7 +97,7 @@ export function DrawingWorkspace({
     }, new Map<string, SoGroup>())
   ).map(([, g]) => g);
 
-  const open = (ecId: string, doc: DrawingDocType) => {
+  const open = (ecId: string, doc: DrawingTab) => {
     setDrawingsFor(ecId);
     setDocFor(doc);
   };
@@ -119,7 +126,7 @@ export function DrawingWorkspace({
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={7} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={8} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
@@ -134,13 +141,14 @@ export function DrawingWorkspace({
                 <th className="px-3 py-2">Model No.</th>
                 <th className="px-3 py-2">GAD</th>
                 <th className="px-3 py-2">Performance Curve</th>
+                <th className="px-3 py-2">Part Drawing</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -215,6 +223,15 @@ export function DrawingWorkspace({
                               <span className="text-xs text-muted">Not required</span>
                             )}
                           </td>
+                          <td className={ecCell}>
+                            {wantsParts(row) ? (
+                              <button type="button" onClick={() => open(ecId, "Part Drawing")} title="Open part drawings" className="text-left">
+                                <PartDrawingCell required={row.part_drawing} parts={partsOf(row)} />
+                              </button>
+                            ) : (
+                              <span className="text-xs text-muted">Not required</span>
+                            )}
+                          </td>
                           <td className={`${ecCell} whitespace-nowrap`}>
                             <span className="inline-flex items-center gap-2">
                               <button
@@ -249,7 +266,7 @@ export function DrawingWorkspace({
       {(() => {
         const ec = drawingsFor ? rows.find((r) => r.id === drawingsFor) : null;
         if (!ec) return null;
-        const docs = docsFor(ec);
+        const docs: DrawingTab[] = [...docsFor(ec), ...(wantsParts(ec) ? (["Part Drawing"] as const) : [])];
         const doc = docs.includes(docFor) ? docFor : "GAD";
         return (
           <div
@@ -282,7 +299,13 @@ export function DrawingWorkspace({
               <div role="tablist" aria-label="Documents" className="mb-4 flex flex-wrap gap-2">
                 {docs.map((d) => {
                   const on = d === doc;
-                  const st = drawingDocStatus(versionsOf(ec), d);
+                  const st =
+                    d === "Part Drawing"
+                      ? (() => {
+                          const p = partDrawingStatus(ec.part_drawing, partsOf(ec));
+                          return { version: 0, label: p ? `${p.label} · ${p.done}/${p.total}` : "" };
+                        })()
+                      : drawingDocStatus(versionsOf(ec), d);
                   return (
                     <button
                       key={d}
@@ -303,7 +326,11 @@ export function DrawingWorkspace({
                   );
                 })}
               </div>
-              <DocVersions key={`${str(ec.id)}:${doc}`} ec={ec} doc={doc} canEdit={canEdit} />
+              {doc === "Part Drawing" ? (
+                <PartProgress key={`${str(ec.id)}:parts`} itemId={str(ec.id)} parts={partsOf(ec)} canEdit={canEdit} />
+              ) : (
+                <DocVersions key={`${str(ec.id)}:${doc}`} ec={ec} doc={doc} canEdit={canEdit} />
+              )}
             </div>
           </div>
         );

@@ -1,12 +1,13 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ExternalLink, MessageSquare, Pencil } from "lucide-react";
+import { ExternalLink, ListChecks, MessageSquare, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
 import { drawingDocStatus, drawingVersions } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
+import { PartDrawingCell, PartPickerModal } from "./part-drawing";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -65,6 +66,8 @@ export function PlanningPumpTable({
   onThread: (orderId: string, soLabel: string) => void;
 }) {
   const pumps = rows.filter((r) => PUMP_LIKE.includes(str(r.item_type)));
+  // The EC whose part drawings are open to pick.
+  const [partsFor, setPartsFor] = useState<string | null>(null);
   // The SOs in page order, each with its pump ECs.
   const sos: { orderId: string; ecs: Row[] }[] = [];
   for (const r of pumps) {
@@ -82,12 +85,13 @@ export function PlanningPumpTable({
   const soSpan = 7 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
 
   return (
+    <>
     <table className="w-full min-w-[2200px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
           <th colSpan={soSpan} className="px-3 pt-2.5 pb-1">SO</th>
           <th colSpan={EC_COLUMNS.length + 1} className={group}>EC details</th>
-          <th colSpan={ecPlanCols.length + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
+          <th colSpan={ecPlanCols.length + 1 + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
         </tr>
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={th}>Sl.</th>
@@ -113,6 +117,7 @@ export function PlanningPumpTable({
           {ecPlanCols.map((f, i) => (
             <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{f.label}</th>
           ))}
+          <th className={th}>Part Drawing</th>
           {canEdit && <th className={th} />}
         </tr>
       </thead>
@@ -261,6 +266,20 @@ export function PlanningPumpTable({
                         )}
                       </td>
                     ))}
+                    <td className={ecCell}>
+                      <div className="flex items-start gap-2">
+                        <PartDrawingCell required={r.part_drawing} parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []} />
+                        <button
+                          type="button"
+                          onClick={() => setPartsFor(str(r.id))}
+                          title={canEdit ? "Pick parts for drawing" : "Parts for drawing"}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
+                        >
+                          <ListChecks className="h-3.5 w-3.5" />
+                          Parts
+                        </button>
+                      </div>
+                    </td>
                     {canEdit && (
                       <td className={`${ecCell} text-right`}>
                         <button
@@ -281,6 +300,24 @@ export function PlanningPumpTable({
         })}
       </tbody>
     </table>
+      {(() => {
+        const r = partsFor ? pumps.find((x) => str(x.id) === partsFor) : null;
+        if (!r) return null;
+        const ec = (r.ec ?? {}) as Row;
+        return (
+          <PartPickerModal
+            key={str(r.id)}
+            itemId={str(r.id)}
+            label={[str(r.so_no), `EC ${str(r.ec_no) || "—"}`].filter(Boolean).join(" · ")}
+            pumpType={ec.pump_type}
+            required={r.part_drawing}
+            parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []}
+            canEdit={canEdit}
+            onClose={() => setPartsFor(null)}
+          />
+        );
+      })()}
+    </>
   );
 }
 

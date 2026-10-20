@@ -2575,7 +2575,11 @@ export async function listItemsForSection(
         ? `, COALESCE((SELECT jsonb_agg(to_jsonb(rv) || jsonb_build_object('doc_count', (SELECT count(*) FROM order_drawing_documents dd WHERE dd.revision_id = rv.id)) ORDER BY rv.seq)
                          FROM order_drawing_revisions rv
                         WHERE rv.item_id = it.id),
-                      '[]'::jsonb) AS child_rows`
+                      '[]'::jsonb) AS child_rows,
+           -- Part drawings, when Planning has asked for them.
+           (SELECT pl.part_drawing FROM order_planning pl WHERE pl.item_id = it.id) AS part_drawing,
+           COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
+                             FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings`
         : "";
   const soChildSelect =
     section.soChild?.table === "order_packing_slips"
@@ -2603,6 +2607,10 @@ export async function listItemsForSection(
                  COALESCE((SELECT jsonb_agg(to_jsonb(rv) ORDER BY rv.seq)
                              FROM order_drawing_revisions rv
                             WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'), '[]'::jsonb) AS gad_versions,
+                 -- Part drawings: whether Planning asked for them, and the parts.
+                 d.part_drawing,
+                 COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
+                             FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings,
                  (SELECT to_char(pad.actual_packing_date, 'YYYY-MM-DD')
                     FROM order_assembly_dispatch pad WHERE pad.item_id = it.id) AS actual_packing_date,
                  COALESCE((SELECT jsonb_agg(jsonb_build_object(
