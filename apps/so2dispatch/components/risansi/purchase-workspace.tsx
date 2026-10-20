@@ -8,7 +8,7 @@ import { BoiItemForm } from "./boi-item-form";
 import { SortHeader } from "./sort-header";
 import { HoldBadge } from "./hold-badge";
 import { boiInHand, boiStatus, dispatchRowTone } from "@/lib/dept-view";
-import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
+import { UrlPagination, UrlSearchInput, UrlTabs, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import type { OrderListOptions } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
@@ -64,6 +64,8 @@ export function PurchaseWorkspace({
 }) {
   const rows = queue.rows;
   const { get: getParam } = useUrlTable();
+  // SO view (each SO with its ECs) or BOI view (one row per bought-out item).
+  const boiView = getParam("view") === "boi";
   // An empty table means one of two very different things — say which, so a
   // search that matched nothing isn't read as an empty queue.
   const emptyMessage = getParam("q")
@@ -138,9 +140,30 @@ export function PurchaseWorkspace({
         )}
       </div>
 
+      <div className="mb-3">
+        <UrlTabs
+          paramKey="view"
+          fallback="so"
+          options={[
+            { value: "so", label: "SO view" },
+            { value: "boi", label: "BOI view" },
+          ]}
+        />
+      </div>
+
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
+          {boiView ? (
+            <BoiListTable
+              groups={soGroups}
+              onOpen={(ecId, itemId) => {
+                setBoiFor(ecId);
+                setBoiItem(itemId);
+              }}
+              onHistory={(b) => setHistoryFor(b)}
+            />
+          ) : (
           <table className="w-full min-w-[2200px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
@@ -287,6 +310,7 @@ export function PurchaseWorkspace({
               })}
             </tbody>
           </table>
+          )}
         </div>
         <UrlPagination
           page={queue.page}
@@ -563,6 +587,112 @@ function BoiDetailTable({
               <td className="px-1.5 py-1 tabular-nums">{t(v(b.received_qty))}</td>
               <td className="whitespace-nowrap px-1.5 py-1">{d(v(b.receipt_date))}</td>
               <td className="whitespace-nowrap px-1.5 py-1"><BoiTag item={b} /></td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * Purchase's BOI view: one row per bought-out item, with its SO and EC, every
+ * detail of the item and its status. A row opens the item in the pop-up.
+ */
+function BoiListTable({
+  groups,
+  onOpen,
+  onHistory,
+}: {
+  groups: { head: PurchaseQueueRow; ecs: PurchaseQueueRow[] }[];
+  onOpen: (ecId: string, itemId: string) => void;
+  onHistory: (b: Row) => void;
+}) {
+  const t = (v: unknown) => (v == null || String(v).trim() === "" ? "—" : String(v));
+  const d = (v: unknown) => (v ? formatDate(String(v)) : "—");
+  const money = (v: unknown) =>
+    v == null || v === "" ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  const items = groups.flatMap((g) =>
+    g.ecs.flatMap((ec) => ((ec.boi_items ?? []) as Row[]).map((b) => ({ so: g.head, ec, b }))),
+  );
+  const th = "whitespace-nowrap px-3 py-2";
+  const itemHeads = [
+    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO No.", "RIL PO Date",
+    "Vendor SO No.", "Vendor SO Date", "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
+  ];
+  return (
+    <table className="w-full min-w-[2300px] text-sm">
+      <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+        <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <th className={th}>SO No.</th>
+          <th className={th}>SO Date</th>
+          <th className={th}>EC No.</th>
+          <th className={th}>EC Date</th>
+          {itemHeads.map((h, i) => (
+            <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-card-border">
+        {items.length === 0 && (
+          <tr>
+            <td colSpan={4 + itemHeads.length} className="px-4 py-10 text-center text-sm text-muted">
+              No bought-out items on these SOs.
+            </td>
+          </tr>
+        )}
+        {items.map(({ so, ec, b }) => {
+          const vendor = b.vendor_order === "Yes";
+          // Vendor figures only when an order is placed.
+          const v = (x: unknown) => (vendor ? x : null);
+          return (
+            <tr
+              key={String(b.id)}
+              onClick={() => onOpen(ec.id, String(b.id))}
+              title="Open this item"
+              className="cursor-pointer align-top text-foreground hover:bg-background/60"
+            >
+              <td className="whitespace-nowrap px-3 py-2 font-semibold">{so.so_no ?? `#${so.sl_no}`}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(so.so_date)}</td>
+              <td className="whitespace-nowrap px-3 py-2 font-medium">{ec.ec_no ?? "—"}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(ec.ec_date ?? null)}</td>
+              <td className="whitespace-nowrap border-l border-card-border px-3 py-2 font-semibold">{boiName(b)}</td>
+              <td className="whitespace-nowrap px-3 py-2">{t(b.boi_make)}</td>
+              <td className="px-3 py-2 tabular-nums">{t(b.boi_qty)}</td>
+              <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
+              <td className="px-3 py-2 tabular-nums">{t(b.stock_allocated_qty)}</td>
+              <td className="whitespace-nowrap px-3 py-2">
+                {vendor
+                  ? [b.vendor_code, b.vendor_name].filter((x) => x != null && String(x).trim()).join(" · ") || "—"
+                  : <span className="text-muted">No order</span>}
+              </td>
+              <td className="whitespace-nowrap px-3 py-2">{t(v(b.ril_po_no))}</td>
+              <td className="whitespace-nowrap px-3 py-2">{d(v(b.ril_po_date))}</td>
+              <td className="whitespace-nowrap px-3 py-2">{t(v(b.vendor_so_no))}</td>
+              <td className="whitespace-nowrap px-3 py-2">{d(v(b.vendor_so_date))}</td>
+              <td className="px-3 py-2 tabular-nums">{t(v(b.order_qty))}</td>
+              <td className="whitespace-nowrap px-3 py-2">
+                {d(v(b.expected_receipt_date))}
+                {vendor && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onHistory(b);
+                    }}
+                    aria-label="Expected date history"
+                    title="Expected date history"
+                    className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded align-middle text-muted hover:bg-surface hover:text-primary"
+                  >
+                    <History className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </td>
+              <td className="px-3 py-2 tabular-nums">{money(v(b.rate_per_unit))}</td>
+              <td className="px-3 py-2 tabular-nums">{money(v(b.total_value))}</td>
+              <td className="px-3 py-2 tabular-nums">{t(v(b.received_qty))}</td>
+              <td className="whitespace-nowrap px-3 py-2">{d(v(b.receipt_date))}</td>
+              <td className="whitespace-nowrap px-3 py-2"><BoiTag item={b} /></td>
             </tr>
           );
         })}
