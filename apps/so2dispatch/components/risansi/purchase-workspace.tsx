@@ -617,17 +617,15 @@ function BoiListTable({
   );
   const th = "whitespace-nowrap px-3 py-2";
   const itemHeads = [
-    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO No.", "RIL PO Date",
+    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor Code", "Vendor Name", "RIL PO No.", "RIL PO Date",
     "Vendor SO No.", "Vendor SO Date", "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
   ];
   return (
     <table className="w-full min-w-[2300px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-          <th className={th}>SO No.</th>
-          <th className={th}>SO Date</th>
-          <th className={th}>EC No.</th>
-          <th className={th}>EC Date</th>
+          <th className={th}>SO</th>
+          <th className={th}>EC</th>
           {itemHeads.map((h, i) => (
             <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{h}</th>
           ))}
@@ -636,7 +634,7 @@ function BoiListTable({
       <tbody className="divide-y divide-card-border">
         {items.length === 0 && (
           <tr>
-            <td colSpan={4 + itemHeads.length} className="px-4 py-10 text-center text-sm text-muted">
+            <td colSpan={2 + itemHeads.length} className="px-4 py-10 text-center text-sm text-muted">
               No bought-out items on these SOs.
             </td>
           </tr>
@@ -652,20 +650,23 @@ function BoiListTable({
               title="Open this item"
               className="cursor-pointer align-top text-foreground hover:bg-background/60"
             >
-              <td className="whitespace-nowrap px-3 py-2 font-semibold">{so.so_no ?? `#${so.sl_no}`}</td>
-              <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(so.so_date)}</td>
-              <td className="whitespace-nowrap px-3 py-2 font-medium">{ec.ec_no ?? "—"}</td>
-              <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(ec.ec_date ?? null)}</td>
+              <td className="whitespace-nowrap px-3 py-2">
+                <div className="font-semibold">{so.so_no ?? `#${so.sl_no}`}</div>
+                <div className="text-xs text-muted">{formatDate(so.so_date)}</div>
+              </td>
+              <td className="whitespace-nowrap px-3 py-2">
+                <div className="font-medium">{ec.ec_no ?? "—"}</div>
+                <div className="text-xs text-muted">{formatDate(ec.ec_date ?? null)}</div>
+              </td>
               <td className="whitespace-nowrap border-l border-card-border px-3 py-2 font-semibold">{boiName(b)}</td>
               <td className="whitespace-nowrap px-3 py-2">{t(b.boi_make)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.boi_qty)}</td>
               <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.stock_allocated_qty)}</td>
               <td className="whitespace-nowrap px-3 py-2">
-                {vendor
-                  ? [b.vendor_code, b.vendor_name].filter((x) => x != null && String(x).trim()).join(" · ") || "—"
-                  : <span className="text-muted">No order</span>}
+                {vendor ? t(b.vendor_code) : <span className="text-muted">No order</span>}
               </td>
+              <td className="whitespace-nowrap px-3 py-2">{t(v(b.vendor_name))}</td>
               <td className="whitespace-nowrap px-3 py-2">{t(v(b.ril_po_no))}</td>
               <td className="whitespace-nowrap px-3 py-2">{d(v(b.ril_po_date))}</td>
               <td className="whitespace-nowrap px-3 py-2">{t(v(b.vendor_so_no))}</td>
