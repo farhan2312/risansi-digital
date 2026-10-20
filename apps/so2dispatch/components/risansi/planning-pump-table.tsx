@@ -8,6 +8,7 @@ import { drawingDocStatus, drawingVersions } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PartDrawingCell, PartPickerModal } from "./part-drawing";
+import { OmEcsModal } from "./om-ecs-modal";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -20,8 +21,11 @@ const WITH_UNIT: Record<string, string> = {
 };
 const UNIT_COLUMNS = new Set(Object.values(WITH_UNIT));
 
-/** The pump's EC form, as columns: the Pump Add-On fields, a value and its unit as one. */
-const EC_COLUMNS: OrderField[] = ADD_ON_PUMP_FIELDS.filter((f) => !UNIT_COLUMNS.has(f.column));
+/** The EC on the front: who it is and how many; the whole form opens from the row. */
+const EC_FRONT = ["ec_no", "ec_date", "pump_type", "quantity", "boi"];
+const EC_COLUMNS: OrderField[] = EC_FRONT.map((c) => ADD_ON_PUMP_FIELDS.find((f) => f.column === c)!).filter(
+  (f) => f && !UNIT_COLUMNS.has(f.column)
+);
 
 /** Lot 1 to n of the SO's readiness, as on a Spare. */
 const LOT_COLUMNS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
@@ -68,6 +72,8 @@ export function PlanningPumpTable({
   const pumps = rows.filter((r) => PUMP_LIKE.includes(str(r.item_type)));
   // The EC whose part drawings are open to pick.
   const [partsFor, setPartsFor] = useState<string | null>(null);
+  // The EC whose whole form is open, with its SO's other ECs beside it.
+  const [ecFor, setEcFor] = useState<{ orderId: string; id: string } | null>(null);
   // The SOs in page order, each with its pump ECs.
   const sos: { orderId: string; ecs: Row[] }[] = [];
   for (const r of pumps) {
@@ -90,8 +96,9 @@ export function PlanningPumpTable({
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
           <th colSpan={soSpan} className="px-3 pt-2.5 pb-1">SO</th>
-          <th colSpan={EC_COLUMNS.length + 1} className={group}>EC details</th>
-          <th colSpan={ecPlanCols.length + 1 + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
+          <th colSpan={EC_COLUMNS.length} className={group}>EC details</th>
+          <th colSpan={2} className={group}>Drawing</th>
+          <th colSpan={ecPlanCols.length + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
         </tr>
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={th}>Sl.</th>
@@ -113,11 +120,11 @@ export function PlanningPumpTable({
               {f.column === "boi" ? "BOI" : f.label}
             </th>
           ))}
-          <th className={th}>GAD</th>
+          <th className={`${th} border-l border-card-border`}>GAD</th>
+          <th className={th}>Part Drawing</th>
           {ecPlanCols.map((f, i) => (
             <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{f.label}</th>
           ))}
-          <th className={th}>Part Drawing</th>
           {canEdit && <th className={th} />}
         </tr>
       </thead>
@@ -243,14 +250,30 @@ export function PlanningPumpTable({
                       return (
                         <td
                           key={f.column}
-                          className={`${ecCell} whitespace-nowrap ${i === 0 ? "border-l border-card-border font-semibold" : ""}`}
+                          onClick={() => setEcFor({ orderId, id })}
+                          title="Open the EC's details"
+                          className={`${ecCell} cursor-pointer whitespace-nowrap hover:bg-primary/5 ${i === 0 ? "border-l border-card-border font-semibold text-primary underline-offset-2 hover:underline" : ""}`}
                         >
                           {v ? (unit && str(ec[unit]) ? `${v} ${str(ec[unit])}` : v) : <span className="text-muted">—</span>}
                         </td>
                       );
                     })}
-                    <td className={`${ecCell} whitespace-nowrap`}>
+                    <td className={`${ecCell} whitespace-nowrap border-l border-card-border`}>
                       <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} />
+                    </td>
+                    <td className={ecCell}>
+                      <div className="flex items-start gap-2">
+                        <PartDrawingCell required={r.part_drawing} parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []} />
+                        <button
+                          type="button"
+                          onClick={() => setPartsFor(str(r.id))}
+                          title={canEdit ? "Pick parts for drawing" : "Parts for drawing"}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
+                        >
+                          <ListChecks className="h-3.5 w-3.5" />
+                          Parts
+                        </button>
+                      </div>
                     </td>
                     {ecPlanCols.map((f, i) => (
                       <td key={f.column} className={`${ecCell} whitespace-nowrap ${i === 0 ? "border-l border-card-border" : ""}`}>
@@ -266,20 +289,6 @@ export function PlanningPumpTable({
                         )}
                       </td>
                     ))}
-                    <td className={ecCell}>
-                      <div className="flex items-start gap-2">
-                        <PartDrawingCell required={r.part_drawing} parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []} />
-                        <button
-                          type="button"
-                          onClick={() => setPartsFor(str(r.id))}
-                          title={canEdit ? "Pick parts for drawing" : "Parts for drawing"}
-                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
-                        >
-                          <ListChecks className="h-3.5 w-3.5" />
-                          Parts
-                        </button>
-                      </div>
-                    </td>
                     {canEdit && (
                       <td className={`${ecCell} text-right`}>
                         <button
@@ -314,6 +323,25 @@ export function PlanningPumpTable({
             parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []}
             canEdit={canEdit}
             onClose={() => setPartsFor(null)}
+          />
+        );
+      })()}
+      {(() => {
+        const so = ecFor ? sos.find((s) => s.orderId === ecFor.orderId) : null;
+        if (!so || !ecFor) return null;
+        const head = so.ecs[0];
+        return (
+          <OmEcsModal
+            key={ecFor.id}
+            initialId={ecFor.id}
+            order={{ so_no: head.so_no, sl_no: head.sl_no, client_name: head.client_name, order_type: "Pump" }}
+            items={so.ecs.map((r) => ({ ...((r.ec ?? {}) as Row), id: r.id }))}
+            canManage={false}
+            deletingId={null}
+            onAdd={() => {}}
+            onEdit={() => {}}
+            onDelete={() => {}}
+            onClose={() => setEcFor(null)}
           />
         );
       })()}

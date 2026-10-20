@@ -23,7 +23,10 @@ export function OmEcsModal({
   onEdit,
   onDelete,
   onClose,
+  initialId,
 }: {
+  /** The EC shown first (else the first EC). */
+  initialId?: string;
   order: Row;
   items: Row[];
   canManage: boolean;
@@ -36,7 +39,7 @@ export function OmEcsModal({
   const fields = addOnFieldsFor(str(order.order_type) || null);
   // The EC shown: the first until another is picked (and the first again if
   // the one picked is deleted).
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(initialId ?? null);
   const current = items.find((it) => str(it.id) === picked) ?? items[0] ?? null;
 
   useEffect(() => {
