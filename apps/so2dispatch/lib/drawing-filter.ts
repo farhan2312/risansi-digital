@@ -64,6 +64,34 @@ export function ecDrawingDone(r: Row): boolean {
   );
 }
 
+/**
+ * When Drawing finished an EC: the last of its GAD issued to Planning, its
+ * curve approved and its last part drawn (each where asked). "" until done.
+ */
+export function ecDrawingDoneDate(r: Row): string {
+  if (!ecDrawingDone(r)) return "";
+  const day = (v: unknown) => String(v ?? "").slice(0, 10);
+  const last = (rows: Row[]) => rows.sort((a, b) => Number(a.seq ?? 0) - Number(b.seq ?? 0))[rows.length - 1];
+  const dates: string[] = [];
+  const gad = last(versionsOf(r).filter((v) => String(v.doc_type ?? "GAD") === "GAD"));
+  if (gad) dates.push(day(gad.issued_to_production_date));
+  if (yes(r.performance_curve_required)) {
+    const pc = last(versionsOf(r).filter((v) => v.doc_type === "Performance Curve"));
+    if (pc) dates.push(day(pc.approved_date));
+  }
+  if (yes(r.part_drawing)) dates.push(...partsOf(r).map((p) => day(p.completed_date)));
+  return dates.filter(Boolean).sort().pop() ?? "";
+}
+
+/**
+ * The SO's Open / Closed from all its pump ECs, and the day it closed — the
+ * latest day one of its ECs was finished.
+ */
+export function soDrawingState(ecs: Row[]): { closed: boolean; date: string } {
+  const closed = ecs.length > 0 && ecs.every(ecDrawingDone);
+  return { closed, date: closed ? ecs.map(ecDrawingDoneDate).filter(Boolean).sort().pop() ?? "" : "" };
+}
+
 /** The EC row matches the EC-level filters (an empty list matches all). */
 export function ecMatchesDrawingFilter(r: Row, f: DrawingFilter): boolean {
   const s = ecDrawingStatuses(r);

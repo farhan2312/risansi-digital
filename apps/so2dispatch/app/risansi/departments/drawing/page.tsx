@@ -22,6 +22,7 @@ import {
   drawingFilterActive,
   drawingFilterSql,
   ecMatchesDrawingFilter,
+  soDrawingState,
   parseDrawingFilter,
 } from "@/lib/drawing-filter";
 import { unreadByOrder } from "@/lib/order-messages";
@@ -90,6 +91,19 @@ export default async function DrawingWorkspacePage({
   // so the order id comes from whichever the row carries.
   // The rows' sign-offs and unread messages both hang off the queue's SOs and
   // not off each other, so they load together.
+  // Each SO's Open / Closed and closing day, from all its ECs — worked out
+  // before a filter narrows the ECs shown.
+  {
+    const byOrder = new Map<string, typeof queue.rows>();
+    for (const r of queue.rows) {
+      const k = String(r.order_id);
+      byOrder.set(k, [...(byOrder.get(k) ?? []), r]);
+    }
+    for (const [, ecs] of byOrder) {
+      const st = soDrawingState(ecs);
+      for (const r of ecs) Object.assign(r, { so_drawing_closed: st.closed, so_drawing_closed_date: st.date });
+    }
+  }
   // An SO matched on one of its ECs: show the ECs that match. Open / Closed is
   // the SO's own, so it keeps every EC.
   if (drawingFilterActive(drawingFilter)) {

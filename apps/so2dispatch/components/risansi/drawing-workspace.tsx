@@ -22,7 +22,6 @@ import {
   GAD_STATUSES,
   PART_STATUSES,
   SO_STATES,
-  ecDrawingDone,
 } from "@/lib/drawing-filter";
 import { PartDrawingCell, PartProgress } from "./part-drawing";
 import { partDrawingStatus } from "@/lib/part-drawings";
@@ -253,8 +252,13 @@ export function DrawingWorkspace({
                               </td>
                               <td rowSpan={span} className={soCell}>
                                 {/* Closed once Drawing is done with every EC on it. */}
-                                {g.ecs.every(ecDrawingDone) ? (
-                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
+                                {g.head.so_drawing_closed ? (
+                                  <span className="flex flex-col items-start gap-0.5">
+                                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
+                                    {str(g.head.so_drawing_closed_date) && (
+                                      <span className="whitespace-nowrap text-[11px] text-muted">{formatDate(g.head.so_drawing_closed_date)}</span>
+                                    )}
+                                  </span>
                                 ) : (
                                   <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
                                 )}
