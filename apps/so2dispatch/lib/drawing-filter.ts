@@ -10,7 +10,7 @@ export const NOT_REQUIRED = "Not required";
 
 export const GAD_STATUSES = [
   "Drawing pending",
-  "Sent to client, approval pending",
+  "Sent to client – approval pending",
   "Resubmit",
   "Approved by client",
   "Issued to planning",
@@ -91,7 +91,7 @@ function docStatusSql(it: string, doc: "GAD" | "Performance Curve"): string {
                   AND lower(COALESCE(lv.issued_to_production, '')) = 'yes' THEN 'Issued to planning'
              WHEN lower(COALESCE(lv.approved, '')) = 'yes' THEN 'Approved by client'
              WHEN lower(COALESCE(lv.approved, '')) = 'no' THEN 'Resubmit'
-             ELSE ${lit(gad ? "Sent to client, approval pending" : "Sent to client for approval")} END
+             ELSE ${lit(gad ? "Sent to client – approval pending" : "Sent to client for approval")} END
            FROM (SELECT 1) one
            LEFT JOIN LATERAL (SELECT rv.id, rv.issued_to_client, rv.approved, rv.issued_to_production
                                 FROM order_drawing_revisions rv

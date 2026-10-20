@@ -383,7 +383,7 @@ export function drawingDocStatus(
   }
   if (yes(last.approved)) return { label: "Approved by client", tone: gad ? "part" : "done", version };
   if (no(last.approved)) return { label: "Resubmit", tone: "rework", version };
-  return { label: gad ? "Sent to client, approval pending" : "Sent to client for approval", tone: "part", version };
+  return { label: gad ? "Sent to client – approval pending" : "Sent to client for approval", tone: "part", version };
 }
 
 /** Order Making has not held the SO. Held there, it goes to no department at all. */
