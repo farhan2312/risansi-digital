@@ -2,7 +2,7 @@
 
 import { Fragment, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FileText, Loader2, MessageSquare, PenTool, Plus, Send, Trash2, Wrench, X } from "lucide-react";
+import { CalendarCheck, CheckCircle2, FileText, Loader2, MessageSquare, PenTool, Plus, Send, Trash2, X } from "lucide-react";
 import { DRAWING_DOC_TYPES, type DrawingDocType } from "@/lib/order-schema";
 import { DEPT_VIEWS, dispatchRowTone, drawingDocStatus, drawingVersions, type DrawingStatusTone } from "@/lib/dept-view";
 import type { OrderListOptions } from "@/lib/orders";
@@ -16,7 +16,6 @@ import { OrderListFilterBar } from "./order-list-filter-bar";
 import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { OrderThreadModal } from "./order-thread-modal";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
-import { RevisionDocsButton } from "./drawing-docs";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -119,15 +118,14 @@ export function DrawingWorkspace({
           <table className="w-full min-w-[1500px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={7} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
                 <th colSpan={7} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="px-3 py-2">SO No.</th>
+                <th className="px-3 py-2"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2">Chat</th>
                 <th className="px-3 py-2">Client</th>
-                <th className="px-3 py-2"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2 whitespace-nowrap">Drawing Target</th>
                 <th className="px-3 py-2 whitespace-nowrap">Perf. Curve</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
@@ -142,7 +140,7 @@ export function DrawingWorkspace({
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -167,9 +165,10 @@ export function DrawingWorkspace({
                               <td rowSpan={span} data-focus-row={str(g.head.order_id)} className={`${soCell} font-medium tabular-nums ${focusClass(str(g.head.order_id))}`}>
                                 {str(g.head.sl_no)}
                               </td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>
-                                {str(g.head.so_no) || "—"}
+                              <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                                <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
                                 <HoldBadge order={g.head} />
+                                <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>
                               </td>
                               <td rowSpan={span} className={soCell}>
                                 <button
@@ -187,8 +186,11 @@ export function DrawingWorkspace({
                                   )}
                                 </button>
                               </td>
-                              <td rowSpan={span} className={`${soCell} max-w-[14rem]`}>{str(g.head.client_name) || "—"}</td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.so_date)}</td>
+                              <td rowSpan={span} className={soCell}>
+                                <span title={str(g.head.client_name)} className="line-clamp-2 w-32 text-xs leading-snug">
+                                  {str(g.head.client_name) || "—"}
+                                </span>
+                              </td>
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.drg_target_date)}</td>
                               <td rowSpan={span} className={soCell}>
                                 {wantsCurve(g.head) ? (
@@ -342,7 +344,7 @@ function DocCell({ row, doc, onOpen }: { row: Row; doc: DrawingDocType; onOpen: 
   const last = versions[versions.length - 1];
   const when = last
     ? yes(last.issued_to_production) && last.issued_to_production_date
-      ? `Workshop ${formatDate(last.issued_to_production_date)}`
+      ? `Planning ${formatDate(last.issued_to_production_date)}`
       : last.approved_date && str(last.approved)
         ? `${yes(last.approved) ? "Approved" : "Returned"} ${formatDate(last.approved_date)}`
         : last.issued_to_client_date
@@ -488,6 +490,7 @@ const VERSION_FIELDS = [
   "approved_date",
   "issued_to_production",
   "issued_to_production_date",
+  "planning_link",
   "remarks",
 ] as const;
 
@@ -513,7 +516,7 @@ function VersionForm({
       VERSION_FIELDS.map((k) => {
         const raw = str(version[k]);
         if (k.endsWith("_date")) return [k, raw.slice(0, 10)];
-        if (k === "remarks") return [k, raw];
+        if (k === "remarks" || k === "planning_link") return [k, raw];
         return [k, raw.trim().toLowerCase() === "yes" ? "Yes" : raw.trim().toLowerCase() === "no" ? "No" : ""];
       })
     ) as Record<string, string>;
@@ -540,7 +543,13 @@ function VersionForm({
     if (!sent) Object.assign(out, { issued_to_client_date: "", approved: "", approved_date: "" });
     if (out.approved === "") out.approved_date = "";
     if (!(sent && out.approved === "Yes") || !gad) Object.assign(out, { issued_to_production: "", issued_to_production_date: "" });
-    if (out.issued_to_production !== "Yes") out.issued_to_production_date = "";
+    if (out.issued_to_production !== "Yes") Object.assign(out, { issued_to_production_date: "", planning_link: "" });
+    out.planning_link = out.planning_link.trim();
+    if (out.planning_link && !/^https?:\/\//i.test(out.planning_link)) {
+      setSaving(false);
+      setError("The SharePoint link must start with https://");
+      return;
+    }
     const res = await updateOrderChildAction(str(version.id), "order_drawing_revisions", out, str(ec.id));
     setSaving(false);
     if (!res.ok) {
@@ -579,11 +588,6 @@ function VersionForm({
         </div>
         <div className="flex items-center gap-2">
           <StatusPill label={live.label} tone={live.tone} />
-          <RevisionDocsButton
-            revisionId={str(version.id)}
-            label={[str(ec.so_no), str(ec.ec_no), `${doc} V${number}`].filter(Boolean).join(" · ")}
-            count={Number(version.doc_count ?? 0)}
-          />
         </div>
       </div>
 
@@ -639,7 +643,7 @@ function VersionForm({
         </Step>
 
         {gad && (
-          <Step icon={<Wrench className="h-4 w-4" />} title="Issued to workshop">
+          <Step icon={<CalendarCheck className="h-4 w-4" />} title="Issued to Planning">
             {approved ? (
               <div className="flex flex-wrap items-end gap-3">
                 <Choice
@@ -659,6 +663,19 @@ function VersionForm({
                       value={v.issued_to_production_date}
                       onChange={(e) => set("issued_to_production_date", e.target.value)}
                       disabled={ro}
+                      className={input}
+                    />
+                  </label>
+                )}
+                {v.issued_to_production === "Yes" && (
+                  <label className="block w-full">
+                    <span className="mb-1 block text-xs font-medium text-muted-foreground">SharePoint Link</span>
+                    <input
+                      type="url"
+                      value={v.planning_link}
+                      onChange={(e) => set("planning_link", e.target.value)}
+                      disabled={ro}
+                      placeholder="https://…sharepoint.com/…"
                       className={input}
                     />
                   </label>

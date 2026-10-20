@@ -1,9 +1,10 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { MessageSquare, Pencil } from "lucide-react";
+import { ExternalLink, MessageSquare, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
+import { drawingDocStatus, drawingVersions } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 
@@ -85,7 +86,7 @@ export function PlanningPumpTable({
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
           <th colSpan={soSpan} className="px-3 pt-2.5 pb-1">SO</th>
-          <th colSpan={EC_COLUMNS.length} className={group}>EC details</th>
+          <th colSpan={EC_COLUMNS.length + 1} className={group}>EC details</th>
           <th colSpan={ecPlanCols.length + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
         </tr>
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -108,6 +109,7 @@ export function PlanningPumpTable({
               {f.column === "boi" ? "BOI" : f.label}
             </th>
           ))}
+          <th className={th}>GAD</th>
           {ecPlanCols.map((f, i) => (
             <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{f.label}</th>
           ))}
@@ -242,6 +244,9 @@ export function PlanningPumpTable({
                         </td>
                       );
                     })}
+                    <td className={`${ecCell} whitespace-nowrap`}>
+                      <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} />
+                    </td>
                     {ecPlanCols.map((f, i) => (
                       <td key={f.column} className={`${ecCell} whitespace-nowrap ${i === 0 ? "border-l border-card-border" : ""}`}>
                         {fieldApplies(f, r)
@@ -303,5 +308,41 @@ export function EcKindToggle({ value, onChange }: { value: "spare" | "pump"; onC
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * The EC's GAD as Planning needs it: once Drawing issues it to Planning, the
+ * date and its SharePoint link; until then, where it stands.
+ */
+function GadCell({ versions }: { versions: Row[] }) {
+  const st = drawingDocStatus(versions, "GAD");
+  const all = drawingVersions(versions, "GAD");
+  const last = all[all.length - 1];
+  const issued = st.label === "Issued to planning";
+  if (!issued) {
+    return <span className="text-xs text-muted">{st.version ? `V${st.version} · ` : ""}{st.label}</span>;
+  }
+  const link = str(last?.planning_link).trim();
+  const date = str(last?.issued_to_production_date);
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span className="text-xs font-semibold text-emerald-700">
+        V{st.version} · Issued{date ? ` ${shortDate(date)}` : ""}
+      </span>
+      {/^https?:\/\//i.test(link) ? (
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Open GAD
+        </a>
+      ) : (
+        <span className="text-[11px] text-muted">No link</span>
+      )}
+    </span>
   );
 }

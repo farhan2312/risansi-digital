@@ -363,7 +363,7 @@ export type DrawingStatusTone = "done" | "part" | "pending" | "rework";
 /**
  * Where a drawing document stands, from its latest version: pending until a
  * version goes to the client; then awaiting approval; sent back to resubmit;
- * approved; and a GAD, finally, issued to the workshop.
+ * approved; and a GAD, finally, issued to Planning.
  */
 export function drawingDocStatus(
   rows: Record<string, unknown>[],
@@ -379,7 +379,7 @@ export function drawingDocStatus(
     return { label: gad ? "Drawing pending" : "Pending", tone: "pending", version };
   }
   if (gad && yes(last.approved) && yes(last.issued_to_production)) {
-    return { label: "Issued to workshop", tone: "done", version };
+    return { label: "Issued to planning", tone: "done", version };
   }
   if (yes(last.approved)) return { label: "Approved by client", tone: gad ? "part" : "done", version };
   if (no(last.approved)) return { label: "Resubmit", tone: "rework", version };

@@ -483,10 +483,11 @@ export function drawingHandoffEvents(
   }
 
   const production = answered("issued_to_production");
-  if (production && !actorIsCentral) {
+  // The GAD reaching Planning: Planning hears, and Central unless it is theirs.
+  if (production) {
     events.push({
-      roles: ["central_visibility"],
-      what: phrase(production, "issued to Workshop"),
+      roles: actorIsCentral ? ["planning"] : ["planning", "central_visibility"],
+      what: phrase(production, "issued to Planning"),
     });
   }
 

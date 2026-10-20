@@ -2579,6 +2579,11 @@ export async function listItemsForSection(
              ? // …and where Assembly & Packing has got to on it, and the SO's packing slips.
                `, d.readiness_date_status, ${ASSEMBLY_STATE_SQL("it")} AS assembly_state,
                  to_jsonb(it) - 'order_copy_file_data' AS ec,
+                 -- The EC's GAD versions: Planning sees where it stands and,
+                 -- once issued to them, its date and SharePoint link.
+                 COALESCE((SELECT jsonb_agg(to_jsonb(rv) ORDER BY rv.seq)
+                             FROM order_drawing_revisions rv
+                            WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'), '[]'::jsonb) AS gad_versions,
                  (SELECT to_char(pad.actual_packing_date, 'YYYY-MM-DD')
                     FROM order_assembly_dispatch pad WHERE pad.item_id = it.id) AS actual_packing_date,
                  COALESCE((SELECT jsonb_agg(jsonb_build_object(

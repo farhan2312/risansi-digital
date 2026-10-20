@@ -1370,7 +1370,7 @@ export const BOI_ITEM_FIELDS: OrderField[] = [
 // as versions — rows of order_drawing_revisions with that doc_type, the
 // version number in revision_no. A version is sent to the client, who
 // approves it or sends it back to resubmit as a new version; an approved GAD
-// is then issued to the workshop. Status follows (drawingDocStatus).
+// is then issued to Planning. Status follows (drawingDocStatus).
 export const DRAWING_DOC_TYPES = ["GAD", "Performance Curve"] as const;
 export type DrawingDocType = (typeof DRAWING_DOC_TYPES)[number];
 
@@ -1400,21 +1400,29 @@ export const DRAWING_REVISION_FIELDS: OrderField[] = [
     group: "Client",
     dependsOn: [{ column: "issued_to_client", value: "Yes" }],
   },
-  // A GAD's last step: the approved drawing goes to the workshop.
+  // A GAD's last step: the approved drawing goes to Planning, with its
+  // SharePoint link — Planning sees both under the EC.
   {
     column: "issued_to_production",
-    label: "Issued to Workshop",
+    label: "Issued to Planning",
     type: "select",
     options: YES_NO,
-    group: "Workshop",
+    group: "Planning",
     dependsOn: [{ column: "approved", value: "Yes" }, { column: "doc_type", value: "GAD" }],
   },
   {
     column: "issued_to_production_date",
-    label: "Issued to Workshop Date",
+    label: "Issued to Planning Date",
     type: "date",
-    group: "Workshop",
+    group: "Planning",
     dependsOn: [{ column: "approved", value: "Yes" }, { column: "doc_type", value: "GAD" }],
+  },
+  {
+    column: "planning_link",
+    label: "SharePoint Link",
+    type: "text",
+    group: "Planning",
+    dependsOn: [{ column: "issued_to_production", value: "Yes" }, { column: "doc_type", value: "GAD" }],
   },
   { column: "remarks", label: "Remarks", type: "text", group: "Remarks" },
 ];
