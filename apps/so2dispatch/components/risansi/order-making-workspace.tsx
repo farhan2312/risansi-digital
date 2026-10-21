@@ -240,7 +240,7 @@ export function OrderMakingWorkspace({
       {summary && (
         <div
           aria-busy={shownPeriod !== period}
-          className={`mb-4 grid grid-cols-2 gap-2 transition-opacity sm:grid-cols-3 lg:grid-cols-5 ${
+          className={`mb-4 grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-2 transition-opacity ${
             shownPeriod !== period && pending ? "pointer-events-none opacity-50" : ""
           }`}
         >
@@ -252,20 +252,20 @@ export function OrderMakingWorkspace({
                 type="button"
                 onClick={() => setParams({ asg: on ? null : m.id, page: null })}
                 aria-pressed={on}
-                className={`rounded-xl border p-3 text-left shadow-sm transition-colors ${
+                className={`rounded-lg border px-2.5 py-2 text-left shadow-sm transition-colors ${
                   on ? "border-primary bg-primary/[0.06]" : "border-card-border bg-surface hover:bg-background"
                 }`}
               >
-                <span className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">
+                <span className="flex items-center gap-1.5 truncate text-[13px] font-semibold text-foreground">
                   <UserRound className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">{memberLabel(m)}</span>
                 </span>
-                <span className="mt-1.5 flex items-baseline gap-3 text-xs text-muted">
+                <span className="mt-0.5 flex items-baseline gap-3 text-[11px] text-muted">
                   <span>
-                    <span className="text-lg font-bold tabular-nums text-foreground">{m.assigned}</span> assigned
+                    <span className="text-base font-bold tabular-nums text-foreground">{m.assigned}</span> assigned
                   </span>
                 </span>
-                <span className="mt-1 flex gap-3 text-[11px]">
+                <span className="flex gap-2.5 text-[10.5px]">
                   <span className="font-semibold text-amber-700">{m.pending} pending</span>
                   <span className="font-semibold text-emerald-700">{m.filled} filled</span>
                 </span>
@@ -276,18 +276,18 @@ export function OrderMakingWorkspace({
             type="button"
             onClick={() => setParams({ asg: pickedMember === UNASSIGNED ? null : UNASSIGNED, page: null })}
             aria-pressed={pickedMember === UNASSIGNED}
-            className={`rounded-xl border border-dashed p-3 text-left transition-colors ${
+            className={`rounded-lg border border-dashed px-2.5 py-2 text-left transition-colors ${
               pickedMember === UNASSIGNED ? "border-primary bg-primary/[0.06]" : "border-input-border bg-surface hover:bg-background"
             }`}
           >
-            <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+            <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">
               <Users className="h-3.5 w-3.5 text-muted" />
               Unassigned
             </span>
-            <span className="mt-1.5 block text-xs text-muted">
-              <span className="text-lg font-bold tabular-nums text-foreground">{summary.unassigned.total}</span> SOs
+            <span className="mt-0.5 block text-[11px] text-muted">
+              <span className="text-base font-bold tabular-nums text-foreground">{summary.unassigned.total}</span> SOs
             </span>
-            <span className="mt-1 block text-[11px] font-semibold text-amber-700">
+            <span className="block text-[10.5px] font-semibold text-amber-700">
               {summary.unassigned.pending} SO details pending
             </span>
           </button>
