@@ -8,6 +8,7 @@ import {
   isOrderListFiltered,
   orderListFilterParams,
   parseOrderListFilter,
+  withOrdersKind,
   scopeToRep,
 } from "@/lib/order-list-filter";
 import { getCurrentUser } from "@/lib/session";
@@ -37,7 +38,11 @@ export default async function OrdersPage({
   // The central dashboard's filter set, read from the URL so it narrows the
   // whole table in SQL — see lib/order-list-filter.ts.
   // A Rep sees only their own SOs.
-  const filter = scopeToRep(parseOrderListFilter((key) => params[key], { noDispatchTarget: true }), user);
+  // Spare or Pump, as the toggle says (Spare when it says nothing).
+  const filter = scopeToRep(
+    withOrdersKind(parseOrderListFilter((key) => params[key], { noDispatchTarget: true }), params.type),
+    user
+  );
   const result = await listOrdersPage({
     page: parsePage(params.page),
     filter,
