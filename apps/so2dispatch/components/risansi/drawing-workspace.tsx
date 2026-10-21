@@ -258,9 +258,13 @@ export function DrawingWorkspace({
                                     {str(g.head.so_drawing_closed_date) && (
                                       <span className="whitespace-nowrap text-[11px] text-muted">{formatDate(g.head.so_drawing_closed_date)}</span>
                                     )}
+                                    <TargetNote target={g.head.drg_target_date} until={g.head.so_drawing_closed_date} closed />
                                   </span>
                                 ) : (
-                                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+                                  <span className="flex flex-col items-start gap-0.5">
+                                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+                                    <TargetNote target={g.head.drg_target_date} until={todayIso()} />
+                                  </span>
                                 )}
                               </td>
                             </>
@@ -814,5 +818,27 @@ function VersionForm({
         </div>
       )}
     </div>
+  );
+}
+
+/** Today in India, as YYYY-MM-DD. */
+function todayIso(): string {
+  return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * Against the Drawing target: an open SO past it is overdue by so many days;
+ * a closed one that closed after it was late by so many.
+ */
+function TargetNote({ target, until, closed = false }: { target: unknown; until: unknown; closed?: boolean }) {
+  const t = str(target).slice(0, 10);
+  const u = str(until).slice(0, 10);
+  if (!t || !u) return null;
+  const days = Math.round((Date.parse(u) - Date.parse(t)) / 86400000);
+  if (days <= 0) return null;
+  return (
+    <span className="whitespace-nowrap rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+      {closed ? `Late by ${days}d` : `Overdue ${days}d`}
+    </span>
   );
 }

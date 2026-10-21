@@ -376,7 +376,7 @@ export function drawingDocStatus(
   const no = (v: unknown) => String(v ?? "").trim().toLowerCase() === "no";
   const version = versions.length;
   if (!last || !yes(last.issued_to_client)) {
-    return { label: gad ? "Drawing pending" : "Pending", tone: "pending", version };
+    return { label: "Pending", tone: "pending", version };
   }
   if (gad && yes(last.approved) && yes(last.issued_to_production)) {
     return { label: "Issued to planning", tone: "done", version };

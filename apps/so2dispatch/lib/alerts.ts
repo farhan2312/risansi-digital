@@ -1,5 +1,6 @@
 import { query } from "@/lib/db";
 import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, spareEcSql } from "@/lib/dept-view";
+import { ecDrawingDoneSql } from "@/lib/drawing-filter";
 
 /** A cancelled or diverted order raises no escalation. `a.id` is the SO. */
 const OPEN_ONLY = `EXISTS (SELECT 1 FROM orders oo WHERE oo.id = a.id AND ${orderOpenSql("oo")})`;
@@ -44,14 +45,9 @@ const ALERTS_SQL = `
    WHERE o.drg_target_date < ${TODAY_IST}
      -- A Spare EC needs no drawing, so it is never late for one.
      AND NOT (${spareEcSql("it", "o")})
-     AND NOT EXISTS (
-       SELECT 1 FROM order_drawing_revisions rv
-        WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'
-          -- Drawing's part ends at its hand-off to Operations (or, on
-          -- revisions from before that step, straight to the client).
-          AND (lower(coalesce(rv.issued_to_operations, '')) = 'yes'
-               OR lower(coalesce(rv.issued_to_client, '')) = 'yes')
-     )
+     -- Late until Drawing is done with the EC: GAD issued to Planning,
+     -- curve approved and parts drawn where asked (lib/drawing-filter).
+     AND NOT ${ecDrawingDoneSql("it", "o")}
 
   UNION ALL
   -- Purchase: an EC's BOI items not all received by the target date.

@@ -9,7 +9,7 @@ import { partDrawingStatus } from "@/lib/part-drawings";
 export const NOT_REQUIRED = "Not required";
 
 export const GAD_STATUSES = [
-  "Drawing pending",
+  "Pending",
   "Sent to client – approval pending",
   "Resubmit",
   "Approved by client",
@@ -114,7 +114,7 @@ const inList = (expr: string, values: string[]) => `${expr} IN (${values.map(lit
 function docStatusSql(it: string, doc: "GAD" | "Performance Curve"): string {
   const gad = doc === "GAD";
   return `(SELECT CASE
-             WHEN lv.id IS NULL OR lower(COALESCE(lv.issued_to_client, '')) <> 'yes' THEN ${lit(gad ? "Drawing pending" : "Pending")}
+             WHEN lv.id IS NULL OR lower(COALESCE(lv.issued_to_client, '')) <> 'yes' THEN 'Pending'
              WHEN ${gad ? "TRUE" : "FALSE"} AND lower(COALESCE(lv.approved, '')) = 'yes'
                   AND lower(COALESCE(lv.issued_to_production, '')) = 'yes' THEN 'Issued to planning'
              WHEN lower(COALESCE(lv.approved, '')) = 'yes' THEN 'Approved by client'
@@ -143,6 +143,11 @@ function partStatusSql(it: string): string {
            CROSS JOIN LATERAL (SELECT count(*) AS total,
                                       count(*) FILTER (WHERE lower(COALESCE(pd.completed, '')) = 'yes') AS done
                                  FROM order_part_drawings pd WHERE pd.item_id = ${it}.id) n)`;
+}
+
+/** Drawing is done with an EC (alias it, its SO o): the SQL twin of ecDrawingDone. */
+export function ecDrawingDoneSql(it: string, o: string): string {
+  return ecDoneSql(it, o);
 }
 
 function ecDoneSql(it: string, o: string): string {

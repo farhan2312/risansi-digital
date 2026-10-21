@@ -45,6 +45,7 @@ import {
   type PageResult,
   pageWithTotal,
 } from "@/lib/pagination";
+import { ecDrawingDoneSql } from "@/lib/drawing-filter";
 import {
   CHILD_FIELDS,
   PUMP_LIKE,
@@ -3211,7 +3212,8 @@ const DEPT_TARGET_COLUMN: Partial<Record<DeptFilterKey, string>> = {
 function ecDonePredicate(dept: DeptFilterKey): string {
   switch (dept) {
     case "drawing":
-      return `((${NO_DRG}) OR ${DRG_APPROVED})`;
+      // Done once Drawing has closed the EC (lib/drawing-filter).
+      return `((${NO_DRG}) OR ${ecDrawingDoneSql("it", "o")})`;
     case "purchase":
       return `((${NO_BOI}) OR (${BOI_RECEIVED}))`;
     case "quality":
