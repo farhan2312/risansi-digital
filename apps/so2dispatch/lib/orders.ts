@@ -931,7 +931,8 @@ export async function syncReadyQtyFromLots(itemId: string): Promise<void> {
   if (!UUID_RE.test(itemId)) return;
   await query(
     `UPDATE order_planning pl
-        SET ready_qty = (SELECT COALESCE(sum(rl.qty), 0)::int FROM order_ready_lots rl WHERE rl.item_id = pl.item_id)
+        SET ready_qty = (SELECT COALESCE(sum(rl.qty), 0)::int FROM order_ready_lots rl
+                          WHERE rl.item_id = pl.item_id AND rl.status IS DISTINCT FROM 'In plan')
        FROM order_items it
       WHERE it.id = pl.item_id AND pl.item_id = $1 AND it.item_type = ANY($2)
         AND EXISTS (SELECT 1 FROM order_ready_lots rl WHERE rl.item_id = pl.item_id AND rl.qty IS NOT NULL)`,
@@ -1052,7 +1053,7 @@ export async function saveReadyLots(
             SET actual_spare_status = EXCLUDED.actual_spare_status,
                 planning_readiness_date = EXCLUDED.planning_readiness_date,
                 readiness_date_status = EXCLUDED.readiness_date_status`,
-        [itemId, last.status, date, dateStatus]
+        [itemId, [...lots].reverse().find((l) => l.status !== "In plan")?.status ?? "In plan", date, dateStatus]
       );
     }
   });
@@ -3082,9 +3083,9 @@ export async function listSoEcsForSection(
  * the filter and the dashboards agree.
  */
 export const ASSEMBLY_STATE_SQL = (it: string) => `(CASE
-    WHEN EXISTS (SELECT 1 FROM order_ready_lots asl WHERE asl.item_id = ${it}.id)
+    WHEN EXISTS (SELECT 1 FROM order_ready_lots asl WHERE asl.item_id = ${it}.id AND asl.status IS DISTINCT FROM 'In plan')
       THEN (SELECT COALESCE(asl.packing_status, 'In Progress') FROM order_ready_lots asl
-             WHERE asl.item_id = ${it}.id ORDER BY asl.seq DESC LIMIT 1)
+             WHERE asl.item_id = ${it}.id AND asl.status IS DISTINCT FROM 'In plan' ORDER BY asl.seq DESC LIMIT 1)
     WHEN EXISTS (SELECT 1 FROM order_assembly_dispatch asd
                   WHERE asd.item_id = ${it}.id AND asd.actual_packing_date IS NOT NULL)
       THEN 'Fully packed'
@@ -3096,7 +3097,7 @@ export const ASSEMBLY_STATE_SQL = (it: string) => `(CASE
  */
 const SPARE_READY_FOR_ASSEMBLY = (it: string) =>
   `(NOT (${spareEcSql(it, "o")})
-     OR EXISTS (SELECT 1 FROM order_ready_lots rl WHERE rl.item_id = ${it}.id))`;
+     OR EXISTS (SELECT 1 FROM order_ready_lots rl WHERE rl.item_id = ${it}.id AND rl.status IS DISTINCT FROM 'In plan'))`;
 
 const PACKED = `EXISTS (SELECT 1 FROM order_assembly_dispatch ad
                         WHERE ad.item_id = it.id

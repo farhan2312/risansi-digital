@@ -396,7 +396,8 @@ function LotStagesModal({
         ) : (
           <div className="space-y-3">
             {lots.map((l, i) => {
-              const named = l.ecs.length > 0;
+              // A lot only In plan is not ready: nothing to assemble or pack yet.
+              const named = l.ecs.length > 0 && l.status !== "In plan";
               const assembled = !!l.assembled_date;
               return (
                 <section key={l.n} className={`rounded-xl border p-4 ${l.packed_date ? "border-emerald-200 bg-emerald-50/30" : "border-card-border"}`}>
@@ -406,7 +407,8 @@ function LotStagesModal({
                         Lot {l.n} <span className="font-normal text-muted">· {l.status || "—"} · ready {shortDate(l.ready_date)}</span>
                       </p>
                       <p className="text-xs text-muted">
-                        {named ? l.ecs.map((e) => `${label(e.id)} ×${e.qty}`).join(", ") : "No ECs named — Planning sets them in its lot form."}
+                        {l.ecs.length > 0 ? l.ecs.map((e) => `${label(e.id)} ×${e.qty}`).join(", ") : "No ECs named — Planning sets them in its lot form."}
+                        {l.status === "In plan" ? " · In plan, not ready yet" : ""}
                       </p>
                     </div>
                     <Chip label={l.packed_date ? "Packed" : assembled ? "Assembled" : "Pending"} />

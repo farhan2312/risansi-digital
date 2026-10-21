@@ -119,7 +119,8 @@ export function spareEcSql(item = "it", order = "o"): string {
 export function assemblyDueSql(item = "it"): string {
   return `(CASE WHEN EXISTS (SELECT 1 FROM order_ready_lots rl WHERE rl.item_id = ${item}.id)
             THEN (SELECT min(rl.packing_plan_date) FROM order_ready_lots rl
-                   WHERE rl.item_id = ${item}.id AND rl.packed_date IS NULL)
+                   WHERE rl.item_id = ${item}.id AND rl.packed_date IS NULL
+                     AND rl.status IS DISTINCT FROM 'In plan')
             ELSE (SELECT apl.planning_readiness_date FROM order_planning apl
                    WHERE apl.item_id = ${item}.id
                      AND NOT EXISTS (SELECT 1 FROM order_assembly_dispatch aad

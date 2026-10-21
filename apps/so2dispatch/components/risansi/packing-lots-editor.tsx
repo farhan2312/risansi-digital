@@ -141,7 +141,9 @@ export function PackingLotsEditor({
               </div>
               <label className="block">
                 <span className="mb-1 block text-[12px] font-medium text-brand-label">Packed on</span>
-                {editing ? (
+                {lot.status === "In plan" ? (
+                  <span className="text-xs text-muted">Not ready yet — In plan</span>
+                ) : editing ? (
                   <input
                     aria-label={`Lot ${i + 1} packed on`}
                     type="date"

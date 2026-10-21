@@ -1302,7 +1302,10 @@ export const BILLING_DOC_FIELDS: OrderField[] = [
  * Assembly & Packing reads them to know what can be packed.
  */
 export const READY_LOT_LIMIT = 3;
-export const READY_LOT_STATUSES = ["Partial ready", "Fully ready"];
+// A lot can be planned before it is ready ("In plan", with its planned date);
+// only a Partial or Fully ready lot is ready — what Assembly & Packing takes.
+export const READY_LOT_STATUSES = ["In plan", "Partial ready", "Fully ready"];
+export const LOT_READY_STATUSES = ["Partial ready", "Fully ready"];
 export const READY_LOT_FIELDS: OrderField[] = [
   { column: "status", label: "Status", type: "select", options: opts(READY_LOT_STATUSES) },
   { column: "ready_date", label: "Date", type: "date" },
@@ -1310,6 +1313,7 @@ export const READY_LOT_FIELDS: OrderField[] = [
 
 /** Whether a Spare EC's status opens its readiness lots. */
 export function readyLotsOpen(actualSpareStatus: unknown): boolean {
+  // In plan too: a lot can be planned before any is ready.
   return READY_LOT_STATUSES.includes(String(actualSpareStatus ?? "").trim());
 }
 

@@ -90,10 +90,16 @@ export function lotsFrozen(lots: ReadyLot[]): boolean {
   return lots.length > 0 && lots[lots.length - 1].status === "Fully ready";
 }
 
-/** The status and readiness date the latest lot gives the EC. */
+/**
+ * The status and readiness date the lots give the EC: the latest ready lot's
+ * status (In plan while none is ready yet), and the latest lot's date — a lot
+ * In plan carries the date it is planned for.
+ */
 export function lotsSummary(lots: ReadyLot[]): { status: string; date: string } | null {
   const last = lots[lots.length - 1];
-  return last ? { status: last.status, date: last.ready_date } : null;
+  if (!last) return null;
+  const ready = [...lots].reverse().find((l) => l.status !== "In plan");
+  return { status: ready?.status ?? "In plan", date: last.ready_date };
 }
 
 /** The first thing wrong with a set of lots, or null when they can be saved. */
@@ -102,7 +108,7 @@ export function lotsError(lots: ReadyLot[]): string | null {
   for (let i = 0; i < lots.length; i++) {
     const lot = lots[i];
     const n = i + 1;
-    if (!READY_LOT_STATUSES.includes(lot.status)) return `Lot ${n}: choose Partial ready or Fully ready.`;
+    if (!READY_LOT_STATUSES.includes(lot.status)) return `Lot ${n}: choose In plan, Partial ready or Fully ready.`;
     if (!ISO.test(lot.ready_date)) return `Lot ${n}: enter its date.`;
     if (lot.ecs && Object.keys(lot.ecs).length === 0) return `Lot ${n}: tick the ECs in it.`;
     if (lot.status === "Fully ready" && i < lots.length - 1) {
@@ -192,6 +198,7 @@ export function packingError(lots: PackingLot[]): string | null {
     if (l.packing_shift && !PACKING_SHIFTS.includes(l.packing_shift)) return `Lot ${i + 1}: choose Day or Night shift.`;
     if (l.pdi && !PDI_OPTIONS.includes(l.pdi)) return `Lot ${i + 1}: choose PDI Yes or No.`;
     if (!l.packed_date) continue;
+    if (l.status === "In plan") return `Lot ${i + 1} is only In plan: it cannot be packed yet.`;
     if (!ISO.test(l.packed_date)) return `Lot ${i + 1}: enter a valid packing date.`;
     if (l.ready_date && l.packed_date < l.ready_date) {
       return `Lot ${i + 1} cannot be packed before it was ready (${l.ready_date.split("-").reverse().join("-")}).`;
