@@ -3945,13 +3945,13 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
   const statuses = statusesFor(dept, types);
   const planning = dept === "planning";
   const clear = { dstatus: null, overdue: null, ...(planning ? { pack: null } : {}) } as Record<string, string | null>;
-  // Planning: how many ECs the SOs hold (of the kind shown), beside the SOs.
+  // Planning, Assembly & Packing: how many ECs the SOs hold (of the kind shown), beside the SOs.
   const spare = types.some((t) => t.toLowerCase() === "spare");
   const pump = types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
   const ecKind = spare && !pump ? spareEcSql("s", "o") : pump && !spare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
   return [
     { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
-    ...(planning
+    ...(planning || dept === "assembly"
       ? [{
           key: "ecs",
           label: "ECs",

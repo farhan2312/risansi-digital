@@ -85,6 +85,15 @@ export default async function AssemblyDispatchWorkspacePage({
     const clear = { asm: null, pkg: null, dstatus: null, overdue: null } as Record<string, string | null>;
     return [
       { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
+      // How many pump ECs those SOs hold: a figure, not a filter.
+      {
+        key: "ecs",
+        label: "ECs",
+        sql: null,
+        params: {},
+        tone: "neutral",
+        measure: "(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB'))",
+      },
       ...SO_ASSEMBLY_STATUSES.map((st) => ({
         key: `a:${st}`,
         label: st,
