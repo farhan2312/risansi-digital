@@ -90,7 +90,7 @@ export function PlanningPumpTable({
 
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
-  const soSpan = 7 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
+  const soSpan = 6 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
 
   return (
     <>
@@ -106,7 +106,6 @@ export function PlanningPumpTable({
           <th className={th}>Sl.</th>
           <th className={th}>SO No.</th>
           <th className={th}>Chat</th>
-          <th className={th}>Client</th>
           <th className={th}>SO Date</th>
           {soColumns.map((f) => (
             <th key={f.column} className={th}>{f.label}</th>
@@ -179,7 +178,6 @@ export function PlanningPumpTable({
                             )}
                           </button>
                         </td>
-                        <td rowSpan={span} className={`${soCell} max-w-[16rem]`}>{str(head.client_name) || "—"}</td>
                         <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                           {str(head.so_date) ? shortDate(str(head.so_date)) : "—"}
                         </td>
