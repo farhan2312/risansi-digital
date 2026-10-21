@@ -6,19 +6,12 @@
 export const QC_DOC_TYPES = ["MTC", "IIR", "Dimensional Report"] as const;
 export type QcDocType = (typeof QC_DOC_TYPES)[number];
 
-/** The order's column for each document. */
-export const QC_DOC_COLUMN: Record<QcDocType, string> = {
-  MTC: "qc_doc_mtc",
-  IIR: "qc_doc_iir",
-  "Dimensional Report": "qc_doc_dimensional",
-};
-
 type Row = Record<string, unknown>;
-const yes = (v: unknown) => String(v ?? "").trim().toLowerCase() === "yes";
 
-/** The documents an SO (or an EC row carrying its SO's columns) needs. */
+/** The documents an SO (or an EC row carrying its SO's columns) needs: its QC Documents. */
 export function requiredQcDocs(order: Row): QcDocType[] {
-  return QC_DOC_TYPES.filter((d) => yes(order[QC_DOC_COLUMN[d]]));
+  const picked = String(order.qc_documents ?? "").split(",").map((v) => v.trim().toLowerCase());
+  return QC_DOC_TYPES.filter((d) => picked.includes(d.toLowerCase()));
 }
 
 export type QcLink = { doc_type: string; link: string; submitted_date: string; remarks: string };

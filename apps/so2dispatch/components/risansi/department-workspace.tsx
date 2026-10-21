@@ -1,6 +1,7 @@
 "use client";
 
 import { KpiStrip } from "./kpi-strip";
+import { MultiSelectField } from "./multi-select-field";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
@@ -1716,7 +1717,13 @@ function EditSectionModal({
                   <label className="mb-1.5 block text-[13px] font-medium text-brand-label">
                     {field.label}
                   </label>
-                  {field.type === "select" ? (
+                  {field.type === "multiselect" ? (
+                    <MultiSelectField
+                      value={values[field.column] ?? ""}
+                      options={field.options ?? []}
+                      onChange={(next) => setValues((v) => ({ ...v, [field.column]: next }))}
+                    />
+                  ) : field.type === "select" ? (
                     <select
                       value={values[field.column] ?? ""}
                       onChange={(e) => {

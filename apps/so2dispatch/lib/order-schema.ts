@@ -19,7 +19,16 @@ export type OrderTable =
 // path and which detail page a section belongs to.
 export type SectionScope = "so" | "item";
 
-export type OrderFieldType = "text" | "date" | "int" | "number" | "select";
+export type OrderFieldType = "text" | "date" | "int" | "number" | "select" | "multiselect";
+
+/** A multiselect's value as its choices: "MTC, IIR" → ["MTC", "IIR"]. */
+export function splitMulti(value: unknown): string[] {
+  return [...new Set(String(value ?? "").split(",").map((v) => v.trim()).filter(Boolean))];
+}
+/** …and back, as it is stored. */
+export function joinMulti(values: string[]): string {
+  return values.join(", ");
+}
 
 export type OrderField = {
   column: string;
@@ -74,11 +83,10 @@ function opts(values: string[]): { value: string; label: string }[] {
 const YES_NO = opts(["Yes", "No"]);
 export const YES_NO_OPTIONS = YES_NO;
 
-/** The QC documents an SO can ask for, each Yes / No on the order (QC_DOC_TYPES). */
+/** The QC documents an SO can ask for, any of them (lib/qc-docs.ts QC_DOC_TYPES). */
+export const QC_DOCUMENT_OPTIONS = opts(["MTC", "IIR", "Dimensional Report"]);
 export const QC_DOC_FIELDS: OrderField[] = [
-  { column: "qc_doc_mtc", label: "MTC", type: "select", options: YES_NO },
-  { column: "qc_doc_iir", label: "IIR", type: "select", options: YES_NO },
-  { column: "qc_doc_dimensional", label: "Dimensional Report", type: "select", options: YES_NO },
+  { column: "qc_documents", label: "QC Documents", type: "multiselect", options: QC_DOCUMENT_OPTIONS },
 ];
 
 export const INDUSTRY_TYPE_OPTIONS = opts(["Sugar", "Non Sugar"]);
@@ -436,6 +444,17 @@ export const ORDER_SECTIONS: OrderSection[] = [
         options: YES_NO,
         group: "Terms & Conditions",
       },
+      // 'No' means the QC department isn't involved for this order — its ECs
+      // are skipped by the QC workspace and QC reminders. Yes asks, under
+      // Document Required, which QC documents the client needs.
+      {
+        column: "qc_required",
+        label: "Quality Required",
+        type: "select",
+        options: YES_NO,
+        dependsOn: [{ column: "order_type", value: "Spare", not: true }],
+        group: "Terms & Conditions",
+      },
       {
         column: "freight_terms",
         label: "Freight Terms",
@@ -491,17 +510,6 @@ export const ORDER_SECTIONS: OrderSection[] = [
       {
         column: "performance_curve_required",
         label: "Performance Curve",
-        type: "select",
-        options: YES_NO,
-        dependsOn: [{ column: "order_type", value: "Spare", not: true }],
-        group: "Document Required",
-      },
-      // 'No' means the QC department isn't involved for this order — its ECs
-      // are skipped by the QC workspace and QC reminders. Yes asks which QC
-      // documents the client needs; Quality gives each, per EC, as a link.
-      {
-        column: "qc_required",
-        label: "Quality Required",
         type: "select",
         options: YES_NO,
         dependsOn: [{ column: "order_type", value: "Spare", not: true }],
@@ -1586,5 +1594,6 @@ export function coerceField(
     const n = Number(trimmed.replace(/,/g, ""));
     return Number.isFinite(n) ? n : null;
   }
+  if (type === "multiselect") return joinMulti(splitMulti(trimmed)) || null;
   return trimmed; // text, select, or date as 'YYYY-MM-DD'
 }

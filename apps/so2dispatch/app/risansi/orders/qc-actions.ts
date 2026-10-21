@@ -28,7 +28,7 @@ export async function saveQcLinksAction(itemId: string, sent: QcLink[]): Promise
   if (!UUID_RE.test(itemId)) return { ok: false, error: "EC not found." };
 
   const ec = await query<Record<string, unknown>>(
-    `SELECT it.order_id, it.ec_no, o.qc_doc_mtc, o.qc_doc_iir, o.qc_doc_dimensional
+    `SELECT it.order_id, it.ec_no, o.qc_documents
        FROM order_items it JOIN orders o ON o.id = it.order_id WHERE it.id = $1`,
     [itemId]
   );

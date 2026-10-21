@@ -19,8 +19,10 @@ import {
 } from "@/lib/order-schema";
 import { spareDeliveryDate, spareDeliveryRules } from "@/lib/target-rules";
 import { NewOrderTerms, blankTermLine, termLineValues, termLinesError, type NewTermLine } from "./new-order-terms";
+import { MultiSelectField } from "./multi-select-field";
+import { QC_DOCUMENT_OPTIONS } from "@/lib/order-schema";
 
-type FieldType = "text" | "date" | "number" | "select";
+type FieldType = "text" | "date" | "number" | "select" | "multiselect";
 type Field = {
   name: keyof NewOrderInput;
   label: string;
@@ -144,6 +146,7 @@ const SECTIONS: Section[] = [
         type: "select",
         options: YES_NO_OPTIONS,
       },
+      { name: "qc_required", label: "Quality Required", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "order_type", value: "Spare", not: true } },
       {
         name: "freight_terms",
         label: "Freight Terms",
@@ -185,11 +188,8 @@ const SECTIONS: Section[] = [
     title: "Document Required",
     fields: [
       { name: "performance_curve_required", label: "Performance Curve", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "order_type", value: "Spare", not: true } },
-      { name: "qc_required", label: "Quality Required", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "order_type", value: "Spare", not: true } },
-      // When Quality is needed: which QC documents.
-      { name: "qc_doc_mtc", label: "MTC", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "qc_required", value: "Yes" } },
-      { name: "qc_doc_iir", label: "IIR", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "qc_required", value: "Yes" } },
-      { name: "qc_doc_dimensional", label: "Dimensional Report", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "qc_required", value: "Yes" } },
+      // When Quality is needed (Terms & Conditions): which QC documents.
+      { name: "qc_documents", label: "QC Documents", type: "multiselect", options: QC_DOCUMENT_OPTIONS, dependsOn: { name: "qc_required", value: "Yes" } },
     ],
   },
   {
@@ -458,7 +458,15 @@ export function OrderForm() {
                     {field.label}
                     {field.required && <span className="text-danger"> *</span>}
                   </label>
-                  {field.type === "select" ? (
+                  {field.type === "multiselect" ? (
+                    <MultiSelectField
+                      id={field.name}
+                      value={values[field.name] ?? ""}
+                      options={field.options ?? []}
+                      onChange={(v) => update(field.name, v)}
+                      disabled={disabled}
+                    />
+                  ) : field.type === "select" ? (
                     <select
                       id={field.name}
                       name={field.name}

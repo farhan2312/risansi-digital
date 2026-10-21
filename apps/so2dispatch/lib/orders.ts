@@ -187,9 +187,7 @@ export type NewOrderInput = {
   ec_sent_operation_date?: string;
   packing_forwarding_percent?: string;
   performance_curve_required?: string;
-  qc_doc_mtc?: string;
-  qc_doc_iir?: string;
-  qc_doc_dimensional?: string;
+  qc_documents?: string;
   boi?: string;
   qc_required?: string;
   quotation_no?: string;
@@ -319,13 +317,13 @@ export async function createOrder(
           clearance_status, clearance_hold_reason, clearance_remarks,
           complaint_ec_no, file_no, discount_percent, gst_percent, taxable_value,
           po_received_date, ec_sent_operation_date, packing_forwarding_percent,
-          performance_curve_required, qc_doc_mtc, qc_doc_iir, qc_doc_dimensional
+          performance_curve_required, qc_documents
        ) VALUES (
           -- The next free number, under the lock above.
           (SELECT COALESCE(max(sl_no), 0) + 1 FROM orders),
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
           $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
-          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53
+          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51
        )
        RETURNING id, sl_no::int AS sl_no`,
       [
@@ -388,9 +386,7 @@ export async function createOrder(
         // A Spare has no drawing to curve.
         input.order_type === "Spare" ? null : nullify(input.performance_curve_required),
         // The QC documents, only when Quality is needed.
-        input.qc_required === "Yes" ? nullify(input.qc_doc_mtc) : null,
-        input.qc_required === "Yes" ? nullify(input.qc_doc_iir) : null,
-        input.qc_required === "Yes" ? nullify(input.qc_doc_dimensional) : null,
+        input.qc_required === "Yes" ? nullify(input.qc_documents) : null,
       ]
     );
     return result.rows[0];

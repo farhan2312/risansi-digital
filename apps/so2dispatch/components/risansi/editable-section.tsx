@@ -9,6 +9,7 @@ import {
   dependsOnSatisfied,
   readyLotsOpen,
   selectOptionsFor,
+  splitMulti,
   withValueRules,
   type OrderField,
   type OrderSection,
@@ -17,6 +18,7 @@ import type { QcDocTable } from "@/lib/orders";
 import type { MarketIntellClient } from "@/lib/market-intell";
 import { QcDocumentsModal } from "./qc-documents-modal";
 import { ClientLookup } from "./client-lookup";
+import { MultiSelectField } from "./multi-select-field";
 import { ReadyLotsEditor } from "./ready-lots-editor";
 import {
   PACKING_LOTS_FIELD,
@@ -63,6 +65,10 @@ export function formatDisplay(field: OrderField, value: unknown): string {
   if (field.type === "select") {
     const v = canonicalSelectValue(field, String(value));
     return field.options?.find((o) => o.value === v)?.label ?? v;
+  }
+  if (field.type === "multiselect") {
+    const picked = splitMulti(value);
+    return picked.length ? picked.map((v) => field.options?.find((o) => o.value === v)?.label ?? v).join(", ") : "—";
   }
   return String(value);
 }
@@ -347,7 +353,13 @@ export function EditableSection({
                           )}
                         </div>
                         {fieldEditable ? (
-                          field.type === "select" ? (
+                          field.type === "multiselect" ? (
+                            <MultiSelectField
+                              value={values[field.column] ?? ""}
+                              options={field.options ?? []}
+                              onChange={(next) => setValues((prev) => withValueRules(prev, field.column, next))}
+                            />
+                          ) : field.type === "select" ? (
                             <select
                               value={values[field.column] || field.defaultValue || ""}
                               onChange={(e) => {
