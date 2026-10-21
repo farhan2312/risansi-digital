@@ -3996,7 +3996,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
       `EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
                 AND (${ecState("planning", "Fully ready")}) AND (${packingState("Not packed")})) AND ${open}`
     ),
-    card("Assembly & Packing", "assembly", "In Progress", "Assembly on"),
+    card("Assembly & Packing", "assembly", "In Progress", "Packing on"),
     card("Assembly & Packing", "assembly", "Partially packed", "Part packed"),
     card("Assembly & Packing", "assembly", "Fully packed", "Fully packed"),
     card("Dispatch", "dispatch", PENDING, "To dispatch"),
