@@ -11,7 +11,7 @@ import { applyFieldChange,
 } from '@/lib/risansi-opportunity-fields';
 import { OppStageSections } from './OppStageSections';
 import { useCompetitors } from './useCompetitors';
-import { QuoteLineItems, emptyItem, itemsAreBlank, type QuoteItem } from './QuoteLineItems';
+import { QuoteLineItems, emptyItem, itemsAreBlank, useAutoTotal, type QuoteItem } from './QuoteLineItems';
 import { SalesOrderList, type SoRow } from './SalesOrderList';
 import { useQuotationDocs, QuotationDocList, type UploadResponse } from './QuotationDocs';
 import { useStateDraft } from './useFormDraft';
@@ -93,10 +93,22 @@ export function OppStageMoveModal({ opp, target, usdRate = 86, onCancel, onDone 
   const [soSeed, setSoSeed] = useState<{ rows: SoRow[]; n: number }>({ rows: [], n: 0 });
   const [soRows, setSoRows] = useState<SoRow[]>([]);
 
+  // Total Offer follows the line items as they are typed, the same way it does
+  // on the create form. `initial` is the stored figure: this modal seeds it at
+  // once and fetches the lines a moment later, so without it the first run
+  // would sum an empty table to zero and wipe the total already on screen.
+  const { noteTyped, adoptExisting } = useAutoTotal({
+    items,
+    active: showQuote,
+    initial: values.offer_value_inr ?? '',
+    apply: v => setValues(cur => (cur.offer_value_inr === v ? cur : { ...cur, offer_value_inr: v })),
+  });
+
   const onChange = useCallback((name: string, value: string) => {
+    if (name === 'offer_value_inr') noteTyped(value);
     setValues(v => applyFieldChange(v, name, value));
     setError('');
-  }, []);
+  }, [noteTyped]);
 
   // Existing line items, so a re-quote edits them rather than starting over.
   //
@@ -113,13 +125,19 @@ export function OppStageMoveModal({ opp, target, usdRate = 86, onCancel, onDone 
       .then(r => (r.ok ? r.json() : { items: [] }))
       .then((d: { items?: Record<string, unknown>[] }) => {
         if (!alive || !d.items?.length || draftApplied.current) return;
-        setItems(d.items.map(it => ({
+        const loaded: QuoteItem[] = d.items.map(it => ({
           pump_model: String(it.pump_model ?? ''), pump_qty: String(it.pump_qty ?? ''),
           pump_speed: String(it.pump_speed ?? ''), geared_motor_detail: String(it.geared_motor_detail ?? ''),
           motor_price: String(it.motor_price ?? ''), gearbox_vbelt_price: String(it.gearbox_vbelt_price ?? ''),
           offer_value_inr: String(it.offer_value_inr ?? ''),
           detailed_specifications: String(it.detailed_specifications ?? ''),
-        })));
+        }));
+        setItems(loaded);
+        // Now the lines are known, re-ask the question the stored total could
+        // not be judged on before they arrived: is it their sum, or a figure
+        // somebody chose? A sum keeps following the lines as they are edited;
+        // a chosen number is left exactly as it is.
+        adoptExisting(opp.offer_value_inr != null ? String(opp.offer_value_inr) : '', loaded);
       })
       .catch(() => {})
       // Whether the lines arrived or the fetch failed, the form is as seeded as
@@ -140,6 +158,7 @@ export function OppStageMoveModal({ opp, target, usdRate = 86, onCancel, onDone 
         draftApplied.current = true;
         if (d.values) setValues(d.values);
         if (Array.isArray(d.items) && d.items.length) setItems(d.items);
+        adoptExisting(d.values?.offer_value_inr ?? '', Array.isArray(d.items) ? d.items : []);
         setRemark(d.remark ?? '');
         setSoSeed(s => ({ rows: Array.isArray(d.soRows) ? d.soRows : [], n: s.n + 1 }));
       },

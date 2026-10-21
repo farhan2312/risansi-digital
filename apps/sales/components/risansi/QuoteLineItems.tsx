@@ -1,6 +1,7 @@
 'use client';
 
-import { type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
+import { formatIndian, parseMoneyInput } from '@/lib/risansi-money';
 
 // The line items on a quotation, as an editable list.
 //
@@ -18,6 +19,91 @@ export interface QuoteItem {
   gearbox_vbelt_price: string;
   offer_value_inr: string;
   detailed_specifications: string;
+}
+
+/**
+ * What the lines add up to, in rupees.
+ *
+ * The one definition. It was inlined in the label below while the server had
+ * its own copy, so the figure on screen and the figure that got saved agreed
+ * only by coincidence.
+ */
+export function lineItemsTotal(items: QuoteItem[]): number {
+  return items.reduce((sum, r) => {
+    const n = parseMoneyInput(r.offer_value_inr ?? '');
+    return sum + (n ?? 0);
+  }, 0);
+}
+
+/**
+ * Keep Total Offer in step with the line items, as they are typed.
+ *
+ * The field is required at every quoted stage, and the form used to leave it
+ * to the person: fill four lines, leave the total blank because the hint says
+ * blank means "use the sum", and the form refuses to submit. The sum was on
+ * screen the whole time. Now it goes in the box.
+ *
+ * It stops the moment somebody types their own figure — a quoted total is not
+ * always the sum of its lines (a discount, a lump-sum freight line, a rounded
+ * negotiated number), so a typed value is never overwritten. Clearing the
+ * field hands it back to the lines.
+ *
+ * `apply` is called through a ref so a caller that rebuilds the callback each
+ * render cannot turn this into a render loop.
+ */
+export function useAutoTotal({ items, active, apply, initial = '' }: {
+  items: QuoteItem[];
+  /** False at stages with no quotation block — nothing to sum into. */
+  active: boolean;
+  apply: (value: string) => void;
+  /**
+   * A total the form already had when it opened — an existing opportunity's
+   * figure. Treated as somebody's deliberate number from the first render.
+   *
+   * Not optional in spirit: the stage-move modal seeds the stored total
+   * immediately and loads its line items over the network a moment later, so
+   * a hook that assumed it started empty would run once against no lines, sum
+   * them to zero, and blank out the figure already on screen.
+   */
+  initial?: string;
+}) {
+  const edited = useRef(parseMoneyInput(initial) != null);
+  const applyRef = useRef(apply);
+  useEffect(() => { applyRef.current = apply; });
+
+  useEffect(() => {
+    if (!active || edited.current) return;
+    const total = lineItemsTotal(items);
+    applyRef.current(total > 0 ? formatIndian(Math.round(total)) : '');
+  }, [items, active]);
+
+  // Both are stable for the life of the component: they touch nothing but the
+  // ref above. That matters because the forms wire every field to a single
+  // memoised onChange, and a handler that changed identity each render would
+  // rebuild on every keystroke.
+  //
+  // Stable callbacks rather than a ref holding the whole returned object: the
+  // object is rebuilt each render, so keeping it in a ref meant writing to
+  // that ref from an effect — which is both a lint error and a worse way of
+  // saying "these functions do not change".
+
+  /** Call when the person edits Total Offer themselves. */
+  const noteTyped = useCallback((raw: string) => {
+    edited.current = raw.trim() !== '';
+  }, []);
+
+  /**
+   * Call for a total that arrived already filled — an existing opportunity, or
+   * a restored draft. A figure that is not the sum of the lines was put there
+   * deliberately and is left alone.
+   */
+  const adoptExisting = useCallback((raw: string, forItems: QuoteItem[]) => {
+    const typed = parseMoneyInput(raw);
+    if (typed == null) { edited.current = false; return; }
+    edited.current = Math.round(typed) !== Math.round(lineItemsTotal(forItems));
+  }, []);
+
+  return { noteTyped, adoptExisting };
 }
 
 export const emptyItem = (): QuoteItem => ({
@@ -46,10 +132,7 @@ export function QuoteLineItems({ items, onChange, sumLabel = true }: {
   const set = (i: number, key: keyof QuoteItem, v: string) =>
     onChange(items.map((row, n) => (n === i ? { ...row, [key]: v } : row)));
 
-  const total = items.reduce((s, r) => {
-    const n = parseFloat((r.offer_value_inr || '').replace(/,/g, ''));
-    return s + (Number.isFinite(n) ? n : 0);
-  }, 0);
+  const total = lineItemsTotal(items);
 
   return (
     <div style={{ marginTop: 12 }}>
@@ -57,7 +140,7 @@ export function QuoteLineItems({ items, onChange, sumLabel = true }: {
         <span style={TITLE}>Line items</span>
         {sumLabel && total > 0 && (
           <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-            sums to ₹{Math.round(total).toLocaleString('en-IN')} — leave Total Offer blank to use it
+            sums to ₹{Math.round(total).toLocaleString('en-IN')} — Total Offer follows this unless you type over it
           </span>
         )}
       </div>

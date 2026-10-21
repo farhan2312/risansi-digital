@@ -178,7 +178,7 @@ export const OPP_FIELDS: OppFieldDef[] = [
   { name: 'quote_ref',       label: 'Quote No.',      kind: 'text',   asked: 'Quoted', requiredAt: [...QUOTE_STAGES], placeholder: 'RIL/QT/…' },
   { name: 'quote_date',      label: 'Quote Date',     kind: 'date',   asked: 'Quoted', requiredAt: [...QUOTE_STAGES] },
   { name: 'market',          label: 'Market',         kind: 'select', asked: 'Quoted', requiredAt: [...QUOTE_STAGES], options: ['DOMESTIC', 'EXPORT'] },
-  { name: 'offer_value_inr', label: 'Total Offer (₹)', kind: 'inr',   asked: 'Quoted', requiredAt: [...QUOTE_STAGES], help: 'Auto-sums the line items if left blank' },
+  { name: 'offer_value_inr', label: 'Total Offer (₹)', kind: 'inr',   asked: 'Quoted', requiredAt: [...QUOTE_STAGES], help: 'Adds the line items up for you — type over it to set a different figure' },
   { name: 'probability_code', label: 'Probability',   kind: 'prob_code', asked: 'Quoted' },
   // Asked again while negotiating: the closure month is what moves when a deal
   // is being argued over, and Best-case and Probability-weighted are built from

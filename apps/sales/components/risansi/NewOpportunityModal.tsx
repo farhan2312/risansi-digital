@@ -7,7 +7,7 @@ import { applyFieldChange,
   OPP_FIELDS, isFieldVisible, requiredFieldNames, labelsFor, stageHasQuote,
 } from '@/lib/risansi-opportunity-fields';
 import { OppStageSections } from './OppStageSections';
-import { QuoteLineItems, emptyItem, itemsAreBlank, type QuoteItem } from './QuoteLineItems';
+import { QuoteLineItems, emptyItem, itemsAreBlank, useAutoTotal, type QuoteItem } from './QuoteLineItems';
 import { useStateDraft } from './useFormDraft';
 import { SaveIndicator, DraftRestoredBanner } from './SaveIndicator';
 import { useCloseGuard, CloseX, CloseConfirm, KeepOpenHint } from './FormCloseGuard';
@@ -213,10 +213,24 @@ function NewOppForm({ client, lockClient, usdRate, onBack, onSuccess, onCancel, 
   const [busy, setBusy]     = useState(false);
   const [error, setError]   = useState('');
 
+  // Total Offer writes itself from the line items while they are being typed,
+  // and stops the moment somebody puts their own figure in. Without it the
+  // form asked for a number it was already showing: four lines filled, the sum
+  // printed under the table, and "Fill the required field: Total Offer (₹)".
+  const { noteTyped, adoptExisting } = useAutoTotal({
+    items,
+    active: stageHasQuote(stage),
+    apply: v => setValues(cur => (cur.offer_value_inr === v ? cur : { ...cur, offer_value_inr: v })),
+  });
+
+  // Both callbacks are stable, so naming them here costs nothing: every field
+  // in the form shares this one handler and it must not be rebuilt per
+  // keystroke.
   const onChange = useCallback((name: string, value: string) => {
+    if (name === 'offer_value_inr') noteTyped(value);
     setValues(v => applyFieldChange(v, name, value));
     setError('');
-  }, []);
+  }, [noteTyped]);
 
   // Kept per client, because that is what makes two half-raised enquiries
   // different pieces of work. The attached PDFs are deliberately not in here:
@@ -230,6 +244,8 @@ function NewOppForm({ client, lockClient, usdRate, onBack, onSuccess, onCancel, 
         if (d.stage && (START_STAGES as readonly string[]).includes(d.stage)) setStage(d.stage);
         if (d.values) setValues(d.values);
         if (Array.isArray(d.items) && d.items.length) setItems(d.items);
+        // A draft can carry a total somebody typed before they walked away.
+        adoptExisting(d.values?.offer_value_inr ?? '', Array.isArray(d.items) ? d.items : []);
       },
     },
   );
