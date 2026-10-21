@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowRight,
   Bell,
+  Inbox,
   Bug,
   CheckCircle2,
   Clock,
@@ -22,6 +24,7 @@ import {
 import { pageResult, parsePage, type PageResult } from "@/lib/pagination";
 import { MarkNotificationsSeen } from "@/components/risansi/mark-notifications-seen";
 import { UrlPagination } from "@/components/risansi/url-table";
+import { NotificationRangeToggle, type NotificationRange } from "@/components/risansi/notification-range";
 
 export const metadata: Metadata = {
   title: "Notifications | Risansi",
@@ -117,10 +120,38 @@ function CommercialDetails({ n }: { n: NotificationRow }) {
   );
 }
 
+const NOTIF_LABEL = {
+  payment_terms: "Payment",
+  target_date: "Target date",
+  dept_complete: "Completed",
+  dept_update: "Update",
+  bug_status: "Bug report",
+} as const;
+
+/** "2026-10-21" in India, for grouping by day. */
+function istDay(iso: string): string {
+  return new Date(new Date(iso).getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/** Today, Yesterday, or "Mon, 19 Oct". */
+function dayHeading(day: string): string {
+  const today = istDay(new Date().toISOString());
+  const yesterday = istDay(new Date(Date.now() - 86400000).toISOString());
+  if (day === today) return "Today";
+  if (day === yesterday) return "Yesterday";
+  return new Date(day + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", timeZone: "UTC" });
+}
+
+function clockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
+}
+
 function NotificationFeed({
   page,
   hrefFor,
   commercial,
+  seenAt,
+  rangeLabel,
 }: {
   page: PageResult<NotificationRow>;
   /** Show order and PI money on each notification (Billing and Accounts). */
@@ -128,61 +159,100 @@ function NotificationFeed({
   // Where "Open" should land — a department's own edit form, or the SO / EC
   // detail for central/admin (see the page component below).
   hrefFor: (n: NotificationRow) => string;
+  /** When the reader last looked: anything after it is New. */
+  seenAt: string | null;
+  /** "in the last 3 days", for the empty state. */
+  rangeLabel: string;
 }) {
   const items = page.rows;
   if (page.total === 0) {
     return (
-      <div className="rounded-xl border border-card-border bg-surface px-6 py-16 text-center shadow-sm">
-        <p className="text-sm font-medium text-foreground">No notifications yet</p>
-        <p className="mt-1 text-sm text-muted">
-          You&apos;ll be notified here as orders progress.
-        </p>
+      <div className="rounded-2xl border border-dashed border-card-border bg-surface px-6 py-16 text-center">
+        <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Inbox className="h-6 w-6" />
+        </span>
+        <p className="text-sm font-semibold text-foreground">Nothing {rangeLabel}</p>
+        <p className="mt-1 text-sm text-muted">You&apos;ll be notified here as orders progress.</p>
       </div>
     );
   }
+  const seen = seenAt ? new Date(seenAt).getTime() : null;
+  // Newest first, under one heading per day.
+  const days: { day: string; rows: NotificationRow[] }[] = [];
+  for (const n of items) {
+    const d = istDay(n.created_at);
+    const last = days[days.length - 1];
+    if (last && last.day === d) last.rows.push(n);
+    else days.push({ day: d, rows: [n] });
+  }
   return (
-    <div className="overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm">
-      <ul className="divide-y divide-card-border">
-        {items.map((n) => {
-          const Icon = NOTIF_ICON[n.type] ?? Bell;
-          const tone = NOTIF_TONE[n.type] ?? "bg-slate-100 text-slate-600";
-          return (
-            <li
-              key={n.id}
-              className="flex items-center justify-between gap-3 px-5 py-4"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <span
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}
+    <div className="space-y-6">
+      {days.map(({ day, rows }) => (
+        <section key={day}>
+          <h3 className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {dayHeading(day)}
+            <span className="h-px flex-1 bg-card-border" />
+            <span className="font-medium normal-case tracking-normal text-muted">{rows.length}</span>
+          </h3>
+          <ul className="space-y-2">
+            {rows.map((n) => {
+              const Icon = NOTIF_ICON[n.type] ?? Bell;
+              const tone = NOTIF_TONE[n.type] ?? "bg-slate-100 text-slate-600";
+              const fresh = seen !== null && new Date(n.created_at).getTime() > seen;
+              const href = n.order_id || n.bug_report_id ? hrefFor(n) : null;
+              return (
+                <li
+                  key={n.id}
+                  className={`group relative flex items-start gap-3 overflow-hidden rounded-xl border bg-surface px-4 py-3.5 shadow-sm transition-colors ${
+                    fresh ? "border-primary/40 bg-primary/[0.03]" : "border-card-border hover:border-primary/30"
+                  }`}
                 >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">{n.message}</p>
-                  {commercial && <CommercialDetails n={n} />}
-                  <p className="mt-1 text-xs text-muted">{timeAgo(n.created_at)}</p>
-                </div>
-              </div>
-              {(n.order_id || n.bug_report_id) && (
-                <Link
-                  href={hrefFor(n)}
-                  className="shrink-0 text-sm font-medium text-primary hover:text-primary-hover"
-                >
-                  Open
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      <UrlPagination
-        paramKey="npage"
-        page={page.page}
-        totalPages={page.totalPages}
-        from={page.from}
-        to={page.to}
-        total={page.total}
-      />
+                  {fresh && <span className="absolute bottom-3 left-0 top-3 w-1 rounded-r-full bg-primary" aria-hidden />}
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                      <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${tone}`}>{NOTIF_LABEL[n.type] ?? "Update"}</span>
+                      {n.so_no && (
+                        <span className="rounded-full bg-background px-2 py-0.5 text-[10.5px] font-semibold text-foreground ring-1 ring-inset ring-card-border">
+                          {n.so_no}
+                        </span>
+                      )}
+                      {n.ec_no && (
+                        <span className="rounded-full bg-background px-2 py-0.5 text-[10.5px] font-medium text-muted ring-1 ring-inset ring-card-border">
+                          EC {n.ec_no}
+                        </span>
+                      )}
+                      {fresh && (
+                        <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary-foreground">New</span>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium leading-snug text-foreground">{n.message}</p>
+                    {commercial && <CommercialDetails n={n} />}
+                    <p className="mt-1.5 flex items-center gap-1 text-xs text-muted">
+                      <Clock className="h-3 w-3" />
+                      {clockTime(n.created_at)} · {timeAgo(n.created_at)}
+                    </p>
+                  </div>
+                  {href && (
+                    <Link
+                      href={href}
+                      className="inline-flex shrink-0 items-center gap-1 self-center rounded-lg border border-input-border px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                    >
+                      Open
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+      <div className="overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm">
+        <UrlPagination paramKey="npage" page={page.page} totalPages={page.totalPages} from={page.from} to={page.to} total={page.total} />
+      </div>
     </div>
   );
 }
@@ -318,12 +388,18 @@ export default async function NotificationsPage({
   // Two lists, each paging on its own param (25 a page).
   const params = await searchParams;
   const oversight = canSeeEscalations(user.role);
+  // How far back: a department starts on the last 3 days, oversight on all time.
+  const fallback: NotificationRange = oversight ? "all" : "3d";
+  const range: NotificationRange = (["3d", "7d", "all"] as const).find((r) => r === params.range) ?? fallback;
+  const sinceDays = range === "3d" ? 3 : range === "7d" ? 7 : null;
+  const rangeLabel = range === "3d" ? "in the last 3 days" : range === "7d" ? "in the last 7 days" : "yet";
   const [notifications, alerts] = await Promise.all([
     listNotificationsPage(
       recipientRolesForUser(user.role),
       parsePage(params.npage),
       user.id,
-      isRep(user.role) ? (user.rep_names?.length ? user.rep_names : ["(no rep linked)"]) : null
+      isRep(user.role) ? (user.rep_names?.length ? user.rep_names : ["(no rep linked)"]) : null,
+      sinceDays
     ),
     oversight
       ? listAlertsPage(parsePage(params.epage))
@@ -348,11 +424,11 @@ export default async function NotificationsPage({
     <div className="px-4 py-6 sm:px-8 sm:py-8">
       <MarkNotificationsSeen />
 
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Bell className="h-6 w-6" />
         </div>
-        <div>
+        <div className="mr-auto">
           <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
             {oversight ? "Notifications & Escalations" : "Notifications"}
           </h1>
@@ -362,12 +438,20 @@ export default async function NotificationsPage({
               : "Updates on the orders your department works on."}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-muted">
+            <span className="font-semibold text-foreground">{notifications.total}</span> {range === "all" ? "in all" : rangeLabel}
+          </span>
+          <NotificationRangeToggle value={range} fallback={fallback} />
+        </div>
       </div>
 
       <NotificationFeed
         page={notifications}
         hrefFor={hrefFor}
         commercial={COMMERCIAL_ROLES.has(user.role)}
+        seenAt={user.notifications_seen_at ?? null}
+        rangeLabel={rangeLabel}
       />
 
       {oversight && (

@@ -43,6 +43,8 @@ export type NotificationRow = {
   order_pi_count: number;
   /** A personal notification about a bug report: the report it concerns. */
   bug_report_id: string | null;
+  /** The EC, when the notification is about one. */
+  ec_no: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -97,8 +99,11 @@ export async function listNotificationsPage(
   /** The reader: their own notifications come alongside their role's. */
   userId: string | null = null,
   /** A Rep or Rep Manager: their role's notifications only for these reps' SOs. */
-  repNames: readonly string[] | null = null
+  repNames: readonly string[] | null = null,
+  /** Only the last so many days; null for all time. */
+  sinceDays: number | null = null
 ): Promise<PageResult<NotificationRow>> {
+  const days = sinceDays && sinceDays > 0 ? Math.floor(sinceDays) : null;
   if (roles.length === 0 && !userId) return pageResult([], 0, 1, FEED_PAGE_SIZE);
   return pageWithTotal(
     page,
@@ -111,10 +116,11 @@ export async function listNotificationsPage(
                 b.pi_no, b.pi_value::text AS pi_value,
                 pis.nos AS order_pi_nos, pis.total::text AS order_pi_total,
                 COALESCE(pis.count, 0)::int AS order_pi_count,
-                n.bug_report_id,
+                n.bug_report_id, it.ec_no,
                 count(*) OVER ()::text AS total_count
            FROM notifications n
            LEFT JOIN orders o ON o.id = n.order_id
+           LEFT JOIN order_items it ON it.id = n.item_id
            LEFT JOIN order_billing_docs b ON b.id = n.billing_doc_id
            LEFT JOIN LATERAL (
              SELECT string_agg(d.pi_no, ', ' ORDER BY d.seq) AS nos,
@@ -124,16 +130,18 @@ export async function listNotificationsPage(
               WHERE d.order_id = n.order_id
                 AND nullif(btrim(d.pi_no), '') IS NOT NULL
            ) pis ON n.billing_doc_id IS NULL
-          WHERE (n.recipient_role = ANY($1) AND ${REP_SCOPE("n", "$5")}) OR n.recipient_user_id = $4
+          WHERE ((n.recipient_role = ANY($1) AND ${REP_SCOPE("n", "$5")}) OR n.recipient_user_id = $4)
+            AND ($6::int IS NULL OR n.created_at >= now() - make_interval(days => $6::int))
           ORDER BY n.created_at DESC
           LIMIT $2 OFFSET $3`,
-        [roles, FEED_PAGE_SIZE, offsetFor(p, FEED_PAGE_SIZE), userId, repScopeParam(repNames)]
+        [roles, FEED_PAGE_SIZE, offsetFor(p, FEED_PAGE_SIZE), userId, repScopeParam(repNames), days]
       ),
     async () => {
       const r = await query<{ count: string }>(
         `SELECT count(*)::text AS count FROM notifications n
-          WHERE (n.recipient_role = ANY($1) AND ${REP_SCOPE("n", "$3")}) OR n.recipient_user_id = $2`,
-        [roles, userId, repScopeParam(repNames)]
+          WHERE ((n.recipient_role = ANY($1) AND ${REP_SCOPE("n", "$3")}) OR n.recipient_user_id = $2)
+            AND ($4::int IS NULL OR n.created_at >= now() - make_interval(days => $4::int))`,
+        [roles, userId, repScopeParam(repNames), days]
       );
       return Number(r.rows[0]?.count ?? 0);
     },
