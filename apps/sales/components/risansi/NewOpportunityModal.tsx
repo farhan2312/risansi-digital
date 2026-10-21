@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { createPipelineOpportunity } from '@/app/actions/risansi';
+import { createPipelineOpportunity, quoteDefaults } from '@/app/actions/risansi';
 import { applyFieldChange,
   OPP_FIELDS, isFieldVisible, requiredFieldNames, labelsFor, stageHasQuote,
 } from '@/lib/risansi-opportunity-fields';
@@ -226,6 +226,27 @@ function NewOppForm({ client, lockClient, usdRate, onBack, onSuccess, onCancel, 
   // Both callbacks are stable, so naming them here costs nothing: every field
   // in the form shares this one handler and it must not be rebuilt per
   // keystroke.
+
+  // Market comes from the client record rather than being typed again.
+  //
+  // It is a property of the customer, not of the deal, and the client always
+  // knows it — clients.market_type is set on all 2,994 of them, while 328
+  // opportunities carry no market at all. Only ever fills a blank: somebody
+  // who has chosen Export on a domestic customer's order meant it, and 91
+  // existing quotations are exactly that.
+  useEffect(() => {
+    if (!stageHasQuote(stage) || (values.market ?? '').trim()) return;
+    let alive = true;
+    quoteDefaults({ clientId: Number(client.id) })
+      .then(d => {
+        if (!alive || !d.market) return;
+        setValues(cur => ((cur.market ?? '').trim() ? cur : { ...cur, market: d.market! }));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, client.id]);
+
   const onChange = useCallback((name: string, value: string) => {
     if (name === 'offer_value_inr') noteTyped(value);
     setValues(v => applyFieldChange(v, name, value));

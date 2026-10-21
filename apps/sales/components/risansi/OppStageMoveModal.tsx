@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateOpportunity } from '@/app/actions/risansi';
+import { updateOpportunity, quoteDefaults } from '@/app/actions/risansi';
 import { addOpportunityRemark } from '@/app/actions/risansi-opportunity-remarks';
 import { applyFieldChange,
   OPP_FIELDS, isFieldVisible, requiredFieldNames, labelsFor, stageHasQuote,
@@ -103,6 +103,27 @@ export function OppStageMoveModal({ opp, target, usdRate = 86, onCancel, onDone 
     initial: values.offer_value_inr ?? '',
     apply: v => setValues(cur => (cur.offer_value_inr === v ? cur : { ...cur, offer_value_inr: v })),
   });
+
+
+  // Market comes from the client record rather than being typed again.
+  //
+  // It is a property of the customer, not of the deal, and the client always
+  // knows it — clients.market_type is set on all 2,994 of them, while 328
+  // opportunities carry no market at all. Only ever fills a blank: somebody
+  // who has chosen Export on a domestic customer's order meant it, and 91
+  // existing quotations are exactly that.
+  useEffect(() => {
+    if (!showQuote || (values.market ?? '').trim()) return;
+    let alive = true;
+    quoteDefaults({ oppId })
+      .then(d => {
+        if (!alive || !d.market) return;
+        setValues(cur => ((cur.market ?? '').trim() ? cur : { ...cur, market: d.market! }));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showQuote, oppId]);
 
   const onChange = useCallback((name: string, value: string) => {
     if (name === 'offer_value_inr') noteTyped(value);

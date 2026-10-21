@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { canViewClient, getCurrentUser, getManagerAssignableReps, getSession, hasRole, isDepartment, type RisansiRole, whyCannotVisitClient, whyCannotWorkClient } from '@/lib/risansi-auth';
+import { canReadClient, canViewClient, getCurrentUser, getManagerAssignableReps, getSession, hasRole, isDepartment, type RisansiRole, whyCannotVisitClient, whyCannotWorkClient } from '@/lib/risansi-auth';
 import risansiPool from '@/lib/db-risansi';
 import { recordAudit } from '@/lib/audit';
 import { normalizeClientName, uniqueLeadCode } from '@/lib/risansi-lead-code';
@@ -1679,6 +1679,47 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
 // motor, prices, specification — edited from the drawer's Quoted Items card
 // without re-running the whole opportunity form. Same permission as any edit
 // of the opportunity; a Won or Lost deal stays locked.
+/**
+ * What the client record already answers, so a quotation form does not ask.
+ *
+ * Market is the one field on the Quoted block that is a property of the
+ * customer rather than of the deal, and the client record always knows it:
+ * `clients.market_type` is set on every one of the 2,994 clients (2,800
+ * Domestic, 194 Export), while 328 opportunities carry no market at all.
+ * Every one of those 328 belongs to a client that could have answered.
+ *
+ * A default, not a derived value. 91 quotations deliberately disagree with
+ * their client's market type — an Indian customer's export order, a domestic
+ * sale to a company registered abroad — so this fills a blank box and never
+ * touches one that has something in it.
+ *
+ * The opportunity's column is upper case and the client's is title case, which
+ * is why this maps rather than passing the value through.
+ */
+export async function quoteDefaults(
+  ref: { clientId?: number | null; oppId?: number | null },
+): Promise<{ market: string | null }> {
+  await requireSession();
+  const none = { market: null };
+
+  let clientId = ref.clientId ?? null;
+  if (clientId == null && ref.oppId != null) {
+    await assertCanViewOpp(ref.oppId);
+    const { rows } = await risansiPool.query<{ client_id: number | null }>(
+      'SELECT client_id FROM opportunities WHERE id = $1', [ref.oppId]);
+    clientId = rows[0]?.client_id ?? null;
+  }
+  if (clientId == null) return none;
+
+  const user = await getCurrentUser();
+  if (!(await canReadClient(user, Number(clientId)))) return none;
+
+  const { rows } = await risansiPool.query<{ market_type: string | null }>(
+    'SELECT market_type FROM clients WHERE id = $1', [clientId]);
+  const mt = (rows[0]?.market_type ?? '').trim().toUpperCase();
+  return { market: mt === 'DOMESTIC' || mt === 'EXPORT' ? mt : null };
+}
+
 export async function saveQuotedItems(oppId: number, items: unknown): Promise<SaveResult> {
   const user = await requireSession();
   const { rows: cur } = await risansiPool.query<{ stage: string; rep_id: number | null; client_id: number | null; offer_value_inr: string | null }>(
