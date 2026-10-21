@@ -154,6 +154,8 @@ export function OrderMakingWorkspace({
     { column: "client_name", label: "Client Name" },
     { column: "order_type", label: "Order Type" },
     { column: "bill_mode", label: "Bill Mode" },
+    // An FR (replacement) SO carries its complaint in place of a PO.
+    { column: "complaint_no", label: "Complaint No." },
     { column: "po_no", label: "PO No." },
     { column: "order_value", label: "Order Value" },
   ];
