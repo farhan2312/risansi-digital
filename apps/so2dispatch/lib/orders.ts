@@ -4146,9 +4146,21 @@ export async function listOrdersForOrderMaking(opts: {
   const clauses = buildClauses(f);
   // The cards: the queue before the assignee / SO details / missing filters.
   const base = buildClauses({ ...f, assignees: [], soState: null, missingOnly: false });
+  const omSpare = f.types.some((t) => t.toLowerCase() === "spare");
+  const omPump = f.types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
+  const omEcKind = omSpare && !omPump ? spareEcSql("s", "o") : omPump && !omSpare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
   const omCards: KpiCardDef[] | undefined = opts.withKpis
     ? [
         { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null }, tone: "neutral" },
+        // How many ECs those SOs hold, of the kind shown: a figure, not a filter.
+        {
+          key: "ecs",
+          label: "ECs",
+          sql: null,
+          params: {},
+          tone: "neutral",
+          measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${omEcKind})`,
+        },
         { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
         { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
         { key: "filled", label: "SO details filled", sql: `${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "filled", asg: null, missing: null }, tone: "done" },
