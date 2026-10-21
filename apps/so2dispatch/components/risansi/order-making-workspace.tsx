@@ -298,12 +298,12 @@ export function OrderMakingWorkspace({
       )}
       <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
+        {/* All, Spare or Pump: the SO's type (its own, or any of its ECs'). */}
+        <KindTabs value={/pump/i.test(filter.types.join(",")) ? "pump" : filter.types.includes("Spare") ? "spare" : "all"} onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : k === "spare" ? "Spare" : null })} />
         <UrlSearchInput placeholder="Search SO, client, client code, PO…" />
         <MultiSelectFilter label="Zone" options={options.zones} selected={filter.zones} onChange={(next) => setParams({ zone: next })} />
         <MultiSelectFilter label="Rep" options={options.reps} selected={filter.reps} onChange={(next) => setParams({ rep: next })} />
         <MultiSelectFilter label="Market" options={options.markets} selected={filter.markets} onChange={(next) => setParams({ market: next })} />
-        {/* All, Spare or Pump: the SO's type (its own, or any of its ECs'). */}
-        <KindTabs value={/pump/i.test(filter.types.join(",")) ? "pump" : filter.types.includes("Spare") ? "spare" : "all"} onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : k === "spare" ? "Spare" : null })} />
         <MultiSelectFilter
           label="Bill mode"
           allLabel="Any mode"
