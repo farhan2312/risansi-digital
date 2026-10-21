@@ -18,6 +18,10 @@ import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { getDashboard } from "@/lib/dashboard";
 import { CentralOverview } from "@/components/risansi/central-overview";
 import { ordersKind } from "@/lib/order-list-filter";
+import { DashboardComingSoon } from "@/components/risansi/dashboard-coming-soon";
+
+/** The central dashboard is hidden while it is reworked; "Coming soon" shows instead. */
+const SHOW_CENTRAL_DASHBOARD = false;
 
 export const metadata: Metadata = {
   title: "Dashboard | Risansi",
@@ -40,6 +44,13 @@ export default async function DashboardPage({
     if (own) redirect(own.href);
   }
 
+  if (canSeeCentralDashboard(user.role) && !SHOW_CENTRAL_DASHBOARD) {
+    return (
+      <div className="px-4 py-6 sm:px-8 sm:py-8">
+        <DashboardComingSoon />
+      </div>
+    );
+  }
   if (canSeeCentralDashboard(user.role)) {
     const params = await searchParams;
     // Spare or Pump: the one choice on the dashboard (Spare when the URL says
