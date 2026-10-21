@@ -79,10 +79,8 @@ export function BottomNav({
       ? canAccessOrderMaking(user.role)
       : canViewDepartment(user.role, item.table)
   );
-  // Department roles only need their own workspace, not the whole-order list.
-  const visiblePrimaryNav = PRIMARY_NAV.filter(
-    (item) => item.href !== "/risansi/orders" || canViewAll(user.role)
-  );
+  // A department account has no dashboard or whole-order list: its own page is home.
+  const visiblePrimaryNav = !canViewAll(user.role) && visibleDepartments.length > 0 ? [] : PRIMARY_NAV;
 
   // Four tabs at most: the primary destinations, then Notifications and
   // Messages. A department user (one primary item) gets their own workspace

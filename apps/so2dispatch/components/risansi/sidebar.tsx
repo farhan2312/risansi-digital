@@ -65,9 +65,16 @@ export function Sidebar({
       : canViewDepartment(user.role, item.table)
   );
 
-  // Department roles only need their own workspace, not the whole-order list.
-  const visiblePrimaryNav = PRIMARY_NAV.filter(
-    (item) => item.href !== "/risansi/orders" || canViewAll(user.role)
+  // A department account: its own page, Notifications and its bug reports,
+  // under one heading — no dashboard, no whole-order list.
+  const deptAccount = !canViewAll(user.role) && visibleDepartments.length > 0;
+  const visiblePrimaryNav = deptAccount ? [] : PRIMARY_NAV;
+  const deptLink = (item: (typeof visibleDepartments)[number]) => (
+    <NavLink
+      key={item.href}
+      item={item}
+      badge={reminderDeptForTable(item.table) === myReminderDept ? reminderCount : 0}
+    />
   );
 
   // The department this role gets deadline reminders for (badged in the nav).
@@ -120,6 +127,7 @@ export function Sidebar({
             SO to Dispatch
           </p>
           <div className="space-y-1">
+            {deptAccount && visibleDepartments.map(deptLink)}
             {visiblePrimaryNav.map((item) => (
               <NavLink key={item.href} item={item} />
             ))}
@@ -145,24 +153,12 @@ export function Sidebar({
           </div>
         </div>
 
-        {visibleDepartments.length > 0 && (
+        {!deptAccount && visibleDepartments.length > 0 && (
           <div className="mb-6">
             <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">
               Departments
             </p>
-            <div className="space-y-1">
-              {visibleDepartments.map((item) => (
-                <NavLink
-                  key={item.href}
-                  item={item}
-                  badge={
-                    reminderDeptForTable(item.table) === myReminderDept
-                      ? reminderCount
-                      : 0
-                  }
-                />
-              ))}
-            </div>
+            <div className="space-y-1">{visibleDepartments.map(deptLink)}</div>
           </div>
         )}
 

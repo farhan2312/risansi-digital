@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
+import { DEPARTMENT_NAV } from "@/components/risansi/nav-config";
 import {
   canSeeCentralDashboard,
+  canViewAll,
+  canViewDepartment,
   departmentHrefForRole,
   roleLabel,
 } from "@/lib/roles";
@@ -34,6 +37,11 @@ export default async function DashboardPage({
   if (!user) redirect("/login");
   // Order Making has no dashboard: its page is its work.
   if ((user.role === "order_making" || user.role === "order_making_so")) redirect("/risansi/departments/order-making");
+  // Nor does any department account: it lands on its own page.
+  if (!canViewAll(user.role)) {
+    const own = DEPARTMENT_NAV.find((d) => d.table !== "orders" && canViewDepartment(user.role, d.table));
+    if (own) redirect(own.href);
+  }
 
   if (canSeeCentralDashboard(user.role)) {
     const params = await searchParams;
