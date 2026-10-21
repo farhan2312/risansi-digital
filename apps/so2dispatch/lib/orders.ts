@@ -46,6 +46,7 @@ import {
   pageWithTotal,
 } from "@/lib/pagination";
 import { ecDrawingDoneSql } from "@/lib/drawing-filter";
+import { listTeams } from "@/lib/market-intell";
 import {
   CHILD_FIELDS,
   PUMP_LIKE,
@@ -3485,6 +3486,34 @@ function orderListClauses(
   return { clauses, params };
 }
 
+/**
+ * A Rep Manager picked in the Rep filter stands for their team too: the
+ * reps who report to them in the sales portal (manager_reps), as Rep Manager
+ * accounts see them. Fails narrow: the sales portal unread, the names stay as
+ * picked.
+ */
+async function withRepTeams<F extends { reps: string[] }>(f: F): Promise<F> {
+  if (!f.reps.length) return f;
+  const managers = await query<{ email: string }>(
+    `SELECT lower(trim(email)) AS email FROM users
+      WHERE role = 'rep_manager' AND lower(trim(full_name)) = ANY($1::text[])`,
+    [f.reps.map((r) => r.trim().toLowerCase())]
+  );
+  if (managers.rows.length === 0) return f;
+  let teams: Map<string, string[]>;
+  try {
+    teams = await listTeams();
+  } catch (error) {
+    console.error("withRepTeams: could not read teams:", error);
+    return f;
+  }
+  const names = new Map(f.reps.map((r) => [r.trim().toLowerCase(), r]));
+  for (const m of managers.rows) {
+    for (const n of teams.get(m.email) ?? []) names.set(n.trim().toLowerCase(), n.trim());
+  }
+  return { ...f, reps: [...names.values()] };
+}
+
 /** The filter as a WHERE clause of its own, for the queries it owns. */
 function orderListWhere(f: OrderListFilter): { where: string; params: unknown[] } {
   const { clauses, params } = orderListClauses(f);
@@ -3499,7 +3528,7 @@ function orderListWhere(f: OrderListFilter): { where: string; params: unknown[] 
  * The export needs this because the table only holds the current page's rows.
  */
 export async function listOrderIdsMatching(filter: OrderListFilter): Promise<string[]> {
-  const { where, params } = orderListWhere(filter);
+  const { where, params } = orderListWhere(await withRepTeams(filter));
   const result = await query<{ id: string }>(
     `SELECT o.id FROM orders o ${where} ORDER BY o.sl_no ASC`,
     params
@@ -3527,6 +3556,8 @@ async function allOrderListOptions(): Promise<OrderListOptions> {
   const r = await query<{ facet: string; value: string }>(
     `SELECT DISTINCT 'zone' AS facet, TRIM(zone) AS value FROM orders WHERE TRIM(COALESCE(zone, '')) <> ''
      UNION SELECT DISTINCT 'rep', TRIM(reps) FROM orders WHERE TRIM(COALESCE(reps, '')) <> ''
+     -- A Rep Manager, even with no SOs of their own: picking them shows their team's.
+     UNION SELECT DISTINCT 'rep', TRIM(full_name) FROM users WHERE role = 'rep_manager' AND TRIM(COALESCE(full_name, '')) <> ''
      UNION SELECT DISTINCT 'market', TRIM(market_type) FROM orders WHERE TRIM(COALESCE(market_type, '')) <> ''
      UNION SELECT DISTINCT 'type', TRIM(order_type) FROM orders WHERE TRIM(COALESCE(order_type, '')) <> ''
      UNION SELECT DISTINCT 'type', TRIM(item_type) FROM order_items WHERE TRIM(COALESCE(item_type, '')) <> ''
@@ -3547,7 +3578,7 @@ export async function listOrdersPage(opts: {
   /** Every matching SO on one page (the PDF), up to a safety cap. */
   all?: boolean;
 }): Promise<PageResult<OrderListRow> & { options: OrderListOptions }> {
-  const { where, params } = orderListWhere(opts.filter);
+  const { where, params } = orderListWhere(await withRepTeams(opts.filter));
   const limit = `$${params.length + 1}`;
   const offset = `$${params.length + 2}`;
 
@@ -3773,7 +3804,7 @@ async function pageOfOrderIds(opts: {
 }): Promise<{ ids: string[]; total: number; page: number }> {
   const search = opts.search ? likePattern(opts.search) : null;
   const facets = opts.filter
-    ? orderListClauses({ ...opts.filter, search: "" })
+    ? orderListClauses({ ...(await withRepTeams(opts.filter)), search: "" })
     : { clauses: [], params: [] };
   const own = (n: number) => `$${facets.params.length + n}`;
   const where = `WHERE ${opts.restrict}
@@ -5007,7 +5038,7 @@ export async function getPipelinePage(opts: {
   page: number;
   filter: OrderListFilter;
 }): Promise<PipelinePage> {
-  const { where, params } = pipelineRowWhere(opts.filter);
+  const { where, params } = pipelineRowWhere(await withRepTeams(opts.filter));
   const rowsCte = `WITH r AS (SELECT ${overviewColumns()} ${OVERVIEW_FROM} ${where})`;
 
   const fetchPage = (page: number) => {
