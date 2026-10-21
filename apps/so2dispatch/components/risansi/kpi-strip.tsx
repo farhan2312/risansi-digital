@@ -39,12 +39,12 @@ export function KpiStrip({ cards }: { cards: KpiCard[] }) {
     else groups.push({ name: c.group, cards: [c] });
   }
   if (groups.some((g) => g.name)) {
+    // One row: compact cards, a hairline between departments.
     return (
-      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-3">
+      <div className="mb-3 flex items-stretch gap-1.5 overflow-x-auto">
         {groups.map((g, i) => (
-          <div key={g.name ?? i} className="min-w-0">
-            {g.name && <p className="mb-1 px-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">{g.name}</p>}
-            <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} />
+          <div key={g.name ?? i} className={`flex min-w-0 flex-1 basis-0 items-stretch gap-1.5 ${i > 0 ? "border-l border-card-border pl-1.5" : ""}`} style={{ flexGrow: g.cards.length }}>
+            <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} compact />
           </div>
         ))}
       </div>
@@ -60,7 +60,10 @@ function KpiStripRow({
   onPick,
   setParams,
   className = "",
+  compact = false,
 }: {
+  /** Small cards that share one row. */
+  compact?: boolean;
   cards: KpiCard[];
   keys: string[];
   shown: string | null;
@@ -69,20 +72,24 @@ function KpiStripRow({
   className?: string;
 }) {
   const setAsked = onPick;
+  // Compact: the cards share the row evenly, labels may wrap.
+  const size = compact ? "min-w-[4rem] flex-1 basis-0 rounded-lg px-1.5 py-1.5" : "min-w-[7.5rem] rounded-xl px-3 py-2";
+  const labelCls = compact ? "text-[10.5px] leading-tight" : "text-[11px]";
+  const countCls = compact ? "text-lg" : "text-xl";
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`}>
+    <div className={compact ? "contents" : `flex flex-wrap gap-2 ${className}`}>
       {cards.map((c) => {
         const on = shown === c.key;
         const tone = TONE[c.tone ?? "neutral"];
         // A sum (e.g. ECs) is a figure to read, not a filter.
         if (c.measure) {
           return (
-            <div key={c.key} className="flex min-w-[7.5rem] flex-col items-start rounded-xl border border-dashed border-card-border bg-surface px-3 py-2 shadow-sm">
-              <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
-                <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} aria-hidden />
+            <div key={c.key} className={`flex ${size} flex-col items-start justify-between border border-dashed border-card-border bg-surface shadow-sm`}>
+              <span className={`flex items-start gap-1.5 ${labelCls} font-medium text-muted`}>
+                <span className={`mt-[0.3em] h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden />
                 {c.label}
               </span>
-              <span className="font-display text-xl font-bold tabular-nums leading-tight text-foreground">{c.count}</span>
+              <span className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`}>{c.count}</span>
             </div>
           );
         }
@@ -96,15 +103,15 @@ function KpiStripRow({
               setAsked(on ? "__none" : c.key);
               setParams(on ? clear : { ...clear, ...c.params });
             }}
-            className={`group flex min-w-[7.5rem] flex-col items-start rounded-xl border bg-surface px-3 py-2 text-left shadow-sm transition-all hover:-translate-y-px hover:shadow ${
+            className={`group flex ${size} flex-col items-start justify-between border bg-surface text-left shadow-sm transition-all hover:-translate-y-px hover:shadow ${
               on ? `border-transparent ring-2 ${tone.ring}` : "border-card-border"
             }`}
           >
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
-              <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} aria-hidden />
+            <span className={`flex items-start gap-1.5 ${labelCls} font-medium text-muted`}>
+              <span className={`mt-[0.3em] h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden />
               {c.label}
             </span>
-            <span className="font-display text-xl font-bold tabular-nums leading-tight text-foreground">{c.count}</span>
+            <span className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`}>{c.count}</span>
           </button>
         );
       })}

@@ -3968,7 +3968,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
     group,
     sql: sql ?? `(${deptStatusPredicate(dept, status)}) AND ${open}`,
     params: { ...clear, dept, dstatus: status, ...extra },
-    tone: toneFor(label),
+    tone: toneFor(status),
   });
   return [
     { key: "all", label: "SOs", group: "Orders", sql: null, params: { ...clear }, tone: "neutral" },
@@ -3981,27 +3981,27 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
       tone: "neutral",
       measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${spareEcSql("s", "o")})`,
     },
-    card("Proforma Invoice", "billing", "Fully raised", "Fully raised"),
-    card("Proforma Invoice", "billing", "Partially raised", "Partially raised"),
-    card("Proforma Invoice", "billing", PENDING, "Pending"),
+    card("Proforma Invoice", "billing", "Fully raised", "PI raised"),
+    card("Proforma Invoice", "billing", "Partially raised", "PI partial"),
+    card("Proforma Invoice", "billing", PENDING, "PI pending"),
     card("Planning", "planning", "Date awaited", "Date awaited"),
     card("Planning", "planning", "In plan", "In plan"),
-    card("Planning", "planning", "Partial ready", "Partially ready"),
+    card("Planning", "planning", "Partial ready", "Partly ready"),
     card(
       "Planning",
       "planning",
       "Fully ready",
-      "Fully ready (not packed)",
+      "Ready, not packed",
       { pack: "Not packed" },
       `EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
                 AND (${ecState("planning", "Fully ready")}) AND (${packingState("Not packed")})) AND ${open}`
     ),
-    card("Assembly & Packing", "assembly", "In Progress", "In progress"),
-    card("Assembly & Packing", "assembly", "Partially packed", "Partially packed"),
+    card("Assembly & Packing", "assembly", "In Progress", "Assembly on"),
+    card("Assembly & Packing", "assembly", "Partially packed", "Part packed"),
     card("Assembly & Packing", "assembly", "Fully packed", "Fully packed"),
-    card("Dispatch", "dispatch", PENDING, "Pending"),
-    card("Dispatch", "dispatch", "LOT dispatch", "Partially dispatched"),
-    card("Dispatch", "dispatch", "Fully dispatch", "Fully dispatched"),
+    card("Dispatch", "dispatch", PENDING, "To dispatch"),
+    card("Dispatch", "dispatch", "LOT dispatch", "Part dispatched"),
+    card("Dispatch", "dispatch", "Fully dispatch", "Dispatched"),
   ];
 }
 
