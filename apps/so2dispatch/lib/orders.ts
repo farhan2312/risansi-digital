@@ -4009,7 +4009,10 @@ export async function listOrdersForOrderMaking(opts: {
   // ISO dates before they get here, and still go in quoted.
   // The facets as clauses, for the list and (without its own state filters) for the cards.
   const buildClauses = (ff: OrderMakingFilter): string[] => {
-    const clauses = [orderOpenSql("o")];
+    // A cancelled or diverted SO stays on the list (red), but has no work left:
+    // the assignee / SO details / missing filters leave it out.
+    const clauses: string[] = ["TRUE"];
+    if (ff.assignees.length || ff.soState || ff.missingOnly) clauses.push(orderOpenSql("o"));
     // A member sees only their own; an id that is not one sees nothing.
     if (opts.assigneeScope !== undefined) {
       clauses.push(
@@ -4047,13 +4050,13 @@ export async function listOrdersForOrderMaking(opts: {
   const omCards: KpiCardDef[] | undefined = opts.withKpis
     ? [
         { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null }, tone: "neutral" },
-        { key: "unassigned", label: "Unassigned", sql: "o.so_assignee_id IS NULL", params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
-        { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
-        { key: "filled", label: "SO details filled", sql: SO_DETAILS_FILLED_SQL, params: { sos: "filled", asg: null, missing: null }, tone: "done" },
+        { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${orderOpenSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
+        { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
+        { key: "filled", label: "SO details filled", sql: `${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "filled", asg: null, missing: null }, tone: "done" },
         {
           key: "missing",
           label: "Missing details",
-          sql: `(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`,
+          sql: `(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL}) AND ${orderOpenSql("o")}`,
           params: { sos: null, asg: null, missing: "1" },
           tone: "danger",
         },
@@ -4090,6 +4093,7 @@ export async function listOrdersForOrderMaking(opts: {
             to_char(o.so_assigned_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_assigned_at,
             to_char(o.so_details_filled_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_details_filled_at,
             o.clearance_status, o.clearance_hold_reason,
+            o.dispatch_status, o.status_override,
             (SELECT count(*)::int FROM order_items i WHERE i.order_id = o.id) AS ec_count,
             o.boi,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(

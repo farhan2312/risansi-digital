@@ -43,6 +43,7 @@ import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { MultiSelectFilter, SingleSelectFilter } from "./multi-select-filter";
 import { ClientLookup } from "./client-lookup";
 import { formatDisplay } from "./editable-section";
+import { dispatchRowTone, isClosedStatus } from "@/lib/dept-view";
 
 /** A member's name, marked when they are Order Making PO rather than SO. */
 function memberLabel(m: { full_name: string; team?: "SO" | "PO" }): string {
@@ -434,7 +435,13 @@ export function OrderMakingWorkspace({
                     setEcsFor(row.id);
                   }}
                   title="Open the SO's ECs"
-                  className="cursor-pointer text-foreground transition-colors hover:bg-background/60"
+                  // As on the Orders list: red when cancelled or diverted, green
+                  // fully dispatched, blue lot dispatched.
+                  className={`cursor-pointer text-foreground transition-colors ${
+                    isClosedStatus(row.status_override)
+                      ? "bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/15 dark:hover:bg-rose-500/20"
+                      : (dispatchRowTone(row) ?? "hover:bg-background/60")
+                  }`}
                 >
                   <td className="px-4 py-3 font-medium tabular-nums">{row.sl_no}</td>
                   {cols.map((c) => (
