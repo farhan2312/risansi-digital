@@ -2630,3 +2630,10 @@ CREATE TABLE IF NOT EXISTS order_part_shortages (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS order_part_shortages_item_id_idx ON order_part_shortages (item_id);
+
+-- 0014  A pump SO's readiness lot names the ECs in it and how many of each.
+-- Each EC's lot row keeps its own quantity in that lot; the EC's Ready Qty is
+-- the sum over its lots. NULL on a Spare's lots and on lots from before.
+-- Apply to ec_to_dispatch before deploying the code that reads it; also in
+-- apps/so2dispatch/db/schema.sql. Idempotent and additive.
+ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS qty INT CHECK (qty IS NULL OR qty >= 0);

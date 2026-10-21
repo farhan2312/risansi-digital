@@ -42,7 +42,9 @@ import {
   lotsError,
   lotsFromRows,
   lotsSummary,
+  mergeSoLots,
   packingError,
+  type LotEc,
   packingLotsFromRows,
   type PackingLot,
   type ReadyLot,
@@ -226,7 +228,7 @@ export function DepartmentWorkspace({
   const [editRow, setEditRow] = useState<Row | null>(null);
   // Planning / Assembly & Packing edit a whole SO at once: one form for all
   // its ECs.
-  const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number; fields?: OrderField[]; spareLike?: boolean } | null>(null);
+  const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number; fields?: OrderField[]; spareLike?: boolean; ecs?: Row[] } | null>(null);
   // Planning's Pump view: an EC's own fields only (Ready Qty, status).
   const [editEcFields, setEditEcFields] = useState<OrderField[] | null>(null);
   // Accounts: a click on an SO's row opens its Order details.
@@ -688,6 +690,8 @@ export function DepartmentWorkspace({
                   // The Spare SO form: status, readiness date, remarks; lots once ready.
                   fields: PUMP_SO_PLANNING_FIELDS,
                   spareLike: true,
+                  // Its pump ECs, for each lot to name.
+                  ecs,
                 })
               }
               onEditEc={(row) => {
@@ -1337,6 +1341,7 @@ export function DepartmentWorkspace({
           title={title}
           fields={editSo.fields ?? fields}
           spareLike={editSo.spareLike}
+          soEcs={editSo.ecs}
           readonlyFields={readonlyFields}
           canEditCentral={canEditCentral}
           data={editSo.head}
@@ -1406,7 +1411,10 @@ function EditSectionModal({
   onClose,
   soTarget,
   spareLike = false,
+  soEcs,
 }: {
+  /** A pump SO's ECs: its lots name which of them, and how many, are in each. */
+  soEcs?: Row[];
   orderId: string;
   /** Set for an SO-level edit: the form's values go to every EC of this SO. */
   soTarget?: { orderId: string; count: number };
@@ -1436,7 +1444,14 @@ function EditSectionModal({
   // status and readiness date are the latest lot's.
   const spareLots =
     table === "order_planning" && (spareLike || toInput(data.item_type).trim().toLowerCase() === "spare");
-  const [lots, setLots] = useState<ReadyLot[]>(() => lotsFromRows(data.ready_lots));
+  const [lots, setLots] = useState<ReadyLot[]>(() =>
+    soEcs && soEcs.length > 0 ? mergeSoLots(soEcs) : lotsFromRows(data.ready_lots)
+  );
+  const lotEcs: LotEc[] | undefined = soEcs?.map((r) => ({
+    id: String(r.id),
+    label: String(r.ec_no ?? "EC"),
+    quantity: Number(((r.ec ?? {}) as Row).quantity ?? r.quantity ?? 0) || 0,
+  }));
   const lotsLead = spareLots ? lotsSummary(lots) : null;
   // …and Assembly & Packing records when each lot was packed.
   const spareAssembly =
@@ -1625,7 +1640,7 @@ function EditSectionModal({
                       </div>
                     </div>
                     {field.column === "actual_spare_status" && (
-                      <ReadyLotsEditor lots={lots} onChange={setLots} editing />
+                      <ReadyLotsEditor lots={lots} onChange={setLots} editing ecs={lotEcs} />
                     )}
                   </Fragment>
                 );
@@ -1707,7 +1722,7 @@ function EditSectionModal({
                 {spareLots &&
                   field.column === "actual_spare_status" &&
                   readyLotsOpen(values.actual_spare_status) && (
-                    <ReadyLotsEditor lots={lots} onChange={setLots} editing />
+                    <ReadyLotsEditor lots={lots} onChange={setLots} editing ecs={lotEcs} />
                   )}
                 </Fragment>
               );

@@ -13,7 +13,18 @@
 
 import { READY_LOT_LIMIT, READY_LOT_STATUSES } from "@/lib/order-schema";
 
-export type ReadyLot = { status: string; ready_date: string };
+export type ReadyLot = {
+  status: string;
+  ready_date: string;
+  /**
+   * A pump SO's lot: how many of each EC (by item id) are in it. Absent on a
+   * Spare's lots and on lots from before ECs were picked.
+   */
+  ecs?: Record<string, number>;
+};
+
+/** A pump EC as the lots allocate it. */
+export type LotEc = { id: string; label: string; quantity: number };
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -22,11 +33,56 @@ export function lotsFromRows(rows: unknown): ReadyLot[] {
   if (!Array.isArray(rows)) return [];
   return rows.map((r) => {
     const row = (r ?? {}) as Record<string, unknown>;
-    return {
+    const lot: ReadyLot = {
       status: String(row.status ?? "").trim(),
       ready_date: String(row.ready_date ?? "").slice(0, 10),
     };
+    // The form sends each lot's ECs; whole numbers above nought only.
+    if (row.ecs && typeof row.ecs === "object") {
+      lot.ecs = Object.fromEntries(
+        Object.entries(row.ecs as Record<string, unknown>)
+          .map(([k, v]) => [k, Math.floor(Number(v))] as const)
+          .filter(([, v]) => Number.isFinite(v) && v > 0)
+      );
+    }
+    return lot;
   });
+}
+
+/**
+ * A pump SO's lots, from every EC's lot rows: the status and date are the
+ * first EC's (the same on all), and each lot's ECs are those whose row for
+ * it carries a quantity. Lots no EC carries a quantity on stay without ECs.
+ */
+export function mergeSoLots(ecRows: Record<string, unknown>[]): ReadyLot[] {
+  const head = lotsFromRows(ecRows[0]?.ready_lots);
+  return head.map((lot, i) => {
+    const ecs: Record<string, number> = {};
+    let any = false;
+    for (const ec of ecRows) {
+      const rows = Array.isArray(ec.ready_lots) ? (ec.ready_lots as Record<string, unknown>[]) : [];
+      const q = rows[i]?.qty;
+      if (q === null || q === undefined) continue;
+      any = true;
+      if (Number(q) > 0) ecs[String(ec.id)] = Number(q);
+    }
+    return any ? { ...lot, ecs } : lot;
+  });
+}
+
+/** How many of an EC the lots cover, leaving out lot `skip`. */
+export function allocated(lots: ReadyLot[], ecId: string, skip = -1): number {
+  return lots.reduce((n, l, i) => (i === skip ? n : n + (l.ecs?.[ecId] ?? 0)), 0);
+}
+
+/**
+ * The status lot `i` earns: Fully ready once it and the lots before it
+ * cover every EC's quantity, Partial ready while some is still to come.
+ */
+export function autoLotStatus(lots: ReadyLot[], i: number, ecs: LotEc[]): string {
+  const upTo = lots.slice(0, i + 1);
+  const all = ecs.length > 0 && ecs.every((e) => allocated(upTo, e.id) >= e.quantity);
+  return all ? "Fully ready" : "Partial ready";
 }
 
 /** Whether the lots are closed: the last one says Fully ready. */
@@ -48,6 +104,7 @@ export function lotsError(lots: ReadyLot[]): string | null {
     const n = i + 1;
     if (!READY_LOT_STATUSES.includes(lot.status)) return `Lot ${n}: choose Partial ready or Fully ready.`;
     if (!ISO.test(lot.ready_date)) return `Lot ${n}: enter its date.`;
+    if (lot.ecs && Object.keys(lot.ecs).length === 0) return `Lot ${n}: tick the ECs in it.`;
     if (lot.status === "Fully ready" && i < lots.length - 1) {
       return `Lot ${n} is Fully ready, so no lot can come after it.`;
     }

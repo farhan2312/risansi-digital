@@ -218,6 +218,13 @@ export function PlanningPumpTable({
                         {LOT_COLUMNS.map((n) => {
                           // The SO's lots are the same on every EC: the first's stand for all.
                           const lot = lotsFromRows(head.ready_lots)[n - 1];
+                          // …and which ECs are in it, how many of each.
+                          const inLot = ecs
+                            .map((e) => {
+                              const rows = Array.isArray(e.ready_lots) ? (e.ready_lots as Row[]) : [];
+                              return { ec: str(e.ec_no), qty: Number(rows[n - 1]?.qty ?? 0) || 0 };
+                            })
+                            .filter((x) => x.qty > 0);
                           return (
                             <td key={n} rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                               {lot ? (
@@ -226,6 +233,11 @@ export function PlanningPumpTable({
                                     {lot.status || "—"}
                                   </span>
                                   <span className="block text-[11px] text-muted">{lot.ready_date ? shortDate(lot.ready_date) : "—"}</span>
+                                  {inLot.map((x) => (
+                                    <span key={x.ec} className="block text-[11px] text-foreground">
+                                      {x.ec} <span className="text-muted">×{x.qty}</span>
+                                    </span>
+                                  ))}
                                 </span>
                               ) : (
                                 <span className="text-muted">—</span>
@@ -308,6 +320,8 @@ export function PlanningPumpTable({
                     </td>
                     {canEdit && (
                       <td className={`${ecCell} text-right`}>
+                        {/* Ready Qty comes from the lots once they name this SO's ECs. */}
+                        {!ecs.some((e) => Array.isArray(e.ready_lots) && (e.ready_lots as Row[]).some((l) => l.qty !== null && l.qty !== undefined)) && (
                         <button
                           type="button"
                           onClick={() => onEditEc(r)}
@@ -316,6 +330,7 @@ export function PlanningPumpTable({
                           <Pencil className="h-3.5 w-3.5" />
                           Edit
                         </button>
+                        )}
                       </td>
                     )}
                   </tr>

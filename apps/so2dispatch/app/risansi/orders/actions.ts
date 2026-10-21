@@ -38,6 +38,7 @@ import {
   deptInvolvedInOrder,
   saveReadyLots,
   syncPumpEcStatus,
+  syncReadyQtyFromLots,
   inheritSparePlanning,
   saveLotPacking,
   logReadinessChange,
@@ -896,7 +897,21 @@ export async function updateOrderSectionAction(
       await updateOrderSection(id, tbl, allowedValues);
       // A pump EC's status follows its Ready Qty.
       if (tbl === "order_planning") await syncPumpEcStatus(id);
-      if (lots) await saveReadyLots(id, lots, { id: user.id, role: user.role });
+      if (lots) {
+        // A pump SO's lots name their ECs: this EC's share of each lot, and
+        // never more of it than the EC has.
+        const named = lots.some((l) => l.ecs);
+        const withQty = lots.map((l) => ({ ...l, qty: l.ecs ? (l.ecs[id] ?? 0) : null }));
+        if (named) {
+          const total = withQty.reduce((n, l) => n + (l.qty ?? 0), 0);
+          const qty = Number(before?.item?.quantity ?? 0) || 0;
+          if (qty > 0 && total > qty) {
+            return { ok: false, error: `EC ${before?.item?.ec_no ?? ""}: the lots hold ${total}, more than its quantity ${qty}.` };
+          }
+        }
+        await saveReadyLots(id, withQty, { id: user.id, role: user.role });
+        if (named) await syncReadyQtyFromLots(id);
+      }
       if (packing) await saveLotPacking(id, packing, { id: user.id, role: user.role });
       const after = before ? await getItemDetail(id) : null;
       // Planning's status / readiness date on an EC without lots joins the

@@ -922,15 +922,33 @@ export async function syncPumpEcStatus(itemId: string): Promise<void> {
   );
 }
 
+/**
+ * A pump EC whose lots name it: its Ready Qty is what they hold, and its
+ * status follows (syncPumpEcStatus). An EC whose lots carry no quantities
+ * keeps the Ready Qty typed for it.
+ */
+export async function syncReadyQtyFromLots(itemId: string): Promise<void> {
+  if (!UUID_RE.test(itemId)) return;
+  await query(
+    `UPDATE order_planning pl
+        SET ready_qty = (SELECT COALESCE(sum(rl.qty), 0)::int FROM order_ready_lots rl WHERE rl.item_id = pl.item_id)
+       FROM order_items it
+      WHERE it.id = pl.item_id AND pl.item_id = $1 AND it.item_type = ANY($2)
+        AND EXISTS (SELECT 1 FROM order_ready_lots rl WHERE rl.item_id = pl.item_id AND rl.qty IS NOT NULL)`,
+    [itemId, PUMP_LIKE]
+  );
+  await syncPumpEcStatus(itemId);
+}
+
 export async function saveReadyLots(
   itemId: string,
-  lots: { status: string; ready_date: string | null }[],
+  lots: { status: string; ready_date: string | null; qty?: number | null }[],
   // Who made the change, for the lots' history.
   actor?: { id: string; role: string }
 ): Promise<void> {
   if (!UUID_RE.test(itemId)) return;
   // A Fully ready lot may have no date: stored as none, not as "".
-  lots = lots.map((l) => ({ status: l.status, ready_date: l.ready_date || null }));
+  lots = lots.map((l) => ({ status: l.status, ready_date: l.ready_date || null, qty: l.qty ?? null }));
   await withTransaction(async (c) => {
     // Lot by lot in place, so what Assembly & Packing recorded against a lot
     // (its packing date) stays with it; a lot whose status changes carries
@@ -979,17 +997,17 @@ export async function saveReadyLots(
       if (id) {
         await c.query(
           `UPDATE order_ready_lots
-              SET status = $2, ready_date = $3,
+              SET status = $2, ready_date = $3, qty = $4,
                   packing_status = CASE WHEN packed_date IS NULL THEN NULL
                                         WHEN $2 = 'Fully ready' THEN 'Fully packed'
                                         ELSE 'Partially packed' END
             WHERE id = $1`,
-          [id, lot.status, lot.ready_date]
+          [id, lot.status, lot.ready_date, lot.qty ?? null]
         );
       } else {
         await c.query(
-          `INSERT INTO order_ready_lots (item_id, status, ready_date) VALUES ($1, $2, $3)`,
-          [itemId, lot.status, lot.ready_date]
+          `INSERT INTO order_ready_lots (item_id, status, ready_date, qty) VALUES ($1, $2, $3, $4)`,
+          [itemId, lot.status, lot.ready_date, lot.qty ?? null]
         );
       }
     }

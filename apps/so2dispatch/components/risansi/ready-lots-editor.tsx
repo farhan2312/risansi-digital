@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Lock, Plus, Trash2 } from "lucide-react";
 import { READY_LOT_LIMIT, READY_LOT_STATUSES } from "@/lib/order-schema";
-import { lotsFrozen, type ReadyLot } from "@/lib/ready-lots";
+import { allocated, autoLotStatus, lotsFrozen, type LotEc, type ReadyLot } from "@/lib/ready-lots";
 
 function formatDate(value: string): string {
   if (!value) return "—";
@@ -24,11 +24,18 @@ export function ReadyLotsEditor({
   lots,
   onChange,
   editing,
+  ecs,
 }: {
   lots: ReadyLot[];
   onChange: (next: ReadyLot[]) => void;
   /** False shows them read-only, as the section does outside its edit mode. */
   editing: boolean;
+  /**
+   * A pump SO's ECs: each lot then names the ECs in it and how many of each,
+   * a later lot offers only what is left, and the lot's status follows (it
+   * can still be chosen).
+   */
+  ecs?: LotEc[];
 }) {
   const [unlocked, setUnlocked] = useState(false);
   // Locked as saved: a Fully ready lot being entered now stays editable until
@@ -41,6 +48,18 @@ export function ReadyLotsEditor({
 
   const set = (i: number, patch: Partial<ReadyLot>) =>
     onChange(lots.map((l, k) => (k === i ? { ...l, ...patch } : l)));
+  // An EC's share of lot i: set it, and the lot's status follows.
+  const setQty = (i: number, ecId: string, qty: number) => {
+    const next = lots.map((l, k) => {
+      if (k !== i) return l;
+      const map = { ...(l.ecs ?? {}) };
+      if (qty > 0) map[ecId] = qty;
+      else delete map[ecId];
+      return { ...l, ecs: map };
+    });
+    next[i] = { ...next[i], status: autoLotStatus(next, i, ecs ?? []) };
+    onChange(next);
+  };
 
   return (
     <div className="rounded-xl border border-card-border bg-background/50 p-3 sm:col-span-2">
@@ -111,6 +130,48 @@ export function ReadyLotsEditor({
               ) : (
                 <span />
               )}
+              {ecs && ecs.length > 0 && (
+                <div className="col-span-4 -mt-1 mb-1 ml-[4rem] rounded-lg border border-card-border bg-surface p-2">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">ECs in Lot {i + 1}</p>
+                  <div className="space-y-1">
+                    {ecs.map((ec) => {
+                      const other = allocated(lots, ec.id, i);
+                      const left = Math.max(0, ec.quantity - other);
+                      const mine = lot.ecs?.[ec.id] ?? 0;
+                      // A later lot offers only what earlier ones left.
+                      if (left === 0 && mine === 0) return null;
+                      return (
+                        <label key={ec.id} className="flex flex-wrap items-center gap-2 text-[13px]">
+                          <input
+                            type="checkbox"
+                            checked={mine > 0}
+                            disabled={!editable}
+                            onChange={(e) => setQty(i, ec.id, e.target.checked ? left : 0)}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          <span className="min-w-[7rem] font-medium text-foreground">{ec.label}</span>
+                          {mine > 0 && editable ? (
+                            <input
+                              type="number"
+                              min={1}
+                              max={left}
+                              value={mine}
+                              aria-label={`${ec.label} quantity in lot ${i + 1}`}
+                              onChange={(e) => setQty(i, ec.id, Math.min(left, Math.max(0, Math.floor(Number(e.target.value) || 0))))}
+                              className="h-8 w-16 rounded-md border border-input-border bg-surface px-2 text-[13px]"
+                            />
+                          ) : mine > 0 ? (
+                            <span className="font-semibold">{mine}</span>
+                          ) : null}
+                          <span className="text-xs text-muted">
+                            {mine > 0 ? `of ${left} left` : `${left} of ${ec.quantity} left`}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -122,7 +183,7 @@ export function ReadyLotsEditor({
       {editable && !lotsFrozen(lots) && lots.length < READY_LOT_LIMIT && (
         <button
           type="button"
-          onClick={() => onChange([...lots, { status: "", ready_date: "" }])}
+          onClick={() => onChange([...lots, ecs ? { status: "", ready_date: "", ecs: {} } : { status: "", ready_date: "" }])}
           className="mt-2 inline-flex h-8 items-center gap-1 rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-surface"
         >
           <Plus className="h-3.5 w-3.5" />
