@@ -187,6 +187,9 @@ export type NewOrderInput = {
   ec_sent_operation_date?: string;
   packing_forwarding_percent?: string;
   performance_curve_required?: string;
+  qc_doc_mtc?: string;
+  qc_doc_iir?: string;
+  qc_doc_dimensional?: string;
   boi?: string;
   qc_required?: string;
   quotation_no?: string;
@@ -316,13 +319,13 @@ export async function createOrder(
           clearance_status, clearance_hold_reason, clearance_remarks,
           complaint_ec_no, file_no, discount_percent, gst_percent, taxable_value,
           po_received_date, ec_sent_operation_date, packing_forwarding_percent,
-          performance_curve_required
+          performance_curve_required, qc_doc_mtc, qc_doc_iir, qc_doc_dimensional
        ) VALUES (
           -- The next free number, under the lock above.
           (SELECT COALESCE(max(sl_no), 0) + 1 FROM orders),
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
           $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
-          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50
+          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53
        )
        RETURNING id, sl_no::int AS sl_no`,
       [
@@ -384,6 +387,10 @@ export async function createOrder(
         toNumeric(input.packing_forwarding_percent),
         // A Spare has no drawing to curve.
         input.order_type === "Spare" ? null : nullify(input.performance_curve_required),
+        // The QC documents, only when Quality is needed.
+        input.qc_required === "Yes" ? nullify(input.qc_doc_mtc) : null,
+        input.qc_required === "Yes" ? nullify(input.qc_doc_iir) : null,
+        input.qc_required === "Yes" ? nullify(input.qc_doc_dimensional) : null,
       ]
     );
     return result.rows[0];
@@ -2627,6 +2634,13 @@ export async function listItemsForSection(
            COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
                              FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings`
         : "";
+  // Quality: each EC's document links.
+  const qcSelect =
+    table === "order_qc"
+      ? `, COALESCE((SELECT jsonb_agg(jsonb_build_object('doc_type', ql.doc_type, 'link', ql.link,
+                     'submitted_date', to_char(ql.submitted_date, 'YYYY-MM-DD'), 'remarks', ql.remarks))
+                     FROM order_qc_doc_links ql WHERE ql.item_id = it.id), '[]'::jsonb) AS qc_links`
+      : "";
   const soChildSelect =
     section.soChild?.table === "order_packing_slips"
       ? `, o.market_type, o.packing_details_required,
@@ -2692,7 +2706,7 @@ export async function listItemsForSection(
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
             o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks
-            ${childSelect}${soChildSelect}${readyLotsSelect}${detailSelects ? `,\n            ${detailSelects}` : ""}${contextSelects}
+            ${childSelect}${qcSelect}${soChildSelect}${readyLotsSelect}${detailSelects ? `,\n            ${detailSelects}` : ""}${contextSelects}
        FROM order_items it
        JOIN orders o ON o.id = it.order_id
        LEFT JOIN ${table} d ON d.item_id = it.id

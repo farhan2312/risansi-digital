@@ -12,8 +12,6 @@ import {
   canViewDepartment,
   canCreateOrders,
   canEditChild,
-  canEditQcDocuments,
-  canEditQcRequirementDocs,
   canEditSection,
   isCentral,
 } from "@/lib/roles";
@@ -209,21 +207,8 @@ export function ItemSections({
                   : {}),
               };
 
-        const documents: DocumentsConfig[] | undefined =
-          section.table === "order_qc"
-            ? [
-                {
-                  table: "order_qc_documents",
-                  label: "Docs attached by QC",
-                  canEdit: canEditQcDocuments(role),
-                },
-                {
-                  table: "order_qc_requirement_documents",
-                  label: "Required Docs",
-                  canEdit: canEditQcRequirementDocs(role),
-                },
-              ]
-            : undefined;
+        // Quality's documents are SharePoint links now, given on its own page.
+        const documents: DocumentsConfig[] | undefined = undefined;
 
         // Spares carry an Order Copy attachment (set on the Spare Add-On
         // form). Show its manage-card right below the EC card. Pumps don't

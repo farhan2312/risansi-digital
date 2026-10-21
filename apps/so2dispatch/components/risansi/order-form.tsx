@@ -144,7 +144,6 @@ const SECTIONS: Section[] = [
         type: "select",
         options: YES_NO_OPTIONS,
       },
-      { name: "qc_required", label: "Quality Required", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "order_type", value: "Spare", not: true } },
       {
         name: "freight_terms",
         label: "Freight Terms",
@@ -186,6 +185,11 @@ const SECTIONS: Section[] = [
     title: "Document Required",
     fields: [
       { name: "performance_curve_required", label: "Performance Curve", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "order_type", value: "Spare", not: true } },
+      { name: "qc_required", label: "Quality Required", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "order_type", value: "Spare", not: true } },
+      // When Quality is needed: which QC documents.
+      { name: "qc_doc_mtc", label: "MTC", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "qc_required", value: "Yes" } },
+      { name: "qc_doc_iir", label: "IIR", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "qc_required", value: "Yes" } },
+      { name: "qc_doc_dimensional", label: "Dimensional Report", type: "select", options: YES_NO_OPTIONS, dependsOn: { name: "qc_required", value: "Yes" } },
     ],
   },
   {

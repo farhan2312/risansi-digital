@@ -74,6 +74,13 @@ function opts(values: string[]): { value: string; label: string }[] {
 const YES_NO = opts(["Yes", "No"]);
 export const YES_NO_OPTIONS = YES_NO;
 
+/** The QC documents an SO can ask for, each Yes / No on the order (QC_DOC_TYPES). */
+export const QC_DOC_FIELDS: OrderField[] = [
+  { column: "qc_doc_mtc", label: "MTC", type: "select", options: YES_NO },
+  { column: "qc_doc_iir", label: "IIR", type: "select", options: YES_NO },
+  { column: "qc_doc_dimensional", label: "Dimensional Report", type: "select", options: YES_NO },
+];
+
 export const INDUSTRY_TYPE_OPTIONS = opts(["Sugar", "Non Sugar"]);
 export const CURRENCY_OPTIONS = opts(["INR", "USD"]);
 export const ITEM_OPTIONS = opts(["Pump", "Spare", "ROLB"]);
@@ -418,16 +425,6 @@ export const ORDER_SECTIONS: OrderSection[] = [
         options: YES_NO,
         group: "Terms & Conditions",
       },
-      // 'No' means the QC department isn't involved for this order — its ECs
-      // are skipped by the QC workspace and QC reminders.
-      {
-        column: "qc_required",
-        label: "Quality Required",
-        type: "select",
-        options: YES_NO,
-        dependsOn: [{ column: "order_type", value: "Spare", not: true }],
-        group: "Terms & Conditions",
-      },
       {
         column: "freight_terms",
         label: "Freight Terms",
@@ -499,6 +496,22 @@ export const ORDER_SECTIONS: OrderSection[] = [
         dependsOn: [{ column: "order_type", value: "Spare", not: true }],
         group: "Document Required",
       },
+      // 'No' means the QC department isn't involved for this order — its ECs
+      // are skipped by the QC workspace and QC reminders. Yes asks which QC
+      // documents the client needs; Quality gives each, per EC, as a link.
+      {
+        column: "qc_required",
+        label: "Quality Required",
+        type: "select",
+        options: YES_NO,
+        dependsOn: [{ column: "order_type", value: "Spare", not: true }],
+        group: "Document Required",
+      },
+      ...QC_DOC_FIELDS.map((f) => ({
+        ...f,
+        dependsOn: [{ column: "order_type", value: "Spare", not: true }, { column: "qc_required", value: "Yes" }],
+        group: "Document Required",
+      })),
 
       // Target dates (per SO — the same target applies across every EC on
       // this order). Set by Central Visibility at intake; departments see them
@@ -685,14 +698,9 @@ export const ORDER_SECTIONS: OrderSection[] = [
     fields: [
       // Filled by Central Visibility, read-only to QC. (The QC target date is
       // now an EC attribute — see the item section / QC_CONTEXT_FIELDS.)
-      {
-        column: "required_qc_documents",
-        label: "Required Quality Documents",
-        type: "text",
-        centralOnly: true,
-      },
-      // Filled by QC.
-      { column: "qc_doc_actual_date", label: "Actual Date of Doc. Submission", type: "date" },
+      // Worked out from the documents' links: the day the last needed one
+      // was submitted (lib/qc-docs.ts). The needed documents are on the SO.
+      { column: "qc_doc_actual_date", label: "Actual Date of Doc. Submission", type: "date", computed: true },
       { column: "remarks", label: "Remarks", type: "text" },
     ],
   },
@@ -1500,6 +1508,11 @@ export const DRAWING_CONTEXT_FIELDS: OrderField[] = [
 export const QC_CONTEXT_FIELDS: OrderField[] = [
   ...SO_CONTEXT_FIELDS,
   { column: "qc_doc_target_date", label: "Quality Target Date", type: "date" },
+  // Which documents the SO needs, and the EC itself.
+  ...QC_DOC_FIELDS,
+  { column: "ec_date", label: "EC Date", type: "date", from: "order_items" },
+  { column: "pump_type", label: "Pump Type", type: "text", from: "order_items" },
+  { column: "model_no", label: "Model No.", type: "text", from: "order_items" },
 ];
 
 // BOI, Purchase target, and LD / LD Date (all SO-level, on orders) shown

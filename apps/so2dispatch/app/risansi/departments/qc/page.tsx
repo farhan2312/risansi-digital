@@ -4,17 +4,13 @@ import { ClipboardCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   canEditQcDocuments,
-  canEditQcRequirementDocs,
-  canEditSection,
   canViewDepartment,
-  isCentral,
   isRep,
   reminderDeptForTable,
 } from "@/lib/roles";
 import {
   listItemsForSectionPage,
   parseQueueSort,
-  listQcDocumentCounts,
   resolveFocusOrderId,
   listDeptCompletions,
   listOrderListOptions,
@@ -22,9 +18,9 @@ import {
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { listRemindersForDepartment } from "@/lib/reminders";
-import { QC_CONTEXT_FIELDS, SECTION_BY_TABLE } from "@/lib/order-schema";
+import { QC_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
-import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
+import { QcWorkspace } from "@/components/risansi/qc-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
@@ -57,12 +53,9 @@ export default async function QcWorkspacePage({
   // immediate; everything else below loads side by side.
   // A reminder (?focus=) lands on its SO in this queue, like a notification.
   const focusOrderId = await resolveFocusOrderId(params.focus ?? thread ?? edit);
-  // QC fills its own submission fields; Required QC Documents / Target Date
-  // stay centralOnly (Mitali fills those, read-only to QC — see order-schema.ts).
-  const canEdit = canEditSection(user.role, TABLE);
-  const canEditCentral = isCentral(user.role);
-  const section = SECTION_BY_TABLE.get(TABLE)!;
-  const [queue, docCounts, requirementDocCounts, reminders, filterOptions] = await Promise.all([
+  // Quality gives the documents the SO names (Central and Admin may too).
+  const canEdit = canEditQcDocuments(user.role);
+  const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,
       QC_CONTEXT_FIELDS.map((f) => ({
@@ -75,8 +68,6 @@ export default async function QcWorkspacePage({
     ,
       { page: parsePage(page), search: parseQuery(q), focusOrderId, filter, sort: parseQueueSort(params.sort), kpis: deptKpiCards("quality", [], DEPT_VIEWS.quality.hasTarget) }
     ),
-    listQcDocumentCounts("order_qc_documents"),
-    listQcDocumentCounts("order_qc_requirement_documents"),
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),
     listOrderListOptions(filter),
   ]);
@@ -105,44 +96,26 @@ export default async function QcWorkspacePage({
             Quality
           </h1>
           <p className="text-sm text-muted">
-            Fill in the actual submission date and remarks; Required Quality
-            Documents and the target date are set by Central Visibility.
-            {" "}Requirement Docs are reference files Central Visibility uploads for Quality to work from.
+            The QC documents each SO needs (MTC, IIR, Dimensional Report) are set
+            on the order. Give each one per EC as a SharePoint link; the EC is
+            submitted once all are in.
           </p>
         </div>
       </div>
 
       <RemindersPanel reminders={reminders} focusInQueue />
 
-      <DepartmentWorkspace
+      <QcWorkspace
+        queue={queue}
+        kpis={queue.kpis}
+        canEdit={canEdit}
         completions={completions}
         openThreadId={thread}
+        openItemId={edit}
         focusOrderId={focusOrderId ?? undefined}
         role={user.role}
         unreadThreads={unreadThreads}
-        table={TABLE}
-        fields={section.fields}
-        queue={queue}
-        kpis={queue.kpis}
         filterOptions={filterOptions}
-        readonlyFields={QC_CONTEXT_FIELDS}
-        canEdit={canEdit}
-        canEditCentral={canEditCentral}
-        documents={[
-          {
-            table: "order_qc_documents",
-            label: "Docs attached by QC",
-            canEdit: canEditQcDocuments(user.role),
-            counts: docCounts,
-          },
-          {
-            table: "order_qc_requirement_documents",
-            label: "Required Docs",
-            canEdit: canEditQcRequirementDocs(user.role),
-            counts: requirementDocCounts,
-          },
-        ]}
-        openOrderId={edit}
       />
     </div>
   );
