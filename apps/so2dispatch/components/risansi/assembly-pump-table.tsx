@@ -183,7 +183,7 @@ export function AssemblyPumpTable({
                     <tr key={e.id} className="text-foreground hover:bg-background/40">
                       {k === 0 && (
                         <>
-                          <td rowSpan={span} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
+                          <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>{soLabel}</td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{shortDate(head.so_date)}</td>
                           <td rowSpan={span} className={soCell}>

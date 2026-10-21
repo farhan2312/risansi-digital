@@ -156,7 +156,7 @@ export function PlanningPumpTable({
                   <tr key={id} className="text-foreground hover:bg-background/40">
                     {k === 0 && (
                       <>
-                        <td rowSpan={span} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
+                        <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
                         <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>
                           {soLabel}
                           <span className="block text-[11px] font-normal text-muted">

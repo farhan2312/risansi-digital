@@ -10,6 +10,7 @@ import {
   reminderDeptForTable,
 } from "@/lib/roles";
 import { listItemsForSectionPage,
+  orderEcKind,
   parseQueueSort,
   resolveFocusOrderId,
   listDeptCompletions,
@@ -53,7 +54,11 @@ export default async function AssemblyDispatchWorkspacePage({
   // A Rep sees only their own SOs.
   // Spare or Pump, as on Planning: the Pump view is assembly (then packing)
   // of the SOs Planning has Partial or Fully ready.
-  const ecKind: "spare" | "pump" = /pump/i.test(params.type ?? "") ? "pump" : "spare";
+  const focusOrderId = await resolveFocusOrderId(params.focus ?? thread ?? edit);
+  // Spare or Pump: as asked, else — following a link to an SO — the side it is on.
+  const ecKind: "spare" | "pump" = params.type
+    ? /pump/i.test(params.type) ? "pump" : "spare"
+    : (await orderEcKind(focusOrderId)) ?? "spare";
   const filter = scopeToRep(
     { ...parseDeptFilter((key) => params[key], "assembly"), types: ecKind === "pump" ? ["Pump", "ROLB"] : ["Spare"] },
     user
@@ -81,7 +86,6 @@ export default async function AssemblyDispatchWorkspacePage({
   // Which SO a notification link should open on. Without a link this is
   // immediate; everything else below loads side by side.
   // A reminder (?focus=) lands on its SO in this queue, like a notification.
-  const focusOrderId = await resolveFocusOrderId(params.focus ?? thread ?? edit);
   const section = SECTION_BY_TABLE.get(TABLE)!;
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(

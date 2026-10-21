@@ -6,6 +6,7 @@ import { AlertTriangle, Loader2, MessagesSquare } from "lucide-react";
 import { departmentHrefForRole, isCentral, roleLabel } from "@/lib/roles";
 import type { InboxEntry } from "@/lib/order-messages";
 import { discussionInboxAction } from "@/app/risansi/orders/thread-actions";
+import { OrderThreadModal } from "./order-thread-modal";
 
 function stamp(iso: string): string {
   const d = new Date(iso);
@@ -33,6 +34,8 @@ export function DiscussionBell({
   const [loading, setLoading] = useState(false);
   const [entries, setEntries] = useState<InboxEntry[] | null>(null);
   const [unread, setUnread] = useState(initialUnread);
+  // The SO whose chat is open over the page, from the inbox.
+  const [chatFor, setChatFor] = useState<InboxEntry | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -106,16 +109,14 @@ export function DiscussionBell({
     }
   }
 
-  // Central opens the order summary; a department user goes to their own
-  // workspace, which opens that SO's thread on arrival.
+  // The chat opens at once, over whatever page this is. A department user is
+  // also taken to their own workspace with that SO found and highlighted.
   function go(entry: InboxEntry) {
     setOpen(false);
-    if (isCentral(role)) {
-      router.push(`/risansi/orders/${entry.order_id}`);
-      return;
-    }
+    setChatFor(entry);
+    if (isCentral(role)) return;
     const href = departmentHrefForRole(role);
-    if (href) router.push(`${href}?thread=${entry.order_id}`);
+    if (href) router.push(`${href}?focus=${entry.order_id}`);
   }
 
   return (
@@ -193,6 +194,14 @@ export function DiscussionBell({
             )}
           </div>
         </div>
+      )}
+      {chatFor && (
+        <OrderThreadModal
+          orderId={chatFor.order_id}
+          role={role}
+          soLabel={chatFor.so_no ?? String(chatFor.sl_no)}
+          onClose={() => setChatFor(null)}
+        />
       )}
     </div>
   );

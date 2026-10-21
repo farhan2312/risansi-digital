@@ -3522,6 +3522,25 @@ async function withRepTeams<F extends { reps: string[] }>(f: F): Promise<F> {
   return { ...f, reps: [...names.values()] };
 }
 
+/**
+ * Whether an SO is a Spare or a Pump one, by its ECs — so a link to it opens
+ * a Spare / Pump queue on the side that holds it. Null when it has both, or
+ * none.
+ */
+export async function orderEcKind(orderId: string | null | undefined): Promise<"spare" | "pump" | null> {
+  if (!orderId || !UUID_RE.test(orderId)) return null;
+  const r = await query<{ spare: boolean; pump: boolean }>(
+    `SELECT bool_or(${spareEcSql("it", "o")}) AS spare, bool_or(NOT (${spareEcSql("it", "o")})) AS pump
+       FROM orders o JOIN order_items it ON it.order_id = o.id WHERE o.id = $1`,
+    [orderId]
+  );
+  const k = r.rows[0];
+  if (!k) return null;
+  if (k.pump && !k.spare) return "pump";
+  if (k.spare && !k.pump) return "spare";
+  return null;
+}
+
 /** The filter as a WHERE clause of its own, for the queries it owns. */
 function orderListWhere(f: OrderListFilter): { where: string; params: unknown[] } {
   const { clauses, params } = orderListClauses(f);
