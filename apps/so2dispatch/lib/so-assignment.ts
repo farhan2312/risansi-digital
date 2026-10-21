@@ -12,6 +12,14 @@ import { isCentral } from "@/lib/roles";
 
 export { SO_DETAILS_FILLED_SQL };
 
+/**
+ * An SO still to be assigned: open (not cancelled or diverted) and nothing
+ * dispatched yet — a lot or fully dispatched SO needs no one to fill it now.
+ */
+export function assignableSql(o = "o"): string {
+  return `${orderOpenSql(o)} AND lower(COALESCE(NULLIF(${o}.dispatch_status, ''), 'Pending')) NOT IN ('fully dispatch', 'lot dispatch')`;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type SoMember = { id: string; full_name: string; email: string; team: "SO" | "PO" };
@@ -51,6 +59,10 @@ export async function assignSo(
   by: { id: string; name: string }
 ): Promise<{ ok: true; label: string; assigneeName: string | null } | { ok: false; error: string }> {
   if (!UUID_RE.test(orderId)) return { ok: false, error: "Order not found." };
+  if (assigneeId) {
+    const ok = await query(`SELECT 1 FROM orders o WHERE o.id = $1 AND ${assignableSql("o")}`, [orderId]);
+    if (ok.rows.length === 0) return { ok: false, error: "This SO is dispatched, cancelled or diverted: nothing to assign." };
+  }
   let assigneeName: string | null = null;
   if (assigneeId) {
     const member = (await listSoMembers()).find((m) => m.id === assigneeId);
@@ -159,7 +171,7 @@ export async function soMemberSummary(period: AssignPeriod = "daily"): Promise<S
     ),
     query<{ total: number; pending: number }>(
       `SELECT count(*)::int AS total, count(*) FILTER (WHERE NOT ${SO_DETAILS_FILLED_SQL})::int AS pending
-         FROM orders o WHERE o.so_assignee_id IS NULL AND ${orderOpenSql("o")} ${madeToday}`
+         FROM orders o WHERE o.so_assignee_id IS NULL AND ${assignableSql("o")} ${madeToday}`
     ),
   ]);
   const by = new Map(counts.rows.map((c) => [c.id, c]));

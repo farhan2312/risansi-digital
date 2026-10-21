@@ -45,6 +45,12 @@ import { ClientLookup } from "./client-lookup";
 import { formatDisplay } from "./editable-section";
 import { dispatchRowTone, isClosedStatus } from "@/lib/dept-view";
 
+/** Lot or fully dispatched, cancelled or diverted: the SO needs no assignment. */
+function notAssignable(row: Record<string, unknown>): boolean {
+  const d = String(row.dispatch_status ?? "").trim().toLowerCase();
+  return isClosedStatus(row.status_override) || d === "fully dispatch" || d === "lot dispatch";
+}
+
 /** A member's name, marked when they are Order Making PO rather than SO. */
 function memberLabel(m: { full_name: string; team?: "SO" | "PO" }): string {
   return m.team === "PO" ? `${m.full_name} (PO)` : m.full_name;
@@ -534,7 +540,10 @@ export function OrderMakingWorkspace({
                   </td>
                   {mode === "po" && (
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {canAssign ? (
+                      {/* Dispatched, cancelled or diverted: no one to assign now. */}
+                      {notAssignable(row) && !row.so_assignee_id ? (
+                        <span className="text-xs text-muted">Not needed</span>
+                      ) : canAssign && !notAssignable(row) ? (
                         <span className="inline-flex flex-col gap-0.5">
                           <span className="inline-flex items-center gap-1.5">
                             <select

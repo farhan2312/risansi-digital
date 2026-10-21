@@ -48,6 +48,7 @@ import {
 } from "@/lib/pagination";
 import { ecDrawingDoneSql } from "@/lib/drawing-filter";
 import { listTeams } from "@/lib/market-intell";
+import { assignableSql } from "@/lib/so-assignment";
 import { toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
 import {
   CHILD_FIELDS,
@@ -4025,7 +4026,8 @@ export async function listOrdersForOrderMaking(opts: {
       const ids = ff.assignees.filter((a) => a !== UNASSIGNED);
       const any: string[] = [];
       if (ids.length) any.push(`o.so_assignee_id IN (${ids.map((id) => `${lit(id)}::uuid`).join(", ")})`);
-      if (ff.assignees.includes(UNASSIGNED)) any.push("o.so_assignee_id IS NULL");
+      // Unassigned: those still to assign — not dispatched, cancelled or diverted.
+      if (ff.assignees.includes(UNASSIGNED)) any.push(`(o.so_assignee_id IS NULL AND ${assignableSql("o")})`);
       clauses.push(`(${any.join(" OR ")})`);
     }
     if (ff.soState === "filled") clauses.push(SO_DETAILS_FILLED_SQL);
@@ -4050,7 +4052,7 @@ export async function listOrdersForOrderMaking(opts: {
   const omCards: KpiCardDef[] | undefined = opts.withKpis
     ? [
         { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null }, tone: "neutral" },
-        { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${orderOpenSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
+        { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
         { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
         { key: "filled", label: "SO details filled", sql: `${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "filled", asg: null, missing: null }, tone: "done" },
         {
