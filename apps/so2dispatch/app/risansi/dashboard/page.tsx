@@ -10,21 +10,14 @@ import {
   departmentHrefForRole,
   roleLabel,
 } from "@/lib/roles";
-import {
-  getPipelinePage,
-  listDeptCompletions,
-  listOrdersOverview,
-} from "@/lib/orders";
-import { parsePage } from "@/lib/pagination";
-import { parseOrderListFilter, scopeToRep } from "@/lib/order-list-filter";
+import { listDeptCompletions, listOrdersOverview } from "@/lib/orders";
 import { deptViewForRole } from "@/lib/dept-view";
 import { listRemindersForRole } from "@/lib/reminders";
-import { CentralDashboard } from "@/components/risansi/central-dashboard";
 import { DEPT_DASHBOARDS } from "@/components/risansi/dept-dashboards";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { getDashboard } from "@/lib/dashboard";
 import { CentralOverview } from "@/components/risansi/central-overview";
-import { ordersKind, withOrdersKind } from "@/lib/order-list-filter";
+import { ordersKind } from "@/lib/order-list-filter";
 
 export const metadata: Metadata = {
   title: "Dashboard | Risansi",
@@ -49,31 +42,12 @@ export default async function DashboardPage({
 
   if (canSeeCentralDashboard(user.role)) {
     const params = await searchParams;
-    // Filtered, counted and paged in SQL: the browser gets one page of the
-    // pipeline and the figures over everything that matched.
-    // Spare or Pump: the one choice on the dashboard (Spare when the URL says nothing).
-    const kind = ordersKind(params.type);
-    const [dashboard, pipeline] = await Promise.all([
-      // A Rep or Rep Manager: their reps' SOs only.
-      getDashboard(kind, isRep(user.role) ? (user.rep_names ?? []) : null),
-      // The pipeline below it: every SO of that kind, no other filter.
-      getPipelinePage({
-        page: parsePage(params.page),
-        filter: scopeToRep(withOrdersKind(parseOrderListFilter(() => undefined), params.type), user),
-      }),
-    ]);
-    // Sign-offs for the SOs on this page, for the Completed / Not completed
-    // lines under each department.
-    const completions = await listDeptCompletions([
-      ...new Set(pipeline.rows.map((r) => r.order_id)),
-    ]);
+    // Spare or Pump: the one choice on the dashboard (Spare when the URL says
+    // nothing). A Rep or Rep Manager: their reps' SOs only.
+    const dashboard = await getDashboard(ordersKind(params.type), isRep(user.role) ? (user.rep_names ?? []) : null);
     return (
-      <div className="space-y-8 px-4 py-6 sm:px-8 sm:py-8">
+      <div className="px-4 py-6 sm:px-8 sm:py-8">
         <CentralOverview data={dashboard} />
-        <div>
-          <h2 className="mb-3 font-display text-base font-semibold text-foreground">Order pipeline</h2>
-          <CentralDashboard pipeline={pipeline} completions={completions} pipelineOnly />
-        </div>
       </div>
     );
   }
