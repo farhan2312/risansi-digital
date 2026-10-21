@@ -29,7 +29,6 @@ import {
   ORDER_MAKING_EDITABLE,
   ORDER_MAKING_FIELDS,
   ORDER_MAKING_SO_EDITABLE,
-  ORDER_TYPE_OPTIONS,
   SO_DETAIL_COLUMNS,
   dependsOnSatisfied,
   selectOptionsFor,
@@ -44,6 +43,36 @@ import { MultiSelectFilter, SingleSelectFilter } from "./multi-select-filter";
 import { ClientLookup } from "./client-lookup";
 import { formatDisplay } from "./editable-section";
 import { dispatchRowTone, isClosedStatus } from "@/lib/dept-view";
+
+/** All, Spare or Pump — shows the choice at once; the list follows when it loads. */
+function KindTabs({ value, onChange }: { value: "all" | "spare" | "pump"; onChange: (v: "all" | "spare" | "pump") => void }) {
+  const [asked, setAsked] = useState<"all" | "spare" | "pump" | null>(null);
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    setAsked(null);
+  }
+  const shown = asked ?? value;
+  return (
+    <div role="group" aria-label="Order type" className="inline-flex h-9 rounded-lg border border-input-border p-0.5">
+      {(["all", "spare", "pump"] as const).map((k) => (
+        <button
+          key={k}
+          type="button"
+          aria-pressed={shown === k}
+          onClick={() => {
+            if (shown === k) return;
+            setAsked(k);
+            onChange(k);
+          }}
+          className={`rounded-md px-3 text-sm font-semibold transition-colors ${shown === k ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"}`}
+        >
+          {k === "all" ? "All" : k === "spare" ? "Spare" : "Pump"}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** Lot or fully dispatched, cancelled or diverted: the SO needs no assignment. */
 function notAssignable(row: Record<string, unknown>): boolean {
@@ -273,12 +302,8 @@ export function OrderMakingWorkspace({
         <MultiSelectFilter label="Zone" options={options.zones} selected={filter.zones} onChange={(next) => setParams({ zone: next })} />
         <MultiSelectFilter label="Rep" options={options.reps} selected={filter.reps} onChange={(next) => setParams({ rep: next })} />
         <MultiSelectFilter label="Market" options={options.markets} selected={filter.markets} onChange={(next) => setParams({ market: next })} />
-        <MultiSelectFilter
-          label="Type"
-          options={ORDER_TYPE_OPTIONS.map((o) => o.value)}
-          selected={filter.types}
-          onChange={(next) => setParams({ type: next })}
-        />
+        {/* All, Spare or Pump: the SO's type (its own, or any of its ECs'). */}
+        <KindTabs value={/pump/i.test(filter.types.join(",")) ? "pump" : filter.types.includes("Spare") ? "spare" : "all"} onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : k === "spare" ? "Spare" : null })} />
         <MultiSelectFilter
           label="Bill mode"
           allLabel="Any mode"
