@@ -22,7 +22,7 @@ export function KpiStrip({ cards }: { cards: KpiCard[] }) {
   // The card just clicked shows on at once; the page follows when it loads.
   const [asked, setAsked] = useState<string | null>(null);
   const keys = [...new Set(cards.flatMap((c) => Object.keys(c.params)))];
-  const isOn = (c: KpiCard) => Object.entries(c.params).every(([k, v]) => (get(k) || null) === v);
+  const isOn = (c: KpiCard) => !c.measure && Object.entries(c.params).every(([k, v]) => (get(k) || null) === v);
   const onKey = cards.find(isOn)?.key ?? null;
   const [seen, setSeen] = useState(onKey);
   if (seen !== onKey) {
@@ -36,6 +36,18 @@ export function KpiStrip({ cards }: { cards: KpiCard[] }) {
       {cards.map((c) => {
         const on = shown === c.key;
         const tone = TONE[c.tone ?? "neutral"];
+        // A sum (e.g. ECs) is a figure to read, not a filter.
+        if (c.measure) {
+          return (
+            <div key={c.key} className="flex min-w-[7.5rem] flex-col items-start rounded-xl border border-dashed border-card-border bg-surface px-3 py-2 shadow-sm">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
+                <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} aria-hidden />
+                {c.label}
+              </span>
+              <span className="font-display text-xl font-bold tabular-nums leading-tight text-foreground">{c.count}</span>
+            </div>
+          );
+        }
         return (
           <button
             key={c.key}

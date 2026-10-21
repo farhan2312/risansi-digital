@@ -14,6 +14,8 @@ export type KpiCardDef = {
   /** The URL params the card sets; the same keys set to null clear it. */
   params: Record<string, string | null>;
   tone?: KpiTone;
+  /** A sum over the SOs instead of a count of them (e.g. their ECs), shown but not clickable. */
+  measure?: string;
 };
 
 /** A card as shown: its count. */

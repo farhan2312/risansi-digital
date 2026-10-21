@@ -3920,11 +3920,17 @@ async function countKpis(
   const where = `WHERE ${req.restrict}
         ${base.clauses.map((c) => `AND ${c}`).join("\n        ")}
         AND (${own}::text IS NULL OR ${searchable(own)})`;
-  const cols = req.cards.map((c, i) => (c.sql ? `count(*) FILTER (WHERE ${c.sql})::int AS k${i}` : `count(*)::int AS k${i}`));
+  const cols = req.cards.map((c, i) =>
+    c.measure
+      ? `COALESCE(sum(${c.measure}), 0)::int AS k${i}`
+      : c.sql
+        ? `count(*) FILTER (WHERE ${c.sql})::int AS k${i}`
+        : `count(*)::int AS k${i}`
+  );
   try {
     const r = await query<Record<string, number>>(`SELECT ${cols.join(", ")} FROM orders o ${where}`, [...base.params, search]);
     const row = r.rows[0] ?? {};
-    return req.cards.map((c, i) => ({ key: c.key, label: c.label, params: c.params, tone: c.tone, count: Number(row[`k${i}`] ?? 0) }));
+    return req.cards.map((c, i) => ({ key: c.key, label: c.label, params: c.params, tone: c.tone, measure: c.measure ? "sum" : undefined, count: Number(row[`k${i}`] ?? 0) }));
   } catch (error) {
     console.error("countKpis failed:", error);
     return [];
@@ -3937,16 +3943,43 @@ async function countKpis(
  */
 export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
   const statuses = statusesFor(dept, types);
-  const clear = { dstatus: null, overdue: null } as Record<string, string | null>;
+  const planning = dept === "planning";
+  const clear = { dstatus: null, overdue: null, ...(planning ? { pack: null } : {}) } as Record<string, string | null>;
+  // Planning: how many ECs the SOs hold (of the kind shown), beside the SOs.
+  const spare = types.some((t) => t.toLowerCase() === "spare");
+  const pump = types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
+  const ecKind = spare && !pump ? spareEcSql("s", "o") : pump && !spare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
   return [
     { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
-    ...statuses.map((st) => ({
-      key: `s:${st}`,
-      label: st,
-      sql: `(${deptStatusPredicate(dept, st)}) AND ${orderOpenSql("o")}`,
-      params: { ...clear, dstatus: st },
-      tone: toneFor(st),
-    })),
+    ...(planning
+      ? [{
+          key: "ecs",
+          label: "ECs",
+          sql: null,
+          params: {},
+          tone: "neutral" as const,
+          measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${ecKind})`,
+        }]
+      : []),
+    ...statuses.map((st) =>
+      // Planning's Fully ready card: ready and not packed yet — what is waiting on Assembly & Packing.
+      planning && st === "Fully ready"
+        ? {
+            key: `s:${st}`,
+            label: "Fully ready (not packed)",
+            sql: `EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
+                            AND (${ecState("planning", st)}) AND (${packingState("Not packed")})) AND ${orderOpenSql("o")}`,
+            params: { ...clear, dstatus: st, pack: "Not packed" },
+            tone: toneFor(st),
+          }
+        : {
+            key: `s:${st}`,
+            label: st,
+            sql: `(${deptStatusPredicate(dept, st)}) AND ${orderOpenSql("o")}`,
+            params: { ...clear, dstatus: st },
+            tone: toneFor(st),
+          }
+    ),
     ...(withOverdue
       ? [{ key: "overdue", label: "Overdue", sql: `(${deptOverduePredicate(dept)}) AND ${orderOpenSql("o")}`, params: { ...clear, overdue: "1" }, tone: "danger" as const }]
       : []),
