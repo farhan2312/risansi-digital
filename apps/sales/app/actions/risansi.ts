@@ -1806,6 +1806,43 @@ export async function listPurchaseOrders(oppId: number): Promise<PurchaseOrder[]
   return rows;
 }
 
+/**
+ * Everything the Purchase Orders panel needs, including the PO that is NOT in
+ * this table.
+ *
+ * There are two places a customer PO is recorded and they were never joined
+ * up. The Won stage form asks for PO Number and PO Date and writes them onto
+ * `opportunities`; this panel reads `opportunity_purchase_orders`, which only
+ * its own Add button has ever written. So somebody would move a deal to Won,
+ * type the PO, reopen the deal, and be told "No purchase orders recorded yet"
+ * — and type it again. On 16 Oct that was true of 52 Won opportunities, with
+ * 238 the other way round: a PO in the table and none on the opportunity.
+ *
+ * The panel now says what is actually recorded. It does not invent the missing
+ * row, because a PO row carries a value, the Won form never asks for one, and
+ * that value is summed into the board's PO figure — a fabricated amount would
+ * land in a number people read as money.
+ */
+export async function loadPurchaseOrders(oppId: number): Promise<{
+  rows: PurchaseOrder[];
+  /** The PO captured on the Won form, when this table does not have it. */
+  onOpportunity: { po_number: string; po_date: string | null } | null;
+}> {
+  await assertCanViewOpp(oppId);
+  const rows = await listPurchaseOrders(oppId);
+  const { rows: opp } = await risansiPool.query<{ po_number: string | null; po_date: string | null }>(
+    `SELECT po_number, po_date::text AS po_date FROM opportunities WHERE id = $1`, [oppId],
+  );
+  const num = (opp[0]?.po_number ?? '').trim();
+  // Only when this table does not already carry it: once the panel holds the
+  // same number, repeating it would read as two POs.
+  const known = rows.some(r => r.po_number.trim().toLowerCase() === num.toLowerCase());
+  return {
+    rows,
+    onOpportunity: num && !known ? { po_number: num, po_date: opp[0]?.po_date ?? null } : null,
+  };
+}
+
 export async function addPurchaseOrder(oppId: number, formData: FormData): Promise<Result<PurchaseOrder[]>> {
   const user = await requireSession();
   const { rows: cur } = await risansiPool.query<{ stage: string; rep_id: number | null; client_id: number | null }>(
@@ -1831,6 +1868,23 @@ export async function addPurchaseOrder(oppId: number, formData: FormData): Promi
     `INSERT INTO opportunity_purchase_orders (opportunity_id, po_number, po_date, po_value_cr, created_by)
      VALUES ($1, $2, $3, $4, $5)`,
     [oppId, num, date, cr, user.email ?? null],
+  );
+  // Fill the opportunity's own PO fields when they are empty, so the Won view
+  // and this panel agree from here on. Never an overwrite: a second PO against
+  // the same deal must not rename the first, and a number somebody typed on
+  // the Won form is not this panel's to replace.
+  //
+  // A CASE rather than the obvious COALESCE(NULLIF(btrim(po_number),''), $2):
+  // that shorthand writes back the TRIMMED value when one is already there, so
+  // it would quietly have rewritten 7 existing numbers that carry a trailing
+  // space — 'M5E26000315 ' among them. An untouched value stays byte for byte.
+  await risansiPool.query(
+    `UPDATE opportunities
+        SET po_number = CASE WHEN btrim(COALESCE(po_number, '')) = '' THEN $2 ELSE po_number END,
+            po_date   = COALESCE(po_date, $3::date),
+            po_received_date = COALESCE(po_received_date, po_date, $3::date)
+      WHERE id = $1`,
+    [oppId, num, date],
   );
   await logActivity('opportunity', String(oppId), `added purchase order ${num}`, user.email!);
   revalidatePath('/risansi/pipeline');

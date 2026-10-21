@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, type CSSProperties } from 'react';
-import { listPurchaseOrders, addPurchaseOrder, deletePurchaseOrder } from '@/app/actions/risansi';
+import { loadPurchaseOrders, addPurchaseOrder, deletePurchaseOrder } from '@/app/actions/risansi';
 import type { PurchaseOrder } from '@/lib/risansi-purchase-orders';
 
 // Customer Purchase Orders for a Won opportunity (shown in the Edit drawer's Won
@@ -17,6 +17,8 @@ export function PurchaseOrderManager({ oppId, canEdit }: {
   canEdit: boolean;
 }) {
   const [pos, setPos]   = useState<PurchaseOrder[] | null>(null);
+  /** The PO captured on the Won form that this table does not hold. */
+  const [onOpp, setOnOpp] = useState<{ po_number: string; po_date: string | null } | null>(null);
   const [num, setNum]   = useState('');
   const [date, setDate] = useState('');
   const [val, setVal]   = useState('');
@@ -25,16 +27,43 @@ export function PurchaseOrderManager({ oppId, canEdit }: {
 
   useEffect(() => {
     let active = true;
-    listPurchaseOrders(oppId)
-      .then(r => { if (active) setPos(r); })
+    loadPurchaseOrders(oppId)
+      .then(r => { if (!active) return; setPos(r.rows); setOnOpp(r.onOpportunity); })
       .catch(() => { if (active) setPos([]); });
     return () => { active = false; };
   }, [oppId]);
 
+  /**
+   * What is wrong with the form right now, field by field.
+   *
+   * Checked as it is typed rather than on submit, so the Add button can refuse
+   * before it writes anything and say which box is the problem. It used to
+   * accept any click, send it, and print one sentence above the form — which,
+   * in a panel this far down a scrolling drawer, was often off screen.
+   */
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const problems: { field: 'num' | 'date' | 'val'; why: string }[] = [];
+  if (!num.trim()) problems.push({ field: 'num', why: 'Enter the PO number exactly as the customer wrote it.' });
+  if (!date) problems.push({ field: 'date', why: 'Pick the date on the PO.' });
+  else if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) problems.push({ field: 'date', why: 'That date is not complete — use the picker, or type it as dd-mm-yyyy.' });
+  else if (date > todayIso) problems.push({ field: 'date', why: 'A PO cannot be dated in the future. Check the year.' });
+  const valNum = parseFloat(val);
+  if (!val.trim()) problems.push({ field: 'val', why: 'Enter the PO value in rupees.' });
+  else if (!Number.isFinite(valNum)) problems.push({ field: 'val', why: 'That value is not a number. Digits only — no commas or ₹.' });
+  else if (valNum <= 0) problems.push({ field: 'val', why: 'The PO value has to be more than zero.' });
+  else if (valNum / 1e7 >= 9_999_999) problems.push({ field: 'val', why: 'That value is unrealistically large — check for an extra zero.' });
+  const badField = (f: 'num' | 'date' | 'val') => problems.find(p => p.field === f);
+  const blocked = problems.length > 0;
+  // Nothing typed yet is not an error, it is an empty form. The reasons appear
+  // once somebody has started.
+  const started = !!num.trim() || !!date || !!val.trim();
+
   const totalInr = (pos ?? []).reduce((s, o) => s + Number(o.po_value_cr) * CR, 0);
 
   const add = async () => {
-    if (!num.trim() || !date || !(parseFloat(val) > 0)) { setErr('PO Number, Date and a Value greater than zero are all required.'); return; }
+    // Cannot normally be reached — the button is disabled — but a refusal here
+    // must still say which box and why, never "something went wrong".
+    if (blocked) { setErr(problems.map(p => p.why).join(' ')); return; }
     setBusy(true); setErr('');
     try {
       const fd = new FormData();
@@ -45,6 +74,8 @@ export function PurchaseOrderManager({ oppId, canEdit }: {
       const res = await addPurchaseOrder(oppId, fd);
       if (!res.ok) { setErr(res.error); return; }
       setPos(res.data); setNum(''); setDate(''); setVal('');
+      // It is in the table now, so stop showing it as the Won form's loose PO.
+      setOnOpp(null);
     } catch (e) { setErr(e instanceof Error ? e.message : 'Could not add the purchase order.'); }
     finally { setBusy(false); }
   };
@@ -70,7 +101,7 @@ export function PurchaseOrderManager({ oppId, canEdit }: {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {pos === null ? (
             <div style={{ height: 20, background: 'var(--bg-sunk)', borderRadius: 4 }} />
-          ) : pos.length === 0 ? (
+          ) : pos.length === 0 && !onOpp ? (
             <div style={MUTED}>No purchase orders recorded yet.</div>
           ) : (
             pos.map(o => (
@@ -90,6 +121,23 @@ export function PurchaseOrderManager({ oppId, canEdit }: {
           )}
         </div>
 
+        {/* The PO typed on the Won form, which this table does not hold.
+            Saying "nothing recorded yet" over the top of it is what had people
+            entering the same PO twice. It is shown as what it is: recorded,
+            without a value, because the Won form never asks for one. */}
+        {onOpp && (
+          <div style={{ ...ROW, alignItems: 'flex-start', background: 'var(--bg-sunk)', borderRadius: 6, padding: '8px 10px' }}>
+            <div style={{ minWidth: 0 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>{onOpp.po_number}</span>
+              {onOpp.po_date && <span style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 8 }}>{onOpp.po_date}</span>}
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 3 }}>
+                Recorded on the Won form. Add it below with its value to carry it into the PO total.
+              </div>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--fg-3)', flexShrink: 0, whiteSpace: 'nowrap' }}>value not recorded</span>
+          </div>
+        )}
+
         {pos !== null && pos.length > 0 && (
           <div style={{ ...ROW, borderTop: '1px solid var(--line)', paddingTop: 8, fontWeight: 600 }}>
             <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>PO total</span>
@@ -97,17 +145,52 @@ export function PurchaseOrderManager({ oppId, canEdit }: {
           </div>
         )}
 
-        {err && <div style={{ fontSize: 12, color: 'var(--neg-strong)' }}>{err}</div>}
-
         {canEdit ? (
           <div style={{ borderTop: '1px dashed var(--line-strong)', paddingTop: 10 }}>
             <div style={{ ...MINI, marginBottom: 6 }}>Record a purchase order</div>
-            <input value={num} onChange={e => setNum(e.target.value)} placeholder="PO Number" style={{ ...INP, marginBottom: 6 }} />
+            {/* Prefill from the Won form's PO, so adding its value is typing one
+                number rather than copying three. */}
+            {onOpp && !num.trim() && !date && (
+              <button
+                type="button"
+                onClick={() => { setNum(onOpp.po_number); if (onOpp.po_date) setDate(onOpp.po_date); }}
+                style={{ ...REMOVE, color: 'var(--title)', marginBottom: 8, padding: '4px 9px' }}
+              >
+                Use {onOpp.po_number}
+              </button>
+            )}
+            <input
+              value={num} onChange={e => setNum(e.target.value)} placeholder="PO Number"
+              aria-invalid={started && !!badField('num')}
+              style={{ ...INP, marginBottom: badField('num') && started ? 2 : 6, ...(started && badField('num') ? BAD : null) }}
+            />
+            {started && badField('num') && <div style={WHY}>{badField('num')!.why}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} style={INP} />
-              <input type="number" min={0} value={val} onChange={e => setVal(e.target.value)} placeholder="Value ₹" style={INP} />
+              <div>
+                <input
+                  type="date" value={date} max={todayIso} onChange={e => setDate(e.target.value)}
+                  aria-invalid={started && !!badField('date')}
+                  style={{ ...INP, ...(started && badField('date') ? BAD : null) }}
+                />
+                {started && badField('date') && <div style={WHY}>{badField('date')!.why}</div>}
+              </div>
+              <div>
+                <input
+                  type="number" min={0} value={val} onChange={e => setVal(e.target.value)} placeholder="Value ₹"
+                  aria-invalid={started && !!badField('val')}
+                  style={{ ...INP, ...(started && badField('val') ? BAD : null) }}
+                />
+                {started && badField('val') && <div style={WHY}>{badField('val')!.why}</div>}
+              </div>
             </div>
-            <button type="button" onClick={add} disabled={busy} style={BTN_ADD}>
+            {/* Beside the button that is refusing, not above the whole panel —
+                in a drawer this long, a message at the top is off screen. */}
+            {err && <div style={{ ...WHY, marginTop: 8, fontSize: 12 }} aria-live="polite">{err}</div>}
+            <button
+              type="button" onClick={add} disabled={busy || blocked}
+              title={blocked ? problems.map(p => p.why).join(' ') : undefined}
+              style={{ ...BTN_ADD, ...(busy || blocked ? { opacity: 0.5, cursor: 'not-allowed' } : null) }}
+            >
               {busy ? 'Adding…' : '+ Add Purchase Order'}
             </button>
           </div>
@@ -138,4 +221,9 @@ const INP: CSSProperties = {
   fontSize: 13, background: 'var(--bg-paper)', color: 'var(--fg)', boxSizing: 'border-box', fontFamily: 'inherit',
 };
 const BTN_ADD: CSSProperties = { marginTop: 8, width: '100%', background: 'var(--accent-fill)', color: 'var(--on-accent)', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, padding: '9px 12px', cursor: 'pointer', fontFamily: 'inherit' };
+/** A field the form will not accept, and the sentence saying why. */
+// Matches MoneyInput's invalid state: the border, not a fill. There is no
+// --neg-tint token, and inventing one here would be the only use of it.
+const BAD: CSSProperties = { borderColor: 'var(--neg)' };
+const WHY: CSSProperties = { fontSize: 11, color: 'var(--neg-strong)', marginTop: 3, lineHeight: 1.35 };
 const REMOVE: CSSProperties = { border: '1px solid var(--line-strong)', background: 'var(--bg-paper)', color: 'var(--neg-strong)', borderRadius: 5, fontSize: 11, fontWeight: 600, padding: '2px 8px', cursor: 'pointer', fontFamily: 'inherit' };
