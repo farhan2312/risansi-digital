@@ -2644,7 +2644,14 @@ export async function listItemsForSection(
                               AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL), '[]'::jsonb) AS so_slips`
              : // Assembly & Packing is overdue against Planning's readiness date.
                `, (SELECT to_char(rpl.planning_readiness_date, 'YYYY-MM-DD')
-                    FROM order_planning rpl WHERE rpl.item_id = it.id) AS planning_readiness_date`
+                    FROM order_planning rpl WHERE rpl.item_id = it.id) AS planning_readiness_date,
+                 -- A pump: the EC itself, what Planning has ready on it and its
+                 -- SO status there, and its assembly plan entries.
+                 to_jsonb(it) - 'order_copy_file_data' AS ec,
+                 (SELECT rpl.ready_qty FROM order_planning rpl WHERE rpl.item_id = it.id) AS ready_qty,
+                 (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status,
+                 COALESCE((SELECT jsonb_agg(to_jsonb(ap) ORDER BY ap.plan_date NULLS LAST, ap.seq)
+                             FROM order_assembly_plans ap WHERE ap.order_id = it.order_id), '[]'::jsonb) AS assembly_plans`
          }`
       : "";
 

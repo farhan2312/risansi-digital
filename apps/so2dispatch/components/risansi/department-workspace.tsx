@@ -2,6 +2,9 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
+import { AssemblyPumpTable } from "./assembly-pump-table";
+import { MultiSelectFilter } from "./multi-select-filter";
+import { ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES } from "@/lib/assembly";
 import { PUMP_SO_PLANNING_FIELDS } from "@/lib/order-schema";
 import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
@@ -238,7 +241,9 @@ export function DepartmentWorkspace({
   );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const orders = queue.rows;
-  const { get: getParam } = useUrlTable();
+  const { get: getParam, getList, setParams } = useUrlTable();
+  // Assembly & Packing's Pump view: its own SO assembly status filter.
+  const assemblyPump = ecKind === "pump" && table === "order_assembly_dispatch";
   const [threadFor, setThreadFor] = useState<{
     orderId: string;
     soLabel: string;
@@ -663,6 +668,19 @@ export function DepartmentWorkspace({
             hasTarget={DEPT_VIEWS[dept].hasTarget}
             searchPlaceholder={searchPlaceholder}
             kindToggle={ecKind}
+            noStatusFilter={assemblyPump}
+            extraKeys={assemblyPump ? [ASSEMBLY_STATUS_KEY] : []}
+            extraFilters={
+              assemblyPump ? (
+                <MultiSelectFilter
+                  label="Assembly"
+                  allLabel="Any assembly status"
+                  options={SO_ASSEMBLY_STATUSES}
+                  selected={getList(ASSEMBLY_STATUS_KEY)}
+                  onChange={(next) => setParams({ [ASSEMBLY_STATUS_KEY]: next })}
+                />
+              ) : undefined
+            }
           />
         ) : (
           <UrlSearchInput placeholder={searchPlaceholder} />
@@ -672,7 +690,14 @@ export function DepartmentWorkspace({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          {ecKind === "pump" ? (
+          {assemblyPump ? (
+            <AssemblyPumpTable
+              rows={orders}
+              unreadThreads={unreadThreads}
+              canEdit={canEdit}
+              onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
+            />
+          ) : ecKind === "pump" ? (
             <PlanningPumpTable
               rows={orders}
               planningFields={fields}

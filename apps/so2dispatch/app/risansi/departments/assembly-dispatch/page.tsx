@@ -19,6 +19,7 @@ import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { listRemindersForDepartment } from "@/lib/reminders";
 import { ASSEMBLY_CONTEXT_FIELDS, SECTION_BY_TABLE } from "@/lib/order-schema";
+import { ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES, soAssemblyStatusSql } from "@/lib/assembly";
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
@@ -44,7 +45,28 @@ export default async function AssemblyDispatchWorkspacePage({
   const { edit, thread, page, q } = params;
   // This department's own filter bar, with the department pinned.
   // A Rep sees only their own SOs.
-  const filter = scopeToRep(parseDeptFilter((key) => params[key], "assembly"), user);
+  // Spare or Pump, as on Planning: the Pump view is assembly (then packing)
+  // of the SOs Planning has Partial or Fully ready.
+  const ecKind: "spare" | "pump" = /pump/i.test(params.type ?? "") ? "pump" : "spare";
+  const filter = scopeToRep(
+    { ...parseDeptFilter((key) => params[key], "assembly"), types: ecKind === "pump" ? ["Pump", "ROLB"] : ["Spare"] },
+    user
+  );
+  const assemblyStatuses = (params[ASSEMBLY_STATUS_KEY] ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => SO_ASSEMBLY_STATUSES.includes(v));
+  const pumpRestrict =
+    ecKind === "pump"
+      ? [
+          `EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
+                   WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')
+                     AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`,
+          assemblyStatuses.length
+            ? `${soAssemblyStatusSql("o")} IN (${assemblyStatuses.map((s) => `'${s}'`).join(", ")})`
+            : "TRUE",
+        ].join(" AND ")
+      : undefined;
   // A notification links to an EC (item id) or an SO; either way the queue
   // must open on the page that holds it.
   // Which SO a notification link should open on. Without a link this is
@@ -70,6 +92,7 @@ export default async function AssemblyDispatchWorkspacePage({
         filter,
         // By ready date (Planning's readiness date, which a Spare's lots keep).
         sort: parseQueueSort(params.sort),
+        extraRestrict: pumpRestrict,
       }
     ),
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),
@@ -144,6 +167,7 @@ export default async function AssemblyDispatchWorkspacePage({
         readonlyFields={ASSEMBLY_CONTEXT_FIELDS}
         canEditCentral={isCentral(user.role)}
         openOrderId={edit}
+        ecKind={ecKind}
       />
     </div>
   );
