@@ -1687,17 +1687,46 @@ export async function saveQuotedItems(oppId: number, items: unknown): Promise<Sa
   if (!(await userCanEditOpp(user, cur[0].rep_id, cur[0].client_id))) return fail('You do not have permission to edit this opportunity.');
   if (cur[0].stage === 'Won' || cur[0].stage === 'Lost') return fail(`This opportunity is ${cur[0].stage} and its details are locked.`);
   const rows = parseItemsJson(typeof items === 'string' ? items : JSON.stringify(items ?? [])) ?? [];
+
+  // What the lines added up to BEFORE this save, read while they are still
+  // there. It decides whether the Total Offer was following them.
+  const { rows: prev } = await risansiPool.query<{ s: string }>(
+    `SELECT COALESCE(SUM(offer_value_inr), 0)::text AS s FROM opportunity_items WHERE opportunity_id = $1`,
+    [oppId]);
+  const prevSum = Number(prev[0]?.s ?? 0);
+
   await replaceQuotedItems(oppId, rows);
-  // The first line names the pump on the card; a blank Total Offer takes the sum.
+  // The first line names the pump on the card.
   const sum = rows.reduce((a, it) => a + (itemNum(it.offer_value_inr) ?? 0), 0);
   await risansiPool.query(
     `UPDATE opportunities
         SET pump_model = $2, pump_qty = $3,
-            offer_value_inr = CASE WHEN offer_value_inr IS NULL OR offer_value_inr = 0 THEN NULLIF($4, 0) ELSE offer_value_inr END,
-            value_cr = CASE WHEN (value_cr IS NULL OR value_cr = 0) AND $4 > 0 THEN $4 / 10000000 ELSE value_cr END,
+            -- Total Offer follows the lines unless somebody typed over it.
+            --
+            -- This used to write the sum only into a Total Offer that was NULL
+            -- or 0 — and it is required at every quoted stage, so in practice
+            -- it was never either. Editing a line's amount in the drawer
+            -- therefore left the total showing the old figure, for ever.
+            --
+            -- Same rule the create form applies in the browser: empty, or
+            -- still equal to what the lines came to before this save, means it
+            -- was following them and goes on following them. Anything else is
+            -- a figure somebody chose — a discount, a lump sum, a rounded
+            -- negotiated number — and is left exactly as it is.
+            offer_value_inr = CASE
+              WHEN offer_value_inr IS NULL OR offer_value_inr = 0 THEN NULLIF($4, 0)
+              -- $4 > 0 matters: clearing every line amount must not blank a
+              -- Total Offer that is required at this stage. Empty lines leave
+              -- the figure alone rather than writing NULL over it.
+              WHEN $4 > 0 AND $5 > 0 AND round(offer_value_inr) = round($5::numeric) THEN $4
+              ELSE offer_value_inr END,
+            value_cr = CASE
+              WHEN (value_cr IS NULL OR value_cr = 0) AND $4 > 0 THEN $4 / 10000000
+              WHEN $5 > 0 AND round(COALESCE(offer_value_inr, 0)) = round($5::numeric) AND $4 > 0 THEN $4 / 10000000
+              ELSE value_cr END,
             updated_at = NOW()
       WHERE id = $1`,
-    [oppId, itemStr(rows[0]?.pump_model), itemInt(rows[0]?.pump_qty), sum]);
+    [oppId, itemStr(rows[0]?.pump_model), itemInt(rows[0]?.pump_qty), sum, prevSum]);
   await logActivity('opportunity', String(oppId), `quoted items updated · ${rows.length} line${rows.length === 1 ? '' : 's'}`, user.email!);
   revalidatePath('/risansi/pipeline');
   return { ok: true };

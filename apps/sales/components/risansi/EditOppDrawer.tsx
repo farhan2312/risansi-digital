@@ -7,7 +7,8 @@ import { OfferRevisionsList } from './OfferRevisionsField';
 import { useCompetitors } from './useCompetitors';
 import type { OfferRevision } from '@/lib/risansi-offer-revisions';
 import { updateOpportunity, deleteOpportunity, saveQuotedItems } from '@/app/actions/risansi';
-import { QuoteLineItems, emptyItem, type QuoteItem as LineItem } from './QuoteLineItems';
+import { QuoteLineItems, emptyItem, lineItemsTotal, type QuoteItem as LineItem } from './QuoteLineItems';
+import { formatIndian, parseMoneyInput } from '@/lib/risansi-money';
 import { probabilityCodeDisplay } from '@/lib/risansi-probability-codes';
 import { applyFieldChange,
   DROP_REASONS, LOST_COMPETITOR_TAIL, OPP_FIELDS, isFieldVisible,
@@ -486,7 +487,23 @@ export function EditOppDrawer({ opp, onClose, canEdit = true, usdRate = 86 }: {
             </div>
 
             <QuotedItemsSection items={quoteItems} meta={quoteMeta} revisions={revisions} usdRate={usdRate}
-              editOppId={Number(opp.id)} onItemsSaved={() => { setItemsVersion(v => v + 1); router.refresh(); }} />
+              editOppId={Number(opp.id)}
+              onItemsSaved={({ before, after }) => {
+                setItemsVersion(v => v + 1);
+                // Keep the Total Offer box showing what was actually stored.
+                // saveQuotedItems writes the new sum when the total was empty
+                // or still equalled the old one; this form's own copy was
+                // seeded when the drawer opened and would otherwise sit on the
+                // stale figure until the drawer was closed and reopened.
+                setValues(cur => {
+                  const shown = parseMoneyInput(cur.offer_value_inr ?? '');
+                  const followed = shown == null || shown === 0
+                    || (before > 0 && Math.round(shown) === Math.round(before));
+                  if (!followed || !(after > 0)) return cur;
+                  return { ...cur, offer_value_inr: formatIndian(Math.round(after)) };
+                });
+                router.refresh();
+              }} />
 
             {/* History, below the fields and above the actions — it informs the
                 edit without being part of it. */}
@@ -567,7 +584,12 @@ function QuotedItemsSection({ items, meta, revisions, usdRate, editOppId, onItem
   items: QItem[]; meta: QMeta | null; revisions: OfferRevision[]; usdRate: number;
   /** When given, the Quoted Items card carries a pencil that opens the lines for editing in place. */
   editOppId?: number;
-  onItemsSaved?: () => void;
+  /**
+   * Called after the lines are saved, with what they summed to before and
+   * after. The drawer uses it to move the Total Offer box in step with what
+   * the server just stored — see the CASE in saveQuotedItems.
+   */
+  onItemsSaved?: (sums: { before: number; after: number }) => void;
 }) {
   const inr = (v: number | null | undefined) => v != null ? '₹' + Math.round(v).toLocaleString('en-IN') : null;
   // Inline editing of the techno-commercial lines. Opens pre-filled from what
@@ -591,7 +613,8 @@ function QuotedItemsSection({ items, meta, revisions, usdRate, editOppId, onItem
     const res = await saveQuotedItems(editOppId, draft);
     setSaving(false);
     if (!res.ok) { setErr(res.error); return; }
-    setEditing(false); onItemsSaved?.();
+    setEditing(false);
+    onItemsSaved?.({ before: lineItemsTotal(toDraft(items)), after: lineItemsTotal(draft) });
   };
   const facts: [string, string][] = [];
   if (meta) {
