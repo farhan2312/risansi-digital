@@ -1,11 +1,10 @@
-// Assembly, then packing, of a pump SO: each planned EC by EC
-// (order_assembly_plans, by stage) — a day, a Day or Night shift, an EC and
-// how many — and ticked done. Assembly takes what Planning has ready; packing
-// takes what is assembled. The EC's and the SO's status follow. Shared by the
-// browser and the server; the SQL twins are below.
+// Assembly, then packing, of a pump SO — lot by lot, following Planning's
+// readiness lots (order_ready_lots, one row per EC per lot, each EC's share
+// in qty). A lot is assembled on one day and shift, then packed on one day
+// and shift with or without a PDI. The EC's and the SO's status follow from
+// the lots done. Shared by the browser and the server; SQL twins below.
 
 export type Stage = "assembly" | "packing";
-export const STAGES: Stage[] = ["assembly", "packing"];
 
 export const ASSEMBLY_SHIFTS = ["Day", "Night"];
 export const PDI_CHOICES = ["Yes", "No"];
@@ -19,59 +18,74 @@ export const SO_PACKING_STATUSES = ["Packing pending", "Partially packed", "Full
 export const ASSEMBLY_STATUS_KEY = "asm";
 export const PACKING_STATUS_KEY = "pkg";
 
-/** Each stage's words. */
-export const STAGE_WORDS: Record<Stage, { title: string; done: string; doneOn: string; ec: string[]; so: string[] }> = {
-  assembly: { title: "Assembly", done: "Assembled", doneOn: "Assembled On", ec: EC_ASSEMBLY_STATUSES, so: SO_ASSEMBLY_STATUSES },
-  packing: { title: "Packing", done: "Packed", doneOn: "Packed On", ec: EC_PACKING_STATUSES, so: SO_PACKING_STATUSES },
-};
-
-/** One planned entry, as the form edits it. */
-export type AssemblyPlan = {
-  id?: string;
-  item_id: string;
-  plan_date: string;
-  shift: string;
-  qty: number;
-  /** Done: assembled, or packed. */
-  assembled: boolean;
-  assembled_date: string;
-  /** Packing only: whether the lot needs a PDI. */
-  pdi: string;
-  remarks: string;
+export const STAGE_WORDS: Record<Stage, { title: string; done: string; ec: string[]; so: string[] }> = {
+  assembly: { title: "Assembly", done: "Assembled", ec: EC_ASSEMBLY_STATUSES, so: SO_ASSEMBLY_STATUSES },
+  packing: { title: "Packing", done: "Packed", ec: EC_PACKING_STATUSES, so: SO_PACKING_STATUSES },
 };
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+const day = (v: unknown) => str(v).slice(0, 10);
 
-/** The entries of one stage from the rows the server sent (assembly when unmarked). */
-export function plansFromRows(rows: unknown, stage: Stage = "assembly"): AssemblyPlan[] {
-  if (!Array.isArray(rows)) return [];
-  return rows
-    .filter((r) => (str((r as Row)?.stage) || "assembly") === stage)
-    .map((r) => {
-      const p = (r ?? {}) as Row;
-      return {
-        id: str(p.id) || undefined,
-        item_id: str(p.item_id),
-        plan_date: str(p.plan_date).slice(0, 10),
-        shift: str(p.shift),
-        qty: Math.max(0, Math.floor(Number(p.qty) || 0)),
-        assembled: p.assembled === true || str(p.assembled).toLowerCase() === "yes",
-        assembled_date: str(p.assembled_date).slice(0, 10),
-        pdi: str(p.pdi),
-        remarks: str(p.remarks),
-      };
+/** One of the SO's lots, with its ECs and both stages. */
+export type PumpLot = {
+  n: number;
+  status: string;
+  ready_date: string;
+  /** The ECs in the lot and how many of each (none on a lot from before ECs were named). */
+  ecs: { id: string; qty: number }[];
+  assembly_plan_date: string;
+  assembly_shift: string;
+  assembled_date: string;
+  packing_plan_date: string;
+  packing_shift: string;
+  pdi: string;
+  packed_date: string;
+};
+
+/** The SO's lots from its pump ECs' lot rows: lot n is each EC's n-th row. */
+export function pumpLotsFromEcs(ecRows: Row[]): PumpLot[] {
+  const per = ecRows.map((ec) => ({
+    id: str(ec.id),
+    rows: Array.isArray(ec.ready_lots) ? (ec.ready_lots as Row[]) : [],
+  }));
+  const count = Math.max(0, ...per.map((p) => p.rows.length));
+  const lots: PumpLot[] = [];
+  for (let i = 0; i < count; i++) {
+    const rows = per.map((p) => p.rows[i]).filter(Boolean);
+    // The lot's own values are the same on every EC's row; the first that has one stands.
+    const pick = (k: string) => rows.map((r) => str(r[k])).find(Boolean) ?? "";
+    lots.push({
+      n: i + 1,
+      status: pick("status"),
+      ready_date: day(pick("ready_date")),
+      ecs: per
+        .map((p) => ({ id: p.id, qty: Number(p.rows[i]?.qty ?? 0) || 0 }))
+        .filter((e) => e.qty > 0),
+      assembly_plan_date: day(pick("assembly_plan_date")),
+      assembly_shift: pick("assembly_shift"),
+      assembled_date: day(pick("assembled_date")),
+      packing_plan_date: day(pick("packing_plan_date")),
+      packing_shift: pick("packing_shift"),
+      pdi: pick("pdi"),
+      packed_date: day(pick("packed_date")),
     });
+  }
+  return lots;
 }
 
-/** How many of an EC the entries hold, and how many of those are done. */
-export function ecAssembly(plans: AssemblyPlan[], itemId: string): { planned: number; assembled: number } {
-  return plans
-    .filter((p) => p.item_id === itemId)
-    .reduce((t, p) => ({ planned: t.planned + p.qty, assembled: t.assembled + (p.assembled ? p.qty : 0) }), {
-      planned: 0,
-      assembled: 0,
-    });
+/** How many of an EC the lots have assembled, and packed. */
+export function ecDone(lots: PumpLot[], ecId: string): { assembled: number; packed: number } {
+  return lots.reduce(
+    (t, l) => {
+      const q = l.ecs.find((e) => e.id === ecId)?.qty ?? 0;
+      return {
+        assembled: t.assembled + (l.assembled_date ? q : 0),
+        packed: t.packed + (l.packed_date ? q : 0),
+      };
+    },
+    { assembled: 0, packed: 0 }
+  );
 }
 
 /** An EC's status in a stage, from how many are done against its quantity. */
@@ -90,37 +104,41 @@ export function soStageStatus(ecStatuses: string[], stage: Stage): string {
   return pending;
 }
 
-export const ecAssemblyStatus = (assembled: number, quantity: number) => ecStageStatus(assembled, quantity, "assembly");
-export const soAssemblyStatus = (ecStatuses: string[]) => soStageStatus(ecStatuses, "assembly");
+/** The SO's two statuses from its ECs (each with its quantity) and lots. */
+export function soStatuses(ecs: { id: string; quantity: number }[], lots: PumpLot[]): { assembly: string; packing: string } {
+  const per = ecs.map((e) => ({ e, d: ecDone(lots, e.id) }));
+  return {
+    assembly: soStageStatus(per.map(({ e, d }) => ecStageStatus(d.assembled, e.quantity, "assembly")), "assembly"),
+    packing: soStageStatus(per.map(({ e, d }) => ecStageStatus(d.packed, e.quantity, "packing")), "packing"),
+  };
+}
+
+/** What Assembly & Packing edits on a lot. */
+export type LotStages = Pick<
+  PumpLot,
+  "n" | "assembly_plan_date" | "assembly_shift" | "assembled_date" | "packing_plan_date" | "packing_shift" | "pdi" | "packed_date"
+>;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-/**
- * The first thing wrong with an SO's entries in a stage, or null. `cap` is
- * how many of each EC the stage may take: what Planning has ready for
- * assembly, what is assembled for packing.
- */
-export function plansError(
-  plans: AssemblyPlan[],
-  ecs: { id: string; label: string; cap: number }[],
-  stage: Stage = "assembly"
-): string | null {
-  const byId = new Map(ecs.map((e) => [e.id, e]));
-  const done = STAGE_WORDS[stage].done.toLowerCase();
-  for (let i = 0; i < plans.length; i++) {
-    const p = plans[i];
-    const n = i + 1;
-    if (!byId.get(p.item_id)) return `Plan ${n}: choose the EC.`;
-    if (!(p.qty > 0)) return `Plan ${n}: enter how many.`;
-    if (p.plan_date && !ISO.test(p.plan_date)) return `Plan ${n}: enter a valid date.`;
-    if (p.shift && !ASSEMBLY_SHIFTS.includes(p.shift)) return `Plan ${n}: choose Day or Night.`;
-    if (p.pdi && !PDI_CHOICES.includes(p.pdi)) return `Plan ${n}: choose PDI Yes or No.`;
-    if (p.assembled && !ISO.test(p.assembled_date)) return `Plan ${n}: enter the day it was ${done}.`;
-  }
-  for (const ec of ecs) {
-    const { planned } = ecAssembly(plans, ec.id);
-    if (planned > ec.cap) {
-      return `${ec.label}: ${planned} planned, but only ${ec.cap} ${stage === "assembly" ? "ready to assemble" : "assembled to pack"}.`;
+/** The first thing wrong with the lots' assembly and packing, or null. */
+export function lotStagesError(lots: LotStages[]): string | null {
+  for (const l of lots) {
+    const n = `Lot ${l.n}`;
+    for (const [k, label] of [
+      ["assembly_plan_date", "assembly date"],
+      ["assembled_date", "assembled date"],
+      ["packing_plan_date", "packing date"],
+      ["packed_date", "packed date"],
+    ] as const) {
+      if (l[k] && !ISO.test(l[k])) return `${n}: enter a valid ${label}.`;
+    }
+    if (l.assembly_shift && !ASSEMBLY_SHIFTS.includes(l.assembly_shift)) return `${n}: choose the assembly shift.`;
+    if (l.packing_shift && !ASSEMBLY_SHIFTS.includes(l.packing_shift)) return `${n}: choose the packing shift.`;
+    if (l.pdi && !PDI_CHOICES.includes(l.pdi)) return `${n}: choose PDI Yes or No.`;
+    if (l.packed_date && !l.assembled_date) return `${n} cannot be packed before it is assembled.`;
+    if (l.packed_date && l.assembled_date && l.packed_date < l.assembled_date) {
+      return `${n} cannot be packed before the day it was assembled.`;
     }
   }
   return null;
@@ -130,14 +148,13 @@ export function plansError(
 
 export function soStageStatusSql(stage: Stage, o = "o"): string {
   const [pending, partial, full] = STAGE_WORDS[stage].so;
+  const col = stage === "assembly" ? "assembled_date" : "packed_date";
   const done = (it: string) =>
-    `(SELECT COALESCE(sum(ap.qty), 0) FROM order_assembly_plans ap
-       WHERE ap.item_id = ${it}.id AND ap.stage = '${stage}' AND lower(COALESCE(ap.assembled, '')) = 'yes')`;
+    `(SELECT COALESCE(sum(rl.qty), 0) FROM order_ready_lots rl
+       WHERE rl.item_id = ${it}.id AND rl.${col} IS NOT NULL)`;
   const pumps = `FROM order_items s WHERE s.order_id = ${o}.id AND s.item_type IN ('Pump', 'ROLB')`;
   return `(CASE
              WHEN NOT EXISTS (SELECT 1 ${pumps} AND ${done("s")} > 0) THEN '${pending}'
              WHEN NOT EXISTS (SELECT 1 ${pumps} AND ${done("s")} < COALESCE(NULLIF(s.quantity, 0), 1)) THEN '${full}'
              ELSE '${partial}' END)`;
 }
-
-export const soAssemblyStatusSql = (o = "o") => soStageStatusSql("assembly", o);

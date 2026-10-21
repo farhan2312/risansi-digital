@@ -2,21 +2,20 @@
 
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, MessageSquare, Moon, Package, Plus, Sun, Trash2, Wrench, X } from "lucide-react";
+import { CheckCircle2, Layers, Loader2, MessageSquare, Moon, Package, Sun, Wrench, X } from "lucide-react";
 import { PUMP_LIKE } from "@/lib/order-schema";
 import {
   ASSEMBLY_SHIFTS,
   PDI_CHOICES,
-  STAGE_WORDS,
-  ecAssembly,
+  ecDone,
   ecStageStatus,
-  plansError,
-  plansFromRows,
-  soStageStatus,
-  type AssemblyPlan,
-  type Stage,
+  lotStagesError,
+  pumpLotsFromEcs,
+  soStatuses,
+  type LotStages,
+  type PumpLot,
 } from "@/lib/assembly";
-import { saveAssemblyPlansAction } from "@/app/risansi/orders/assembly-actions";
+import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -46,19 +45,32 @@ const ecOf = (r: Row): Ec => ({
   ready: num(r.ready_qty),
 });
 
-/** The next entry not done yet, soonest first. */
-function nextOf(plans: AssemblyPlan[]): AssemblyPlan | undefined {
-  return plans.filter((p) => !p.assembled && p.plan_date).sort((a, b) => a.plan_date.localeCompare(b.plan_date))[0];
-}
-
-function NextCell({ plan, ecs }: { plan: AssemblyPlan | undefined; ecs: Row[] }) {
-  if (!plan) return <span className="text-muted">—</span>;
+/** "Lot 2 · 22 Oct · Night" — the next lot planned for a stage and not done yet. */
+function NextCell({ lots, stage }: { lots: PumpLot[]; stage: "assembly" | "packing" }) {
+  const open = lots
+    .filter((l) =>
+      stage === "assembly"
+        ? !l.assembled_date && l.assembly_plan_date
+        : !l.packed_date && l.packing_plan_date
+    )
+    .sort((a, b) =>
+      (stage === "assembly" ? a.assembly_plan_date : a.packing_plan_date).localeCompare(
+        stage === "assembly" ? b.assembly_plan_date : b.packing_plan_date
+      )
+    );
+  const l = open[0];
+  if (!l) return <span className="text-muted">—</span>;
+  const date = stage === "assembly" ? l.assembly_plan_date : l.packing_plan_date;
+  const shift = stage === "assembly" ? l.assembly_shift : l.packing_shift;
   return (
     <>
-      <span className="block font-medium">{shortDate(plan.plan_date)}</span>
+      <span className="block font-medium">
+        Lot {l.n} · {shortDate(date)}
+      </span>
       <span className="inline-flex items-center gap-1 text-[11px] text-muted">
-        {plan.shift === "Night" ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
-        {plan.shift || "—"} · {str(ecs.find((x) => str(x.id) === plan.item_id)?.ec_no)} ×{plan.qty}
+        {shift === "Night" ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
+        {shift || "—"}
+        {stage === "packing" && l.pdi ? ` · PDI ${l.pdi}` : ""}
       </span>
     </>
   );
@@ -66,9 +78,8 @@ function NextCell({ plan, ecs }: { plan: AssemblyPlan | undefined; ecs: Row[] })
 
 /**
  * Assembly & Packing's Pump view: each SO once on the left — Planning's
- * status, then its assembly and its packing, each with its next planned shift
- * and a pop-up to plan it — and its pump ECs on the right with what is ready,
- * assembled and packed.
+ * status, its lots, and how far assembly and packing have got lot by lot —
+ * and its pump ECs on the right with what is ready, assembled and packed.
  */
 export function AssemblyPumpTable({
   rows,
@@ -89,27 +100,17 @@ export function AssemblyPumpTable({
     if (last && last.orderId === id) last.ecs.push(r);
     else sos.push({ orderId: id, ecs: [r] });
   }
-  const [planFor, setPlanFor] = useState<{ orderId: string; stage: Stage } | null>(null);
+  const [lotsFor, setLotsFor] = useState<string | null>(null);
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
-  const stageButton = (orderId: string, stage: Stage) => (
-    <button
-      type="button"
-      onClick={() => setPlanFor({ orderId, stage })}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
-    >
-      {stage === "assembly" ? <Wrench className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
-      {STAGE_WORDS[stage].title}
-    </button>
-  );
 
   return (
     <>
       <table className="w-full min-w-[1900px] text-sm">
         <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-            <th colSpan={5} className="px-3 pt-2.5 pb-1">SO</th>
-            <th colSpan={3} className={group}>Assembly</th>
+            <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
+            <th colSpan={2} className={group}>Assembly</th>
             <th colSpan={3} className={group}>Packing</th>
             <th colSpan={8} className={group}>EC</th>
           </tr>
@@ -119,9 +120,9 @@ export function AssemblyPumpTable({
             <th className={th}>SO Date</th>
             <th className={th}>Chat</th>
             <th className={th}>PPC Status</th>
+            <th className={th}>Lots</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
             <th className={th}>Next</th>
-            <th className={th} />
             <th className={`${th} border-l border-card-border`}>Status</th>
             <th className={th}>Next</th>
             <th className={th} />
@@ -146,25 +147,17 @@ export function AssemblyPumpTable({
           {sos.map(({ orderId, ecs }) => {
             const head = ecs[0];
             const soLabel = str(head.so_no) || `#${str(head.sl_no)}`;
-            const asm = plansFromRows(head.assembly_plans, "assembly");
-            const pkg = plansFromRows(head.assembly_plans, "packing");
-            const asmEc = ecs.map((r) => {
-              const e = ecOf(r);
-              return ecStageStatus(ecAssembly(asm, e.id).assembled, e.quantity, "assembly");
-            });
-            const pkgEc = ecs.map((r) => {
-              const e = ecOf(r);
-              return ecStageStatus(ecAssembly(pkg, e.id).assembled, e.quantity, "packing");
-            });
+            const lots = pumpLotsFromEcs(ecs);
+            const ecList = ecs.map(ecOf);
+            const so = soStatuses(ecList, lots);
             const span = ecs.length;
             const soCell = "px-3 py-2 align-top border-b border-card-border";
             const unread = unreadThreads[orderId] ?? 0;
             return (
               <Fragment key={orderId}>
                 {ecs.map((r, k) => {
-                  const e = ecOf(r);
-                  const a = ecAssembly(asm, e.id);
-                  const p = ecAssembly(pkg, e.id);
+                  const e = ecList[k];
+                  const d = ecDone(lots, e.id);
                   const lastRow = k === ecs.length - 1;
                   const ecCell = `px-3 py-2 ${lastRow ? "border-b border-card-border" : "border-b border-card-border/50"}`;
                   return (
@@ -195,33 +188,55 @@ export function AssemblyPumpTable({
                             </span>
                             <span className="block text-[11px] text-muted">{shortDate(head.planning_readiness_date)}</span>
                           </td>
+                          <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                            {lots.length === 0 ? (
+                              <span className="text-muted">—</span>
+                            ) : (
+                              lots.map((l) => (
+                                <span key={l.n} className="block text-xs">
+                                  <span className="font-semibold">Lot {l.n}</span>{" "}
+                                  <span className="text-muted">
+                                    {l.packed_date ? "Packed" : l.assembled_date ? "Assembled" : l.status || "—"}
+                                  </span>
+                                </span>
+                              ))
+                            )}
+                          </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            <Chip label={soStageStatus(asmEc, "assembly")} />
+                            <Chip label={so.assembly} />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            <NextCell plan={nextOf(asm)} ecs={ecs} />
+                            <NextCell lots={lots} stage="assembly" />
                           </td>
-                          <td rowSpan={span} className={soCell}>{stageButton(orderId, "assembly")}</td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            <Chip label={soStageStatus(pkgEc, "packing")} />
+                            <Chip label={so.packing} />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            <NextCell plan={nextOf(pkg)} ecs={ecs} />
+                            <NextCell lots={lots} stage="packing" />
                           </td>
-                          <td rowSpan={span} className={soCell}>{stageButton(orderId, "packing")}</td>
+                          <td rowSpan={span} className={soCell}>
+                            <button
+                              type="button"
+                              onClick={() => setLotsFor(orderId)}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <Layers className="h-3.5 w-3.5" />
+                              Lots
+                            </button>
+                          </td>
                         </>
                       )}
                       <td className={`${ecCell} whitespace-nowrap border-l border-card-border font-semibold`}>{e.label}</td>
                       <td className={`${ecCell} whitespace-nowrap text-muted`}>{shortDate(((r.ec ?? {}) as Row).ec_date)}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.quantity || "—"}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.ready}</td>
-                      <td className={`${ecCell} tabular-nums`} title={`${a.planned} planned`}>{a.assembled}</td>
+                      <td className={`${ecCell} tabular-nums`}>{d.assembled}</td>
                       <td className={ecCell}>
-                        <Chip label={asmEc[k]} />
+                        <Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} />
                       </td>
-                      <td className={`${ecCell} tabular-nums`} title={`${p.planned} planned`}>{p.assembled}</td>
+                      <td className={`${ecCell} tabular-nums`}>{d.packed}</td>
                       <td className={ecCell}>
-                        <Chip label={pkgEc[k]} />
+                        <Chip label={ecStageStatus(d.packed, e.quantity, "packing")} />
                       </td>
                     </tr>
                   );
@@ -232,20 +247,17 @@ export function AssemblyPumpTable({
         </tbody>
       </table>
       {(() => {
-        const so = planFor ? sos.find((s) => s.orderId === planFor.orderId) : null;
-        if (!so || !planFor) return null;
-        const all = so.ecs[0].assembly_plans;
+        const so = lotsFor ? sos.find((s) => s.orderId === lotsFor) : null;
+        if (!so) return null;
         return (
-          <StagePlanModal
-            key={`${so.orderId}:${planFor.stage}`}
-            stage={planFor.stage}
+          <LotStagesModal
+            key={so.orderId}
             orderId={so.orderId}
             soLabel={str(so.ecs[0].so_no) || `#${str(so.ecs[0].sl_no)}`}
             ecs={so.ecs.map(ecOf)}
-            plans={plansFromRows(all, planFor.stage)}
-            assembled={plansFromRows(all, "assembly")}
+            lots={pumpLotsFromEcs(so.ecs)}
             canEdit={canEdit}
-            onClose={() => setPlanFor(null)}
+            onClose={() => setLotsFor(null)}
           />
         );
       })()}
@@ -256,68 +268,64 @@ export function AssemblyPumpTable({
 const input =
   "h-9 w-full rounded-lg border border-input-border bg-surface px-2.5 text-[13px] text-foreground focus:border-primary focus:outline-none disabled:bg-background disabled:text-muted";
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 /**
- * One SO's plan in one stage: its ECs with what the stage can take and how
- * far it has got, and the entries — day, shift, EC, how many (and for
- * packing, PDI) — each ticked done.
+ * One SO's lots, as Planning made them: each lot's ECs, then its assembly
+ * (day, shift, Assembled) and its packing (day, shift, PDI, Packed — once
+ * assembled).
  */
-function StagePlanModal({
-  stage,
+function LotStagesModal({
   orderId,
   soLabel,
   ecs,
-  plans: initial,
-  assembled,
+  lots: initialLots,
   canEdit,
   onClose,
 }: {
-  stage: Stage;
   orderId: string;
   soLabel: string;
   ecs: Ec[];
-  plans: AssemblyPlan[];
-  /** The SO's assembly entries: what packing can take. */
-  assembled: AssemblyPlan[];
+  lots: PumpLot[];
   canEdit: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
-  const words = STAGE_WORDS[stage];
-  const packing = stage === "packing";
-  const [plans, setPlans] = useState<AssemblyPlan[]>(initial);
+  const [lots, setLots] = useState<PumpLot[]>(initialLots);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ro = !canEdit;
-  const dirty = JSON.stringify(plans) !== JSON.stringify(initial);
-  const set = (i: number, patch: Partial<AssemblyPlan>) => setPlans((ps) => ps.map((p, k) => (k === i ? { ...p, ...patch } : p)));
-  // What the stage may take of an EC: Planning's ready qty to assemble; what is assembled to pack.
-  const capOf = (ec: Ec) => (packing ? ecAssembly(assembled, ec.id).assembled : Math.min(ec.quantity || Infinity, ec.ready));
-  const caps = ecs.map((e) => ({ id: e.id, label: e.label, cap: capOf(e) }));
-  const leftFor = (ecId: string, skip = -1) => {
-    const ec = ecs.find((e) => e.id === ecId);
-    if (!ec) return 0;
-    const others = plans.reduce((n, p, i) => (i !== skip && p.item_id === ecId ? n + p.qty : n), 0);
-    return Math.max(0, capOf(ec) - others);
-  };
-
-  function add() {
-    const ec = ecs.find((e) => leftFor(e.id) > 0);
-    if (!ec) return;
-    setPlans((ps) => [
-      ...ps,
-      { item_id: ec.id, plan_date: todayIso(), shift: "Day", qty: leftFor(ec.id), assembled: false, assembled_date: "", pdi: "", remarks: "" },
-    ]);
-  }
+  const dirty = JSON.stringify(lots) !== JSON.stringify(initialLots);
+  const set = (i: number, patch: Partial<PumpLot>) => setLots((ls) => ls.map((l, k) => (k === i ? { ...l, ...patch } : l)));
+  const label = (id: string) => ecs.find((e) => e.id === id)?.label ?? "EC";
+  const so = soStatuses(ecs, lots);
 
   async function save() {
-    const problem = plansError(plans, caps, stage);
+    const stages: LotStages[] = lots.map((l) => ({
+      n: l.n,
+      assembly_plan_date: l.assembly_plan_date,
+      assembly_shift: l.assembly_shift,
+      assembled_date: l.assembled_date,
+      packing_plan_date: l.packing_plan_date,
+      packing_shift: l.packing_shift,
+      pdi: l.pdi,
+      packed_date: l.packed_date,
+    }));
+    const problem = lotStagesError(stages);
     if (problem) {
       setError(problem);
       return;
     }
     setSaving(true);
     setError(null);
-    const res = await saveAssemblyPlansAction(orderId, plans, stage);
+    const res = await saveLotStagesAction(orderId, stages);
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -327,200 +335,139 @@ function StagePlanModal({
     onClose();
   }
 
-  const status = soStageStatus(
-    ecs.map((e) => ecStageStatus(ecAssembly(plans, e.id).assembled, e.quantity, stage)),
-    stage
-  );
-  const canAdd = canEdit && ecs.some((e) => leftFor(e.id) > 0);
-
   return (
-    <div role="dialog" aria-modal="true" aria-label={`${words.title} · ${soLabel}`} className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label={`Lots · ${soLabel}`} className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-t-2xl bg-surface p-5 shadow-xl sm:rounded-2xl">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-lg font-semibold text-foreground">
-              {words.title} · {soLabel}
-            </h2>
-            <p className="text-xs text-muted">
-              {packing
-                ? "Plan the assembled pumps for packing by day and shift; tick Packed once done."
-                : "Plan each EC by day and shift; tick Assembled once done."}
-            </p>
+            <h2 className="font-display text-lg font-semibold text-foreground">Assembly &amp; packing · {soLabel}</h2>
+            <p className="text-xs text-muted">Lot by lot, as Planning readied them: assemble a lot, then pack it.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Chip label={status} />
+            <Chip label={so.assembly} />
+            <Chip label={so.packing} />
             <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-muted hover:bg-background hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* Each EC: what this stage can take, and how far it has got. */}
-        <div className="mb-4 overflow-x-auto rounded-xl border border-card-border">
-          <table className="w-full text-sm">
-            <thead className="bg-background/60 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-3 py-2">EC No.</th>
-                <th className="px-3 py-2">Qty</th>
-                <th className="px-3 py-2">{packing ? "Assembled" : "Ready"}</th>
-                <th className="px-3 py-2">Planned</th>
-                <th className="px-3 py-2">{words.done}</th>
-                <th className="px-3 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-card-border">
-              {ecs.map((e) => {
-                const a = ecAssembly(plans, e.id);
-                return (
-                  <tr key={e.id}>
-                    <td className="px-3 py-2 font-semibold">{e.label}</td>
-                    <td className="px-3 py-2 tabular-nums">{e.quantity}</td>
-                    <td className="px-3 py-2 tabular-nums">{capOf(e) === Infinity ? "—" : capOf(e)}</td>
-                    <td className="px-3 py-2 tabular-nums">{a.planned}</td>
-                    <td className="px-3 py-2 tabular-nums">{a.assembled}</td>
-                    <td className="px-3 py-2">
-                      <Chip label={ecStageStatus(a.assembled, e.quantity, stage)} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">{words.title} plan</h3>
-          {canAdd && (
-            <button
-              type="button"
-              onClick={add}
-              className="inline-flex h-8 items-center gap-1 rounded-lg border border-dashed border-primary/50 px-3 text-xs font-semibold text-primary hover:bg-primary/10"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add plan
-            </button>
-          )}
-        </div>
-        {plans.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-card-border px-4 py-6 text-center text-sm text-muted">
-            {canAdd
-              ? "Nothing planned yet — Add plan to schedule an EC."
-              : packing
-                ? "Nothing assembled yet to pack."
-                : "Nothing planned yet."}
+        {lots.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-card-border px-4 py-8 text-center text-sm text-muted">
+            Planning has no readiness lots on this SO yet.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-card-border">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead className="bg-background/60 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Shift</th>
-                  <th className="px-3 py-2">EC</th>
-                  <th className="px-3 py-2">Qty</th>
-                  {packing && <th className="px-3 py-2">PDI</th>}
-                  <th className="px-3 py-2">{words.done}</th>
-                  <th className="px-3 py-2">{words.doneOn}</th>
-                  <th className="px-3 py-2">Remarks</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-card-border">
-                {plans.map((p, i) => {
-                  const max = leftFor(p.item_id, i);
-                  return (
-                    <tr key={p.id ?? `new-${i}`} className={p.assembled ? "bg-emerald-50/40" : ""}>
-                      <td className="px-3 py-2">
-                        <input type="date" value={p.plan_date} disabled={ro} onChange={(e) => set(i, { plan_date: e.target.value })} className={`${input} w-36`} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <select value={p.shift} disabled={ro} onChange={(e) => set(i, { shift: e.target.value })} className={`${input} w-24`}>
-                          <option value="">—</option>
-                          {ASSEMBLY_SHIFTS.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={p.item_id}
-                          disabled={ro}
-                          onChange={(e) => set(i, { item_id: e.target.value, qty: Math.min(p.qty || 1, leftFor(e.target.value, i)) || leftFor(e.target.value, i) })}
-                          className={`${input} w-44`}
-                        >
-                          {ecs
-                            .filter((e) => e.id === p.item_id || leftFor(e.id, i) > 0)
-                            .map((e) => (
-                              <option key={e.id} value={e.id}>
-                                {e.label} ({leftFor(e.id, i)} left)
-                              </option>
-                            ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={1}
-                          max={max}
-                          value={p.qty}
-                          disabled={ro}
-                          onChange={(e) => set(i, { qty: Math.max(0, Math.min(max, Math.floor(Number(e.target.value) || 0))) })}
-                          className={`${input} w-20`}
-                        />
-                      </td>
-                      {packing && (
-                        <td className="px-3 py-2">
-                          <select value={p.pdi} disabled={ro} onChange={(e) => set(i, { pdi: e.target.value })} className={`${input} w-20`}>
+          <div className="space-y-3">
+            {lots.map((l, i) => {
+              const named = l.ecs.length > 0;
+              const assembled = !!l.assembled_date;
+              return (
+                <section key={l.n} className={`rounded-xl border p-4 ${l.packed_date ? "border-emerald-200 bg-emerald-50/30" : "border-card-border"}`}>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        Lot {l.n} <span className="font-normal text-muted">· {l.status || "—"} · ready {shortDate(l.ready_date)}</span>
+                      </p>
+                      <p className="text-xs text-muted">
+                        {named ? l.ecs.map((e) => `${label(e.id)} ×${e.qty}`).join(", ") : "No ECs named — Planning sets them in its lot form."}
+                      </p>
+                    </div>
+                    <Chip label={l.packed_date ? "Packed" : assembled ? "Assembled" : "Pending"} />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-card-border p-3">
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+                        <Wrench className="h-3.5 w-3.5" /> Assembly
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Field label="Plan date">
+                          <input type="date" value={l.assembly_plan_date} disabled={ro || !named} onChange={(e) => set(i, { assembly_plan_date: e.target.value })} className={input} />
+                        </Field>
+                        <Field label="Shift">
+                          <select value={l.assembly_shift} disabled={ro || !named} onChange={(e) => set(i, { assembly_shift: e.target.value })} className={input}>
                             <option value="">—</option>
-                            {PDI_CHOICES.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
+                            {ASSEMBLY_SHIFTS.map((s) => (
+                              <option key={s}>{s}</option>
                             ))}
                           </select>
-                        </td>
-                      )}
-                      <td className="px-3 py-2">
-                        <input
-                          type="checkbox"
-                          checked={p.assembled}
-                          disabled={ro}
-                          onChange={(e) =>
-                            set(i, e.target.checked ? { assembled: true, assembled_date: p.assembled_date || p.plan_date || todayIso() } : { assembled: false, assembled_date: "" })
-                          }
-                          aria-label={words.done}
-                          className="h-4 w-4 accent-primary"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input type="date" value={p.assembled_date} disabled={ro || !p.assembled} onChange={(e) => set(i, { assembled_date: e.target.value })} className={`${input} w-36`} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input value={p.remarks} disabled={ro} onChange={(e) => set(i, { remarks: e.target.value })} className={`${input} min-w-[10rem]`} />
-                      </td>
-                      <td className="px-3 py-2">
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => setPlans((ps) => ps.filter((_, k) => k !== i))}
-                            aria-label="Remove plan"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </Field>
+                        <label className="col-span-2 flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={assembled}
+                            disabled={ro || !named || !!l.packed_date}
+                            onChange={(e) => set(i, { assembled_date: e.target.checked ? l.assembly_plan_date || todayIso() : "" })}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          Assembled
+                          {assembled && (
+                            <input
+                              type="date"
+                              value={l.assembled_date}
+                              disabled={ro || !!l.packed_date}
+                              onChange={(e) => set(i, { assembled_date: e.target.value })}
+                              aria-label={`Lot ${l.n} assembled on`}
+                              className={`${input} ml-auto w-40`}
+                            />
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                    <div className={`rounded-lg border border-card-border p-3 ${assembled ? "" : "opacity-60"}`}>
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+                        <Package className="h-3.5 w-3.5" /> Packing
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Field label="Plan date">
+                          <input type="date" value={l.packing_plan_date} disabled={ro || !named} onChange={(e) => set(i, { packing_plan_date: e.target.value })} className={input} />
+                        </Field>
+                        <Field label="Shift">
+                          <select value={l.packing_shift} disabled={ro || !named} onChange={(e) => set(i, { packing_shift: e.target.value })} className={input}>
+                            <option value="">—</option>
+                            {ASSEMBLY_SHIFTS.map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="PDI">
+                          <select value={l.pdi} disabled={ro || !named} onChange={(e) => set(i, { pdi: e.target.value })} className={input}>
+                            <option value="">—</option>
+                            {PDI_CHOICES.map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <label className="col-span-3 flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={!!l.packed_date}
+                            disabled={ro || !assembled}
+                            onChange={(e) => set(i, { packed_date: e.target.checked ? l.packing_plan_date || todayIso() : "" })}
+                            className="h-4 w-4 accent-primary"
+                          />
+                          Packed
+                          {!assembled && <span className="text-xs text-muted">(once assembled)</span>}
+                          {l.packed_date && (
+                            <input
+                              type="date"
+                              value={l.packed_date}
+                              disabled={ro}
+                              onChange={(e) => set(i, { packed_date: e.target.value })}
+                              aria-label={`Lot ${l.n} packed on`}
+                              className={`${input} ml-auto w-40`}
+                            />
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
           </div>
         )}
 
-        {canEdit && (
+        {canEdit && lots.length > 0 && (
           <div className="mt-4 flex items-center justify-end gap-3">
             {error && <span className="text-sm text-rose-600">{error}</span>}
             <button

@@ -1340,6 +1340,29 @@ export async function listReadyLotHistories(orderIds: string[]): Promise<Map<str
  * ready shortlist already reads. With lots but none Fully packed, it is not
  * packed yet. An EC without lots is left alone.
  */
+/**
+ * A pump EC is packed once its lots have packed all of it: its Actual
+ * Material Packing Date is then the last of those lots' packed dates, and
+ * none until then. Lots without quantities leave it as the Spare rule set it.
+ */
+export async function syncPumpPackedDate(itemId: string): Promise<void> {
+  if (!UUID_RE.test(itemId)) return;
+  await query(
+    `WITH l AS (
+       SELECT COALESCE(sum(rl.qty) FILTER (WHERE rl.packed_date IS NOT NULL), 0) AS packed,
+              max(rl.packed_date) AS last_packed,
+              bool_or(rl.qty IS NOT NULL) AS named
+         FROM order_ready_lots rl WHERE rl.item_id = $1
+     )
+     INSERT INTO order_assembly_dispatch (item_id, actual_packing_date)
+     SELECT it.id, CASE WHEN COALESCE(it.quantity, 0) > 0 AND l.packed >= it.quantity THEN l.last_packed END
+       FROM order_items it, l
+      WHERE it.id = $1 AND it.item_type = ANY($2) AND l.named
+     ON CONFLICT (item_id) DO UPDATE SET actual_packing_date = EXCLUDED.actual_packing_date`,
+    [itemId, PUMP_LIKE]
+  );
+}
+
 async function syncPackedFromLots(c: PoolClient, itemId: string): Promise<void> {
   await c.query(
     `WITH l AS (
@@ -2649,9 +2672,7 @@ export async function listItemsForSection(
                  -- SO status there, and its assembly plan entries.
                  to_jsonb(it) - 'order_copy_file_data' AS ec,
                  (SELECT rpl.ready_qty FROM order_planning rpl WHERE rpl.item_id = it.id) AS ready_qty,
-                 (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status,
-                 COALESCE((SELECT jsonb_agg(to_jsonb(ap) ORDER BY ap.plan_date NULLS LAST, ap.seq)
-                             FROM order_assembly_plans ap WHERE ap.order_id = it.order_id), '[]'::jsonb) AS assembly_plans`
+                 (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status`
          }`
       : "";
 
