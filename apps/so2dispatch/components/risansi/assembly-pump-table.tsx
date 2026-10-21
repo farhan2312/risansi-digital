@@ -16,6 +16,7 @@ import {
   type PumpLot,
 } from "@/lib/assembly";
 import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
+import { PackingPlanHistoryButton } from "./packing-plan-history";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -45,34 +46,45 @@ const ecOf = (r: Row): Ec => ({
   ready: num(r.ready_qty),
 });
 
-/** "Lot 2 · 22 Oct · Night" — the next lot planned for a stage and not done yet. */
-function NextCell({ lots, stage }: { lots: PumpLot[]; stage: "assembly" | "packing" }) {
-  const open = lots
-    .filter((l) =>
-      stage === "assembly"
-        ? !l.assembled_date && l.assembly_plan_date
-        : !l.packed_date && l.packing_plan_date
-    )
-    .sort((a, b) =>
-      (stage === "assembly" ? a.assembly_plan_date : a.packing_plan_date).localeCompare(
-        stage === "assembly" ? b.assembly_plan_date : b.packing_plan_date
-      )
-    );
-  const l = open[0];
-  if (!l) return <span className="text-muted">—</span>;
-  const date = stage === "assembly" ? l.assembly_plan_date : l.packing_plan_date;
-  const shift = stage === "assembly" ? l.assembly_shift : l.packing_shift;
+/**
+ * Each lot's planned date for a stage — "L1 22 Oct 2026 · Night" — the whole
+ * cell opening how the plan moved.
+ */
+function PlannedCell({
+  lots,
+  stage,
+  orderId,
+  soLabel,
+}: {
+  lots: PumpLot[];
+  stage: "assembly" | "packing";
+  orderId: string;
+  soLabel: string;
+}) {
+  const planned = lots.filter((l) => (stage === "assembly" ? l.assembly_plan_date : l.packing_plan_date));
+  if (planned.length === 0) return <span className="text-muted">—</span>;
   return (
-    <>
-      <span className="block font-medium">
-        Lot {l.n} · {shortDate(date)}
-      </span>
-      <span className="inline-flex items-center gap-1 text-[11px] text-muted">
-        {shift === "Night" ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
-        {shift || "—"}
-        {stage === "packing" && l.pdi ? ` · PDI ${l.pdi}` : ""}
-      </span>
-    </>
+    <PackingPlanHistoryButton
+      orderId={orderId}
+      soLabel={soLabel}
+      stage={stage}
+      label={
+        <span className="flex flex-col items-start gap-0.5">
+          {planned.map((l) => {
+            const date = stage === "assembly" ? l.assembly_plan_date : l.packing_plan_date;
+            const shift = stage === "assembly" ? l.assembly_shift : l.packing_shift;
+            const done = stage === "assembly" ? l.assembled_date : l.packed_date;
+            return (
+              <span key={l.n} className={`inline-flex items-center gap-1 text-xs ${done ? "text-muted line-through decoration-muted/50" : "text-foreground"}`}>
+                <span className="font-semibold">L{l.n}</span> {shortDate(date)}
+                {shift === "Night" ? <Moon className="h-3 w-3" /> : shift ? <Sun className="h-3 w-3" /> : null}
+                {stage === "packing" && l.pdi ? <span className="text-muted">PDI {l.pdi}</span> : null}
+              </span>
+            );
+          })}
+        </span>
+      }
+    />
   );
 }
 
@@ -122,9 +134,9 @@ export function AssemblyPumpTable({
             <th className={th}>PPC Status</th>
             <th className={th}>Lots</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={th}>Next</th>
+            <th className={th}>Planned Date</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={th}>Next</th>
+            <th className={th}>Planned Date</th>
             <th className={th} />
             <th className={`${th} border-l border-card-border`}>EC No.</th>
             <th className={th}>EC Date</th>
@@ -206,13 +218,13 @@ export function AssemblyPumpTable({
                             <Chip label={so.assembly} />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            <NextCell lots={lots} stage="assembly" />
+                            <PlannedCell lots={lots} stage="assembly" orderId={orderId} soLabel={soLabel} />
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
                             <Chip label={so.packing} />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            <NextCell lots={lots} stage="packing" />
+                            <PlannedCell lots={lots} stage="packing" orderId={orderId} soLabel={soLabel} />
                           </td>
                           <td rowSpan={span} className={soCell}>
                             <button

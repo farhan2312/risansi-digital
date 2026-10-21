@@ -1121,7 +1121,9 @@ export type PackingPlanEvent = {
 
 /** How an SO's packing plan moved — Assembly & Packing, Planning and Central. */
 export async function getPackingPlanHistoryAction(
-  orderId: string
+  orderId: string,
+  // A pump lot's assembly plan is kept beside its packing plan.
+  stage: string = "packing"
 ): Promise<{ ok: true; events: PackingPlanEvent[] } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
@@ -1145,11 +1147,11 @@ export async function getPackingPlanHistoryAction(
          FROM order_packing_plan_history h
          JOIN order_items it ON it.id = h.item_id
          LEFT JOIN users u ON u.id = h.changed_by
-        WHERE it.order_id = $1
+        WHERE it.order_id = $1 AND h.stage = $2
         GROUP BY h.lot_no, h.plan_date, h.prev_plan_date, h.shift, h.prev_shift, h.pdi, h.prev_pdi,
                  h.changed_by, h.changed_by_role, date_trunc('minute', h.changed_at)
         ORDER BY max(h.changed_at) DESC`,
-      [orderId]
+      [orderId, stage === "assembly" ? "assembly" : "packing"]
     );
     return { ok: true, events: r.rows };
   } catch (error) {

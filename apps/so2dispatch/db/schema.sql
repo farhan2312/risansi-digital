@@ -2686,3 +2686,10 @@ ALTER TABLE order_assembly_plans ADD COLUMN IF NOT EXISTS pdi TEXT;
 ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS assembly_plan_date DATE;
 ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS assembly_shift TEXT;
 ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS assembled_date DATE;
+
+-- 0018  The packing plan history also keeps a pump lot's assembly plan:
+-- each change to a lot's assembly day or shift, marked stage 'assembly'.
+-- Existing rows are packing. Apply to ec_to_dispatch before deploying the
+-- code that reads it; also in apps/so2dispatch/db/schema.sql. Idempotent and
+-- additive.
+ALTER TABLE order_packing_plan_history ADD COLUMN IF NOT EXISTS stage TEXT NOT NULL DEFAULT 'packing';

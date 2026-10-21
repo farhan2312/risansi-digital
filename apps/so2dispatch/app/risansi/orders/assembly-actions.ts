@@ -71,6 +71,16 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[]): P
       for (const l of clean) {
         const row = ec.ready_lots[l.n - 1];
         if (!row || !UUID_RE.test(String(row.id))) continue;
+        const wasDate = String(row.assembly_plan_date ?? "").slice(0, 10);
+        const wasShift = String(row.assembly_shift ?? "");
+        if (wasDate !== l.assembly_plan_date || wasShift !== l.assembly_shift) {
+          await query(
+            `INSERT INTO order_packing_plan_history
+               (item_id, lot_id, lot_no, plan_date, prev_plan_date, shift, prev_shift, changed_by, changed_by_role, stage)
+             VALUES ($1, $2, $3, NULLIF($4, '')::date, NULLIF($5, '')::date, NULLIF($6, ''), NULLIF($7, ''), $8, $9, 'assembly')`,
+            [ec.id, row.id, l.n, l.assembly_plan_date, wasDate, l.assembly_shift, wasShift, user.id, user.role]
+          );
+        }
         await query(
           `UPDATE order_ready_lots
               SET assembly_plan_date = NULLIF($2, '')::date,

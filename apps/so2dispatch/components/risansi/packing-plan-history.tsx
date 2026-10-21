@@ -53,11 +53,15 @@ export function PackingPlanHistoryButton({
   orderId,
   label,
   soLabel,
+  stage = "packing",
 }: {
   orderId: string;
-  label: string;
+  label: React.ReactNode;
   soLabel: string;
+  /** A pump lot's assembly plan has its own history (no PDI). */
+  stage?: "packing" | "assembly";
 }) {
+  const what = stage === "assembly" ? "Assembly" : "Packing";
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<PackingPlanEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +69,7 @@ export function PackingPlanHistoryButton({
   useEffect(() => {
     if (!open) return;
     let live = true;
-    getPackingPlanHistoryAction(orderId).then((res) => {
+    getPackingPlanHistoryAction(orderId, stage).then((res) => {
       if (!live) return;
       if (res.ok) setEvents(res.events);
       else setError(res.error);
@@ -76,7 +80,7 @@ export function PackingPlanHistoryButton({
       live = false;
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, orderId]);
+  }, [open, orderId, stage]);
 
   const moves = (events ?? []).filter((e) => e.prev_plan_date && e.plan_date !== e.prev_plan_date).length;
 
@@ -89,7 +93,7 @@ export function PackingPlanHistoryButton({
           setError(null);
           setOpen(true);
         }}
-        title="See how the packing date, shift and PDI changed"
+        title={stage === "assembly" ? "See how the assembly date and shift changed" : "See how the packing date, shift and PDI changed"}
         className="inline-flex items-center gap-1 whitespace-nowrap text-left underline decoration-dotted underline-offset-2 hover:text-foreground"
       >
         {label}
@@ -99,7 +103,7 @@ export function PackingPlanHistoryButton({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`Packing plan history for ${soLabel}`}
+          aria-label={`${what} plan history for ${soLabel}`}
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
           onClick={() => setOpen(false)}
         >
@@ -109,7 +113,7 @@ export function PackingPlanHistoryButton({
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-display text-base font-semibold text-foreground">Packing plan history</h2>
+                <h2 className="font-display text-base font-semibold text-foreground">{what} plan history</h2>
                 <p className="text-xs text-muted">{soLabel}</p>
               </div>
               <button
@@ -129,11 +133,11 @@ export function PackingPlanHistoryButton({
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading…
               </p>
             ) : events.length === 0 ? (
-              <p className="text-sm text-muted">No packing plan recorded on this SO yet.</p>
+              <p className="text-sm text-muted">No {what.toLowerCase()} plan recorded on this SO yet.</p>
             ) : (
               <>
                 <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">Packing date moved</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">{what} date moved</p>
                   <p className="font-display text-xl font-bold text-amber-900">
                     {moves} <span className="text-sm font-medium">time{moves === 1 ? "" : "s"}</span>
                   </p>
@@ -157,7 +161,7 @@ export function PackingPlanHistoryButton({
                       </div>
                       <Line label="Date" from={day(e.prev_plan_date)} to={day(e.plan_date)} />
                       <Line label="Shift" from={e.prev_shift ?? "—"} to={e.shift ?? "—"} />
-                      <Line label="PDI" from={e.prev_pdi ?? "—"} to={e.pdi ?? "—"} />
+                      {stage === "packing" && <Line label="PDI" from={e.prev_pdi ?? "—"} to={e.pdi ?? "—"} />}
                       <p className="mt-1.5 text-[11px] text-muted">
                         {when(e.changed_at)}
                         {e.changed_by_name ? ` · ${e.changed_by_name}` : ""}
