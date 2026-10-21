@@ -84,18 +84,19 @@ export function AssemblyPumpTable({
         <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
             <th colSpan={8} className="px-3 pt-2.5 pb-1">SO</th>
-            <th colSpan={6} className={group}>EC</th>
+            <th colSpan={7} className={group}>EC</th>
           </tr>
           <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
             <th className={th}>Sl.</th>
-            <th className={th}>SO No. / Date</th>
+            <th className={th}>SO No.</th>
+            <th className={th}>SO Date</th>
             <th className={th}>Chat</th>
-            <th className={th}>Client</th>
             <th className={th}>PPC Status</th>
             <th className={th}>Assembly Status</th>
             <th className={th}>Next Assembly</th>
             <th className={th} />
             <th className={`${th} border-l border-card-border`}>EC No.</th>
+            <th className={th}>EC Date</th>
             <th className={th}>Qty</th>
             <th className={th}>Ready</th>
             <th className={th}>Planned</th>
@@ -106,7 +107,7 @@ export function AssemblyPumpTable({
         <tbody>
           {sos.length === 0 && (
             <tr>
-              <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted">
+              <td colSpan={15} className="px-4 py-10 text-center text-sm text-muted">
                 No pump SO is ready to assemble.
               </td>
             </tr>
@@ -140,8 +141,8 @@ export function AssemblyPumpTable({
                           <td rowSpan={span} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                             <span className="font-semibold">{soLabel}</span>
-                            <span className="block text-[11px] text-muted">{shortDate(head.so_date)}</span>
                           </td>
+                          <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{shortDate(head.so_date)}</td>
                           <td rowSpan={span} className={soCell}>
                             <button
                               type="button"
@@ -156,11 +157,6 @@ export function AssemblyPumpTable({
                                 </span>
                               )}
                             </button>
-                          </td>
-                          <td rowSpan={span} className={soCell}>
-                            <span title={str(head.client_name)} className="line-clamp-2 w-32 text-xs leading-snug">
-                              {str(head.client_name) || "—"}
-                            </span>
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                             <span className={`block font-medium ${str(head.ppc_status) === "Fully ready" ? "text-emerald-700" : ""}`}>
@@ -197,6 +193,7 @@ export function AssemblyPumpTable({
                         </>
                       )}
                       <td className={`${ecCell} whitespace-nowrap border-l border-card-border font-semibold`}>{e.label}</td>
+                      <td className={`${ecCell} whitespace-nowrap text-muted`}>{shortDate(((r.ec ?? {}) as Row).ec_date)}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.quantity || "—"}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.ready}</td>
                       <td className={`${ecCell} tabular-nums`}>{a.planned}</td>
