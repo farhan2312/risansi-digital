@@ -175,6 +175,8 @@ export function OrderMakingWorkspace({
     else router.refresh();
   }
   const [assigning, setAssigning] = useState<string | null>(null);
+  // The assigned SO whose Reassign is open.
+  const [reassigning, setReassigning] = useState<string | null>(null);
   async function assign(row: OrderMakingRow, assigneeId: string) {
     setAssigning(row.id);
     const res = await assignSoAction(row.id, assigneeId || null);
@@ -568,13 +570,41 @@ export function OrderMakingWorkspace({
                       {/* Dispatched, cancelled or diverted: no one to assign now. */}
                       {notAssignable(row) && !row.so_assignee_id ? (
                         <span className="text-xs text-muted">Not needed</span>
+                      ) : canAssign && !notAssignable(row) && row.so_assignee_id && reassigning !== row.id ? (
+                        // Assigned: who has it, and Reassign to change or take it off them.
+                        <span className="inline-flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                              <UserRound className="h-3.5 w-3.5 text-primary" />
+                              {(() => {
+                                const m = members.find((x) => x.id === row.so_assignee_id);
+                                return m ? memberLabel(m) : (row.so_assignee_name ?? "Former member");
+                              })()}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setReassigning(row.id)}
+                              className="rounded-md border border-input-border px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
+                            >
+                              Reassign
+                            </button>
+                          </span>
+                          {row.so_assigned_at && (
+                            <span className="text-[11px] text-muted">since {formatDisplay(field("so_date"), row.so_assigned_at)}</span>
+                          )}
+                        </span>
                       ) : canAssign && !notAssignable(row) ? (
                         <span className="inline-flex flex-col gap-0.5">
                           <span className="inline-flex items-center gap-1.5">
                             <select
+                              autoFocus={reassigning === row.id}
+                              onBlur={() => setReassigning((r) => (r === row.id ? null : r))}
                               value={row.so_assignee_id ?? ""}
                               disabled={assigning === row.id}
-                              onChange={(e) => assign(row, e.target.value)}
+                              onChange={(e) => {
+                                setReassigning(null);
+                                assign(row, e.target.value);
+                              }}
                               aria-label={`Assign SO details of ${str(row.so_no) || row.sl_no}`}
                               className={`h-8 max-w-[11rem] cursor-pointer rounded-lg border px-2 text-xs ${
                                 row.so_assignee_id
@@ -582,7 +612,7 @@ export function OrderMakingWorkspace({
                                   : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
                               }`}
                             >
-                              <option value="">Unassigned</option>
+                              <option value="">{row.so_assignee_id ? "Unassign" : "Unassigned"}</option>
                               {members.map((m) => (
                                 <option key={m.id} value={m.id}>
                                   {memberLabel(m)}

@@ -69,7 +69,7 @@ export async function assignSo(
     if (!member) return { ok: false, error: "Choose an active Order Making member." };
     assigneeName = member.full_name;
   }
-  const r = await query<{ so_no: string | null; sl_no: number; client_name: string | null; changed: boolean }>(
+  const r = await query<{ so_no: string | null; sl_no: number; client_name: string | null; changed: boolean; was: string | null }>(
     `UPDATE orders o
         SET so_assignee_id = $2,
             so_assigned_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END,
@@ -77,12 +77,23 @@ export async function assignSo(
        FROM (SELECT so_assignee_id AS was FROM orders WHERE id = $1) prev
       WHERE o.id = $1
       RETURNING o.so_no, o.sl_no::int AS sl_no, o.client_name,
-                prev.was IS DISTINCT FROM $2::uuid AS changed`,
+                prev.was IS DISTINCT FROM $2::uuid AS changed, prev.was::text AS was`,
     [orderId, assigneeId, by.id]
   );
   const row = r.rows[0];
   if (!row) return { ok: false, error: "Order not found." };
   const label = (row.so_no ?? "").trim() || `#${row.sl_no}`;
+  // Reassigned or unassigned: whoever had it hears it is no longer theirs.
+  if (row.changed && row.was && row.was !== assigneeId) {
+    await emitToUser({
+      userId: row.was,
+      orderId,
+      type: "dept_update",
+      message: assigneeName
+        ? `SO ${label} reassigned to ${assigneeName} by ${by.name} — no longer yours to fill`
+        : `SO ${label} unassigned from you by ${by.name}`,
+    });
+  }
   if (assigneeId && row.changed) {
     await emitToUser({
       userId: assigneeId,
