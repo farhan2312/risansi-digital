@@ -489,3 +489,13 @@ export function parseDeptFilter(
     return get(key);
   }, { ...opts, pinnedDept: !!dept });
 }
+
+/** The Orders list's Spare / Pump toggle, from the URL's type: Spare unless it names a pump. */
+export function ordersKind(typeParam: string | null | undefined): "spare" | "pump" {
+  return /pump/i.test(typeParam ?? "") ? "pump" : "spare";
+}
+
+/** The filter narrowed to the toggle's kind — the list, its export and its PDF alike. */
+export function withOrdersKind<F extends { types: string[] }>(filter: F, typeParam: string | null | undefined): F {
+  return { ...filter, types: ordersKind(typeParam) === "pump" ? ["Pump", "ROLB"] : ["Spare"] };
+}

@@ -24,7 +24,7 @@ import type { PageResult } from "@/lib/pagination";
 import { AddOnForm } from "./add-on-form";
 import { SortHeader } from "./sort-header";
 import { OrderListFilterBar } from "./order-list-filter-bar";
-import { isOrderListFiltered, parseOrderListFilter } from "@/lib/order-list-filter";
+import { isOrderListFiltered, ordersKind, parseOrderListFilter } from "@/lib/order-list-filter";
 
 const numberFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
 
@@ -313,7 +313,8 @@ export function OrdersTable({
 
   return (
     <div>
-      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget />
+      {/* Spare or Pump, as a toggle in place of the Type filter. */}
+      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget kindToggle={ordersKind(getParam("type"))} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}

@@ -8,6 +8,7 @@ import {
   isOrderListFiltered,
   parseOrderListFilter,
   scopeToRep,
+  withOrdersKind,
 } from "@/lib/order-list-filter";
 
 export const runtime = "nodejs";
@@ -24,8 +25,12 @@ export async function GET(req: NextRequest) {
   // screen.
   const params = req.nextUrl.searchParams;
   // A Rep exports only their own SOs.
-  const filter = scopeToRep(parseOrderListFilter((key) => params.get(key) ?? undefined, { noDispatchTarget: true }), user);
-  const filtered = isOrderListFiltered(filter);
+  // …of the kind the toggle shows, Spare or Pump.
+  const filter = scopeToRep(
+    withOrdersKind(parseOrderListFilter((key) => params.get(key) ?? undefined, { noDispatchTarget: true }), params.get("type")),
+    user
+  );
+  const filtered = isOrderListFiltered(filter) || filter.types.length > 0;
   const ids = filtered ? await listOrderIdsMatching(filter) : undefined;
 
   const orders = await listOrderExports(ids);

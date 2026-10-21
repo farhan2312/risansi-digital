@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canViewAll } from "@/lib/roles";
 import { listOrderDeptStatuses, listOrdersPage, parseQueueSort } from "@/lib/orders";
-import { describeOrderListFilter, parseOrderListFilter, scopeToRep } from "@/lib/order-list-filter";
+import { describeOrderListFilter, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
 import { buildOrdersListPdf } from "@/lib/orders-list-pdf";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
   const get = (key: string) => params.get(key) ?? undefined;
   // A Rep: their own SOs only.
-  const filter = scopeToRep(parseOrderListFilter(get, { noDispatchTarget: true }), user);
+  const filter = scopeToRep(withOrdersKind(parseOrderListFilter(get, { noDispatchTarget: true }), get("type")), user);
   const result = await listOrdersPage({ page: 1, filter, sort: parseQueueSort(get("sort")), all: true });
   const statuses = await listOrderDeptStatuses(result.rows.map((r) => r.id));
 
