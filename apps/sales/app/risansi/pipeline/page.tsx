@@ -16,7 +16,8 @@ import { OpportunitiesTabs } from '@/components/risansi/OpportunitiesTabs';
 import { TextSearchFilter } from '@/components/risansi/TextSearchFilter';
 import { DateRangeFilter } from '@/components/risansi/DateRangeFilter';
 import { ForecastBar } from '@/components/risansi/ForecastBar';
-import { oppFilterQuery, repBookSql } from '@/lib/risansi-opp-filters';
+import { oppFilterQuery, repBookSql, marketSql, marketNamed,
+  MARKET_OPTIONS, MARKET_LABELS } from '@/lib/risansi-opp-filters';
 import { OwnedOnlyToggle } from '@/components/risansi/OwnedOnlyToggle';
 import { LIVE_CLIENT, AND_LIVE_CLIENT } from '@/lib/risansi-opportunity-scope';
 import {
@@ -113,6 +114,7 @@ export default async function PipelinePage({
   // Multi-select filters
   const stageFilts    = typeof sp.stage        === 'string' && sp.stage        ? sp.stage.split(',').filter(Boolean)        : [];
   const prodTypeFilts = typeof sp.product_type === 'string' && sp.product_type ? sp.product_type.split(',').filter(Boolean) : [];
+  const marketFilts   = typeof sp.market       === 'string' && sp.market       ? sp.market.split(',').filter(Boolean)       : [];
   // NOTE: `rep` is also the scope-toggle param (?rep=all). Exclude the 'all'
   // sentinel here so the multi-select rep filter doesn't try to match a rep
   // literally named "all" (which returned zero results for "All Opportunities").
@@ -208,6 +210,15 @@ export default async function PipelinePage({
   if (prodTypeFilts.length > 0) {
     conds.push(`o.product_type = ANY($${idx}::text[])`);
     vals.push(prodTypeFilts); idx++;
+  }
+  // Domestic / Export, and the rows that never recorded one. Unrecorded is a
+  // NULL test so it inlines; the $-param is only taken when a named value is
+  // ticked. Shared with the stage dashboards through marketSql, so the board
+  // and the drilldown cannot answer this differently.
+  if (marketFilts.length > 0) {
+    const named = marketNamed(marketFilts);
+    const msql = marketSql('o.market', marketFilts, `$${idx}::text[]`);
+    if (msql) { conds.push(msql); if (named.length) { vals.push(named); idx++; } }
   }
   if (repFilts.length > 0) {
     // The clients that rep works, and their team's when they are a manager —
@@ -803,12 +814,12 @@ export default async function PipelinePage({
     ? Math.round((totalWon / (totalWon + totalLost)) * 100)
     : 0;
 
-  const anyFilter = stageFilts.length > 0 || prodTypeFilts.length > 0 || repFilts.length > 0 || indFilts.length > 0 || ctypeFilts.length > 0 || cstatFilts.length > 0 || probFilts.length > 0 || valFilts.length > 0 || !!soFilt || !!qname || !!qfrom || !!qto || !!efrom || !!eto;
+  const anyFilter = stageFilts.length > 0 || marketFilts.length > 0 || prodTypeFilts.length > 0 || repFilts.length > 0 || indFilts.length > 0 || ctypeFilts.length > 0 || cstatFilts.length > 0 || probFilts.length > 0 || valFilts.length > 0 || !!soFilt || !!qname || !!qfrom || !!qto || !!efrom || !!eto;
   // Revenue (Invoiced) is client_revenue_monthly, which has no opportunity on it,
   // so only the client-level filters can reach it. When one of the others is in
   // force every tile around it moves and that one does not — say so on the tile
   // rather than letting it read as a figure that refused to respond.
-  const oppOnlyFilter = stageFilts.length > 0 || prodTypeFilts.length > 0 || probFilts.length > 0 || valFilts.length > 0 || !!soFilt || !!qname || !!qfrom || !!qto || !!efrom || !!eto;
+  const oppOnlyFilter = stageFilts.length > 0 || marketFilts.length > 0 || prodTypeFilts.length > 0 || probFilts.length > 0 || valFilts.length > 0 || !!soFilt || !!qname || !!qfrom || !!qto || !!efrom || !!eto;
 
   // ── Clickable flow brackets ────────────────────────────────
   // See lib/risansi-pipeline-brackets.ts for what each one selects and why the
@@ -896,6 +907,7 @@ export default async function PipelinePage({
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 2 }}>Filter</span>
           <MultiSelectFilter param="stage"        label="Stage"        options={stageOptions}       selected={stageFilts}    />
           <MultiSelectFilter param="product_type" label="Product Type" options={productTypeOptions}  selected={prodTypeFilts} />
+          <MultiSelectFilter param="market"       label="Market"       options={MARKET_OPTIONS.map(o => ({ value: o.value, label: o.label }))} selected={marketFilts} />
           <MultiSelectFilter param="rep"          label="Rep"          options={repOptions}          selected={repFilts}      />
           <MultiSelectFilter param="industry"     label="Industry"     options={industryOptions}     selected={indFilts}      />
           {/* One dropdown, two questions. Status (where the account is in its
@@ -920,6 +932,8 @@ export default async function PipelinePage({
             <ActiveFilterBar filters={[
               { param: 'stage',        label: 'Stage',    values: stageFilts    },
               { param: 'product_type', label: 'Type',     values: prodTypeFilts },
+              { param: 'market',       label: 'Market',   values: marketFilts,
+                valueLabels: MARKET_LABELS },
               { param: 'rep',          label: 'Rep',      values: repFilts      },
               { param: 'industry',     label: 'Industry', values: indFilts      },
               { param: 'ctype',        label: 'Client Type', values: ctypeFilts },

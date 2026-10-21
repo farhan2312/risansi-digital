@@ -40,8 +40,40 @@ export function valueRangeSql(col: string, labels: string[]): string {
   return parts.length ? `(${parts.join(' OR ')})` : '';
 }
 
+/**
+ * Market, as the board offers it.
+ *
+ * `opportunities.market` holds 'DOMESTIC' or 'EXPORT' — the two options the
+ * quotation form has always written — and NULL on 328 rows raised before it
+ * was asked for. Unrecorded is a selectable option rather than a silent
+ * omission: those rows are the ones somebody wants to find and fix, and a
+ * Domestic/Export filter that quietly hides them makes them harder to see,
+ * not easier.
+ */
+export const MARKET_UNRECORDED = 'Unrecorded';
+export const MARKET_OPTIONS = [
+  { value: 'DOMESTIC', label: 'Domestic' },
+  { value: 'EXPORT',   label: 'Export' },
+  { value: MARKET_UNRECORDED, label: 'Unrecorded' },
+] as const;
+export const MARKET_LABELS: Record<string, string> =
+  Object.fromEntries(MARKET_OPTIONS.map(o => [o.value, o.label]));
+
+/** SQL for a set of market selections. Inlines nothing but NULL checks. */
+export function marketSql(col: string, picked: string[], namedParam: string): string {
+  const parts: string[] = [];
+  if (picked.some(m => m !== MARKET_UNRECORDED)) parts.push(`${col} = ANY(${namedParam})`);
+  if (picked.includes(MARKET_UNRECORDED)) parts.push(`(${col} IS NULL OR ${col} = '')`);
+  return parts.length ? `(${parts.join(' OR ')})` : '';
+}
+
+/** The named values out of a market selection — what the $-param carries. */
+export const marketNamed = (picked: string[]) => picked.filter(m => m !== MARKET_UNRECORDED);
+
 export interface OppFilters {
   stage:     string[];
+  /** DOMESTIC / EXPORT / Unrecorded, on the opportunity's own column. */
+  market:    string[];
   prodType:  string[];
   rep:       string[];
   industry:  string[];
@@ -70,6 +102,7 @@ const list = (v: unknown): string[] =>
 export function parseOppFilters(sp: SearchParams): OppFilters {
   return {
     stage:    list(sp.stage),
+    market:   list(sp.market),
     prodType: list(sp.product_type),
     // NOTE: `rep` doubles as the scope-toggle param (?rep=all). The 'all'
     // sentinel is excluded here so the multi-select doesn't hunt for a rep
@@ -149,6 +182,14 @@ export function buildOppFilter(f: OppFilters, scopedRepId: number | null, startI
     vals.push(scopedRepId); idx++;
   }
   if (f.stage.length)    { conds.push(`o.stage = ANY($${idx}::text[])`);           vals.push(f.stage);    idx++; }
+  if (f.market.length) {
+    // Unrecorded is a NULL test, so it inlines; only the named values take a
+    // parameter, and the parameter is skipped entirely when Unrecorded is the
+    // only thing ticked.
+    const named = marketNamed(f.market);
+    const sql = marketSql('o.market', f.market, `$${idx}::text[]`);
+    if (sql) { conds.push(sql); if (named.length) { vals.push(named); idx++; } }
+  }
   if (f.prodType.length) { conds.push(`o.product_type = ANY($${idx}::text[])`);    vals.push(f.prodType); idx++; }
   if (f.rep.length) {
     conds.push(repBookSql(`$${idx}::text[]`));
@@ -176,14 +217,14 @@ export function buildOppFilter(f: OppFilters, scopedRepId: number | null, startI
 
 /** Is anything at all selected? Drives whether the active-filter bar shows. */
 export function anyOppFilter(f: OppFilters): boolean {
-  return f.stage.length > 0 || f.prodType.length > 0 || f.rep.length > 0
+  return f.stage.length > 0 || f.market.length > 0 || f.prodType.length > 0 || f.rep.length > 0
     || f.industry.length > 0 || f.ctype.length > 0 || f.cstat.length > 0 || f.prob.length > 0
     || f.val.length > 0 || !!f.so || !!f.qname || !!f.qfrom || !!f.qto || !!f.efrom || !!f.eto;
 }
 
 /** The filter params, for carrying onto an export link or a stage page. */
 export const OPP_FILTER_PARAMS = [
-  'stage', 'product_type', 'rep', 'industry', 'ctype', 'cstat', 'so', 'prob', 'val',
+  'stage', 'market', 'product_type', 'rep', 'industry', 'ctype', 'cstat', 'so', 'prob', 'val',
   'qname', 'qfrom', 'qto', 'efrom', 'eto',
 ] as const;
 
