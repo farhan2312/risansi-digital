@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
 import { AssemblyPumpTable } from "./assembly-pump-table";
 import { MultiSelectFilter } from "./multi-select-filter";
-import { ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES } from "@/lib/assembly";
+import { ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY, SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES } from "@/lib/assembly";
 import { PUMP_SO_PLANNING_FIELDS } from "@/lib/order-schema";
 import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
@@ -669,16 +669,25 @@ export function DepartmentWorkspace({
             searchPlaceholder={searchPlaceholder}
             kindToggle={ecKind}
             noStatusFilter={assemblyPump}
-            extraKeys={assemblyPump ? [ASSEMBLY_STATUS_KEY] : []}
+            extraKeys={assemblyPump ? [ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY] : []}
             extraFilters={
               assemblyPump ? (
-                <MultiSelectFilter
-                  label="Assembly"
-                  allLabel="Any assembly status"
-                  options={SO_ASSEMBLY_STATUSES}
-                  selected={getList(ASSEMBLY_STATUS_KEY)}
-                  onChange={(next) => setParams({ [ASSEMBLY_STATUS_KEY]: next })}
-                />
+                <>
+                  <MultiSelectFilter
+                    label="Assembly"
+                    allLabel="Any assembly status"
+                    options={SO_ASSEMBLY_STATUSES}
+                    selected={getList(ASSEMBLY_STATUS_KEY)}
+                    onChange={(next) => setParams({ [ASSEMBLY_STATUS_KEY]: next })}
+                  />
+                  <MultiSelectFilter
+                    label="Packing"
+                    allLabel="Any packing status"
+                    options={SO_PACKING_STATUSES}
+                    selected={getList(PACKING_STATUS_KEY)}
+                    onChange={(next) => setParams({ [PACKING_STATUS_KEY]: next })}
+                  />
+                </>
               ) : undefined
             }
           />

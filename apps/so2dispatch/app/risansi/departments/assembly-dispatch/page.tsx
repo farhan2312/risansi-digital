@@ -19,7 +19,13 @@ import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { listRemindersForDepartment } from "@/lib/reminders";
 import { ASSEMBLY_CONTEXT_FIELDS, SECTION_BY_TABLE } from "@/lib/order-schema";
-import { ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES, soAssemblyStatusSql } from "@/lib/assembly";
+import {
+  ASSEMBLY_STATUS_KEY,
+  PACKING_STATUS_KEY,
+  SO_ASSEMBLY_STATUSES,
+  SO_PACKING_STATUSES,
+  soStageStatusSql,
+} from "@/lib/assembly";
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
@@ -52,19 +58,22 @@ export default async function AssemblyDispatchWorkspacePage({
     { ...parseDeptFilter((key) => params[key], "assembly"), types: ecKind === "pump" ? ["Pump", "ROLB"] : ["Spare"] },
     user
   );
-  const assemblyStatuses = (params[ASSEMBLY_STATUS_KEY] ?? "")
-    .split(",")
-    .map((v) => v.trim())
-    .filter((v) => SO_ASSEMBLY_STATUSES.includes(v));
+  const pick = (key: string, allowed: string[]) =>
+    (params[key] ?? "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter((v) => allowed.includes(v));
+  const assemblyStatuses = pick(ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES);
+  const packingStatuses = pick(PACKING_STATUS_KEY, SO_PACKING_STATUSES);
+  const inList = (vals: string[]) => vals.map((s) => `'${s}'`).join(", ");
   const pumpRestrict =
     ecKind === "pump"
       ? [
           `EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
                    WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')
                      AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`,
-          assemblyStatuses.length
-            ? `${soAssemblyStatusSql("o")} IN (${assemblyStatuses.map((s) => `'${s}'`).join(", ")})`
-            : "TRUE",
+          assemblyStatuses.length ? `${soStageStatusSql("assembly", "o")} IN (${inList(assemblyStatuses)})` : "TRUE",
+          packingStatuses.length ? `${soStageStatusSql("packing", "o")} IN (${inList(packingStatuses)})` : "TRUE",
         ].join(" AND ")
       : undefined;
   // A notification links to an EC (item id) or an SO; either way the queue
