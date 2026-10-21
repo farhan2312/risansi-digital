@@ -16,6 +16,8 @@ export type KpiCardDef = {
   tone?: KpiTone;
   /** A sum over the SOs instead of a count of them (e.g. their ECs), shown but not clickable. */
   measure?: string;
+  /** A heading the card sits under (the Orders page groups its cards by department). */
+  group?: string;
 };
 
 /** A card as shown: its count. */

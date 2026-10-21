@@ -24,6 +24,8 @@ import type { PageResult } from "@/lib/pagination";
 import { AddOnForm } from "./add-on-form";
 import { SortHeader } from "./sort-header";
 import { OrderListFilterBar } from "./order-list-filter-bar";
+import { KpiStrip } from "./kpi-strip";
+import type { KpiCard } from "@/lib/kpis";
 import { isOrderListFiltered, ordersKind, parseOrderListFilter } from "@/lib/order-list-filter";
 
 const numberFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
@@ -253,7 +255,7 @@ export function OrdersTable({
   deptStatuses = {},
 }: {
   // One server-fetched page; every filter and the paging ran in SQL.
-  result: PageResult<OrderListRow> & { options: OrderListOptions };
+  result: PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[] };
   canDelete?: boolean;
   // The viewer's role — the department pop-ups on a row edit as it.
   role: string;
@@ -315,6 +317,7 @@ export function OrdersTable({
     <div>
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget kindToggle={ordersKind(getParam("type"))} />
+      <KpiStrip cards={result.kpis ?? []} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}

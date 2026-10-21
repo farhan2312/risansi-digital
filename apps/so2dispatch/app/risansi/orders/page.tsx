@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardList, Download, FileText, Plus, Upload } from "lucide-react";
-import { listOrderDeptStatuses, listOrdersPage, parseQueueSort } from "@/lib/orders";
+import { listOrderDeptStatuses, listOrdersPage, orderListKpiCards, parseQueueSort } from "@/lib/orders";
 import { parsePage } from "@/lib/pagination";
 import {
   isOrderListFiltered,
   orderListFilterParams,
   parseOrderListFilter,
-  withOrdersKind,
+  withOrdersKind, ordersKind,
   scopeToRep,
 } from "@/lib/order-list-filter";
 import { getCurrentUser } from "@/lib/session";
@@ -47,6 +47,8 @@ export default async function OrdersPage({
     page: parsePage(params.page),
     filter,
     sort: parseQueueSort(params.sort),
+    // Spare: the department summary cards.
+    kpis: orderListKpiCards(ordersKind(params.type)),
   });
   const canCreate = canCreateOrders(user.role);
   // Every department on each SO of this page, for the row's tags.

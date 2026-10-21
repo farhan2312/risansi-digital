@@ -31,8 +31,46 @@ export function KpiStrip({ cards }: { cards: KpiCard[] }) {
   }
   const shown = asked ?? onKey;
   if (cards.length === 0) return null;
+  // Cards with a group sit under its heading, groups side by side.
+  const groups: { name: string | undefined; cards: KpiCard[] }[] = [];
+  for (const c of cards) {
+    const last = groups[groups.length - 1];
+    if (last && last.name === c.group) last.cards.push(c);
+    else groups.push({ name: c.group, cards: [c] });
+  }
+  if (groups.some((g) => g.name)) {
+    return (
+      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-3">
+        {groups.map((g, i) => (
+          <div key={g.name ?? i} className="min-w-0">
+            {g.name && <p className="mb-1 px-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">{g.name}</p>}
+            <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <KpiStripRow cards={cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} className="mb-3" />;
+}
+
+function KpiStripRow({
+  cards,
+  keys,
+  shown,
+  onPick,
+  setParams,
+  className = "",
+}: {
+  cards: KpiCard[];
+  keys: string[];
+  shown: string | null;
+  onPick: (key: string) => void;
+  setParams: (changes: Record<string, string | string[] | null>) => void;
+  className?: string;
+}) {
+  const setAsked = onPick;
   return (
-    <div className="mb-3 flex flex-wrap gap-2">
+    <div className={`flex flex-wrap gap-2 ${className}`}>
       {cards.map((c) => {
         const on = shown === c.key;
         const tone = TONE[c.tone ?? "neutral"];

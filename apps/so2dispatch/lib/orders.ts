@@ -3625,8 +3625,18 @@ export async function listOrdersPage(opts: {
   sort?: QueueSort | null;
   /** Every matching SO on one page (the PDF), up to a safety cap. */
   all?: boolean;
-}): Promise<PageResult<OrderListRow> & { options: OrderListOptions }> {
+  /** Summary cards over the list as filtered, before its department statuses. */
+  kpis?: KpiCardDef[];
+}): Promise<PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[] }> {
   const { where, params } = orderListWhere(await withRepTeams(opts.filter));
+  const kpisQ = opts.kpis
+    ? countKpis(
+        { restrict: "TRUE", cards: opts.kpis },
+        { ...opts.filter, dept: null, search: "" },
+        opts.filter.search ? likePattern(opts.filter.search) : null,
+        (t) => orderSearchSql(t)
+      )
+    : Promise.resolve(undefined);
   const limit = `$${params.length + 1}`;
   const offset = `$${params.length + 2}`;
 
@@ -3758,7 +3768,9 @@ export async function listOrdersPage(opts: {
       opts.all ? [...params, ALL_ROWS_CAP, 0] : [...params, PAGE_SIZE, offsetFor(page)]
     ))();
 
+  const kpis = await kpisQ;
   return {
+    kpis,
     ...pageResult(rows.rows, total, opts.all ? 1 : page),
     options: optionRows,
   };
@@ -3930,7 +3942,7 @@ async function countKpis(
   try {
     const r = await query<Record<string, number>>(`SELECT ${cols.join(", ")} FROM orders o ${where}`, [...base.params, search]);
     const row = r.rows[0] ?? {};
-    return req.cards.map((c, i) => ({ key: c.key, label: c.label, params: c.params, tone: c.tone, measure: c.measure ? "sum" : undefined, count: Number(row[`k${i}`] ?? 0) }));
+    return req.cards.map((c, i) => ({ key: c.key, label: c.label, params: c.params, tone: c.tone, group: c.group, measure: c.measure ? "sum" : undefined, count: Number(row[`k${i}`] ?? 0) }));
   } catch (error) {
     console.error("countKpis failed:", error);
     return [];
@@ -3941,6 +3953,58 @@ async function countKpis(
  * A department queue's cards: all of it, each of its statuses (as its Status
  * filter reads them), and what is overdue against its target.
  */
+/**
+ * The Orders page's cards for Spare SOs, grouped by department: the SOs and
+ * their ECs, then where each SO stands in Proforma Invoice, Planning,
+ * Assembly & Packing and Dispatch. A card applies that department and status.
+ */
+export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
+  if (kind !== "spare") return [];
+  const clear = { dept: null, dstatus: null, pack: null, dsm: null, overdue: null } as Record<string, string | null>;
+  const open = orderOpenSql("o");
+  const card = (group: string, dept: DeptFilterKey, status: string, label: string, extra: Record<string, string> = {}, sql?: string): KpiCardDef => ({
+    key: `${dept}:${status}:${extra.pack ?? ""}`,
+    label,
+    group,
+    sql: sql ?? `(${deptStatusPredicate(dept, status)}) AND ${open}`,
+    params: { ...clear, dept, dstatus: status, ...extra },
+    tone: toneFor(label),
+  });
+  return [
+    { key: "all", label: "SOs", group: "Orders", sql: null, params: { ...clear }, tone: "neutral" },
+    {
+      key: "ecs",
+      label: "ECs",
+      group: "Orders",
+      sql: null,
+      params: {},
+      tone: "neutral",
+      measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${spareEcSql("s", "o")})`,
+    },
+    card("Proforma Invoice", "billing", "Fully raised", "Fully raised"),
+    card("Proforma Invoice", "billing", "Partially raised", "Partially raised"),
+    card("Proforma Invoice", "billing", PENDING, "Pending"),
+    card("Planning", "planning", "Date awaited", "Date awaited"),
+    card("Planning", "planning", "In plan", "In plan"),
+    card("Planning", "planning", "Partial ready", "Partially ready"),
+    card(
+      "Planning",
+      "planning",
+      "Fully ready",
+      "Fully ready (not packed)",
+      { pack: "Not packed" },
+      `EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
+                AND (${ecState("planning", "Fully ready")}) AND (${packingState("Not packed")})) AND ${open}`
+    ),
+    card("Assembly & Packing", "assembly", "In Progress", "In progress"),
+    card("Assembly & Packing", "assembly", "Partially packed", "Partially packed"),
+    card("Assembly & Packing", "assembly", "Fully packed", "Fully packed"),
+    card("Dispatch", "dispatch", PENDING, "Pending"),
+    card("Dispatch", "dispatch", "LOT dispatch", "Partially dispatched"),
+    card("Dispatch", "dispatch", "Fully dispatch", "Fully dispatched"),
+  ];
+}
+
 export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
   const statuses = statusesFor(dept, types);
   const planning = dept === "planning";
