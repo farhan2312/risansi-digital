@@ -44,6 +44,11 @@ import { MultiSelectFilter, SingleSelectFilter } from "./multi-select-filter";
 import { ClientLookup } from "./client-lookup";
 import { formatDisplay } from "./editable-section";
 
+/** A member's name, marked when they are Order Making PO rather than SO. */
+function memberLabel(m: { full_name: string; team?: "SO" | "PO" }): string {
+  return m.team === "PO" ? `${m.full_name} (PO)` : m.full_name;
+}
+
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 const field = (column: string) => ORDER_MAKING_FIELDS.find((f) => f.column === column)!;
 
@@ -213,7 +218,7 @@ export function OrderMakingWorkspace({
               >
                 <span className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">
                   <UserRound className="h-3.5 w-3.5 shrink-0 text-primary" />
-                  <span className="truncate">{m.full_name}</span>
+                  <span className="truncate">{memberLabel(m)}</span>
                 </span>
                 <span className="mt-1.5 flex items-baseline gap-3 text-xs text-muted">
                   <span>
@@ -276,7 +281,7 @@ export function OrderMakingWorkspace({
           <SingleSelectFilter
             label="Assigned to"
             allLabel="Anyone"
-            options={[{ value: UNASSIGNED, label: "Unassigned" }, ...members.map((m) => ({ value: m.id, label: m.full_name }))]}
+            options={[{ value: UNASSIGNED, label: "Unassigned" }, ...members.map((m) => ({ value: m.id, label: memberLabel(m) }))]}
             selected={pickedMember}
             onChange={(next) => setParams({ asg: next, page: null })}
           />
@@ -537,7 +542,7 @@ export function OrderMakingWorkspace({
                               <option value="">Unassigned</option>
                               {members.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                  {m.full_name}
+                                  {memberLabel(m)}
                                 </option>
                               ))}
                               {/* Someone no longer active stays shown. */}
@@ -854,7 +859,7 @@ function OrderMakingEdit({
                       <option value="">Unassigned</option>
                       {members.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.full_name}
+                          {memberLabel(m)}
                         </option>
                       ))}
                     </select>

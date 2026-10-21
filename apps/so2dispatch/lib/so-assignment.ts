@@ -14,11 +14,16 @@ export { SO_DETAILS_FILLED_SQL };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type SoMember = { id: string; full_name: string; email: string };
+export type SoMember = { id: string; full_name: string; email: string; team: "SO" | "PO" };
 
-/** The Order Making SO members an SO can be assigned to. */
-export function listSoMembers(): Promise<SoMember[]> {
-  return listApprovedUsersByRole("order_making_so");
+/**
+ * Who an SO's Sales Order details can be assigned to: the Order Making SO
+ * members, and the Order Making PO members too (a PO member can take an SO
+ * on themselves).
+ */
+export async function listSoMembers(): Promise<SoMember[]> {
+  const [so, po] = await Promise.all([listApprovedUsersByRole("order_making_so"), listApprovedUsersByRole("order_making")]);
+  return [...so.map((m) => ({ ...m, team: "SO" as const })), ...po.map((m) => ({ ...m, team: "PO" as const }))];
 }
 
 /** Who an SO's Sales Order details are assigned to, if anyone. */
@@ -49,7 +54,7 @@ export async function assignSo(
   let assigneeName: string | null = null;
   if (assigneeId) {
     const member = (await listSoMembers()).find((m) => m.id === assigneeId);
-    if (!member) return { ok: false, error: "Choose an active Order Making SO member." };
+    if (!member) return { ok: false, error: "Choose an active Order Making member." };
     assigneeName = member.full_name;
   }
   const r = await query<{ so_no: string | null; sl_no: number; client_name: string | null; changed: boolean }>(
@@ -124,7 +129,7 @@ export async function markSoDetails(orderId: string, actor: { id: string; role: 
 }
 
 export type SoMemberSummary = {
-  members: { id: string; full_name: string; assigned: number; pending: number; filled: number }[];
+  members: { id: string; full_name: string; team: "SO" | "PO"; assigned: number; pending: number; filled: number }[];
   unassigned: { total: number; pending: number };
 };
 
@@ -163,7 +168,7 @@ export async function soMemberSummary(period: AssignPeriod = "daily"): Promise<S
       const c = by.get(m.id);
       const assigned = c?.assigned ?? 0;
       const filled = c?.filled ?? 0;
-      return { id: m.id, full_name: m.full_name, assigned, filled, pending: assigned - filled };
+      return { id: m.id, full_name: m.full_name, team: m.team, assigned, filled, pending: assigned - filled };
     }),
     unassigned: unassigned.rows[0] ?? { total: 0, pending: 0 },
   };
