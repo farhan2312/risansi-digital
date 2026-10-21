@@ -704,6 +704,7 @@ export function DepartmentWorkspace({
               rows={orders}
               unreadThreads={unreadThreads}
               canEdit={canEdit}
+              canEditCentral={canEditCentral}
               onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
             />
           ) : ecKind === "pump" ? (

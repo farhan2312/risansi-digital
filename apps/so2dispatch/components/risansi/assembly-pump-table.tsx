@@ -17,6 +17,8 @@ import {
 } from "@/lib/assembly";
 import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
+import { PackingSlipsInline } from "./packing-slips-inline";
+import { lotOnSlip } from "@/lib/ready-lots";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -98,11 +100,13 @@ export function AssemblyPumpTable({
   rows,
   unreadThreads,
   canEdit,
+  canEditCentral = false,
   onThread,
 }: {
   rows: Row[];
   unreadThreads: Record<string, number>;
   canEdit: boolean;
+  canEditCentral?: boolean;
   onThread: (orderId: string, soLabel: string) => void;
 }) {
   const pumps = rows.filter((r) => PUMP_LIKE.includes(str(r.item_type)));
@@ -125,6 +129,7 @@ export function AssemblyPumpTable({
             <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
             <th colSpan={2} className={group}>Assembly</th>
             <th colSpan={3} className={group}>Packing</th>
+            <th colSpan={1} className={group} />
             <th colSpan={8} className={group}>EC</th>
           </tr>
           <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -139,6 +144,7 @@ export function AssemblyPumpTable({
             <th className={`${th} border-l border-card-border`}>Status</th>
             <th className={th}>Planned Date</th>
             <th className={th} />
+            <th className={`${th} border-l border-card-border`}>Packing Slips</th>
             <th className={`${th} border-l border-card-border`}>EC No.</th>
             <th className={th}>EC Date</th>
             <th className={th}>Qty</th>
@@ -152,7 +158,7 @@ export function AssemblyPumpTable({
         <tbody>
           {sos.length === 0 && (
             <tr>
-              <td colSpan={19} className="px-4 py-10 text-center text-sm text-muted">
+              <td colSpan={20} className="px-4 py-10 text-center text-sm text-muted">
                 No pump SO is ready to assemble.
               </td>
             </tr>
@@ -211,6 +217,10 @@ export function AssemblyPumpTable({
                                   <span className="text-muted">
                                     {l.packed_date ? "Packed" : l.assembled_date ? "Assembled" : l.status || "—"}
                                   </span>
+                                  {/* Packed, but on no packing slip yet. */}
+                                  {l.packed_date && !lotOnSlip(l.n, (head.so_child_rows ?? []) as Row[]) && (
+                                    <span className="ml-1 rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>
+                                  )}
                                 </span>
                               ))
                             )}
@@ -236,6 +246,20 @@ export function AssemblyPumpTable({
                               <Layers className="h-3.5 w-3.5" />
                               Lots
                             </button>
+                          </td>
+                          {/* The SO's packing slips, each naming the lots it carries. */}
+                          <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
+                            <PackingSlipsInline
+                              orderId={orderId}
+                              soLabel={soLabel}
+                              slips={(head.so_child_rows ?? []) as Row[]}
+                              context={{ market_type: head.market_type, packing_details_required: head.packing_details_required }}
+                              gateOk={str(head.market_type).trim() !== ""}
+                              canEdit={canEdit}
+                              canEditCentral={canEditCentral}
+                              lotCount={lots.length}
+                              packedLots={lots.filter((l) => l.packed_date).map((l) => l.n)}
+                            />
                           </td>
                         </>
                       )}
