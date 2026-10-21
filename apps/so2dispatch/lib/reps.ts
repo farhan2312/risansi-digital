@@ -1,5 +1,33 @@
 import { query } from "@/lib/db";
 import { listTeams } from "@/lib/market-intell";
+import { identityDb } from "@/lib/db-identity";
+import { ALL_ROLES } from "@/lib/roles";
+
+/**
+ * Bring the local role of every linked account up to its grant at Risansi
+ * Digital. Sign-in does this for one person; a role changed at the hub for
+ * someone who has not signed in since would otherwise read the old role here.
+ * Never throws: an unreachable hub leaves the local roles as they are.
+ */
+async function syncRolesFromHub(): Promise<void> {
+  try {
+    const grants = await identityDb.query<{ user_id: string; app_role: string }>(
+      `SELECT g.user_id::text, g.app_role
+         FROM identity.app_grants g
+        WHERE g.app_slug = 'so2dispatch' AND g.status = 'Approved' AND g.app_role IS NOT NULL`
+    );
+    const known = grants.rows.filter((g) => (ALL_ROLES as string[]).includes(g.app_role));
+    if (known.length === 0) return;
+    await query(
+      `UPDATE users u SET role = g.role, updated_at = now()
+         FROM unnest($1::uuid[], $2::text[]) AS g(identity_user_id, role)
+        WHERE u.identity_user_id = g.identity_user_id AND u.role IS DISTINCT FROM g.role`,
+      [known.map((g) => g.user_id), known.map((g) => g.app_role)]
+    );
+  } catch (error) {
+    console.error("syncRolesFromHub failed:", error);
+  }
+}
 
 /**
  * Reps and Rep Managers, and which SOs each sees — for the admin's Reps page.
@@ -39,6 +67,8 @@ export async function listReps(): Promise<{
   /** False when the sales portal could not be read: teams are then unknown, not empty. */
   teamsRead: boolean;
 }> {
+  // Roles are the hub's: read them fresh before listing who is a Rep or a Rep Manager.
+  await syncRolesFromHub();
   const [accounts, onOrders, teams] = await Promise.all([
     query<Omit<RepAccount, "team">>(
       `SELECT u.id, u.full_name, u.email, u.role,
