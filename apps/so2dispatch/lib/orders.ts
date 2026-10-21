@@ -3431,6 +3431,14 @@ function orderListClauses(
   }
   if (f.dept && f.signOff) clauses.push(signOffPredicate(f.dept, f.signOff));
   if (f.dept && f.overdue) clauses.push(deptOverduePredicate(f.dept));
+  // A cancelled or diverted SO has no department work left: a department's
+  // status (or overdue) never matches it, whatever its status was left at.
+  if (
+    (f.dept && (f.deptStatuses.length || f.packingStatuses.length || f.overdue)) ||
+    Object.values(f.deptStatusMulti ?? {}).some((v) => v?.length)
+  ) {
+    clauses.push(orderOpenSql("o"));
+  }
   // Packed by Assembly & Packing and not yet gone: Dispatch's own shortlist.
   if (f.ready) clauses.push(READY_TO_DISPATCH);
   // A Spare lot packed but on no packing slip: nothing for Dispatch to send.
@@ -4950,6 +4958,8 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
       `(${f.deptStatuses.map((s) => isPerEcDept(dept) ? `(${ecState(dept, s)})` : `(${soState(dept, s)})`).join(" OR ")})`
     );
   }
+  // As on the list: a cancelled or diverted SO has no department status.
+  if (f.dept && (f.deptStatuses.length || f.packingStatuses.length)) clauses.push(orderOpenSql("o"));
   // This row's own sign-off: its EC's for a per-EC department, its SO's else.
   const signedHere = (dept: DeptFilterKey) =>
     isPerEcDept(dept)
