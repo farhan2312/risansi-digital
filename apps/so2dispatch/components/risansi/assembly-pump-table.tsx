@@ -47,8 +47,8 @@ const ecOf = (r: Row): Ec => ({
 });
 
 /**
- * Each lot's planned date for a stage — "L1 22 Oct 2026 · Night" — the whole
- * cell opening how the plan moved.
+ * Each lot's planned date for a stage — "L1 22 Oct 2026 · Night", a green
+ * tick once that lot is done — the whole cell opening how the plan moved.
  */
 function PlannedCell({
   lots,
@@ -75,10 +75,11 @@ function PlannedCell({
             const shift = stage === "assembly" ? l.assembly_shift : l.packing_shift;
             const done = stage === "assembly" ? l.assembled_date : l.packed_date;
             return (
-              <span key={l.n} className={`inline-flex items-center gap-1 text-xs ${done ? "text-muted line-through decoration-muted/50" : "text-foreground"}`}>
+              <span key={l.n} title={done ? `${stage === "assembly" ? "Assembled" : "Packed"} ${shortDate(done)}` : undefined} className="inline-flex items-center gap-1 text-xs text-foreground">
                 <span className="font-semibold">L{l.n}</span> {shortDate(date)}
                 {shift === "Night" ? <Moon className="h-3 w-3" /> : shift ? <Sun className="h-3 w-3" /> : null}
                 {stage === "packing" && l.pdi ? <span className="text-muted">PDI {l.pdi}</span> : null}
+                {done ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-label="Done" /> : null}
               </span>
             );
           })}
