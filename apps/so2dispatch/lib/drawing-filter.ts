@@ -111,6 +111,11 @@ export function drawingFilterActive(f: DrawingFilter): boolean {
 const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
 const inList = (expr: string, values: string[]) => `${expr} IN (${values.map(lit).join(", ")})`;
 
+/** An EC's GAD status in SQL (alias it), the words the Drawing page shows. */
+export function ecGadStatusSql(it: string): string {
+  return docStatusSql(it, "GAD");
+}
+
 function docStatusSql(it: string, doc: "GAD" | "Performance Curve"): string {
   const gad = doc === "GAD";
   return `(SELECT CASE

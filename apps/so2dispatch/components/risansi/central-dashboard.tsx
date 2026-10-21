@@ -492,9 +492,12 @@ function indexCompletions(completions: DeptCompletion[]) {
 export function CentralDashboard({
   pipeline,
   completions = [],
+  pipelineOnly = false,
 }: {
   pipeline: PipelinePage;
   completions?: DeptCompletion[];
+  /** Only the order pipeline: the dashboard above it is CentralOverview. */
+  pipelineOnly?: boolean;
 }) {
   const rows = pipeline.rows;
   const stats = pipeline.stats;
@@ -631,7 +634,8 @@ export function CentralDashboard({
   ];
 
   return (
-    <div className="px-4 py-6 sm:px-8 sm:py-8">
+    <div className={pipelineOnly ? "" : "px-4 py-6 sm:px-8 sm:py-8"}>
+      {!pipelineOnly && (<>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
@@ -733,6 +737,8 @@ export function CentralDashboard({
         </ChartCard>
 
       </div>
+
+      </>)}
 
       {/* pipeline */}
       <h2 className="mb-3 font-display text-base font-semibold text-foreground">

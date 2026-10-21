@@ -3231,6 +3231,14 @@ function planningPackingOnEc(f: OrderListFilter): string {
 }
 
 /** The state of the SO itself for an SO-scope department. */
+/** A department status on an EC (alias it, its SO o) / on an SO, as the Status filters read them. */
+export function ecDeptStateSql(dept: DeptFilterKey, status: string): string {
+  return ecState(dept, status);
+}
+export function soDeptStateSql(dept: DeptFilterKey, status: string): string {
+  return soState(dept, status);
+}
+
 function soState(dept: DeptFilterKey, status: string): string {
   if (dept === "billing") {
     // The same reading as the status column (BILLING_STATE).

@@ -33,6 +33,16 @@
   --brand-navy-1: #0a2a5e;
   --brand-navy-2: #123a7d;
   --brand-navy-3: #0d4a8f;
+
+  /* Charts (dashboard). State colours, validated against --surface: done,
+     in progress, pending, critical; n/a recedes. Two series: slots 1 and 2. */
+  --viz-done: #0ca30c;
+  --viz-progress: #2a78d6;
+  --viz-pending: #eda100;
+  --viz-critical: #d03b3b;
+  --viz-na: #c9cfd8;
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
 }
 
 .dark {
@@ -60,6 +70,14 @@
   --sidebar-border: rgba(255, 255, 255, 0.07);
 
   --brand-label: #cbd5e1;
+
+  --viz-done: #0ca30c;
+  --viz-progress: #3987e5;
+  --viz-pending: #c98500;
+  --viz-critical: #d03b3b;
+  --viz-na: #34445f;
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
 }
 
 @theme inline {
