@@ -408,6 +408,17 @@ export const ORDER_SECTIONS: OrderSection[] = [
       // Handover: when the SO went to Operations (Order Making SO fills it).
       // When it went to PPC is the SO Hand Over Date, below — Central's.
       { column: "ec_sent_operation_date", label: "SO Sent to Operation Date", type: "date", group: "Handover" },
+      // When the SO went to PPC: the SO Hand Over Date, now under Handover.
+      // Drawing's first target is counted from it — see lib/target-rules.ts.
+      // Central Visibility's alone: not shown to Order Making. Planning sees it
+      // as a column (PLANNING_CONTEXT_FIELDS).
+      {
+        column: "so_handover_date",
+        label: "SO Sent to PPC Date",
+        type: "date",
+        centralOnly: true,
+        group: "Handover",
+      },
 
       // Terms & Conditions — customer requirements + freight/packing + commercial
       // terms rolled into one section. Visible read-only to Billing.
@@ -444,17 +455,6 @@ export const ORDER_SECTIONS: OrderSection[] = [
         label: "Delivery date As per SO",
         type: "date",
         group: "Terms & Conditions",
-      },
-      // When the SO went to PPC: the SO Hand Over Date, now under Handover.
-      // Drawing's first target is counted from it — see lib/target-rules.ts.
-      // Central Visibility's alone: not shown to Order Making. Planning sees it
-      // as a column (PLANNING_CONTEXT_FIELDS).
-      {
-        column: "so_handover_date",
-        label: "SO Sent to PPC Date",
-        type: "date",
-        centralOnly: true,
-        group: "Handover",
       },
       // The prose the PO used, kept as written. The terms the workflow acts on
       // are the lines beneath it (PaymentTermsControl), so this is never typed
