@@ -31,6 +31,7 @@ import {
   isPerEcDept,
   NOT_APPLICABLE,
   PENDING,
+  statusesFor,
   type DeptFilterKey,
 } from "@/lib/dept-status";
 import { FIELD_FILTER_FIELDS, NOT_SET, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
@@ -47,6 +48,7 @@ import {
 } from "@/lib/pagination";
 import { ecDrawingDoneSql } from "@/lib/drawing-filter";
 import { listTeams } from "@/lib/market-intell";
+import { toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
 import {
   CHILD_FIELDS,
   PUMP_LIKE,
@@ -3828,8 +3830,11 @@ async function pageOfOrderIds(opts: {
   orderBy?: string;
   /** Every matching SO rather than one page — for a printed report. */
   all?: boolean;
-}): Promise<{ ids: string[]; total: number; page: number }> {
+  /** The summary cards to count over this queue. */
+  kpis?: KpiRequest;
+}): Promise<{ ids: string[]; total: number; page: number; kpis?: KpiCard[] }> {
   const search = opts.search ? likePattern(opts.search) : null;
+  const kpis = opts.kpis ? await countKpis(opts.kpis, opts.filter, search, opts.searchable) : undefined;
   const facets = opts.filter
     ? orderListClauses({ ...(await withRepTeams(opts.filter)), search: "" })
     : { clauses: [], params: [] };
@@ -3868,7 +3873,65 @@ async function pageOfOrderIds(opts: {
     [...facets.params, search, opts.all ? REPORT_LIMIT : PAGE_SIZE, opts.all ? 0 : offsetFor(page)]
   );
 
-  return { ids: ids.rows.map((r) => r.id), total, page };
+  return { ids: ids.rows.map((r) => r.id), total, page, kpis };
+}
+
+/**
+ * The summary cards over a queue: its own condition, the filter bar as set
+ * but before any status (so a card counts what clicking it would show), and
+ * the search. One query, one count per card.
+ */
+async function countKpis(
+  req: KpiRequest,
+  filter: OrderListFilter | undefined,
+  search: string | null,
+  searchable: (term: string) => string
+): Promise<KpiCard[]> {
+  const base = filter
+    ? orderListClauses({
+        ...(await withRepTeams(filter)),
+        search: "",
+        deptStatuses: [],
+        deptStatusMulti: {},
+        packingStatuses: [],
+        overdue: false,
+      })
+    : { clauses: [], params: [] };
+  const own = `$${base.params.length + 1}`;
+  const where = `WHERE ${req.restrict}
+        ${base.clauses.map((c) => `AND ${c}`).join("\n        ")}
+        AND (${own}::text IS NULL OR ${searchable(own)})`;
+  const cols = req.cards.map((c, i) => (c.sql ? `count(*) FILTER (WHERE ${c.sql})::int AS k${i}` : `count(*)::int AS k${i}`));
+  try {
+    const r = await query<Record<string, number>>(`SELECT ${cols.join(", ")} FROM orders o ${where}`, [...base.params, search]);
+    const row = r.rows[0] ?? {};
+    return req.cards.map((c, i) => ({ key: c.key, label: c.label, params: c.params, tone: c.tone, count: Number(row[`k${i}`] ?? 0) }));
+  } catch (error) {
+    console.error("countKpis failed:", error);
+    return [];
+  }
+}
+
+/**
+ * A department queue's cards: all of it, each of its statuses (as its Status
+ * filter reads them), and what is overdue against its target.
+ */
+export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
+  const statuses = statusesFor(dept, types);
+  const clear = { dstatus: null, overdue: null } as Record<string, string | null>;
+  return [
+    { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
+    ...statuses.map((st) => ({
+      key: `s:${st}`,
+      label: st,
+      sql: `(${deptStatusPredicate(dept, st)}) AND ${orderOpenSql("o")}`,
+      params: { ...clear, dstatus: st },
+      tone: toneFor(st),
+    })),
+    ...(withOverdue
+      ? [{ key: "overdue", label: "Overdue", sql: `(${deptOverduePredicate(dept)}) AND ${orderOpenSql("o")}`, params: { ...clear, overdue: "1" }, tone: "danger" as const }]
+      : []),
+  ];
 }
 
 // Matches the SO's own identity columns or any of its ECs.
@@ -3906,7 +3969,9 @@ export async function listOrdersForOrderMaking(opts: {
   filter: OrderMakingFilter;
   /** An Order Making SO member: only the SOs assigned to them, pending first. */
   assigneeScope?: string | null;
-}): Promise<PageResult<OrderMakingRow>> {
+  /** Count the summary cards too. */
+  withKpis?: boolean;
+}): Promise<PageResult<OrderMakingRow> & { kpis?: KpiCard[] }> {
   const f = opts.filter;
   // The PO's fields; the Sales Order details are counted on their own.
   const own = ORDER_MAKING_FIELDS.filter(
@@ -3924,36 +3989,58 @@ export async function listOrdersForOrderMaking(opts: {
     ]::text[], NULL)`;
   // Order Making's own facets. Values are checked against fixed lists or as
   // ISO dates before they get here, and still go in quoted.
-  const clauses = [orderOpenSql("o")];
-  // A member sees only their own; an id that is not one sees nothing.
-  if (opts.assigneeScope !== undefined) {
-    clauses.push(
-      opts.assigneeScope && UUID_RE.test(opts.assigneeScope)
-        ? `o.so_assignee_id = ${lit(opts.assigneeScope)}::uuid`
-        : "FALSE"
-    );
-  }
-  if (f.assignees.length) {
-    const ids = f.assignees.filter((a) => a !== UNASSIGNED);
-    const any: string[] = [];
-    if (ids.length) any.push(`o.so_assignee_id IN (${ids.map((id) => `${lit(id)}::uuid`).join(", ")})`);
-    if (f.assignees.includes(UNASSIGNED)) any.push("o.so_assignee_id IS NULL");
-    clauses.push(`(${any.join(" OR ")})`);
-  }
-  if (f.soState === "filled") clauses.push(SO_DETAILS_FILLED_SQL);
-  if (f.soState === "pending") clauses.push(`NOT ${SO_DETAILS_FILLED_SQL}`);
-  if (f.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
-  if (f.billTypes.length) {
-    const types = f.billTypes.filter((t) => t !== NOT_SET);
-    const any: string[] = [];
-    if (types.length) any.push(`TRIM(COALESCE(o.bill_type, '')) IN (${types.map(lit).join(", ")})`);
-    if (f.billTypes.includes(NOT_SET)) any.push(`NULLIF(TRIM(o.bill_type), '') IS NULL`);
-    clauses.push(`(${any.join(" OR ")})`);
-  }
-  if (f.dateField === "po_date") {
-    if (f.from) clauses.push(`o.customer_po_date >= ${lit(f.from)}::date`);
-    if (f.to) clauses.push(`o.customer_po_date <= ${lit(f.to)}::date`);
-  }
+  // The facets as clauses, for the list and (without its own state filters) for the cards.
+  const buildClauses = (ff: OrderMakingFilter): string[] => {
+    const clauses = [orderOpenSql("o")];
+    // A member sees only their own; an id that is not one sees nothing.
+    if (opts.assigneeScope !== undefined) {
+      clauses.push(
+        opts.assigneeScope && UUID_RE.test(opts.assigneeScope)
+          ? `o.so_assignee_id = ${lit(opts.assigneeScope)}::uuid`
+          : "FALSE"
+      );
+    }
+    if (ff.assignees.length) {
+      const ids = ff.assignees.filter((a) => a !== UNASSIGNED);
+      const any: string[] = [];
+      if (ids.length) any.push(`o.so_assignee_id IN (${ids.map((id) => `${lit(id)}::uuid`).join(", ")})`);
+      if (ff.assignees.includes(UNASSIGNED)) any.push("o.so_assignee_id IS NULL");
+      clauses.push(`(${any.join(" OR ")})`);
+    }
+    if (ff.soState === "filled") clauses.push(SO_DETAILS_FILLED_SQL);
+    if (ff.soState === "pending") clauses.push(`NOT ${SO_DETAILS_FILLED_SQL}`);
+    if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
+    if (ff.billTypes.length) {
+      const types = ff.billTypes.filter((t) => t !== NOT_SET);
+      const any: string[] = [];
+      if (types.length) any.push(`TRIM(COALESCE(o.bill_type, '')) IN (${types.map(lit).join(", ")})`);
+      if (ff.billTypes.includes(NOT_SET)) any.push(`NULLIF(TRIM(o.bill_type), '') IS NULL`);
+      clauses.push(`(${any.join(" OR ")})`);
+    }
+    if (ff.dateField === "po_date") {
+      if (ff.from) clauses.push(`o.customer_po_date >= ${lit(ff.from)}::date`);
+      if (ff.to) clauses.push(`o.customer_po_date <= ${lit(ff.to)}::date`);
+    }
+    return clauses;
+  };
+  const clauses = buildClauses(f);
+  // The cards: the queue before the assignee / SO details / missing filters.
+  const base = buildClauses({ ...f, assignees: [], soState: null, missingOnly: false });
+  const omCards: KpiCardDef[] | undefined = opts.withKpis
+    ? [
+        { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null }, tone: "neutral" },
+        { key: "unassigned", label: "Unassigned", sql: "o.so_assignee_id IS NULL", params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
+        { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
+        { key: "filled", label: "SO details filled", sql: SO_DETAILS_FILLED_SQL, params: { sos: "filled", asg: null, missing: null }, tone: "done" },
+        {
+          key: "missing",
+          label: "Missing details",
+          sql: `(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`,
+          params: { sos: null, asg: null, missing: "1" },
+          tone: "danger",
+        },
+      ]
+    : undefined;
   const dir = f.sort?.startsWith("-") ? "DESC" : "ASC";
   const orderBy =
     f.sort === "so_date" || f.sort === "-so_date"
@@ -3963,7 +4050,8 @@ export async function listOrdersForOrderMaking(opts: {
         : "o.sl_no DESC";
   // A member works down what is still pending.
   const ordered = opts.assigneeScope && !f.sort ? `(${SO_DETAILS_FILLED_SQL}) ASC, o.sl_no DESC` : orderBy;
-  const { ids, total, page } = await pageOfOrderIds({
+  const { ids, total, page, kpis } = await pageOfOrderIds({
+    kpis: omCards ? { restrict: base.join(" AND "), cards: omCards } : undefined,
     page: opts.page,
     search: opts.search,
     restrict: clauses.join(" AND "),
@@ -3973,7 +4061,7 @@ export async function listOrdersForOrderMaking(opts: {
     filter: sharedFacets(f),
     orderBy: ordered,
   });
-  if (ids.length === 0) return pageResult([], total, page);
+  if (ids.length === 0) return { ...pageResult<OrderMakingRow>([], total, page), kpis };
   const cols = ORDER_MAKING_FIELDS.map((f) =>
     f.type === "date" ? `to_char(o.${f.column}, 'YYYY-MM-DD') AS ${f.column}` : `o.${f.column}`
   ).join(", ");
@@ -4005,7 +4093,7 @@ export async function listOrdersForOrderMaking(opts: {
   );
   const at = new Map(ids.map((id, i) => [id, i]));
   r.rows.sort((a, b) => (at.get(a.id) ?? 0) - (at.get(b.id) ?? 0));
-  return pageResult(r.rows, total, page);
+  return { ...pageResult(r.rows, total, page), kpis };
 }
 
 /** The most SOs a printed queue report carries. */
@@ -4064,14 +4152,27 @@ export async function listItemsForSectionPage(
     all?: boolean;
     /** A department's own condition on the SO (alias o), e.g. Drawing's status filters. */
     extraRestrict?: string;
+    /** Summary cards, counted over the queue before its own status filters (kpiRestrict). */
+    kpis?: KpiCardDef[];
+    kpiRestrict?: string;
   }
-): Promise<PageResult<Row>> {
+): Promise<PageResult<Row> & { kpis?: KpiCard[] }> {
   // A department does not see an order it has nothing to do with (QC when
   // the SO says QC is not needed). One rule, in lib/dept-view.
   const dept = deptForTable(table);
   const restrict = `${dept ? deptQueueSql(dept) : "TRUE"} AND (${opts.extraRestrict ?? "TRUE"})`;
+  const items =
+    dept === "assembly"
+      ? `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("s")})`
+      : `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`;
 
-  const { ids, total, page } = await pageOfOrderIds({
+  const { ids, total, page, kpis } = await pageOfOrderIds({
+    kpis: opts.kpis
+      ? {
+          restrict: `${dept ? deptQueueSql(dept) : "TRUE"} AND (${opts.kpiRestrict ?? "TRUE"}) AND ${items}`,
+          cards: opts.kpis,
+        }
+      : undefined,
     page: opts.page,
     search: opts.search,
     focusOrderId: opts.focusOrderId ?? null,
@@ -4093,7 +4194,7 @@ export async function listItemsForSectionPage(
     rows.sort((a, b) => (at.get(String(a.order_id)) ?? 0) - (at.get(String(b.order_id)) ?? 0));
   }
 
-  return pageResult(rows, total, page);
+  return { ...pageResult(rows, total, page), kpis };
 }
 
 /** SO-scope department queue (Accounts), one page of SOs. */
@@ -4106,9 +4207,13 @@ export async function listOrdersForSectionPage(
     focusOrderId?: string | null;
     filter?: OrderListFilter;
     sort?: QueueSort | null;
+    kpis?: KpiCardDef[];
   }
-): Promise<PageResult<Row>> {
-  const { ids, total, page } = await pageOfOrderIds({
+): Promise<PageResult<Row> & { kpis?: KpiCard[] }> {
+  const { ids, total, page, kpis } = await pageOfOrderIds({
+    kpis: opts.kpis
+      ? { restrict: deptForTable(table) ? deptQueueSql(deptForTable(table)!) : "TRUE", cards: opts.kpis }
+      : undefined,
     page: opts.page,
     search: opts.search,
     focusOrderId: opts.focusOrderId ?? null,
@@ -4128,7 +4233,7 @@ export async function listOrdersForSectionPage(
     rows.sort((a, b) => (at.get(String(a.id)) ?? 0) - (at.get(String(b.id)) ?? 0));
   }
 
-  return pageResult(rows, total, page);
+  return { ...pageResult(rows, total, page), kpis };
 }
 
 /** Purchase queue (BOI = Yes), one page of SOs' worth of ECs. */
@@ -4138,8 +4243,12 @@ export async function listItemsForPurchasePage(opts: {
   focusOrderId?: string | null;
   filter?: OrderListFilter;
   sort?: QueueSort | null;
-}): Promise<PageResult<PurchaseQueueRow>> {
-  const { ids, total, page } = await pageOfOrderIds({
+  kpis?: KpiCardDef[];
+}): Promise<PageResult<PurchaseQueueRow> & { kpis?: KpiCard[] }> {
+  const { ids, total, page, kpis } = await pageOfOrderIds({
+    kpis: opts.kpis
+      ? { restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`, cards: opts.kpis }
+      : undefined,
     page: opts.page,
     search: opts.search,
     focusOrderId: opts.focusOrderId ?? null,
@@ -4155,7 +4264,7 @@ export async function listItemsForPurchasePage(opts: {
     rows.sort((a, b) => (at.get(String(a.order_id)) ?? 0) - (at.get(String(b.order_id)) ?? 0));
   }
 
-  return pageResult(rows, total, page);
+  return { ...pageResult(rows, total, page), kpis };
 }
 
 /** Billing and Dispatch queue: one page of SOs, filtered in SQL. */
@@ -4169,8 +4278,15 @@ export async function listOrdersForBillingPage(opts: {
   sort?: QueueSort | null;
   /** Every matching SO rather than one page — for a printed report. */
   all?: boolean;
-}): Promise<PageResult<BillingQueueRow>> {
-  const { ids, total, page } = await pageOfOrderIds({
+  kpis?: KpiCardDef[];
+}): Promise<PageResult<BillingQueueRow> & { kpis?: KpiCard[] }> {
+  const restrict = opts.onlyPacked
+    ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
+                                         WHERE ps.order_id = o.id AND ps.kind = 'actual'
+                                           AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL)`
+    : deptQueueSql("billing");
+  const { ids, total, page, kpis } = await pageOfOrderIds({
+    kpis: opts.kpis ? { restrict, cards: opts.kpis } : undefined,
     page: opts.page,
     search: opts.search,
     focusOrderId: opts.focusOrderId ?? null,
@@ -4194,7 +4310,7 @@ export async function listOrdersForBillingPage(opts: {
     rows.sort((a, b) => (at.get(String(a.id)) ?? 0) - (at.get(String(b.id)) ?? 0));
   }
 
-  return pageResult(rows, total, page);
+  return { ...pageResult(rows, total, page), kpis };
 }
 
 // ---------------------------------------------------------------------------

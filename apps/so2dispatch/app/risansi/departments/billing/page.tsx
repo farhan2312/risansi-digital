@@ -17,6 +17,8 @@ import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { unreadByOrder } from "@/lib/order-messages";
 import { BillingWorkspace } from "@/components/risansi/billing-workspace";
+import { deptKpiCards } from "@/lib/orders";
+import { DEPT_VIEWS } from "@/lib/dept-view";
 
 export const metadata: Metadata = {
   title: "Proforma Invoice | Risansi",
@@ -46,6 +48,7 @@ export default async function BillingWorkspacePage({
   const focusOrderId = await resolveFocusOrderId(thread ?? edit);
   const [queue, filterOptions] = await Promise.all([
     listOrdersForBillingPage({
+      kpis: deptKpiCards("billing", [], DEPT_VIEWS.billing.hasTarget),
       page: parsePage(page),
       search: parseQuery(q),
       focusOrderId,
@@ -91,6 +94,7 @@ export default async function BillingWorkspacePage({
         role={user.role}
         unreadThreads={unreadThreads}
         queue={queue}
+        kpis={queue.kpis}
         filterOptions={filterOptions}
         canEdit={canEditChild(user.role, "order_billing_docs")}
         openOrderId={edit}

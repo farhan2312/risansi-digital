@@ -17,6 +17,7 @@ import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { unreadByOrder } from "@/lib/order-messages";
 import { BillingWorkspace } from "@/components/risansi/billing-workspace";
+import { deptKpiCards } from "@/lib/orders";
 
 export const metadata: Metadata = {
   title: "Dispatch | Risansi",
@@ -48,6 +49,7 @@ export default async function DispatchWorkspacePage({
   // which are this department's work.
   const [queue, filterOptions] = await Promise.all([
     listOrdersForBillingPage({
+      kpis: deptKpiCards("dispatch", [], false),
       page: parsePage(page),
       search: parseQuery(q),
       focusOrderId,
@@ -115,6 +117,7 @@ export default async function DispatchWorkspacePage({
         role={user.role}
         unreadThreads={unreadThreads}
         queue={queue}
+        kpis={queue.kpis}
         filterOptions={filterOptions}
         canEdit={canEditChild(user.role, "order_invoices")}
         openOrderId={edit}

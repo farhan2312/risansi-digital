@@ -42,6 +42,7 @@ export default async function OrderMakingPage({
   const [queue, options, members, summary] = await Promise.all([
     listOrdersForOrderMaking({
       page: parsePage(params.page),
+      withKpis: true,
       search: parseQuery(params.q),
       filter: soMember ? { ...filter, assignees: [] } : filter,
       assigneeScope: soMember ? user.id : undefined,
@@ -72,6 +73,7 @@ export default async function OrderMakingPage({
 
       <OrderMakingWorkspace
         queue={queue}
+        kpis={queue.kpis}
         filter={filter}
         options={options}
         canEdit={canCreate || soMember}

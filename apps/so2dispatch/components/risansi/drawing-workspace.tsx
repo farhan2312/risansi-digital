@@ -1,5 +1,7 @@
 "use client";
 
+import { KpiStrip } from "./kpi-strip";
+import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarCheck, CheckCircle2, FileText, Loader2, MessageSquare, PenTool, Plus, Send, Trash2, X } from "lucide-react";
@@ -65,7 +67,10 @@ export function DrawingWorkspace({
   unreadThreads = {},
   completions = [],
   filterOptions,
+  kpis = [],
 }: {
+  /** The summary cards under the filter bar. */
+  kpis?: KpiCard[];
   queue: PageResult<Row>;
   canEdit: boolean;
   openItemId?: string;
@@ -160,6 +165,8 @@ export function DrawingWorkspace({
           <UrlSearchInput placeholder="Search SO, EC…" />
         )}
       </div>
+
+      <KpiStrip cards={kpis} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}

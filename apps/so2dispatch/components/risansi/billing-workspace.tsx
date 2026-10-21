@@ -1,5 +1,7 @@
 "use client";
 
+import { KpiStrip } from "./kpi-strip";
+import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import type { BillingQueueRow } from "@/lib/orders";
@@ -54,7 +56,10 @@ export function BillingWorkspace({
   role,
   unreadThreads = {},
   filterOptions,
+  kpis = [],
 }: {
+  /** The summary cards under the filter bar. */
+  kpis?: KpiCard[];
   // One server-fetched page; search and paging ran in SQL.
   queue: PageResult<BillingQueueRow>;
   /**
@@ -126,6 +131,8 @@ export function BillingWorkspace({
           <UrlSearchInput placeholder="Search SO, client…" />
         )}
       </div>
+
+      <KpiStrip cards={kpis} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}

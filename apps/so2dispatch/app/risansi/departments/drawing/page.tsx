@@ -28,6 +28,9 @@ import {
 import { unreadByOrder } from "@/lib/order-messages";
 import { DrawingWorkspace } from "@/components/risansi/drawing-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
+import { deptKpiCards } from "@/lib/orders";
+import { toneFor, type KpiCardDef } from "@/lib/kpis";
+import { GAD_STATUSES, SO_STATES } from "@/lib/drawing-filter";
 
 export const metadata: Metadata = {
   title: "Drawing | Risansi",
@@ -60,6 +63,31 @@ export default async function DrawingWorkspacePage({
   // Drawing's own filters: the SO Open / Closed, and each EC's GAD,
   // Performance Curve and Part Drawing status.
   const drawingFilter = parseDrawingFilter((key) => params[key]);
+  // Drawing's cards: its SOs open and closed, where their GADs stand, and
+  // what is overdue against the Drawing target.
+  const drawingKpiCards = (): KpiCardDef[] => {
+    const clear = { drg_so: null, drg_gad: null, drg_pc: null, drg_part: null, overdue: null } as Record<string, string | null>;
+    const none = { so: [] as string[], gad: [] as string[], curve: [] as string[], part: [] as string[] };
+    const overdue = deptKpiCards("drawing").find((c) => c.key === "overdue");
+    return [
+      { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
+      ...SO_STATES.map((st) => ({
+        key: `so:${st}`,
+        label: `SO ${st}`,
+        sql: drawingFilterSql({ ...none, so: [st] }),
+        params: { ...clear, drg_so: st },
+        tone: st === "Closed" ? ("done" as const) : ("pending" as const),
+      })),
+      ...GAD_STATUSES.map((st) => ({
+        key: `gad:${st}`,
+        label: `GAD ${st}`,
+        sql: drawingFilterSql({ ...none, gad: [st] }),
+        params: { ...clear, drg_gad: st },
+        tone: toneFor(st),
+      })),
+      ...(overdue ? [{ ...overdue, params: { ...clear, overdue: "1" } }] : []),
+    ];
+  };
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,
@@ -72,6 +100,7 @@ export default async function DrawingWorkspacePage({
       }))
     ,
       {
+        kpis: drawingKpiCards(),
         page: parsePage(page),
         search: parseQuery(q),
         focusOrderId,
@@ -144,6 +173,7 @@ export default async function DrawingWorkspacePage({
         role={user.role}
         unreadThreads={unreadThreads}
         queue={queue}
+        kpis={queue.kpis}
         filterOptions={filterOptions}
       />
     </div>

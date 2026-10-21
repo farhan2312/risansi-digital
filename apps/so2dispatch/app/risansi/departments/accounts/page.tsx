@@ -20,6 +20,8 @@ import {
 } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
+import { deptKpiCards } from "@/lib/orders";
+import { DEPT_VIEWS } from "@/lib/dept-view";
 
 export const metadata: Metadata = {
   title: "Accounts | Risansi",
@@ -53,7 +55,7 @@ export default async function AccountsWorkspacePage({
     listOrdersForSectionPage(
       TABLE,
       PAYMENT_TERMS_CONTEXT_FIELDS.map((f) => ({ column: f.column, type: f.type })),
-      { page: parsePage(page), search: parseQuery(q), focusOrderId, filter, sort: parseQueueSort(params.sort) }
+      { page: parsePage(page), search: parseQuery(q), focusOrderId, filter, sort: parseQueueSort(params.sort), kpis: deptKpiCards("accounts", [], DEPT_VIEWS.accounts.hasTarget) }
     ),
     listOrderListOptions(filter),
   ]);
@@ -99,6 +101,7 @@ export default async function AccountsWorkspacePage({
         table={TABLE}
         fields={section.fields}
         queue={queue}
+        kpis={queue.kpis}
         filterOptions={filterOptions}
         readonlyFields={PAYMENT_TERMS_CONTEXT_FIELDS}
         openOrderId={edit}

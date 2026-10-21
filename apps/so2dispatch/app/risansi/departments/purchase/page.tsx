@@ -22,6 +22,8 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { PurchaseWorkspace } from "@/components/risansi/purchase-workspace";
 import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
+import { deptKpiCards } from "@/lib/orders";
+import { DEPT_VIEWS } from "@/lib/dept-view";
 
 export const metadata: Metadata = {
   title: "Purchase | Risansi",
@@ -52,6 +54,7 @@ export default async function PurchaseWorkspacePage({
   const focusOrderId = await resolveFocusOrderId(params.focus ?? thread ?? edit);
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForPurchasePage({
+      kpis: deptKpiCards("purchase", [], DEPT_VIEWS.purchase.hasTarget),
       page: parsePage(page),
       search: parseQuery(q),
       focusOrderId,
@@ -100,6 +103,7 @@ export default async function PurchaseWorkspacePage({
         role={user.role}
         unreadThreads={unreadThreads}
         queue={queue}
+        kpis={queue.kpis}
         filterOptions={filterOptions}
         canEdit={canEditChild(user.role, "order_boi_items")}
         openItemId={edit}

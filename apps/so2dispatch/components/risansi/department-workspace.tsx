@@ -1,5 +1,7 @@
 "use client";
 
+import { KpiStrip } from "./kpi-strip";
+import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
 import { AssemblyPumpTable } from "./assembly-pump-table";
@@ -194,7 +196,10 @@ export function DepartmentWorkspace({
   drawingDocCounts,
   filterOptions,
   ecKind,
+  kpis = [],
 }: {
+  /** The summary cards under the filter bar. */
+  kpis?: KpiCard[];
   table: OrderTable;
   fields: OrderField[];
   // One server-fetched page of the queue: search and paging ran in SQL, and
@@ -695,6 +700,8 @@ export function DepartmentWorkspace({
           <UrlSearchInput placeholder={searchPlaceholder} />
         )}
       </div>
+
+      <KpiStrip cards={kpis} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}

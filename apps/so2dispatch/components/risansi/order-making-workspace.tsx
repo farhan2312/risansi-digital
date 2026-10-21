@@ -1,5 +1,7 @@
 "use client";
 
+import { KpiStrip } from "./kpi-strip";
+import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
@@ -66,7 +68,10 @@ export function OrderMakingWorkspace({
   period = "daily",
   role,
   unreadThreads,
+  kpis = [],
 }: {
+  /** The summary cards under the filter bar. */
+  kpis?: KpiCard[];
   queue: PageResult<OrderMakingRow>;
   filter: OrderMakingFilter;
   /** Zones, reps and markets as the orders carry them. */
@@ -373,6 +378,8 @@ export function OrderMakingWorkspace({
         )}
       </div>
       </div>
+
+      <KpiStrip cards={kpis} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}

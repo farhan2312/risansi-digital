@@ -24,6 +24,7 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
+import { deptKpiCards } from "@/lib/orders";
 
 export const metadata: Metadata = {
   title: "Planning | Risansi",
@@ -74,6 +75,7 @@ export default async function PlanningWorkspacePage({
       }))
     ,
       {
+        kpis: deptKpiCards("planning", ecKind === "pump" ? ["Pump"] : ["Spare"]),
         page: parsePage(page),
         search: parseQuery(q),
         focusOrderId,
@@ -155,6 +157,7 @@ export default async function PlanningWorkspacePage({
         table={TABLE}
         fields={section.fields}
         queue={queue}
+        kpis={queue.kpis}
         filterOptions={filterOptions}
         readonlyFields={PLANNING_CONTEXT_FIELDS}
         canEditCentral={isCentral(user.role)}

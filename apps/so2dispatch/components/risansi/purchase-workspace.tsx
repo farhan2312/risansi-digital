@@ -1,5 +1,7 @@
 "use client";
 
+import { KpiStrip } from "./kpi-strip";
+import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState } from "react";
 import { History, MessageSquare, PackageSearch, X } from "lucide-react";
 import type { PurchaseQueueRow } from "@/lib/orders";
@@ -42,7 +44,10 @@ export function PurchaseWorkspace({
   unreadThreads = {},
   completions = [],
   filterOptions,
+  kpis = [],
 }: {
+  /** The summary cards under the filter bar. */
+  kpis?: KpiCard[];
   // One server-fetched page of SOs, with every EC of those SOs.
   queue: PageResult<PurchaseQueueRow>;
   canEdit: boolean;
@@ -150,6 +155,8 @@ export function PurchaseWorkspace({
           ]}
         />
       </div>
+
+      <KpiStrip cards={kpis} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}

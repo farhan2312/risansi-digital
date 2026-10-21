@@ -30,6 +30,8 @@ import {
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
+import { deptKpiCards } from "@/lib/orders";
+import { toneFor, type KpiCardDef } from "@/lib/kpis";
 
 export const metadata: Metadata = {
   title: "Assembly & Packing | Risansi",
@@ -71,12 +73,38 @@ export default async function AssemblyDispatchWorkspacePage({
   const assemblyStatuses = pick(ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES);
   const packingStatuses = pick(PACKING_STATUS_KEY, SO_PACKING_STATUSES);
   const inList = (vals: string[]) => vals.map((s) => `'${s}'`).join(", ");
+  // The Pump view's SOs: those Planning has Partial or Fully ready.
+  const pumpReady =
+    ecKind === "pump"
+      ? `EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
+                 WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')
+                   AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`
+      : undefined;
+  // The Pump view's cards: the SOs' assembly, then their packing.
+  const assemblyPumpCards = (): KpiCardDef[] => {
+    const clear = { asm: null, pkg: null, dstatus: null, overdue: null } as Record<string, string | null>;
+    return [
+      { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
+      ...SO_ASSEMBLY_STATUSES.map((st) => ({
+        key: `a:${st}`,
+        label: st,
+        sql: `${soStageStatusSql("assembly", "o")} = '${st}'`,
+        params: { ...clear, asm: st },
+        tone: toneFor(st),
+      })),
+      ...SO_PACKING_STATUSES.map((st) => ({
+        key: `p:${st}`,
+        label: st,
+        sql: `${soStageStatusSql("packing", "o")} = '${st}'`,
+        params: { ...clear, pkg: st },
+        tone: toneFor(st),
+      })),
+    ];
+  };
   const pumpRestrict =
     ecKind === "pump"
       ? [
-          `EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
-                   WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')
-                     AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`,
+          pumpReady,
           assemblyStatuses.length ? `${soStageStatusSql("assembly", "o")} IN (${inList(assemblyStatuses)})` : "TRUE",
           packingStatuses.length ? `${soStageStatusSql("packing", "o")} IN (${inList(packingStatuses)})` : "TRUE",
         ].join(" AND ")
@@ -99,6 +127,8 @@ export default async function AssemblyDispatchWorkspacePage({
       }))
     ,
       {
+        kpis: ecKind === "pump" ? assemblyPumpCards() : deptKpiCards("assembly", ["Spare"]),
+        kpiRestrict: pumpReady,
         page: parsePage(page),
         search: parseQuery(q),
         focusOrderId,
@@ -176,6 +206,7 @@ export default async function AssemblyDispatchWorkspacePage({
         table={TABLE}
         fields={section.fields}
         queue={queue}
+        kpis={queue.kpis}
         filterOptions={filterOptions}
         readonlyFields={ASSEMBLY_CONTEXT_FIELDS}
         canEditCentral={isCentral(user.role)}

@@ -26,6 +26,8 @@ import { QC_CONTEXT_FIELDS, SECTION_BY_TABLE } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
+import { deptKpiCards } from "@/lib/orders";
+import { DEPT_VIEWS } from "@/lib/dept-view";
 
 export const metadata: Metadata = {
   title: "Quality | Risansi",
@@ -71,7 +73,7 @@ export default async function QcWorkspacePage({
         from: f.from ?? ("orders" as const),
       }))
     ,
-      { page: parsePage(page), search: parseQuery(q), focusOrderId, filter, sort: parseQueueSort(params.sort) }
+      { page: parsePage(page), search: parseQuery(q), focusOrderId, filter, sort: parseQueueSort(params.sort), kpis: deptKpiCards("quality", [], DEPT_VIEWS.quality.hasTarget) }
     ),
     listQcDocumentCounts("order_qc_documents"),
     listQcDocumentCounts("order_qc_requirement_documents"),
@@ -121,6 +123,7 @@ export default async function QcWorkspacePage({
         table={TABLE}
         fields={section.fields}
         queue={queue}
+        kpis={queue.kpis}
         filterOptions={filterOptions}
         readonlyFields={QC_CONTEXT_FIELDS}
         canEdit={canEdit}
