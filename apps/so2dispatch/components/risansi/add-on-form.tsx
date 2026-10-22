@@ -114,6 +114,12 @@ export function AddOnForm({
       setError(rows.error);
       return;
     }
+    // BOI Yes needs its bought-out items: at least one, unless the EC already lists some.
+    if (listsBoi && rows.rows.length === 0 && (existingBoi?.length ?? 0) === 0) {
+      setError("BOI is Yes: add the bought-out items.");
+      if (boi.length === 0) setBoi([blankBoiRow()]);
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -313,7 +319,7 @@ export function AddOnForm({
                               htmlFor={`boi-item-${i}`}
                               className="mb-1.5 block text-[12px] font-medium text-brand-label"
                             >
-                              Item
+                              Item <span className="text-danger">*</span>
                             </label>
                             <select
                               id={`boi-item-${i}`}
@@ -334,7 +340,7 @@ export function AddOnForm({
                               htmlFor={`boi-make-${i}`}
                               className="mb-1.5 block text-[12px] font-medium text-brand-label"
                             >
-                              BOI Make
+                              BOI Make <span className="text-danger">*</span>
                             </label>
                             <input
                               id={`boi-make-${i}`}
@@ -349,7 +355,7 @@ export function AddOnForm({
                               htmlFor={`boi-qty-${i}`}
                               className="mb-1.5 block text-[12px] font-medium text-brand-label"
                             >
-                              Qty
+                              Qty <span className="text-danger">*</span>
                             </label>
                             <input
                               id={`boi-qty-${i}`}
@@ -366,7 +372,7 @@ export function AddOnForm({
                               htmlFor={`boi-desc-${i}`}
                               className="mb-1.5 block text-[12px] font-medium text-brand-label"
                             >
-                              Description
+                              Description <span className="text-danger">*</span>
                             </label>
                             <textarea
                               id={`boi-desc-${i}`}

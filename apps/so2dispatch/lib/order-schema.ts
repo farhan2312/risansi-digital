@@ -1181,9 +1181,8 @@ export function addOnFieldsFor(orderType?: string | null): OrderField[] {
   return orderType === "Spare" ? ADD_ON_SPARE_FIELDS : ADD_ON_PUMP_FIELDS;
 }
 
-/** Add-On fields that may be left blank; every other one is mandatory. */
-// The name plate may not be to hand when the EC is made: it can follow.
-export const ADD_ON_OPTIONAL = new Set<string>(["version", ...NAME_PLATE_FIELDS.map((f) => f.column)]);
+/** Add-On fields that may be left blank; every other one is mandatory — the name plate included. */
+export const ADD_ON_OPTIONAL = new Set<string>(["version"]);
 
 /** A Spare EC needs only its EC No. and EC Date; the rest may be filled later. */
 const SPARE_ADD_ON_REQUIRED = new Set<string>(["ec_no", "ec_date"]);

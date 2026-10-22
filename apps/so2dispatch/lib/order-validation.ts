@@ -68,6 +68,11 @@ export function cleanBoiRows(
     if (item === "Others" && !other) {
       return { ok: false, error: "Name the item for a bought-out row set to Others." };
     }
+    // Every part of a bought-out row is mandatory: make, qty and description.
+    const name = item === "Others" ? other : item;
+    if (!make) return { ok: false, error: `Enter the make of ${name}.` };
+    if (qty === null || qty <= 0) return { ok: false, error: `Enter the qty of ${name}.` };
+    if (!description) return { ok: false, error: `Enter the description of ${name}.` };
     rows.push({
       boi_item: item,
       boi_item_other: item === "Others" ? other : "",

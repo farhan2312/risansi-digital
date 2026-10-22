@@ -383,13 +383,15 @@ export async function createItemAction(
   );
   if (missing) return { ok: false, error: `${missing.label} is required.` };
 
-  // The bought-out items are optional, so an empty list is fine — but a row
-  // that names nothing, or an item outside the list, is not.
+  // Each bought-out row filled in full (item, make, qty, description).
   const boiRows = cleanBoiRows(boi);
   if (!boiRows.ok) return { ok: false, error: boiRows.error };
   // The list belongs to a pump whose own BOI is Yes: the form offers it only
-  // then, and this is the same rule on the endpoint.
+  // then, and this is the same rule on the endpoint. BOI Yes needs an item.
   const ecBoi = String(itemInput.boi ?? "").trim();
+  if (ecBoi === "Yes" && boiRows.rows.length === 0 && itemInput.item_type !== "Spare") {
+    return { ok: false, error: "BOI is Yes: add the bought-out items." };
+  }
   if (boiRows.rows.length > 0 && ecBoi !== "Yes") {
     return {
       ok: false,
