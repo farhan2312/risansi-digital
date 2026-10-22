@@ -1,9 +1,11 @@
 "use client";
 
-import { Fragment, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import {
+  addEcBoiItemsAction,
+  boiItemsAction,
   createItemAction,
   createSpareItemAction,
   updateOrderSectionAction,
@@ -56,7 +58,7 @@ export function AddOnForm({
   // The SO's BOI field. The bought-out list is offered only when it is Yes —
   // on any other SO there is nothing bought out to list.
   boiFlag?: string | null;
-  /** An existing EC to edit: its Add-On fields only (no BOI list, no file). */
+  /** An existing EC to edit: its Add-On fields, and more bought-out items when its BOI is Yes (no file). */
   item?: Record<string, unknown> | null;
   onClose: () => void;
 }) {
@@ -75,8 +77,19 @@ export function AddOnForm({
         : { boi: (boiFlag ?? "") === "Yes" ? "Yes" : "No" }
   );
   const [boi, setBoi] = useState<BoiRow[]>([]);
-  // A pump's BOI Yes opens its bought-out item list (when adding the EC).
-  const listsBoi = !editing && !isSpare && values.boi === "Yes";
+  // A pump's BOI Yes opens its bought-out item list — adding the EC, or
+  // editing one (new rows join the ones it already has).
+  const listsBoi = !isSpare && values.boi === "Yes";
+  const itemId = item ? String(item.id) : null;
+  const [existingBoi, setExistingBoi] = useState<Record<string, unknown>[] | null>(null);
+  useEffect(() => {
+    if (!itemId || isSpare) return;
+    let live = true;
+    boiItemsAction(itemId).then((res) => live && res.ok && setExistingBoi(res.rows));
+    return () => {
+      live = false;
+    };
+  }, [itemId, isSpare]);
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +128,12 @@ export function AddOnForm({
       );
       ok = res.ok;
       err = res.ok ? undefined : res.error;
+      // Then the new bought-out items, once the EC says BOI Yes.
+      if (ok && rows.rows.length > 0) {
+        const added = await addEcBoiItemsAction(String(item.id), rows.rows);
+        ok = added.ok;
+        err = added.ok ? undefined : added.error;
+      }
     } else if (isSpare) {
       const fd = new FormData();
       for (const f of ADD_ON_SPARE_FIELDS) fd.append(f.column, values[f.column] ?? "");
@@ -259,6 +278,23 @@ export function AddOnForm({
                 Add item
               </button>
             </div>
+
+            {/* Editing: what the EC already lists, kept as it is. */}
+            {existingBoi && existingBoi.length > 0 && (
+              <ul className="mt-3 divide-y divide-card-border rounded-lg border border-card-border bg-surface text-xs">
+                {existingBoi.map((r) => {
+                  const name = String(r.boi_item ?? "") === "Others" ? String(r.boi_item_other ?? "") || "Others" : String(r.boi_item ?? "");
+                  return (
+                    <li key={String(r.id)} className="flex flex-wrap items-baseline gap-x-2 px-3 py-1.5">
+                      <span className="font-semibold text-foreground">{name || "—"}</span>
+                      {r.boi_make ? <span className="text-muted">{String(r.boi_make)}</span> : null}
+                      {r.boi_description ? <span className="text-muted">· {String(r.boi_description)}</span> : null}
+                      <span className="ml-auto text-[11px] text-muted">listed</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
 
             {boi.length > 0 && (
               <div className="mt-3 space-y-3">
