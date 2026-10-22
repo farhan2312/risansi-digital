@@ -7,14 +7,25 @@
  * chrome and modal styling. An iframe on the same origin is never blocked and
  * gives us a clean document we fully control.
  *
- * The document deliberately does NOT set `@page { size: … }` — the user picks
- * page size, orientation, page range and "Save as PDF" in the dialog.
+ * The document itself sets no `@page { size: … }`. A page size picked beside
+ * the Print button (A4 / A3, portrait or landscape) is added here; "" leaves
+ * it to the dialog. The sheet then fills the page width.
  */
+
+export type PrintPageSize = "" | "A4" | "A4 landscape" | "A3" | "A3 landscape";
+
+/** The document with the chosen page size (unchanged for ""). */
+function withPageSize(html: string, size: PrintPageSize): string {
+  if (!size) return html;
+  const css = `<style>@page { size: ${size}; } @media print { .sheet { max-width: none; } }</style>`;
+  return html.includes("</head>") ? html.replace("</head>", `${css}</head>`) : css + html;
+}
 
 /** Renders `html` into an off-screen iframe and opens the print dialog.
  *  Resolves once the dialog has been dismissed (or immediately on browsers
  *  that don't block on print). */
-export function printHtml(html: string): Promise<void> {
+export function printHtml(html: string, pageSize: PrintPageSize = ""): Promise<void> {
+  html = withPageSize(html, pageSize);
   return new Promise((resolve) => {
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");

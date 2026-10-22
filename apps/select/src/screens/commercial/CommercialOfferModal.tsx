@@ -17,6 +17,7 @@ import {
 } from "../../lib/commercial-offer";
 import { downloadOfferExcel } from "../../lib/commercial-offer-excel";
 import { printHtml } from "../../lib/enquiry-print";
+import PrintPageSizeSelect, { usePrintPageSize } from "../../components/reports/PrintPageSize";
 import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
 
 // The Commercial Offer sheet of one drive group (lib/commercial-offer.ts).
@@ -60,6 +61,7 @@ export default function CommercialOfferModal({
   const [showPicker, setShowPicker] = useState(false);
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const [printing, setPrinting] = useState(false);
+  const [pageSize, setPageSize] = usePrintPageSize();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -149,7 +151,7 @@ export default function CommercialOfferModal({
     if (!html) return;
     setPrinting(true);
     try {
-      await printHtml(html);
+      await printHtml(html, pageSize);
     } finally {
       setPrinting(false);
     }
@@ -287,6 +289,7 @@ export default function CommercialOfferModal({
         </div>
 
         <footer className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">
+          <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
           <button type="button" className={btnPrimary} onClick={handlePrint} disabled={!sheet || printing || tags.length === 0}>
             {printing ? "Preparing…" : "Print / Save as PDF"}
           </button>

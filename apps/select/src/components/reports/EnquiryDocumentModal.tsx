@@ -20,6 +20,7 @@ import {
 import TechDocEditor, { DocHeaderEditor } from "./TechDocEditor";
 import { downloadTechDocExcel } from "../../lib/tech-doc-excel";
 import { printHtml } from "../../lib/enquiry-print";
+import PrintPageSizeSelect, { usePrintPageSize } from "./PrintPageSize";
 import {
   getEnquiryDocument,
   listTechDocVersions,
@@ -58,6 +59,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
   const [showPicker, setShowPicker] = useState(false);
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const [printing, setPrinting] = useState(false);
+  const [pageSize, setPageSize] = usePrintPageSize();
   // Client versions (sent sheets) of every group; one may be open read-only.
   const [versions, setVersions] = useState<TechDocVersion[] | null>(null);
   const [viewing, setViewing] = useState<TechDocVersion | null>(null);
@@ -164,7 +166,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
     if (!html) return;
     setPrinting(true);
     try {
-      await printHtml(html);
+      await printHtml(html, pageSize);
     } finally {
       setPrinting(false);
     }
@@ -414,6 +416,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
         <footer className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">
           {/* Native print dialog - the user picks paper size, orientation,
               page range and "Save as PDF". */}
+          <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
           <button type="button" className={framePrimary} onClick={handlePrint} disabled={printing || !hasTags}>
             {printing ? "Preparing…" : "Print / Save as PDF"}
           </button>
