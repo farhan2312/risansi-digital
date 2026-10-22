@@ -896,7 +896,10 @@ export default function CommercialSummaryPage() {
           tags={offerTags}
           fx={fx}
           unsavedPrices={groupDirty}
-          onClose={() => setShowTechno(false)}
+          onClose={() => {
+            setShowTechno(false);
+            loadOfferConfigs();
+          }}
         />
       )}
       {showPriceRef && data && (
