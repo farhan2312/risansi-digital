@@ -4087,6 +4087,8 @@ export async function listOrdersForOrderMaking(opts: {
   assigneeScope?: string | null;
   /** Count the summary cards too. */
   withKpis?: boolean;
+  /** Every matching SO rather than one page — for the Excel report. */
+  all?: boolean;
 }): Promise<PageResult<OrderMakingRow> & { kpis?: KpiCard[] }> {
   const f = opts.filter;
   // The PO's fields; the Sales Order details are counted on their own.
@@ -4192,6 +4194,7 @@ export async function listOrdersForOrderMaking(opts: {
         OR o.po_no ILIKE ${term} OR o.sl_no::text ILIKE ${term})`,
     filter: sharedFacets(f),
     orderBy: ordered,
+    all: opts.all,
   });
   if (ids.length === 0) return { ...pageResult<OrderMakingRow>([], total, page), kpis };
   const cols = ORDER_MAKING_FIELDS.map((f) =>

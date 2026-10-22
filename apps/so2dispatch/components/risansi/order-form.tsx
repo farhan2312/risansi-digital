@@ -104,7 +104,7 @@ const SECTIONS: Section[] = [
       { name: "discount_percent", label: "Discount %", type: "number", min: 0 },
       { name: "packing_forwarding_percent", label: "Packing & Forwarding %", type: "number", min: 0 },
       { name: "gst_percent", label: "GST %", type: "number", min: 0 },
-      { name: "taxable_value", label: "Taxable Value", type: "number", min: 0 },
+      { name: "taxable_value", label: "Gross Order Value", type: "number", min: 0 },
     ],
   },
   {

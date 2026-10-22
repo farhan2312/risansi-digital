@@ -3,8 +3,8 @@
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { canManageEcs } from "@/lib/roles";
@@ -142,6 +142,9 @@ export function OrderMakingWorkspace({
       return from === filter.from && to === filter.to;
     }) ?? null;
   const { setParams, pending } = useUrlTable();
+  // The Excel report: the list as filtered and searched, every page.
+  const urlParams = useSearchParams();
+  const excelQuery = new URLSearchParams([...urlParams.entries()].filter(([k]) => !["page", "period"].includes(k))).toString();
   // The Daily / All time toggle switches the moment it is clicked; the cards
   // follow when the counts arrive (dimmed meanwhile).
   const [requestedPeriod, setShownPeriod] = useState<"daily" | "all" | null>(null);
@@ -407,6 +410,13 @@ export function OrderMakingWorkspace({
         <span className="ml-auto text-xs text-muted">
           <span className="font-semibold text-foreground">{queue.total}</span> SO{queue.total === 1 ? "" : "s"}
         </span>
+        <a
+          href={`/risansi/departments/order-making/export${excelQuery ? `?${excelQuery}` : ""}`}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background"
+        >
+          <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+          Excel
+        </a>
         {canCreate && (
           <button
             type="button"

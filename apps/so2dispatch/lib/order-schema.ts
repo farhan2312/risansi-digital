@@ -411,7 +411,7 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "discount_percent", label: "Discount %", type: "number", min: 0, group: "Purchase Order" },
       { column: "packing_forwarding_percent", label: "Packing & Forwarding %", type: "number", min: 0, group: "Purchase Order" },
       { column: "gst_percent", label: "GST %", type: "number", min: 0, group: "Purchase Order" },
-      { column: "taxable_value", label: "Taxable Value", type: "number", min: 0, group: "Purchase Order" },
+      { column: "taxable_value", label: "Gross Order Value", type: "number", min: 0, group: "Purchase Order" },
 
       // Handover: when the SO went to Operations (Order Making SO fills it).
       // When it went to PPC is the SO Hand Over Date, below — Central's.
