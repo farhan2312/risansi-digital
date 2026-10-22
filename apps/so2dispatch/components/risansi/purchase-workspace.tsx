@@ -521,12 +521,11 @@ function ExpectedHistory({ item }: { item: Row }) {
 
 /**
  * An EC is Closed once every bought-out item it lists is in hand (RIL stock
- * plus what the vendor delivered); Open while any is not; N/A with none.
+ * plus what the vendor delivered); Open until then (none listed yet is Open too).
  */
 function ecState(row: PurchaseQueueRow): "open" | "closed" | "na" {
   const items = (row.boi_items ?? []) as Row[];
-  if (items.length === 0) return "na";
-  return items.every(boiInHand) ? "closed" : "open";
+  return items.length > 0 && items.every(boiInHand) ? "closed" : "open";
 }
 
 /** A state the server worked out ("Open" / "Closed" / "N/A"), as the chip reads it. */
@@ -535,8 +534,7 @@ function stateOf(v: unknown): "open" | "closed" | "na" | null {
 }
 
 function soStateOf(ecs: PurchaseQueueRow[]): "open" | "closed" | "na" {
-  const states = ecs.map(ecState);
-  return states.every((s) => s === "na") ? "na" : states.some((s) => s === "open") ? "open" : "closed";
+  return ecs.length > 0 && ecs.every((r) => ecState(r) === "closed") ? "closed" : "open";
 }
 
 function StateChip({ state }: { state: "open" | "closed" | "na" }) {

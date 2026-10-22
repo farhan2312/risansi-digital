@@ -1,11 +1,11 @@
-// Purchase's queue filters: the SO's and each EC's Open / Closed / N/A, each
+// Purchase's queue filters: the SO's and each EC's Open / Closed, each
 // bought-out item's status and its vendor — the same words in the browser
 // (boiStatus, the SO view's chips) and in SQL here, so a filter matches what
 // the table shows.
 
 import { boiInHand, boiReceivedSql, boiStatus, spareEcSql } from "@/lib/dept-view";
 
-export const PURCHASE_STATES = ["Open", "Closed", "N/A"];
+export const PURCHASE_STATES = ["Open", "Closed"];
 export const BOI_STATUSES = [
   "Pending",
   "Partially in RIL stock",
@@ -43,18 +43,18 @@ export function purchaseFilterActive(f: PurchaseFilter): boolean {
 type Row = Record<string, unknown>;
 const itemsOf = (r: Row) => (Array.isArray(r.boi_items) ? (r.boi_items as Row[]) : []);
 
-/** An EC is Closed once every item it lists is in hand; Open while any is not; N/A with none. */
+/**
+ * An EC is Closed once it lists its bought-out items and every one is in
+ * hand; Open until then — with none listed yet, there is still work to do.
+ */
 export function ecPurchaseState(r: Row): string {
   const items = itemsOf(r);
-  if (items.length === 0) return "N/A";
-  return items.every(boiInHand) ? "Closed" : "Open";
+  return items.length > 0 && items.every(boiInHand) ? "Closed" : "Open";
 }
 
-/** The SO's state from its ECs: N/A when none lists items, Open while any EC is, else Closed. */
+/** The SO is Closed once every pump EC on it is; Open while any is. */
 export function soPurchaseState(ecs: Row[]): string {
-  const states = ecs.map(ecPurchaseState);
-  if (states.every((s) => s === "N/A")) return "N/A";
-  return states.includes("Open") ? "Open" : "Closed";
+  return ecs.length > 0 && ecs.every((r) => ecPurchaseState(r) === "Closed") ? "Closed" : "Open";
 }
 
 /** A bought-out item matches the item-level filters (an empty list matches all). */
@@ -85,9 +85,9 @@ export function boiStatusSql(b: string): string {
                 ELSE 'Pending' END)`;
 }
 
-/** An EC's Open / Closed / N/A in SQL (alias it). */
+/** An EC's Open / Closed in SQL (alias it). */
 export function ecPurchaseStateSql(it: string): string {
-  return `(CASE WHEN NOT EXISTS (SELECT 1 FROM order_boi_items eb WHERE eb.item_id = ${it}.id) THEN 'N/A'
+  return `(CASE WHEN NOT EXISTS (SELECT 1 FROM order_boi_items eb WHERE eb.item_id = ${it}.id) THEN 'Open'
                 WHEN EXISTS (SELECT 1 FROM order_boi_items eb WHERE eb.item_id = ${it}.id AND NOT ${boiReceivedSql("eb")}) THEN 'Open'
                 ELSE 'Closed' END)`;
 }
@@ -96,11 +96,11 @@ export function ecPurchaseStateSql(it: string): string {
 const pumpEcs = (o: string, cond: string) =>
   `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)}) AND ${cond})`;
 
-/** The SO's Open / Closed / N/A in SQL (alias o). */
+/** The SO's Open / Closed in SQL (alias o): Closed once every pump EC on it is. */
 export function soPurchaseStateSql(o: string): string {
-  return `(CASE WHEN ${pumpEcs(o, `${ecPurchaseStateSql("s")} = 'Open'`)} THEN 'Open'
-                WHEN ${pumpEcs(o, `${ecPurchaseStateSql("s")} = 'Closed'`)} THEN 'Closed'
-                ELSE 'N/A' END)`;
+  return `(CASE WHEN ${pumpEcs(o, `${ecPurchaseStateSql("s")} = 'Closed'`)}
+                 AND NOT ${pumpEcs(o, `${ecPurchaseStateSql("s")} = 'Open'`)} THEN 'Closed'
+                ELSE 'Open' END)`;
 }
 
 /** An item of an EC (alias it) matching the item-level filters. */
