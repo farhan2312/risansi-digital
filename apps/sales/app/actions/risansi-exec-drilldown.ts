@@ -291,11 +291,18 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
 
       // ── Quotation Summary: channel x active / order received ──
       case 'quotation': {
+        // Total covers all three, matching the column the Quotation Summary
+        // now prints: Active + Order Received + Lost. A drill that still
+        // listed only Quoted/Negotiating/Won would show fewer clients than
+        // the figure it was opened from.
         const stageCond = p.col === 'won'
           ? `o.stage = 'Won'`
           : p.col === 'active' ? `o.stage IN ('Quoted','Negotiating')`
-          : `o.stage IN ('Quoted','Negotiating','Won')`;
-        const label = p.col === 'won' ? 'Order received' : p.col === 'active' ? 'Active' : 'Total';
+          : p.col === 'lost' ? `o.stage = 'Lost'`
+          : `o.stage IN ('Quoted','Negotiating','Won','Lost')`;
+        const label = p.col === 'won' ? 'Order received'
+          : p.col === 'active' ? 'Active'
+          : p.col === 'lost' ? 'Lost' : 'Total';
         const rows = await run(`
           SELECT c.id, c.code, c.legal_name AS name, round(sum(o.offer_value_inr)) AS value,
                  string_agg(DISTINCT o.stage, ', ') AS detail

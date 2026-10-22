@@ -460,10 +460,11 @@ export default async function ExecutiveReviewPage({ searchParams }: {
        FROM band GROUP BY bucket`)).rows, []),
 
     // 3. Quotation Summary — channel x Active/Won
-    q(async () => (await risansiPool.query<{ channel: string; active: string; won: string }>(
+    q(async () => (await risansiPool.query<{ channel: string; active: string; won: string; lost: string }>(
       `SELECT ${CANON} channel,
               round(sum(COALESCE(o.offer_value_inr,0)) FILTER (WHERE o.stage IN ('Quoted','Negotiating')))::text active,
-              round(sum(COALESCE(o.offer_value_inr,0)) FILTER (WHERE o.stage='Won'))::text won
+              round(sum(COALESCE(o.offer_value_inr,0)) FILTER (WHERE o.stage='Won'))::text won,
+              round(sum(COALESCE(o.offer_value_inr,0)) FILTER (WHERE o.stage='Lost'))::text lost
          FROM opportunities o JOIN clients c ON c.id=o.client_id
         WHERE ${tourF} AND ${inMonths(OPP_WINDOW_DATE)} GROUP BY 1`)).rows, []),
 
@@ -695,19 +696,26 @@ export default async function ExecutiveReviewPage({ searchParams }: {
   // Same reconciliation as the Clients Summary above: the Grand Total reduces
   // over every channel the query returned, so a channel with no row (the CANON
   // catch-all) was money in the total and in none of the rows.
+  // Total now includes Lost.
+  //
+  // It has to: the heading is Quotation Summary, and a total of what was
+  // quoted that leaves out everything the customer turned down is not a total
+  // of anything. It does mean the Grand Total reads higher than it did — that
+  // is the lost business becoming visible, not the figure breaking.
   const quoteRow = (label: string, key: string, src: typeof quotation): Row => {
     const a = src.reduce((s, r) => s + n(r.active), 0);
     const w = src.reduce((s, r) => s + n(r.won), 0);
+    const l = src.reduce((s, r) => s + n(r.lost), 0);
     return {
-      label, vals: [a, w, a + w],
-      drill: (['active', 'won', 'total'] as const).map(col => ({ kind: 'quotation' as const, tsm, key, col })),
+      label, vals: [a, w, l, a + w + l],
+      drill: (['active', 'won', 'lost', 'total'] as const).map(col => ({ kind: 'quotation' as const, tsm, key, col })),
     };
   };
   const quoteRows: Row[] = CATS.filter(cat => qMap[cat]).map(cat => quoteRow(cat, cat, [qMap[cat]]));
   const qOther = quotation.filter(r => !CATS.includes(r.channel));
-  if (qOther.some(r => n(r.active) || n(r.won))) quoteRows.push(quoteRow(CAT_OTHER_LABEL, CAT_OTHER, qOther));
-  const qt = quotation.reduce((a, r) => { a.a += n(r.active); a.w += n(r.won); return a; }, { a: 0, w: 0 });
-  quoteRows.push({ label: 'Grand Total', vals: [qt.a, qt.w, qt.a + qt.w], strong: true });
+  if (qOther.some(r => n(r.active) || n(r.won) || n(r.lost))) quoteRows.push(quoteRow(CAT_OTHER_LABEL, CAT_OTHER, qOther));
+  const qt = quotation.reduce((a, r) => { a.a += n(r.active); a.w += n(r.won); a.l += n(r.lost); return a; }, { a: 0, w: 0, l: 0 });
+  quoteRows.push({ label: 'Grand Total', vals: [qt.a, qt.w, qt.l, qt.a + qt.w + qt.l], strong: true });
 
   // Offer Status (stage → Mona's labels). The map and the row order are imported
   // rather than written out here: the page used to keep its own copy, and a
@@ -901,7 +909,11 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       notes: ['status Active', 'has an ERP code and an enquiry behind it', 'a name written down, no code yet', 'Inactive + Closed', 'every live client of this type'],
     },
     turnoverSummary: { headers: ['Turnover band', 'Clients', `TO ${yy(fy)}`, `TO ${yy(fy - 1)}`, `TO ${yy(fy - 2)}`, `TO ${yy(fy - 3)}`], rows: turnRows, moneyFrom: 1 },
-    quotationSummary:{ headers: ['Channel', 'Active', 'Order Received', 'Total'], rows: quoteRows, moneyFrom: 0 },
+    quotationSummary:{
+      headers: ['Channel', 'Active', 'Order Received', 'Lost', 'Total'], rows: quoteRows, moneyFrom: 0,
+      colors: [undefined, undefined, 'var(--pos)', 'var(--neg)', undefined],
+      notes: [undefined, 'quoted or being negotiated', 'won', 'quoted and lost to a competitor or no decision', 'everything quoted in the window'],
+    },
     offerStatus:     { headers: ['Offer status', 'Total Offer Value (INR)'], rows: offerRows, moneyFrom: 0 },
     attendance:      { headers: ['Month', 'Visit days', 'Clients'], rows: attRows, moneyFrom: 99 },
     conversion: {
