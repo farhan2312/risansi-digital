@@ -1,5 +1,5 @@
 import { query } from "@/lib/db";
-import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, releasedSql, spareEcSql } from "@/lib/dept-view";
+import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, onlyBillingSql, releasedSql, spareEcSql } from "@/lib/dept-view";
 import { ecDrawingDoneSql } from "@/lib/drawing-filter";
 import { isCentral, reminderDeptForRole, type ReminderDept } from "@/lib/roles";
 
@@ -164,7 +164,7 @@ export async function listReminders(
         WHERE ($1::text[] IS NULL OR r.dept = ANY($1))
           -- A cancelled or diverted order has no deadlines left.
           -- Nor one Central Visibility has not yet cleared or held: no department sees it.
-          AND EXISTS (SELECT 1 FROM orders oo WHERE oo.id = r.id AND ${orderOpenSql("oo")} AND ${releasedSql("oo")})
+          AND EXISTS (SELECT 1 FROM orders oo WHERE oo.id = r.id AND ${orderOpenSql("oo")} AND ${releasedSql("oo")} AND NOT ${onlyBillingSql("oo")})
         ORDER BY r.days_left ASC, r.sl_no ASC`,
       [filter]
     );

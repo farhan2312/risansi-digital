@@ -313,6 +313,9 @@ export const ORDER_SECTIONS: OrderSection[] = [
         dependsOn: [{ column: "clearance_status", value: "Hold" }],
         group: "Clearance",
       },
+      // Independent of Clear / Hold: Yes sends the SO to Billing alone — no
+      // other department sees it (lib/dept-view onlyBillingSql).
+      { column: "only_billing", label: "Only Billing", type: "select", options: YES_NO, group: "Clearance" },
 
       // Order Making's own Clear / Hold, before Central's clearance: an SO
       // Order Making holds goes to no department (lib/dept-view releasedSql).

@@ -2742,3 +2742,13 @@ UPDATE orders SET qc_documents = NULLIF(concat_ws(', ',
          CASE WHEN qc_doc_dimensional = 'Yes' THEN 'Dimensional Report' END), '')
  WHERE qc_documents IS NULL
    AND (qc_doc_mtc = 'Yes' OR qc_doc_iir = 'Yes' OR qc_doc_dimensional = 'Yes');
+
+-- 0022  Only Billing: Central Visibility's switch, independent of Clear / Hold.
+-- An SO marked Yes goes to Billing (Proforma Invoice) alone: no other
+-- department sees it, beyond Order Making that created it. Apply to
+-- ec_to_dispatch before deploying the code that reads it; also in
+-- apps/so2dispatch/db/schema.sql. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS only_billing TEXT;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_only_billing_check;
+ALTER TABLE orders ADD CONSTRAINT orders_only_billing_check
+    CHECK (only_billing IS NULL OR only_billing IN ('Yes', 'No'));

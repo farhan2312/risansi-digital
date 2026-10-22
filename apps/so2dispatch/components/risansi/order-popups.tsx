@@ -204,6 +204,14 @@ export function ClearanceBadge({ order, readOnly = false }: { order: Row; readOn
         <span className="font-semibold">{held ? "On hold" : "Clear"}</span>
         {held && str(order.clearance_hold_reason) && <span className="whitespace-normal">{str(order.clearance_hold_reason)}</span>}
       </button>
+      {str(order.only_billing) === "Yes" && (
+        <span
+          title="Only Billing: no other department sees this SO"
+          className="mt-1 block w-fit rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold leading-tight text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+        >
+          Only billing
+        </span>
+      )}
       {open && <ClearanceForm order={order} onClose={() => setOpen(false)} />}
     </>
   );
@@ -214,6 +222,8 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
   const [status, setStatus] = useState(str(order.clearance_status) === "Hold" ? "Hold" : "Clear");
   const [reason, setReason] = useState(str(order.clearance_hold_reason));
   const [remarks, setRemarks] = useState(str(order.clearance_remarks));
+  // Independent of Clear / Hold: the SO goes to Billing alone.
+  const [onlyBilling, setOnlyBilling] = useState(str(order.only_billing) === "Yes");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -235,6 +245,7 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
       clearance_status: status,
       clearance_hold_reason: status === "Hold" ? reason : "",
       clearance_remarks: status === "Hold" ? remarks : "",
+      only_billing: onlyBilling ? "Yes" : "No",
     });
     setSaving(false);
     if (!res.ok) {
@@ -298,6 +309,32 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
               Hold
             </button>
           </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={onlyBilling}
+            onClick={() => setOnlyBilling((v) => !v)}
+            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+              onlyBilling
+                ? "border-violet-400 bg-violet-50 dark:bg-violet-500/10"
+                : "border-input-border hover:bg-background"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${onlyBilling ? "bg-violet-600" : "bg-input-border"}`}
+            >
+              <span
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${onlyBilling ? "left-[1.125rem]" : "left-0.5"}`}
+              />
+            </span>
+            <span className="min-w-0">
+              <span className={`block text-sm font-semibold ${onlyBilling ? "text-violet-700 dark:text-violet-300" : "text-foreground"}`}>
+                Only billing
+              </span>
+              <span className="block text-xs text-muted">The SO goes to Billing alone — no other department sees it.</span>
+            </span>
+          </button>
           {status === "Hold" && (
             <>
               <label className="block text-sm">
