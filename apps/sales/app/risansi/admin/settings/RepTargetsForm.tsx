@@ -18,6 +18,25 @@ export function RepTargetsForm({ reps, companyTargetCr, equalShareCr }: Props) {
   const [vals, setVals] = useState<Record<number, string>>(
     () => Object.fromEntries(reps.map(r => [r.id, r.targetCr === null ? '' : r.targetCr.toFixed(2)])),
   );
+  // The two count metrics. Separate state from revenue, which carries the
+  // company-total reconciliation below and nothing else does: there is no
+  // company figure for visits to be held against.
+  const [counts, setCounts] = useState<Record<number, { newClients: string; visits: string }>>(
+    () => Object.fromEntries(reps.map(r => [r.id, {
+      newClients: r.newClients === null ? '' : String(r.newClients),
+      visits:     r.visits === null ? '' : String(r.visits),
+    }])),
+  );
+  const setCount = (id: number, k: 'newClients' | 'visits', v: string) =>
+    setCounts(c => ({ ...c, [id]: { ...c[id], [k]: v } }));
+  const badCount = (v: string) => {
+    const t = v.trim();
+    if (t === '') return false;
+    const n = Number(t);
+    return !Number.isFinite(n) || n < 0 || !Number.isInteger(n);
+  };
+  const countErrors = reps.filter(r =>
+    badCount(counts[r.id]?.newClients ?? '') || badCount(counts[r.id]?.visits ?? '')).length;
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -46,7 +65,12 @@ export function RepTargetsForm({ reps, companyTargetCr, equalShareCr }: Props) {
 
   function save() {
     setMsg(null);
-    const payload: RepTargetInput[] = reps.map(r => ({ id: r.id, targetCr: vals[r.id] ?? '' }));
+    const payload: RepTargetInput[] = reps.map(r => ({
+      id: r.id,
+      targetCr: vals[r.id] ?? '',
+      newClients: counts[r.id]?.newClients ?? '',
+      visits: counts[r.id]?.visits ?? '',
+    }));
     start(async () => {
       const res = await setRepTargets(payload);
       if (!res.ok) { setMsg({ ok: false, text: res.error }); return; }
@@ -64,7 +88,9 @@ export function RepTargetsForm({ reps, companyTargetCr, equalShareCr }: Props) {
       <div className="rt-list" style={{ border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden' }}>
         <div className="rt-row rt-head" style={{ ...ROW, background: 'var(--bg-elev)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--fg-3)' }}>
           <span>Rep</span>
-          <span style={{ textAlign: 'right' }}>Annual target (₹ Cr)</span>
+          <span style={{ textAlign: 'right' }}>Revenue (₹ Cr)</span>
+          <span style={{ textAlign: 'right' }}>New clients</span>
+          <span style={{ textAlign: 'right' }}>Visits</span>
         </div>
         {reps.map(r => {
           const raw = (vals[r.id] ?? '').trim();
@@ -89,6 +115,22 @@ export function RepTargetsForm({ reps, companyTargetCr, equalShareCr }: Props) {
                 {raw === '' && <span style={{ fontSize: 10, color: 'var(--fg-3)', width: 52 }}>implied</span>}
                 {raw !== '' && <span style={{ width: 52 }} />}
               </span>
+              {/* No equal-share fallback for these two: there is no company
+                  figure to divide, so a blank is simply no target and the
+                  dashboard shows the count with no bar against it. */}
+              {(['newClients', 'visits'] as const).map(k => (
+                <span key={k} className="rt-input" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <input
+                    type="number" min="0" step="1" inputMode="numeric"
+                    value={counts[r.id]?.[k] ?? ''}
+                    placeholder="—"
+                    onChange={e => setCount(r.id, k, e.target.value)}
+                    aria-label={`${k === 'newClients' ? 'New client' : 'Visit'} target for ${r.name}`}
+                    style={{ ...INP, width: 80,
+                      borderColor: badCount(counts[r.id]?.[k] ?? '') ? 'var(--neg)' : 'var(--line-strong)' }}
+                  />
+                </span>
+              ))}
             </div>
           );
         })}
@@ -118,8 +160,9 @@ export function RepTargetsForm({ reps, companyTargetCr, equalShareCr }: Props) {
       )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 14, flexWrap: 'wrap' }}>
-        <button type="button" onClick={save} disabled={pending || bad > 0}
-          style={{ ...BTN, opacity: pending || bad > 0 ? 0.5 : 1, cursor: pending || bad > 0 ? 'default' : 'pointer' }}>
+        <button type="button" onClick={save} disabled={pending || bad > 0 || countErrors > 0}
+          style={{ ...BTN, opacity: pending || bad > 0 || countErrors > 0 ? 0.5 : 1,
+                   cursor: pending || bad > 0 || countErrors > 0 ? 'default' : 'pointer' }}>
           {pending ? 'Saving…' : 'Save all targets'}
         </button>
         <button type="button" onClick={splitEvenly} disabled={pending} style={BTN_GHOST}>
@@ -142,7 +185,7 @@ export function RepTargetsForm({ reps, companyTargetCr, equalShareCr }: Props) {
 }
 
 const ROW: CSSProperties = {
-  display: 'grid', gridTemplateColumns: '1fr 210px', gap: 10,
+  display: 'grid', gridTemplateColumns: '1fr 210px 110px 110px', gap: 10,
   alignItems: 'center', padding: '8px 12px',
 };
 const INP: CSSProperties = {

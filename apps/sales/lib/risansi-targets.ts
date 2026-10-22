@@ -15,20 +15,26 @@
 // something somebody has to look at.
 
 import risansiPool from '@/lib/db-risansi';
+import { getCurrentFY } from '@/lib/risansi-utils';
 
 // Used when app_settings has never been written, or the read fails. The same
 // 32 the dashboard, the pipeline page and the Executive Review already fall
 // back to — changing it in one place only would give the portal two answers.
 export const DEFAULT_ANNUAL_TARGET_CR = 32;
 
-/** One rep's row on the targets list. `targetCr` is null when none is set. */
+/** One rep's row on the targets list. Each figure is null when none is set. */
 export type RepTarget = {
   id: number;
   name: string;
   role: string;
   repCode: string | null;
   zone: string | null;
+  /** Annual revenue, Crores. */
   targetCr: number | null;
+  /** Accounts to add this year. */
+  newClients: number | null;
+  /** Visit reports to file this year. */
+  visits: number | null;
 };
 
 /** Company-wide annual target in Crores. Falls back to DEFAULT_ANNUAL_TARGET_CR. */
@@ -51,26 +57,53 @@ const ACTIVE_REPS_SQL = `u.is_active AND u.role IN ('rep','manager')`;
 /** Every active rep with their target, ordered as the Settings list shows them.
  *  target_cr is numeric, so it is cast to text in SQL and parsed here rather
  *  than handed to a client component as pg's string. */
-export async function getRepTargets(): Promise<RepTarget[]> {
+export async function getRepTargets(fy?: string): Promise<RepTarget[]> {
+  const year = fy ?? getCurrentFY().code;
+  const num = (v: string | null) => (v === null ? null : Number(v));
+
+  // rep_targets is the source for all three. users.target_cr is the fallback
+  // for revenue only, and covers the window between this code deploying and
+  // migration 0122 being applied — without it the Settings page would show
+  // sixteen blank revenue targets that are actually set.
   try {
     const { rows } = await risansiPool.query<{
       id: number; name: string; role: string;
-      rep_code: string | null; zone: string | null; target_cr: string | null;
+      rep_code: string | null; zone: string | null;
+      target_cr: string | null; new_clients: string | null; visits: string | null;
     }>(
-      `SELECT u.id, u.name, u.role, u.rep_code, u.zone, u.target_cr::text AS target_cr
+      `SELECT u.id, u.name, u.role, u.rep_code, u.zone,
+              COALESCE(t.revenue_cr, u.target_cr::text) AS target_cr,
+              t.new_clients, t.visits
          FROM users u
+         LEFT JOIN (
+           SELECT user_id,
+                  MAX(value) FILTER (WHERE metric = 'revenue_cr')::text  AS revenue_cr,
+                  MAX(value) FILTER (WHERE metric = 'new_clients')::text AS new_clients,
+                  MAX(value) FILTER (WHERE metric = 'visits')::text      AS visits
+             FROM rep_targets WHERE fy = $1 GROUP BY user_id
+         ) t ON t.user_id = u.id
         WHERE ${ACTIVE_REPS_SQL}
-        ORDER BY u.name`);
+        ORDER BY u.name`, [year]);
     return rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      role: r.role,
-      repCode: r.rep_code,
-      zone: r.zone,
-      targetCr: r.target_cr === null ? null : Number(r.target_cr),
+      id: r.id, name: r.name, role: r.role, repCode: r.rep_code, zone: r.zone,
+      targetCr: num(r.target_cr), newClients: num(r.new_clients), visits: num(r.visits),
     }));
   } catch {
-    return [];
+    // rep_targets not there yet. Revenue still works off the old column.
+    try {
+      const { rows } = await risansiPool.query<{
+        id: number; name: string; role: string;
+        rep_code: string | null; zone: string | null; target_cr: string | null;
+      }>(
+        `SELECT u.id, u.name, u.role, u.rep_code, u.zone, u.target_cr::text AS target_cr
+           FROM users u WHERE ${ACTIVE_REPS_SQL} ORDER BY u.name`);
+      return rows.map(r => ({
+        id: r.id, name: r.name, role: r.role, repCode: r.rep_code, zone: r.zone,
+        targetCr: num(r.target_cr), newClients: null, visits: null,
+      }));
+    } catch {
+      return [];
+    }
   }
 }
 
