@@ -18,6 +18,8 @@ import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { OrderThreadModal } from "./order-thread-modal";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { KpiStrip } from "./kpi-strip";
+import { MultiSelectFilter } from "./multi-select-filter";
+import { QC_EC_STATUSES, QC_FILTER_KEYS, QC_SO_STATES, soQcState } from "@/lib/qc-filter";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -74,7 +76,7 @@ export function QcWorkspace({
   kpis?: KpiCard[];
 }) {
   const rows = queue.rows;
-  const { get: getParam } = useUrlTable();
+  const { get: getParam, getList, setParams } = useUrlTable();
   const emptyMessage = getParam("q") ? "No orders match your search." : "No orders yet.";
   const [docsFor, setDocsFor] = useState<string | null>(() =>
     openItemId && rows.some((r) => r.id === openItemId) ? openItemId : null
@@ -105,6 +107,26 @@ export function QcWorkspace({
             hasTarget={DEPT_VIEWS["quality"].hasTarget}
             searchPlaceholder="Search SO, EC…"
             noTypeFilter
+            noStatusFilter
+            extraKeys={Object.values(QC_FILTER_KEYS)}
+            extraFilters={
+              <>
+                <MultiSelectFilter
+                  label="SO status"
+                  allLabel="Any"
+                  options={QC_SO_STATES}
+                  selected={getList(QC_FILTER_KEYS.so)}
+                  onChange={(next) => setParams({ [QC_FILTER_KEYS.so]: next })}
+                />
+                <MultiSelectFilter
+                  label="EC status"
+                  allLabel="Any"
+                  options={QC_EC_STATUSES}
+                  selected={getList(QC_FILTER_KEYS.ec)}
+                  onChange={(next) => setParams({ [QC_FILTER_KEYS.ec]: next })}
+                />
+              </>
+            }
           />
         ) : (
           <UrlSearchInput placeholder="Search SO, EC…" />
@@ -115,10 +137,10 @@ export function QcWorkspace({
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         <div className="overflow-x-auto" data-sticky-head>
-          <table className="w-full min-w-[1300px] text-sm">
+          <table className="w-full min-w-[1400px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={5} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
                 <th colSpan={7} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -127,6 +149,7 @@ export function QcWorkspace({
                 <th className="px-3 py-2">Chat</th>
                 <th className="px-3 py-2 whitespace-nowrap">Quality Target</th>
                 <th className="px-3 py-2 whitespace-nowrap">Docs Needed</th>
+                <th className="px-3 py-2 whitespace-nowrap">SO Status</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
                 <th className="px-3 py-2">EC Date</th>
                 <th className="px-3 py-2">Pump Type</th>
@@ -139,7 +162,7 @@ export function QcWorkspace({
             <tbody>
               {groups.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -194,6 +217,14 @@ export function QcWorkspace({
                                   </span>
                                 ) : (
                                   <span className="text-xs text-muted">Not specified</span>
+                                )}
+                              </td>
+                              <td rowSpan={span} className={soCell}>
+                                {/* Closed once every EC has all its documents in — from all its ECs, before a filter. */}
+                                {(str(g.head.qc_so_state) || soQcState(g.ecs)) === "Closed" ? (
+                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
+                                ) : (
+                                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
                                 )}
                               </td>
                             </>

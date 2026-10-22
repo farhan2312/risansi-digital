@@ -24,6 +24,18 @@ import { QcWorkspace } from "@/components/risansi/qc-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
+import { toneFor, type KpiCardDef } from "@/lib/kpis";
+import {
+  QC_EC_STATUSES,
+  QC_SO_STATES,
+  ecQcStatus,
+  parseQcFilter,
+  qcEcCountSql,
+  qcFilterActive,
+  qcFilterSql,
+  soQcState,
+  soQcStateSql,
+} from "@/lib/qc-filter";
 
 export const metadata: Metadata = {
   title: "Quality | Risansi",
@@ -55,6 +67,36 @@ export default async function QcWorkspacePage({
   const focusOrderId = await resolveFocusOrderId(params.focus ?? thread ?? edit);
   // Quality gives the documents the SO names (Central and Admin may too).
   const canEdit = canEditQcDocuments(user.role);
+  // Quality's own filters: the SO's Open / Closed and each EC's documents status.
+  const qcFilter = parseQcFilter((key) => params[key]);
+  // The cards: SOs open and closed (and overdue), then the ECs by documents
+  // status — those count ECs, and filter like the rest.
+  const qcKpiCards = (): KpiCardDef[] => {
+    const clear = { qc_so: null, qc_ec: null, overdue: null, dstatus: null } as Record<string, string | null>;
+    const overdue = deptKpiCards("quality", [], DEPT_VIEWS.quality.hasTarget).find((c) => c.key === "overdue");
+    return [
+      { key: "all", label: "All SOs", group: "SO", sql: null, params: { ...clear }, tone: "neutral" },
+      ...QC_SO_STATES.map((st) => ({
+        key: `so:${st}`,
+        label: `SO ${st}`,
+        group: "SO",
+        sql: `${soQcStateSql("o")} = '${st}'`,
+        params: { ...clear, qc_so: st },
+        tone: st === "Closed" ? ("done" as const) : ("pending" as const),
+      })),
+      ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
+      { key: "ecs", label: "ECs", group: "EC", sql: null, params: {}, tone: "neutral", measure: qcEcCountSql("o") },
+      ...QC_EC_STATUSES.map((st) => ({
+        key: `ec:${st}`,
+        label: st,
+        group: "EC",
+        sql: null,
+        params: { ...clear, qc_ec: st },
+        tone: st === "Docs not specified" ? ("neutral" as const) : toneFor(st),
+        measure: qcEcCountSql("o", st),
+      })),
+    ];
+  };
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,
@@ -66,7 +108,15 @@ export default async function QcWorkspacePage({
         from: f.from ?? ("orders" as const),
       }))
     ,
-      { page: parsePage(page), search: parseQuery(q), focusOrderId, filter, sort: parseQueueSort(params.sort), kpis: deptKpiCards("quality", [], DEPT_VIEWS.quality.hasTarget) }
+      {
+        page: parsePage(page),
+        search: parseQuery(q),
+        focusOrderId,
+        filter,
+        sort: parseQueueSort(params.sort),
+        kpis: qcKpiCards(),
+        extraRestrict: qcFilterSql(qcFilter),
+      }
     ),
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),
     listOrderListOptions(filter),
@@ -79,6 +129,19 @@ export default async function QcWorkspacePage({
   // so the order id comes from whichever the row carries.
   // The rows' sign-offs and unread messages both hang off the queue's SOs and
   // not off each other, so they load together.
+  // Each SO's Open / Closed from all its ECs — worked out before a filter
+  // narrows the ECs shown; then only the ECs at the status asked.
+  {
+    const byOrder = new Map<string, typeof queue.rows>();
+    for (const r of queue.rows) byOrder.set(String(r.order_id), [...(byOrder.get(String(r.order_id)) ?? []), r]);
+    for (const [, ecs] of byOrder) {
+      const st = soQcState(ecs);
+      for (const r of ecs) Object.assign(r, { qc_so_state: st });
+    }
+  }
+  if (qcFilterActive(qcFilter) && qcFilter.ec.length) {
+    queue.rows = queue.rows.filter((r) => qcFilter.ec.includes(ecQcStatus(r)));
+  }
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
   const [completions, unreadThreads] = await Promise.all([
     listDeptCompletions(orderIds),
