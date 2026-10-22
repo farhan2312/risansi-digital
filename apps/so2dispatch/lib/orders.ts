@@ -16,6 +16,7 @@ import {
   deptInvolvementSql,
   deptQueueSql,
   releasedSql,
+  onlyBillingSql,
   boiReceivedSql,
   orderOpenSql,
   orderStatusSql,
@@ -137,6 +138,8 @@ export type OrderListRow = {
   om_status?: string | null;
   om_hold_reason?: string | null;
   om_hold_remarks?: string | null;
+  /** Central Visibility sent the SO to Billing alone. */
+  only_billing?: string | null;
   ec_count: number;
   items: ItemSummary[];
   // The Orders list page only: the rest of the holds, the payment terms with
@@ -2380,7 +2383,7 @@ export async function listOrdersOverview(
       WHERE ${
         // Drawing's rows are ECs: a Spare EC is out, whatever the SO around it.
         dept === "drawing"
-          ? `NOT (${spareEcSql("it", "o")}) AND ${orderOpenSql("o")} AND ${releasedSql("o")}`
+          ? `NOT (${spareEcSql("it", "o")}) AND ${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")}`
           : dept
             ? deptQueueSql(dept)
             : "TRUE"
@@ -3659,7 +3662,7 @@ export async function listOrdersPage(opts: {
             o.reps,
             o.zone,
             o.clearance_status,
-            o.clearance_hold_reason,
+            o.clearance_hold_reason, o.only_billing,
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
@@ -3786,7 +3789,7 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.reps,
             o.zone,
             o.clearance_status,
-            o.clearance_hold_reason,
+            o.clearance_hold_reason, o.only_billing,
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
@@ -4143,6 +4146,10 @@ export async function listOrdersForOrderMaking(opts: {
       if (ff.from) clauses.push(`o.customer_po_date >= ${lit(ff.from)}::date`);
       if (ff.to) clauses.push(`o.customer_po_date <= ${lit(ff.to)}::date`);
     }
+    if (ff.dateField === "op_date") {
+      if (ff.from) clauses.push(`o.ec_sent_operation_date >= ${lit(ff.from)}::date`);
+      if (ff.to) clauses.push(`o.ec_sent_operation_date <= ${lit(ff.to)}::date`);
+    }
     return clauses;
   };
   const clauses = buildClauses(f);
@@ -4417,7 +4424,7 @@ export async function listOrdersForBillingPage(opts: {
   kpis?: KpiCardDef[];
 }): Promise<PageResult<BillingQueueRow> & { kpis?: KpiCard[] }> {
   const restrict = opts.onlyPacked
-    ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
+    ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
                                          WHERE ps.order_id = o.id AND ps.kind = 'actual'
                                            AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL)`
     : deptQueueSql("billing");
@@ -4429,7 +4436,7 @@ export async function listOrdersForBillingPage(opts: {
     orderBy: queueOrderBy(opts.sort),
     // A cancelled or diverted order is no longer Billing's or Dispatch's work.
     restrict: opts.onlyPacked
-      ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
+      ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
                                            WHERE ps.order_id = o.id AND ps.kind = 'actual'
                                              AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL)`
       // Billing: not a Challan order — there is no PI to raise on one.

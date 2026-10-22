@@ -204,6 +204,7 @@ export function OrderMakingWorkspace({
     { column: "complaint_no", label: "Complaint No." },
     { column: "po_no", label: "PO No." },
     { column: "order_value", label: "Order Value" },
+    { column: "ec_sent_operation_date", label: "SO Sent to Operation" },
   ];
 
   const headButton =
@@ -379,7 +380,7 @@ export function OrderMakingWorkspace({
         </button>
       </div>
 
-      {/* When: by SO date or PO date. */}
+      {/* When: by SO date, PO date or the date the SO went to Operation. */}
       <div className="flex flex-wrap items-center gap-2">
         <SingleSelectFilter
           label="Date"
@@ -533,7 +534,7 @@ export function OrderMakingWorkspace({
                   {/* Order Making's own Clear / Hold, the first step. Central's
                       clearance comes after and is not Order Making's to see. */}
                   <td className="px-4 py-3">
-                    <OmHoldBadge order={row} readOnly={mode === "so"} />
+                    <OmHoldBadge order={row} />
                   </td>
                   <td className="px-4 py-3">
                     {row.missing.length === 0 ? (

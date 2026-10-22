@@ -2096,6 +2096,7 @@ export async function boiItemsAction(itemId: string): Promise<BoiItemsResult> {
 
   const allowed =
     isCentral(user.role) ||
+    canManageEcs(user.role) ||
     canEditSection(user.role, "order_planning") ||
     canEditSection(user.role, "order_purchase");
   if (!allowed) {
@@ -2119,6 +2120,71 @@ export async function boiItemsAction(itemId: string): Promise<BoiItemsResult> {
   }
 }
 
+
+/**
+ * Bought-out items added to an EC that already exists — the EC form, when an
+ * EC is edited and its BOI is Yes. Those who manage ECs only (an Order Making
+ * SO member on their own SOs). The EC must say BOI Yes; Purchase is told.
+ */
+export async function addEcBoiItemsAction(itemId: string, boi: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  const rows = cleanBoiRows(boi);
+  if (!rows.ok) return { ok: false, error: rows.error };
+  if (rows.rows.length === 0) return { ok: true };
+  const ec = await getItemDetail(itemId);
+  if (!ec) return { ok: false, error: "EC not found." };
+  const orderId = String(ec.order.id);
+  const denied = await ecDenied(user, orderId);
+  if (denied) return { ok: false, error: denied };
+  if (String(ec.item.boi ?? "") !== "Yes") {
+    return { ok: false, error: "This EC's BOI is not set to Yes, so it cannot list bought-out items." };
+  }
+  try {
+    for (const row of rows.rows) {
+      await query(
+        `INSERT INTO order_boi_items (item_id, boi_item, boi_item_other, boi_make, boi_qty, boi_description)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          itemId,
+          row.boi_item || null,
+          row.boi_item_other || null,
+          row.boi_make || null,
+          row.boi_qty ?? null,
+          row.boi_description || null,
+        ]
+      );
+    }
+  } catch (error) {
+    console.error("addEcBoiItemsAction failed:", error);
+    return { ok: false, error: "Could not add the bought-out items." };
+  }
+  const soLabel = String(ec.order.so_no ?? `#${ec.order.sl_no}`);
+  const ecLabel = String(ec.item.ec_no ?? "").trim();
+  const label = ecLabel ? `${soLabel} · ${ecLabel}` : soLabel;
+  const named = rows.rows.map((r) => (r.boi_item === "Others" ? r.boi_item_other || "Others" : r.boi_item)).join(", ");
+  const roles = ["purchase"];
+  if (user.role !== "central_visibility") roles.push("central_visibility");
+  await Promise.all([
+    logAudit({
+      actor: { id: user.id, email: user.email, role: user.role },
+      action: "order.update",
+      category: "activity",
+      target: label,
+      details: `Listed ${rows.rows.length} bought-out item(s) on ${ecLabel || "the EC"} — ${named}`,
+      subject: { orderId, itemId, soNo: soLabel, ecNo: ecLabel || null },
+    }),
+    emitNotification({
+      roles,
+      orderId,
+      itemId,
+      type: "dept_update",
+      message: `Bought-out items to purchase — ${label} · ${named}`,
+    }),
+  ]);
+  revalidatePath(`/risansi/orders/${orderId}`);
+  return { ok: true };
+}
 
 const MAX_PI_XLSX_BYTES = 5 * 1024 * 1024;
 
