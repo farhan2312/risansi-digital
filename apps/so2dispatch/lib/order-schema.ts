@@ -1507,6 +1507,8 @@ export const PAYMENT_TERMS_CONTEXT_FIELDS: OrderField[] = [
 export const DRAWING_CONTEXT_FIELDS: OrderField[] = [
   ...SO_CONTEXT_FIELDS,
   { column: "drg_target_date", label: "Target Date for Drawing", type: "date" },
+  // Drawing's own: when it says the SO's drawings will be ready (set on its page, with history).
+  { column: "drg_readiness_date", label: "Drawing Readiness Date", type: "date" },
   { column: "performance_curve_required", label: "Performance Curve", type: "select", options: YES_NO },
   // The EC itself, beside its drawings.
   { column: "ec_date", label: "EC Date", type: "date", from: "order_items" },

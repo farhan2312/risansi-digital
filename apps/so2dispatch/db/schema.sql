@@ -2760,3 +2760,21 @@ ALTER TABLE orders ADD CONSTRAINT orders_only_billing_check
 ALTER TABLE order_qc_doc_links DROP CONSTRAINT IF EXISTS order_qc_doc_links_doc_type_check;
 ALTER TABLE order_qc_doc_links ADD CONSTRAINT order_qc_doc_links_doc_type_check
     CHECK (doc_type IN ('MTC', 'IIR', 'Dimensional Report', 'QAP', 'Test Report', 'Photos', 'Packing Details'));
+
+-- 0024  Drawing's readiness date for an SO: when Drawing says its drawings
+-- will be ready. The current value sits on orders; every value it has held,
+-- with why it moved, in order_drawing_readiness_history. Apply to
+-- ec_to_dispatch before deploying the code that reads it; also in
+-- apps/so2dispatch/db/schema.sql. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS drg_readiness_date DATE;
+CREATE TABLE IF NOT EXISTS order_drawing_readiness_history (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id        UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    readiness_date  DATE,
+    reason          TEXT,
+    changed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    changed_by_role TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_drawing_readiness_history_order_idx
+    ON order_drawing_readiness_history (order_id, created_at);

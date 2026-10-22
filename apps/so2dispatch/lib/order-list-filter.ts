@@ -32,6 +32,8 @@ export const ORDER_DATE_FIELDS = [
   { value: "dept_target", label: "Target date" },
   // Planning's own date: when it says an EC will be ready.
   { value: "readiness", label: "Readiness date" },
+  // Drawing's own: when it says the SO's drawings will be ready.
+  { value: "drg_readiness", label: "Drawing readiness" },
   // Assembly & Packing's own: when it plans to pack a Spare's lot.
   { value: "packing", label: "Packing date" },
   { value: "dispatch_target", label: "Dispatch target" },
@@ -251,6 +253,8 @@ export function parseOrderListFilter(
         ? (dept ? "so_date" : fallbackDate)
         : dateFieldRaw === "packing" && dept && !["planning", "assembly", "dispatch"].includes(dept)
           ? (dept ? "so_date" : fallbackDate)
+        : dateFieldRaw === "drg_readiness" && dept && dept !== "drawing"
+          ? "so_date"
         : dateFieldRaw;
 
   // Picked backwards, the two dates still mean the span between them.

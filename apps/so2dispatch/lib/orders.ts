@@ -3502,7 +3502,8 @@ function orderListClauses(
       // Assembly & Packing's planned packing date on any of the SO's Spare lots.
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_ready_lots prl ON prl.item_id = s.id
                              WHERE s.order_id = o.id AND ${range("prl.packing_plan_date")})`);
-    } else if (f.dateField === "ec_date") {
+    } else if (f.dateField === "drg_readiness") clauses.push(range("o.drg_readiness_date"));
+    else if (f.dateField === "ec_date") {
       clauses.push(`EXISTS (SELECT 1 FROM order_items s
                              WHERE s.order_id = o.id AND ${range("s.ec_date")})`);
     } else {

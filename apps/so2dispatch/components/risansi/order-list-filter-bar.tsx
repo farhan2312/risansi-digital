@@ -454,6 +454,8 @@ export function OrderListFilterBar({
               return !dept || ["planning", "assembly", "billing", "dispatch"].includes(activeDept ?? "");
             // Assembly & Packing's planned packing date (Spare lots).
             if (f.value === "packing") return !dept || ["planning", "assembly", "dispatch"].includes(activeDept ?? "");
+            // Drawing's own readiness date.
+            if (f.value === "drg_readiness") return !dept || activeDept === "drawing";
             if (f.value === "dispatch_target") return !dept && !noDispatchTarget;
             // Completion dates come from sign-offs, which are switched off.
             if (f.value === "completed_on") return SIGN_OFF_ENABLED;
