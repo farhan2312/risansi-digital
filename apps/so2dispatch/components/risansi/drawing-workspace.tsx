@@ -129,33 +129,35 @@ export function DrawingWorkspace({
             searchPlaceholder="Search SO, EC…"
             noTypeFilter
             noStatusFilter
+            // Narrower, so Drawing's own filters fit on the first row.
+            searchClassName="sm:max-w-[12rem]"
             extraKeys={Object.values(DRAWING_FILTER_KEYS)}
             extraFilters={
               <>
                 <MultiSelectFilter
                   label="SO status"
-                  allLabel="Open or closed"
+                  allLabel="Any"
                   options={SO_STATES}
                   selected={getList(DRAWING_FILTER_KEYS.so)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.so]: next })}
                 />
                 <MultiSelectFilter
                   label="GAD"
-                  allLabel="Any GAD status"
+                  allLabel="Any"
                   options={GAD_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.gad)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.gad]: next })}
                 />
                 <MultiSelectFilter
                   label="Performance Curve"
-                  allLabel="Any curve status"
+                  allLabel="Any"
                   options={CURVE_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.curve)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.curve]: next })}
                 />
                 <MultiSelectFilter
                   label="Part Drawing"
-                  allLabel="Any part drawing status"
+                  allLabel="Any"
                   options={PART_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.part)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.part]: next })}

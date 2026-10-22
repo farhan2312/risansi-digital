@@ -83,12 +83,15 @@ export function OrderListFilterBar({
   noTypeFilter = false,
   noStatusFilter = false,
   extraFilters,
+  searchClassName,
   extraKeys = [],
 }: {
   /** A queue with statuses of its own (Drawing) drops the department Status filter… */
   noStatusFilter?: boolean;
   /** …and shows its own filters here, under these URL params. */
   extraFilters?: React.ReactNode;
+  /** A narrower search box where a queue has more filters to fit on the row. */
+  searchClassName?: string;
   extraKeys?: string[];
   options: OrderListOptions;
   total: number;
@@ -157,7 +160,7 @@ export function OrderListFilterBar({
             onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : null, dstatus: null, page: null })}
           />
         )}
-        <UrlSearchInput placeholder={searchPlaceholder} />
+        <UrlSearchInput placeholder={searchPlaceholder} className={searchClassName} />
         {showsParty && (
         <>
         <MultiSelectFilter
