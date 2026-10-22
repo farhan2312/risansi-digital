@@ -20,7 +20,7 @@ import { OrderThreadModal } from "./order-thread-modal";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import type { DeptCompletion } from "@/lib/dept-completion";
 import { MultiSelectFilter } from "./multi-select-filter";
-import { BOI_STATUSES, PURCHASE_FILTER_KEYS, PURCHASE_STATES } from "@/lib/purchase-filter";
+import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS, PURCHASE_STATES } from "@/lib/purchase-filter";
 
 type Row = Record<string, unknown>;
 
@@ -161,6 +161,13 @@ export function PurchaseWorkspace({
                   options={PURCHASE_STATES}
                   selected={getList(PURCHASE_FILTER_KEYS.ec)}
                   onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.ec]: next })}
+                />
+                <MultiSelectFilter
+                  label="BOI item"
+                  allLabel="Any"
+                  options={BOI_ITEMS}
+                  selected={getList(PURCHASE_FILTER_KEYS.item)}
+                  onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.item]: next })}
                 />
                 <MultiSelectFilter
                   label="BOI status"

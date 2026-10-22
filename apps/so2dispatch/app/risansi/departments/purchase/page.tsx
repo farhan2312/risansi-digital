@@ -70,10 +70,10 @@ export default async function PurchaseWorkspacePage({
   // Purchase's own filters: the SO's and each EC's Open / Closed / N/A, each
   // bought-out item's status, and its vendor.
   const purchaseFilter = parsePurchaseFilter((key) => params[key]);
-  const none = { so: [] as string[], ec: [] as string[], boi: [] as string[], vendor: [] as string[] };
+  const none = { so: [] as string[], ec: [] as string[], item: [] as string[], boi: [] as string[], vendor: [] as string[] };
   // The cards: SOs, ECs and bought-out items, each by where it stands — the
   // EC and item cards count ECs and items, and filter like the rest. They
-  // follow the Vendor filter.
+  // follow the BOI item and Vendor filters.
   const purchaseKpiCards = (): KpiCardDef[] => {
     const clear = { pur_so: null, pur_ec: null, pur_boi: null, overdue: null, dstatus: null } as Record<string, string | null>;
     const overdue = deptKpiCards("purchase", [], DEPT_VIEWS.purchase.hasTarget).find((c) => c.key === "overdue");
@@ -99,7 +99,7 @@ export default async function PurchaseWorkspacePage({
         tone: tone(st),
         measure: ecCountSql("o", st),
       })),
-      { key: "boi", label: "BOI items", group: "BOI", sql: null, params: {}, tone: "neutral", measure: boiCountSql("o", null, purchaseFilter.vendor) },
+      { key: "boi", label: "BOI items", group: "BOI", sql: null, params: {}, tone: "neutral", measure: boiCountSql("o", null, purchaseFilter.vendor, purchaseFilter.item) },
       ...BOI_STATUSES.map((st) => ({
         key: `boi:${st}`,
         label: st,
@@ -107,7 +107,7 @@ export default async function PurchaseWorkspacePage({
         sql: null,
         params: { ...clear, pur_boi: st },
         tone: toneFor(st),
-        measure: boiCountSql("o", st, purchaseFilter.vendor),
+        measure: boiCountSql("o", st, purchaseFilter.vendor, purchaseFilter.item),
       })),
     ];
   };
@@ -115,7 +115,7 @@ export default async function PurchaseWorkspacePage({
     listItemsForPurchasePage({
       kpis: purchaseKpiCards(),
       extraRestrict: purchaseFilterSql(purchaseFilter),
-      kpiRestrict: purchaseFilterSql({ ...none, vendor: purchaseFilter.vendor }),
+      kpiRestrict: purchaseFilterSql({ ...none, vendor: purchaseFilter.vendor, item: purchaseFilter.item }),
       page: parsePage(page),
       search: parseQuery(q),
       focusOrderId,
@@ -140,7 +140,7 @@ export default async function PurchaseWorkspacePage({
   }
   if (purchaseFilterActive(purchaseFilter)) {
     queue.rows = queue.rows.filter((r) => ecMatchesPurchaseFilter(r, purchaseFilter));
-    if (purchaseFilter.boi.length || purchaseFilter.vendor.length) {
+    if (purchaseFilter.item.length || purchaseFilter.boi.length || purchaseFilter.vendor.length) {
       for (const r of queue.rows) {
         r.boi_items = ((r.boi_items ?? []) as Record<string, unknown>[]).filter((b) => boiMatches(b, purchaseFilter));
       }

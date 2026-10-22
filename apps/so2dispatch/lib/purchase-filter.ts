@@ -3,15 +3,19 @@
 // (boiStatus, the SO view's chips) and in SQL here, so a filter matches what
 // the table shows.
 
+import { BOI_ITEM_OPTIONS } from "@/lib/order-schema";
 import { boiInHand, boiPartSql, boiReceivedSql, boiStatus, spareEcSql } from "@/lib/dept-view";
 
 export const PURCHASE_STATES = ["Open", "Closed"];
 export const BOI_STATUSES = ["Pending", "Partially received", "Fully received"];
+/** The bought-out items an EC can list (Others included). */
+export const BOI_ITEMS = BOI_ITEM_OPTIONS.map((o) => o.value);
 
 /** The URL params Purchase's own filters live under. */
-export const PURCHASE_FILTER_KEYS = { so: "pur_so", ec: "pur_ec", boi: "pur_boi", vendor: "pur_vendor" } as const;
+export const PURCHASE_FILTER_KEYS = { so: "pur_so", ec: "pur_ec", item: "pur_item", boi: "pur_boi", vendor: "pur_vendor" } as const;
 
-export type PurchaseFilter = { so: string[]; ec: string[]; boi: string[]; vendor: string[] };
+/** item and boi go together: an item of that kind at that status (Gear Box, Pending). */
+export type PurchaseFilter = { so: string[]; ec: string[]; item: string[]; boi: string[]; vendor: string[] };
 
 const pick = (raw: string | undefined, allowed: string[]) =>
   (raw ?? "")
@@ -24,13 +28,14 @@ export function parsePurchaseFilter(get: (key: string) => string | undefined): P
   return {
     so: pick(get(PURCHASE_FILTER_KEYS.so), PURCHASE_STATES),
     ec: pick(get(PURCHASE_FILTER_KEYS.ec), PURCHASE_STATES),
+    item: pick(get(PURCHASE_FILTER_KEYS.item), BOI_ITEMS),
     boi: pick(get(PURCHASE_FILTER_KEYS.boi), BOI_STATUSES),
     vendor: [...new Set((get(PURCHASE_FILTER_KEYS.vendor) ?? "").split("|").map((v) => v.trim()).filter(Boolean))],
   };
 }
 
 export function purchaseFilterActive(f: PurchaseFilter): boolean {
-  return f.so.length + f.ec.length + f.boi.length + f.vendor.length > 0;
+  return f.so.length + f.ec.length + f.item.length + f.boi.length + f.vendor.length > 0;
 }
 
 type Row = Record<string, unknown>;
@@ -53,6 +58,7 @@ export function soPurchaseState(ecs: Row[]): string {
 /** A bought-out item matches the item-level filters (an empty list matches all). */
 export function boiMatches(b: Row, f: PurchaseFilter): boolean {
   return (
+    (f.item.length === 0 || f.item.includes(String(b.boi_item ?? "").trim())) &&
     (f.boi.length === 0 || f.boi.includes(boiStatus(b).label)) &&
     (f.vendor.length === 0 || (b.vendor_order === "Yes" && f.vendor.includes(String(b.vendor_name ?? "").trim())))
   );
@@ -61,7 +67,7 @@ export function boiMatches(b: Row, f: PurchaseFilter): boolean {
 /** The EC row matches the EC- and item-level filters. */
 export function ecMatchesPurchaseFilter(r: Row, f: PurchaseFilter): boolean {
   if (f.ec.length && !f.ec.includes(ecPurchaseState(r))) return false;
-  if (f.boi.length || f.vendor.length) return itemsOf(r).some((b) => boiMatches(b, f));
+  if (f.item.length || f.boi.length || f.vendor.length) return itemsOf(r).some((b) => boiMatches(b, f));
   return true;
 }
 
@@ -98,6 +104,7 @@ export function soPurchaseStateSql(o: string): string {
 /** An item of an EC (alias it) matching the item-level filters. */
 function itemCond(f: PurchaseFilter, it: string): string | null {
   const c: string[] = [];
+  if (f.item.length) c.push(inList("TRIM(COALESCE(fb.boi_item, ''))", f.item));
   if (f.boi.length) c.push(inList(boiStatusSql("fb"), f.boi));
   if (f.vendor.length) c.push(`fb.vendor_order = 'Yes' AND ${inList("TRIM(COALESCE(fb.vendor_name, ''))", f.vendor)}`);
   return c.length ? `EXISTS (SELECT 1 FROM order_boi_items fb WHERE fb.item_id = ${it}.id AND ${c.join(" AND ")})` : null;
@@ -125,9 +132,10 @@ export function ecCountSql(o: string, state?: string): string {
   })`;
 }
 
-/** How many of the SO's (alias o) bought-out items are at this status (and with these vendors) — a card's figure. */
-export function boiCountSql(o: string, status: string | null, vendors: string[] = []): string {
+/** How many of the SO's (alias o) bought-out items are at this status (of these kinds, with these vendors) — a card's figure. */
+export function boiCountSql(o: string, status: string | null, vendors: string[] = [], items: string[] = []): string {
   const c: string[] = [];
+  if (items.length) c.push(inList("TRIM(COALESCE(cb.boi_item, ''))", items));
   if (status) c.push(`${boiStatusSql("cb")} = ${lit(status)}`);
   if (vendors.length) c.push(`cb.vendor_order = 'Yes' AND ${inList("TRIM(COALESCE(cb.vendor_name, ''))", vendors)}`);
   return `(SELECT count(*) FROM order_boi_items cb JOIN order_items s ON s.id = cb.item_id
