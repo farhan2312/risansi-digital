@@ -130,6 +130,99 @@ export function hasRole(userRole: string | null | undefined, requiredRole: Risan
  * approver sets it; the sales column is a fallback for a grant approved before
  * roles were catalogued.
  */
+interface SalesRow {
+  id: number; email: string; name: string | null; role: string | null;
+  is_active: boolean; status: string; departments: string[] | null;
+}
+
+const SALES_ROW_COLS = `u.id, u.email, u.name, u.role, u.is_active, u.status,
+            ARRAY(SELECT d.department FROM user_departments d
+                   WHERE d.user_id = u.id ORDER BY d.department) AS departments`;
+
+/**
+ * The sales row behind an approved shared session, creating it if need be.
+ *
+ * Three steps, in this order, and each one existed for a reason the one before
+ * it could not cover:
+ *
+ *   1. by identity_user_id — the link, once it exists.
+ *   2. by email — an account that predates the hub, or one made in Admin ›
+ *      Reps & Managers. Claiming it writes the link so step 1 answers next
+ *      time.
+ *   3. create it.
+ *
+ * Step 3 is the bug this function was written for. Sales looked up the link
+ * and nothing else, so somebody created on the hub with an Approved sales
+ * grant had no row here, got no session, and was bounced back — the hub tile
+ * appearing to "just reload the hub". It is what Sachin Mehrotra hit, and it
+ * would have hit every person created on the hub from here on. The testing and
+ * pump-selection portals both provision on first sign-in; sales was the one
+ * that never got it.
+ *
+ * Creating is safe because the grant has already been checked: an approver
+ * decided this person belongs in sales, and the row is the mechanical
+ * consequence of that decision, not a second grant. The role comes from the
+ * grant for the same reason.
+ *
+ * ON CONFLICT on lower(email) rather than a read-then-write: two tabs opening
+ * at once would otherwise race into a unique violation, and the loser would be
+ * told they have no access.
+ */
+async function salesRowFor(
+  shared: { userId: string; email: string; name: string },
+  grantRole: string | null,
+): Promise<SalesRow | null> {
+  const byLink = await risansiPool.query<SalesRow>(
+    `SELECT ${SALES_ROW_COLS} FROM users u WHERE u.identity_user_id = $1 LIMIT 1`,
+    [shared.userId],
+  );
+  if (byLink.rows[0]) return byLink.rows[0];
+
+  const email = (shared.email ?? '').trim();
+  if (!email) return null;
+
+  // Claim an existing row for this address. Guarded on identity_user_id IS
+  // NULL so this can never steal a row already linked to somebody else.
+  const claimed = await risansiPool.query<SalesRow>(
+    `UPDATE users u SET identity_user_id = $1, updated_at = NOW()
+      WHERE lower(u.email) = lower($2) AND u.identity_user_id IS NULL
+      RETURNING ${SALES_ROW_COLS}`,
+    [shared.userId, email],
+  ).catch(() => ({ rows: [] as SalesRow[] }));
+  if (claimed.rows[0]) {
+    console.info('[shared-session] linked existing sales row for', email);
+    return claimed.rows[0];
+  }
+
+  // Nothing here yet: make it. status/is_active mirror what Admin › Reps &
+  // Managers writes for somebody created by hand, because that is what this
+  // person is — an approved account, created by a different door.
+  // Two statements rather than one clever RETURNING: SALES_ROW_COLS carries a
+  // correlated subquery over user_departments, which cannot be reused in an
+  // INSERT's RETURNING. The insert returns the id; the row is read back with
+  // the same SELECT every other branch uses, so all three return the identical
+  // shape.
+  const created = await risansiPool.query<{ id: number }>(
+    `INSERT INTO users (email, name, role, status, is_active, identity_user_id, created_at, updated_at)
+     VALUES ($1, $2, COALESCE($3, 'rep'), 'Approved', TRUE, $4, NOW(), NOW())
+     ON CONFLICT (lower(email)) DO UPDATE
+        SET identity_user_id = COALESCE(users.identity_user_id, EXCLUDED.identity_user_id),
+            updated_at = NOW()
+     RETURNING id`,
+    [email, shared.name || email, grantRole, shared.userId],
+  ).catch(e => {
+    console.error('[shared-session] could not provision a sales row for', email, e);
+    return { rows: [] as { id: number }[] };
+  });
+  const newId = created.rows[0]?.id;
+  if (newId == null) return null;
+
+  console.info('[shared-session] provisioned sales row for', email);
+  const back = await risansiPool.query<SalesRow>(
+    `SELECT ${SALES_ROW_COLS} FROM users u WHERE u.id = $1 LIMIT 1`, [newId]);
+  return back.rows[0] ?? null;
+}
+
 const sessionFromSharedCookie = cache(async (): Promise<Session | null> => {
   // Everything in here is best-effort, and that is the single most important
   // property of this function during step 3.
@@ -153,22 +246,9 @@ const sessionFromSharedCookie = cache(async (): Promise<Session | null> => {
   }
   if (!shared) return null;
 
-  const { rows } = await risansiPool.query<{
-    id: number; email: string; name: string | null; role: string | null;
-    is_active: boolean; status: string; departments: string[] | null;
-  }>(
-    `SELECT u.id, u.email, u.name, u.role, u.is_active, u.status,
-            ARRAY(SELECT d.department FROM user_departments d
-                   WHERE d.user_id = u.id ORDER BY d.department) AS departments
-       FROM users u
-      WHERE u.identity_user_id = $1
-      LIMIT 1`,
-    [shared.userId],
-  );
-  const sales = rows[0];
-  if (!sales || !sales.is_active || sales.status !== 'Approved') return null;
-
-  // The grant lives in the other database, so this cannot be one join.
+  // The grant is read FIRST, because it decides whether this person may have a
+  // sales row at all — and if they may, whether one gets created below. It
+  // lives in the other database, so this cannot be one join.
   const grant = await identityPool.query<{ status: string; app_role: string | null; is_active: boolean }>(
     `SELECT g.status, g.app_role, u.is_active
        FROM identity.app_grants g
@@ -180,6 +260,9 @@ const sessionFromSharedCookie = cache(async (): Promise<Session | null> => {
 
   const g = grant.rows[0];
   if (!g || !g.is_active || g.status !== 'Approved') return null;
+
+  const sales = await salesRowFor(shared, g.app_role);
+  if (!sales || !sales.is_active || sales.status !== 'Approved') return null;
 
   return {
     user: {
