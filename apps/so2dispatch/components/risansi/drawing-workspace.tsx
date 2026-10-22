@@ -129,8 +129,6 @@ export function DrawingWorkspace({
             searchPlaceholder="Search SO, EC…"
             noTypeFilter
             noStatusFilter
-            // Narrower, so Drawing's own filters fit on the first row.
-            searchClassName="sm:max-w-[12rem]"
             extraKeys={Object.values(DRAWING_FILTER_KEYS)}
             extraFilters={
               <>
