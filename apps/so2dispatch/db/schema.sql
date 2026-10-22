@@ -2823,3 +2823,35 @@ INSERT INTO boi_vendors (name, items) VALUES
     ('R A BELL AND CO', '{Stator}'),
     ('JAI BALA JI INDIA ENTERPRISES', '{VFD}')
 ON CONFLICT DO NOTHING;
+
+-- 0026  The vendors' codes, from Purchase's list. Idempotent.
+UPDATE boi_vendors v SET vendor_code = c.code, updated_at = now()
+  FROM (VALUES
+    ('KVM ENGINEERS PRIVATE LIMITED', 'HOVK-0086'),
+    ('ANIKET UDYAM', 'HOVA-0191'),
+    ('ACME ENGINEERING INDUSTRIES', 'HOVA-0073'),
+    ('SEALMATIC INDIA LIMITED', 'HOVS-0343'),
+    ('EAGLE BURGMANN INDIA PVT LTD', 'HOVE-0014'),
+    ('ESSAR CORPORATION', 'HOVE-0039'),
+    ('PACK SEALS ENGINEERING', 'HOVP-0100'),
+    ('GLOBAL MOTION SOLUTIONS PVT. LTD.', 'HOVG-0088'),
+    ('B B POWER', 'HOVB-0114'),
+    ('MOTOR AND MACHINERY CORPORATION', 'HOVM-0135'),
+    ('MOTOR SALES CORPORATION', 'HOVM-0098'),
+    ('Adarsh Tube & Machinery Corp', 'HOVA-0002'),
+    ('ESS KAY ELECTRICALS', 'HOVE-0034'),
+    ('Siddh Engineers', 'HOVS-0013'),
+    ('Associate Engineers', 'HOVA-0012'),
+    ('Chitra Engg. Co.', 'HOVC-0004'),
+    ('SUPATH ENG SARVICE PVT LTD', 'HOVS-0116'),
+    ('S R SETH & SONS', 'HOVS-0304'),
+    ('PARSONS MACHINERY', 'HOVP-0043'),
+    ('POWER BULID PVT LTD', 'HOVP-0038'),
+    ('TOP GEAR CORPORATION LIMITED', 'HOVT-0078'),
+    ('NEW AGARWALTRADER', 'HOVN-0036'),
+    ('KAVADE MACHINE WORKS', 'HOVK-0106'),
+    ('GAURAV CREATION', 'HOVG-0096'),
+    ('R A BELL AND CO', 'HOVR-0141'),
+    ('JAI BALA JI INDIA ENTERPRISES', 'HOVJ-0047')
+  ) AS c(name, code)
+ WHERE lower(btrim(v.name)) = lower(c.name) AND v.vendor_code IS NULL;
