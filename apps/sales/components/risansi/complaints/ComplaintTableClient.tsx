@@ -105,6 +105,11 @@ const freeReplLabel = (r: ComplaintListRow): string | null =>
 const COLUMNS: Col[] = [
   { id: 'no',         head: 'No.', locked: true, kind: 'text', value: r => r.complaint_no },
   { id: 'client',     head: 'Client', kind: 'text', value: r => r.client_name },
+  // Directly after the client, because that is the pair people read a
+  // complaint row by: who, and when it came in. It sat 24th, past the end of
+  // the default scroll, so the date was effectively not on the table.
+  { id: 'raised',     head: 'Complaint date', pick: 'Complaint date', kind: 'date',
+    value: r => r.complaint_date ?? r.created_at },
   { id: 'status',     head: 'Status', kind: 'status', order: STATUS_ORDER, value: r => r.status },
   { id: 'sev',        head: 'Sev', pick: 'Severity', kind: 'status', order: SEVERITY_ORDER, value: r => r.severity },
   // Severe sorts flagged-first on the first click, which is the only order
@@ -136,7 +141,6 @@ const COLUMNS: Col[] = [
     value: r => (r.overdue && r.overdue_days != null && r.overdue_threshold != null ? r.overdue_days - r.overdue_threshold : null) },
   { id: 'target',     head: 'Target', kind: 'date', value: r => r.target_completion_date },
   { id: 'rep',        head: 'Rep', kind: 'text', value: r => r.rep_name },
-  { id: 'raised',     head: 'Raised', kind: 'date', value: r => r.complaint_date ?? r.created_at },
   // How many customer letters are attached — the question this column answers.
   { id: 'docs',       head: 'Customer docs', kind: 'number', value: r => r.customer_files.length },
   // The trailing "Open →" link. An action, so there is nothing to sort.
@@ -144,6 +148,16 @@ const COLUMNS: Col[] = [
 ];
 
 const ALL_IDS = COLUMNS.map(c => c.id);
+
+// One-time reveal of a newly promoted column, remembered separately from the
+// column choice itself so it fires once per browser and never again.
+const PROMOTED_KEY = 'risansi:cmp-cols:raised-promoted';
+const PROMOTED_SEEN = () => {
+  try { return localStorage.getItem(PROMOTED_KEY) === '1'; } catch { return true; }
+};
+const PROMOTE_MARK = () => {
+  try { localStorage.setItem(PROMOTED_KEY, '1'); } catch { /* nothing to persist to */ }
+};
 
 // Every column, not only the showing ones: hiding a column must not disturb the
 // order the table is in, and a sorted column that is then hidden keeps its sort.
@@ -193,8 +207,16 @@ export function ComplaintTableClient({ rows }: { rows: ComplaintListRow[] }) {
       // Rebuilt from the canonical order, and the locked columns are added back
       // whatever the saved list says, so a hand-edited or stale entry cannot
       // produce a table with no way to identify a row.
-      const next = ALL_IDS.filter(id => arr.includes(id) || COLUMNS.find(c => c.id === id)?.locked);
+      const next = ALL_IDS.filter(id => arr.includes(id) || COLUMNS.find(c => c.id === id)?.locked
+        // A column that has just been promoted is shown once, even to somebody
+        // whose saved choice predates the move. Without this, everybody who had
+        // ever opened the Columns menu would go on not seeing the complaint
+        // date — the saved list simply does not mention it — and would conclude
+        // the change never shipped. Ticking it off afterwards sticks, because
+        // the save below then records the decision.
+        || (id === 'raised' && !arr.includes('raised') && !PROMOTED_SEEN()));
       if (next.length) setVisible(next);
+      PROMOTE_MARK();
     } catch {
       // Private browsing, or site data blocked. The default set is already on.
     }
