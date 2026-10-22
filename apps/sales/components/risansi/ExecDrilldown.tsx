@@ -29,7 +29,19 @@ const DRILL_COLS: SortableColumn<DrillRow>[] = [
   { key: 'code',  kind: 'text' },
   { key: 'name',  kind: 'text' },
   { key: 'value', kind: 'number' },
+  // Sorted on the real date, not the 'DD Mon YYYY' the cell prints — sorting
+  // that string alphabetically puts April before January. Never-visited sorts
+  // first, which is the order somebody opening this list wants.
+  { key: 'lastVisit', kind: 'date', value: r => isoOf(r.lastVisit) },
+  { key: 'openPipelineInr', kind: 'number' },
 ];
+
+/** 'DD Mon YYYY' → 'YYYY-MM-DD', so it sorts as a date. */
+function isoOf(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const d = new Date(`${v} UTC`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
 
 export function ExecDrilldownProvider({ tsm, scope, fy, children }: {
   tsm: string; scope: 'own' | 'all';
@@ -131,6 +143,8 @@ export function ExecDrilldownProvider({ tsm, scope, fy, children }: {
                         <tr>
                           <SortTH {...sortBy('code')} style={TH}>Code</SortTH>
                           <SortTH {...sortBy('name')} style={TH}>Client</SortTH>
+                          <SortTH {...sortBy('lastVisit')} style={TH}>Last visit</SortTH>
+                          <SortTH {...sortBy('openPipelineInr')} style={TH} align="right">Open pipeline</SortTH>
                           {valueLabel
                             ? <SortTH {...sortBy('value')} style={TH} align="right">{valueLabel}</SortTH>
                             : <th style={{ ...TH, textAlign: 'right' }} />}
@@ -149,6 +163,27 @@ export function ExecDrilldownProvider({ tsm, scope, fy, children }: {
                               </a>
                               {r.detail && (
                                 <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 1 }}>{r.detail}</div>
+                              )}
+                            </td>
+                            {/* When, and what was said. The remark is the
+                                reason the date is worth showing: "last visit
+                                12 Aug" tells you nothing on its own. */}
+                            <td style={{ ...TD, minWidth: 150, maxWidth: 260 }}>
+                              {r.lastVisit
+                                ? <span style={{ fontSize: 11.5, whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}>{r.lastVisit}</span>
+                                : <span style={{ fontSize: 11.5, color: 'var(--neg)' }}>never visited</span>}
+                              {r.lastRemark && (
+                                <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
+                                  {r.lastRemark.length > 160 ? `${r.lastRemark.slice(0, 160)}…` : r.lastRemark}
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap', minWidth: 110 }}>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                                {r.openPipelineInr ? fmtINR(r.openPipelineInr) : '—'}
+                              </span>
+                              {r.quoteStatus && (
+                                <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 2 }}>{r.quoteStatus}</div>
                               )}
                             </td>
                             <td style={{ ...TD, textAlign: 'right', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>

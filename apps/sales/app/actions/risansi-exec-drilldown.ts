@@ -29,6 +29,15 @@ export interface DrillRow {
   name: string;
   value: number | null;   // rupees, or null for a count-only list
   detail?: string | null; // a second line — stage, date, purpose
+  // ── Added for every client list, whichever number was clicked ──
+  /** The last visit, as 'DD Mon YYYY'. Null when there has never been one. */
+  lastVisit?: string | null;
+  /** What the rep wrote on that visit. */
+  lastRemark?: string | null;
+  /** Rupees still live: quoted, negotiating or on hold. */
+  openPipelineInr?: number | null;
+  /** Where this client's quotations stand — '2 Active · 1 Lost'. */
+  quoteStatus?: string | null;
 }
 
 export interface DrillResult {
@@ -63,6 +72,87 @@ export interface DrillParams {
 }
 
 const money = (v: unknown) => (v == null ? 0 : Number(v));
+
+/**
+ * The three things a name on its own does not answer.
+ *
+ * Every drill-down in this file lists clients, and a list of names cannot be
+ * acted on: the reader's next question is always when we last called on them,
+ * what was said, and what is still live. So the last visit with its remark,
+ * the open pipeline, and where the quotations stand are attached to every
+ * row, whichever number was clicked.
+ *
+ * Done here rather than in each branch's SQL because there are eleven
+ * branches and the question is the same in all of them — and one of them
+ * groups, so the columns could not simply be added to its SELECT.
+ *
+ * One query for the whole list, not one per row: these popups routinely carry
+ * a few hundred clients.
+ */
+async function enrichClients(rows: DrillRow[]): Promise<DrillRow[]> {
+  if (rows.length === 0) return rows;
+  const ids = [...new Set(rows.map(r => r.clientId))].filter(Number.isInteger);
+  if (ids.length === 0) return rows;
+
+  try {
+    const { rows: extra } = await risansiPool.query<{
+      client_id: number; last_visit: string | null; remark: string | null;
+      open_inr: string | null; statuses: string | null;
+    }>(
+      `WITH last_v AS (
+         SELECT DISTINCT ON (v.client_id) v.client_id,
+                to_char(v.visit_date, 'DD Mon YYYY') AS last_visit,
+                -- What the rep actually wrote. summary is the field they fill
+                -- on the report; the others are the fallbacks for an older
+                -- record that predates it.
+                NULLIF(btrim(COALESCE(NULLIF(btrim(v.summary), ''),
+                                      NULLIF(btrim(v.outcome), ''),
+                                      NULLIF(btrim(v.open_remarks), ''))), '') AS remark
+           FROM visits v
+          WHERE v.client_id = ANY($1::int[]) AND v.visit_date IS NOT NULL
+          ORDER BY v.client_id, v.visit_date DESC, v.id DESC),
+       opp AS (
+         SELECT o.client_id,
+                -- Live money: quoted, still being argued over, or paused. Won
+                -- and Lost are decided and Dropped is gone, so none of them is
+                -- pipeline any more.
+                COALESCE(SUM(COALESCE(o.offer_value_inr, o.value_cr * 10000000))
+                         FILTER (WHERE o.stage IN ('Quoted','Negotiating','On Hold')), 0) AS open_inr,
+                string_agg(DISTINCT CASE o.stage
+                     WHEN 'Quoted' THEN 'Active' WHEN 'Negotiating' THEN 'Active'
+                     WHEN 'On Hold' THEN 'Hold'  WHEN 'Won' THEN 'Won'
+                     WHEN 'Lost' THEN 'Lost'     WHEN 'Dropped' THEN 'Dropped'
+                     WHEN 'Suspect' THEN 'Suspect' WHEN 'Prospect' THEN 'Enquiry'
+                     ELSE o.stage END, ' · ') AS statuses
+           FROM opportunities o
+          WHERE o.client_id = ANY($1::int[])
+          GROUP BY o.client_id)
+       SELECT c.id AS client_id, lv.last_visit, lv.remark,
+              op.open_inr::text AS open_inr, op.statuses
+         FROM clients c
+         LEFT JOIN last_v lv ON lv.client_id = c.id
+         LEFT JOIN opp    op ON op.client_id = c.id
+        WHERE c.id = ANY($1::int[])`,
+      [ids],
+    );
+    const by = new Map(extra.map(e => [Number(e.client_id), e]));
+    return rows.map(r => {
+      const e = by.get(r.clientId);
+      return {
+        ...r,
+        lastVisit: e?.last_visit ?? null,
+        lastRemark: e?.remark ?? null,
+        openPipelineInr: e?.open_inr == null ? null : Number(e.open_inr),
+        quoteStatus: e?.statuses ?? null,
+      };
+    });
+  } catch (e) {
+    // The names and figures are the point; the extra context is not worth
+    // failing the whole popup for.
+    console.error('[execDrilldown] could not enrich the client rows', e);
+    return rows;
+  }
+}
 
 export async function execDrilldown(p: DrillParams): Promise<DrillResult | null> {
   const me = await getCurrentUser();
@@ -99,12 +189,14 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
   // Every branch returns rows already sorted biggest-first, which is what the
   // reader is looking for: the popup answers "who is this made of", and that
   // question is almost always really "who is most of it".
-  const run = async (sql: string, params: unknown[] = []) =>
-    (await risansiPool.query<{ id: number; code: string; name: string; value: string | null; detail: string | null }>(
+  const run = async (sql: string, params: unknown[] = []) => {
+    const base = (await risansiPool.query<{ id: number; code: string; name: string; value: string | null; detail: string | null }>(
       sql, params as never[])).rows.map(r => ({
         clientId: Number(r.id), code: r.code, name: r.name,
         value: r.value == null ? null : Number(r.value), detail: r.detail,
       }));
+    return enrichClients(base);
+  };
 
   const CLIENT_LIST = (cond: string) => `
     SELECT c.id, c.code, c.legal_name AS name, NULL::numeric AS value,
