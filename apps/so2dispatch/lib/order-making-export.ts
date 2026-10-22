@@ -39,6 +39,7 @@ export const COLUMNS: { header: string; width: number; date?: boolean }[] = [
   { header: "Item Qty", width: 9 },
   { header: "SO No.", width: 16 },
   { header: "SO Date", width: 12, date: true },
+  { header: "File No.", width: 14 },
   { header: "EC No.", width: 16 },
   { header: "EC Date", width: 12, date: true },
   { header: "SO Sent to Operation", width: 14, date: true },
@@ -73,8 +74,8 @@ export function orderMakingReportLines(rows: OrderMakingRow[]): { cells: Cell[];
     ];
     const items = o.items ?? [];
     const lines = items.length
-      ? items.map((i) => [num(i.quantity), text(o.so_no), date(o.so_date), text(i.ec_no), date(i.ec_date)])
-      : [[num(o.total_quantity), text(o.so_no), date(o.so_date), null, null]];
+      ? items.map((i) => [num(i.quantity), text(o.so_no), date(o.so_date), text(o.file_no), text(i.ec_no), date(i.ec_date)])
+      : [[num(o.total_quantity), text(o.so_no), date(o.so_date), text(o.file_no), null, null]];
     for (const line of lines) out.push({ cells: [...so, ...line, ...tail], filled });
   }
   return out;

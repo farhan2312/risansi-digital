@@ -871,9 +871,9 @@ export const SO_DETAIL_COLUMNS = [
  * them would otherwise read as unfilled overnight.
  */
 const SO_REQUIRED_COLUMNS = ["so_no", "so_date", "order_value", "order_currency", "total_quantity"];
-/** What Order Making SO types into. */
+/** What Order Making SO types into — and Clear / Hold on the SOs assigned to them. */
 export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter(
-  (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.column === "ec_sent_operation_date"
+  (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.column === "ec_sent_operation_date" || f.group === "Order Making Hold"
 );
 /** The Sales Order details that must be in for the SO's details to count as filled. */
 export const SO_DETAIL_FIELDS: OrderField[] = ORDER_MAKING_FIELDS.filter(

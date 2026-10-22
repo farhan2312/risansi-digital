@@ -4143,6 +4143,10 @@ export async function listOrdersForOrderMaking(opts: {
       if (ff.from) clauses.push(`o.customer_po_date >= ${lit(ff.from)}::date`);
       if (ff.to) clauses.push(`o.customer_po_date <= ${lit(ff.to)}::date`);
     }
+    if (ff.dateField === "op_date") {
+      if (ff.from) clauses.push(`o.ec_sent_operation_date >= ${lit(ff.from)}::date`);
+      if (ff.to) clauses.push(`o.ec_sent_operation_date <= ${lit(ff.to)}::date`);
+    }
     return clauses;
   };
   const clauses = buildClauses(f);
