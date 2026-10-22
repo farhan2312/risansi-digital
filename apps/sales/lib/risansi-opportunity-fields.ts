@@ -208,6 +208,16 @@ export const OPP_FIELDS: OppFieldDef[] = [
   // the other follows, until somebody edits it.
   { name: 'po_received_date', label: 'PO Received Date',     kind: 'date', asked: 'Won', onlyStages: ['Won'], noFuture: true,
     mirrors: 'po_date', help: 'The day the PO reached us. Follows the PO date until you change it.' },
+  // Required alongside the PO number, which is itself required here, so a Won
+  // deal cannot record a PO nobody can put a figure against.
+  //
+  // It is what makes the PO real. The Purchase Orders panel in the drawer
+  // stores number, date AND value, and the Won form captured only the first
+  // two — so every PO entered here arrived in that panel as "value not
+  // recorded" and had to be typed a second time. Asking for it once, at the
+  // point the PO is first seen, is the whole fix.
+  { name: 'po_value_inr',    label: 'PO Value (₹)',         kind: 'inr',  asked: 'Won', onlyStages: ['Won'], requiredAt: ['Won'],
+    help: 'What the customer ordered, as the PO says. Carried straight into the Purchase Orders list.' },
 
   // ── Lost ────────────────────────────────────────────────────
   { name: 'lost_to_competitor', label: 'Lost To Competitor', kind: 'select', asked: 'Lost', onlyStages: ['Lost'], requiredAt: ['Lost'], options: [] },

@@ -1659,6 +1659,33 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
   if (items !== null) await replaceQuotedItems(oppId, items);
   if (formData.get('offer_revisions_json') !== null) await syncOfferRevisions(oppId, revParsed.rows, user.email ?? null);
 
+  // The PO typed on the Won form becomes a real Purchase Order row.
+  //
+  // Without this the Won form wrote only po_number and po_date onto the
+  // opportunity, while the Purchase Orders panel reads its own table — so
+  // every PO captured here showed up there as "value not recorded" and had to
+  // be entered a second time. PO Value is now asked for on the same form,
+  // which is what makes the row complete enough to create.
+  //
+  // Guarded on there being nothing there already: this runs on every save of a
+  // Won deal, not only the move into Won, and a second save must not add a
+  // second copy of the same PO.
+  if (candidates.stage === 'Won') {
+    const poNum = (formData.get('po_number') as string | null)?.trim() ?? '';
+    const poDate = (formData.get('po_date') as string | null)?.trim() ?? '';
+    const poInr = parseMoneyInput(formData.get('po_value_inr'));
+    if (poNum && /^\d{4}-\d{2}-\d{2}$/.test(poDate) && poInr != null && poInr > 0) {
+      await risansiPool.query(
+        `INSERT INTO opportunity_purchase_orders (opportunity_id, po_number, po_date, po_value_cr, created_by)
+         SELECT $1, $2, $3::date, $4, $5
+          WHERE NOT EXISTS (
+            SELECT 1 FROM opportunity_purchase_orders
+             WHERE opportunity_id = $1 AND lower(btrim(po_number)) = lower(btrim($2)))`,
+        [oppId, poNum, poDate, poInrToCr(poInr), user.email ?? null],
+      ).catch(e => console.error('[opp] could not record the PO from the Won form', e));
+    }
+  }
+
   await logActivity('opportunity', String(oppId), `updated opportunity · ${candidates.stage}`, user.email!);
   revalidatePath('/risansi/pipeline');
   revalidatePath('/risansi');
