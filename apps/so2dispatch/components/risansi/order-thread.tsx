@@ -232,10 +232,9 @@ export function OrderThread({
   }
 
   const peerLabel = peer ? roleLabel(peer) : "";
-  // A delay is something Central logs against the order, so it is only worth
-  // raising in the conversation with them. Central's own tabs are all with a
-  // department, so every one of theirs qualifies.
-  const canLogDelay = central || peer === "central_visibility";
+  // Every conversation can carry a delay — with Central or department to
+  // department — beside a plain note.
+  const canLogDelay = !!peer;
 
   // A conversation that cannot carry a delay always sends a note, whatever the
   // toggle was last left on — derived, so switching tabs needs no reset and
@@ -475,7 +474,7 @@ export function OrderThread({
             onSubmit={send}
             className="space-y-2.5 border-t border-card-border px-5 py-4"
           >
-            {/* Only the conversation with Central offers the delay flag. Not
+            {/* Every conversation offers the delay flag. Not
                 rendered rather than hidden by a class: `hidden` and
                 `inline-flex` both set display, and which one wins depends on
                 the order Tailwind emits them, not on the order written here. */}
