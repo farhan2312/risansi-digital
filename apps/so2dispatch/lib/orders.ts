@@ -4496,6 +4496,8 @@ export type DeptTargets = {
   dispatch: string | null;
   // Set only when the dispatch date has been revised; it supersedes the above.
   dispatchRevised: string | null;
+  /** Drawing's own readiness date: once set, Drawing is due by it rather than its target. */
+  drawingReadiness?: string | null;
 };
 
 export type SoDeptStatus = {
@@ -4676,6 +4678,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
         assembly: head.dispatch_team_target_date,
         dispatch: head.dispatch_target_date,
         dispatchRevised: head.dispatch_target_revised_date,
+        drawingReadiness: head.drg_readiness_date ?? null,
       },
       ecs,
     });
