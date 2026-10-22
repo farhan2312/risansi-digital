@@ -2752,3 +2752,11 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS only_billing TEXT;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_only_billing_check;
 ALTER TABLE orders ADD CONSTRAINT orders_only_billing_check
     CHECK (only_billing IS NULL OR only_billing IN ('Yes', 'No'));
+
+-- 0023  More QC documents an SO can ask for: QAP, Test Report, Photos and
+-- Packing Details, beside MTC, IIR and Dimensional Report. Apply to
+-- ec_to_dispatch before deploying the code that reads it; also in
+-- apps/so2dispatch/db/schema.sql. Idempotent.
+ALTER TABLE order_qc_doc_links DROP CONSTRAINT IF EXISTS order_qc_doc_links_doc_type_check;
+ALTER TABLE order_qc_doc_links ADD CONSTRAINT order_qc_doc_links_doc_type_check
+    CHECK (doc_type IN ('MTC', 'IIR', 'Dimensional Report', 'QAP', 'Test Report', 'Photos', 'Packing Details'));

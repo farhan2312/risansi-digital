@@ -84,7 +84,7 @@ const YES_NO = opts(["Yes", "No"]);
 export const YES_NO_OPTIONS = YES_NO;
 
 /** The QC documents an SO can ask for, any of them (lib/qc-docs.ts QC_DOC_TYPES). */
-export const QC_DOCUMENT_OPTIONS = opts(["MTC", "IIR", "Dimensional Report"]);
+export const QC_DOCUMENT_OPTIONS = opts(["MTC", "IIR", "Dimensional Report", "QAP", "Test Report", "Photos", "Packing Details"]);
 export const QC_DOC_FIELDS: OrderField[] = [
   { column: "qc_documents", label: "QC Documents", type: "multiselect", options: QC_DOCUMENT_OPTIONS },
 ];

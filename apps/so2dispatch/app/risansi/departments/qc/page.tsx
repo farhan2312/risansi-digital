@@ -96,7 +96,7 @@ export default async function QcWorkspacePage({
             Quality
           </h1>
           <p className="text-sm text-muted">
-            The QC documents each SO needs (MTC, IIR, Dimensional Report) are set
+            The QC documents each SO needs (MTC, IIR, Test Report, QAP and the rest) are set
             on the order. Give each one per EC as a SharePoint link; the EC is
             submitted once all are in.
           </p>
