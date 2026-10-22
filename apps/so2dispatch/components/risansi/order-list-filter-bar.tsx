@@ -468,6 +468,8 @@ export function OrderListFilterBar({
             if (f.value === "packing") return !dept || ["planning", "assembly", "dispatch"].includes(activeDept ?? "");
             // Drawing's own readiness date.
             if (f.value === "drg_readiness") return !dept || activeDept === "drawing";
+            // Purchase's bought-out items: when each is expected.
+            if (f.value === "boi_expected") return !dept || activeDept === "purchase";
             if (f.value === "dispatch_target") return !dept && !noDispatchTarget;
             // Completion dates come from sign-offs, which are switched off.
             if (f.value === "completed_on") return SIGN_OFF_ENABLED;

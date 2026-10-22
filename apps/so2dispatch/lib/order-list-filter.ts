@@ -34,6 +34,8 @@ export const ORDER_DATE_FIELDS = [
   { value: "readiness", label: "Readiness date" },
   // Drawing's own: when it says the SO's drawings will be ready.
   { value: "drg_readiness", label: "Drawing readiness" },
+  // Purchase's own: when a bought-out item is expected from its vendor.
+  { value: "boi_expected", label: "Expected date" },
   // Assembly & Packing's own: when it plans to pack a Spare's lot.
   { value: "packing", label: "Packing date" },
   { value: "dispatch_target", label: "Dispatch target" },
@@ -256,6 +258,8 @@ export function parseOrderListFilter(
         : dateFieldRaw === "packing" && dept && !["planning", "assembly", "dispatch"].includes(dept)
           ? (dept ? "so_date" : fallbackDate)
         : dateFieldRaw === "drg_readiness" && dept && dept !== "drawing"
+          ? "so_date"
+        : dateFieldRaw === "boi_expected" && dept && dept !== "purchase"
           ? "so_date"
         : dateFieldRaw;
 

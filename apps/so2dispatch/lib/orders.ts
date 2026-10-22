@@ -2846,6 +2846,9 @@ export async function listOrdersForBilling(
 export type PurchaseQueueRow = {
   id: string;
   order_id: string;
+  /** Set by the Purchase page from all the SO's / EC's items, before its filters narrow them. */
+  pur_so_state?: string;
+  pur_ec_state?: string;
   sl_no: number;
   so_no: string | null;
   so_date: string | null;
@@ -3508,6 +3511,11 @@ function orderListClauses(
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_ready_lots prl ON prl.item_id = s.id
                              WHERE s.order_id = o.id AND ${range("prl.packing_plan_date")})`);
     } else if (f.dateField === "drg_readiness") clauses.push(range("o.drg_readiness_date"));
+    else if (f.dateField === "boi_expected") {
+      // A bought-out item's expected receipt date (the vendor's), on any EC of the SO.
+      clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_boi_items xb ON xb.item_id = s.id
+                             WHERE s.order_id = o.id AND ${range("xb.expected_receipt_date")})`);
+    }
     else if (f.dateField === "ec_date") {
       clauses.push(`EXISTS (SELECT 1 FROM order_items s
                              WHERE s.order_id = o.id AND ${range("s.ec_date")})`);
@@ -4396,16 +4404,23 @@ export async function listItemsForPurchasePage(opts: {
   filter?: OrderListFilter;
   sort?: QueueSort | null;
   kpis?: KpiCardDef[];
+  /** Purchase's own filters (lib/purchase-filter), as SQL over o — the list. */
+  extraRestrict?: string;
+  /** …and what of them the cards count over too (the vendor). */
+  kpiRestrict?: string;
 }): Promise<PageResult<PurchaseQueueRow> & { kpis?: KpiCard[] }> {
   const { ids, total, page, kpis } = await pageOfOrderIds({
     kpis: opts.kpis
-      ? { restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`, cards: opts.kpis }
+      ? {
+          restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AND (${opts.kpiRestrict ?? "TRUE"})`,
+          cards: opts.kpis,
+        }
       : undefined,
     page: opts.page,
     search: opts.search,
     focusOrderId: opts.focusOrderId ?? null,
     orderBy: queueOrderBy(opts.sort),
-    restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`,
+    restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AND (${opts.extraRestrict ?? "TRUE"})`,
     searchable: soAndEcSearch,
     filter: opts.filter,
   });
@@ -4417,6 +4432,15 @@ export async function listItemsForPurchasePage(opts: {
   }
 
   return { ...pageResult(rows, total, page), kpis };
+}
+
+/** The vendors bought-out items have been ordered from, for Purchase's Vendor filter. */
+export async function listBoiVendors(): Promise<string[]> {
+  const r = await query<{ v: string }>(
+    `SELECT DISTINCT TRIM(vendor_name) AS v FROM order_boi_items
+      WHERE vendor_order = 'Yes' AND TRIM(COALESCE(vendor_name, '')) <> '' ORDER BY 1`
+  );
+  return r.rows.map((x) => x.v);
 }
 
 /** Billing and Dispatch queue: one page of SOs, filtered in SQL. */

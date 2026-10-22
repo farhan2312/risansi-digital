@@ -19,6 +19,8 @@ import type { PageResult } from "@/lib/pagination";
 import { OrderThreadModal } from "./order-thread-modal";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import type { DeptCompletion } from "@/lib/dept-completion";
+import { MultiSelectFilter } from "./multi-select-filter";
+import { BOI_STATUSES, PURCHASE_FILTER_KEYS, PURCHASE_STATES } from "@/lib/purchase-filter";
 
 type Row = Record<string, unknown>;
 
@@ -45,7 +47,10 @@ export function PurchaseWorkspace({
   completions = [],
   filterOptions,
   kpis = [],
+  vendors = [],
 }: {
+  /** The vendors items have been ordered from, for the Vendor filter. */
+  vendors?: string[];
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
   // One server-fetched page of SOs, with every EC of those SOs.
@@ -68,7 +73,7 @@ export function PurchaseWorkspace({
   drawingDocCounts?: Record<string, number>;
 }) {
   const rows = queue.rows;
-  const { get: getParam } = useUrlTable();
+  const { get: getParam, getList, setParams } = useUrlTable();
   // SO view (each SO with its ECs) or BOI view (one row per bought-out item).
   const boiView = getParam("view") === "boi";
   // An empty table means one of two very different things — say which, so a
@@ -139,6 +144,42 @@ export function PurchaseWorkspace({
             hasTarget={DEPT_VIEWS["purchase"].hasTarget}
             searchPlaceholder={"Search SO, EC…"}
             noTypeFilter
+            noStatusFilter
+            extraKeys={Object.values(PURCHASE_FILTER_KEYS)}
+            extraFilters={
+              <>
+                <MultiSelectFilter
+                  label="SO status"
+                  allLabel="Any"
+                  options={PURCHASE_STATES}
+                  selected={getList(PURCHASE_FILTER_KEYS.so)}
+                  onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.so]: next })}
+                />
+                <MultiSelectFilter
+                  label="EC status"
+                  allLabel="Any"
+                  options={PURCHASE_STATES}
+                  selected={getList(PURCHASE_FILTER_KEYS.ec)}
+                  onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.ec]: next })}
+                />
+                <MultiSelectFilter
+                  label="BOI status"
+                  allLabel="Any"
+                  options={BOI_STATUSES}
+                  selected={getList(PURCHASE_FILTER_KEYS.boi)}
+                  onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.boi]: next })}
+                />
+                <MultiSelectFilter
+                  label="Vendor"
+                  allLabel="Any"
+                  searchable
+                  options={vendors}
+                  selected={(getParam(PURCHASE_FILTER_KEYS.vendor) ?? "").split("|").filter(Boolean)}
+                  // Kept apart by "|": a vendor name can hold a comma.
+                  onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.vendor]: next.length ? next.join("|") : null })}
+                />
+              </>
+            }
           />
         ) : (
           <UrlSearchInput placeholder={"Search SO, EC…"} />
@@ -208,8 +249,8 @@ export function PurchaseWorkspace({
                 const span = g.ecs.length;
                 const soCell = "px-3 py-2 align-top border-b border-card-border";
                 // Closed once every EC with bought-out items has them all in hand.
-                const ecStates = g.ecs.map(ecState);
-                const soState = ecStates.every((s) => s === "na") ? "na" : ecStates.some((s) => s === "open") ? "open" : "closed";
+                // Worked out on the server from all the SO's ECs, before a filter narrows them.
+                const soState = stateOf(g.head.pur_so_state) ?? soStateOf(g.ecs);
                 return (
                   <Fragment key={g.key}>
                     {g.ecs.map((row, k) => {
@@ -265,7 +306,7 @@ export function PurchaseWorkspace({
                           <td className={`${ecCell} whitespace-nowrap`}>{row.pump_type ?? "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.model_no ?? "—"}</td>
                           <td className={ecCell}>
-                            <StateChip state={ecState(row)} />
+                            <StateChip state={stateOf(row.pur_ec_state) ?? ecState(row)} />
                             {items.length > 0 && (
                               <span className={`block text-[11px] font-semibold ${got === items.length ? "text-emerald-700" : "text-amber-700"}`}>
                                 {got}/{items.length} in hand
@@ -486,6 +527,16 @@ function ecState(row: PurchaseQueueRow): "open" | "closed" | "na" {
   const items = (row.boi_items ?? []) as Row[];
   if (items.length === 0) return "na";
   return items.every(boiInHand) ? "closed" : "open";
+}
+
+/** A state the server worked out ("Open" / "Closed" / "N/A"), as the chip reads it. */
+function stateOf(v: unknown): "open" | "closed" | "na" | null {
+  return v === "Open" ? "open" : v === "Closed" ? "closed" : v === "N/A" ? "na" : null;
+}
+
+function soStateOf(ecs: PurchaseQueueRow[]): "open" | "closed" | "na" {
+  const states = ecs.map(ecState);
+  return states.every((s) => s === "na") ? "na" : states.some((s) => s === "open") ? "open" : "closed";
 }
 
 function StateChip({ state }: { state: "open" | "closed" | "na" }) {
