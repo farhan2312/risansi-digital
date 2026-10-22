@@ -4,7 +4,7 @@ import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { canManageEcs } from "@/lib/roles";
@@ -110,9 +110,12 @@ export function OrderMakingWorkspace({
   role,
   unreadThreads,
   kpis = [],
+  heading,
 }: {
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
+  /** The page heading, sharing its row with the report and New order buttons. */
+  heading?: React.ReactNode;
   queue: PageResult<OrderMakingRow>;
   filter: OrderMakingFilter;
   /** Zones, reps and markets as the orders carry them. */
@@ -201,8 +204,36 @@ export function OrderMakingWorkspace({
     { column: "order_value", label: "Order Value" },
   ];
 
+  const reportQs = excelQuery ? `?${excelQuery}` : "";
+  const headButton =
+    "inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background";
+
   return (
     <div>
+      {/* The heading, with the report (view, then download) and New order. */}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        {heading}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <a href={`/risansi/departments/order-making/report${reportQs}`} target="_blank" rel="noopener" className={headButton}>
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            View Report Excel
+          </a>
+          <a href={`/risansi/departments/order-making/export${reportQs}`} className={headButton}>
+            <Download className="h-4 w-4 text-emerald-600" />
+            Download Report Excel
+          </a>
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => setEditing("new")}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
+            >
+              <Plus className="h-4 w-4" />
+              New order
+            </button>
+          )}
+        </div>
+      </div>
       {/* Today's assignments or all time, and the same as a PDF grid. */}
       {summary && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -410,23 +441,6 @@ export function OrderMakingWorkspace({
         <span className="ml-auto text-xs text-muted">
           <span className="font-semibold text-foreground">{queue.total}</span> SO{queue.total === 1 ? "" : "s"}
         </span>
-        <a
-          href={`/risansi/departments/order-making/export${excelQuery ? `?${excelQuery}` : ""}`}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background"
-        >
-          <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-          Excel
-        </a>
-        {canCreate && (
-          <button
-            type="button"
-            onClick={() => setEditing("new")}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
-          >
-            <Plus className="h-4 w-4" />
-            New order
-          </button>
-        )}
       </div>
       </div>
 

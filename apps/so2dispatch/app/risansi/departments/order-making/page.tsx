@@ -57,21 +57,22 @@ export default async function OrderMakingPage({
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <FilePlus2 className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Order Making</h1>
-          <p className="text-sm text-muted">
-            {soMember
-              ? "The SOs assigned to you — fill each one's SO details: SO No., date, value, currency and quantity. Central Visibility is told once they are in."
-              : "Create SOs with their client and purchase order details and assign each one's SO details to an Order Making SO member. Central Visibility is told once the SO details are in."}
-          </p>
-        </div>
-      </div>
-
       <OrderMakingWorkspace
+        heading={
+          <div className="flex min-w-0 flex-1 basis-[28rem] items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <FilePlus2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Order Making</h1>
+              <p className="text-sm text-muted">
+                {soMember
+                  ? "The SOs assigned to you — fill each one's SO details: SO No., date, value, currency and quantity. Central Visibility is told once they are in."
+                  : "Create SOs with their client and purchase order details and assign each one's SO details to an Order Making SO member. Central Visibility is told once the SO details are in."}
+              </p>
+            </div>
+          </div>
+        }
         queue={queue}
         kpis={queue.kpis}
         filter={filter}
