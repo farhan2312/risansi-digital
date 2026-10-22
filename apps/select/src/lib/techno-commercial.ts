@@ -13,6 +13,10 @@ import { downloadXlsx, type XlsxCell } from "./xlsx";
 
 export const TECHNO_COMMERCIAL_TITLE = "Techno-Commercial Offer";
 
+/** Commercial Offer rows the technical part already shows (Liquid, Pump
+ *  Model, Drive Motor Rating) - left out of the combined sheet. */
+const IN_TECHNICAL = new Set(["t_liquid", "t_pumpModel", "t_motorKw"]);
+
 /** A row of the combined sheet: one value per column, or one across all. */
 type Row = { label: string; values: string[]; span?: boolean };
 type Section = { title: string; rows: Row[] };
@@ -47,7 +51,7 @@ export function technoCommercial(tech: TechDocSheet, offer: OfferSheet): TechnoC
   const [block] = buildOffer(offerTags, offer.config, offer.geared, { fx: offer.fx });
   sections.push({
     title: "Commercial Offer",
-    rows: block.rows.map((r) => (r.span ? { label: r.label, values: [r.values[0] ?? ""], span: true } : { label: r.label, values: place(offerIds, r.values) })),
+    rows: block.rows.filter((r) => !IN_TECHNICAL.has(r.key)).map((r) => (r.span ? { label: r.label, values: [r.values[0] ?? ""], span: true } : { label: r.label, values: place(offerIds, r.values) })),
   });
 
   return {
