@@ -3,17 +3,10 @@
 // (boiStatus, the SO view's chips) and in SQL here, so a filter matches what
 // the table shows.
 
-import { boiInHand, boiReceivedSql, boiStatus, spareEcSql } from "@/lib/dept-view";
+import { boiInHand, boiPartSql, boiReceivedSql, boiStatus, spareEcSql } from "@/lib/dept-view";
 
 export const PURCHASE_STATES = ["Open", "Closed"];
-export const BOI_STATUSES = [
-  "Pending",
-  "Partially in RIL stock",
-  "Available in RIL stock",
-  "Received",
-  "Partially received",
-  "Fully received",
-];
+export const BOI_STATUSES = ["Pending", "Partially received", "Fully received"];
 
 /** The URL params Purchase's own filters live under. */
 export const PURCHASE_FILTER_KEYS = { so: "pur_so", ec: "pur_ec", boi: "pur_boi", vendor: "pur_vendor" } as const;
@@ -79,9 +72,8 @@ const inList = (expr: string, values: string[]) => `${expr} IN (${values.map(lit
 
 /** A bought-out item's status in SQL, the words boiStatus shows. */
 export function boiStatusSql(b: string): string {
-  return `(CASE WHEN ${b}.vendor_order = 'Yes' THEN COALESCE(NULLIF(${b}.vendor_status, ''), 'Pending')
-                WHEN ${boiReceivedSql(b)} THEN (CASE WHEN COALESCE(${b}.boi_qty, 0) > 0 THEN 'Available in RIL stock' ELSE 'Received' END)
-                WHEN COALESCE(${b}.stock_allocated_qty, 0) > 0 THEN 'Partially in RIL stock'
+  return `(CASE WHEN ${boiReceivedSql(b)} THEN 'Fully received'
+                WHEN ${boiPartSql(b)} THEN 'Partially received'
                 ELSE 'Pending' END)`;
 }
 

@@ -315,42 +315,51 @@ export { isPerEcDept };
  * receivable. The rest work every order.
  */
 /**
- * A bought-out item is in hand. With an order placed to a vendor, when that
- * order is Fully received (received qty = order qty); without one, when RIL
- * stock allocated covers its qty. (A receipt dated before quantities were
- * kept still counts.) Over an order_boi_items alias; boiInHand is the same
- * rule in the browser.
+ * How much of a bought-out item is in hand, against its qty: RIL stock
+ * allocated plus what the vendor has delivered (when an order is placed).
+ * Qty 4 with 2 from RIL stock and 2 received from the vendor is in hand.
+ * An item with no qty (listed before quantities were kept) goes by its
+ * vendor order's status, else by a receipt date. Over an order_boi_items
+ * alias; boiInHand is the same rule in the browser.
  */
+const inHandQtySql = (b: string) =>
+  `(COALESCE(${b}.stock_allocated_qty, 0) + CASE WHEN ${b}.vendor_order = 'Yes' THEN COALESCE(${b}.received_qty, 0) ELSE 0 END)`;
+
 export function boiReceivedSql(b: string): string {
-  return `(CASE WHEN ${b}.vendor_order = 'Yes' THEN ${b}.vendor_status = 'Fully received'
-               ELSE (COALESCE(${b}.boi_qty, 0) > 0 AND COALESCE(${b}.stock_allocated_qty, 0) >= ${b}.boi_qty)
-                    OR (${b}.receipt_date IS NOT NULL AND ${b}.boi_qty IS NULL)
+  return `(CASE WHEN COALESCE(${b}.boi_qty, 0) > 0 THEN ${inHandQtySql(b)} >= ${b}.boi_qty
+               WHEN ${b}.vendor_order = 'Yes' THEN ${b}.vendor_status = 'Fully received'
+               ELSE ${b}.receipt_date IS NOT NULL
           END)`;
 }
 
+/** An item partly in hand: some of its qty from RIL stock and / or the vendor, not all. */
+export function boiPartSql(b: string): string {
+  return `(CASE WHEN COALESCE(${b}.boi_qty, 0) > 0 THEN ${inHandQtySql(b)} > 0
+               ELSE ${b}.vendor_order = 'Yes' AND ${b}.vendor_status = 'Partially received'
+          END)`;
+}
+
+const n = (v: unknown) => Number(v ?? 0) || 0;
+/** RIL stock allocated plus what the vendor delivered (when an order is placed). */
+const inHandQty = (b: Record<string, unknown>) => n(b.stock_allocated_qty) + (b.vendor_order === "Yes" ? n(b.received_qty) : 0);
+
 /** The same rule as boiReceivedSql, for a row already in the browser. */
 export function boiInHand(b: Record<string, unknown>): boolean {
+  const qty = n(b.boi_qty);
+  if (qty > 0) return inHandQty(b) >= qty;
   if (b.vendor_order === "Yes") return b.vendor_status === "Fully received";
-  const qty = Number(b.boi_qty ?? 0) || 0;
-  if (qty > 0) return (Number(b.stock_allocated_qty ?? 0) || 0) >= qty;
   return !!String(b.receipt_date ?? "").trim();
 }
 
 /**
- * Where a bought-out item stands, in words: its vendor order's status when one
- * is placed (Pending, Partially received, Fully received), else its RIL stock
- * (Available in RIL stock, Partially in RIL stock, Pending).
+ * Where a bought-out item stands: Fully received once RIL stock and the
+ * vendor together cover its qty, Partially received while some of it is in
+ * hand, else Pending.
  */
 export function boiStatus(b: Record<string, unknown>): { label: string; tone: "done" | "part" | "pending" } {
-  if (b.vendor_order === "Yes") {
-    const s = String(b.vendor_status ?? "Pending");
-    return { label: s, tone: s === "Fully received" ? "done" : s === "Partially received" ? "part" : "pending" };
-  }
-  const qty = Number(b.boi_qty ?? 0) || 0;
-  const stock = Number(b.stock_allocated_qty ?? 0) || 0;
-  if (boiInHand(b)) return { label: qty > 0 ? "Available in RIL stock" : "Received", tone: "done" };
-  if (stock > 0) return { label: "Partially in RIL stock", tone: "part" };
-  return { label: "Pending", tone: "pending" };
+  if (boiInHand(b)) return { label: "Fully received", tone: "done" };
+  const part = n(b.boi_qty) > 0 ? inHandQty(b) > 0 : b.vendor_order === "Yes" && b.vendor_status === "Partially received";
+  return part ? { label: "Partially received", tone: "part" } : { label: "Pending", tone: "pending" };
 }
 
 /** One document's versions on an EC, oldest first (a row's doc_type, GAD when blank). */
