@@ -699,8 +699,39 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     const lbl = STAGE_TO_OFFER[r.stage];
     if (lbl) offerAgg[lbl] += n(r.val); else offerUnmapped += n(r.val);
   }
-  const offerRows: Row[] = OFFER_STATUS_ORDER
-    .map(l => ({ label: l, vals: [offerAgg[l]], drill: [{ kind: 'offer_status' as const, tsm, key: l }] }));
+  // Two parts with a total each, then the Grand Total.
+  //
+  // The split is the one that matters commercially: an offer that was actually
+  // made and went somewhere, against an enquiry that was parked or closed
+  // without one. Reading them as a single seven-row list meant adding four
+  // numbers in your head to answer "what did we actually quote".
+  //
+  // 'Enquiry — not yet quoted' is in neither group, because it is in neither
+  // of the two the request named and guessing would file ₹1.2 Cr somewhere
+  // nobody asked for. It keeps its own row above both, so the Grand Total
+  // still reconciles: part one plus part two plus the enquiries.
+  const OFFER_PART_1 = ['Active', 'Hold-Active', 'Order Lost by RIL', 'Order Received'];
+  const OFFER_PART_2 = ['Parked — budgetary or future', 'Requirement Closed'];
+
+  const offerRow = (l: string): Row => ({
+    label: l, vals: [offerAgg[l] ?? 0],
+    drill: [{ kind: 'offer_status' as const, tsm, key: l }],
+  });
+  const sumOf = (ls: string[]) => ls.reduce((a, l) => a + (offerAgg[l] ?? 0), 0);
+
+  // Anything the two parts do not claim — today just the un-quoted enquiries,
+  // and any label a stage added later maps to. Listing it rather than dropping
+  // it is the same rule the panel already follows for an unmapped stage.
+  const claimed = new Set([...OFFER_PART_1, ...OFFER_PART_2]);
+  const leftover = OFFER_STATUS_ORDER.filter(l => !claimed.has(l));
+
+  const offerRows: Row[] = [
+    ...leftover.map(offerRow),
+    ...OFFER_PART_1.filter(l => l in offerAgg).map(offerRow),
+    { label: 'Total — Active, Hold, Lost, Won', vals: [sumOf(OFFER_PART_1)], strong: true },
+    ...OFFER_PART_2.filter(l => l in offerAgg).map(offerRow),
+    { label: 'Total — Suspect, Dropped', vals: [sumOf(OFFER_PART_2)], strong: true },
+  ];
   if (offerUnmapped) offerRows.push({ label: 'Other stage', vals: [offerUnmapped] });
   offerRows.push({ label: 'Grand Total', vals: [Object.values(offerAgg).reduce((a, b) => a + b, 0) + offerUnmapped], strong: true });
 
