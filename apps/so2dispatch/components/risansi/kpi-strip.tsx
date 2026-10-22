@@ -12,6 +12,9 @@ const TONE: Record<KpiTone, { dot: string; ring: string }> = {
   danger: { dot: "bg-rose-500", ring: "ring-rose-400/60" },
 };
 
+/** A sum (e.g. ECs) with no params to set: shown, not clickable. A sum that sets params (EC Open) is a filter like any card. */
+const readOnly = (c: KpiCard) => !!c.measure && Object.keys(c.params).length === 0;
+
 /**
  * A row of small summary cards under the filter bar. A card whose params the
  * URL already carries is on; clicking it clears them, clicking another sets
@@ -22,7 +25,7 @@ export function KpiStrip({ cards }: { cards: KpiCard[] }) {
   // The card just clicked shows on at once; the page follows when it loads.
   const [asked, setAsked] = useState<string | null>(null);
   const keys = [...new Set(cards.flatMap((c) => Object.keys(c.params)))];
-  const isOn = (c: KpiCard) => !c.measure && Object.entries(c.params).every(([k, v]) => (get(k) || null) === v);
+  const isOn = (c: KpiCard) => !readOnly(c) && Object.entries(c.params).every(([k, v]) => (get(k) || null) === v);
   const onKey = cards.find(isOn)?.key ?? null;
   const [seen, setSeen] = useState(onKey);
   if (seen !== onKey) {
@@ -81,8 +84,8 @@ function KpiStripRow({
       {cards.map((c) => {
         const on = shown === c.key;
         const tone = TONE[c.tone ?? "neutral"];
-        // A sum (e.g. ECs) is a figure to read, not a filter.
-        if (c.measure) {
+        // A sum with nothing to set (e.g. all ECs) is a figure to read, not a filter.
+        if (readOnly(c)) {
           return (
             <div key={c.key} className={`flex ${size} flex-col items-start justify-between border border-dashed border-card-border bg-surface shadow-sm`}>
               <span className={`flex items-start gap-1.5 ${labelCls} font-medium text-muted`}>

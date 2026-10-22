@@ -30,7 +30,7 @@ import { DrawingWorkspace } from "@/components/risansi/drawing-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards } from "@/lib/orders";
 import { toneFor, type KpiCardDef } from "@/lib/kpis";
-import { GAD_STATUSES, SO_STATES } from "@/lib/drawing-filter";
+import { CURVE_STATUSES, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
 
 export const metadata: Metadata = {
   title: "Drawing | Risansi",
@@ -63,29 +63,48 @@ export default async function DrawingWorkspacePage({
   // Drawing's own filters: the SO Open / Closed, and each EC's GAD,
   // Performance Curve and Part Drawing status.
   const drawingFilter = parseDrawingFilter((key) => params[key]);
-  // Drawing's cards: its SOs open and closed, where their GADs stand, and
-  // what is overdue against the Drawing target.
+  // Drawing's cards: its SOs open and closed, where their GADs, Performance
+  // Curves and Part Drawings stand, and what is overdue against the Drawing
+  // target — one compact row, a hairline between the groups.
   const drawingKpiCards = (): KpiCardDef[] => {
     const clear = { drg_so: null, drg_gad: null, drg_pc: null, drg_part: null, overdue: null } as Record<string, string | null>;
     const none = { so: [] as string[], gad: [] as string[], curve: [] as string[], part: [] as string[] };
     const overdue = deptKpiCards("drawing").find((c) => c.key === "overdue");
     return [
-      { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
+      { key: "all", label: "All SOs", group: "SO", sql: null, params: { ...clear }, tone: "neutral" },
       ...SO_STATES.map((st) => ({
         key: `so:${st}`,
         label: `SO ${st}`,
+        group: "SO",
         sql: drawingFilterSql({ ...none, so: [st] }),
         params: { ...clear, drg_so: st },
         tone: st === "Closed" ? ("done" as const) : ("pending" as const),
       })),
+      ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
       ...GAD_STATUSES.map((st) => ({
         key: `gad:${st}`,
         label: `GAD ${st}`,
+        group: "GAD",
         sql: drawingFilterSql({ ...none, gad: [st] }),
         params: { ...clear, drg_gad: st },
         tone: toneFor(st),
       })),
-      ...(overdue ? [{ ...overdue, params: { ...clear, overdue: "1" } }] : []),
+      ...CURVE_STATUSES.filter((st) => st !== NOT_REQUIRED).map((st) => ({
+        key: `pc:${st}`,
+        label: `Curve ${st}`,
+        group: "Performance Curve",
+        sql: drawingFilterSql({ ...none, curve: [st] }),
+        params: { ...clear, drg_pc: st },
+        tone: toneFor(st),
+      })),
+      ...PART_STATUSES.filter((st) => st !== NOT_REQUIRED).map((st) => ({
+        key: `part:${st}`,
+        label: `Part ${st}`,
+        group: "Part Drawing",
+        sql: drawingFilterSql({ ...none, part: [st] }),
+        params: { ...clear, drg_part: st },
+        tone: toneFor(st),
+      })),
     ];
   };
   const [queue, reminders, filterOptions] = await Promise.all([

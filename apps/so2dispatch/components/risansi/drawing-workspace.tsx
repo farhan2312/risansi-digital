@@ -28,6 +28,8 @@ import {
 import { PartDrawingCell, PartProgress } from "./part-drawing";
 import { partDrawingStatus } from "@/lib/part-drawings";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
+import { DrawingReadinessCell } from "./drawing-readiness-cell";
+import { applyDrawingVersionToSoAction } from "@/app/risansi/orders/drawing-readiness-actions";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -132,28 +134,28 @@ export function DrawingWorkspace({
               <>
                 <MultiSelectFilter
                   label="SO status"
-                  allLabel="Open or closed"
+                  allLabel="Any"
                   options={SO_STATES}
                   selected={getList(DRAWING_FILTER_KEYS.so)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.so]: next })}
                 />
                 <MultiSelectFilter
                   label="GAD"
-                  allLabel="Any GAD status"
+                  allLabel="Any"
                   options={GAD_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.gad)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.gad]: next })}
                 />
                 <MultiSelectFilter
                   label="Performance Curve"
-                  allLabel="Any curve status"
+                  allLabel="Any"
                   options={CURVE_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.curve)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.curve]: next })}
                 />
                 <MultiSelectFilter
                   label="Part Drawing"
-                  allLabel="Any part drawing status"
+                  allLabel="Any"
                   options={PART_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.part)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.part]: next })}
@@ -171,10 +173,10 @@ export function DrawingWorkspace({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className="w-full min-w-[1500px] text-sm">
+          <table className="w-full min-w-[1600px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={7} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={8} className="px-3 pt-2.5 pb-1">SO</th>
                 <th colSpan={8} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -183,6 +185,7 @@ export function DrawingWorkspace({
                 <th className="px-3 py-2">Chat</th>
                 <th className="px-3 py-2">Client</th>
                 <th className="px-3 py-2 whitespace-nowrap">Drawing Target</th>
+                <th className="px-3 py-2 whitespace-nowrap">Readiness</th>
                 <th className="px-3 py-2 whitespace-nowrap">Perf. Curve</th>
                 <th className="px-3 py-2 whitespace-nowrap">SO Status</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
@@ -198,7 +201,7 @@ export function DrawingWorkspace({
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={15} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={16} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -250,6 +253,10 @@ export function DrawingWorkspace({
                                 </span>
                               </td>
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.drg_target_date)}</td>
+                              <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                                {/* Drawing's own date for the SO, with every value it has held. */}
+                                <DrawingReadinessCell orderId={str(g.head.order_id)} value={g.head.drg_readiness_date} canEdit={canEdit} />
+                              </td>
                               <td rowSpan={span} className={soCell}>
                                 {wantsCurve(g.head) ? (
                                   <span className="font-semibold text-foreground">Yes</span>
@@ -265,12 +272,12 @@ export function DrawingWorkspace({
                                     {str(g.head.so_drawing_closed_date) && (
                                       <span className="whitespace-nowrap text-[11px] text-muted">{formatDate(g.head.so_drawing_closed_date)}</span>
                                     )}
-                                    <TargetNote target={g.head.drg_target_date} until={g.head.so_drawing_closed_date} closed />
+                                    <TargetNote target={g.head.drg_readiness_date} until={g.head.so_drawing_closed_date} closed />
                                   </span>
                                 ) : (
                                   <span className="flex flex-col items-start gap-0.5">
                                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
-                                    <TargetNote target={g.head.drg_target_date} until={todayIso()} />
+                                    <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />
                                   </span>
                                 )}
                               </td>
@@ -396,7 +403,13 @@ export function DrawingWorkspace({
               {doc === "Part Drawing" ? (
                 <PartProgress key={`${str(ec.id)}:parts`} itemId={str(ec.id)} parts={partsOf(ec)} canEdit={canEdit} />
               ) : (
-                <DocVersions key={`${str(ec.id)}:${doc}`} ec={ec} doc={doc} canEdit={canEdit} />
+                <DocVersions
+                  key={`${str(ec.id)}:${doc}`}
+                  ec={ec}
+                  doc={doc}
+                  canEdit={canEdit}
+                  siblings={rows.filter((r) => str(r.order_id) === str(ec.order_id) && str(r.id) !== str(ec.id)).length}
+                />
               )}
             </div>
           </div>
@@ -454,7 +467,7 @@ function DocCell({ row, doc, onOpen }: { row: Row; doc: DrawingDocType; onOpen: 
 }
 
 /** One document's versions: a button per version on top, the chosen one below. */
-function DocVersions({ ec, doc, canEdit }: { ec: Row; doc: DrawingDocType; canEdit: boolean }) {
+function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: DrawingDocType; canEdit: boolean; siblings?: number }) {
   const router = useRouter();
   const versions = drawingVersions(versionsOf(ec), doc);
   const [picked, setPicked] = useState<string | null>(null);
@@ -520,6 +533,7 @@ function DocVersions({ ec, doc, canEdit }: { ec: Row; doc: DrawingDocType; canEd
           ec={ec}
           doc={doc}
           canEdit={canEdit}
+          siblings={siblings}
         />
       ) : (
         <p className="rounded-xl border border-dashed border-card-border px-4 py-8 text-center text-sm text-muted">
@@ -596,6 +610,7 @@ function VersionForm({
   ec,
   doc,
   canEdit,
+  siblings = 0,
 }: {
   version: Row;
   number: number;
@@ -603,6 +618,8 @@ function VersionForm({
   ec: Row;
   doc: DrawingDocType;
   canEdit: boolean;
+  /** The SO's other pump ECs on the page: one click gives them this version too. */
+  siblings?: number;
 }) {
   const router = useRouter();
   const initial = () =>
@@ -629,9 +646,11 @@ function VersionForm({
   const approved = sent && v.approved === "Yes";
   const live = drawingDocStatus([{ ...v, doc_type: doc }], doc);
 
-  async function save() {
+  const [note, setNote] = useState<string | null>(null);
+  async function save(toAll = false) {
     setSaving(true);
     setError(null);
+    setNote(null);
     // A later step means nothing without the one before it.
     const out: Record<string, string> = { ...v };
     if (!sent) Object.assign(out, { issued_to_client_date: "", approved: "", approved_date: "" });
@@ -644,12 +663,26 @@ function VersionForm({
       setError("The SharePoint link must start with https://");
       return;
     }
-    const res = await updateOrderChildAction(str(version.id), "order_drawing_revisions", out, str(ec.id));
-    setSaving(false);
+    const res = dirty || !toAll ? await updateOrderChildAction(str(version.id), "order_drawing_revisions", out, str(ec.id)) : { ok: true as const };
     if (!res.ok) {
+      setSaving(false);
       setError(res.error);
       return;
     }
+    // The same version on every other pump EC of the SO.
+    if (toAll) {
+      const all = await applyDrawingVersionToSoAction(str(ec.id), doc, number, out);
+      if (!all.ok) {
+        setSaving(false);
+        setError(all.error);
+        return;
+      }
+      setNote(
+        `Applied to ${all.applied} other EC${all.applied === 1 ? "" : "s"}` +
+          (all.skipped.length ? ` · skipped ${all.skipped.join(", ")}` : "")
+      );
+    }
+    setSaving(false);
     setSaved(true);
     router.refresh();
   }
@@ -811,10 +844,21 @@ function VersionForm({
           )}
           <div className="flex items-center gap-3">
             {error && <span className="text-sm text-rose-600">{error}</span>}
-            {saved && !dirty && <span className="text-sm text-emerald-700">Saved</span>}
+            {saved && !dirty && <span className="text-sm text-emerald-700">{note ?? "Saved"}</span>}
+            {siblings > 0 && (
+              <button
+                type="button"
+                onClick={() => save(true)}
+                disabled={saving}
+                title={`Save this ${doc} V${number} on every pump EC of this SO`}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+              >
+                Save to all {siblings + 1} ECs
+              </button>
+            )}
             <button
               type="button"
-              onClick={save}
+              onClick={() => save()}
               disabled={saving || !dirty}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >

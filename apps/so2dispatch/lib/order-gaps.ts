@@ -42,6 +42,9 @@ const NOT_A_GAP = new Set([
   "om_status",
   "om_hold_reason",
   "om_hold_remarks",
+  // Only Billing is a switch, not a detail to fill.
+  "only_billing",
+  "only_billing_remarks",
 ]);
 
 /** The fields the check covers: everything the Order details form asks for. */

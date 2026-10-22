@@ -120,8 +120,7 @@ export async function postMessageAction(
       authorName: user.full_name,
       authorRole: user.role,
       body: text,
-      // The UI hides the delay toggle outside the conversation with Central,
-      // but this is a public endpoint, so the rule is enforced here too.
+      // A public endpoint: the delay flag is checked here too.
       kind:
         isMessageKind(kind) && canLogDelay(user.role, peer) ? kind : "note",
     });

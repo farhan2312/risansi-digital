@@ -206,10 +206,11 @@ export function ClearanceBadge({ order, readOnly = false }: { order: Row; readOn
       </button>
       {str(order.only_billing) === "Yes" && (
         <span
-          title="Only Billing: no other department sees this SO"
-          className="mt-1 block w-fit rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold leading-tight text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+          title={["Only Billing: no department sees this SO", str(order.only_billing_remarks)].filter(Boolean).join(" — ")}
+          className="mt-1 flex w-fit max-w-[12rem] flex-col rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] leading-tight text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
         >
-          Only billing
+          <span className="font-semibold">Only billing</span>
+          {str(order.only_billing_remarks) && <span className="whitespace-normal">{str(order.only_billing_remarks)}</span>}
         </span>
       )}
       {open && <ClearanceForm order={order} onClose={() => setOpen(false)} />}
@@ -222,8 +223,9 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
   const [status, setStatus] = useState(str(order.clearance_status) === "Hold" ? "Hold" : "Clear");
   const [reason, setReason] = useState(str(order.clearance_hold_reason));
   const [remarks, setRemarks] = useState(str(order.clearance_remarks));
-  // Independent of Clear / Hold: the SO goes to Billing alone.
+  // Independent of Clear / Hold: the SO stays on Order Making and the Orders list.
   const [onlyBilling, setOnlyBilling] = useState(str(order.only_billing) === "Yes");
+  const [onlyBillingRemarks, setOnlyBillingRemarks] = useState(str(order.only_billing_remarks));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -246,6 +248,7 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
       clearance_hold_reason: status === "Hold" ? reason : "",
       clearance_remarks: status === "Hold" ? remarks : "",
       only_billing: onlyBilling ? "Yes" : "No",
+      only_billing_remarks: onlyBilling ? onlyBillingRemarks : "",
     });
     setSaving(false);
     if (!res.ok) {
@@ -272,7 +275,8 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
       role="dialog"
       aria-modal="true"
       aria-label="Clearance"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+      // Opened from a table cell that does not wrap; the pop-up's text must.
+      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
       onClick={() => !saving && onClose()}
     >
       <form
@@ -332,9 +336,21 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
               <span className={`block text-sm font-semibold ${onlyBilling ? "text-violet-700 dark:text-violet-300" : "text-foreground"}`}>
                 Only billing
               </span>
-              <span className="block text-xs text-muted">The SO goes to Billing alone — no other department sees it.</span>
+              <span className="block text-xs text-muted">The SO stays on Order Making and the Orders list — no department sees it.</span>
             </span>
           </button>
+          {onlyBilling && (
+            <label className="block text-sm">
+              <span className="mb-1 block text-[13px] font-medium text-brand-label">Only Billing Remarks</span>
+              <textarea
+                value={onlyBillingRemarks}
+                onChange={(e) => setOnlyBillingRemarks(e.target.value)}
+                rows={2}
+                placeholder="Why this SO stays with billing only…"
+                className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+              />
+            </label>
+          )}
           {status === "Hold" && (
             <>
               <label className="block text-sm">

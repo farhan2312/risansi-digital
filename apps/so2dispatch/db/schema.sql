@@ -2760,3 +2760,106 @@ ALTER TABLE orders ADD CONSTRAINT orders_only_billing_check
 ALTER TABLE order_qc_doc_links DROP CONSTRAINT IF EXISTS order_qc_doc_links_doc_type_check;
 ALTER TABLE order_qc_doc_links ADD CONSTRAINT order_qc_doc_links_doc_type_check
     CHECK (doc_type IN ('MTC', 'IIR', 'Dimensional Report', 'QAP', 'Test Report', 'Photos', 'Packing Details'));
+
+-- 0024  Drawing's readiness date for an SO: when Drawing says its drawings
+-- will be ready. The current value sits on orders; every value it has held,
+-- with why it moved, in order_drawing_readiness_history. Apply to
+-- ec_to_dispatch before deploying the code that reads it; also in
+-- apps/so2dispatch/db/schema.sql. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS drg_readiness_date DATE;
+CREATE TABLE IF NOT EXISTS order_drawing_readiness_history (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id        UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    readiness_date  DATE,
+    reason          TEXT,
+    changed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    changed_by_role TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_drawing_readiness_history_order_idx
+    ON order_drawing_readiness_history (order_id, created_at);
+
+-- 0025  Purchase's vendors: who each kind of bought-out item is bought from.
+-- items holds BOI item names (BOI_ITEM_OPTIONS) — one vendor can supply
+-- several. Purchase / Central / Admin add to it from the Purchase page; the
+-- BOI item form offers an item's vendors. Seeded with the vendor list Purchase
+-- gave. Apply to ec_to_dispatch before deploying the code that reads it; also
+-- in apps/so2dispatch/db/schema.sql. Idempotent and additive.
+CREATE TABLE IF NOT EXISTS boi_vendors (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT NOT NULL,
+    items       TEXT[] NOT NULL DEFAULT '{}',
+    vendor_code TEXT,
+    created_by  UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS boi_vendors_name_key ON boi_vendors (lower(btrim(name)));
+INSERT INTO boi_vendors (name, items) VALUES
+    ('KVM ENGINEERS PRIVATE LIMITED', '{Gear Box}'),
+    ('ANIKET UDYAM', '{Dosing Pump}'),
+    ('ACME ENGINEERING INDUSTRIES', '{Mechanical seal}'),
+    ('SEALMATIC INDIA LIMITED', '{Mechanical seal}'),
+    ('EAGLE BURGMANN INDIA PVT LTD', '{Mechanical seal}'),
+    ('ESSAR CORPORATION', '{Mechanical seal}'),
+    ('PACK SEALS ENGINEERING', '{Mechanical seal}'),
+    ('GLOBAL MOTION SOLUTIONS PVT. LTD.', '{Mechanical seal}'),
+    ('B B POWER', '{Motor}'),
+    ('MOTOR AND MACHINERY CORPORATION', '{Motor}'),
+    ('MOTOR SALES CORPORATION', '{Motor}'),
+    ('Adarsh Tube & Machinery Corp', '{Motor}'),
+    ('ESS KAY ELECTRICALS', '{Motor}'),
+    ('Siddh Engineers', '{Motor}'),
+    ('Associate Engineers', '{Motor,Gear Box}'),
+    ('Chitra Engg. Co.', '{Motor,Gear Box}'),
+    ('SUPATH ENG SARVICE PVT LTD', '{Motor,Gear Box}'),
+    ('S R SETH & SONS', '{Motor,Gear Box}'),
+    ('PARSONS MACHINERY', '{Motor,Gear Box}'),
+    ('POWER BULID PVT LTD', '{Motor,Gear Box}'),
+    ('TOP GEAR CORPORATION LIMITED', '{Motor,Gear Box}'),
+    ('NEW AGARWALTRADER', '{Pulley}'),
+    ('KAVADE MACHINE WORKS', '{Pulley}'),
+    ('GAURAV CREATION', '{Stator}'),
+    ('R A BELL AND CO', '{Stator}'),
+    ('JAI BALA JI INDIA ENTERPRISES', '{VFD}')
+ON CONFLICT DO NOTHING;
+
+-- 0026  The vendors' codes, from Purchase's list. Idempotent.
+UPDATE boi_vendors v SET vendor_code = c.code, updated_at = now()
+  FROM (VALUES
+    ('KVM ENGINEERS PRIVATE LIMITED', 'HOVK-0086'),
+    ('ANIKET UDYAM', 'HOVA-0191'),
+    ('ACME ENGINEERING INDUSTRIES', 'HOVA-0073'),
+    ('SEALMATIC INDIA LIMITED', 'HOVS-0343'),
+    ('EAGLE BURGMANN INDIA PVT LTD', 'HOVE-0014'),
+    ('ESSAR CORPORATION', 'HOVE-0039'),
+    ('PACK SEALS ENGINEERING', 'HOVP-0100'),
+    ('GLOBAL MOTION SOLUTIONS PVT. LTD.', 'HOVG-0088'),
+    ('B B POWER', 'HOVB-0114'),
+    ('MOTOR AND MACHINERY CORPORATION', 'HOVM-0135'),
+    ('MOTOR SALES CORPORATION', 'HOVM-0098'),
+    ('Adarsh Tube & Machinery Corp', 'HOVA-0002'),
+    ('ESS KAY ELECTRICALS', 'HOVE-0034'),
+    ('Siddh Engineers', 'HOVS-0013'),
+    ('Associate Engineers', 'HOVA-0012'),
+    ('Chitra Engg. Co.', 'HOVC-0004'),
+    ('SUPATH ENG SARVICE PVT LTD', 'HOVS-0116'),
+    ('S R SETH & SONS', 'HOVS-0304'),
+    ('PARSONS MACHINERY', 'HOVP-0043'),
+    ('POWER BULID PVT LTD', 'HOVP-0038'),
+    ('TOP GEAR CORPORATION LIMITED', 'HOVT-0078'),
+    ('NEW AGARWALTRADER', 'HOVN-0036'),
+    ('KAVADE MACHINE WORKS', 'HOVK-0106'),
+    ('GAURAV CREATION', 'HOVG-0096'),
+    ('R A BELL AND CO', 'HOVR-0141'),
+    ('JAI BALA JI INDIA ENTERPRISES', 'HOVJ-0047')
+  ) AS c(name, code)
+ WHERE lower(btrim(v.name)) = lower(c.name) AND v.vendor_code IS NULL;
+
+-- 0027  Only Billing's remarks: why the SO stays with Order Making and the
+-- Orders list alone. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS only_billing_remarks TEXT;
+
+-- 0028  How many of each part a pump EC is short of. NULL on shortages marked
+-- before. Idempotent and additive.
+ALTER TABLE order_part_shortages ADD COLUMN IF NOT EXISTS qty INT;

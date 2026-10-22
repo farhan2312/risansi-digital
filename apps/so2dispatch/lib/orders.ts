@@ -140,6 +140,7 @@ export type OrderListRow = {
   om_hold_remarks?: string | null;
   /** Central Visibility sent the SO to Billing alone. */
   only_billing?: string | null;
+  only_billing_remarks?: string | null;
   ec_count: number;
   items: ItemSummary[];
   // The Orders list page only: the rest of the holds, the payment terms with
@@ -2266,6 +2267,8 @@ export type OrderOverviewRow = {
   // Accounts has nothing to confirm until the money arrives. See lib/dept-view.
   after_receipt_only: boolean;
   drg_target_date: string | null;
+  /** Drawing's own readiness date; it is what Drawing is due by when set. */
+  drg_readiness_date?: string | null;
   purchase_target_date: string | null;
   qc_doc_target_date: string | null;
   dispatch_team_target_date: string | null;
@@ -2354,6 +2357,7 @@ const overviewColumns = () => `it.id,
             ${PAYMENT_TERMS_SQL("o")} AS payment_terms,
             ${AFTER_RECEIPT_ONLY} AS after_receipt_only,
             to_char(o.drg_target_date, 'YYYY-MM-DD') AS drg_target_date,
+            to_char(o.drg_readiness_date, 'YYYY-MM-DD') AS drg_readiness_date,
             to_char(o.purchase_target_date, 'YYYY-MM-DD') AS purchase_target_date,
             to_char(o.qc_doc_target_date, 'YYYY-MM-DD') AS qc_doc_target_date,
             to_char(o.dispatch_team_target_date, 'YYYY-MM-DD') AS dispatch_team_target_date,
@@ -2843,6 +2847,9 @@ export async function listOrdersForBilling(
 export type PurchaseQueueRow = {
   id: string;
   order_id: string;
+  /** Set by the Purchase page from all the SO's / EC's items, before its filters narrow them. */
+  pur_so_state?: string;
+  pur_ec_state?: string;
   sl_no: number;
   so_no: string | null;
   so_date: string | null;
@@ -3319,7 +3326,8 @@ function deptOverduePredicate(dept: DeptFilterKey): string {
                     WHERE it.order_id = o.id
                       AND ${assemblyDueSql("it")} < ${TODAY_IST})`;
   }
-  const column = DEPT_TARGET_COLUMN[dept];
+  // Drawing is late against its own readiness date only (none set, not late).
+  const column = dept === "drawing" ? "o.drg_readiness_date" : DEPT_TARGET_COLUMN[dept];
   if (!column) return "FALSE";
   const outstanding = isPerEcDept(dept)
     ? `EXISTS (SELECT 1 FROM order_items it
@@ -3386,6 +3394,7 @@ function orderListClauses(
   if (f.zones.length) clauses.push(facet("o.zone", f.zones));
   if (f.reps.length) clauses.push(facet("o.reps", f.reps));
   if (f.markets.length) clauses.push(facet("o.market_type", f.markets));
+  if (f.clients?.length) clauses.push(facet("o.client_name", f.clients));
   // How the SO is paid: any of the chosen terms among its lines, or "Not set"
   // — no term lines and no terms written out either.
   if (f.paymentTerms.length) {
@@ -3502,7 +3511,13 @@ function orderListClauses(
       // Assembly & Packing's planned packing date on any of the SO's Spare lots.
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_ready_lots prl ON prl.item_id = s.id
                              WHERE s.order_id = o.id AND ${range("prl.packing_plan_date")})`);
-    } else if (f.dateField === "ec_date") {
+    } else if (f.dateField === "drg_readiness") clauses.push(range("o.drg_readiness_date"));
+    else if (f.dateField === "boi_expected") {
+      // A bought-out item's expected receipt date (the vendor's), on any EC of the SO.
+      clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_boi_items xb ON xb.item_id = s.id
+                             WHERE s.order_id = o.id AND ${range("xb.expected_receipt_date")})`);
+    }
+    else if (f.dateField === "ec_date") {
       clauses.push(`EXISTS (SELECT 1 FROM order_items s
                              WHERE s.order_id = o.id AND ${range("s.ec_date")})`);
     } else {
@@ -3593,6 +3608,8 @@ export type OrderListOptions = {
   reps: string[];
   markets: string[];
   types: string[];
+  /** Client names. */
+  clients: string[];
   /** A Rep's names (their own, a Rep Manager's team): the only reps offered. One name is shown fixed. */
   repScope?: string[];
 };
@@ -3610,12 +3627,13 @@ async function allOrderListOptions(): Promise<OrderListOptions> {
      -- A Rep Manager, even with no SOs of their own: picking them shows their team's.
      UNION SELECT DISTINCT 'rep', TRIM(full_name) FROM users WHERE role = 'rep_manager' AND TRIM(COALESCE(full_name, '')) <> ''
      UNION SELECT DISTINCT 'market', TRIM(market_type) FROM orders WHERE TRIM(COALESCE(market_type, '')) <> ''
+     UNION SELECT DISTINCT 'client', TRIM(client_name) FROM orders WHERE TRIM(COALESCE(client_name, '')) <> ''
      UNION SELECT DISTINCT 'type', TRIM(order_type) FROM orders WHERE TRIM(COALESCE(order_type, '')) <> ''
      UNION SELECT DISTINCT 'type', TRIM(item_type) FROM order_items WHERE TRIM(COALESCE(item_type, '')) <> ''
      ORDER BY 1, 2`
   );
   const of = (facet: string) => r.rows.filter((x) => x.facet === facet).map((x) => x.value);
-  return { zones: of("zone"), reps: of("rep"), markets: of("market"), types: of("type") };
+  return { zones: of("zone"), reps: of("rep"), markets: of("market"), types: of("type"), clients: of("client") };
 }
 
 /** The most SOs one PDF carries. */
@@ -3662,7 +3680,7 @@ export async function listOrdersPage(opts: {
             o.reps,
             o.zone,
             o.clearance_status,
-            o.clearance_hold_reason, o.only_billing,
+            o.clearance_hold_reason, o.only_billing, o.only_billing_remarks,
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
@@ -3789,7 +3807,7 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.reps,
             o.zone,
             o.clearance_status,
-            o.clearance_hold_reason, o.only_billing,
+            o.clearance_hold_reason, o.only_billing, o.only_billing_remarks,
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
@@ -4186,6 +4204,8 @@ export async function listOrdersForOrderMaking(opts: {
   const orderBy =
     f.sort === "so_date" || f.sort === "-so_date"
       ? `o.so_date ${dir} NULLS LAST, o.sl_no DESC`
+      : f.sort === "ecs" || f.sort === "-ecs"
+        ? `(SELECT count(*) FROM order_items i WHERE i.order_id = o.id) ${dir}, o.sl_no DESC`
       : f.sort === "sl"
         ? "o.sl_no ASC"
         : "o.sl_no DESC";
@@ -4387,16 +4407,23 @@ export async function listItemsForPurchasePage(opts: {
   filter?: OrderListFilter;
   sort?: QueueSort | null;
   kpis?: KpiCardDef[];
+  /** Purchase's own filters (lib/purchase-filter), as SQL over o — the list. */
+  extraRestrict?: string;
+  /** …and what of them the cards count over too (the vendor). */
+  kpiRestrict?: string;
 }): Promise<PageResult<PurchaseQueueRow> & { kpis?: KpiCard[] }> {
   const { ids, total, page, kpis } = await pageOfOrderIds({
     kpis: opts.kpis
-      ? { restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`, cards: opts.kpis }
+      ? {
+          restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AND (${opts.kpiRestrict ?? "TRUE"})`,
+          cards: opts.kpis,
+        }
       : undefined,
     page: opts.page,
     search: opts.search,
     focusOrderId: opts.focusOrderId ?? null,
     orderBy: queueOrderBy(opts.sort),
-    restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`,
+    restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AND (${opts.extraRestrict ?? "TRUE"})`,
     searchable: soAndEcSearch,
     filter: opts.filter,
   });
@@ -4408,6 +4435,30 @@ export async function listItemsForPurchasePage(opts: {
   }
 
   return { ...pageResult(rows, total, page), kpis };
+}
+
+/** A vendor on Purchase's list, and the bought-out items it supplies. */
+export type BoiVendor = { id: string; name: string; items: string[]; vendor_code: string | null };
+
+/** Purchase's vendor list, by name. */
+export async function listVendorList(): Promise<BoiVendor[]> {
+  const r = await query<BoiVendor>(`SELECT id, name, items, vendor_code FROM boi_vendors ORDER BY lower(name)`);
+  return r.rows;
+}
+
+/**
+ * Every vendor name for Purchase's Vendor filter: the list, and any other
+ * name an item was already ordered from.
+ */
+export async function listBoiVendors(): Promise<string[]> {
+  const r = await query<{ v: string }>(
+    `SELECT TRIM(name) AS v FROM boi_vendors
+     UNION
+     SELECT TRIM(vendor_name) FROM order_boi_items
+      WHERE vendor_order = 'Yes' AND TRIM(COALESCE(vendor_name, '')) <> ''
+     ORDER BY 1`
+  );
+  return r.rows.map((x) => x.v);
 }
 
 /** Billing and Dispatch queue: one page of SOs, filtered in SQL. */
@@ -4487,6 +4538,8 @@ export type DeptTargets = {
   dispatch: string | null;
   // Set only when the dispatch date has been revised; it supersedes the above.
   dispatchRevised: string | null;
+  /** Drawing's own readiness date: once set, Drawing is due by it rather than its target. */
+  drawingReadiness?: string | null;
 };
 
 export type SoDeptStatus = {
@@ -4527,6 +4580,8 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
     billing_state: string;
     payment_status: string | null;
     drg_target_date: string | null;
+  /** Drawing's own readiness date; it is what Drawing is due by when set. */
+  drg_readiness_date?: string | null;
     purchase_target_date: string | null;
     qc_doc_target_date: string | null;
     dispatch_team_target_date: string | null;
@@ -4539,6 +4594,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
             ${BILLING_STATE} AS billing_state,
             a.payment_status,
             to_char(o.drg_target_date, 'YYYY-MM-DD') AS drg_target_date,
+            to_char(o.drg_readiness_date, 'YYYY-MM-DD') AS drg_readiness_date,
             to_char(o.purchase_target_date, 'YYYY-MM-DD') AS purchase_target_date,
             to_char(o.qc_doc_target_date, 'YYYY-MM-DD') AS qc_doc_target_date,
             to_char(o.dispatch_team_target_date, 'YYYY-MM-DD') AS dispatch_team_target_date,
@@ -4664,6 +4720,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
         assembly: head.dispatch_team_target_date,
         dispatch: head.dispatch_target_date,
         dispatchRevised: head.dispatch_target_revised_date,
+        drawingReadiness: head.drg_readiness_date ?? null,
       },
       ecs,
     });
@@ -5225,6 +5282,7 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   if (f.zones.length) clauses.push(facet("o.zone", f.zones));
   if (f.reps.length) clauses.push(facet("o.reps", f.reps));
   if (f.markets.length) clauses.push(facet("o.market_type", f.markets));
+  if (f.clients?.length) clauses.push(facet("o.client_name", f.clients));
   // An EC is read by its own item type, falling back to the order's.
   if (f.types.length) clauses.push(facet("COALESCE(it.item_type, o.order_type)", f.types));
 

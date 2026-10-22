@@ -2,10 +2,12 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Boxes, CheckCircle2, Loader2, Truck, Warehouse } from "lucide-react";
+import { Boxes, CheckCircle2, Loader2, Plus, Truck, Warehouse } from "lucide-react";
 import { BOI_ITEM_OPTIONS } from "@/lib/order-schema";
 import { boiStatus } from "@/lib/dept-view";
 import { updateOrderChildAction } from "@/app/risansi/orders/actions";
+import type { BoiVendor } from "@/lib/orders";
+import { VendorsModal } from "./vendors-modal";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -97,7 +99,10 @@ export function BoiItemForm({
   ecId,
   canEdit,
   canEditItem,
+  vendors = [],
 }: {
+  /** Purchase's vendor list: the item's own vendors are offered first. */
+  vendors?: BoiVendor[];
   item: Row;
   /** The EC the item belongs to (the list's id for the save). */
   ecId: string;
@@ -114,6 +119,10 @@ export function BoiItemForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // A vendor added from here joins the list at once (the page catches up on refresh).
+  const [added, setAdded] = useState<BoiVendor[]>([]);
+  const [addingVendor, setAddingVendor] = useState(false);
+  const allVendors = [...vendors, ...added.filter((a) => !vendors.some((x) => x.id === a.id))];
   const set = (k: string, value: string) => {
     setV((p) => ({ ...p, [k]: value }));
     setSaved(false);
@@ -166,6 +175,22 @@ export function BoiItemForm({
 
   return (
     <form onSubmit={save} className="space-y-4">
+      {/* Outside the field's label, so a click in the pop-up stays in it. */}
+      {addingVendor && (
+        <VendorsModal
+          vendors={allVendors}
+          canEdit={canEdit}
+          presetItem={v.boi_item}
+          startAdding
+          onClose={() => setAddingVendor(false)}
+          onSaved={(nv) => {
+            setAdded((a) => [...a.filter((x) => x.id !== nv.id), nv]);
+            set("vendor_name", nv.name);
+            if (nv.vendor_code) set("vendor_code", nv.vendor_code);
+            setAddingVendor(false);
+          }}
+        />
+      )}
       {/* The item, as listed with the EC. */}
       <section className="rounded-xl border border-card-border bg-background/50 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -285,7 +310,53 @@ export function BoiItemForm({
                     <input disabled={ro} value={v.vendor_code} onChange={(e) => set("vendor_code", e.target.value)} className={input} />
                   </Field>
                   <Field label="Vendor Name">
-                    <input disabled={ro} value={v.vendor_name} onChange={(e) => set("vendor_name", e.target.value)} className={input} />
+                    {(() => {
+                      const kind = v.boi_item;
+                      const own = allVendors.filter((x) => kind && x.items.includes(kind));
+                      const rest = allVendors.filter((x) => !own.includes(x));
+                      const all = allVendors;
+                      const pick = (name: string) => {
+                        set("vendor_name", name);
+                        const code = all.find((x) => x.name === name)?.vendor_code;
+                        if (code) set("vendor_code", code);
+                      };
+                      return (
+                        <span className="flex gap-2">
+                          <select disabled={ro} value={v.vendor_name} onChange={(e) => pick(e.target.value)} className={input}>
+                            <option value="">Choose a vendor</option>
+                            {own.length > 0 && (
+                              <optgroup label={`${kind} vendors`}>
+                                {own.map((x) => (
+                                  <option key={x.id} value={x.name}>{x.name}</option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {rest.length > 0 && (
+                              <optgroup label={own.length ? "Other vendors" : "Vendors"}>
+                                {rest.map((x) => (
+                                  <option key={x.id} value={x.name}>{x.name}</option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {/* A name typed before the list existed stays as it is. */}
+                            {v.vendor_name && !all.some((x) => x.name === v.vendor_name) && (
+                              <option value={v.vendor_name}>{v.vendor_name}</option>
+                            )}
+                          </select>
+                          {!ro && (
+                            <button
+                              type="button"
+                              onClick={() => setAddingVendor(true)}
+                              title="Add a vendor to the list"
+                              aria-label="Add a vendor"
+                              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-input-border text-primary hover:bg-primary/10"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          )}
+                        </span>
+                      );
+                    })()}
                   </Field>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">

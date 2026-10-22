@@ -22,9 +22,9 @@ export const OM_DATE_FIELDS = [
 ] as const;
 export type OmDateField = (typeof OM_DATE_FIELDS)[number]["value"];
 
-/** Sl. No. or SO date, either way ("-" = latest first). Default: newest Sl. No. first. */
-export type OmSort = "sl" | "-sl" | "so_date" | "-so_date";
-const SORTS: OmSort[] = ["sl", "-sl", "so_date", "-so_date"];
+/** Sl. No., SO date or number of ECs, either way ("-" = latest / most first). Default: newest Sl. No. first. */
+export type OmSort = "sl" | "-sl" | "so_date" | "-so_date" | "ecs" | "-ecs";
+const SORTS: OmSort[] = ["sl", "-sl", "so_date", "-so_date", "ecs", "-ecs"];
 
 export type OrderMakingFilter = {
   zones: string[];

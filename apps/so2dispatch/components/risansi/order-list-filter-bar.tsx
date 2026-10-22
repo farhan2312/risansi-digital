@@ -43,6 +43,7 @@ const FILTER_KEYS = [
   "zone",
   "rep",
   "market",
+  "client",
   "type",
   "dept",
   "dstatus",
@@ -82,12 +83,15 @@ export function OrderListFilterBar({
   noTypeFilter = false,
   noStatusFilter = false,
   extraFilters,
+  searchClassName,
   extraKeys = [],
 }: {
   /** A queue with statuses of its own (Drawing) drops the department Status filter… */
   noStatusFilter?: boolean;
   /** …and shows its own filters here, under these URL params. */
   extraFilters?: React.ReactNode;
+  /** A narrower search box where a queue has more filters to fit on the row. */
+  searchClassName?: string;
   extraKeys?: string[];
   options: OrderListOptions;
   total: number;
@@ -156,7 +160,7 @@ export function OrderListFilterBar({
             onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : null, dstatus: null, page: null })}
           />
         )}
-        <UrlSearchInput placeholder={searchPlaceholder} />
+        <UrlSearchInput placeholder={searchPlaceholder} className={searchClassName} />
         {showsParty && (
         <>
         <MultiSelectFilter
@@ -183,6 +187,14 @@ export function OrderListFilterBar({
           options={options.markets}
           selected={filter.markets}
           onChange={(next) => setParams({ market: next })}
+        />
+        <MultiSelectFilter
+          label="Client"
+          searchable
+          options={options.clients ?? []}
+          selected={filter.clients ?? []}
+          // Kept apart by "|": a client name can hold a comma.
+          onChange={(next) => setParams({ client: next.length ? next.join("|") : null })}
         />
         </>
         )}
@@ -454,6 +466,10 @@ export function OrderListFilterBar({
               return !dept || ["planning", "assembly", "billing", "dispatch"].includes(activeDept ?? "");
             // Assembly & Packing's planned packing date (Spare lots).
             if (f.value === "packing") return !dept || ["planning", "assembly", "dispatch"].includes(activeDept ?? "");
+            // Drawing's own readiness date.
+            if (f.value === "drg_readiness") return !dept || activeDept === "drawing";
+            // Purchase's bought-out items: when each is expected.
+            if (f.value === "boi_expected") return !dept || activeDept === "purchase";
             if (f.value === "dispatch_target") return !dept && !noDispatchTarget;
             // Completion dates come from sign-offs, which are switched off.
             if (f.value === "completed_on") return SIGN_OFF_ENABLED;
@@ -469,6 +485,8 @@ export function OrderListFilterBar({
                 ? "packing"
                 : dept === "planning"
                 ? "readiness"
+                : dept === "drawing"
+                ? "drg_readiness"
                 : dept
                   ? hasTarget
                     ? "dept_target"

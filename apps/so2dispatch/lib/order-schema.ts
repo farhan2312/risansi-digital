@@ -164,7 +164,9 @@ export const BOI_ITEM_OPTIONS = opts([
   "Strainers",
   "Mechanical seal",
   "Gland Packing",
-  "Pully",
+  "Pulley",
+  "Dosing Pump",
+  "Stator",
   "Others",
 ]);
 // Planning records status on one of three columns (pump, spare, or the free
@@ -313,9 +315,10 @@ export const ORDER_SECTIONS: OrderSection[] = [
         dependsOn: [{ column: "clearance_status", value: "Hold" }],
         group: "Clearance",
       },
-      // Independent of Clear / Hold: Yes sends the SO to Billing alone — no
-      // other department sees it (lib/dept-view onlyBillingSql).
+      // Independent of Clear / Hold: Yes keeps the SO on Order Making and the
+      // Orders list alone — no department sees it (lib/dept-view onlyBillingSql).
       { column: "only_billing", label: "Only Billing", type: "select", options: YES_NO, group: "Clearance" },
+      { column: "only_billing_remarks", label: "Only Billing Remarks", type: "text", dependsOn: [{ column: "only_billing", value: "Yes" }], group: "Clearance" },
 
       // Order Making's own Clear / Hold, before Central's clearance: an SO
       // Order Making holds goes to no department (lib/dept-view releasedSql).
@@ -1179,9 +1182,8 @@ export function addOnFieldsFor(orderType?: string | null): OrderField[] {
   return orderType === "Spare" ? ADD_ON_SPARE_FIELDS : ADD_ON_PUMP_FIELDS;
 }
 
-/** Add-On fields that may be left blank; every other one is mandatory. */
-// The name plate may not be to hand when the EC is made: it can follow.
-export const ADD_ON_OPTIONAL = new Set<string>(["version", ...NAME_PLATE_FIELDS.map((f) => f.column)]);
+/** Add-On fields that may be left blank; every other one is mandatory — the name plate included. */
+export const ADD_ON_OPTIONAL = new Set<string>(["version"]);
 
 /** A Spare EC needs only its EC No. and EC Date; the rest may be filled later. */
 const SPARE_ADD_ON_REQUIRED = new Set<string>(["ec_no", "ec_date"]);
@@ -1507,6 +1509,8 @@ export const PAYMENT_TERMS_CONTEXT_FIELDS: OrderField[] = [
 export const DRAWING_CONTEXT_FIELDS: OrderField[] = [
   ...SO_CONTEXT_FIELDS,
   { column: "drg_target_date", label: "Target Date for Drawing", type: "date" },
+  // Drawing's own: when it says the SO's drawings will be ready (set on its page, with history).
+  { column: "drg_readiness_date", label: "Drawing Readiness Date", type: "date" },
   { column: "performance_curve_required", label: "Performance Curve", type: "select", options: YES_NO },
   // The EC itself, beside its drawings.
   { column: "ec_date", label: "EC Date", type: "date", from: "order_items" },

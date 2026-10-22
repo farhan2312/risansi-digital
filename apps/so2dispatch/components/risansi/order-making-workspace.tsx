@@ -465,7 +465,7 @@ export function OrderMakingWorkspace({
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">PO details</th>
                 <th className="px-4 py-3">SO details</th>
-                <th className="px-4 py-3">ECs</th>
+                <th className="px-4 py-3"><SortHeader label="ECs" sortKey="ecs" /></th>
                 {mode === "po" && <th className="px-4 py-3">Assigned to</th>}
                 {canEdit && <th className="px-4 py-3" />}
               </tr>
