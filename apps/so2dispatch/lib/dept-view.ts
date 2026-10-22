@@ -426,12 +426,12 @@ export function deptQueueSql(dept: DeptKey, alias = "o"): string {
 }
 
 export function deptInvolvementSql(dept: DeptKey, alias = "o"): string {
-  // A cancelled or diverted order is nobody's work; an Only Billing one is Billing's alone.
-  const onlyBilling = dept === "billing" ? "" : ` AND NOT ${onlyBillingSql(alias)}`;
-  return `(${deptOwnInvolvementSql(dept, alias)}) AND ${orderOpenSql(alias)}${onlyBilling}`;
+  // A cancelled or diverted order is nobody's work; nor an Only Billing one,
+  // which stays on Order Making and the Orders list.
+  return `(${deptOwnInvolvementSql(dept, alias)}) AND ${orderOpenSql(alias)} AND NOT ${onlyBillingSql(alias)}`;
 }
 
-/** Central Visibility has sent the SO to Billing alone: no other department has work on it. */
+/** Only Billing: the SO stays on Order Making and the Orders list — no department has work on it. */
 export function onlyBillingSql(alias = "o"): string {
   return `COALESCE(${alias}.only_billing, '') = 'Yes'`;
 }
@@ -498,7 +498,7 @@ export function roleSeesOrder(
     clearance_status?: unknown;
     /** Held by Order Making: no department sees the SO. */
     om_status?: unknown;
-    /** Only Billing: no department but Billing sees the SO. */
+    /** Only Billing: no department sees the SO. */
     only_billing?: unknown;
     /**
      * The types of the ECs in view — every EC on an SO page, the one EC on an
@@ -520,7 +520,7 @@ export function roleSeesOrder(
   // second): not forwarded to any department yet.
   if (String(order.clearance_status || "Clear") !== "Clear") return false;
   if (String(order.om_status || "") === "Hold") return false;
-  if (String(order.only_billing || "") === "Yes" && view.key !== "billing") return false;
+  if (String(order.only_billing || "") === "Yes") return false;
   if (view.key === "drawing") {
     const orderType = order.order_type == null ? null : String(order.order_type);
     const types = order.ec_types ?? [];

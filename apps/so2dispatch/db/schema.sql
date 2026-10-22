@@ -2855,3 +2855,7 @@ UPDATE boi_vendors v SET vendor_code = c.code, updated_at = now()
     ('JAI BALA JI INDIA ENTERPRISES', 'HOVJ-0047')
   ) AS c(name, code)
  WHERE lower(btrim(v.name)) = lower(c.name) AND v.vendor_code IS NULL;
+
+-- 0027  Only Billing's remarks: why the SO stays with Order Making and the
+-- Orders list alone. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS only_billing_remarks TEXT;

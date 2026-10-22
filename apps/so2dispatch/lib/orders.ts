@@ -140,6 +140,7 @@ export type OrderListRow = {
   om_hold_remarks?: string | null;
   /** Central Visibility sent the SO to Billing alone. */
   only_billing?: string | null;
+  only_billing_remarks?: string | null;
   ec_count: number;
   items: ItemSummary[];
   // The Orders list page only: the rest of the holds, the payment terms with
@@ -3679,7 +3680,7 @@ export async function listOrdersPage(opts: {
             o.reps,
             o.zone,
             o.clearance_status,
-            o.clearance_hold_reason, o.only_billing,
+            o.clearance_hold_reason, o.only_billing, o.only_billing_remarks,
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
@@ -3806,7 +3807,7 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.reps,
             o.zone,
             o.clearance_status,
-            o.clearance_hold_reason, o.only_billing,
+            o.clearance_hold_reason, o.only_billing, o.only_billing_remarks,
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
