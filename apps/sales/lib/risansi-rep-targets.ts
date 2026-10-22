@@ -32,7 +32,7 @@ export const METRIC_DEFS: MetricDef[] = [
   { key: 'revenue_cr',  label: 'Revenue',     unit: 'cr',
     hint: 'Invoiced revenue on the accounts you own, this financial year.' },
   { key: 'new_clients', label: 'New Clients', unit: 'count',
-    hint: 'Accounts added this financial year with you as primary rep.' },
+    hint: 'Accounts you added this financial year — bulk imports are not counted.' },
   { key: 'visits',      label: 'Visits',      unit: 'count',
     hint: 'Visit reports you submitted this financial year.' },
 ];
@@ -106,13 +106,28 @@ export async function loadAchieved(
       GROUP BY 1`, [fyStart, fyEnd]).catch(() => ({ rows: [] as { rep_id: number; cr: string }[] }));
   for (const r of rev.rows) put(Number(r.rep_id), 'revenue_cr', Number(r.cr) || 0);
 
-  // Accounts added this year. DUPLICATE is excluded: merging two records of
-  // one customer is housekeeping, not a new account.
+  // Accounts added this year, by a PERSON.
+  //
+  // created_by is an email address when somebody adds a client and a tag when
+  // a loader does — 'migration', 'leads-import', 'prospect-import-0707',
+  // 'quote-import' and so on. Requiring the '@' is what separates the two, and
+  // it has to be separated: the book was loaded into the portal in June and
+  // July 2026, so counting every row created this financial year gives 2,433
+  // "new clients" against 386 that a person actually added. A target set
+  // against the first number would be meaningless and a rep's tile would read
+  // 300 clients against a target of 40.
+  //
+  // It keeps working without maintenance — a future import carries its own tag
+  // and is excluded for the same reason, not because its date was hardcoded.
+  //
+  // DUPLICATE is excluded too: merging two records of one customer is
+  // housekeeping, not a new account.
   const cl = await risansiPool.query<{ rep_id: number; n: string }>(
     `SELECT primary_rep_id AS rep_id, count(*)::text AS n
        FROM clients
       WHERE primary_rep_id IS NOT NULL AND deleted_at IS NULL
         AND status <> 'DUPLICATE'
+        AND created_by LIKE '%@%'
         AND created_at >= $1::date AND created_at < ($2::date + 1)
       GROUP BY 1`, [fyStart, fyEnd]).catch(() => ({ rows: [] as { rep_id: number; n: string }[] }));
   for (const r of cl.rows) put(Number(r.rep_id), 'new_clients', Number(r.n) || 0);
@@ -165,4 +180,89 @@ export async function teamsByManager(): Promise<Map<number, number[]>> {
     out.set(Number(r.manager_id), cur);
   }
   return out;
+}
+
+/**
+ * The rows a TargetsPanel draws, assembled for one person or for everybody.
+ *
+ * `self` gives the person their own row, plus a team row when they manage
+ * one. `all` gives the company total and then every rep individually, which
+ * is what the front dashboard asks for by name.
+ *
+ * One pair of queries either way — the targets and the achieved figures are
+ * both read for everyone and then picked from, because the alternative is a
+ * round trip per rep per metric and this sits on the portal's front page.
+ */
+export async function buildTargetEntries(opts: {
+  scope: 'self' | 'all';
+  repId: number | null;
+  fy: { code: string; label: string; startDate: string; endDate: string };
+}): Promise<{ fyLabel: string; elapsedPct: number; entries: TargetEntryData[] }> {
+  const { scope, repId, fy } = opts;
+  const elapsedPct = fyElapsed(fy.startDate, fy.endDate) * 100;
+  const base = { fyLabel: fy.label, elapsedPct, entries: [] as TargetEntryData[] };
+
+  const [targets, achieved, holders, teams] = await Promise.all([
+    loadTargets(fy.code),
+    loadAchieved(fy.startDate, fy.endDate),
+    targetHolders(),
+    teamsByManager(),
+  ]);
+
+  const zero = (): Record<TargetMetric, number> => ({ revenue_cr: 0, new_clients: 0, visits: 0 });
+  const got = (id: number) => achieved.get(id) ?? zero();
+  const tgt = (id: number) => targets.get(id) ?? { ...EMPTY_TARGETS };
+
+  /** Sum a set of people into one row. A target of null stays null unless at
+   *  least one person in the set has one — a team where nobody was given a
+   *  visits target has no team visits target, rather than one of zero. */
+  const roll = (ids: number[]) => {
+    const t: TargetSet = { ...EMPTY_TARGETS };
+    const a = zero();
+    for (const id of ids) {
+      const ti = tgt(id), ai = got(id);
+      for (const m of TARGET_METRICS) {
+        if (ti[m] != null) t[m] = (t[m] ?? 0) + ti[m]!;
+        a[m] += ai[m] ?? 0;
+      }
+    }
+    return { target: t, achieved: a };
+  };
+
+  if (scope === 'self') {
+    if (repId == null) return base;
+    const me = holders.find(h => h.id === repId);
+    base.entries.push({
+      label: me ? me.name : 'You',
+      sub: 'your own accounts and visits',
+      target: tgt(repId), achieved: got(repId),
+    });
+    const team = teams.get(repId) ?? [];
+    if (team.length > 0) {
+      base.entries.push({
+        label: 'Your team',
+        sub: `${team.length} rep${team.length === 1 ? '' : 's'}, not counting your own book`,
+        ...roll(team),
+      });
+    }
+    return base;
+  }
+
+  const ids = holders.map(h => h.id);
+  base.entries.push({
+    label: 'All reps',
+    sub: `${ids.length} people`,
+    ...roll(ids),
+  });
+  for (const h of holders) {
+    base.entries.push({ label: h.name, sub: h.role, target: tgt(h.id), achieved: got(h.id) });
+  }
+  return base;
+}
+
+export interface TargetEntryData {
+  label: string;
+  sub?: string | null;
+  target: TargetSet;
+  achieved: Record<TargetMetric, number>;
 }

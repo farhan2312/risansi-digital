@@ -19,6 +19,8 @@ import {
   getGreeting, formatRev, PLAN_VISIT_LABEL,
 } from '@/lib/risansi-utils';
 import { DashDrilldownProvider, DashCell } from '@/components/risansi/DashDrilldown';
+import { TargetsPanel } from '@/components/risansi/TargetsPanel';
+import { buildTargetEntries } from '@/lib/risansi-rep-targets';
 import type { DashDrillParams } from '@/app/actions/risansi-dashboard-drilldown';
 // Every WHERE below comes from here, and so does every WHERE in
 // app/actions/risansi-dashboard-drilldown.ts. A figure and the list behind it
@@ -179,6 +181,14 @@ export default async function ExecDashboardPage({ searchParams }: {
     }, null);
     const repId = (session?.user?.repId != null ? String(session.user.repId) : null) ?? repRow?.id ?? null;
 
+    // Targets: this person's own three, and their team's when they manage one.
+    // A manager's own row is their own book — the team is summed beside it
+    // rather than folded in, because a manager who owns accounts directly
+    // would otherwise be counted twice, and five of them do.
+    const myTargets = await buildTargetEntries({
+      scope: 'self', repId: repId == null ? null : Number(repId), fy,
+    });
+
     const [myVisitsCount, myOverdueCount, myPipelineValue, myClientsCount, myRecentVisits, myOverdueClients, myRevenue] = await Promise.all([
 
       // My visits this week — owner visibility on v.rep_id
@@ -298,6 +308,8 @@ export default async function ExecDashboardPage({ searchParams }: {
               <OwnedOnlyToggle />
             </div>
           </div>
+
+          <TargetsPanel fyLabel={myTargets.fyLabel} elapsedPct={myTargets.elapsedPct} entries={myTargets.entries} />
 
           {/* Account-not-linked warning */}
           {!repId && <RepNotLinkedWarning />}
@@ -755,6 +767,11 @@ export default async function ExecDashboardPage({ searchParams }: {
   ].filter(d => d.units > 0);
 
   // ── Derived display values ────────────────────────────────────
+  // Targets, every rep listed individually and the whole lot summed on top.
+  // This is the company view, so it names everybody rather than scoping to
+  // one book — the per-rep rows are the point of a target dashboard.
+  const allTargets = await buildTargetEntries({ scope: 'all', repId: null, fy });
+
   // annTarget is in Crores; convert to Lakhs to compare with rev_* totals (in Lakhs)
   const annTargetL  = annTarget * 100;
   // fmtFromL: format a value-in-Lakhs using auto-scaling (same unit as totalBooked)
@@ -799,6 +816,12 @@ export default async function ExecDashboardPage({ searchParams }: {
             <RefreshButton />
           </div>
         </div>
+
+        {/* Target vs Achieved, the company total first and then every rep.
+            Above the revenue card deliberately: the card answers "how is the
+            company doing", and this answers "who is doing it", which is the
+            question the per-rep targets were set to make askable. */}
+        <TargetsPanel fyLabel={allTargets.fyLabel} elapsedPct={allTargets.elapsedPct} entries={allTargets.entries} />
 
         {/* ── Hero metrics row 1: full-width Revenue card ─────── */}
         <div style={{ marginBottom: 12 }}>
