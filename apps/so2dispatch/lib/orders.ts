@@ -4204,6 +4204,8 @@ export async function listOrdersForOrderMaking(opts: {
   const orderBy =
     f.sort === "so_date" || f.sort === "-so_date"
       ? `o.so_date ${dir} NULLS LAST, o.sl_no DESC`
+      : f.sort === "ecs" || f.sort === "-ecs"
+        ? `(SELECT count(*) FROM order_items i WHERE i.order_id = o.id) ${dir}, o.sl_no DESC`
       : f.sort === "sl"
         ? "o.sl_no ASC"
         : "o.sl_no DESC";
