@@ -8,6 +8,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import QuotationPanel from "./QuotationPanel";
 import ClientPriceRefModal from "./ClientPriceRefModal";
 import CommercialOfferModal from "./CommercialOfferModal";
+import TechnoCommercialModal from "./TechnoCommercialModal";
 import ScopeControls, { ScopeLines } from "./ScopeControls";
 import { EMPTY_OFFER_CONFIG, isGearedGroup, type OfferConfig } from "../../lib/commercial-offer";
 import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
@@ -375,6 +376,8 @@ export default function CommercialSummaryPage() {
 
   // Commercial Offer sheet of the open drive group — from the SAVED prices.
   const [showOffer, setShowOffer] = useState(false);
+  // Technical Data Sheet + Commercial Offer of the open drive group as one sheet.
+  const [showTechno, setShowTechno] = useState(false);
   // Each group's Commercial Offer edits — the page sets its scope lists; the
   // modal edits the rest. Re-read after the modal closes so the two never
   // overwrite each other with a stale copy.
@@ -464,6 +467,19 @@ export default function CommercialSummaryPage() {
               }
             >
               Commercial Offer
+            </button>
+            <button
+              type="button"
+              className={btnSm}
+              onClick={() => setShowTechno(true)}
+              disabled={!data || !tab || tab === "NONE" || !quoteCount}
+              title={
+                mixed && tab && tab !== "NONE"
+                  ? `Technical Data Sheet + Commercial Offer of ${tabLabel(tab)} as one sheet`
+                  : "Technical Data Sheet + Commercial Offer as one sheet — preview, print or download"
+              }
+            >
+              Techno-Commercial
             </button>
             <Link href="/projects" className={btnSm}>
               Back to Enquiries
@@ -689,6 +705,16 @@ export default function CommercialSummaryPage() {
                     Commercial Offer
                   </button>
                 )}
+                {tab && tab !== "NONE" && (
+                  <button
+                    type="button"
+                    className={btnSm}
+                    onClick={() => setShowTechno(true)}
+                    title="This drive group's Technical Data Sheet + Commercial Offer as one sheet"
+                  >
+                    Techno-Commercial
+                  </button>
+                )}
               </div>
             </header>
             {fxError && <p className="border-b border-line px-4 py-2 text-[12.5px] text-neg">{fxError}</p>}
@@ -861,6 +887,16 @@ export default function CommercialSummaryPage() {
             setShowOffer(false);
             loadOfferConfigs();
           }}
+        />
+      )}
+      {showTechno && projectId && tab && tab !== "NONE" && (
+        <TechnoCommercialModal
+          projectId={projectId}
+          group={tab}
+          tags={offerTags}
+          fx={fx}
+          unsavedPrices={groupDirty}
+          onClose={() => setShowTechno(false)}
         />
       )}
       {showPriceRef && data && (
