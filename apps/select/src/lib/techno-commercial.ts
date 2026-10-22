@@ -15,7 +15,7 @@ export const TECHNO_COMMERCIAL_TITLE = "Techno-Commercial Offer";
 
 /** Commercial Offer rows the technical part already shows (Liquid, Pump
  *  Model, Drive Motor Rating) - left out of the combined sheet. */
-const IN_TECHNICAL = new Set(["t_liquid", "t_pumpModel", "t_motorKw"]);
+export const IN_TECHNICAL = new Set(["t_liquid", "t_pumpModel", "t_motorKw"]);
 
 /** A row of the combined sheet: one value per column, or one across all. */
 type Row = { label: string; values: string[]; span?: boolean };
