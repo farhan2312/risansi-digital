@@ -494,6 +494,8 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       active_visited: string; active_overdue: string; active_never: string;
       prospective: string; prospective_visited: string;
       prospective_lead: string; prospective_client: string;
+      lead_visited: string; lead_overdue: string; lead_never: string;
+      pclient_visited: string; pclient_overdue: string; pclient_never: string;
     }>(
       `SELECT
          (SELECT COALESCE(round(sum(GREATEST(
@@ -522,7 +524,25 @@ export default async function ExecutiveReviewPage({ searchParams }: {
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status IN ('PROSPECTIVE_LEAD','PROSPECTIVE_CLIENT') AND c.deleted_at IS NULL
             AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text AS prospective_visited,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_LEAD' AND c.deleted_at IS NULL)::text AS prospective_lead,
-         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL)::text AS prospective_client`)).rows[0], null),
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL)::text AS prospective_client,
+         -- Coverage split by which kind of prospect it is. A lead and a
+         -- prospective client are different jobs — one is somebody we have
+         -- never priced, the other is somebody holding our offer — so "72
+         -- prospects visited" answered neither question. Same three buckets as
+         -- the Active card, and the same rule: overdue EXCLUDES never-visited,
+         -- so the three add up to the total rather than overlapping.
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_LEAD' AND c.deleted_at IS NULL
+            AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text AS lead_visited,
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_LEAD' AND c.deleted_at IS NULL
+            AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')::text AS lead_overdue,
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_LEAD' AND c.deleted_at IS NULL
+            AND c.last_visit_date IS NULL)::text AS lead_never,
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL
+            AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text AS pclient_visited,
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL
+            AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')::text AS pclient_overdue,
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL
+            AND c.last_visit_date IS NULL)::text AS pclient_never`)).rows[0], null),
 
     // 7. Target & Conversion — the quoted pipeline, stage by stage.
     //    Same scope and same FY window as everything else on the tab. The stage
@@ -936,17 +956,39 @@ export default async function ExecutiveReviewPage({ searchParams }: {
             color: 'var(--neg)', drill: { kind: 'active_never', tsm } },
         ],
       },
+      // One card each, because they are two different jobs. A lead is somebody
+      // nobody has priced yet; a prospective client is holding our offer and
+      // waiting. "Prospects visited: 72" answered neither "are we calling on
+      // the new names" nor "are we chasing the offers we have out".
+      //
+      // The three lines inside carry no drill of their own: there is no
+      // drill-down kind for lead-visited or client-overdue, and inventing one
+      // in the card would give a figure that opens an empty panel. The card's
+      // own total still drills, as it did.
       {
-        label: 'Prospective',
-        value: (kpiRow ? Number(kpiRow.prospective) : 0).toLocaleString('en-IN'),
-        drill: { kind: 'prospective', tsm },
+        label: 'Prospective-Lead',
+        value: (kpiRow ? Number(kpiRow.prospective_lead) : 0).toLocaleString('en-IN'),
+        drill: { kind: 'prospective_lead', tsm },
         lines: [
-          { label: 'Visited (≤90d)', value: (kpiRow ? Number(kpiRow.prospective_visited) : 0).toLocaleString('en-IN'),
-            color: 'var(--pos)', drill: { kind: 'prospective_visited', tsm } },
-          { label: 'Prospective-Lead', value: (kpiRow ? Number(kpiRow.prospective_lead) : 0).toLocaleString('en-IN'),
-            color: CLIENT_STATUS_COLORS.PROSPECTIVE_LEAD[0], drill: { kind: 'prospective_lead', tsm } },
-          { label: 'Prospective-Client', value: (kpiRow ? Number(kpiRow.prospective_client) : 0).toLocaleString('en-IN'),
-            color: CLIENT_STATUS_COLORS.PROSPECTIVE_CLIENT[0], drill: { kind: 'prospective_client', tsm } },
+          { label: 'Visited (≤90d)', value: (kpiRow ? Number(kpiRow.lead_visited) : 0).toLocaleString('en-IN'),
+            color: 'var(--pos)' },
+          { label: 'Overdue (90d+)', value: (kpiRow ? Number(kpiRow.lead_overdue) : 0).toLocaleString('en-IN'),
+            color: 'var(--warn)' },
+          { label: 'Never Visited', value: (kpiRow ? Number(kpiRow.lead_never) : 0).toLocaleString('en-IN'),
+            color: 'var(--neg)' },
+        ],
+      },
+      {
+        label: 'Prospective-Client',
+        value: (kpiRow ? Number(kpiRow.prospective_client) : 0).toLocaleString('en-IN'),
+        drill: { kind: 'prospective_client', tsm },
+        lines: [
+          { label: 'Visited (≤90d)', value: (kpiRow ? Number(kpiRow.pclient_visited) : 0).toLocaleString('en-IN'),
+            color: 'var(--pos)' },
+          { label: 'Overdue (90d+)', value: (kpiRow ? Number(kpiRow.pclient_overdue) : 0).toLocaleString('en-IN'),
+            color: 'var(--warn)' },
+          { label: 'Never Visited', value: (kpiRow ? Number(kpiRow.pclient_never) : 0).toLocaleString('en-IN'),
+            color: 'var(--neg)' },
         ],
       },
     ],
