@@ -2266,6 +2266,8 @@ export type OrderOverviewRow = {
   // Accounts has nothing to confirm until the money arrives. See lib/dept-view.
   after_receipt_only: boolean;
   drg_target_date: string | null;
+  /** Drawing's own readiness date; it is what Drawing is due by when set. */
+  drg_readiness_date?: string | null;
   purchase_target_date: string | null;
   qc_doc_target_date: string | null;
   dispatch_team_target_date: string | null;
@@ -2354,6 +2356,7 @@ const overviewColumns = () => `it.id,
             ${PAYMENT_TERMS_SQL("o")} AS payment_terms,
             ${AFTER_RECEIPT_ONLY} AS after_receipt_only,
             to_char(o.drg_target_date, 'YYYY-MM-DD') AS drg_target_date,
+            to_char(o.drg_readiness_date, 'YYYY-MM-DD') AS drg_readiness_date,
             to_char(o.purchase_target_date, 'YYYY-MM-DD') AS purchase_target_date,
             to_char(o.qc_doc_target_date, 'YYYY-MM-DD') AS qc_doc_target_date,
             to_char(o.dispatch_team_target_date, 'YYYY-MM-DD') AS dispatch_team_target_date,
@@ -3319,7 +3322,8 @@ function deptOverduePredicate(dept: DeptFilterKey): string {
                     WHERE it.order_id = o.id
                       AND ${assemblyDueSql("it")} < ${TODAY_IST})`;
   }
-  const column = DEPT_TARGET_COLUMN[dept];
+  // Drawing is late against its own readiness date, else the SO's Drawing target.
+  const column = dept === "drawing" ? "COALESCE(o.drg_readiness_date, o.drg_target_date)" : DEPT_TARGET_COLUMN[dept];
   if (!column) return "FALSE";
   const outstanding = isPerEcDept(dept)
     ? `EXISTS (SELECT 1 FROM order_items it
@@ -3386,6 +3390,7 @@ function orderListClauses(
   if (f.zones.length) clauses.push(facet("o.zone", f.zones));
   if (f.reps.length) clauses.push(facet("o.reps", f.reps));
   if (f.markets.length) clauses.push(facet("o.market_type", f.markets));
+  if (f.clients?.length) clauses.push(facet("o.client_name", f.clients));
   // How the SO is paid: any of the chosen terms among its lines, or "Not set"
   // — no term lines and no terms written out either.
   if (f.paymentTerms.length) {
@@ -3594,6 +3599,8 @@ export type OrderListOptions = {
   reps: string[];
   markets: string[];
   types: string[];
+  /** Client names. */
+  clients: string[];
   /** A Rep's names (their own, a Rep Manager's team): the only reps offered. One name is shown fixed. */
   repScope?: string[];
 };
@@ -3611,12 +3618,13 @@ async function allOrderListOptions(): Promise<OrderListOptions> {
      -- A Rep Manager, even with no SOs of their own: picking them shows their team's.
      UNION SELECT DISTINCT 'rep', TRIM(full_name) FROM users WHERE role = 'rep_manager' AND TRIM(COALESCE(full_name, '')) <> ''
      UNION SELECT DISTINCT 'market', TRIM(market_type) FROM orders WHERE TRIM(COALESCE(market_type, '')) <> ''
+     UNION SELECT DISTINCT 'client', TRIM(client_name) FROM orders WHERE TRIM(COALESCE(client_name, '')) <> ''
      UNION SELECT DISTINCT 'type', TRIM(order_type) FROM orders WHERE TRIM(COALESCE(order_type, '')) <> ''
      UNION SELECT DISTINCT 'type', TRIM(item_type) FROM order_items WHERE TRIM(COALESCE(item_type, '')) <> ''
      ORDER BY 1, 2`
   );
   const of = (facet: string) => r.rows.filter((x) => x.facet === facet).map((x) => x.value);
-  return { zones: of("zone"), reps: of("rep"), markets: of("market"), types: of("type") };
+  return { zones: of("zone"), reps: of("rep"), markets: of("market"), types: of("type"), clients: of("client") };
 }
 
 /** The most SOs one PDF carries. */
@@ -4528,6 +4536,8 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
     billing_state: string;
     payment_status: string | null;
     drg_target_date: string | null;
+  /** Drawing's own readiness date; it is what Drawing is due by when set. */
+  drg_readiness_date?: string | null;
     purchase_target_date: string | null;
     qc_doc_target_date: string | null;
     dispatch_team_target_date: string | null;
@@ -4540,6 +4550,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
             ${BILLING_STATE} AS billing_state,
             a.payment_status,
             to_char(o.drg_target_date, 'YYYY-MM-DD') AS drg_target_date,
+            to_char(o.drg_readiness_date, 'YYYY-MM-DD') AS drg_readiness_date,
             to_char(o.purchase_target_date, 'YYYY-MM-DD') AS purchase_target_date,
             to_char(o.qc_doc_target_date, 'YYYY-MM-DD') AS qc_doc_target_date,
             to_char(o.dispatch_team_target_date, 'YYYY-MM-DD') AS dispatch_team_target_date,
@@ -5226,6 +5237,7 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   if (f.zones.length) clauses.push(facet("o.zone", f.zones));
   if (f.reps.length) clauses.push(facet("o.reps", f.reps));
   if (f.markets.length) clauses.push(facet("o.market_type", f.markets));
+  if (f.clients?.length) clauses.push(facet("o.client_name", f.clients));
   // An EC is read by its own item type, falling back to the order's.
   if (f.types.length) clauses.push(facet("COALESCE(it.item_type, o.order_type)", f.types));
 

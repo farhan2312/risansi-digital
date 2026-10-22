@@ -43,15 +43,15 @@ export type ReminderRow = {
 // Same four department deadlines as the overdue engine, shifted to the
 // upcoming window. Each branch tags its dept key + label.
 const REMINDERS_SQL = `
-  -- Drawing due (SO-level target): fires while any pump EC is not done
+  -- Drawing due (its readiness date, else the SO's Drawing target): fires while any pump EC is not done
   -- (GAD issued to Planning, curve approved, parts drawn where asked) and the
   -- target is within a week — or already past, which is overdue.
   SELECT o.id, o.sl_no::int AS sl_no, o.so_no, NULL::text AS ec_no, o.client_name,
          'drawing'::text AS dept, 'Drawing'::text AS department,
-         to_char(o.drg_target_date, 'YYYY-MM-DD') AS due_date,
-         (o.drg_target_date - ${TODAY_IST})::int AS days_left
+         to_char(COALESCE(o.drg_readiness_date, o.drg_target_date), 'YYYY-MM-DD') AS due_date,
+         (COALESCE(o.drg_readiness_date, o.drg_target_date) - ${TODAY_IST})::int AS days_left
     FROM orders o
-   WHERE o.drg_target_date <= ${TODAY_IST} + 7
+   WHERE COALESCE(o.drg_readiness_date, o.drg_target_date) <= ${TODAY_IST} + 7
      AND EXISTS (
        SELECT 1 FROM order_items it
         WHERE it.order_id = o.id

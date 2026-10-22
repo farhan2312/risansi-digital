@@ -43,25 +43,46 @@ export function DrawingReadinessCell({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  // Fixed to the screen beside the button: the table scrolls sideways and
+  // would clip a pop-up hung inside it.
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
     function onDown(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!wrapRef.current?.contains(t) && !popRef.current?.contains(t)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
+    // The page (or the table) scrolling moves the button away from the pop-up.
+    function onScroll(e: Event) {
+      if (!popRef.current?.contains(e.target as Node)) setOpen(false);
+    }
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
     };
   }, [open]);
 
   async function toggle() {
     if (open) return setOpen(false);
+    const r = wrapRef.current?.getBoundingClientRect();
+    if (r) {
+      const width = 288;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      // Below the date, or above it when there is no room underneath.
+      const below = window.innerHeight - r.bottom > 340;
+      setPos({ top: below ? r.bottom + 6 : Math.max(8, r.top - 346), left });
+    }
     setOpen(true);
     setDate(current);
     setReason("");
@@ -106,7 +127,13 @@ export function DrawingReadinessCell({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-72 rounded-lg border border-card-border bg-surface p-3 text-left shadow-lg">
+        <div
+          ref={popRef}
+          role="dialog"
+          aria-label="Drawing readiness"
+          style={pos ? { top: pos.top, left: pos.left } : undefined}
+          className="fixed z-50 max-h-[340px] w-72 overflow-y-auto whitespace-normal rounded-xl border border-card-border bg-surface p-3 text-left shadow-xl"
+        >
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Drawing readiness
             {moves > 0 && <span className="ml-1 font-normal normal-case text-amber-700">· moved {moves}×</span>}

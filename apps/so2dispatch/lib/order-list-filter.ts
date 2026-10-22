@@ -138,6 +138,8 @@ export type OrderListFilter = {
   /** Set for a Rep or Rep Manager: the only reps they may see (their own, and a manager's team). */
   repScope?: string[];
   markets: string[];
+  /** Client names (any of them). */
+  clients?: string[];
   /** Order type on the SO, or the item type on any of its ECs. */
   types: string[];
   dept: DeptFilterKey | null;
@@ -272,6 +274,8 @@ export function parseOrderListFilter(
     zones: list(get("zone")),
     reps: list(get("rep")),
     markets: list(get("market")),
+    // Client names can hold commas, so they are kept apart by "|".
+    clients: [...new Set((get("client") ?? "").split("|").map((v) => v.trim()).filter(Boolean))],
     types: list(get("type")),
     dept,
     deptStatuses: statuses,
@@ -373,6 +377,7 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.zones.length ||
     f.reps.length ||
     f.markets.length ||
+    (f.clients?.length ?? 0) > 0 ||
     f.types.length ||
     f.dept ||
     f.from ||
@@ -387,6 +392,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.zones.length) p.set("zone", f.zones.join(","));
   if (f.reps.length) p.set("rep", f.reps.join(","));
   if (f.markets.length) p.set("market", f.markets.join(","));
+  if (f.clients?.length) p.set("client", f.clients.join("|"));
   if (f.types.length) p.set("type", f.types.join(","));
   if (f.dept) p.set("dept", f.dept);
   if (f.overdue) p.set("overdue", "1");
@@ -438,6 +444,7 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.zones.length) parts.push(`Zone: ${f.zones.join(", ")}`);
   if (f.reps.length) parts.push(`Rep: ${f.reps.join(", ")}`);
   if (f.markets.length) parts.push(`Market: ${f.markets.join(", ")}`);
+  if (f.clients?.length) parts.push(`Client: ${f.clients.join(", ")}`);
   if (f.types.length) parts.push(`Type: ${f.types.join(", ")}`);
   if (f.dept) {
     const signed = SIGN_OFF_OPTIONS.find((o) => o.value === f.signOff)?.label;
@@ -485,6 +492,8 @@ export function parseDeptFilter(
           ? "packing"
           : dept === "planning"
           ? "readiness"
+          : dept === "drawing"
+          ? "drg_readiness"
           : DEPT_VIEWS[dept].hasTarget && dept !== "dispatch"
             ? "dept_target"
             : "so_date")

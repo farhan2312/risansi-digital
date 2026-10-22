@@ -43,6 +43,7 @@ const FILTER_KEYS = [
   "zone",
   "rep",
   "market",
+  "client",
   "type",
   "dept",
   "dstatus",
@@ -183,6 +184,14 @@ export function OrderListFilterBar({
           options={options.markets}
           selected={filter.markets}
           onChange={(next) => setParams({ market: next })}
+        />
+        <MultiSelectFilter
+          label="Client"
+          searchable
+          options={options.clients ?? []}
+          selected={filter.clients ?? []}
+          // Kept apart by "|": a client name can hold a comma.
+          onChange={(next) => setParams({ client: next.length ? next.join("|") : null })}
         />
         </>
         )}
@@ -471,6 +480,8 @@ export function OrderListFilterBar({
                 ? "packing"
                 : dept === "planning"
                 ? "readiness"
+                : dept === "drawing"
+                ? "drg_readiness"
                 : dept
                   ? hasTarget
                     ? "dept_target"

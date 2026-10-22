@@ -272,12 +272,12 @@ export function DrawingWorkspace({
                                     {str(g.head.so_drawing_closed_date) && (
                                       <span className="whitespace-nowrap text-[11px] text-muted">{formatDate(g.head.so_drawing_closed_date)}</span>
                                     )}
-                                    <TargetNote target={g.head.drg_target_date} until={g.head.so_drawing_closed_date} closed />
+                                    <TargetNote target={g.head.drg_readiness_date || g.head.drg_target_date} until={g.head.so_drawing_closed_date} closed />
                                   </span>
                                 ) : (
                                   <span className="flex flex-col items-start gap-0.5">
                                     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
-                                    <TargetNote target={g.head.drg_target_date} until={todayIso()} />
+                                    <TargetNote target={g.head.drg_readiness_date || g.head.drg_target_date} until={todayIso()} />
                                   </span>
                                 )}
                               </td>
