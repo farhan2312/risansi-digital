@@ -3,7 +3,7 @@
 // SharePoint link with the day it was submitted. Shared by the browser and
 // the server.
 
-export const QC_DOC_TYPES = ["MTC", "IIR", "Dimensional Report"] as const;
+export const QC_DOC_TYPES = ["MTC", "IIR", "Dimensional Report", "QAP", "Test Report", "Photos", "Packing Details"] as const;
 export type QcDocType = (typeof QC_DOC_TYPES)[number];
 
 type Row = Record<string, unknown>;
