@@ -275,7 +275,8 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
       role="dialog"
       aria-modal="true"
       aria-label="Clearance"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+      // Opened from a table cell that does not wrap; the pop-up's text must.
+      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
       onClick={() => !saving && onClose()}
     >
       <form
