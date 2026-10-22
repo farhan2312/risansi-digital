@@ -4434,11 +4434,26 @@ export async function listItemsForPurchasePage(opts: {
   return { ...pageResult(rows, total, page), kpis };
 }
 
-/** The vendors bought-out items have been ordered from, for Purchase's Vendor filter. */
+/** A vendor on Purchase's list, and the bought-out items it supplies. */
+export type BoiVendor = { id: string; name: string; items: string[]; vendor_code: string | null };
+
+/** Purchase's vendor list, by name. */
+export async function listVendorList(): Promise<BoiVendor[]> {
+  const r = await query<BoiVendor>(`SELECT id, name, items, vendor_code FROM boi_vendors ORDER BY lower(name)`);
+  return r.rows;
+}
+
+/**
+ * Every vendor name for Purchase's Vendor filter: the list, and any other
+ * name an item was already ordered from.
+ */
 export async function listBoiVendors(): Promise<string[]> {
   const r = await query<{ v: string }>(
-    `SELECT DISTINCT TRIM(vendor_name) AS v FROM order_boi_items
-      WHERE vendor_order = 'Yes' AND TRIM(COALESCE(vendor_name, '')) <> '' ORDER BY 1`
+    `SELECT TRIM(name) AS v FROM boi_vendors
+     UNION
+     SELECT TRIM(vendor_name) FROM order_boi_items
+      WHERE vendor_order = 'Yes' AND TRIM(COALESCE(vendor_name, '')) <> ''
+     ORDER BY 1`
   );
   return r.rows.map((x) => x.v);
 }

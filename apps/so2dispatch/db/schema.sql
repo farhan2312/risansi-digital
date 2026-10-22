@@ -2778,3 +2778,48 @@ CREATE TABLE IF NOT EXISTS order_drawing_readiness_history (
 );
 CREATE INDEX IF NOT EXISTS order_drawing_readiness_history_order_idx
     ON order_drawing_readiness_history (order_id, created_at);
+
+-- 0025  Purchase's vendors: who each kind of bought-out item is bought from.
+-- items holds BOI item names (BOI_ITEM_OPTIONS) — one vendor can supply
+-- several. Purchase / Central / Admin add to it from the Purchase page; the
+-- BOI item form offers an item's vendors. Seeded with the vendor list Purchase
+-- gave. Apply to ec_to_dispatch before deploying the code that reads it; also
+-- in apps/so2dispatch/db/schema.sql. Idempotent and additive.
+CREATE TABLE IF NOT EXISTS boi_vendors (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT NOT NULL,
+    items       TEXT[] NOT NULL DEFAULT '{}',
+    vendor_code TEXT,
+    created_by  UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS boi_vendors_name_key ON boi_vendors (lower(btrim(name)));
+INSERT INTO boi_vendors (name, items) VALUES
+    ('KVM ENGINEERS PRIVATE LIMITED', '{Gear Box}'),
+    ('ANIKET UDYAM', '{Dosing Pump}'),
+    ('ACME ENGINEERING INDUSTRIES', '{Mechanical seal}'),
+    ('SEALMATIC INDIA LIMITED', '{Mechanical seal}'),
+    ('EAGLE BURGMANN INDIA PVT LTD', '{Mechanical seal}'),
+    ('ESSAR CORPORATION', '{Mechanical seal}'),
+    ('PACK SEALS ENGINEERING', '{Mechanical seal}'),
+    ('GLOBAL MOTION SOLUTIONS PVT. LTD.', '{Mechanical seal}'),
+    ('B B POWER', '{Motor}'),
+    ('MOTOR AND MACHINERY CORPORATION', '{Motor}'),
+    ('MOTOR SALES CORPORATION', '{Motor}'),
+    ('Adarsh Tube & Machinery Corp', '{Motor}'),
+    ('ESS KAY ELECTRICALS', '{Motor}'),
+    ('Siddh Engineers', '{Motor}'),
+    ('Associate Engineers', '{Motor,Gear Box}'),
+    ('Chitra Engg. Co.', '{Motor,Gear Box}'),
+    ('SUPATH ENG SARVICE PVT LTD', '{Motor,Gear Box}'),
+    ('S R SETH & SONS', '{Motor,Gear Box}'),
+    ('PARSONS MACHINERY', '{Motor,Gear Box}'),
+    ('POWER BULID PVT LTD', '{Motor,Gear Box}'),
+    ('TOP GEAR CORPORATION LIMITED', '{Motor,Gear Box}'),
+    ('NEW AGARWALTRADER', '{Pulley}'),
+    ('KAVADE MACHINE WORKS', '{Pulley}'),
+    ('GAURAV CREATION', '{Stator}'),
+    ('R A BELL AND CO', '{Stator}'),
+    ('JAI BALA JI INDIA ENTERPRISES', '{VFD}')
+ON CONFLICT DO NOTHING;

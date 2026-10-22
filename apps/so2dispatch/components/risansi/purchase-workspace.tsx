@@ -3,8 +3,9 @@
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState } from "react";
-import { History, MessageSquare, PackageSearch, X } from "lucide-react";
-import type { PurchaseQueueRow } from "@/lib/orders";
+import { History, MessageSquare, PackageSearch, Truck, X } from "lucide-react";
+import type { BoiVendor, PurchaseQueueRow } from "@/lib/orders";
+import { VendorsModal } from "./vendors-modal";
 import { isCentral } from "@/lib/roles";
 import { BoiItemForm } from "./boi-item-form";
 import { SortHeader } from "./sort-header";
@@ -48,7 +49,10 @@ export function PurchaseWorkspace({
   filterOptions,
   kpis = [],
   vendors = [],
+  vendorList = [],
 }: {
+  /** Purchase's vendor list, with the items each supplies. */
+  vendorList?: BoiVendor[];
   /** The vendors items have been ordered from, for the Vendor filter. */
   vendors?: string[];
   /** The summary cards under the filter bar. */
@@ -87,6 +91,7 @@ export function PurchaseWorkspace({
   const [boiItem, setBoiItem] = useState<string | null>(null);
   // A bought-out item whose Vendor Expected Date history is open.
   const [historyFor, setHistoryFor] = useState<Row | null>(null);
+  const [showVendors, setShowVendors] = useState(false);
   const [threadFor, setThreadFor] = useState<{
     orderId: string;
     soLabel: string;
@@ -193,7 +198,7 @@ export function PurchaseWorkspace({
         )}
       </div>
 
-      <div className="mb-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <UrlTabs
           paramKey="view"
           fallback="so"
@@ -202,7 +207,18 @@ export function PurchaseWorkspace({
             { value: "boi", label: "BOI view" },
           ]}
         />
+        {/* Who each bought-out item is bought from; Purchase adds to it. */}
+        <button
+          type="button"
+          onClick={() => setShowVendors(true)}
+          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background"
+        >
+          <Truck className="h-4 w-4 text-primary" />
+          Vendors
+          <span className="rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">{vendorList.length}</span>
+        </button>
       </div>
+      {showVendors && <VendorsModal vendors={vendorList} canEdit={canEdit} onClose={() => setShowVendors(false)} />}
 
       <KpiStrip cards={kpis} />
 
@@ -449,6 +465,7 @@ export function PurchaseWorkspace({
                   ecId={ec.id}
                   canEdit={canEdit}
                   canEditItem={isCentral(role)}
+                  vendors={vendorList}
                 />
               ) : (
                 <p className="text-sm text-muted">No bought-out items listed on this EC.</p>

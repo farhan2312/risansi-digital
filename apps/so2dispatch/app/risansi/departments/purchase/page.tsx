@@ -22,7 +22,7 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { PurchaseWorkspace } from "@/components/risansi/purchase-workspace";
 import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { deptKpiCards, listBoiVendors } from "@/lib/orders";
+import { deptKpiCards, listBoiVendors, listVendorList } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import { toneFor, type KpiCardDef } from "@/lib/kpis";
 import {
@@ -111,7 +111,7 @@ export default async function PurchaseWorkspacePage({
       })),
     ];
   };
-  const [queue, reminders, filterOptions, vendors] = await Promise.all([
+  const [queue, reminders, filterOptions, vendors, vendorList] = await Promise.all([
     listItemsForPurchasePage({
       kpis: purchaseKpiCards(),
       extraRestrict: purchaseFilterSql(purchaseFilter),
@@ -125,6 +125,7 @@ export default async function PurchaseWorkspacePage({
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),
     listOrderListOptions(filter),
     listBoiVendors(),
+    listVendorList(),
   ]);
 
   // Each SO's and EC's state from all its items — worked out before a filter
@@ -188,6 +189,7 @@ export default async function PurchaseWorkspacePage({
         kpis={queue.kpis}
         filterOptions={filterOptions}
         vendors={vendors}
+        vendorList={vendorList}
         canEdit={canEditChild(user.role, "order_boi_items")}
         openItemId={edit}
         drawingDocCounts={drawingDocCounts}
