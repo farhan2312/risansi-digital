@@ -168,8 +168,8 @@ export const DEPT_VIEWS: Record<DeptKey, DeptView> = {
     // A Spare is supplied as it is: nothing for Drawing to draw.
     na: isSpareEc,
     hidden: isSpareEc,
-    // Due by Drawing's own readiness date once it gives one, else the SO's target.
-    target: (r) => r.drg_readiness_date ?? r.drg_target_date,
+    // Due by Drawing's own readiness date (none set, nothing due).
+    target: (r) => r.drg_readiness_date ?? null,
     hasTarget: true,
   },
   purchase: {

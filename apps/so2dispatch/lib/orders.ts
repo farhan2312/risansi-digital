@@ -3322,8 +3322,8 @@ function deptOverduePredicate(dept: DeptFilterKey): string {
                     WHERE it.order_id = o.id
                       AND ${assemblyDueSql("it")} < ${TODAY_IST})`;
   }
-  // Drawing is late against its own readiness date, else the SO's Drawing target.
-  const column = dept === "drawing" ? "COALESCE(o.drg_readiness_date, o.drg_target_date)" : DEPT_TARGET_COLUMN[dept];
+  // Drawing is late against its own readiness date only (none set, not late).
+  const column = dept === "drawing" ? "o.drg_readiness_date" : DEPT_TARGET_COLUMN[dept];
   if (!column) return "FALSE";
   const outstanding = isPerEcDept(dept)
     ? `EXISTS (SELECT 1 FROM order_items it

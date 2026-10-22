@@ -36,13 +36,13 @@ export type AlertRow = {
 // and an SO with three late ECs shows three escalations. Payment holds stay
 // SO-level (item_id null).
 const ALERTS_SQL = `
-  -- Drawing not handed off by its readiness date (else its target date).
+  -- Drawing not handed off by its own readiness date.
   SELECT o.id, it.id AS item_id, o.sl_no::int AS sl_no, o.so_no, it.ec_no, o.client_name,
          'Drawing'::text AS department, 'overdue'::text AS type,
-         to_char(COALESCE(o.drg_readiness_date, o.drg_target_date), 'YYYY-MM-DD') AS due_date,
-         (${TODAY_IST} - COALESCE(o.drg_readiness_date, o.drg_target_date))::int AS days_overdue
+         to_char(o.drg_readiness_date, 'YYYY-MM-DD') AS due_date,
+         (${TODAY_IST} - o.drg_readiness_date)::int AS days_overdue
     FROM orders o JOIN order_items it ON it.order_id = o.id
-   WHERE COALESCE(o.drg_readiness_date, o.drg_target_date) < ${TODAY_IST}
+   WHERE o.drg_readiness_date < ${TODAY_IST}
      -- A Spare EC needs no drawing, so it is never late for one.
      AND NOT (${spareEcSql("it", "o")})
      -- Late until Drawing is done with the EC: GAD issued to Planning,
