@@ -4,12 +4,13 @@ import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
 import { OmEcsModal } from "./om-ecs-modal";
+import { OmReportModal } from "./om-report-modal";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
   BILL_MODE_FILTER_OPTIONS,
@@ -147,6 +148,7 @@ export function OrderMakingWorkspace({
   const { setParams, pending } = useUrlTable();
   // The Excel report: the list as filtered and searched, every page.
   const urlParams = useSearchParams();
+  const [showReport, setShowReport] = useState(false);
   const excelQuery = new URLSearchParams([...urlParams.entries()].filter(([k]) => !["page", "period"].includes(k))).toString();
   // The Daily / All time toggle switches the moment it is clicked; the cards
   // follow when the counts arrive (dimmed meanwhile).
@@ -204,24 +206,20 @@ export function OrderMakingWorkspace({
     { column: "order_value", label: "Order Value" },
   ];
 
-  const reportQs = excelQuery ? `?${excelQuery}` : "";
   const headButton =
     "inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background";
 
   return (
     <div>
-      {/* The heading, with the report (view, then download) and New order. */}
+      {/* The heading, with the report (a pop-up, downloaded from there) and New order. */}
+      {showReport && <OmReportModal query={excelQuery} onClose={() => setShowReport(false)} />}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         {heading}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <a href={`/risansi/departments/order-making/report${reportQs}`} target="_blank" rel="noopener" className={headButton}>
+          <button type="button" onClick={() => setShowReport(true)} className={headButton}>
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-            View Report Excel
-          </a>
-          <a href={`/risansi/departments/order-making/export${reportQs}`} className={headButton}>
-            <Download className="h-4 w-4 text-emerald-600" />
-            Download Report Excel
-          </a>
+            Report Excel
+          </button>
           {canCreate && (
             <button
               type="button"
