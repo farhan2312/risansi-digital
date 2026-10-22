@@ -2859,3 +2859,7 @@ UPDATE boi_vendors v SET vendor_code = c.code, updated_at = now()
 -- 0027  Only Billing's remarks: why the SO stays with Order Making and the
 -- Orders list alone. Idempotent and additive.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS only_billing_remarks TEXT;
+
+-- 0028  How many of each part a pump EC is short of. NULL on shortages marked
+-- before. Idempotent and additive.
+ALTER TABLE order_part_shortages ADD COLUMN IF NOT EXISTS qty INT;

@@ -22,7 +22,7 @@ const WITH_UNIT: Record<string, string> = {
 const UNIT_COLUMNS = new Set(Object.values(WITH_UNIT));
 
 /** The EC on the front: who it is and how many; the whole form opens from the row. */
-const EC_FRONT = ["ec_no", "ec_date", "pump_type", "quantity", "boi"];
+const EC_FRONT = ["ec_no", "ec_date", "pump_type", "model_no", "quantity", "boi"];
 const EC_COLUMNS: OrderField[] = EC_FRONT.map((c) => ADD_ON_PUMP_FIELDS.find((f) => f.column === c)!).filter(
   (f) => f && !UNIT_COLUMNS.has(f.column)
 );

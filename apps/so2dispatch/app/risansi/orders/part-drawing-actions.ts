@@ -189,8 +189,11 @@ export async function savePartProgressAction(
   }
 }
 
-/** Planning marks the parts a pump EC is short of; the list replaces the last. */
-export async function saveShortageAction(itemId: string, parts: PartListItem[]): Promise<PartDrawingResult> {
+/** Planning marks the parts a pump EC is short of, and how many of each; the list replaces the last. */
+export async function saveShortageAction(
+  itemId: string,
+  parts: (PartListItem & { qty?: number | string | null })[]
+): Promise<PartDrawingResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   if (!canEditSection(user.role, "order_planning")) {
@@ -201,14 +204,18 @@ export async function saveShortageAction(itemId: string, parts: PartListItem[]):
   if (!PUMP_LIKE.includes(String(ec.item_type ?? ""))) {
     return { ok: false, error: "Shortages are for pump ECs." };
   }
-  const wanted = new Map<string, PartListItem>();
+  const wanted = new Map<string, PartListItem & { qty: number }>();
   for (const p of Array.isArray(parts) ? parts : []) {
     const name = String(p?.part_name ?? "").trim().slice(0, 200);
     if (!name) continue;
+    // How many are short: a whole number above nought, for every part.
+    const qty = Number(String(p.qty ?? "").trim());
+    if (!Number.isInteger(qty) || qty <= 0) return { ok: false, error: `Enter how many ${name} are short.` };
     const item = {
       section: String(p.section ?? OTHER_PART_SECTION).trim().slice(0, 100) || OTHER_PART_SECTION,
       part_no: String(p.part_no ?? "").trim().slice(0, 50),
       part_name: name,
+      qty,
     };
     wanted.set(keyOf(item), item);
   }
@@ -217,17 +224,25 @@ export async function saveShortageAction(itemId: string, parts: PartListItem[]):
       `SELECT * FROM order_part_shortages WHERE item_id = $1 ORDER BY seq`,
       [itemId]
     );
-    const have = new Set(existing.rows.map(keyOf));
+    const have = new Map(existing.rows.map((r) => [keyOf(r), r]));
     const drop = existing.rows.filter((r) => !wanted.has(keyOf(r))).map((r) => String(r.id));
     if (drop.length > 0) {
       await query(`DELETE FROM order_part_shortages WHERE item_id = $1 AND id = ANY($2)`, [itemId, drop]);
     }
     let added = 0;
     for (const [k, p] of wanted) {
-      if (have.has(k)) continue;
+      const row = have.get(k);
+      if (row) {
+        // Already short: only its qty may have changed.
+        if (Number(row.qty) !== p.qty) {
+          await query(`UPDATE order_part_shortages SET qty = $2 WHERE id = $1`, [row.id, p.qty]);
+          added++;
+        }
+        continue;
+      }
       await query(
-        `INSERT INTO order_part_shortages (item_id, section, part_no, part_name) VALUES ($1, $2, NULLIF($3, ''), $4)`,
-        [itemId, p.section, p.part_no, p.part_name]
+        `INSERT INTO order_part_shortages (item_id, section, part_no, part_name, qty) VALUES ($1, $2, NULLIF($3, ''), $4, $5)`,
+        [itemId, p.section, p.part_no, p.part_name, p.qty]
       );
       added++;
     }
@@ -238,7 +253,7 @@ export async function saveShortageAction(itemId: string, parts: PartListItem[]):
         category: "activity",
         target: "Shortage",
         details: wanted.size
-          ? `Shortage: ${[...wanted.values()].map((p) => p.part_name).join(", ")}`
+          ? `Shortage: ${[...wanted.values()].map((p) => `${p.part_name} ×${p.qty}`).join(", ")}`
           : "Shortage cleared",
         subject: await subjectForItem(itemId),
       });

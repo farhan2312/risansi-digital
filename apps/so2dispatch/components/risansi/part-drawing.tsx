@@ -109,6 +109,17 @@ export function PartPickerModal({
         })
       )
   );
+  // Shortage: how many of each part are short, by the part's key.
+  const [qtys, setQtys] = useState<Map<string, string>>(
+    () =>
+      new Map(
+        parts.map((p) => [
+          keyOf({ section: str(p.section) || OTHER_PART_SECTION, part_no: str(p.part_no), part_name: str(p.part_name) }),
+          str(p.qty),
+        ])
+      )
+  );
+  const setQty = (k: string, v: string) => setQtys((m) => new Map(m).set(k, v));
   const [find, setFind] = useState("");
   const [other, setOther] = useState({ part_no: "", part_name: "" });
   const [saving, setSaving] = useState(false);
@@ -140,7 +151,7 @@ export function PartPickerModal({
     setSaving(true);
     setError(null);
     const res = shortage
-      ? await saveShortageAction(itemId, [...picked.values()])
+      ? await saveShortageAction(itemId, [...picked.values()].map((p) => ({ ...p, qty: qtys.get(keyOf(p)) ?? "" })))
       : await savePartSelectionAction(itemId, yes ? "Yes" : "No", yes ? [...picked.values()] : []);
     setSaving(false);
     if (!res.ok) {
@@ -155,7 +166,7 @@ export function PartPickerModal({
     <Shell title={`${shortage ? "Shortage" : "Part drawing"} · ${label}`} subtitle={lists.map((l) => l.title).join(" / ")} onClose={onClose}>
       {shortage ? (
         <p className="mb-4 text-sm text-muted">
-          Tick the parts this EC is short of. <span className="font-medium text-foreground">{picked.size} short</span>
+          Tick the parts this EC is short of, and how many of each. <span className="font-medium text-foreground">{picked.size} short</span>
         </p>
       ) : (
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -210,7 +221,20 @@ export function PartPickerModal({
                             >
                               <input type="checkbox" checked={on} disabled={ro} onChange={() => toggle(p)} className="h-4 w-4 accent-primary" />
                               <span className="w-12 shrink-0 text-xs tabular-nums text-muted">{p.part_no}</span>
-                              <span className="text-foreground">{p.part_name}</span>
+                              <span className="min-w-0 flex-1 text-foreground">{p.part_name}</span>
+                              {shortage && on && (
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  disabled={ro}
+                                  value={qtys.get(keyOf(p)) ?? ""}
+                                  onChange={(e) => setQty(keyOf(p), e.target.value)}
+                                  placeholder="Qty"
+                                  aria-label={`How many ${p.part_name} are short`}
+                                  className="h-7 w-16 shrink-0 rounded-md border border-input-border bg-surface px-2 text-right text-sm tabular-nums focus:border-primary focus:outline-none"
+                                />
+                              )}
                             </label>
                           );
                         })}
@@ -230,6 +254,19 @@ export function PartPickerModal({
                   <li key={keyOf(p)} className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/5 px-2.5 py-1 text-sm">
                     {p.part_no && <span className="text-xs text-muted">{p.part_no}</span>}
                     {p.part_name}
+                    {shortage && (
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        disabled={ro}
+                        value={qtys.get(keyOf(p)) ?? ""}
+                        onChange={(e) => setQty(keyOf(p), e.target.value)}
+                        placeholder="Qty"
+                        aria-label={`How many ${p.part_name} are short`}
+                        className="h-6 w-14 rounded-md border border-input-border bg-surface px-1.5 text-right text-xs tabular-nums focus:border-primary focus:outline-none"
+                      />
+                    )}
                     {!ro && (
                       <button type="button" onClick={() => toggle(p)} aria-label={`Remove ${p.part_name}`} className="text-muted hover:text-rose-600">
                         <X className="h-3.5 w-3.5" />
@@ -403,7 +440,7 @@ export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts
 /** The parts an EC is short of, on the front: none, or how many and which. */
 export function ShortageCell({ parts }: { parts: Row[] }) {
   if (parts.length === 0) return <span className="text-xs text-muted">None</span>;
-  const names = parts.map((p) => str(p.part_name));
+  const names = parts.map((p) => (str(p.qty) ? `${str(p.part_name)} ×${str(p.qty)}` : str(p.part_name)));
   return (
     <span title={names.join(", ")} className="flex flex-col items-start gap-0.5">
       <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
