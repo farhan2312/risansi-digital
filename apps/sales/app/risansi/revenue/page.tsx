@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { Topbar, Donut } from '@/components/risansi';
+import { Topbar, Donut, MultiSelectFilter, ActiveFilterBar } from '@/components/risansi';
 import { periodLabel } from '@/lib/risansi-revenue-period';
 import risansiPool from '@/lib/db-risansi';
 import { clientVisibilitySql, getCurrentUser, getSession } from '@/lib/risansi-auth';
@@ -72,7 +72,60 @@ export default async function RevenuePage({
   // admin/sysadmin → null (everything). Applied to every clients-joined query below.
   const currentUser = await getCurrentUser();
   const cVis    = clientVisibilitySql(currentUser, 'c');
-  const repCond = cVis ? ` AND (${cVis})` : '';
+  // eslint-disable-next-line prefer-const
+  let repCond   = cVis ? ` AND (${cVis})` : '';
+
+  // ── Rep / Industry / Client-type filters ────────────────────
+  //
+  // These hang off repCond rather than being threaded through each query,
+  // because every clients-joined query on this page already appends it — nine
+  // of them, including the ones behind the donut, the YoY bars and the Excel
+  // figures. Adding a condition here scopes all of them at once and cannot
+  // leave one panel answering a different question from its neighbour.
+  //
+  // Inlined, like the visibility predicate, so the $-positions of every query
+  // below are undisturbed. That is only safe because nothing typed reaches the
+  // SQL: each value is checked against the list the database itself just
+  // returned and dropped if it is not there, and what survives is quoted with
+  // doubled apostrophes as well. A value nobody can pick cannot be injected.
+  const pickList = (v: unknown): string[] =>
+    typeof v === 'string' && v ? v.split(',').map(x => x.trim()).filter(Boolean) : [];
+
+  const [allIndustries, allClientTypes, allRepNames] = await Promise.all([
+    q<string[]>(async () => (await risansiPool.query<{ v: string }>(
+      `SELECT DISTINCT industry AS v FROM clients c
+        WHERE c.deleted_at IS NULL AND industry IS NOT NULL AND industry <> ''${repCond}
+        ORDER BY 1`)).rows.map(r => r.v), []),
+    q<string[]>(async () => (await risansiPool.query<{ v: string }>(
+      `SELECT DISTINCT client_type AS v FROM clients c
+        WHERE c.deleted_at IS NULL AND client_type IS NOT NULL AND client_type <> ''${repCond}
+        ORDER BY 1`)).rows.map(r => r.v), []),
+    q<string[]>(async () => (await risansiPool.query<{ v: string }>(
+      `SELECT DISTINCT u.name AS v FROM users u
+        WHERE u.is_active AND u.role IN ('rep','manager') AND u.name IS NOT NULL
+        ORDER BY 1`)).rows.map(r => r.v), []),
+  ]);
+
+  const keep = (picked: string[], known: string[]) => picked.filter(v => known.includes(v));
+  const indFilts   = keep(pickList(sp.industry), allIndustries);
+  const ctypeFilts = keep(pickList(sp.ctype), allClientTypes);
+  const repFilts   = keep(pickList(sp.rep), allRepNames);
+
+  const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
+  const inList = (col: string, vals: string[]) => ` AND ${col} IN (${vals.map(lit).join(', ')})`;
+
+  let filtCond = '';
+  if (indFilts.length)   filtCond += inList('c.industry', indFilts);
+  if (ctypeFilts.length) filtCond += inList('c.client_type', ctypeFilts);
+  if (repFilts.length) {
+    // The accounts that rep answers for — owned or covered — which is what the
+    // Opportunities board means by a rep filter too. Not "clients whose row
+    // happens to name them".
+    filtCond += ` AND EXISTS (SELECT 1 FROM users u2 WHERE u2.name IN (${repFilts.map(lit).join(', ')})
+                   AND (c.primary_rep_id = u2.id
+                        OR c.id IN (SELECT client_id FROM client_secondary_reps WHERE rep_id = u2.id)))`;
+  }
+  const anyFilter = indFilts.length > 0 || ctypeFilts.length > 0 || repFilts.length > 0;
 
   // The visibility predicate carries no params, so this just strips the legacy
   // $REP placeholder and passes the base params through unchanged.
@@ -110,6 +163,9 @@ export default async function RevenuePage({
   // the month's first in the monthly view (so two halves add up to a month).
   const periodKey = fortnight ? `to_char(crm.month,'YYYY-MM-DD')` : `to_char(crm.month,'YYYY-MM-01')`;
 
+  // Everything below this point sees the filters too.
+  repCond += filtCond;
+
   function buildUrl(over: { view?: string | null; month?: string | null; fy?: number | null; gran?: string | null }): string {
     const view  = 'view' in over ? over.view  : (personal ? null : (isRep ? 'full' : null));
     const month = 'month' in over ? over.month : monthSel;
@@ -120,6 +176,11 @@ export default async function RevenuePage({
     if (fy && fy !== fyList[0]) p.set('fy', String(fy));
     if (gran) p.set('gran', gran);
     if (month) p.set('month', month);
+    // A period or FY link must not silently drop the filters — the figures
+    // would change for two reasons at once and neither would be visible.
+    if (indFilts.length)   p.set('industry', indFilts.join(','));
+    if (ctypeFilts.length) p.set('ctype', ctypeFilts.join(','));
+    if (repFilts.length)   p.set('rep', repFilts.join(','));
     const qs = p.toString();
     return `/risansi/revenue${qs ? `?${qs}` : ''}`;
   }
@@ -334,6 +395,25 @@ export default async function RevenuePage({
           <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
             <a href={buildUrl({ view: null })} style={toggle(personal)}>My Revenue</a>
             <a href={buildUrl({ view: 'full' })} style={toggle(!personal)}>All Revenue</a>
+          </div>
+        )}
+
+        {/* Rep / Industry / Client type. Every panel below reads the same
+            predicate, so these scope the lot — the summary, the donut, the
+            YoY bars, the month tiles and both breakdown tables. */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: anyFilter ? 8 : 16 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 2 }}>Filter</span>
+          <MultiSelectFilter param="rep"      label="Rep"         options={allRepNames}    selected={repFilts} />
+          <MultiSelectFilter param="industry" label="Industry"    options={allIndustries}  selected={indFilts} />
+          <MultiSelectFilter param="ctype"    label="Client Type" options={allClientTypes} selected={ctypeFilts} />
+        </div>
+        {anyFilter && (
+          <div style={{ marginBottom: 14 }}>
+            <ActiveFilterBar filters={[
+              { param: 'rep',      label: 'Rep',         values: repFilts },
+              { param: 'industry', label: 'Industry',    values: indFilts },
+              { param: 'ctype',    label: 'Client Type', values: ctypeFilts },
+            ]} />
           </div>
         )}
 
