@@ -263,14 +263,42 @@ export default async function FieldActivityPage({
     return `${a.toLocaleDateString('en-IN', same ? { month: 'short' } : { month: 'short', year: 'numeric' })} – ${b.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`;
   })();
 
-  // The range the KPI tiles cover: exactly what the calendar is rendering, grid
-  // cells included, so a visit visible in a trailing cell is also counted above.
-  // Pinning the tiles to a fixed 90 days while the calendar moved underneath them
-  // is half of why they looked frozen.
-  const [statsFrom, statsTo] =
+  // The range the KPI tiles cover.
+  //
+  // The tab's own date filter wins when it is set. The Visit Feed and Visit
+  // Reports tabs each carry a DATE control, and the tiles sit directly above
+  // it — so somebody picking 01 Oct to 23 Oct and then reading the headline
+  // figures is asking about those dates. They were getting the CALENDAR's
+  // week or month instead, which is a different question and usually a
+  // different answer: one rep's tiles said 1 visit over a list of 9 reports,
+  // because the tiles were showing this week while the list showed the three
+  // weeks that had been asked for.
+  //
+  // The date inputs are inclusive and the query is half-open, so the end moves
+  // on a day. A half-filled range is honoured on the side that was filled.
+  const dayAfter = (d: string) => {
+    const t = new Date(`${d}T00:00:00Z`);
+    t.setUTCDate(t.getUTCDate() + 1);
+    return t.toISOString().slice(0, 10);
+  };
+  const tabFrom = tab === 'feed' ? feedFrom : tab === 'reports' ? repFrom : '';
+  const tabTo   = tab === 'feed' ? feedTo   : tab === 'reports' ? repTo   : '';
+
+  // Otherwise: exactly what the calendar is rendering, grid cells included, so
+  // a visit visible in a trailing cell is also counted above. Pinning the tiles
+  // to a fixed 90 days while the calendar moved underneath them is half of why
+  // they looked frozen.
+  const [gridFrom, gridTo] =
     calView === 'week'    ? [weekStart, weekEndExclusive]
     : calView === 'quarter' ? [qGridStart, qGridEnd]
     : [mGridStart, mGridEnd];
+
+  const statsFrom = tabFrom || (tabTo ? '1900-01-01' : gridFrom);
+  const statsTo   = tabTo ? dayAfter(tabTo) : (tabFrom ? '2999-12-31' : gridTo);
+  /** What the tiles are actually counting, said on the page. */
+  const statsRangeLabel = (tabFrom || tabTo)
+    ? `${tabFrom || 'the start'} to ${tabTo || 'today'}`
+    : null;
 
   // ── Rep lookup ───────────────────────────────────────────────
 
@@ -825,13 +853,21 @@ export default async function FieldActivityPage({
           <PlannedVisitsExport reps={calendarReps} />
         </div>
 
-        {/* Activity — tracks the calendar's period and the selected rep. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 10 }}>
+        {/* Activity — the tab's date filter when it has one, else the calendar's
+            period. Said out loud below, because these four numbers moving for a
+            reason the reader cannot see is the complaint they generated. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: statsRangeLabel ? 4 : 10 }}>
           <StatCard label="Visits"          value={stats.visits} />
           <StatCard label="Clients Covered" value={stats.clients}   color="var(--pos)" />
           <StatCard label="Completed"       value={stats.completed} color="var(--pos)" />
           <StatCard label="Missed"          value={stats.missed}    color="var(--neg)" />
         </div>
+
+        {statsRangeLabel && (
+          <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginBottom: 10 }}>
+            Counting the dates you picked · {statsRangeLabel}
+          </div>
+        )}
 
         {/* Coverage — the client base, on its own fixed window. Captioned because
             the two rows answer different questions and sit inches apart. */}
