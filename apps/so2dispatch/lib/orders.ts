@@ -2697,7 +2697,11 @@ export async function listItemsForSection(
                  -- SO status there, and its assembly plan entries.
                  to_jsonb(it) - 'order_copy_file_data' AS ec,
                  (SELECT rpl.ready_qty FROM order_planning rpl WHERE rpl.item_id = it.id) AS ready_qty,
-                 (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status`
+                 (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status,
+                 -- The SO's Alignment: base plate and wooden box, each with its status.
+                 (SELECT jsonb_build_object('base_plate', oa.base_plate, 'base_plate_status', oa.base_plate_status,
+                                            'wooden_box', oa.wooden_box, 'wooden_box_status', oa.wooden_box_status)
+                    FROM orders oa WHERE oa.id = it.order_id) AS alignment`
          }`
       : "";
 

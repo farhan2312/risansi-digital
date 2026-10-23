@@ -2885,3 +2885,17 @@ SELECT o.id, o.om_status, NULLIF(btrim(o.om_hold_reason), ''), NULLIF(btrim(o.om
  WHERE o.om_status IS NOT NULL
    AND (o.om_status = 'Hold' OR NULLIF(btrim(o.om_hold_remarks), '') IS NOT NULL)
    AND NOT EXISTS (SELECT 1 FROM order_om_status_history h WHERE h.order_id = o.id);
+
+-- 0030  Assembly & Packing's Alignment on a pump SO: whether it needs a base
+-- plate (and whether that is manufactured yet) and a wooden box (and whether
+-- it is made in house or bought out). Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_status TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_status TEXT;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_alignment_check;
+ALTER TABLE orders ADD CONSTRAINT orders_alignment_check CHECK (
+    (base_plate IS NULL OR base_plate IN ('Yes', 'No'))
+    AND (base_plate_status IS NULL OR base_plate_status IN ('Manufactured', 'Pending'))
+    AND (wooden_box IS NULL OR wooden_box IN ('Yes', 'No'))
+    AND (wooden_box_status IS NULL OR wooden_box_status IN ('In House', 'Bought out')));
