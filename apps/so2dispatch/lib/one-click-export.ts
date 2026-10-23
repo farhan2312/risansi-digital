@@ -14,7 +14,8 @@ export type OneCell = string | number | Date | null;
 
 export type OneColumn = { label: string; type: OrderFieldType | "list" };
 export type OneGroup = { name: string; columns: OneColumn[] };
-export type OneSheet = { groups: OneGroup[]; rows: OneCell[][] };
+/** rowLabel: what a row is ("one per EC" by default; a Spare's is "one per SO"). */
+export type OneSheet = { groups: OneGroup[]; rows: OneCell[][]; rowLabel?: string };
 
 const str = (v: unknown) => (v == null ? "" : String(v).trim());
 
@@ -190,11 +191,13 @@ export function buildOneClickWorkbook(sheet: OneSheet, scope: string): ExcelJS.W
   const wb = new ExcelJS.Workbook();
   wb.creator = "Risansi SO to Dispatch";
   wb.created = new Date();
-  const ws = wb.addWorksheet("One Click", { views: [{ state: "frozen", xSplit: 3, ySplit: 3 }] });
+  // The key columns (the first group) stay put as the sheet scrolls.
+  const keys = sheet.groups[0]?.columns.length ?? 0;
+  const ws = wb.addWorksheet("One Click", { views: [{ state: "frozen", xSplit: keys, ySplit: 3 }] });
   const cols = sheet.groups.flatMap((g) => g.columns);
   const total = cols.length;
 
-  const title = ws.addRow([`Order-to-Dispatch — one sheet · ${scope} · ${sheet.rows.length} rows (one per EC)`]);
+  const title = ws.addRow([`Order-to-Dispatch — one sheet · ${scope} · ${sheet.rows.length} rows (${sheet.rowLabel ?? "one per EC"})`]);
   title.font = { bold: true, size: 13, color: { argb: "FF1F3864" } };
   title.height = 24;
   ws.mergeCells(1, 1, 1, total);
@@ -223,7 +226,7 @@ export function buildOneClickWorkbook(sheet: OneSheet, scope: string): ExcelJS.W
   for (const values of sheet.rows) {
     const row = ws.addRow(values);
     row.alignment = { vertical: "top", wrapText: true };
-    for (let c = 1; c <= 3; c++) {
+    for (let c = 1; c <= keys; c++) {
       row.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: KEY_BG } };
       if (c === 2) row.getCell(c).font = { bold: true };
     }
@@ -237,7 +240,7 @@ export function buildOneClickWorkbook(sheet: OneSheet, scope: string): ExcelJS.W
   }
 
   cols.forEach((c, i) => {
-    ws.getColumn(i + 1).width = i === 0 ? 7 : i < 3 ? 17 : c.type === "list" ? 38 : Math.min(28, Math.max(11, c.label.length * 0.85));
+    ws.getColumn(i + 1).width = i === 0 ? 7 : i < keys ? 17 : c.type === "list" ? 38 : Math.min(28, Math.max(11, c.label.length * 0.85));
   });
   for (let r = 3; r <= ws.rowCount; r++) {
     ws.getRow(r).eachCell({ includeEmpty: true }, (x, c) => {

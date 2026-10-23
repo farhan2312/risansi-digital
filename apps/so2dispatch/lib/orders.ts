@@ -747,6 +747,8 @@ export type OrderExportItem = {
   // File attachments: name/size/date only — never the bytes.
   order_qc_documents: Row[];
   order_qc_requirement_documents: Row[];
+  /** Planning's readiness lots, with Assembly & Packing's plan and dates on each. */
+  order_ready_lots?: Row[];
 };
 
 /** One SO with its SO-level sections, its PI/invoice lists, and its ECs. */
@@ -816,6 +818,10 @@ export async function listOrderExports(
                        'order_packing_slips', COALESCE((
                          SELECT jsonb_agg(to_jsonb(ps) ORDER BY ps.seq)
                            FROM order_packing_slips ps WHERE ps.item_id = it.id), '[]'::jsonb),
+                       -- Planning's readiness lots, with their assembly and packing.
+                       'order_ready_lots', COALESCE((
+                         SELECT jsonb_agg(to_jsonb(rl) ORDER BY rl.seq)
+                           FROM order_ready_lots rl WHERE rl.item_id = it.id), '[]'::jsonb),
                        'order_drawing_revisions', COALESCE((
                          SELECT jsonb_agg(to_jsonb(rv) || jsonb_build_object('doc_count', (SELECT count(*) FROM order_drawing_documents dd WHERE dd.revision_id = rv.id)) ORDER BY rv.seq)
                            FROM order_drawing_revisions rv WHERE rv.item_id = it.id), '[]'::jsonb)

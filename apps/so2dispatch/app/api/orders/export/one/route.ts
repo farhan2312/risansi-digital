@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { canViewAll } from "@/lib/roles";
 import { listOrderExports, listOrderIdsMatching } from "@/lib/orders";
 import { buildOneClickWorkbook, buildOneSheet } from "@/lib/one-click-export";
+import { buildSpareOneSheet } from "@/lib/spare-export";
 import {
   describeOrderListFilter,
   isOrderListFiltered,
@@ -33,14 +34,17 @@ export async function GET(req: NextRequest) {
   );
   const filtered = isOrderListFiltered(filter) || filter.types.length > 0;
   const ids = filtered ? await listOrderIdsMatching(filter) : undefined;
-  const sheet = buildOneSheet(await listOrderExports(ids));
+  // Spare: a row per SO, as Spare is worked now (lots, per-PI payment); Pump keeps the EC rows.
+  const spare = filter.types.length === 1 && filter.types[0] === "Spare";
+  const orders = await listOrderExports(ids);
+  const sheet = spare ? buildSpareOneSheet(orders) : buildOneSheet(orders);
   const scope = describeOrderListFilter(filter);
 
   if (params.get("view")) {
     const text = (v: unknown) =>
       v == null ? null : v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "number" ? v : String(v);
     return Response.json(
-      { scope, groups: sheet.groups, total: sheet.rows.length, rows: sheet.rows.slice(0, PREVIEW_ROWS).map((r) => r.map(text)) },
+      { scope, groups: sheet.groups, total: sheet.rows.length, rowLabel: sheet.rowLabel ?? "one per EC", rows: sheet.rows.slice(0, PREVIEW_ROWS).map((r) => r.map(text)) },
       { headers: { "Cache-Control": "no-store" } }
     );
   }

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, Loader2, Sheet, X } from "lucide-react";
 import type { OneGroup } from "@/lib/one-click-export";
 
-type Preview = { scope: string; groups: OneGroup[]; total: number; rows: (string | number | null)[][] };
+type Preview = { scope: string; groups: OneGroup[]; total: number; rowLabel?: string; rows: (string | number | null)[][] };
 
 const GROUP_BG = ["#1F3864", "#2F5496", "#385723", "#7F6000", "#843C0C", "#5B2C6F", "#0B5563", "#7B3F00", "#1F4E79", "#3A3A3A"];
 
@@ -67,7 +67,7 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
               <h2 className="font-display text-lg font-semibold text-foreground">One Click — every detail, one sheet</h2>
               <p className="text-xs text-muted">
                 {data
-                  ? `${data.scope} · ${data.total} rows, one per EC · ${cols.length} columns${data.total > data.rows.length ? ` · showing the first ${data.rows.length}` : ""}`
+                  ? `${data.scope} · ${data.total} rows, ${data.rowLabel ?? "one per EC"} · ${cols.length} columns${data.total > data.rows.length ? ` · showing the first ${data.rows.length}` : ""}`
                   : "Everything the Export has, on a single sheet"}
               </p>
             </div>
@@ -137,7 +137,7 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
                     {r.map((v, i) => (
                       <td
                         key={i}
-                        className={`${i === 1 ? "sticky left-0 z-[1] bg-[#EAF0F8] font-semibold dark:bg-[#1c2740]" : i < 3 ? "bg-[#EAF0F8] dark:bg-[#1c2740]" : ""} ${
+                        className={`${i === 1 ? "sticky left-0 z-[1] bg-[#EAF0F8] font-semibold dark:bg-[#1c2740]" : i < (data.groups[0]?.columns.length ?? 0) ? "bg-[#EAF0F8] dark:bg-[#1c2740]" : ""} ${
                           cols[i]?.type === "list" ? "whitespace-pre-line" : "max-w-[14rem] truncate"
                         } border-b border-r border-card-border px-3 py-1.5 align-top text-foreground`}
                         title={typeof v === "string" && v.length > 30 ? v : undefined}
