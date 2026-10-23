@@ -6,7 +6,7 @@ import {
 } from '@/lib/risansi-auth';
 import {
   CANON, CAT_OTHER, CAT_OTHER_SQL, execScopeSql, fyWindows, parseFy, TURNOVER_BAND_CASE, TURNOVER_REV_CTE,
-  STAGE_TO_OFFER, CONVERSION_STAGES, conversionWhereSql, OPP_WINDOW_DATE, OPEN_STAGES,
+  STAGE_TO_OFFER, CONVERSION_STAGES, conversionWhereSql, OPP_WINDOW_DATE, OPP_VALUE_INR, OPEN_STAGES,
   type AccountScope,
 } from '@/lib/risansi-exec-review';
 
@@ -116,7 +116,7 @@ async function enrichClients(rows: DrillRow[]): Promise<DrillRow[]> {
                 -- Live money: quoted, still being argued over, or paused. Won
                 -- and Lost are decided and Dropped is gone, so none of them is
                 -- pipeline any more.
-                COALESCE(SUM(COALESCE(o.offer_value_inr, o.value_cr * 10000000))
+                COALESCE(SUM(COALESCE(o.value_cr * 10000000, o.offer_value_inr))
                          FILTER (WHERE o.stage IN ('Quoted','Negotiating','On Hold')), 0) AS open_inr,
                 -- Open stages only, to match the column it sits under.
                 --
@@ -313,14 +313,14 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
           : p.col === 'active' ? 'Active'
           : p.col === 'lost' ? 'Lost' : 'Total';
         const rows = await run(`
-          SELECT c.id, c.code, c.legal_name AS name, round(sum(o.offer_value_inr)) AS value,
+          SELECT c.id, c.code, c.legal_name AS name, round(sum(${OPP_VALUE_INR})) AS value,
                  string_agg(DISTINCT o.stage, ', ') AS detail
             FROM opportunities o JOIN clients c ON c.id = o.client_id
            WHERE ${scope} AND ${stageCond}
              AND ${w.inMonths(OPP_WINDOW_DATE)}
              AND ${p.key === CAT_OTHER ? CAT_OTHER_SQL : `${CANON} = '${key}'`}
            GROUP BY c.id, c.code, c.legal_name
-          HAVING sum(o.offer_value_inr) IS NOT NULL
+          HAVING sum(${OPP_VALUE_INR}) <> 0
            ORDER BY value DESC`);
         return { title: `${p.key} · ${label}`, subtitle: sub, unit: 'money', rows, total: rows.reduce((s, r) => s + money(r.value), 0) };
       }
@@ -331,13 +331,13 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
         if (!all && !(CONVERSION_STAGES as readonly string[]).includes(p.key!)) return null;
         const stages = all ? CONVERSION_STAGES : [p.key!];
         const rows = await run(`
-          SELECT c.id, c.code, c.legal_name AS name, round(sum(COALESCE(o.offer_value_inr,0))) AS value,
+          SELECT c.id, c.code, c.legal_name AS name, round(sum(${OPP_VALUE_INR})) AS value,
                  count(*)::text || ' · ' || string_agg(DISTINCT o.stage, ', ') AS detail
             FROM opportunities o JOIN clients c ON c.id = o.client_id
            WHERE ${scope} AND ${conversionWhereSql(stages)}
              AND ${w.inMonths(OPP_WINDOW_DATE)}
            GROUP BY c.id, c.code, c.legal_name
-          HAVING sum(COALESCE(o.offer_value_inr,0)) <> 0
+          HAVING sum(${OPP_VALUE_INR}) <> 0
            ORDER BY value DESC`);
         return {
           title: all ? 'Total quoted · the conversion denominator' : `${p.key} · offer value`,
@@ -354,7 +354,7 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
       case 'outside_window': {
         const open = OPEN_STAGES.map(s => `'${s}'`).join(',');
         const rows = await run(`
-          SELECT c.id, c.code, c.legal_name AS name, round(sum(COALESCE(o.offer_value_inr,0))) AS value,
+          SELECT c.id, c.code, c.legal_name AS name, round(sum(${OPP_VALUE_INR})) AS value,
                  string_agg(DISTINCT o.stage || ' · ' ||
                    COALESCE(to_char(${OPP_WINDOW_DATE}, 'DD Mon YYYY'), 'no date')
                    || CASE WHEN o.stage IN (${open}) THEN ' · still open' ELSE '' END, '; ') AS detail
@@ -393,13 +393,13 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
         const stages = Object.entries(STAGE_TO_OFFER).filter(([, v]) => v === p.key).map(([k]) => k);
         if (!stages.length) return null;
         const rows = await run(`
-          SELECT c.id, c.code, c.legal_name AS name, round(sum(o.offer_value_inr)) AS value,
+          SELECT c.id, c.code, c.legal_name AS name, round(sum(${OPP_VALUE_INR})) AS value,
                  count(*)::text || ' opportunit' || CASE WHEN count(*) = 1 THEN 'y' ELSE 'ies' END AS detail
             FROM opportunities o JOIN clients c ON c.id = o.client_id
            WHERE ${scope} AND o.stage IN (${stages.map(s => `'${esc(s)}'`).join(',')})
              AND ${w.inMonths(OPP_WINDOW_DATE)}
            GROUP BY c.id, c.code, c.legal_name
-          HAVING sum(o.offer_value_inr) IS NOT NULL
+          HAVING sum(${OPP_VALUE_INR}) <> 0
            ORDER BY value DESC`);
         return { title: `${p.key} · offer value`, subtitle: sub, unit: 'money', rows, total: rows.reduce((s, r) => s + money(r.value), 0) };
       }

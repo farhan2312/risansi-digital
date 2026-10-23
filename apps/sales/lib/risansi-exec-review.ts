@@ -92,6 +92,25 @@ export const OFFER_STATUS_ORDER = (() => {
 export const OPP_WINDOW_DATE = 'COALESCE(o.quote_date, o.created_at::date)';
 
 /**
+ * What one opportunity is worth, in rupees. One definition, because two of
+ * them is how the same deal reads differently on two pages.
+ *
+ * value_cr first. It IS the live quoted price: syncOfferRevisions re-points
+ * it at the newest revision, so a quote cut from ₹10 L to ₹8.5 L reads 8.5
+ * here. offer_value_inr is the ORIGINAL offer and never moves again.
+ *
+ * For a Lost deal that distinction is the whole point — what the customer
+ * turned down is the price they were last shown, not the one first sent. The
+ * Opportunities board has always used value_cr and the Executive Review
+ * always offer_value_inr, which is why one rep's Lost read ₹2.74 Cr on the
+ * board and ₹2.83 Cr on the review at the same account scope.
+ *
+ * offer_value_inr remains the fallback for rows where value_cr was never
+ * written, so nothing that used to carry a figure now reads zero.
+ */
+export const OPP_VALUE_INR = 'COALESCE(o.value_cr * 10000000, o.offer_value_inr, 0)';
+
+/**
  * Stages where the deal has not finished yet. Used to say how much of what the
  * FY window excludes is still live, because an old Won is history and an old
  * Quoted is work somebody is still waiting on.

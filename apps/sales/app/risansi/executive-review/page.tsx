@@ -16,7 +16,7 @@ import { loadProjection, loadProjectionOptions, parseProjectionFilters } from '@
 import {
   CANON, CATS, CAT_OTHER, CAT_OTHER_LABEL, TURN_ORDER, STAGE_TO_OFFER, OFFER_STATUS_ORDER,
   CONVERSION_STAGES, CONVERSION_WON_STAGES, CONVERSION_INCLUDES, CONVERSION_EXCLUDES, conversionWhereSql,
-  execScopeSql, fyWindows, parseFy, fyChoices, OPP_WINDOW_DATE, OPEN_STAGES, type AccountScope,
+  execScopeSql, fyWindows, parseFy, fyChoices, OPP_WINDOW_DATE, OPP_VALUE_INR, OPEN_STAGES, type AccountScope,
 } from '@/lib/risansi-exec-review';
 import { AccountSelector, type NameOpt } from '@/components/risansi/AccountSelector';
 import type { CurrentFyView } from '@/components/risansi/AccountReview';
@@ -474,9 +474,9 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     // 3. Quotation Summary — channel x Active/Won
     q(async () => (await risansiPool.query<{ channel: string; active: string; won: string; lost: string }>(
       `SELECT ${CANON} channel,
-              round(sum(COALESCE(o.offer_value_inr,0)) FILTER (WHERE o.stage IN ('Quoted','Negotiating')))::text active,
-              round(sum(COALESCE(o.offer_value_inr,0)) FILTER (WHERE o.stage='Won'))::text won,
-              round(sum(COALESCE(o.offer_value_inr,0)) FILTER (WHERE o.stage='Lost'))::text lost
+              round(sum(${OPP_VALUE_INR}) FILTER (WHERE o.stage IN ('Quoted','Negotiating')))::text active,
+              round(sum(${OPP_VALUE_INR}) FILTER (WHERE o.stage='Won'))::text won,
+              round(sum(${OPP_VALUE_INR}) FILTER (WHERE o.stage='Lost'))::text lost
          FROM opportunities o JOIN clients c ON c.id=o.client_id
         WHERE ${tourF} AND ${inMonths(OPP_WINDOW_DATE)} GROUP BY 1`)).rows, []),
 
@@ -484,7 +484,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     //    Suspect: STAGE_TO_OFFER has wording for them now, so their value lands
     //    in a row instead of nowhere.
     q(async () => (await risansiPool.query<{ stage: string; val: string }>(
-      `SELECT o.stage, round(sum(COALESCE(o.offer_value_inr,0)))::text val
+      `SELECT o.stage, round(sum(${OPP_VALUE_INR}))::text val
          FROM opportunities o JOIN clients c ON c.id=o.client_id
         WHERE ${tourF} AND ${inMonths(OPP_WINDOW_DATE)} GROUP BY 1`)).rows, []),
 
@@ -562,7 +562,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     //    list and the budgetary exclusion come from the lib so the drill-down
     //    behind each figure selects the identical set; see conversionWhereSql.
     q(async () => (await risansiPool.query<{ stage: string; opps: string; val: string }>(
-      `SELECT o.stage, count(*)::text AS opps, round(sum(COALESCE(o.offer_value_inr,0)))::text AS val
+      `SELECT o.stage, count(*)::text AS opps, round(sum(${OPP_VALUE_INR}))::text AS val
          FROM opportunities o JOIN clients c ON c.id=o.client_id
         WHERE ${tourF} AND ${conversionWhereSql()}
           AND ${inMonths(OPP_WINDOW_DATE)}
@@ -591,9 +591,9 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       opps: string; val: string; open_opps: string; open_val: string; oldest: string | null; newest: string | null;
     }>(
       `SELECT count(*)::text AS opps,
-              COALESCE(round(sum(COALESCE(o.offer_value_inr,0))),0)::text AS val,
+              COALESCE(round(sum(${OPP_VALUE_INR})),0)::text AS val,
               count(*) FILTER (WHERE o.stage IN (${OPEN_STAGES.map(s => `'${s}'`).join(',')}))::text AS open_opps,
-              COALESCE(round(sum(COALESCE(o.offer_value_inr,0))
+              COALESCE(round(sum(${OPP_VALUE_INR})
                 FILTER (WHERE o.stage IN (${OPEN_STAGES.map(s => `'${s}'`).join(',')}))),0)::text AS open_val,
               min(${OPP_WINDOW_DATE})::text AS oldest,
               max(${OPP_WINDOW_DATE})::text AS newest
@@ -618,7 +618,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       // today, and it was enough to stop a manager's two columns adding up.
       `WITH opp AS (
          SELECT (c.primary_rep_id IS NOT DISTINCT FROM ${tsmId}) AS owns, o.stage,
-                COALESCE(o.offer_value_inr,0) AS v,
+                ${OPP_VALUE_INR} AS v,
                 -- What the order was actually taken at, as against what it was
                 -- quoted at. final_value_cr is typed on the Won form; value_cr
                 -- stands in where nobody filled it, which is 3 deals in 1,111.
@@ -960,7 +960,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       targetLabel, targetNote, targetIsPersonal, targetSub, achievedLabel, panelNote,
       table: {
         headers: ['Stage', 'Opportunities', `Offer value (INR)`], rows: convRows, moneyFrom: 1,
-        notes: [`on the quoted pipeline, FY ${yy(fy)}${w.toDate ? ' to date' : ''}`, 'sum of offer_value_inr'],
+        notes: [`on the quoted pipeline, FY ${yy(fy)}${w.toDate ? ' to date' : ''}`, 'the live quoted price, as the Opportunities board counts it'],
       },
       outside: outsideOpps > 0
         ? { opps: outsideOpps, value: outsideVal, openOpps: outsideOpen, openValue: outsideOpenVal,
