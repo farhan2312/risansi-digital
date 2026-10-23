@@ -5,6 +5,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { OWN_OPEN, clientScopeSql, clientVisibilitySql, getCurrentUser, getManagerAssignableReps, getReviewableRepIds, getSession } from '@/lib/risansi-auth';
 import risansiPool from '@/lib/db-risansi';
 import { ExecutiveViews, ExecTabs, type ExecData, type Row, type ExecTab } from '@/components/risansi/ExecutiveViews';
+import { ExecExportButtons } from '@/components/risansi/ExecExportButtons';
 import { ProjectionFilters } from '@/components/risansi/ProjectionFilters';
 import { ExecutiveSelector, type SelRep } from '@/components/risansi/ExecutiveSelector';
 import { ExecDrilldownProvider } from '@/components/risansi/ExecDrilldown';
@@ -42,6 +43,17 @@ const fyLabel = (startYear: number) => `${String(startYear % 100).padStart(2, '0
 const FY_EXPR = (col: string) => `CASE WHEN EXTRACT(MONTH FROM ${col}) >= 4
   THEN LPAD((EXTRACT(YEAR FROM ${col})::int % 100)::text,2,'0')||'-'||LPAD(((EXTRACT(YEAR FROM ${col})::int + 1) % 100)::text,2,'0')
   ELSE LPAD(((EXTRACT(YEAR FROM ${col})::int - 1) % 100)::text,2,'0')||'-'||LPAD((EXTRACT(YEAR FROM ${col})::int % 100)::text,2,'0') END`;
+
+/** An ExecTable as the export route wants it — label, values, and whether the
+ *  row is a total. The colours, notes and drill-through on the page have no
+ *  meaning in a spreadsheet. */
+function tableSheet(t: { headers: string[]; rows: Row[]; moneyFrom: number }) {
+  return {
+    headers: t.headers,
+    moneyFrom: t.moneyFrom,
+    rows: t.rows.map(r => ({ label: r.label, vals: r.vals, strong: r.strong })),
+  };
+}
 
 export default async function ExecutiveReviewPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined> & { tsm?: string; month?: string; months?: string; view?: string; tab?: string; ctype?: string; name?: string; tview?: string; scope?: string; proj?: string }>;
@@ -911,8 +923,12 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     turnoverSummary: { headers: ['Turnover band', 'Clients', `TO ${yy(fy)}`, `TO ${yy(fy - 1)}`, `TO ${yy(fy - 2)}`, `TO ${yy(fy - 3)}`], rows: turnRows, moneyFrom: 1 },
     quotationSummary:{
       headers: ['Channel', 'Active', 'Order Received', 'Lost', 'Total'], rows: quoteRows, moneyFrom: 0,
-      colors: [undefined, undefined, 'var(--pos)', 'var(--neg)', undefined],
-      notes: [undefined, 'quoted or being negotiated', 'won', 'quoted and lost to a competitor or no decision', 'everything quoted in the window'],
+      // One entry per VALUE column — Active, Order Received, Lost, Total — and
+      // NOT one for the Channel label. Leading with an undefined for the label
+      // shifted the whole row: green landed on Lost and red on Total, which is
+      // precisely backwards and is what shipped first time round.
+      colors: [undefined, 'var(--pos)', 'var(--neg)', undefined],
+      notes: ['quoted or being negotiated', 'won', 'quoted and lost to a competitor or no decision', 'everything quoted in the window'],
     },
     offerStatus:     { headers: ['Offer status', 'Total Offer Value (INR)'], rows: offerRows, moneyFrom: 0 },
     attendance:      { headers: ['Month', 'Visit days', 'Clients'], rows: attRows, moneyFrom: 99 },
@@ -1086,7 +1102,27 @@ export default async function ExecutiveReviewPage({ searchParams }: {
             periodLabel={periodLabel}
             note={note}
             tabs={tabs}
-            selector={<ExecutiveSelector reps={reps} tsm={tsm} scope={accountScope === 'all' ? 'all' : 'own'} fys={fyOpts} fy={String(fy)} />}
+            selector={
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <ExecutiveSelector reps={reps} tsm={tsm} scope={accountScope === 'all' ? 'all' : 'own'} fys={fyOpts} fy={String(fy)} />
+                {/* Built from the tables the page has already drawn, so the
+                    workbook carries the same rep, year and account scope the
+                    reader is looking at. */}
+                <ExecExportButtons
+                  title={`Executive Review · ${tsmName} · FY ${yy(fy)}`}
+                  subtitle={`${tsmName} · FY ${yy(fy)} · ${accountScope === 'all' ? 'owned + covered accounts' : 'accounts they own'} · ${periodLabel}`}
+                  sheets={[
+                    { name: 'Headlines', headers: ['Figure', 'Value'], moneyFrom: 99,
+                      rows: data.kpis.map(k => ({ label: k.label, vals: [k.value] })) },
+                    { name: 'Clients Summary', ...tableSheet(data.clientsSummary) },
+                    { name: 'Turnover Summary', ...tableSheet(data.turnoverSummary) },
+                    { name: 'Quotation Summary', ...tableSheet(data.quotationSummary) },
+                    { name: 'Offer Status', ...tableSheet(data.offerStatus) },
+                    { name: 'Attendance', ...tableSheet(data.attendance) },
+                  ]}
+                />
+              </div>
+            }
           />
           </ExecDrilldownProvider>
         )}
