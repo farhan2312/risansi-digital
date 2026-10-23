@@ -4,6 +4,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { updateOrderSectionAction } from "@/app/risansi/orders/actions";
+import {
+  omStatusHistoryAction,
+  recordOmStatusAction,
+  type OmStatusEntry,
+} from "@/app/risansi/departments/order-making/om-status-actions";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? "" : String(v));
@@ -54,6 +59,13 @@ export function OmHoldChip({ order }: { order: Row }) {
   );
 }
 
+function formatWhen(v: string): string {
+  const d = new Date(v.replace(" ", "T"));
+  return Number.isNaN(d.getTime())
+    ? v
+    : d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function OmHoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
   const router = useRouter();
   const [status, setStatus] = useState(str(order.om_status) === "Hold" ? "Hold" : "Clear");
@@ -61,6 +73,15 @@ function OmHoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
   const [remarks, setRemarks] = useState(str(order.om_hold_remarks));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Every Clear / Hold the SO has had, with its reason and remarks.
+  const [history, setHistory] = useState<OmStatusEntry[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    omStatusHistoryAction(str(order.id)).then((res) => live && setHistory(res.ok ? res.rows : []));
+    return () => {
+      live = false;
+    };
+  }, [order.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
@@ -79,13 +100,16 @@ function OmHoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
     const res = await updateOrderSectionAction(str(order.id), "orders", {
       om_status: status,
       om_hold_reason: status === "Hold" ? reason : "",
-      om_hold_remarks: status === "Hold" ? remarks : "",
+      om_hold_remarks: remarks,
     });
-    setSaving(false);
     if (!res.ok) {
+      setSaving(false);
       setError(res.error);
       return;
     }
+    // Kept in the SO's Clear / Hold history.
+    await recordOmStatusAction(str(order.id));
+    setSaving(false);
     router.refresh();
     onClose();
   }
@@ -106,13 +130,13 @@ function OmHoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-label="Order Making clear or hold"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
       onClick={() => !saving && onClose()}
     >
       <form
         onSubmit={save}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-2xl bg-surface p-5 text-left shadow-xl sm:rounded-2xl"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-5 text-left shadow-xl sm:rounded-2xl"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
@@ -160,16 +184,34 @@ function OmHoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
                   className={input}
                 />
               </label>
-              <label className="block text-sm">
-                <span className="mb-1 block text-[13px] font-medium text-brand-label">Remarks</span>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-                />
-              </label>
             </>
+          )}
+          {/* Remarks on a Clear too. */}
+          <label className="block text-sm">
+            <span className="mb-1 block text-[13px] font-medium text-brand-label">Remarks</span>
+            <textarea
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              rows={3}
+              className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+            />
+          </label>
+          {history && history.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">History</p>
+              <ol className="max-h-48 space-y-1.5 overflow-y-auto border-l-2 border-card-border pl-3">
+                {[...history].reverse().map((h) => (
+                  <li key={h.id} className="text-xs">
+                    <span className={`font-semibold ${h.status === "Hold" ? "text-rose-700" : "text-emerald-700"}`}>{h.status}</span>
+                    {h.reason && <span className="text-foreground"> · {h.reason}</span>}
+                    {h.remarks && <span className="block text-muted-foreground">{h.remarks}</span>}
+                    <span className="block text-[10.5px] text-muted">
+                      {[h.changed_by_name, formatWhen(h.created_at)].filter(Boolean).join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           )}
         </div>
         <div className="mt-5 flex justify-end gap-2">

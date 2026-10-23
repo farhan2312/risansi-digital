@@ -58,7 +58,7 @@ const SECTIONS: Section[] = [
     title: "Purchase Order",
     fields: [
       // When the PO came in. An FR has no PO.
-      { name: "po_received_date", label: "PO Receiving Date", type: "date", dependsOn: { name: "bill_mode", value: "FR", not: true } },
+      { name: "po_received_date", label: "PO Receiving Date", type: "date" },
       {
         name: "order_type",
         label: "Order Type",

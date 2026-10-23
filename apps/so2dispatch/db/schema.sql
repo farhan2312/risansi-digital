@@ -2863,3 +2863,25 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS only_billing_remarks TEXT;
 -- 0028  How many of each part a pump EC is short of. NULL on shortages marked
 -- before. Idempotent and additive.
 ALTER TABLE order_part_shortages ADD COLUMN IF NOT EXISTS qty INT;
+
+-- 0029  Order Making's Clear / Hold, every time it is set: the status, the
+-- reason of delay (on a hold) and the remarks — so the remarks keep their
+-- history and the report can list all of it. Backfilled with each SO's
+-- current state. Idempotent and additive.
+CREATE TABLE IF NOT EXISTS order_om_status_history (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id        UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    status          TEXT NOT NULL,
+    reason          TEXT,
+    remarks         TEXT,
+    changed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    changed_by_role TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_om_status_history_order_idx ON order_om_status_history (order_id, created_at);
+INSERT INTO order_om_status_history (order_id, status, reason, remarks, created_at)
+SELECT o.id, o.om_status, NULLIF(btrim(o.om_hold_reason), ''), NULLIF(btrim(o.om_hold_remarks), ''), o.updated_at
+  FROM orders o
+ WHERE o.om_status IS NOT NULL
+   AND (o.om_status = 'Hold' OR NULLIF(btrim(o.om_hold_remarks), '') IS NOT NULL)
+   AND NOT EXISTS (SELECT 1 FROM order_om_status_history h WHERE h.order_id = o.id);

@@ -122,7 +122,7 @@ export function OmReportModal({ query, onClose }: { query: string; onClose: () =
                       ) : (
                         <td
                           key={j}
-                          className={`px-2.5 py-1.5 text-foreground ${report.columns[j].width > 20 ? "min-w-[12rem]" : "whitespace-nowrap"}`}
+                          className={`px-2.5 py-1.5 text-foreground ${report.columns[j].width > 20 ? "min-w-[12rem] whitespace-pre-line" : "whitespace-nowrap"}`}
                         >
                           {show(c, report.columns[j].date)}
                         </td>
