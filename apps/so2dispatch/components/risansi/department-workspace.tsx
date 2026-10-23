@@ -198,6 +198,7 @@ export function DepartmentWorkspace({
   filterOptions,
   ecKind,
   kpis = [],
+  embedded = false,
 }: {
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
@@ -233,6 +234,8 @@ export function DepartmentWorkspace({
   filterOptions?: OrderListOptions;
   /** Planning: Spare (the SO view) or Pump (one row per pump EC). */
   ecKind?: "spare" | "pump";
+  /** Inside a pop-up (the Orders list's): one SO's rows — no filter bar, cards or paging. */
+  embedded?: boolean;
 }) {
   const [editRow, setEditRow] = useState<Row | null>(null);
   // Planning / Assembly & Packing edit a whole SO at once: one form for all
@@ -663,7 +666,7 @@ export function DepartmentWorkspace({
 
   return (
     <div>
-      <div className="mb-3">
+      <div className={embedded ? "hidden" : "mb-3"}>
         {/* The same filter bar the orders list carries, with this
             department pinned: its own statuses, its own target. */}
         {filterOptions && dept ? (
@@ -702,11 +705,11 @@ export function DepartmentWorkspace({
         )}
       </div>
 
-      <KpiStrip cards={kpis} />
+      {!embedded && <KpiStrip cards={kpis} />}
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
-        <div className="overflow-x-auto" data-sticky-head>
+        <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
           {assemblyPump ? (
             <AssemblyPumpTable
               rows={orders}
@@ -1367,13 +1370,15 @@ export function DepartmentWorkspace({
           </table>
           )}
         </div>
-        <UrlPagination
-          page={queue.page}
-          totalPages={queue.totalPages}
-          from={queue.from}
-          to={queue.to}
-          total={queue.total}
-        />
+        {!embedded && (
+          <UrlPagination
+            page={queue.page}
+            totalPages={queue.totalPages}
+            from={queue.from}
+            to={queue.to}
+            total={queue.total}
+          />
+        )}
       </div>
 
       {editSo && canEdit && (

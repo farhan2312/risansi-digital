@@ -7,8 +7,9 @@ import { getOrderQuickViewAction, updateOrderSectionAction } from "@/app/risansi
 import type { ItemDetail, OrderDetail } from "@/lib/orders";
 import type { TargetRevision } from "@/lib/target-dates";
 import { CLEARANCE_HOLD_REASONS } from "@/lib/order-schema";
-import { DeptPopup, SO_WIDE, type DeptKey } from "./ec-dept-grid";
+import type { DeptKey } from "./ec-dept-grid";
 import { SoSections } from "./so-sections";
+import { DeptViewPopup } from "./dept-view-popup";
 
 type Row = Record<string, unknown>;
 type Data = { detail: OrderDetail; items: ItemDetail[]; targetRevisions: TargetRevision[] };
@@ -50,8 +51,11 @@ export function OrderPopupHost({
 }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A department of the ECs: its own screen for this SO (the department page's, not a generic form).
+  const ecDept = what.kind === "ec" ? what.dept : null;
 
   useEffect(() => {
+    if (ecDept) return;
     let live = true;
     getOrderQuickViewAction(orderId).then((res) => {
       if (!live) return;
@@ -61,13 +65,18 @@ export function OrderPopupHost({
     return () => {
       live = false;
     };
-  }, [orderId, version]);
+  }, [orderId, version, ecDept]);
 
   useEffect(() => {
+    if (ecDept) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, ecDept]);
+
+  if (ecDept) {
+    return <DeptViewPopup orderId={orderId} soLabel={soLabel} role={role} dept={ecDept} version={version} onClose={onClose} />;
+  }
 
   if (!data) {
     return (
@@ -84,37 +93,7 @@ export function OrderPopupHost({
     );
   }
 
-  if (what.kind === "ec") {
-    if (data.items.length === 0) {
-      return (
-        <Shell title="No ECs yet" soLabel={soLabel} onClose={onClose}>
-          <p className="text-sm text-muted">This SO has no ECs yet — add one with the Add-On button.</p>
-        </Shell>
-      );
-    }
-    const allSpare = data.items.every((e) => str(e.item.item_type).toLowerCase() === "spare");
-    return (
-      <DeptPopup
-        orderId={orderId}
-        role={role}
-        dept={what.dept}
-        soWide={allSpare && SO_WIDE.includes(what.dept)}
-        entries={data.items}
-        onClose={onClose}
-        extra={
-          what.dept === "assembly" ? (
-            <SoSections
-              detail={data.detail}
-              orderId={orderId}
-              role={role}
-              targetRevisions={data.targetRevisions}
-              only="order_packing_slips"
-            />
-          ) : undefined
-        }
-      />
-    );
-  }
+  if (what.kind === "ec") return null;
 
   return (
     <Shell

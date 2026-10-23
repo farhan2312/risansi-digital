@@ -63,6 +63,7 @@ export function QcWorkspace({
   completions = [],
   filterOptions,
   kpis = [],
+  embedded = false,
 }: {
   queue: PageResult<Row>;
   canEdit: boolean;
@@ -74,6 +75,8 @@ export function QcWorkspace({
   completions?: DeptCompletion[];
   filterOptions?: OrderListOptions;
   kpis?: KpiCard[];
+  /** Inside a pop-up (the Orders list's): one SO's rows — no filter bar, cards or paging. */
+  embedded?: boolean;
 }) {
   const rows = queue.rows;
   const { get: getParam, getList, setParams } = useUrlTable();
@@ -98,7 +101,7 @@ export function QcWorkspace({
 
   return (
     <div>
-      <div className="mb-3">
+      <div className={embedded ? "hidden" : "mb-3"}>
         {filterOptions ? (
           <OrderListFilterBar
             options={filterOptions}
@@ -133,10 +136,10 @@ export function QcWorkspace({
         )}
       </div>
 
-      <KpiStrip cards={kpis} />
+      {!embedded && <KpiStrip cards={kpis} />}
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
-        <div className="overflow-x-auto" data-sticky-head>
+        <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
           <table className="w-full min-w-[1400px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
@@ -268,7 +271,7 @@ export function QcWorkspace({
             </tbody>
           </table>
         </div>
-        <UrlPagination page={queue.page} totalPages={queue.totalPages} from={queue.from} to={queue.to} total={queue.total} />
+        {!embedded && <UrlPagination page={queue.page} totalPages={queue.totalPages} from={queue.from} to={queue.to} total={queue.total} />}
       </div>
 
       {(() => {
