@@ -1,6 +1,7 @@
 import { clientVisibilitySql, type CurrentUser } from './risansi-auth';
 import { PROSPECTIVE_STATUSES } from './risansi-client-status';
 import { clientRepIdsSql, clientRepNamesSql } from '@/lib/risansi-client-rep';
+import { visitExpectedSql, waivedGapSql } from '@/lib/risansi-visit-waiver';
 
 // Shared filter logic for the Client 360 list. The list page and the Excel
 // export both build their WHERE from buildClientFilter() so the export always
@@ -26,12 +27,23 @@ export const REV_BUCKETS: { value: string; cond: (x: string) => string }[] = [
 ];
 
 // Last-visit buckets keyed on clients.last_visit_date, mutually exclusive so
-// Visited + Overdue + Never always sum to the total (unlike the Field page's
-// own "Overdue" tab, which folds Never Visited into its overdue count).
-export const VISIT_BUCKETS: { value: string; label: string; cond: (x: string) => string }[] = [
+// the four always sum to the total (unlike the Field page's own "Overdue" tab,
+// which folds Never Visited into its overdue count).
+//
+// "No visit required" is the fourth, and it takes precedence over Overdue and
+// Never: a client somebody has given a reason for (migration 0127) belongs in
+// that bucket and not in the gap. A waived client visited inside 90 days still
+// reads as Visited, because the visit happened.
+export const VISIT_BUCKETS: {
+  value: string; label: string; cond: (dateCol: string, alias: string) => string;
+}[] = [
   { value: 'visited', label: 'Visited (≤90d)',  cond: x => `${x} >= CURRENT_DATE - INTERVAL '90 days'` },
-  { value: 'overdue', label: 'Overdue (90d+)',  cond: x => `${x} IS NOT NULL AND ${x} < CURRENT_DATE - INTERVAL '90 days'` },
-  { value: 'never',   label: 'Never Visited',   cond: x => `${x} IS NULL` },
+  { value: 'overdue', label: 'Overdue (90d+)',
+    cond: (x, a) => `${x} IS NOT NULL AND ${x} < CURRENT_DATE - INTERVAL '90 days' AND ${visitExpectedSql(a)}` },
+  { value: 'never',   label: 'Never Visited',
+    cond: (x, a) => `${x} IS NULL AND ${visitExpectedSql(a)}` },
+  { value: 'waived',  label: 'No Visit Required',
+    cond: (_x, a) => waivedGapSql(a) },
 ];
 
 type SP = { [key: string]: string | string[] | undefined };
@@ -119,7 +131,7 @@ export function buildClientFilter(
     if (conds.length) whereConditions.push(`(${conds.join(' OR ')})`);
   }
   if (visitFilts.length) {
-    const conds = VISIT_BUCKETS.filter(b => visitFilts.includes(b.value)).map(b => `(${b.cond('c.last_visit_date')})`);
+    const conds = VISIT_BUCKETS.filter(b => visitFilts.includes(b.value)).map(b => `(${b.cond('c.last_visit_date', 'c')})`);
     if (conds.length) whereConditions.push(`(${conds.join(' OR ')})`);
   }
 

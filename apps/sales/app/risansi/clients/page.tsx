@@ -12,6 +12,7 @@ import { getCurrentUser, clientVisibilitySql } from '@/lib/risansi-auth';
 import { OWNERS_SUBQUERY, REV_JOIN, REV_BUCKETS, VISIT_BUCKETS, buildClientFilter } from '@/lib/risansi-client-filter';
 import { clientStatusLabel, statusDotKind, CLIENT_STATUS_FILTER_OPTIONS, CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS, PROSPECTIVE_STATUSES, CLIENT_STATUSES } from '@/lib/risansi-client-status';
 import { FilterBar } from './FilterBar';
+import { visitExpectedSql, waivedGapSql } from '@/lib/risansi-visit-waiver';
 
 const PAGE_SIZE = 50;
 
@@ -140,7 +141,7 @@ export default async function ClientListPage({
 
   interface ProspStats {
     total: number; leads: number; pclients: number;
-    visited: number; overdue: number; neverVisited: number;
+    visited: number; overdue: number; neverVisited: number; waived: number;
     inPlay: number; openValue: number;   // openValue in rupees
   }
 
@@ -231,9 +232,15 @@ export default async function ClientListPage({
              COUNT(DISTINCT c.id) FILTER (WHERE UPPER(c.status) = 'PROSPECTIVE_LEAD')::text   AS leads,
              COUNT(DISTINCT c.id) FILTER (WHERE UPPER(c.status) = 'PROSPECTIVE_CLIENT')::text AS pclients,
              COUNT(DISTINCT c.id) FILTER (WHERE c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text AS visited,
+             -- Overdue and never-visited both skip the waived (migration 0127).
+             -- They are counted separately below so the four buckets still add
+             -- up to the total and the waiver cannot quietly shrink it.
              COUNT(DISTINCT c.id) FILTER (WHERE c.last_visit_date IS NOT NULL
-               AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')::text AS overdue,
-             COUNT(DISTINCT c.id) FILTER (WHERE c.last_visit_date IS NULL)::text AS never_visited,
+               AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days'
+               AND ${visitExpectedSql('c')})::text AS overdue,
+             COUNT(DISTINCT c.id) FILTER (WHERE c.last_visit_date IS NULL
+               AND ${visitExpectedSql('c')})::text AS never_visited,
+             COUNT(DISTINCT c.id) FILTER (WHERE ${waivedGapSql('c')})::text AS waived,
              COUNT(DISTINCT c.id) FILTER (WHERE EXISTS (
                SELECT 1 FROM opportunities o
                 WHERE o.client_id = c.id AND o.stage NOT IN ('Won','Lost','Dropped')))::text AS in_play,
@@ -251,6 +258,7 @@ export default async function ClientListPage({
         return {
           total: n('total'), leads: n('leads'), pclients: n('pclients'),
           visited: n('visited'), overdue: n('overdue'), neverVisited: n('never_visited'),
+          waived: n('waived'),
           inPlay: n('in_play'), openValue: n('open_value'),
         };
       } catch (err) {
@@ -408,7 +416,7 @@ export default async function ClientListPage({
         const visForVisit = clientVisibilitySql(user, 'c');
         const visitClause = visForVisit ? `AND (${visForVisit})` : '';
         const selects = VISIT_BUCKETS
-          .map((b, i) => `COUNT(*) FILTER (WHERE ${b.cond('c.last_visit_date')}) AS b${i}`)
+          .map((b, i) => `COUNT(*) FILTER (WHERE ${b.cond('c.last_visit_date', 'c')}) AS b${i}`)
           .join(', ');
         const { rows } = await risansiPool.query<Record<string, string>>(
           `SELECT ${selects} FROM clients c WHERE c.deleted_at IS NULL ${visitClause}`,
@@ -600,7 +608,10 @@ export default async function ClientListPage({
                 <Tile label="Visited (≤90d)" value={s.visited.toLocaleString('en-IN')}
                   sub={`${pct(s.visited)}% of prospects`} color="var(--pos)" href={visitHref('visited')} />
                 <Tile label="Never Visited" value={s.neverVisited.toLocaleString('en-IN')}
-                  sub={`${pct(s.neverVisited)}% — no visit on record`} color="var(--neg)" href={visitHref('never')} />
+                  sub={s.waived > 0
+                    ? `${pct(s.neverVisited)}% — ${s.waived.toLocaleString('en-IN')} more need no visit`
+                    : `${pct(s.neverVisited)}% — no visit on record`}
+                  color="var(--neg)" href={visitHref('never')} />
                 <Tile label="In Play" value={s.inPlay.toLocaleString('en-IN')}
                   sub={`${formatRev(s.openValue)} in open opportunities`} color="var(--accent)" />
               </div>
@@ -615,11 +626,12 @@ export default async function ClientListPage({
                   ]} />
                 <Chart
                   title="Visit Coverage"
-                  note="Based on each client's last recorded visit. Visited means within the last 90 days — the same definition the Field page and Executive Review use."
+                  note="Based on each client's last recorded visit. Visited means within the last 90 days — the same definition the Field page and Executive Review use. No visit required is the clients a rep has given a reason for, and they are out of the overdue and never-visited counts."
                   slices={[
                     { name: 'Visited (≤90d)', n: s.visited,      color: 'var(--pos)', href: visitHref('visited') },
                     { name: 'Overdue (90d+)', n: s.overdue,      color: 'var(--warn)', href: visitHref('overdue') },
                     { name: 'Never visited',  n: s.neverVisited, color: 'var(--neg)', href: visitHref('never') },
+                    { name: 'No visit required', n: s.waived,     color: 'var(--fg-4)', href: visitHref('waived') },
                   ]} />
               </div>
             </div>

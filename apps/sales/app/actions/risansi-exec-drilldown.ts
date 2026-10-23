@@ -1,6 +1,7 @@
 'use server';
 
 import risansiPool from '@/lib/db-risansi';
+import { visitExpectedSql, waivedGapSql, VISIT_WAIVER_REASONS } from '@/lib/risansi-visit-waiver';
 import {
   getCurrentUser, getReviewableRepIds, clientVisibilitySql, clientScopeSql, OWN_OPEN,
 } from '@/lib/risansi-auth';
@@ -9,6 +10,14 @@ import {
   STAGE_TO_OFFER, CONVERSION_STAGES, conversionWhereSql, OPP_WINDOW_DATE, OPP_VALUE_INR, OPEN_STAGES,
   type AccountScope,
 } from '@/lib/risansi-exec-review';
+
+// The reason, spelled out, for the drill-down's detail column. Built from the
+// one catalogue so a renamed label cannot say one thing on the client page
+// and another on the review.
+const WAIVER_LABEL_CASE =
+  'CASE c.visit_waiver '
+  + VISIT_WAIVER_REASONS.map(r => `WHEN '${r.code}' THEN '${r.label}'`).join(' ')
+  + ' ELSE c.visit_waiver END';
 
 // What is behind a number on the Executive Review.
 //
@@ -51,7 +60,7 @@ export interface DrillResult {
 
 export type DrillKind =
   | 'order_in_hand' | 'revenue'
-  | 'active_clients' | 'active_visited' | 'active_overdue' | 'active_never'
+  | 'active_clients' | 'active_visited' | 'active_overdue' | 'active_never' | 'active_waived'
   | 'prospective' | 'prospective_visited' | 'prospective_lead' | 'prospective_client'
   | 'clients_by_type' | 'quotation' | 'turnover' | 'offer_status'
   | 'attendance_visits' | 'attendance_clients' | 'conversion' | 'outside_window';
@@ -266,8 +275,8 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
         const COND: Record<string, [string, string]> = {
           active_clients:      [`c.status='ACTIVE'`, 'Active clients'],
           active_visited:      [`c.status='ACTIVE' AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days'`, 'Active · visited in 90 days'],
-          active_overdue:      [`c.status='ACTIVE' AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days'`, 'Active · overdue a visit'],
-          active_never:        [`c.status='ACTIVE' AND c.last_visit_date IS NULL`, 'Active · never visited'],
+          active_overdue:      [`c.status='ACTIVE' AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days' AND ${visitExpectedSql('c')}`, 'Active · overdue a visit'],
+          active_never:        [`c.status='ACTIVE' AND c.last_visit_date IS NULL AND ${visitExpectedSql('c')}`, 'Active · never visited'],
           prospective:         [`c.status IN ('PROSPECTIVE_LEAD','PROSPECTIVE_CLIENT')`, 'Prospective'],
           prospective_visited: [`c.status IN ('PROSPECTIVE_LEAD','PROSPECTIVE_CLIENT') AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days'`, 'Prospective · visited in 90 days'],
           prospective_lead:    [`c.status='PROSPECTIVE_LEAD'`, 'Prospective leads'],
@@ -276,6 +285,22 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
         const [cond, title] = COND[p.kind];
         const rows = await run(CLIENT_LIST(cond));
         return { title, subtitle: sub, unit: 'count', rows, total: rows.length };
+      }
+
+      // Clients nobody is expected to visit, and why. The reason is the whole
+      // point of the figure, so it rides in `detail` rather than making the
+      // reader open each client to find out.
+      case 'active_waived': {
+        const rows = await run(`
+          SELECT c.id, c.code, c.legal_name AS name, NULL::numeric AS value,
+                 ${WAIVER_LABEL_CASE}
+                 || COALESCE(' — ' || c.visit_waiver_note, '')
+                 || COALESCE(' · until ' || to_char(c.visit_waiver_until, 'DD Mon YYYY'), '') AS detail
+            FROM clients c
+           WHERE ${scope} AND c.deleted_at IS NULL
+             AND c.status='ACTIVE' AND ${waivedGapSql('c')}
+           ORDER BY c.visit_waiver, c.legal_name`);
+        return { title: 'Active · no visit required', subtitle: sub, unit: 'count', rows, total: rows.length };
       }
 
       // ── Clients Summary: one client type ──────────────────────

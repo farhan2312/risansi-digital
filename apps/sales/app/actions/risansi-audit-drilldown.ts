@@ -10,6 +10,7 @@
 // Each kind reuses the same window/role/user clauses the tile itself used, so
 // the popup can never list a different population than the number above it.
 import risansiPool from '@/lib/db-risansi';
+import { visitExpectedSql } from '@/lib/risansi-visit-waiver';
 import { getCurrentUser } from '@/lib/risansi-auth';
 import { clauses, type OverallFilters } from '@/lib/risansi-audit-overall';
 import { LIVE_CLIENT } from '@/lib/risansi-opportunity-scope';
@@ -174,12 +175,13 @@ export async function auditDrilldown(
              ORDER BY cm.created_at DESC LIMIT ${LIMIT + 1}`,
     },
     unvisited: {
-      title: 'Active clients never visited', note: 'status ACTIVE with no visit on record',
+      title: 'Active clients never visited', note: 'status ACTIVE, no visit on record, and no waiver on file',
       sql: `SELECT c.legal_name AS label,
                    c.code || COALESCE(' · ' || u.name, '') AS meta,
                    '' AS value, c.id::text AS id
               FROM clients c LEFT JOIN users u ON u.id = c.primary_rep_id
              WHERE c.status = 'ACTIVE' AND c.deleted_at IS NULL AND c.last_visit_date IS NULL
+               AND ${visitExpectedSql('c')}
              ORDER BY c.legal_name LIMIT ${LIMIT + 1}`,
     },
     stale_quotes: {

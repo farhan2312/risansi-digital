@@ -24,6 +24,7 @@ import AssignVisitDrawer, { AssignVisitRowBtn } from '@/components/risansi/Assig
 import type { DrawerRep } from '@/components/risansi/AssignVisitDrawer';
 import { VisitReportsTab, type VisitReportRow } from '@/components/risansi/VisitReportsTab';
 import { EditVisitButton } from '@/components/risansi/EditVisitButton';
+import { inVisitGapSql, visitExpectedSql, waivedGapSql } from '@/lib/risansi-visit-waiver';
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -89,7 +90,7 @@ interface StatsRow {
   // Activity over the visible period — what the tiles show.
   visits: number; clients: number; completed: number; missed: number;
   // Coverage of the client base — the second tile row, and the Overdue tab.
-  total_active: number; visited_90: number; overdue: number; never_visited: number;
+  total_active: number; visited_90: number; overdue: number; never_visited: number; waived: number;
 }
 
 // ── Constants ──────────────────────────────────────────────────
@@ -409,7 +410,10 @@ export default async function FieldActivityPage({
            AND (
              c.last_visit_date IS NULL OR
              c.last_visit_date < CURRENT_DATE - INTERVAL '90 days'
-           )${cVisAnd}${filters.clientAnd}
+           )
+           -- A client with a reason on file is not a job on this list. It is
+           -- still counted, in its own column above.
+           AND ${visitExpectedSql('c')}${cVisAnd}${filters.clientAnd}
          -- NULLS LAST, not FIRST. A never-visited client has no days_overdue
          -- and no last visit, and floating those to the top of a descending
          -- column pushed the rows with real figures off the first screen.
@@ -524,17 +528,19 @@ export default async function FieldActivityPage({
       // client-based scoping, and the labels say so. Conflating the two is what made
       // the old single row read as broken.
       const { rows: cov } = await risansiPool.query<{
-        total_active: string; visited_90: string; overdue: string; never_visited: string;
+        total_active: string; visited_90: string; overdue: string; never_visited: string; waived: string;
       }>(
         `SELECT
            COUNT(*) FILTER (WHERE ${coverStatus})::text                          AS total_active,
            COUNT(*) FILTER (WHERE ${coverStatus}
              AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text   AS visited_90,
+           -- Both skip the clients somebody has waived a visit for
+           -- (migration 0127); those are counted on their own below.
            COUNT(*) FILTER (WHERE ${coverStatus}
-             AND (c.last_visit_date IS NULL
-               OR c.last_visit_date < CURRENT_DATE - INTERVAL '90 days'))::text  AS overdue,
+             AND ${inVisitGapSql('c')} AND ${visitExpectedSql('c')})::text       AS overdue,
            COUNT(*) FILTER (WHERE ${coverStatus}
-             AND c.last_visit_date IS NULL)::text                                AS never_visited
+             AND c.last_visit_date IS NULL AND ${visitExpectedSql('c')})::text   AS never_visited,
+           COUNT(*) FILTER (WHERE ${coverStatus} AND ${waivedGapSql('c')})::text AS waived
            FROM clients c
           WHERE c.deleted_at IS NULL${cVisAnd}${filters.clientAnd}`,
       );
@@ -548,9 +554,10 @@ export default async function FieldActivityPage({
         visited_90:    Number(cov[0]?.visited_90    ?? 0),
         overdue:       Number(cov[0]?.overdue       ?? 0),
         never_visited: Number(cov[0]?.never_visited ?? 0),
+        waived:        Number(cov[0]?.waived        ?? 0),
       };
     }, { visits: 0, clients: 0, completed: 0, missed: 0,
-         total_active: 0, visited_90: 0, overdue: 0, never_visited: 0 }),
+         total_active: 0, visited_90: 0, overdue: 0, never_visited: 0, waived: 0 }),
 
     // 7. Visit Reports — submitted visits with related aggregates (only when tab open).
     //    Rep scope is parameterized; search/purpose/rep filtering happens client-side.
@@ -872,13 +879,16 @@ export default async function FieldActivityPage({
         {/* Coverage — the client base, on its own fixed window. Captioned because
             the two rows answer different questions and sit inches apart. */}
         <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginBottom: 6 }}>
-          Client coverage · active clients only · last 90 days, not the period above
+          Client coverage · active clients only · last 90 days, not the period above · clients marked “no visit required” sit in their own column
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
           <StatCard small label="Active Clients"  value={stats.total_active} />
           <StatCard small label="Visited (90d)"   value={stats.visited_90}    color="var(--pos)" />
           <StatCard small label="Overdue (90d+)"  value={stats.overdue}       color="var(--warn)" />
           <StatCard small label="Never Visited"   value={stats.never_visited} color="var(--neg)" />
+          {/* Not a gap: somebody has said why no visit is expected, so these
+              are out of the two counts beside them rather than hidden. */}
+          <StatCard small label="No Visit Needed" value={stats.waived}        color="var(--fg-4)" />
         </div>
 
         {/* AssignVisit drawer — always mounted so overdue-row buttons can open it

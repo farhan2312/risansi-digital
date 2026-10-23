@@ -13,6 +13,7 @@ import {
 } from './risansi-auth';
 import { AND_LIVE_CLIENT } from './risansi-opportunity-scope';
 import { getCurrentFY } from './risansi-utils';
+import { inVisitGapSql, visitExpectedSql, waivedGapSql } from '@/lib/risansi-visit-waiver';
 
 /** 1 Cr in rupees. `value_cr` is crores; `offer_value_inr` and revenue are rupees. */
 export const CR = 10_000_000;
@@ -214,9 +215,19 @@ export const wonClientWhere = (s: DashScope) =>
 export const activeClientWhere = (s: DashScope) =>
   `c.status = 'ACTIVE' AND c.deleted_at IS NULL${s.cVisAnd}`;
 
-/** Active clients with no visit in 90 days, or none ever. */
+/**
+ * Active clients with no visit in 90 days, or none ever.
+ *
+ * Minus the ones somebody has given a reason for (migration 0127): an account
+ * that orders by mail, a plant that has shut. Those are a decision, not a gap,
+ * and counting them here made the gap look like neglect.
+ */
 export const overdueClientWhere = (s: DashScope) =>
-  `${activeClientWhere(s)} AND (c.last_visit_date IS NULL OR c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')`;
+  `${activeClientWhere(s)} AND ${inVisitGapSql('c')} AND ${visitExpectedSql('c')}`;
+
+/** The waived ones that would otherwise sit in the gap above. */
+export const waivedClientWhere = (s: DashScope) =>
+  `${activeClientWhere(s)} AND ${waivedGapSql('c')}`;
 
 /**
  * At risk: an account that has bought from us at some point and has not been
@@ -225,7 +236,7 @@ export const overdueClientWhere = (s: DashScope) =>
  * silence turns into a switch.
  */
 export const atRiskWhere = (s: DashScope) =>
-  `c.status = 'ACTIVE' AND c.deleted_at IS NULL`
+  `c.status = 'ACTIVE' AND c.deleted_at IS NULL AND ${visitExpectedSql('c')}`
   + ` AND (c.last_visit_date IS NULL OR c.last_visit_date < CURRENT_DATE - INTERVAL '18 months')`
   + ` AND EXISTS (SELECT 1 FROM client_revenue_monthly r2 WHERE r2.client_id = c.id)${s.cVisAnd}`;
 export const atRiskExposureOn = (w: DashWindows, a = 'crm') =>

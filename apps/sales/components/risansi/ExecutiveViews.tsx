@@ -121,6 +121,28 @@ export interface ExecBookSplit {
   table: ExecTable;
 }
 
+/**
+ * Clients nobody is expected to visit, and why.
+ *
+ * On the review because the coverage figures beside it now exclude these, and a
+ * number that excludes something has to say what. Listed by name rather than
+ * only counted: "19 clients need no visit" is a claim, and the review is where
+ * somebody gets to read the nineteen and disagree with one.
+ */
+export interface ExecWaiverClient {
+  id: string; code: string; name: string; rep: string | null;
+  reason: string; label: string; color: string;
+  note: string | null; until: string | null; lastVisit: string | null;
+}
+export interface ExecWaivers {
+  /** Active clients in the same scope — the denominator the bar is read against. */
+  activeTotal: number;
+  total: number;
+  byReason: { code: string; label: string; color: string; n: number; hint: string }[];
+  clients: ExecWaiverClient[];
+  drill: DrillParams;
+}
+
 export interface ExecData {
   clientsSummary:  ExecTable;
   turnoverSummary: ExecTable;
@@ -130,6 +152,8 @@ export interface ExecData {
   conversion:      ExecConversion;
   /** Null for a rep who neither manages nor covers — the split would be all zeroes. */
   bookSplit:       ExecBookSplit | null;
+  /** Null when nobody in scope has waived a visit — an empty panel says nothing. */
+  visitWaivers:    ExecWaivers | null;
   kpis:            ExecKpi[];
 }
 
@@ -417,10 +441,112 @@ export function ExecutiveViews({ data, selector, periodLabel, note, tabs }: {
           chart={<Donut slices={offerSlices} colors={OFFER_COLORS} fmt={fmtCr} />} />
         <MiniTable title="Attendance" note="field visits" table={data.attendance}
           chart={<GroupedBars cats={attCats} series={['Visit days', 'Clients']} colors={['var(--accent)', 'var(--pos)']} height={100} />} />
+        {data.visitWaivers && <WaiverPanel w={data.visitWaivers} />}
       </div>
     </section>
   );
 }
+
+// ── No visit required ──────────────────────────────────────────
+//
+// The bar is the whole active book, split waived against expected, so the band
+// is read against what it is a share OF. A bare count of 19 tells nobody
+// whether that is housekeeping or half the territory.
+function WaiverPanel({ w }: { w: ExecWaivers }) {
+  const pct = (n: number) => (w.activeTotal > 0 ? (n / w.activeTotal) * 100 : 0);
+  const expected = Math.max(w.activeTotal - w.total, 0);
+  const byReason = w.byReason.filter(r => r.n > 0);
+  return (
+    <div style={{ ...PANEL, gridColumn: '1 / -1' }}>
+      <div style={PANEL_H}>
+        <span style={PANEL_TITLE}>No Visit Required</span>
+        <DrillCell params={w.drill} style={{ ...META, textDecoration: 'none' }}>
+          {w.total} of {w.activeTotal} active &middot; {pct(w.total).toFixed(1)}%
+        </DrillCell>
+      </div>
+
+      <div style={{ padding: '14px 14px 4px' }}>
+        <div style={{ display: 'flex', height: 18, borderRadius: 3, overflow: 'hidden', background: 'var(--bg-sunk)' }}>
+          {byReason.map(r => (
+            <div key={r.code} title={r.label + ' — ' + r.n}
+              style={{ width: pct(r.n) + '%', background: r.color, minWidth: 2 }} />
+          ))}
+          <div title={'Visits expected — ' + expected}
+            style={{ flex: 1, background: 'var(--bg-sunk)', borderLeft: byReason.length ? '1px solid var(--bg-paper)' : 'none' }} />
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', marginTop: 8 }}>
+          {byReason.map(r => (
+            <span key={r.code} title={r.hint} style={LEGEND}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: r.color }} />
+              {r.label}
+              <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--fg)' }}>{r.n}</strong>
+              <span style={{ color: 'var(--fg-3)' }}>{pct(r.n).toFixed(1)}%</span>
+            </span>
+          ))}
+          <span style={{ ...LEGEND, color: 'var(--fg-3)' }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--bg-sunk)', border: '1px solid var(--line-strong)' }} />
+            Visits expected
+            <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--fg-2)' }}>{expected}</strong>
+          </span>
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto', maxHeight: 340, borderTop: '1px solid var(--line)', marginTop: 10 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              {['Client', 'Reason', 'Detail', 'Review by', 'Last visit', 'Rep'].map(h => (
+                <th key={h} style={WTH}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {w.clients.map(c => {
+              // An expired waiver is already back in the overdue count, and the
+              // row has to say so or it reads as still covering the client.
+              const expired = !!c.until && new Date(c.until) < new Date();
+              return (
+                <tr key={c.id}>
+                  <td style={WTD}>
+                    <Link href={'/risansi/clients/' + c.id} style={{ color: 'var(--fg)', textDecoration: 'none', fontWeight: 500 }}>
+                      {c.name}
+                    </Link>
+                    <span style={{ fontSize: 10.5, color: 'var(--fg-3)', marginLeft: 6, fontFamily: 'var(--font-mono)' }}>{c.code}</span>
+                  </td>
+                  <td style={WTD}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: 2, background: c.color }} />
+                      {c.label}
+                    </span>
+                  </td>
+                  <td style={{ ...WTD, color: 'var(--fg-3)', whiteSpace: 'normal', maxWidth: 260 }}>{c.note ?? '—'}</td>
+                  <td style={{ ...WTD, fontFamily: 'var(--font-mono)', color: expired ? 'var(--neg)' : 'var(--fg-3)' }}>
+                    {c.until ? (expired ? 'expired ' : '') + c.until : 'open-ended'}
+                  </td>
+                  <td style={{ ...WTD, fontFamily: 'var(--font-mono)', color: 'var(--fg-3)' }}>{c.lastVisit ?? 'never'}</td>
+                  <td style={{ ...WTD, color: 'var(--fg-3)' }}>{c.rep ?? '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const LEGEND: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--fg-2)',
+};
+const WTH: CSSProperties = {
+  fontSize: 9.5, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase',
+  letterSpacing: '0.05em', padding: '7px 14px', borderBottom: '1px solid var(--line)',
+  background: 'var(--bg-elev)', position: 'sticky', top: 0, textAlign: 'left', whiteSpace: 'nowrap',
+};
+const WTD: CSSProperties = {
+  fontSize: 11.5, padding: '6px 14px', borderBottom: '1px solid var(--line)',
+  color: 'var(--fg-2)', whiteSpace: 'nowrap', verticalAlign: 'top',
+};
 
 const PANEL: CSSProperties = { background: 'var(--bg-paper)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', overflow: 'hidden' };
 const PANEL_H: CSSProperties = { padding: '12px 14px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 10 };

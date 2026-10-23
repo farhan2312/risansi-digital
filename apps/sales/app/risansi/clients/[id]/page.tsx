@@ -21,6 +21,7 @@ import { LegacyMark } from '@/components/risansi/QuotationLinkView';
 import { ClientActionButtons, PipelineOppBtn } from '@/components/risansi/ClientActionButtons';
 import { AddContactButton } from '@/components/risansi/AddContactButton';
 import { EditContactButton } from '@/components/risansi/EditContactButton';
+import { VisitWaiverControl } from '@/components/risansi/VisitWaiverControl';
 import { BackButton } from '@/components/risansi/BackButton';
 import { MobileTabs } from '@/components/risansi/MobileTabs';
 import { ClientComplaints } from '@/components/risansi/ClientComplaints';
@@ -69,6 +70,10 @@ interface Client {
   last_visit_fy: string | null; last_visit_month: string | null;
   last_visit_date: string | null; planned_visit_2627: string | null;
   visit_count: number | null;
+  // Why no visit is expected here, if somebody has said so (migration 0127)
+  visit_waiver: string | null; visit_waiver_note: string | null;
+  visit_waiver_until: string | null; visit_waiver_at: string | null;
+  visit_waiver_by_name: string | null;
   // Sales intelligence / plan of action
   action_points:          string | null;
   action_target_date_raw: string | null;
@@ -209,7 +214,8 @@ export default async function ClientProfilePage({
                          WHERE s.client_id = c.id), '{}') AS secondary_rep_ids,
               tr.name AS tour_name,
               tr.zone AS tour_zone,
-              (SELECT name FROM users WHERE id = c.outstanding_owner_id) AS outstanding_owner_name
+              (SELECT name FROM users WHERE id = c.outstanding_owner_id) AS outstanding_owner_name,
+              (SELECT name FROM users WHERE id = c.visit_waiver_by) AS visit_waiver_by_name
        FROM clients c
        LEFT JOIN tour_routes tr ON tr.id = c.tour_id
        WHERE ${whereClause} AND c.deleted_at IS NULL`,
@@ -790,13 +796,27 @@ export default async function ClientProfilePage({
           <MiniKpi label="Lifetime Revenue"
             value={formatRev(lifetimeTotal * 100_000)}
             sub={`${client.since_year ?? '—'} – present · ${lifetimeOrders} orders`} />
+          {/* The waiver sits in this tile and nowhere else: "Never visited"
+              in red is exactly the line somebody reads before wanting to say
+              why that is not neglect. */}
           <MiniKpi label="Last Visit"
             value={lastVisitInfo.label}
             valueColor={lastVisitInfo.color}
             sub={lastVisitInfo.label === 'Never visited'
               ? 'No visits logged'
               : new Date(client.last_visit_date!).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-            neg={lastVisitInfo.isOverdue} />
+            neg={lastVisitInfo.isOverdue}>
+            <VisitWaiverControl
+              clientId={Number(client.id)}
+              canEdit={canManageContacts}
+              state={{
+                code:   client.visit_waiver,
+                note:   client.visit_waiver_note,
+                until:  client.visit_waiver_until ? String(client.visit_waiver_until).slice(0, 10) : null,
+                byName: client.visit_waiver_by_name,
+                at:     client.visit_waiver_at,
+              }} />
+          </MiniKpi>
           <MiniKpi label="Risansi Pumps Installed"
             value={rilPumpsTotal > 0 ? String(rilPumpsTotal) : '—'}
             sub={rilPumpsTotal > 0 ? `${rilUnits} PCP · ${rilMmp} MMP` : 'No installed-base data'} />
@@ -1682,7 +1702,7 @@ function activityKind(entityType: string, summary: string): { label: string; col
 
 // ── Sub-components ─────────────────────────────────────────────
 
-function MiniKpi({ label, value, sub, neg = false, valueColor }: { label: string; value: string; sub?: string; neg?: boolean; valueColor?: string }) {
+function MiniKpi({ label, value, sub, neg = false, valueColor, children }: { label: string; value: string; sub?: string; neg?: boolean; valueColor?: string; children?: React.ReactNode }) {
   return (
     <div style={PANEL}>
       <div style={{ padding: 12 }}>
@@ -1691,6 +1711,7 @@ function MiniKpi({ label, value, sub, neg = false, valueColor }: { label: string
           {value}
         </div>
         {sub && <div style={{ fontSize: 11, color: neg ? 'var(--neg)' : 'var(--fg-3)', marginTop: 3 }}>{sub}</div>}
+        {children}
       </div>
     </div>
   );

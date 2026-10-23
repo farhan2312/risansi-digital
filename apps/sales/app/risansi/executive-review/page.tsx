@@ -4,7 +4,7 @@ import { Topbar } from '@/components/risansi';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { OWN_OPEN, clientScopeSql, clientVisibilitySql, getCurrentUser, getManagerAssignableReps, getReviewableRepIds, getSession } from '@/lib/risansi-auth';
 import risansiPool from '@/lib/db-risansi';
-import { ExecutiveViews, ExecTabs, type ExecData, type Row, type ExecTab } from '@/components/risansi/ExecutiveViews';
+import { ExecutiveViews, ExecTabs, type ExecData, type Row, type ExecTab, type ExecWaivers } from '@/components/risansi/ExecutiveViews';
 import { ExecExportButtons } from '@/components/risansi/ExecExportButtons';
 import { PUMP_TYPE_SQL } from '@/lib/risansi-pump-type';
 import { ProjectionFilters } from '@/components/risansi/ProjectionFilters';
@@ -23,6 +23,8 @@ import { AccountSelector, type NameOpt } from '@/components/risansi/AccountSelec
 import type { CurrentFyView } from '@/components/risansi/AccountReview';
 import { GroupReview, OemReview, type GroupReviewData, type GroupUnit, type OemReviewData } from '@/components/risansi/AccountReview';
 import { CLIENT_STATUS_COLORS } from '@/lib/risansi-client-status';
+import { visitExpectedSql, waivedGapSql, waivedSql, VISIT_WAIVER_REASONS } from '@/lib/risansi-visit-waiver';
+import { clientPrimaryRepSql } from '@/lib/risansi-client-rep';
 
 export const dynamic = 'force-dynamic';
 
@@ -458,7 +460,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     tab === 'projection' ? q(() => loadProjectionOptions(risansiPool, allowedRepIds), null) : Promise.resolve(null),
   ]);
 
-  const [clients, turnover, quotation, offers, attendance, kpiRow, convStages, targetCr, outside, bookSplit, repTargetCr] = await Promise.all([
+  const [clients, turnover, quotation, offers, attendance, kpiRow, convStages, targetCr, outside, bookSplit, repTargetCr, waiverRows] = await Promise.all([
     // 1. Clients Summary
     // Every live client by type, split by where it stands. The two prospective
     // statuses are counted apart rather than together: a Prospective-Client has
@@ -534,11 +536,11 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     //    "Overdue" tab which folds them together.
     q(async () => (await risansiPool.query<{
       total_business: string; revenue: string; active_clients: string;
-      active_visited: string; active_overdue: string; active_never: string;
+      active_visited: string; active_overdue: string; active_never: string; active_waived: string;
       prospective: string; prospective_visited: string;
       prospective_lead: string; prospective_client: string;
-      lead_visited: string; lead_overdue: string; lead_never: string;
-      pclient_visited: string; pclient_overdue: string; pclient_never: string;
+      lead_visited: string; lead_overdue: string; lead_never: string; lead_waived: string;
+      pclient_visited: string; pclient_overdue: string; pclient_never: string; pclient_waived: string;
     }>(
       `SELECT
          (SELECT COALESCE(round(sum(GREATEST(
@@ -559,10 +561,17 @@ export default async function ExecutiveReviewPage({ searchParams }: {
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='ACTIVE' AND c.deleted_at IS NULL)::text AS active_clients,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='ACTIVE' AND c.deleted_at IS NULL
             AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text AS active_visited,
+         -- Overdue and never-visited exclude the clients a rep has given a
+         -- reason for (migration 0127). Those get their own line rather than
+         -- disappearing, so the four still add to the total above and the
+         -- coverage gap says what it means.
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='ACTIVE' AND c.deleted_at IS NULL
-            AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')::text AS active_overdue,
+            AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days'
+            AND ${visitExpectedSql('c')})::text AS active_overdue,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='ACTIVE' AND c.deleted_at IS NULL
-            AND c.last_visit_date IS NULL)::text AS active_never,
+            AND c.last_visit_date IS NULL AND ${visitExpectedSql('c')})::text AS active_never,
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='ACTIVE' AND c.deleted_at IS NULL
+            AND ${waivedGapSql('c')})::text AS active_waived,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status IN ('PROSPECTIVE_LEAD','PROSPECTIVE_CLIENT') AND c.deleted_at IS NULL)::text AS prospective,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status IN ('PROSPECTIVE_LEAD','PROSPECTIVE_CLIENT') AND c.deleted_at IS NULL
             AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text AS prospective_visited,
@@ -577,15 +586,21 @@ export default async function ExecutiveReviewPage({ searchParams }: {
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_LEAD' AND c.deleted_at IS NULL
             AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text AS lead_visited,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_LEAD' AND c.deleted_at IS NULL
-            AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')::text AS lead_overdue,
+            AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days'
+            AND ${visitExpectedSql('c')})::text AS lead_overdue,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_LEAD' AND c.deleted_at IS NULL
-            AND c.last_visit_date IS NULL)::text AS lead_never,
+            AND c.last_visit_date IS NULL AND ${visitExpectedSql('c')})::text AS lead_never,
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_LEAD' AND c.deleted_at IS NULL
+            AND ${waivedGapSql('c')})::text AS lead_waived,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL
             AND c.last_visit_date >= CURRENT_DATE - INTERVAL '90 days')::text AS pclient_visited,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL
-            AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')::text AS pclient_overdue,
+            AND c.last_visit_date IS NOT NULL AND c.last_visit_date < CURRENT_DATE - INTERVAL '90 days'
+            AND ${visitExpectedSql('c')})::text AS pclient_overdue,
          (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL
-            AND c.last_visit_date IS NULL)::text AS pclient_never`)).rows[0], null),
+            AND c.last_visit_date IS NULL AND ${visitExpectedSql('c')})::text AS pclient_never,
+         (SELECT count(*) FROM clients c WHERE ${tourF} AND c.status='PROSPECTIVE_CLIENT' AND c.deleted_at IS NULL
+            AND ${waivedGapSql('c')})::text AS pclient_waived`)).rows[0], null),
 
     // 7. Target & Conversion — the quoted pipeline, stage by stage.
     //    Same scope and same FY window as everything else on the tab. The stage
@@ -702,6 +717,27 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       const v = Number(raw);
       return Number.isFinite(v) && v > 0 ? v : null;
     }, null),
+
+    // 12. Clients a visit is not expected for, with the reason (migration 0127).
+    //
+    //     Every waived client in scope, not only the ones currently in the gap:
+    //     the panel exists for somebody to challenge the list, and a waived
+    //     client that happens to have been visited last month is still a waiver
+    //     on the books worth reading. The COUNTS beside the coverage figures
+    //     use waivedGapSql and so stay reconciled; this list is the audit.
+    q(async () => (await risansiPool.query<{
+      id: string; code: string; name: string; rep: string | null;
+      reason: string; note: string | null; until: string | null; last_visit: string | null;
+    }>(
+      `SELECT c.id::text AS id, c.code, c.legal_name AS name,
+              (SELECT u.name FROM users u WHERE u.id = ${clientPrimaryRepSql('c.id')}) AS rep,
+              c.visit_waiver AS reason, c.visit_waiver_note AS note,
+              to_char(c.visit_waiver_until, 'DD Mon YYYY') AS until,
+              to_char(c.last_visit_date, 'DD Mon YYYY') AS last_visit
+         FROM clients c
+        WHERE ${tourF} AND c.deleted_at IS NULL AND c.status = 'ACTIVE'
+          AND ${waivedSql('c')}
+        ORDER BY c.visit_waiver, c.legal_name`)).rows, []),
   ]);
 
   // ── shape into ExecData ──
@@ -905,6 +941,33 @@ export default async function ExecutiveReviewPage({ searchParams }: {
   // figure underneath a personal headline.
   const companyTargetInr = targetCr * 10_000_000;
   const ownTargetInr = repTargetCr != null ? repTargetCr * 10_000_000 : null;
+
+  // ── No visit required ──
+  //
+  // Null when nobody has waived anything: a panel reading "0 of 226" takes a
+  // full-width row to say nothing happened. The denominator is the active book
+  // the rest of the tab counts, so the band is a share of the same population
+  // the coverage figures above are.
+  const waiverLookup = new Map(VISIT_WAIVER_REASONS.map(r => [r.code as string, r]));
+  const visitWaivers: ExecWaivers | null = waiverRows.length === 0 ? null : {
+    activeTotal: kpiRow ? Number(kpiRow.active_clients) : waiverRows.length,
+    total: waiverRows.length,
+    byReason: VISIT_WAIVER_REASONS.map(r => ({
+      code: r.code, label: r.label, color: r.color, hint: r.hint,
+      n: waiverRows.filter(w => w.reason === r.code).length,
+    })),
+    clients: waiverRows.map(w => {
+      const r = waiverLookup.get(w.reason);
+      return {
+        id: w.id, code: w.code, name: w.name, rep: w.rep,
+        reason: w.reason,
+        label: r?.label ?? w.reason,
+        color: r?.color ?? 'var(--fg-3)',
+        note: w.note, until: w.until, lastVisit: w.last_visit,
+      };
+    }),
+    drill: { kind: 'active_waived', tsm },
+  };
   const targetIsPersonal = viewerCarriesQuota && ownTargetInr != null;
   const targetInr = targetIsPersonal ? ownTargetInr! : companyTargetInr;
 
@@ -998,6 +1061,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
             drill: { kind: 'outside_window' as const, tsm, key: String(fy) } }
         : null,
     },
+    visitWaivers,
     bookSplit: showBookSplit ? {
       ownLabel: `${tsmName}'s own book`,
       coveredLabel: 'Covers for others',
@@ -1030,6 +1094,8 @@ export default async function ExecutiveReviewPage({ searchParams }: {
             color: 'var(--warn)', drill: { kind: 'active_overdue', tsm } },
           { label: 'Never Visited', value: (kpiRow ? Number(kpiRow.active_never) : 0).toLocaleString('en-IN'),
             color: 'var(--neg)', drill: { kind: 'active_never', tsm } },
+          { label: 'No visit required', value: (kpiRow ? Number(kpiRow.active_waived) : 0).toLocaleString('en-IN'),
+            color: 'var(--fg-4)', drill: { kind: 'active_waived', tsm } },
         ],
       },
       // One card each, because they are two different jobs. A lead is somebody
@@ -1052,6 +1118,8 @@ export default async function ExecutiveReviewPage({ searchParams }: {
             color: 'var(--warn)' },
           { label: 'Never Visited', value: (kpiRow ? Number(kpiRow.lead_never) : 0).toLocaleString('en-IN'),
             color: 'var(--neg)' },
+          { label: 'No visit required', value: (kpiRow ? Number(kpiRow.lead_waived) : 0).toLocaleString('en-IN'),
+            color: 'var(--fg-4)' },
         ],
       },
       {
@@ -1065,6 +1133,8 @@ export default async function ExecutiveReviewPage({ searchParams }: {
             color: 'var(--warn)' },
           { label: 'Never Visited', value: (kpiRow ? Number(kpiRow.pclient_never) : 0).toLocaleString('en-IN'),
             color: 'var(--neg)' },
+          { label: 'No visit required', value: (kpiRow ? Number(kpiRow.pclient_waived) : 0).toLocaleString('en-IN'),
+            color: 'var(--fg-4)' },
         ],
       },
     ],
@@ -1167,6 +1237,19 @@ export default async function ExecutiveReviewPage({ searchParams }: {
                     { name: 'Quotation Summary', ...tableSheet(data.quotationSummary) },
                     { name: 'Offer Status', ...tableSheet(data.offerStatus) },
                     { name: 'Attendance', ...tableSheet(data.attendance) },
+                    // Named clients, not a count: the review's coverage figures
+                    // leave these out, so the workbook has to carry who they
+                    // are for anybody reconciling it away from the screen.
+                    ...(data.visitWaivers ? [{
+                      name: 'No Visit Required',
+                      headers: ['Client', 'Code', 'Reason', 'Detail', 'Review by', 'Last visit', 'Rep'],
+                      moneyFrom: 99,
+                      rows: data.visitWaivers.clients.map(c => ({
+                        label: c.name,
+                        vals: [c.code, c.label, c.note ?? '', c.until ?? 'open-ended',
+                               c.lastVisit ?? 'never', c.rep ?? ''],
+                      })),
+                    }] : []),
                   ]}
                 />
               </div>

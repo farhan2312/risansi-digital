@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
+import { visitExpectedSql } from '@/lib/risansi-visit-waiver';
 import { getGreeting, fmtCr, formatRev, getCurrentFY } from '@/lib/risansi-utils';
 import { OWN_OPEN, clientScopeSql, clientVisibilitySql, getCurrentUser, getSession } from '@/lib/risansi-auth';
 import { EmptyState } from '@/components/risansi/EmptyState';
@@ -81,7 +82,8 @@ export default async function MobileDayPage() {
     // Active clients overdue 90+ days
     q<number>(async () => Number((await risansiPool.query<{ n: string }>(
       `SELECT COUNT(*)::text n FROM clients c WHERE c.status='ACTIVE' AND c.deleted_at IS NULL
-        AND (c.last_visit_date IS NULL OR c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')${cAnd}`)).rows[0]?.n ?? 0), 0),
+        AND (c.last_visit_date IS NULL OR c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')
+        AND ${visitExpectedSql('c')}${cAnd}`)).rows[0]?.n ?? 0), 0),
 
     // Open pipeline value (Cr) — the quoted pipe, Quoted and Negotiating, as on the desktop dashboard.
     q<number>(async () => Number((await risansiPool.query<{ t: string }>(
@@ -118,7 +120,8 @@ export default async function MobileDayPage() {
       `SELECT c.id::text, c.code, c.legal_name,
               COALESCE(EXTRACT(DAY FROM NOW() - c.last_visit_date)::int, NULL)::text AS days_since
        FROM clients c WHERE c.status='ACTIVE' AND c.deleted_at IS NULL
-        AND (c.last_visit_date IS NULL OR c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')${cAnd}
+        AND (c.last_visit_date IS NULL OR c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')
+        AND ${visitExpectedSql('c')}${cAnd}
        ORDER BY c.last_visit_date ASC NULLS FIRST LIMIT 6`)).rows
       .map(r => ({ ...r, days_since: r.days_since != null ? Number(r.days_since) : null })), []),
 

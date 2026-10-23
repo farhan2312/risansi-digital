@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import risansiPool from '@/lib/db-risansi';
 import { getCurrentUser, clientVisibilitySql } from '@/lib/risansi-auth';
+import { visitExpectedSql } from '@/lib/risansi-visit-waiver';
 
 export const runtime = 'nodejs';
 
@@ -9,6 +10,8 @@ export const runtime = 'nodejs';
  * never visited), most-overdue first. Used to seed the Plan Visit form with
  * recommended accounts so a rep can pick one without searching. Scoped by the
  * same visibility rules as the rest of the app (a rep sees only their own).
+ * Clients marked as needing no visit are left out: this list exists to suggest
+ * somewhere to go, and suggesting a shut plant is worse than suggesting nothing.
  */
 export async function GET() {
   const user = await getCurrentUser();
@@ -26,7 +29,8 @@ export async function GET() {
             COALESCE(EXTRACT(DAY FROM NOW() - c.last_visit_date)::int, NULL) AS days_since
        FROM clients c
       WHERE c.status = 'ACTIVE' AND c.deleted_at IS NULL
-        AND (c.last_visit_date IS NULL OR c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')${cAnd}
+        AND (c.last_visit_date IS NULL OR c.last_visit_date < CURRENT_DATE - INTERVAL '90 days')
+        AND ${visitExpectedSql('c')}${cAnd}
       ORDER BY c.last_visit_date ASC NULLS FIRST
       LIMIT 20`,
   );

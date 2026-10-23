@@ -8,6 +8,7 @@
 // never break a cron run or the action that triggered it.
 
 import risansiPool from '@/lib/db-risansi';
+import { visitExpectedSql } from '@/lib/risansi-visit-waiver';
 import { sendNotification, notifyAdminEscalation } from '@/lib/risansi-email';
 import { pushInApp } from '@/lib/risansi-inapp';
 
@@ -207,7 +208,12 @@ export async function runWeeklyManagerDigest(): Promise<number> {
            (SELECT count(*) FROM tasks t JOIN mc ON mc.id = t.client_id WHERE t.status <> 'completed')::int AS open_actions,
            (SELECT count(*) FROM tasks t JOIN mc ON mc.id = t.client_id WHERE t.status <> 'completed' AND t.due_date < CURRENT_DATE)::int AS overdue_actions,
            (SELECT count(*) FROM complaints co JOIN mc ON mc.id = co.client_id WHERE co.status NOT IN ('Resolved','Closed'))::int AS open_complaints,
-           (SELECT count(*) FROM mc WHERE mc.last_visit_date IS NULL OR mc.last_visit_date < CURRENT_DATE - 90)::int AS visits_overdue`,
+           -- Clients somebody has given a reason for are not chased in the
+           -- digest: a weekly email naming a plant that shut is noise, and
+           -- noise is what gets digests filtered away.
+           (SELECT count(*) FROM mc
+             WHERE (mc.last_visit_date IS NULL OR mc.last_visit_date < CURRENT_DATE - 90)
+               AND ${visitExpectedSql('mc')})::int AS visits_overdue`,
         [m.id])).rows[0];
       if (!s) continue;
       await sendNotification({

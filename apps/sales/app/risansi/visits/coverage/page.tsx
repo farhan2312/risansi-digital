@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { Topbar } from '@/components/risansi';
 import { CoverageMapSvg, type ClientPin } from '@/components/risansi/CoverageMapSvg';
 import risansiPool from '@/lib/db-risansi';
+import { visitExpectedSql, waivedSql } from '@/lib/risansi-visit-waiver';
 import { getCurrentUser, clientVisibilitySql } from '@/lib/risansi-auth';
 import { parseVisitFilters, getVisitFilterOptions } from '@/lib/risansi-visit-filters';
 import { VisitFilterControls } from '@/components/risansi/VisitFilterControls';
@@ -21,6 +22,7 @@ interface TourRow {
   client_count: number;
   compliant:    number;
   overdue:      number;
+  waived:       number;
 }
 
 // ── Page ───────────────────────────────────────────────────────
@@ -78,16 +80,22 @@ export default async function CoverageMapPage({
     // Tour route summary
     q<TourRow[]>(async () => {
       const { rows } = await risansiPool.query<{
-        tour: string; client_count: string; compliant: string; overdue: string;
+        tour: string; client_count: string; compliant: string; overdue: string; waived: string;
       }>(
         `SELECT
            COALESCE(tr.name, 'Unassigned') AS tour,
            COUNT(*)::text AS client_count,
            COUNT(*) FILTER (WHERE c.last_visit_date >= NOW() - INTERVAL '100 days')::text AS compliant,
            COUNT(*) FILTER (
-             WHERE c.last_visit_date < NOW() - INTERVAL '100 days'
-               OR c.last_visit_date IS NULL
-           )::text AS overdue
+             WHERE (c.last_visit_date < NOW() - INTERVAL '100 days'
+                 OR c.last_visit_date IS NULL)
+               AND ${visitExpectedSql('c')}
+           )::text AS overdue,
+           COUNT(*) FILTER (
+             WHERE (c.last_visit_date < NOW() - INTERVAL '100 days'
+                 OR c.last_visit_date IS NULL)
+               AND ${waivedSql('c')}
+           )::text AS waived
          FROM clients c
          LEFT JOIN tour_routes tr ON tr.id = c.tour_id
          WHERE c.deleted_at IS NULL AND c.status = 'ACTIVE'${cVisAnd}${filters.clientAnd}
@@ -96,8 +104,9 @@ export default async function CoverageMapPage({
          -- to say where coverage is worst. The order used to be applied in JS
          -- after the query, which meant a sortable header had to fight it.
          ORDER BY COUNT(*) FILTER (
-                    WHERE c.last_visit_date < NOW() - INTERVAL '100 days'
-                       OR c.last_visit_date IS NULL
+                    WHERE (c.last_visit_date < NOW() - INTERVAL '100 days'
+                        OR c.last_visit_date IS NULL)
+                      AND ${visitExpectedSql('c')}
                   ) DESC,
                   COUNT(*) DESC`,
       );
@@ -106,6 +115,7 @@ export default async function CoverageMapPage({
         client_count: Number(r.client_count),
         compliant:    Number(r.compliant),
         overdue:      Number(r.overdue),
+        waived:       Number(r.waived),
       }));
     }, []),
   ]);
@@ -187,6 +197,7 @@ export default async function CoverageMapPage({
                   { key: 'clients',    label: 'Clients',    kind: 'number', style: TH },
                   { key: 'compliant',  label: 'Compliant',  kind: 'number', style: TH },
                   { key: 'overdue',    label: 'Overdue',    kind: 'number', style: TH },
+                  { key: 'waived',     label: 'No Visit Req', kind: 'number', style: TH },
                   { key: 'pct',        label: 'Coverage %', kind: 'number', style: TH },
                 ]}
                 rows={tours.map(t => {
@@ -199,7 +210,7 @@ export default async function CoverageMapPage({
                     // so it is blank rather than a 0% among real figures.
                     values: {
                       tour: t.tour, clients: t.client_count,
-                      compliant: t.compliant, overdue: t.overdue,
+                      compliant: t.compliant, overdue: t.overdue, waived: t.waived,
                       pct: t.client_count > 0 ? pct : null,
                     },
                     cells: (
@@ -215,6 +226,12 @@ export default async function CoverageMapPage({
                         </td>
                         <td style={{ ...TD, textAlign: 'center', fontFamily: 'var(--font-mono)', color: t.overdue > 0 ? 'var(--neg)' : 'var(--fg-3)', fontWeight: t.overdue > 0 ? 600 : 400 }}>
                           {t.overdue}
+                        </td>
+                        {/* Clients + Compliant + Overdue + this = the route's
+                            whole book, so the waived are visible rather than a
+                            gap somebody has to work out. */}
+                        <td style={{ ...TD, textAlign: 'center', fontFamily: 'var(--font-mono)', color: 'var(--fg-3)' }}>
+                          {t.waived > 0 ? t.waived : '—'}
                         </td>
                         <td style={{ ...TD, minWidth: 150 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
