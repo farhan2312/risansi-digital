@@ -1716,7 +1716,7 @@ export async function setAccountsHoldAction(
     action: "order.update",
     category: "activity",
     target: "Accounts",
-    details: status === "Hold" ? `Accounts hold — ${reason}${remarks ? ` (${remarks})` : ""}` : "Accounts hold lifted",
+    details: status === "Hold" ? `Accounts hold — ${reason}${remarks ? ` (${remarks})` : ""}` : `Accounts hold lifted${remarks ? ` — ${remarks}` : ""}`,
     subject: { orderId, soNo: label },
   });
   if (was !== status) {
@@ -1732,7 +1732,7 @@ export async function setAccountsHoldAction(
         message:
           status === "Hold"
             ? `SO ${label} put on hold by Accounts — ${reason}${remarks ? ` (${remarks})` : ""}`
-            : `Accounts hold lifted on SO ${label}`,
+            : `Accounts hold lifted on SO ${label}${remarks ? ` — ${remarks}` : ""}`,
       });
     } catch (error) {
       console.error("Accounts hold notice failed:", error);

@@ -77,7 +77,7 @@ export function orderMakingReportLines(rows: OrderMakingRow[]): { cells: Cell[];
     const tail: Cell[] = [
       // On Order Making's hold it has not gone to Operation: HOLD, not a date.
       o.om_status === "Hold" ? "HOLD" : date(o.ec_sent_operation_date),
-      text(o.so_assignee_name),
+      text(o.so_assignee_name) ?? (o.so_migrated ? "Migrated" : null),
       // Every reason of delay and every remark the SO has had, oldest first.
       historyText(o, "reason") ?? text(o.om_hold_reason),
       historyText(o, "remarks") ?? text(o.om_hold_remarks),

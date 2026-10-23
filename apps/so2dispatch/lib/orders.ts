@@ -48,6 +48,9 @@ import {
   pageWithTotal,
 } from "@/lib/pagination";
 import { ecDrawingDoneSql } from "@/lib/drawing-filter";
+import { soPurchaseStateSql } from "@/lib/purchase-filter";
+import { soQcStateSql } from "@/lib/qc-filter";
+import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, soStageStatusSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
 import { toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
@@ -744,6 +747,8 @@ export type OrderExportItem = {
   // File attachments: name/size/date only — never the bytes.
   order_qc_documents: Row[];
   order_qc_requirement_documents: Row[];
+  /** Planning's readiness lots, with Assembly & Packing's plan and dates on each. */
+  order_ready_lots?: Row[];
 };
 
 /** One SO with its SO-level sections, its PI/invoice lists, and its ECs. */
@@ -813,6 +818,10 @@ export async function listOrderExports(
                        'order_packing_slips', COALESCE((
                          SELECT jsonb_agg(to_jsonb(ps) ORDER BY ps.seq)
                            FROM order_packing_slips ps WHERE ps.item_id = it.id), '[]'::jsonb),
+                       -- Planning's readiness lots, with their assembly and packing.
+                       'order_ready_lots', COALESCE((
+                         SELECT jsonb_agg(to_jsonb(rl) ORDER BY rl.seq)
+                           FROM order_ready_lots rl WHERE rl.item_id = it.id), '[]'::jsonb),
                        'order_drawing_revisions', COALESCE((
                          SELECT jsonb_agg(to_jsonb(rv) || jsonb_build_object('doc_count', (SELECT count(*) FROM order_drawing_documents dd WHERE dd.revision_id = rv.id)) ORDER BY rv.seq)
                            FROM order_drawing_revisions rv WHERE rv.item_id = it.id), '[]'::jsonb)
@@ -1055,8 +1064,10 @@ export async function saveReadyLots(
           }
         }
       }
-      // The SO's status is its latest lot's (on a pump EC too, where it is the
-      // SO's readiness; Actual Pump Status stays the EC's own).
+      // The SO's status is its latest lot's, In plan included (on a pump EC
+      // too, where it is the SO's readiness; Actual Pump Status stays the EC's
+      // own). Assembly reads the lots themselves, so a ready earlier lot is
+      // still worked on.
       await c.query(
         `INSERT INTO order_planning (item_id, actual_spare_status, planning_readiness_date, readiness_date_status)
          VALUES ($1, $2, $3, $4)
@@ -1064,7 +1075,7 @@ export async function saveReadyLots(
             SET actual_spare_status = EXCLUDED.actual_spare_status,
                 planning_readiness_date = EXCLUDED.planning_readiness_date,
                 readiness_date_status = EXCLUDED.readiness_date_status`,
-        [itemId, [...lots].reverse().find((l) => l.status !== "In plan")?.status ?? "In plan", date, dateStatus]
+        [itemId, last.status, date, dateStatus]
       );
     }
   });
@@ -1577,7 +1588,8 @@ export async function setAccountsHold(
     `UPDATE orders
         SET accounts_hold_status = $2,
             accounts_hold_reason = CASE WHEN $2 = 'Hold' THEN NULLIF($3, '') END,
-            accounts_hold_remarks = CASE WHEN $2 = 'Hold' THEN NULLIF($4, '') END,
+            -- Remarks on a Clear too.
+            accounts_hold_remarks = NULLIF($4, ''),
             accounts_hold_at = CASE WHEN $2 = 'Hold' THEN COALESCE(CASE WHEN accounts_hold_status = 'Hold' THEN accounts_hold_at END, now()) END
       WHERE id = $1`,
     [orderId, hold.status, hold.reason.trim(), hold.remarks.trim()]
@@ -2676,6 +2688,9 @@ export async function listItemsForSection(
                  -- The parts the EC is short of.
                  COALESCE((SELECT jsonb_agg(to_jsonb(ps) ORDER BY ps.seq)
                              FROM order_part_shortages ps WHERE ps.item_id = it.id), '[]'::jsonb) AS part_shortages,
+                 -- Its bought-out items, as Purchase has them (Planning reads them).
+                 COALESCE((SELECT jsonb_agg(to_jsonb(bi) ORDER BY bi.created_at)
+                             FROM order_boi_items bi WHERE bi.item_id = it.id), '[]'::jsonb) AS boi_items,
                  COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
                              FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings,
                  (SELECT to_char(pad.actual_packing_date, 'YYYY-MM-DD')
@@ -2694,7 +2709,12 @@ export async function listItemsForSection(
                  -- SO status there, and its assembly plan entries.
                  to_jsonb(it) - 'order_copy_file_data' AS ec,
                  (SELECT rpl.ready_qty FROM order_planning rpl WHERE rpl.item_id = it.id) AS ready_qty,
-                 (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status`
+                 (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status,
+                 -- The SO's Alignment: base plate and wooden box, each with its status.
+                 (SELECT jsonb_build_object('base_plate', oa.base_plate, 'base_plate_status', oa.base_plate_status,
+                                            'base_plate_date', to_char(oa.base_plate_date, 'YYYY-MM-DD'),
+                                            'wooden_box', oa.wooden_box, 'wooden_box_status', oa.wooden_box_status)
+                    FROM orders oa WHERE oa.id = it.order_id) AS alignment`
          }`
       : "";
 
@@ -3226,6 +3246,29 @@ function ecState(dept: DeptFilterKey, status: string): string {
   }
 }
 
+/**
+ * The SO's own Planning status (alias o): an SO is planned as one — Date
+ * awaited, In plan, Partial ready, Fully ready — kept on its ECs' planning;
+ * Date awaited until it is set. Planning's cards and Status filter read it.
+ */
+export const SO_PLANNING_STATUS = `COALESCE((SELECT NULLIF(spl.actual_spare_status, '')
+                                         FROM order_items ss JOIN order_planning spl ON spl.item_id = ss.id
+                                        WHERE ss.order_id = o.id AND NULLIF(spl.actual_spare_status, '') IS NOT NULL
+                                        ORDER BY ss.seq NULLS LAST LIMIT 1), 'Date awaited')`;
+
+/**
+ * The SO's own Assembly & Packing status (alias o), over the ECs it works on:
+ * Fully packed once every one is, Partially packed once any is packed, else
+ * In Progress. Its cards and Status filter read it.
+ */
+const SO_ASSEMBLY_STATUS = `(CASE
+    WHEN EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("it")})
+     AND NOT EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("it")}
+                       AND ${ASSEMBLY_STATE_SQL("it")} <> 'Fully packed') THEN 'Fully packed'
+    WHEN EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("it")}
+                   AND ${ASSEMBLY_STATE_SQL("it")} IN ('Partially packed', 'Fully packed')) THEN 'Partially packed'
+    ELSE 'In Progress' END)`;
+
 /** An EC's Assembly & Packing state, for Planning's packing sub-filter. */
 function packingState(status: string): string {
   return status === "Not packed"
@@ -3233,12 +3276,13 @@ function packingState(status: string): string {
     : `${ASSEMBLY_STATE_SQL("it")} = ${lit(status)}`;
 }
 
-/** Planning's status and packing, both on the same EC (`it`). */
-function planningPackingOnEc(f: OrderListFilter): string {
+/** Planning's SO status as asked, and an EC of it at the packing asked (Fully ready, not packed). */
+function planningPacking(f: OrderListFilter): string {
   const plan = f.deptStatuses.length
-    ? `(${f.deptStatuses.map((s) => `(${ecState("planning", s)})`).join(" OR ")})`
+    ? `(${f.deptStatuses.map((s) => deptStatusPredicate("planning", s)).join(" OR ")})`
     : "TRUE";
-  return `${plan} AND (${f.packingStatuses.map((s) => `(${packingState(s)})`).join(" OR ")})`;
+  return `${plan} AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
+                               AND (${f.packingStatuses.map((s) => `(${packingState(s)})`).join(" OR ")}))`;
 }
 
 /** The state of the SO itself for an SO-scope department. */
@@ -3338,6 +3382,9 @@ function deptOverduePredicate(dept: DeptFilterKey): string {
 
 function deptStatusPredicate(dept: DeptFilterKey, status: string): string {
   if (!isPerEcDept(dept)) return `(${soState(dept, status)})`;
+  // Planning and Assembly & Packing go by the SO's own status, not any one EC's.
+  if (dept === "planning") return `${SO_PLANNING_STATUS} = ${lit(status)}`;
+  if (dept === "assembly") return `${SO_ASSEMBLY_STATUS} = ${lit(status === "Packed" ? "Fully packed" : status)}`;
   return `EXISTS (SELECT 1 FROM order_items it
                    WHERE it.order_id = o.id AND (${ecState(dept, status)}))`;
 }
@@ -3449,8 +3496,8 @@ function orderListClauses(
                                  AND TRIM(COALESCE(s.item_type, '')) = ANY(${t}::text[])))`);
   }
   if (f.dept === "planning" && f.packingStatuses.length) {
-    // An EC that is both — "Fully ready" and "Fully packed" on the same EC.
-    clauses.push(`EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${planningPackingOnEc(f)})`);
+    // The SO at Planning's status, with an EC at the packing asked.
+    clauses.push(planningPacking(f));
   } else if (f.dept && f.deptStatuses.length) {
     const dept = f.dept;
     clauses.push(`(${f.deptStatuses.map((s) => deptStatusPredicate(dept, s)).join(" OR ")})`);
@@ -3648,8 +3695,16 @@ export async function listOrdersPage(opts: {
   all?: boolean;
   /** Summary cards over the list as filtered, before its department statuses. */
   kpis?: KpiCardDef[];
+  /** More SQL over o for the list (not the cards): the Pump card picked. */
+  extraRestrict?: string | null;
 }): Promise<PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[] }> {
-  const { where, params } = orderListWhere(await withRepTeams(opts.filter));
+  const listed = orderListWhere(await withRepTeams(opts.filter));
+  const params = listed.params;
+  const where = opts.extraRestrict
+    ? listed.where
+      ? `${listed.where}\n        AND (${opts.extraRestrict})`
+      : `WHERE ${opts.extraRestrict}`
+    : listed.where;
   const kpisQ = opts.kpis
     ? countKpis(
         { restrict: "TRUE", cards: opts.kpis },
@@ -3979,8 +4034,69 @@ async function countKpis(
  * their ECs, then where each SO stands in Proforma Invoice, Planning,
  * Assembly & Packing and Dispatch. A card applies that department and status.
  */
+/**
+ * The Orders page's Pump cards, grouped as its columns: the SOs and their
+ * ECs, then where they stand in Drawing, Purchase, Quality, Planning,
+ * Assembly & Packing and Dispatch — each by its department's own rule. A card
+ * picks its SOs through the `pk` URL param (pumpCardSql).
+ */
+export function pumpOrderCards(): KpiCardDef[] {
+  const open = orderOpenSql("o");
+  const clear = { pk: null, dept: null, dstatus: null, pack: null, dsm: null, overdue: null } as Record<string, string | null>;
+  const pumps = (cond: string) =>
+    `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}) AND ${cond})`;
+  const drgOpen = pumps(`NOT ${ecDrawingDoneSql("s", "o")}`);
+  const card = (group: string, key: string, label: string, sql: string, tone: KpiCardDef["tone"]): KpiCardDef => ({
+    key,
+    label,
+    group,
+    sql: `(${sql}) AND ${open}`,
+    params: { ...clear, pk: key },
+    tone,
+  });
+  const [, asmPart, asmFull] = SO_ASSEMBLY_STATUSES;
+  const [, pkgPart, pkgFull] = SO_PACKING_STATUSES;
+  return [
+    { key: "all", label: "SOs", group: "Orders", sql: null, params: { ...clear }, tone: "neutral" },
+    {
+      key: "ecs",
+      label: "ECs",
+      group: "Orders",
+      sql: null,
+      params: {},
+      tone: "neutral",
+      measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}))`,
+    },
+    card("Drawing", "drg_open", "Drawing open", drgOpen, "pending"),
+    card("Drawing", "drg_closed", "Drawing closed", `${pumps("TRUE")} AND NOT ${drgOpen}`, "done"),
+    card("Drawing", "drg_overdue", "Drawing overdue", `${drgOpen} AND o.drg_readiness_date < ${TODAY_IST}`, "danger"),
+    card("Purchase", "boi_open", "BOI open", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Open'`, "pending"),
+    card("Purchase", "boi_closed", "BOI closed", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Closed'`, "done"),
+    card("Quality", "qc_open", "QC open", `COALESCE(o.qc_required, '') <> 'No' AND ${soQcStateSql("o")} = 'Open'`, "pending"),
+    card("Quality", "qc_closed", "QC closed", `COALESCE(o.qc_required, '') <> 'No' AND ${soQcStateSql("o")} = 'Closed'`, "done"),
+    card("Planning", "pl_awaited", "Date awaited", `${SO_PLANNING_STATUS} = 'Date awaited'`, "pending"),
+    card("Planning", "pl_plan", "In plan", `${SO_PLANNING_STATUS} = 'In plan'`, "part"),
+    card("Planning", "pl_partial", "Partial ready", `${SO_PLANNING_STATUS} = 'Partial ready'`, "part"),
+    card("Planning", "pl_ready", "Fully ready", `${SO_PLANNING_STATUS} = 'Fully ready'`, "done"),
+    card("Assembly & Packing", "asm_part", "Part assembled", `${soStageStatusSql("assembly", "o")} = '${asmPart}'`, "part"),
+    card("Assembly & Packing", "asm_full", "Assembled", `${soStageStatusSql("assembly", "o")} = '${asmFull}'`, "done"),
+    card("Assembly & Packing", "pkg_part", "Part packed", `${soStageStatusSql("packing", "o")} = '${pkgPart}'`, "part"),
+    card("Assembly & Packing", "pkg_full", "Packed", `${soStageStatusSql("packing", "o")} = '${pkgFull}'`, "done"),
+    card("Dispatch", "dsp_pending", "To dispatch", deptStatusPredicate("dispatch", PENDING), "pending"),
+    card("Dispatch", "dsp_lot", "Part dispatched", deptStatusPredicate("dispatch", "LOT dispatch"), "part"),
+    card("Dispatch", "dsp_full", "Dispatched", deptStatusPredicate("dispatch", "Fully dispatch"), "done"),
+  ];
+}
+
+/** The SQL a Pump card picks its SOs by, for the list (null for an unknown key). */
+export function pumpCardSql(key: string | null | undefined): string | null {
+  if (!key) return null;
+  const c = pumpOrderCards().find((x) => x.key === key && x.sql && !x.measure);
+  return c?.sql ?? null;
+}
+
 export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
-  if (kind !== "spare") return [];
+  if (kind === "pump") return pumpOrderCards();
   const clear = { dept: null, dstatus: null, pack: null, dsm: null, overdue: null } as Record<string, string | null>;
   const open = orderOpenSql("o");
   const card = (group: string, dept: DeptFilterKey, status: string, label: string, extra: Record<string, string> = {}, sql?: string): KpiCardDef => ({
@@ -4014,8 +4130,8 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
       "Fully ready",
       "Ready, not packed",
       { pack: "Not packed" },
-      `EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
-                AND (${ecState("planning", "Fully ready")}) AND (${packingState("Not packed")})) AND ${open}`
+      `${SO_PLANNING_STATUS} = 'Fully ready'
+                AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND (${packingState("Not packed")})) AND ${open}`
     ),
     card("Assembly & Packing", "assembly", "In Progress", "Packing on"),
     card("Assembly & Packing", "assembly", "Partially packed", "Part packed"),
@@ -4052,8 +4168,9 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
         ? {
             key: `s:${st}`,
             label: "Fully ready (not packed)",
-            sql: `EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
-                            AND (${ecState("planning", st)}) AND (${packingState("Not packed")})) AND ${orderOpenSql("o")}`,
+            sql: `${SO_PLANNING_STATUS} = 'Fully ready'
+                  AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND (${packingState("Not packed")}))
+                  AND ${orderOpenSql("o")}`,
             params: { ...clear, dstatus: st, pack: "Not packed" },
             tone: toneFor(st),
           }
@@ -4086,6 +4203,8 @@ export type OrderMakingRow = Record<string, unknown> & {
   so_missing: string[];
   so_assignee_id: string | null;
   so_assignee_name: string | null;
+  /** Carried in by the migration from Excel: assigned to no one. */
+  so_migrated?: boolean;
   so_assigned_at: string | null;
   so_details_filled_at: string | null;
   /** How many ECs the SO has, and its BOI flag — for Order Making's Add-On. */
@@ -4230,7 +4349,7 @@ export async function listOrdersForOrderMaking(opts: {
   const r = await query<OrderMakingRow>(
     `SELECT o.id, o.sl_no::int AS sl_no, ${cols}, ${missingSql} AS missing,
             ${SO_DETAILS_MISSING_SQL} AS so_missing,
-            o.so_assignee_id, au.full_name AS so_assignee_name,
+            o.so_assignee_id, au.full_name AS so_assignee_name, o.so_migrated,
             -- Every Clear / Hold, oldest first: its reason and remarks (the report lists them all).
             COALESCE((SELECT jsonb_agg(jsonb_build_object('status', h.status, 'reason', h.reason, 'remarks', h.remarks,
                                                           'at', to_char(h.created_at AT TIME ZONE 'Asia/Kolkata', 'DD-Mon-YY'))
@@ -5292,11 +5411,15 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   if (f.types.length) clauses.push(facet("COALESCE(it.item_type, o.order_type)", f.types));
 
   if (f.dept === "planning" && f.packingStatuses.length) {
-    clauses.push(`(${planningPackingOnEc(f)})`);
+    clauses.push(`(${planningPacking(f)})`);
   } else if (f.dept && f.deptStatuses.length) {
     const dept = f.dept;
+    // Planning and Assembly & Packing by the SO's own status; the other per-EC departments by this EC's.
+    const bySo = dept === "planning" || dept === "assembly";
     clauses.push(
-      `(${f.deptStatuses.map((s) => isPerEcDept(dept) ? `(${ecState(dept, s)})` : `(${soState(dept, s)})`).join(" OR ")})`
+      `(${f.deptStatuses
+        .map((s) => (bySo ? deptStatusPredicate(dept, s) : isPerEcDept(dept) ? `(${ecState(dept, s)})` : `(${soState(dept, s)})`))
+        .join(" OR ")})`
     );
   }
   // As on the list: a cancelled or diverted SO has no department status.

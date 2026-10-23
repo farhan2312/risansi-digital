@@ -50,9 +50,12 @@ export function PurchaseWorkspace({
   kpis = [],
   vendors = [],
   vendorList = [],
+  embedded = false,
 }: {
   /** Purchase's vendor list, with the items each supplies. */
   vendorList?: BoiVendor[];
+  /** Inside a pop-up (the Orders list's): one SO's rows — no filter bar, cards or paging. */
+  embedded?: boolean;
   /** The vendors items have been ordered from, for the Vendor filter. */
   vendors?: string[];
   /** The summary cards under the filter bar. */
@@ -138,7 +141,7 @@ export function PurchaseWorkspace({
 
   return (
     <div>
-      <div className="mb-3">
+      <div className={embedded ? "hidden" : "mb-3"}>
         {/* The same filter bar the orders list carries, with this
             department pinned: its own statuses, its own target. */}
         {filterOptions && "purchase" ? (
@@ -220,11 +223,11 @@ export function PurchaseWorkspace({
       </div>
       {showVendors && <VendorsModal vendors={vendorList} canEdit={canEdit} onClose={() => setShowVendors(false)} />}
 
-      <KpiStrip cards={kpis} />
+      {!embedded && <KpiStrip cards={kpis} />}
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
-        <div className="overflow-x-auto" data-sticky-head>
+        <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
           {boiView ? (
             <BoiListTable
               groups={soGroups}
@@ -383,13 +386,15 @@ export function PurchaseWorkspace({
           </table>
           )}
         </div>
-        <UrlPagination
-          page={queue.page}
-          totalPages={queue.totalPages}
-          from={queue.from}
-          to={queue.to}
-          total={queue.total}
-        />
+        {!embedded && (
+          <UrlPagination
+            page={queue.page}
+            totalPages={queue.totalPages}
+            from={queue.from}
+            to={queue.to}
+            total={queue.total}
+          />
+        )}
       </div>
 
       {/* One EC's bought-out items, as cards to fill: the item, RIL stock, the vendor order. */}

@@ -19,6 +19,7 @@ import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { lotOnSlip } from "@/lib/ready-lots";
+import { AlignmentForm, AlignmentValue } from "./alignment-cell";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -118,15 +119,27 @@ export function AssemblyPumpTable({
     else sos.push({ orderId: id, ecs: [r] });
   }
   const [lotsFor, setLotsFor] = useState<string | null>(null);
+  // The SO whose Alignment is open.
+  const [alignFor, setAlignFor] = useState<string | null>(null);
+  const alignSo = alignFor ? sos.find((x) => x.orderId === alignFor) : null;
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
 
   return (
     <>
+      {alignSo && (
+        <AlignmentForm
+          orderId={alignSo.orderId}
+          soLabel={str(alignSo.ecs[0]?.so_no) || `#${str(alignSo.ecs[0]?.sl_no)}`}
+          alignment={alignSo.ecs[0]?.alignment}
+          onClose={() => setAlignFor(null)}
+        />
+      )}
       <table className="w-full min-w-[1900px] text-sm">
         <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
             <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
+            <th colSpan={2} className={group}>Alignment</th>
             <th colSpan={2} className={group}>Assembly</th>
             <th colSpan={3} className={group}>Packing</th>
             <th colSpan={1} className={group} />
@@ -139,6 +152,8 @@ export function AssemblyPumpTable({
             <th className={th}>Chat</th>
             <th className={th}>PPC Status</th>
             <th className={th}>Lots</th>
+            <th className={`${th} border-l border-card-border`}>Base Plate</th>
+            <th className={th}>Wooden Box</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
             <th className={th}>Planned Date</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
@@ -158,7 +173,7 @@ export function AssemblyPumpTable({
         <tbody>
           {sos.length === 0 && (
             <tr>
-              <td colSpan={20} className="px-4 py-10 text-center text-sm text-muted">
+              <td colSpan={22} className="px-4 py-10 text-center text-sm text-muted">
                 No pump SO is ready to assemble.
               </td>
             </tr>
@@ -224,6 +239,13 @@ export function AssemblyPumpTable({
                                 </span>
                               ))
                             )}
+                          </td>
+                          {/* The SO's Alignment: base plate and wooden box. */}
+                          <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
+                            <AlignmentValue alignment={head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor(orderId)} />
+                          </td>
+                          <td rowSpan={span} className={soCell}>
+                            <AlignmentValue alignment={head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor(orderId)} />
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
                             <Chip label={so.assembly} />

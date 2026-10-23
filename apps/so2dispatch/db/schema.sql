@@ -2885,3 +2885,31 @@ SELECT o.id, o.om_status, NULLIF(btrim(o.om_hold_reason), ''), NULLIF(btrim(o.om
  WHERE o.om_status IS NOT NULL
    AND (o.om_status = 'Hold' OR NULLIF(btrim(o.om_hold_remarks), '') IS NOT NULL)
    AND NOT EXISTS (SELECT 1 FROM order_om_status_history h WHERE h.order_id = o.id);
+
+-- 0030  Assembly & Packing's Alignment on a pump SO: whether it needs a base
+-- plate (and whether that is manufactured yet) and a wooden box (and whether
+-- it is made in house or bought out). Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_status TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_status TEXT;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_alignment_check;
+ALTER TABLE orders ADD CONSTRAINT orders_alignment_check CHECK (
+    (base_plate IS NULL OR base_plate IN ('Yes', 'No'))
+    AND (base_plate_status IS NULL OR base_plate_status IN ('Manufactured', 'Pending'))
+    AND (wooden_box IS NULL OR wooden_box IN ('Yes', 'No'))
+    AND (wooden_box_status IS NULL OR wooden_box_status IN ('In House', 'Bought out')));
+
+-- 0031  When a pump SO's base plate was manufactured. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_date DATE;
+
+-- 0032  An SO carried in by the migration from Excel: its SO details came in
+-- with it, so Order Making assigns it to no one (shown as Migrated). Set for
+-- every unassigned SO below Sl. No. 515, and every unassigned one needing no
+-- assignment (dispatched, cancelled, diverted). Idempotent.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS so_migrated BOOLEAN NOT NULL DEFAULT false;
+UPDATE orders SET so_migrated = true
+ WHERE so_assignee_id IS NULL AND NOT so_migrated
+   AND (sl_no < 515
+        OR COALESCE(status_override, '') IN ('Cancelled by client', 'Diverted')
+        OR lower(COALESCE(NULLIF(dispatch_status, ''), 'Pending')) IN ('fully dispatch', 'lot dispatch'));

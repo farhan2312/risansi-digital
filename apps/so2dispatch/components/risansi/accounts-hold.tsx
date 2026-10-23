@@ -108,7 +108,7 @@ function HoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-label="Accounts hold"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
       onClick={() => !saving && onClose()}
     >
       <form
@@ -205,18 +205,19 @@ function HoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
                   </select>
                 )}
               </div>
-              <label className="block text-sm">
-                <span className="mb-1 block text-[13px] font-medium text-brand-label">Remarks</span>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  rows={3}
-                  maxLength={500}
-                  className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-                />
-              </label>
             </>
           )}
+          {/* Remarks on a Clear too. */}
+          <label className="block text-sm">
+            <span className="mb-1 block text-[13px] font-medium text-brand-label">Remarks</span>
+            <textarea
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              rows={3}
+              maxLength={500}
+              className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+            />
+          </label>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button

@@ -94,7 +94,7 @@ export type SheetSpec = {
   }>;
 };
 
-function writeSheet(wb: ExcelJS.Workbook, spec: SheetSpec) {
+export function writeSheet(wb: ExcelJS.Workbook, spec: SheetSpec) {
   const ws = wb.addWorksheet(spec.name, {
     views: [{ state: "frozen", xSplit: spec.perEc ? 3 : 2, ySplit: 1 }],
   });
@@ -402,7 +402,7 @@ function collect(orders: OrderExportRow[]) {
 }
 
 /** Cover sheet: what this file is, when it was taken, and how to join it up. */
-function buildSummarySheet(
+export function buildSummarySheet(
   ws: ExcelJS.Worksheet,
   specs: SheetSpec[],
   scope: string

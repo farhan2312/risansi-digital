@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardList, Download, FileText, Plus, Upload } from "lucide-react";
-import { listOrderDeptStatuses, listOrdersPage, orderListKpiCards, parseQueueSort } from "@/lib/orders";
+import { listOrderDeptStatuses, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
+import { listPumpSummaries } from "@/lib/pump-summary";
 import { parsePage } from "@/lib/pagination";
 import {
   isOrderListFiltered,
@@ -15,6 +16,7 @@ import { getCurrentUser } from "@/lib/session";
 import { canCreateOrders, canViewAll, isRep } from "@/lib/roles";
 import { OrdersTable } from "@/components/risansi/orders-table";
 import { MissingDetailsButton } from "@/components/risansi/missing-details-modal";
+import { OneClickButton } from "@/components/risansi/one-click-modal";
 
 export const metadata: Metadata = {
   title: "Orders | Risansi",
@@ -47,12 +49,19 @@ export default async function OrdersPage({
     page: parsePage(params.page),
     filter,
     sort: parseQueueSort(params.sort),
-    // Spare: the department summary cards.
+    // The department summary cards (Spare or Pump); on Pump, the card picked narrows the list.
     kpis: orderListKpiCards(ordersKind(params.type)),
+    extraRestrict: ordersKind(params.type) === "pump" ? pumpCardSql(params.pk) : null,
   });
   const canCreate = canCreateOrders(user.role);
-  // Every department on each SO of this page, for the row's tags.
-  const deptStatuses = Object.fromEntries(await listOrderDeptStatuses(result.rows.map((r) => r.id)));
+  // Every department on each SO of this page, for the row's tags; on the Pump
+  // view, each department's own standing on the SO (its column groups).
+  const pumpView = ordersKind(params.type) === "pump";
+  const pageIds = result.rows.map((r) => r.id);
+  const [deptStatuses, pumpSummaries] = await Promise.all([
+    listOrderDeptStatuses(pageIds).then((m) => Object.fromEntries(m)),
+    pumpView ? listPumpSummaries(pageIds) : Promise.resolve(undefined),
+  ]);
 
   // The export mirrors whatever the list is showing: with any filter on it
   // downloads just those SOs, otherwise the whole tracker.
@@ -104,6 +113,8 @@ export default async function OrdersPage({
             <Download className="h-4 w-4" />
             {isFiltered ? `Export ${result.total} filtered` : "Export all"}
           </a>
+          {/* The same, on a single sheet: a pop-up to look over, then download. */}
+          <OneClickButton query={orderListFilterParams(filter).toString()} />
           {canCreate && (
             <>
               <Link
@@ -125,7 +136,7 @@ export default async function OrdersPage({
         </div>
       </div>
 
-      <OrdersTable result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} />
+      <OrdersTable result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} pumpSummaries={pumpSummaries} />
     </div>
   );
 }

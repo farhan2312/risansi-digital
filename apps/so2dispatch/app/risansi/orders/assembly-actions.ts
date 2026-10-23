@@ -132,3 +132,61 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[]): P
     return { ok: false, error: "Could not save the lots." };
   }
 }
+
+/** An SO's Alignment as Assembly & Packing sets it: base plate and wooden box, each with its status. */
+export type Alignment = {
+  base_plate: string;
+  base_plate_status: string;
+  /** When the base plate was manufactured (YYYY-MM-DD), once it is. */
+  base_plate_date: string;
+  wooden_box: string;
+  wooden_box_status: string;
+};
+
+/**
+ * Assembly & Packing's Alignment on a pump SO. A status only means something
+ * once its item is Yes, so a No (or blank) clears it. Assembly & Packing,
+ * Central Visibility and Admin.
+ */
+export async function saveAlignmentAction(orderId: string, a: Alignment): Promise<AssemblyResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!canEditSection(user.role, "order_assembly_dispatch")) {
+    return { ok: false, error: "Only Assembly & Packing can set the alignment." };
+  }
+  const yn = (v: string) => (v === "Yes" || v === "No" ? v : null);
+  const plate = yn(a.base_plate);
+  const box = yn(a.wooden_box);
+  const plateStatus = plate === "Yes" && ["Manufactured", "Pending"].includes(a.base_plate_status) ? a.base_plate_status : null;
+  const boxStatus = box === "Yes" && ["In House", "Bought out"].includes(a.wooden_box_status) ? a.wooden_box_status : null;
+  if (plate === "Yes" && !plateStatus) return { ok: false, error: "Choose whether the base plate is manufactured or pending." };
+  if (box === "Yes" && !boxStatus) return { ok: false, error: "Choose whether the wooden box is in house or bought out." };
+  // Manufactured on a day: the date goes with it, and only with it.
+  const plateDate = plateStatus === "Manufactured" ? (a.base_plate_date ?? "").trim() : "";
+  if (plateStatus === "Manufactured" && !/^\d{4}-\d{2}-\d{2}$/.test(plateDate)) {
+    return { ok: false, error: "Enter the date the base plate was manufactured." };
+  }
+  try {
+    await query(
+      `UPDATE orders SET base_plate = $2, base_plate_status = $3, base_plate_date = $6::date,
+                         wooden_box = $4, wooden_box_status = $5, updated_at = now()
+        WHERE id = $1`,
+      [orderId, plate, plateStatus, box, boxStatus, plateDate || null]
+    );
+  } catch (error) {
+    console.error("saveAlignmentAction failed:", error);
+    return { ok: false, error: "Could not save the alignment." };
+  }
+  const label = (await getOrderLabel(orderId)) ?? orderId;
+  const part = (name: string, v: string | null, st: string | null) => `${name}: ${v ?? "—"}${st ? ` (${st})` : ""}`;
+  await logAudit({
+    actor: { id: user.id, email: user.email, role: user.role },
+    action: "order.update",
+    category: "activity",
+    target: label,
+    details: `Alignment — ${part("Base plate", plate, plateStatus)}${plateDate ? ` on ${plateDate}` : ""}; ${part("Wooden box", box, boxStatus)}`,
+    subject: await subjectForOrder(orderId),
+  });
+  revalidatePath("/risansi/departments/assembly-dispatch");
+  return { ok: true };
+}

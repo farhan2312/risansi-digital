@@ -8,6 +8,7 @@ import { drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PartDrawingCell, PartPickerModal, ShortageCell } from "./part-drawing";
+import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
 
 type Row = Record<string, unknown>;
@@ -76,6 +77,8 @@ export function PlanningPumpTable({
   const [shortFor, setShortFor] = useState<string | null>(null);
   // The EC whose whole form is open, with its SO's other ECs beside it.
   const [ecFor, setEcFor] = useState<{ orderId: string; id: string } | null>(null);
+  // A bought-out item open in full, read-only.
+  const [boiFor, setBoiFor] = useState<{ item: Row; ecLabel: string } | null>(null);
   // The SOs in page order, each with its pump ECs.
   const sos: { orderId: string; ecs: Row[] }[] = [];
   for (const r of pumps) {
@@ -121,6 +124,7 @@ export function PlanningPumpTable({
               {f.column === "boi" ? "BOI" : f.label}
             </th>
           ))}
+          <th className={th}>BOI Items</th>
           <th className={`${th} border-l border-card-border`}>GAD</th>
           <th className={th}>Part Drawing</th>
           {ecPlanCols.map((f, i) => (
@@ -220,7 +224,8 @@ export function PlanningPumpTable({
                           const inLot = ecs
                             .map((e) => {
                               const rows = Array.isArray(e.ready_lots) ? (e.ready_lots as Row[]) : [];
-                              return { ec: str(e.ec_no), qty: Number(rows[n - 1]?.qty ?? 0) || 0 };
+                              // Keyed by the EC's id: two ECs can share an EC No.
+                              return { id: str(e.id), ec: str(e.ec_no), qty: Number(rows[n - 1]?.qty ?? 0) || 0 };
                             })
                             .filter((x) => x.qty > 0);
                           return (
@@ -232,7 +237,7 @@ export function PlanningPumpTable({
                                   </span>
                                   <span className="block text-[11px] text-muted">{lot.ready_date ? shortDate(lot.ready_date) : "—"}</span>
                                   {inLot.map((x) => (
-                                    <span key={x.ec} className="block text-[11px] text-foreground">
+                                    <span key={x.id} className="block text-[11px] text-foreground">
                                       {x.ec} <span className="text-muted">×{x.qty}</span>
                                     </span>
                                   ))}
@@ -271,6 +276,28 @@ export function PlanningPumpTable({
                         </td>
                       );
                     })}
+                    {/* The EC's bought-out items: item, qty and where each stands; one opens in full. */}
+                    <td className={ecCell}>
+                      {Array.isArray(r.boi_items) && r.boi_items.length > 0 ? (
+                        <span className="flex flex-col items-start gap-1">
+                          {(r.boi_items as Row[]).map((b) => (
+                            <button
+                              key={str(b.id)}
+                              type="button"
+                              onClick={() => setBoiFor({ item: b, ecLabel: str(ec.ec_no) })}
+                              title="Open this item"
+                              className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1 py-0.5 text-left text-xs hover:bg-primary/5"
+                            >
+                              <span className="font-medium text-foreground underline-offset-2 hover:underline">{boiName(b)}</span>
+                              {str(b.boi_qty) && <span className="tabular-nums text-muted">×{str(b.boi_qty)}</span>}
+                              <BoiStatusTag item={b} small />
+                            </button>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted">—</span>
+                      )}
+                    </td>
                     <td className={`${ecCell} whitespace-nowrap border-l border-card-border`}>
                       <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} />
                     </td>
@@ -339,6 +366,7 @@ export function PlanningPumpTable({
         })}
       </tbody>
     </table>
+      {boiFor && <BoiDetailModal item={boiFor.item} ecLabel={boiFor.ecLabel} onClose={() => setBoiFor(null)} />}
       {(() => {
         const r = partsFor ? pumps.find((x) => str(x.id) === partsFor) : null;
         if (!r) return null;

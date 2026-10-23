@@ -10,7 +10,6 @@
 
 import {
   PAYMENT_STATUS_OPTIONS,
-  PLANNING_STATUS_VALUES,
   PUMP_PLANNING_STATUSES,
   SPARE_PLANNING_STATUSES,
 } from "@/lib/order-schema";
@@ -60,7 +59,8 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   quality: ["Submitted", PENDING, NOT_APPLICABLE],
   // Whichever of pump/spare/free-text status the EC carries.
   // No Pending: a Spare starts at Date awaited, a Pump at its first status.
-  planning: [...PLANNING_STATUS_VALUES],
+  // The SO's own Planning status (an SO is planned as one).
+  planning: [...PUMP_PLANNING_STATUSES],
   // A Spare stands where its latest readiness lot does: ready, then packed.
   // A Pump is Fully packed once its packing date is in.
   // No Pending: what reaches Assembly & Packing is ready or packed already.

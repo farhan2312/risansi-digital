@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { canViewAll } from "@/lib/roles";
 import { listOrderExports, listOrderIdsMatching } from "@/lib/orders";
 import { buildOrdersWorkbook } from "@/lib/order-export";
+import { buildSpareWorkbook } from "@/lib/spare-export";
 import {
   describeOrderListFilter,
   isOrderListFiltered,
@@ -35,7 +36,9 @@ export async function GET(req: NextRequest) {
 
   const orders = await listOrderExports(ids);
   const scope = describeOrderListFilter(filter);
-  const buffer = await buildOrdersWorkbook(orders, scope).xlsx.writeBuffer();
+  // Spare: its own sheets, as Spare is worked now (lots, per-PI payment); Pump as before.
+  const spare = filter.types.length === 1 && filter.types[0] === "Spare";
+  const buffer = await (spare ? buildSpareWorkbook(orders, scope) : buildOrdersWorkbook(orders, scope)).xlsx.writeBuffer();
 
   const today = new Date().toISOString().slice(0, 10);
   const filename = `orders-export${filtered ? "-filtered" : ""}-${today}.xlsx`;

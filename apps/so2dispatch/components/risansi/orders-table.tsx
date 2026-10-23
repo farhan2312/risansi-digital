@@ -27,6 +27,8 @@ import { OrderListFilterBar } from "./order-list-filter-bar";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { isOrderListFiltered, ordersKind, parseOrderListFilter } from "@/lib/order-list-filter";
+import type { PumpSummary } from "@/lib/pump-summary";
+import { PumpLeadCells, PumpLeadGroupHeads, PumpLeadSubHeads, PumpTailCells } from "./pump-dept-cells";
 
 const numberFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
 
@@ -253,7 +255,10 @@ export function OrdersTable({
   canDelete = false,
   role,
   deptStatuses = {},
+  pumpSummaries,
 }: {
+  /** The Pump view: each pump SO's standing in every department (lib/pump-summary). */
+  pumpSummaries?: Record<string, PumpSummary>;
   // One server-fetched page; every filter and the paging ran in SQL.
   result: PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[] };
   canDelete?: boolean;
@@ -281,9 +286,16 @@ export function OrdersTable({
     parseOrderListFilter((key) => getParam(key) || undefined)
   );
   const pageRows = orders;
+  // The Pump view: a column group per department (Drawing, Purchase, Quality,
+  // Planning, Assembly & Packing) in place of Spare's lots by department.
+  const pump = ordersKind(getParam("type")) === "pump" && !!pumpSummaries;
+  // Its department columns: Drawing 4, Purchase 1, Quality 1, Planning 2 and
+  // its lots, Assembly & Packing 3.
+  const pumpDeptCols = 4 + 1 + 1 + 2 + LOT_COLUMNS.length + 3;
   // expand-toggle + 19 data columns (Planning and Assembly & Packing three lot
-  // columns each) + open/add-on + optional delete.
-  const baseCols = 25;
+  // columns each) + open/add-on + optional delete. The Pump view has no Type,
+  // Departments, Readiness or Packing Date column, and its department groups.
+  const baseCols = pump ? 15 + pumpDeptCols : 25;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -323,7 +335,7 @@ export function OrdersTable({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className="w-full min-w-[2150px] text-sm">
+          <table className={`w-full ${pump ? "min-w-[2600px]" : "min-w-[2150px]"} text-sm`}>
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th rowSpan={2} className="w-8 px-2 py-3" />
@@ -331,33 +343,46 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3">SO No.</th>
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 <th rowSpan={2} className="px-3 py-3">Chat</th>
-                <th rowSpan={2} className="px-4 py-3">Type</th>
+                {!pump && <th rowSpan={2} className="px-4 py-3">Type</th>}
                 <th rowSpan={2} className="px-4 py-3">Client Name</th>
                 <th rowSpan={2} className="px-4 py-3">Client Code</th>
                 <th rowSpan={2} className="px-4 py-3">Rep</th>
                 <th rowSpan={2} className="px-4 py-3">Zone</th>
                 <th rowSpan={2} className="px-4 py-3">Bill Mode</th>
                 <th rowSpan={2} className="px-4 py-3 text-right">Order Value</th>
-                <th rowSpan={2} className="px-4 py-3">Departments</th>
+                {!pump && <th rowSpan={2} className="px-4 py-3">Departments</th>}
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Readiness Date" sortKey="readiness" /></th>
-                {/* Assembly & Packing's planned packing date: the SO's next among its unpacked lots. */}
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Date" sortKey="packing" /></th>
-                {/* A Spare's readiness lots, one column each, under each department. */}
-                <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Planning</th>
-                <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Assembly &amp; Packing</th>
+                {pump ? (
+                  // A pump SO: each department's own columns.
+                  <PumpLeadGroupHeads lotCount={LOT_COLUMNS.length} />
+                ) : (
+                  <>
+                    <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Readiness Date" sortKey="readiness" /></th>
+                    {/* Assembly & Packing's planned packing date: the SO's next among its unpacked lots. */}
+                    <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Date" sortKey="packing" /></th>
+                    {/* A Spare's readiness lots, one column each, under each department. */}
+                    <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Planning</th>
+                    <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Assembly &amp; Packing</th>
+                  </>
+                )}
                 <th rowSpan={2} className="border-l border-card-border px-4 py-3">Dispatch</th>
                 <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
                 <th rowSpan={2} className="px-4 py-3" />
                 {canDelete && <th rowSpan={2} className="px-4 py-3" />}
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-                {LOT_COLUMNS.map((n) => (
-                  <th key={`p${n}`} className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
-                ))}
-                {LOT_COLUMNS.map((n) => (
-                  <th key={`a${n}`} className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
-                ))}
+                {pump ? (
+                  <PumpLeadSubHeads lotCount={LOT_COLUMNS.length} />
+                ) : (
+                  <>
+                    {LOT_COLUMNS.map((n) => (
+                      <th key={`p${n}`} className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
+                    ))}
+                    {LOT_COLUMNS.map((n) => (
+                      <th key={`a${n}`} className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
+                    ))}
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border">
@@ -442,7 +467,7 @@ export function OrdersTable({
                           <MessageSquare className="h-3.5 w-3.5" />
                         </button>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{cell(order.order_type)}</td>
+                      {!pump && <td className="px-4 py-3 whitespace-nowrap">{cell(order.order_type)}</td>}
                       <td className="min-w-[14rem] px-4 py-3">{cell(order.client_name)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{cell(order.client_code)}</td>
                       <td className="px-4 py-3">{cell(order.reps)}</td>
@@ -463,6 +488,7 @@ export function OrdersTable({
                         )}
                       </td>
                       {/* The departments the SO has reached, each opening its pop-up. */}
+                      {!pump && (
                       <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <div className="flex min-w-[12rem] max-w-[18rem] flex-wrap gap-1">
                           {closed && (
@@ -484,6 +510,7 @@ export function OrdersTable({
                           ))}
                         </div>
                       </td>
+                      )}
                       {/* Each term with its PI and what came in — as Accounts sees it. */}
                       <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         {/* An FR order is a replacement: no payment terms to show. */}
@@ -500,91 +527,125 @@ export function OrdersTable({
                           />
                         )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
-                        {(() => {
-                          const readiness =
-                            !closed && order.readiness_from
-                              ? order.readiness_to && order.readiness_to !== order.readiness_from
-                                ? `${formatDate(order.readiness_from)} – ${formatDate(order.readiness_to)}`
-                                : formatDate(order.readiness_from)
-                              : "—";
-                          // How the readiness dates moved: Planning and Central see it, as on Planning.
-                          return seesReadinessHistory && !closed && (readiness !== "—" || hasLots) ? (
-                            <ReadyLotHistoryButton
-                              orderId={order.id}
-                              label={readiness === "—" ? "History" : readiness}
-                              soLabel={soLabel}
-                            />
-                          ) : (
-                            readiness
-                          );
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
-                        {/* Assembly & Packing's next planned packing date, and how it moved. */}
-                        {/* Only the planned date: the next one among unpacked lots, or once all are
-                            packed the last one planned. Packed or not is the lot columns' to say. */}
-                        {!closed && planDate ? (
-                          <>
-                            <PackingPlanHistoryButton
-                              orderId={order.id}
-                              label={formatDate(planDate)}
-                              soLabel={soLabel}
-                            />
-                            {order.packing_plan?.shift && (
-                              <span className="block text-[11px] text-muted">{order.packing_plan.shift} shift</span>
-                            )}
-                          </>
+                      {pump ? (
+                        // A pump SO, department by department; cancelled or diverted, nobody's work.
+                        closed || !pumpSummaries?.[order.id] ? (
+                          <td colSpan={pumpDeptCols} className="border-l border-card-border px-4 py-3 align-top text-xs text-muted-foreground">—</td>
                         ) : (
-                          "—"
-                        )}
-                      </td>
-                      {/* Planning and Assembly & Packing lot by lot for a Spare; the SO's own status otherwise. */}
-                      {hasLots && !closed ? (
-                        LOT_COLUMNS.map((n) => (
-                          <td
-                            key={`p${n}`}
-                            className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <PlanningLotCell
-                              lot={lots[n - 1]}
-                              onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
-                            />
-                          </td>
-                        ))
-                      ) : (
-                        <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                          <StatusText
-                            text={closed ? null : planning}
-                            tone={planning && READY.includes(planning.toLowerCase()) ? "done" : "pending"}
-                            onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
-                          />
-                        </td>
-                      )}
-                      {hasLots && !closed ? (
-                        LOT_COLUMNS.map((n) => (
-                          <td
-                            key={`a${n}`}
-                            className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <PackingLotCell
-                              lot={lots[n - 1]}
+                          <>
+                            <PumpLeadCells
+                              s={pumpSummaries[order.id]}
                               today={today}
-                              onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
+                              onOpen={(d) => setPopup({ order, what: DEPT_POPUP[d] })}
                             />
-                          </td>
-                        ))
+                            {hasLots ? (
+                              LOT_COLUMNS.map((n) => (
+                                <td key={`p${n}`} className="whitespace-nowrap px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                                  <PlanningLotCell
+                                    lot={lots[n - 1]}
+                                    onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                                  />
+                                </td>
+                              ))
+                            ) : (
+                              <td colSpan={LOT_COLUMNS.length} className="px-4 py-3 align-top text-xs text-muted-foreground">No lots yet</td>
+                            )}
+                            <PumpTailCells
+                              s={pumpSummaries[order.id]}
+                              today={today}
+                              onOpen={(d) => setPopup({ order, what: DEPT_POPUP[d] })}
+                            />
+                          </>
+                        )
                       ) : (
-                        <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                          <StatusText
-                            text={closed ? null : assemblyText}
-                            tone={assembly?.state ?? "pending"}
-                            line={closed ? undefined : assemblyLine}
-                            onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
-                          />
-                        </td>
+                        <>
+                          <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
+                            {(() => {
+                              const readiness =
+                                !closed && order.readiness_from
+                                  ? order.readiness_to && order.readiness_to !== order.readiness_from
+                                    ? `${formatDate(order.readiness_from)} – ${formatDate(order.readiness_to)}`
+                                    : formatDate(order.readiness_from)
+                                  : "—";
+                              // How the readiness dates moved: Planning and Central see it, as on Planning.
+                              return seesReadinessHistory && !closed && (readiness !== "—" || hasLots) ? (
+                                <ReadyLotHistoryButton
+                                  orderId={order.id}
+                                  label={readiness === "—" ? "History" : readiness}
+                                  soLabel={soLabel}
+                                />
+                              ) : (
+                                readiness
+                              );
+                            })()}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
+                            {/* Assembly & Packing's next planned packing date, and how it moved. */}
+                            {/* Only the planned date: the next one among unpacked lots, or once all are
+                                packed the last one planned. Packed or not is the lot columns' to say. */}
+                            {!closed && planDate ? (
+                              <>
+                                <PackingPlanHistoryButton
+                                  orderId={order.id}
+                                  label={formatDate(planDate)}
+                                  soLabel={soLabel}
+                                />
+                                {order.packing_plan?.shift && (
+                                  <span className="block text-[11px] text-muted">{order.packing_plan.shift} shift</span>
+                                )}
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          {/* Planning and Assembly & Packing lot by lot for a Spare; the SO's own status otherwise. */}
+                          {hasLots && !closed ? (
+                            LOT_COLUMNS.map((n) => (
+                              <td
+                                key={`p${n}`}
+                                className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <PlanningLotCell
+                                  lot={lots[n - 1]}
+                                  onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                                />
+                              </td>
+                            ))
+                          ) : (
+                            <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                              <StatusText
+                                text={closed ? null : planning}
+                                tone={planning && READY.includes(planning.toLowerCase()) ? "done" : "pending"}
+                                onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                              />
+                            </td>
+                          )}
+                          {hasLots && !closed ? (
+                            LOT_COLUMNS.map((n) => (
+                              <td
+                                key={`a${n}`}
+                                className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <PackingLotCell
+                                  lot={lots[n - 1]}
+                                  today={today}
+                                  onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
+                                />
+                              </td>
+                            ))
+                          ) : (
+                            <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                              <StatusText
+                                text={closed ? null : assemblyText}
+                                tone={assembly?.state ?? "pending"}
+                                line={closed ? undefined : assemblyLine}
+                                onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
+                              />
+                            </td>
+                          )}
+                        </>
                       )}
                       <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <StatusText

@@ -17,7 +17,9 @@ export { SO_DETAILS_FILLED_SQL };
  * dispatched yet — a lot or fully dispatched SO needs no one to fill it now.
  */
 export function assignableSql(o = "o"): string {
-  return `${orderOpenSql(o)} AND lower(COALESCE(NULLIF(${o}.dispatch_status, ''), 'Pending')) NOT IN ('fully dispatch', 'lot dispatch')`;
+  // Not an SO carried in by the migration either: its SO details came with it.
+  return `${orderOpenSql(o)} AND lower(COALESCE(NULLIF(${o}.dispatch_status, ''), 'Pending')) NOT IN ('fully dispatch', 'lot dispatch')
+          AND NOT COALESCE(${o}.so_migrated, false)`;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

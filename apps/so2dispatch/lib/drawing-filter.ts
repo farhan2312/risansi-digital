@@ -132,12 +132,12 @@ function docStatusSql(it: string, doc: "GAD" | "Performance Curve"): string {
                                ORDER BY rv.seq DESC LIMIT 1) lv ON TRUE)`;
 }
 
-function curveStatusSql(it: string, o: string): string {
+export function curveStatusSql(it: string, o: string): string {
   return `(CASE WHEN lower(COALESCE(${o}.performance_curve_required, '')) <> 'yes' THEN ${lit(NOT_REQUIRED)}
                 ELSE ${docStatusSql(it, "Performance Curve")} END)`;
 }
 
-function partStatusSql(it: string): string {
+export function partStatusSql(it: string): string {
   return `(SELECT CASE
              WHEN lower(COALESCE(pl.part_drawing, '')) <> 'yes' THEN ${lit(NOT_REQUIRED)}
              WHEN n.total > 0 AND n.done = n.total THEN 'Fully complete'
