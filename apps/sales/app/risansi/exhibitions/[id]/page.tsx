@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { Topbar } from '@/components/risansi';
 import risansiPool from '@/lib/db-risansi';
-import { getCurrentUser } from '@/lib/risansi-auth';
+import { getCurrentUser, hasRole } from '@/lib/risansi-auth';
 import { canManageExhibition, canViewExhibition, closeReadiness } from '@/app/actions/risansi-exhibitions';
 import { ExhibitionDetail } from '@/components/risansi/ExhibitionDetail';
 import type {
@@ -188,6 +188,9 @@ export default async function ExhibitionDetailPage({ params }: { params: Promise
         isApprover={isApprover}
         isOwner={isOwner}
         isSysadmin={me.role === 'sysadmin'}
+        // deleteExhibition refuses anything below admin, so the control is
+        // only offered to the people the server would actually let through.
+        isAdmin={hasRole(me.role, 'admin')}
         blockers={blockers}
       />
     </>

@@ -12,7 +12,7 @@ import {
   submitForApproval, decideExhibition, setExhibitionTeam,
   saveExhibitionMeeting, deleteExhibitionMeeting,
   saveExhibitionExpense, deleteExhibitionExpense, updateExhibition,
-  advanceExhibition,
+  advanceExhibition, deleteExhibition,
   type SaveResult,
 } from '@/app/actions/risansi-exhibitions';
 import { BusinessCards, uploadCards } from './BusinessCards';
@@ -94,10 +94,10 @@ export function ExhibitionDetail(props: {
   meetings: MeetingRow[]; expenses: ExpenseRow[]; users: UserOpt[];
   review: ReviewRow | null;
   canManage: boolean; isApprover: boolean;
-  isOwner: boolean; isSysadmin: boolean; blockers: string[];
+  isOwner: boolean; isSysadmin: boolean; isAdmin: boolean; blockers: string[];
 }) {
   const { exhibition: ex, team, approvals, meetings, expenses, users, review,
-          canManage, isApprover, isOwner, isSysadmin, blockers } = props;
+          canManage, isApprover, isOwner, isSysadmin, isAdmin, blockers } = props;
   const [tab, setTab] = useState<Tab>('overview');
   const totals = useMemo(() => sumExpenses(expenses), [expenses]);
   const known  = meetings.filter(m => m.client_id != null).length;
@@ -112,6 +112,11 @@ export function ExhibitionDetail(props: {
   const canEdit   = canManage && !isClosed;
   const reviewOk  = canReview(ex.status);
   const hasLead   = team.some(t => t.team_role === 'Team Lead');
+  // Deleting takes the meetings, expenses, invoices and the review with it, so
+  // it is offered only where the server would allow it: an admin, on an
+  // exhibition that is not Closed. A closed one is a settled record and a
+  // sysadmin has to reopen it first.
+  const canDelete = isAdmin && !isClosed;
   const readiness = submitReadiness(ex, team.length, hasLead);
 
   // Never leave someone parked on a tab that has since locked (e.g. after a
@@ -148,6 +153,15 @@ export function ExhibitionDetail(props: {
           <ApprovalBar exhibition={ex} canManage={canManage} isApprover={isApprover} readiness={readiness} />
         </div>
       </div>
+
+      {canDelete && (
+        <DeleteExhibition
+          id={ex.id}
+          name={ex.name}
+          meetings={meetings.length}
+          expenses={expenses.length}
+        />
+      )}
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 18 }}>
@@ -1915,3 +1929,115 @@ const ERR: CSSProperties = { padding: '8px 12px', background: 'var(--neg-soft)',
 const NOTICE: CSSProperties = { padding: '8px 12px', background: 'var(--warn-soft)', border: '1px solid var(--warn)', borderLeft: '3px solid var(--warn)', borderRadius: 5, color: 'var(--warn-strong)', fontSize: 12 };
 const FLAG_KNOWN: CSSProperties = { padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--pos-soft)', color: 'var(--pos-strong)' };
 const FLAG_NEW: CSSProperties = { padding: '2px 9px', borderRadius: 999, fontSize: 11, background: 'var(--bg-elev)', color: 'var(--fg-3)' };
+
+
+// ── Deleting the whole exhibition ────────────────────────────────
+
+/**
+ * Admin-only, and deliberately awkward.
+ *
+ * This removes the exhibition and everything hanging off it — every meeting,
+ * every contact captured at one, every expense and invoice, and the review.
+ * A duplicate event with nothing on it is the case this exists for, and a
+ * closed event with a year of spend behind it is the case it must not make
+ * easy, so the button counts what is about to go and the name has to be typed
+ * to arm it. Yes/No on a row that says "Delete" is fine for one meeting; it is
+ * not enough for this.
+ *
+ * The server refuses a Closed exhibition and anything below admin regardless;
+ * this only declines to offer what would be refused.
+ */
+function DeleteExhibition({ id, name, meetings, expenses }: {
+  id: number; name: string; meetings: number; expenses: number;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const armed = typed.trim().toLowerCase() === name.trim().toLowerCase();
+  const carries = [
+    meetings ? `${meetings} meeting${meetings === 1 ? '' : 's'}` : null,
+    expenses ? `${expenses} expense${expenses === 1 ? '' : 's'}` : null,
+  ].filter(Boolean).join(' and ');
+
+  async function go() {
+    if (!armed) return;
+    setBusy(true); setErr('');
+    try {
+      const res = await deleteExhibition(id);
+      if (!res.ok) { setErr(res.error); setBusy(false); return; }
+      router.push('/risansi/exhibitions');
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not delete it.');
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <button type="button" onClick={() => { setErr(''); setOpen(true); }} style={DANGER_GHOST}>
+          Delete this exhibition
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={DANGER_BOX}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--neg-strong)', marginBottom: 4 }}>
+        Delete “{name}”?
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 10, lineHeight: 1.45 }}>
+        {carries
+          ? `This also deletes ${carries} recorded against it. It cannot be undone.`
+          : 'Nothing is recorded against it yet. It cannot be undone.'}
+      </div>
+      <label style={{ fontSize: 11.5, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
+        Type the name to confirm
+      </label>
+      <input
+        value={typed}
+        onChange={e => setTyped(e.target.value)}
+        placeholder={name}
+        autoFocus
+        style={{ ...INPUT, maxWidth: 420, marginBottom: 10 }}
+      />
+      {err && <div style={{ fontSize: 12, color: 'var(--neg-strong)', marginBottom: 8 }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button" onClick={go} disabled={!armed || busy}
+          title={armed ? undefined : 'Type the exhibition name exactly to enable this'}
+          style={{ ...DANGER_BTN, opacity: !armed || busy ? 0.5 : 1, cursor: !armed || busy ? 'not-allowed' : 'pointer' }}
+        >
+          {busy ? 'Deleting…' : 'Delete it'}
+        </button>
+        <button type="button" onClick={() => { setOpen(false); setTyped(''); setErr(''); }} disabled={busy} style={GHOST_BTN}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const DANGER_GHOST: CSSProperties = {
+  padding: '6px 11px', fontSize: 12, fontFamily: 'inherit', fontWeight: 500,
+  background: 'var(--bg-paper)', border: '1px solid var(--line-strong)',
+  color: 'var(--neg-strong)', borderRadius: 6, cursor: 'pointer',
+};
+const DANGER_BOX: CSSProperties = {
+  border: '1px solid var(--neg)', borderRadius: 8, padding: '12px 14px',
+  marginBottom: 14, background: 'var(--bg-paper)',
+};
+const DANGER_BTN: CSSProperties = {
+  padding: '7px 14px', fontSize: 12.5, fontWeight: 600, fontFamily: 'inherit',
+  border: 'none', borderRadius: 6, background: 'var(--neg)', color: '#fff',
+};
+const GHOST_BTN: CSSProperties = {
+  padding: '7px 12px', fontSize: 12.5, fontWeight: 600, fontFamily: 'inherit',
+  border: '1px solid var(--line-strong)', borderRadius: 6,
+  background: 'var(--bg-paper)', color: 'var(--fg)', cursor: 'pointer',
+};
