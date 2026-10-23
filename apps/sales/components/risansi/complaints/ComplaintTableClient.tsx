@@ -145,7 +145,10 @@ const COLUMNS: Col[] = [
   // What the complaint is about, which for a free replacement is the item
   // being replaced. Reads the part rows, where it actually lives.
   { id: 'item',       head: 'FR item', pick: 'Item / part', kind: 'text', value: itemsOf },
-  { id: 'action',     head: 'Action taken', kind: 'text', value: r => r.action_category },
+  // Every action chosen, not just the first. A complaint answered with both a
+  // free replacement and a visit used to show only one of them.
+  { id: 'action',     head: 'Action taken', kind: 'text',
+    value: r => (r.action_categories?.length ? r.action_categories.join(', ') : r.action_category) },
   { id: 'freeRepl',   head: 'Free repl.', pick: 'Free replacement', kind: 'text', value: freeReplLabel },
   { id: 'frEc',       head: 'FR EC no.', kind: 'text', value: r => r.fr_ec_no },
   { id: 'frEcDate',   head: 'FR EC date', pick: 'FR EC date', kind: 'date', value: r => r.fr_ec_date },
@@ -474,7 +477,9 @@ function renderCell(col: Col, r: ComplaintListRow, clientFrozen: boolean): React
     case 'action':
       return (
         <td key={col.id} style={{ ...TD, fontSize: 11.5 }}>
-          {r.action_category ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}
+          {r.action_categories?.length
+            ? r.action_categories.join(', ')
+            : r.action_category ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}
           {r.cost_impact ? <div style={{ fontSize: 10, color: 'var(--warn)', fontWeight: 600 }} title="Cost impact: yes">cost impact</div> : null}
         </td>
       );

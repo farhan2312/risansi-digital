@@ -91,7 +91,7 @@ check('Customer Confirmation Pending to Resolved no longer waits on the customer
   F.gateFor('Customer Confirmation Pending', 'Resolved', { values: { ...resolved, customer_confirmed: null }, severity: 'Low', hasCapaDocument: false }),
   []);
 check('Replacement Pending needs a replacement action category',
-  F.gateFor('Action Pending', 'Replacement Pending', { values: { ...resolved, action_category: 'Repair', action_assigned_to: 5, target_completion_date: '2026-10-01' }, severity: 'Low', hasCapaDocument: false }),
+  F.gateFor('Action Pending', 'Replacement Pending', { values: { ...resolved, action_categories: ['Repair'], action_category: 'Repair', action_assigned_to: 5, target_completion_date: '2026-10-01' }, severity: 'Low', hasCapaDocument: false }),
   ['Corrective Action: the action category must be a replacement']);
 check('Reopen: Closed → Under Investigation is a legal move', F.NEXT.Closed.includes('Under Investigation'), true);
 check('every status has somewhere to go', F.STATUSES.every(s => F.NEXT[s].length > 0), true);

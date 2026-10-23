@@ -504,7 +504,11 @@ export const PAGES: ComplaintPage[] = [
     departments: ['Complaint Team', 'QC', 'Quotation Team', 'Billing Team'], repsMayEdit: true,
     fields: [
       { name: 'action_against', label: 'Action against complaint', type: 'long', required: true },
-      { name: 'action_category', label: 'Action taken', type: 'select', lookup: 'action_category', required: true },
+      // Several at once: a complaint is often answered with a free
+      // replacement AND a visit, or support while a replacement is arranged.
+      // The single select made somebody pick the one that looked biggest and
+      // lose the rest.
+      { name: 'action_categories', label: 'Action taken', type: 'multi', lookup: 'action_category', required: true },
       // No longer mandatory: the action is auto-assigned from the Action Taken
       // answer through the Admin map (complaint_action_assignment), and asking
       // for a name as well meant the page refused to save until someone typed
@@ -517,11 +521,11 @@ export const PAGES: ComplaintPage[] = [
       // below decides it and the field is here to be read, not guessed at.
       // Nothing to do with risk_cost_impact on page 3, which grades severity.
       { name: 'cost_impact', label: 'Cost impact', type: 'bool', hint: 'Yes automatically for a free replacement, a material replacement, or any FR challan.' },
-      { name: 'fr_ec_no', label: 'FR EC no.', type: 'text', showWhen: { field: 'action_category', equals: [...FR_ACTIONS] } },
-      { name: 'fr_ec_date', label: 'FR EC date', type: 'date', showWhen: { field: 'action_category', equals: [...FR_ACTIONS] } },
-      { name: 'challan_no', label: 'Challan no.', type: 'text', showWhen: { field: 'action_category', equals: [...FR_ACTIONS] } },
-      { name: 'challan_date', label: 'Challan date', type: 'date', showWhen: { field: 'action_category', equals: [...FR_ACTIONS] } },
-      { name: 'target_dispatch_date', label: 'Target dispatch date', type: 'date', showWhen: { field: 'action_category', equals: [...FR_ACTIONS] } },
+      { name: 'fr_ec_no', label: 'FR EC no.', type: 'text', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
+      { name: 'fr_ec_date', label: 'FR EC date', type: 'date', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
+      { name: 'challan_no', label: 'Challan no.', type: 'text', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
+      { name: 'challan_date', label: 'Challan date', type: 'date', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
+      { name: 'target_dispatch_date', label: 'Target dispatch date', type: 'date', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
       // challan_value and fr_freight used to sit here and are deliberately gone.
       // The requirement asks a free replacement for Transportation (Yes/No +
       // value) and Material (Yes/No + value), which is the same two figures
@@ -531,9 +535,9 @@ export const PAGES: ComplaintPage[] = [
       // The FR challan's two halves, each a Yes/No and a figure. Transport and
       // material were being added together into one challan value, which left
       // no way to answer what free replacements cost us in freight alone.
-      { name: 'fr_transport_applicable', label: 'FR transport charged', type: 'bool', showWhen: { field: 'action_category', equals: [...FR_ACTIONS] } },
+      { name: 'fr_transport_applicable', label: 'FR transport charged', type: 'bool', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
       { name: 'fr_transport_value', label: 'FR transport value (₹)', type: 'money', showWhen: { field: 'fr_transport_applicable', equals: [true] } },
-      { name: 'fr_material_applicable', label: 'FR material charged', type: 'bool', showWhen: { field: 'action_category', equals: [...FR_ACTIONS] } },
+      { name: 'fr_material_applicable', label: 'FR material charged', type: 'bool', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
       { name: 'fr_material_value', label: 'FR material value (₹)', type: 'money', showWhen: { field: 'fr_material_applicable', equals: [true] } },
       { name: 'status_remarks', label: 'Remarks for complaint status', type: 'long' },
       // Customer Confirmed is gone, and with it the gate it guarded (decision
@@ -627,7 +631,30 @@ export type ComplaintValues = Record<string, unknown>;
 export function isFieldShown(f: ComplaintField, values: ComplaintValues): boolean {
   if (!f.showWhen) return true;
   const v = values[f.showWhen.field];
+  // A multi field holds a list, so "equals" means "is one of the answers".
+  // Without this every FR field — the EC number, the challan, the dispatch
+  // date — would vanish the moment Action taken became a list, because a list
+  // never equals the string 'Free Replacement'.
+  const picked = asList(v);
+  if (picked.length) return f.showWhen.equals.some(e => typeof e === 'string' && picked.includes(e));
   return f.showWhen.equals.some(e => e === v || (typeof e === 'string' && String(v ?? '') === e));
+}
+
+/**
+ * A multi field's value, however it arrives.
+ *
+ * pg hands a text[] back as an array, a form posts one, and a value read
+ * straight out of a row can still be the literal '{a,b}'. All three mean the
+ * same thing and every rule here has to agree on that.
+ */
+export function asList(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(x => String(x).trim()).filter(Boolean);
+  const s = String(v ?? '').trim();
+  if (!s) return [];
+  if (s.startsWith('{') && s.endsWith('}')) {
+    return s.slice(1, -1).split(',').map(x => x.trim().replace(/^"|"$/g, '')).filter(Boolean);
+  }
+  return [s];
 }
 
 /**
@@ -693,9 +720,15 @@ export function missingOnPage(page: ComplaintPage, values: ComplaintValues): str
  * Not `risk_cost_impact`, which asks whether the cost crossed ₹5,000 for the
  * purpose of grading severity and has nothing to say about this.
  */
+/** The FR actions among those chosen. Reads the list, falling back to the
+ *  single column for a complaint saved before the list existed. */
+export function frActionsIn(values: ComplaintValues): string[] {
+  const picked = asList(values.action_categories ?? values.action_category);
+  return picked.filter(a => (FR_ACTIONS as readonly string[]).includes(a));
+}
+
 export function costImpactForced(values: ComplaintValues): boolean {
-  const action = String(values.action_category ?? '');
-  if ((FR_ACTIONS as readonly string[]).includes(action)) return true;
+  if (frActionsIn(values).length > 0) return true;
   if (values.fr_transport_applicable === true || values.fr_material_applicable === true) return true;
   const num = (k: string) => Number(values[k] ?? 0);
   return num('fr_transport_value') > 0 || num('fr_material_value') > 0 || num('challan_value') > 0 || num('fr_freight') > 0;
@@ -704,8 +737,8 @@ export function costImpactForced(values: ComplaintValues): boolean {
 /** Why it was forced, for the locked field's hint. Null when it was not. */
 export function costImpactReason(values: ComplaintValues): string | null {
   if (!costImpactForced(values)) return null;
-  const action = String(values.action_category ?? '');
-  if ((FR_ACTIONS as readonly string[]).includes(action)) return `${action} is at our cost`;
+  const fr = frActionsIn(values);
+  if (fr.length) return `${fr.join(' and ')} is at our cost`;
   return 'An FR challan has been raised on this complaint';
 }
 
@@ -832,7 +865,11 @@ export function gateFor(from: string, to: ComplaintStatus, ctx: GateContext): st
   if (to === 'Action Pending' || to === 'Replacement Pending') {
     if (from !== 'Open') need.push(...missing(5).filter(m => !/completion date$/i.test(m) || /Target/.test(m)));
   }
-  if (to === 'Replacement Pending' && !/Replacement/.test(String(v.action_category ?? ''))) {
+  // Any of the chosen actions mentioning a replacement will do — a complaint
+  // answered with both a visit and a free replacement is still on its way to
+  // Replacement Pending.
+  if (to === 'Replacement Pending'
+      && !asList(v.action_categories ?? v.action_category).some(a => /Replacement/.test(a))) {
     need.push('Corrective Action: the action category must be a replacement');
   }
   if (to === 'Customer Confirmation Pending') {

@@ -10,7 +10,7 @@ import {
   pageById, STATUSES, NEXT, canEditPage, canMove, gateFor, severityOf, holderFor, isFieldShown,
   cascadeParent, costImpactForced, isImmediateResponse, statusAfterSavingPage,
   ADD_ON_LOOKUP_KINDS, CASCADING_LOOKUP_KINDS,
-  responsibleDepartmentFor, routingOwner, IMMEDIATE_RISK_FIELDS,
+  responsibleDepartmentFor, routingOwner, IMMEDIATE_RISK_FIELDS, asList,
   type ComplaintStatus, type ComplaintValues, type ComplaintField,
 } from '@/lib/risansi-complaint-flow';
 
@@ -311,6 +311,19 @@ export async function saveComplaintPage(id: number, pageId: number, input: Recor
     const dept = responsibleDepartmentFor(values.root_cause_category as string | null, values.root_cause_sub as string | null);
     if (dept) { values.responsible_department = dept; changed.responsible_department = dept; }
   }
+  // Keep the old single column in step with the first of the chosen actions.
+  //
+  // The complaints list column, the dashboard filter, the lookup usage counts
+  // on Admin › Complaint Settings and the stage guard all still read
+  // action_category. Writing it here means none of them has to learn about
+  // arrays, and a reader sorting the list by Action taken still gets a
+  // sensible order. action_categories is the truth; this is its shadow.
+  if ('action_categories' in changed) {
+    const first = asList(changed.action_categories)[0] ?? null;
+    values.action_category = first;
+    changed.action_category = first;
+  }
+
   if (!Object.keys(changed).length) return { ok: true };
 
   const keys = Object.keys(changed);

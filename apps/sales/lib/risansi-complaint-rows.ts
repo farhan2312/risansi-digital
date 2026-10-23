@@ -56,6 +56,8 @@ export interface ComplaintListRow {
   part_type: string | null; part_name: string | null;
   /** Every part named on page 2, newest schema only — the drill-down reads these. */
   parts: ComplaintPartRow[];
+  /** Every action chosen, not just the first. */
+  action_categories: string[] | null;
   responsible_department: string | null; channel: string | null;
   /** Direct / OEM (renamed from supply_through). */
   client_type: string | null;
@@ -421,7 +423,8 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
              c.target_completion_date::text AS target_completion_date,
              c.repeat_complaint, COALESCE(c.reopen_count, 0)::int AS reopen_count,
              c.linked_complaint_id, lk.complaint_no AS linked_complaint_no,
-             c.investigation_assigned_to, c.action_assigned_to, c.action_category, c.pump_serial_no, c.quantity,
+             c.investigation_assigned_to, c.action_assigned_to, c.action_category, c.action_categories,
+             c.pump_serial_no, c.quantity,
              COALESCE((SELECT json_agg(json_build_object(
                            'part_type', p.part_type, 'part_name', p.part_name, 'moc', p.moc,
                            'quantity', p.quantity, 'vendor_name', p.vendor_name, 'part_code', p.part_code)
