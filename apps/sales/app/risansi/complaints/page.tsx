@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { Topbar } from '@/components/risansi';
 import { getCurrentUser } from '@/lib/risansi-auth';
+import risansiPool from '@/lib/db-risansi';
 import { loadComplaintRows, loadHolderDwells, parseComplaintFilters, parseComplaintSort, FILTER_KEYS } from '@/lib/risansi-complaint-rows';
 import { summariseComplaints, clientBars } from '@/lib/risansi-complaint-stats';
 import { ComplaintStats } from '@/components/risansi/complaints/ComplaintStats';
@@ -25,11 +26,21 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
   const value: Record<string, string | undefined> = {};
   for (const k of FILTER_KEYS) value[k] = filters[k];
 
-  const [rows, dwells, allRows] = await Promise.all([
+  const [rows, dwells, allRows, subcatCatalogue] = await Promise.all([
     loadComplaintRows(me, { filters, sort }),
     loadHolderDwells(me),
     // The unfiltered set, for the filter options — so a value is still offered after another filter hides it.
     Object.keys(filters).length ? loadComplaintRows(me) : null,
+    // The sub-category catalogue, by the category it belongs to. The filter
+    // used to build this list from the complaints themselves, which meant
+    // Supply Related offered Short and Wrong and not Excess or Drawing
+    // Mismatch — nobody had raised one yet. A filter that can only name what
+    // already exists cannot answer "have we had any of these", which is half
+    // of what a filter is for.
+    risansiPool.query<{ parent_value: string; value: string }>(
+      `SELECT parent_value, value FROM complaint_lookups
+        WHERE kind = 'complaint_subcategory' AND is_active AND parent_value IS NOT NULL
+        ORDER BY parent_value, sort_order, value`).then(r => r.rows).catch(() => []),
   ]);
   const base = allRows ?? rows;
   const s = summariseComplaints(rows, dwells.filter(d => rows.some(r => r.id === d.complaint_id)));
@@ -50,10 +61,22 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
     // selectable together and return nothing. Still built from the UNFILTERED
     // set otherwise, like every list here — Category is the only filter that
     // is allowed to narrow it, because it is the only one it depends on.
-    subcategories: uniq(
-      (filters.cat ? base.filter(r => r.complaint_category === filters.cat) : base)
-        .map(r => r.complaint_subcategory),
-    ),
+    // The chosen category's catalogue, plus anything in use that the
+    // catalogue does not know about — 'Wrong Supply' under Client Related is
+    // a real complaint recorded before the lists were tidied, and dropping it
+    // would make those rows unreachable.
+    subcategories: (() => {
+      const inUse = uniq(
+        (filters.cat ? base.filter(r => r.complaint_category === filters.cat) : base)
+          .map(r => r.complaint_subcategory),
+      );
+      const catalogue = filters.cat
+        ? subcatCatalogue.filter(x => x.parent_value === filters.cat).map(x => x.value)
+        : subcatCatalogue.map(x => x.value);
+      // Catalogue order first — it is the order the lists were written in —
+      // then anything in use it never mentioned.
+      return [...catalogue, ...inUse.filter(v => !catalogue.includes(v))];
+    })(),
     // Only the historical rows the 2 Oct mapping could not read onto a new
     // category. A row with both is reachable through Category instead, so
     // offering its old wording as well would be two routes to the same rows.
