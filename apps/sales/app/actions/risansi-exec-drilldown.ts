@@ -118,12 +118,19 @@ async function enrichClients(rows: DrillRow[]): Promise<DrillRow[]> {
                 -- pipeline any more.
                 COALESCE(SUM(COALESCE(o.offer_value_inr, o.value_cr * 10000000))
                          FILTER (WHERE o.stage IN ('Quoted','Negotiating','On Hold')), 0) AS open_inr,
+                -- Open stages only, to match the column it sits under.
+                --
+                -- It listed every status the client had ever held, so an
+                -- account whose single deal was lost read "—  Lost" in a
+                -- column headed Open Pipeline, and one with a live quote and
+                -- three old wins read "Active · Won". Neither is what the
+                -- column is asking. Won and Lost are decided and Dropped is
+                -- gone; none of them is pipeline, so none of them belongs
+                -- here. A client with nothing open now shows nothing.
                 string_agg(DISTINCT CASE o.stage
                      WHEN 'Quoted' THEN 'Active' WHEN 'Negotiating' THEN 'Active'
-                     WHEN 'On Hold' THEN 'Hold'  WHEN 'Won' THEN 'Won'
-                     WHEN 'Lost' THEN 'Lost'     WHEN 'Dropped' THEN 'Dropped'
-                     WHEN 'Suspect' THEN 'Suspect' WHEN 'Prospect' THEN 'Enquiry'
-                     ELSE o.stage END, ' · ') AS statuses
+                     WHEN 'On Hold' THEN 'Hold' END, ' · ')
+                  FILTER (WHERE o.stage IN ('Quoted','Negotiating','On Hold')) AS statuses
            FROM opportunities o
           WHERE o.client_id = ANY($1::int[])
           GROUP BY o.client_id)
@@ -198,10 +205,12 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
     return enrichClients(base);
   };
 
+  // No detail line: it said "never visited" or "last visit 12 Aug 2026", and
+  // the Last visit column now says the same thing beside it. It was printed
+  // twice on every row of every coverage list.
   const CLIENT_LIST = (cond: string) => `
     SELECT c.id, c.code, c.legal_name AS name, NULL::numeric AS value,
-           CASE WHEN c.last_visit_date IS NULL THEN 'never visited'
-                ELSE 'last visit ' || to_char(c.last_visit_date, 'DD Mon YYYY') END AS detail
+           NULL::text AS detail
       FROM clients c
      WHERE ${scope} AND c.deleted_at IS NULL AND ${cond}
      ORDER BY c.last_visit_date ASC NULLS FIRST, c.legal_name`;
