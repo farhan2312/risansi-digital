@@ -592,8 +592,15 @@ export function OrderMakingWorkspace({
                   </td>
                   {mode === "po" && (
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {/* Dispatched, cancelled or diverted: no one to assign now. */}
-                      {notAssignable(row) && !row.so_assignee_id ? (
+                      {/* Carried in by the migration: its SO details came with it. */}
+                      {row.so_migrated && !row.so_assignee_id ? (
+                        <span
+                          title="Migrated from Excel — no assignment needed"
+                          className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300"
+                        >
+                          Migrated
+                        </span>
+                      ) : /* Dispatched, cancelled or diverted: no one to assign now. */ notAssignable(row) && !row.so_assignee_id ? (
                         <span className="text-xs text-muted">Not needed</span>
                       ) : canAssign && !notAssignable(row) && row.so_assignee_id && reassigning !== row.id ? (
                         // Assigned: who has it, and Reassign to change or take it off them.

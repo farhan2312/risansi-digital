@@ -2902,3 +2902,14 @@ ALTER TABLE orders ADD CONSTRAINT orders_alignment_check CHECK (
 
 -- 0031  When a pump SO's base plate was manufactured. Idempotent and additive.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_date DATE;
+
+-- 0032  An SO carried in by the migration from Excel: its SO details came in
+-- with it, so Order Making assigns it to no one (shown as Migrated). Set for
+-- every unassigned SO below Sl. No. 515, and every unassigned one needing no
+-- assignment (dispatched, cancelled, diverted). Idempotent.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS so_migrated BOOLEAN NOT NULL DEFAULT false;
+UPDATE orders SET so_migrated = true
+ WHERE so_assignee_id IS NULL AND NOT so_migrated
+   AND (sl_no < 515
+        OR COALESCE(status_override, '') IN ('Cancelled by client', 'Diverted')
+        OR lower(COALESCE(NULLIF(dispatch_status, ''), 'Pending')) IN ('fully dispatch', 'lot dispatch'));
