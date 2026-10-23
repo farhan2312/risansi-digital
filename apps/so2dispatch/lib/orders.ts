@@ -3234,6 +3234,29 @@ function ecState(dept: DeptFilterKey, status: string): string {
   }
 }
 
+/**
+ * The SO's own Planning status (alias o): an SO is planned as one — Date
+ * awaited, In plan, Partial ready, Fully ready — kept on its ECs' planning;
+ * Date awaited until it is set. Planning's cards and Status filter read it.
+ */
+const SO_PLANNING_STATUS = `COALESCE((SELECT NULLIF(spl.actual_spare_status, '')
+                                         FROM order_items ss JOIN order_planning spl ON spl.item_id = ss.id
+                                        WHERE ss.order_id = o.id AND NULLIF(spl.actual_spare_status, '') IS NOT NULL
+                                        ORDER BY ss.seq NULLS LAST LIMIT 1), 'Date awaited')`;
+
+/**
+ * The SO's own Assembly & Packing status (alias o), over the ECs it works on:
+ * Fully packed once every one is, Partially packed once any is packed, else
+ * In Progress. Its cards and Status filter read it.
+ */
+const SO_ASSEMBLY_STATUS = `(CASE
+    WHEN EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("it")})
+     AND NOT EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("it")}
+                       AND ${ASSEMBLY_STATE_SQL("it")} <> 'Fully packed') THEN 'Fully packed'
+    WHEN EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("it")}
+                   AND ${ASSEMBLY_STATE_SQL("it")} IN ('Partially packed', 'Fully packed')) THEN 'Partially packed'
+    ELSE 'In Progress' END)`;
+
 /** An EC's Assembly & Packing state, for Planning's packing sub-filter. */
 function packingState(status: string): string {
   return status === "Not packed"
@@ -3241,12 +3264,13 @@ function packingState(status: string): string {
     : `${ASSEMBLY_STATE_SQL("it")} = ${lit(status)}`;
 }
 
-/** Planning's status and packing, both on the same EC (`it`). */
-function planningPackingOnEc(f: OrderListFilter): string {
+/** Planning's SO status as asked, and an EC of it at the packing asked (Fully ready, not packed). */
+function planningPacking(f: OrderListFilter): string {
   const plan = f.deptStatuses.length
-    ? `(${f.deptStatuses.map((s) => `(${ecState("planning", s)})`).join(" OR ")})`
+    ? `(${f.deptStatuses.map((s) => deptStatusPredicate("planning", s)).join(" OR ")})`
     : "TRUE";
-  return `${plan} AND (${f.packingStatuses.map((s) => `(${packingState(s)})`).join(" OR ")})`;
+  return `${plan} AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
+                               AND (${f.packingStatuses.map((s) => `(${packingState(s)})`).join(" OR ")}))`;
 }
 
 /** The state of the SO itself for an SO-scope department. */
@@ -3346,6 +3370,9 @@ function deptOverduePredicate(dept: DeptFilterKey): string {
 
 function deptStatusPredicate(dept: DeptFilterKey, status: string): string {
   if (!isPerEcDept(dept)) return `(${soState(dept, status)})`;
+  // Planning and Assembly & Packing go by the SO's own status, not any one EC's.
+  if (dept === "planning") return `${SO_PLANNING_STATUS} = ${lit(status)}`;
+  if (dept === "assembly") return `${SO_ASSEMBLY_STATUS} = ${lit(status === "Packed" ? "Fully packed" : status)}`;
   return `EXISTS (SELECT 1 FROM order_items it
                    WHERE it.order_id = o.id AND (${ecState(dept, status)}))`;
 }
@@ -3457,8 +3484,8 @@ function orderListClauses(
                                  AND TRIM(COALESCE(s.item_type, '')) = ANY(${t}::text[])))`);
   }
   if (f.dept === "planning" && f.packingStatuses.length) {
-    // An EC that is both — "Fully ready" and "Fully packed" on the same EC.
-    clauses.push(`EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${planningPackingOnEc(f)})`);
+    // The SO at Planning's status, with an EC at the packing asked.
+    clauses.push(planningPacking(f));
   } else if (f.dept && f.deptStatuses.length) {
     const dept = f.dept;
     clauses.push(`(${f.deptStatuses.map((s) => deptStatusPredicate(dept, s)).join(" OR ")})`);
@@ -4022,8 +4049,8 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
       "Fully ready",
       "Ready, not packed",
       { pack: "Not packed" },
-      `EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
-                AND (${ecState("planning", "Fully ready")}) AND (${packingState("Not packed")})) AND ${open}`
+      `${SO_PLANNING_STATUS} = 'Fully ready'
+                AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND (${packingState("Not packed")})) AND ${open}`
     ),
     card("Assembly & Packing", "assembly", "In Progress", "Packing on"),
     card("Assembly & Packing", "assembly", "Partially packed", "Part packed"),
@@ -4060,8 +4087,9 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
         ? {
             key: `s:${st}`,
             label: "Fully ready (not packed)",
-            sql: `EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
-                            AND (${ecState("planning", st)}) AND (${packingState("Not packed")})) AND ${orderOpenSql("o")}`,
+            sql: `${SO_PLANNING_STATUS} = 'Fully ready'
+                  AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND (${packingState("Not packed")}))
+                  AND ${orderOpenSql("o")}`,
             params: { ...clear, dstatus: st, pack: "Not packed" },
             tone: toneFor(st),
           }
@@ -5300,11 +5328,15 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   if (f.types.length) clauses.push(facet("COALESCE(it.item_type, o.order_type)", f.types));
 
   if (f.dept === "planning" && f.packingStatuses.length) {
-    clauses.push(`(${planningPackingOnEc(f)})`);
+    clauses.push(`(${planningPacking(f)})`);
   } else if (f.dept && f.deptStatuses.length) {
     const dept = f.dept;
+    // Planning and Assembly & Packing by the SO's own status; the other per-EC departments by this EC's.
+    const bySo = dept === "planning" || dept === "assembly";
     clauses.push(
-      `(${f.deptStatuses.map((s) => isPerEcDept(dept) ? `(${ecState(dept, s)})` : `(${soState(dept, s)})`).join(" OR ")})`
+      `(${f.deptStatuses
+        .map((s) => (bySo ? deptStatusPredicate(dept, s) : isPerEcDept(dept) ? `(${ecState(dept, s)})` : `(${soState(dept, s)})`))
+        .join(" OR ")})`
     );
   }
   // As on the list: a cancelled or diverted SO has no department status.
