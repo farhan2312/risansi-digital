@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
                                CHECK (role IN ('admin', 'central_visibility', 'operations',
                                                'accounts', 'drawing', 'planning', 'purchase',
                                                'qc', 'assembly', 'dispatch', 'order_making', 'order_making_so', 'rep',
-                                               'rep_manager')),
+                                               'rep_manager', 'crm')),
     status        TEXT         NOT NULL DEFAULT 'pending'
                                CHECK (status IN ('pending', 'approved', 'rejected', 'disabled')),
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -40,7 +40,7 @@ ALTER TABLE users ADD  CONSTRAINT users_role_check
     CHECK (role IN ('admin', 'central_visibility', 'operations', 'accounts',
                     'drawing', 'planning', 'purchase', 'qc',
                     'assembly', 'dispatch', 'order_making', 'order_making_so', 'rep',
-                    'rep_manager'));
+                    'rep_manager', 'crm'));
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
 ALTER TABLE users ADD  CONSTRAINT users_status_check
     CHECK (status IN ('pending', 'approved', 'rejected', 'disabled'));

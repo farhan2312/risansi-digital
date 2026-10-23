@@ -32,6 +32,9 @@ export const ROLE_LABELS = {
   // reps who report to them. Who reports to whom is the sales portal's
   // manager_reps, read live (lib/market-intell.ts) — never kept here.
   rep_manager: "Rep Manager",
+  // CRM: the Dashboard and the Orders list, read-only, for every SO — no
+  // department pages, no chat.
+  crm: "CRM",
 } as const;
 
 export type Role = keyof typeof ROLE_LABELS;
@@ -52,6 +55,7 @@ export const REQUESTABLE_ROLES: Role[] = [
   "assembly",
   "dispatch",
   "central_visibility",
+  "crm",
   "admin",
 ];
 
@@ -87,9 +91,19 @@ export function isRep(role: string): boolean {
   return role === "rep" || role === "rep_manager";
 }
 
-/** Sees the whole tracker's screens (the Orders list, every department): Central, Admin, a Rep. */
+/** CRM: every SO on the Dashboard and the Orders list, read-only — nothing else. */
+export function isCrm(role: string): boolean {
+  return role === "crm";
+}
+
+/** Sees the SOs but changes nothing: a Rep (their own) or CRM (all). */
+export function isReadOnlyViewer(role: string): boolean {
+  return isRep(role) || isCrm(role);
+}
+
+/** Sees the whole tracker's screens (the Orders list; Central, Admin and a Rep every department too): Central, Admin, a Rep, CRM. */
 export function canViewAll(role: string): boolean {
-  return isCentral(role) || isRep(role);
+  return isCentral(role) || isRep(role) || isCrm(role);
 }
 
 /** May open a department's queue — its own, or (Central, Admin, a Rep) any. Editing is canEditSection. */
@@ -171,7 +185,7 @@ export function canSeeEscalations(role: string): boolean {
 
 /** The central full-visibility dashboard is for Central Visibility and Admin. */
 export function canSeeCentralDashboard(role: string): boolean {
-  return role === "admin" || role === "central_visibility" || isRep(role);
+  return role === "admin" || role === "central_visibility" || isRep(role) || isCrm(role);
 }
 
 /**

@@ -103,6 +103,7 @@ import {
   canViewAll,
   isCentral,
   isRep,
+  isReadOnlyViewer,
 } from "@/lib/roles";
 import { parsePiWorkbook } from "@/lib/pi-import";
 import { isAssignedTo, markSoDetails } from "@/lib/so-assignment";
@@ -1130,7 +1131,7 @@ export async function getPackingPlanHistoryAction(
 ): Promise<{ ok: true; events: PackingPlanEvent[] } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!(isCentral(user.role) || user.role === "assembly" || user.role === "planning" || isRep(user.role))) {
+  if (!(isCentral(user.role) || user.role === "assembly" || user.role === "planning" || isReadOnlyViewer(user.role))) {
     return { ok: false, error: "You don't have access to the packing plan history." };
   }
   if (!UUID_RE_ACTION.test(orderId)) return { ok: false, error: "Order not found." };
