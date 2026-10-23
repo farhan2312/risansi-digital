@@ -1770,10 +1770,12 @@ export async function setOrderStatusAction(
 ): Promise<SetOrderStatusResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!isCentral(user.role)) {
+  const next = status === "auto" ? null : status;
+  // Order Making PO may cancel an SO (its Cancel button); the rest is Central's.
+  const omCancel = user.role === "order_making" && next === "Cancelled by client";
+  if (!isCentral(user.role) && !omCancel) {
     return { ok: false, error: "Only Central Visibility or Admin can change an order's status." };
   }
-  const next = status === "auto" ? null : status;
   if (next !== null && !ORDER_STATUS_OPTIONS.some((o) => o.value === next)) {
     return { ok: false, error: "Unknown status." };
   }

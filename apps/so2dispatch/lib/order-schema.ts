@@ -331,11 +331,12 @@ export const ORDER_SECTIONS: OrderSection[] = [
         dependsOn: [{ column: "om_status", value: "Hold" }],
         group: "Order Making Hold",
       },
+      // Remarks on a Clear too; every Clear / Hold is kept in
+      // order_om_status_history.
       {
         column: "om_hold_remarks",
-        label: "Order Making Hold Remarks",
+        label: "Order Making Remarks",
         type: "text",
-        dependsOn: [{ column: "om_status", value: "Hold" }],
         group: "Order Making Hold",
       },
 
@@ -349,8 +350,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "reps", label: "Rep(s)", type: "text", group: "Client" },
 
       // Purchase Order Details — SO Order Type is inherited by every EC.
-      // First: when the PO came in. An FR has no PO.
-      { column: "po_received_date", label: "PO Receiving Date", type: "date", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
+      // First: when the PO (or, on a Challan / FR, the order) came in.
+      { column: "po_received_date", label: "PO Receiving Date", type: "date", group: "Purchase Order" },
       {
         column: "order_type",
         label: "Order Type",

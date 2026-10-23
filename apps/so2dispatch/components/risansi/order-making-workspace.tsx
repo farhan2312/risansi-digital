@@ -4,7 +4,7 @@ import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { canManageEcs } from "@/lib/roles";
@@ -24,7 +24,7 @@ import type { SoMember, SoMemberSummary } from "@/lib/so-assignment";
 import { assignSoAction } from "@/app/risansi/departments/order-making/actions";
 import type { OrderListOptions } from "@/lib/orders";
 import { SortHeader } from "./sort-header";
-import { createOrderAction, deleteItemAction, updateOrderSectionAction } from "@/app/risansi/orders/actions";
+import { createOrderAction, deleteItemAction, setOrderStatusAction, updateOrderSectionAction } from "@/app/risansi/orders/actions";
 import type { NewOrderInput } from "@/lib/orders";
 import {
   ORDER_MAKING_EDITABLE,
@@ -183,6 +183,8 @@ export function OrderMakingWorkspace({
     else router.refresh();
   }
   const [assigning, setAssigning] = useState<string | null>(null);
+  // The SO being cancelled (its reason asked first).
+  const [cancelling, setCancelling] = useState<OrderMakingRow | null>(null);
   // The assigned SO whose Reassign is open.
   const [reassigning, setReassigning] = useState<string | null>(null);
   async function assign(row: OrderMakingRow, assigneeId: string) {
@@ -671,6 +673,22 @@ export function OrderMakingWorkspace({
                         <Pencil className="h-3.5 w-3.5" />
                         {mode === "so" ? "SO details" : "Edit"}
                       </button>
+                      {/* Order Making PO cancels an SO; it stays on the list, red. */}
+                      {mode === "po" && canCreate &&
+                        (isClosedStatus(row.status_override) ? (
+                          <span className="ml-1.5 inline-flex h-8 items-center rounded-lg bg-rose-100 px-2.5 text-xs font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">
+                            {String(row.status_override)}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setCancelling(row)}
+                            className="ml-1.5 inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 px-3 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                            Cancel
+                          </button>
+                        ))}
                     </td>
                   )}
                 </tr>
@@ -679,6 +697,7 @@ export function OrderMakingWorkspace({
             </tbody>
           </table>
         </div>
+        {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
         {ecsRow && (
           <OmEcsModal
             order={ecsRow}
@@ -1012,6 +1031,107 @@ function OrderMakingEdit({
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {mode === "so" ? "Save SO details" : row ? "Save" : "Create order"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/**
+ * Cancel an SO from Order Making: cancelled by the client, with why. It stays
+ * on the list (red) and goes to no department.
+ */
+function CancelSoDialog({ row, onClose }: { row: OrderMakingRow; onClose: () => void }) {
+  const router = useRouter();
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [saving, onClose]);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) {
+      setError("Say why the SO is cancelled.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const res = await setOrderStatusAction(row.id, "Cancelled by client", reason, "");
+    setSaving(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    router.refresh();
+    onClose();
+  }
+
+  const so = str(row.so_no) || `#${row.sl_no}`;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Cancel ${so}`}
+      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
+      onClick={() => !saving && onClose()}
+    >
+      <form
+        onSubmit={save}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-t-2xl bg-surface p-5 text-left shadow-xl sm:rounded-2xl"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-foreground">Cancel {so}</h2>
+            <p className="text-xs text-muted">
+              Cancelled by the client: it stays on this list (red) and goes to no department. Central Visibility can reopen it.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="Close"
+            className="rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <label className="block text-sm">
+          <span className="mb-1 block text-[13px] font-medium text-brand-label">
+            Reason <span className="text-danger">*</span>
+          </span>
+          <textarea
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+          />
+        </label>
+        {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="inline-flex h-10 items-center rounded-lg border border-input-border px-4 text-sm font-medium text-foreground hover:bg-background"
+          >
+            Keep SO
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Cancel SO
           </button>
         </div>
       </form>

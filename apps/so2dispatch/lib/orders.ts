@@ -384,8 +384,8 @@ export async function createOrder(
         toNumeric(input.discount_percent),
         toNumeric(input.gst_percent),
         toNumeric(input.taxable_value),
-        // An FR has no PO.
-        input.bill_mode === "FR" ? null : nullify(input.po_received_date),
+        // When the PO (or, on a Challan / FR, the order) came in.
+        nullify(input.po_received_date),
         nullify(input.ec_sent_operation_date),
         toNumeric(input.packing_forwarding_percent),
         // A Spare has no drawing to curve.
@@ -4231,6 +4231,11 @@ export async function listOrdersForOrderMaking(opts: {
     `SELECT o.id, o.sl_no::int AS sl_no, ${cols}, ${missingSql} AS missing,
             ${SO_DETAILS_MISSING_SQL} AS so_missing,
             o.so_assignee_id, au.full_name AS so_assignee_name,
+            -- Every Clear / Hold, oldest first: its reason and remarks (the report lists them all).
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('status', h.status, 'reason', h.reason, 'remarks', h.remarks,
+                                                          'at', to_char(h.created_at AT TIME ZONE 'Asia/Kolkata', 'DD-Mon-YY'))
+                                       ORDER BY h.created_at)
+                        FROM order_om_status_history h WHERE h.order_id = o.id), '[]'::jsonb) AS om_history,
             to_char(o.so_assigned_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_assigned_at,
             to_char(o.so_details_filled_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_details_filled_at,
             o.clearance_status, o.clearance_hold_reason,

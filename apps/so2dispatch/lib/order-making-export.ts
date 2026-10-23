@@ -44,12 +44,21 @@ export const COLUMNS: { header: string; width: number; date?: boolean }[] = [
   { header: "EC Date", width: 12, date: true },
   { header: "SO Sent to Operation", width: 14, date: true },
   { header: "Assigned Person", width: 18 },
-  { header: "Reason for Delay", width: 26 },
-  { header: "Remarks", width: 26 },
+  { header: "Reason for Delay", width: 34 },
+  { header: "Remarks", width: 40 },
   { header: "SO Details", width: 11 },
 ];
 
 /** One line per EC (or per SO with none): its cells, and whether the SO details are filled. */
+/** "21-Oct-26 Hold: …" per Clear / Hold that carried one, a line each; null with none. */
+function historyText(o: OrderMakingRow, key: "reason" | "remarks"): string | null {
+  const h = Array.isArray(o.om_history) ? (o.om_history as Record<string, unknown>[]) : [];
+  const lines = h
+    .filter((e) => String(e[key] ?? "").trim())
+    .map((e) => `${String(e.at ?? "")} ${String(e.status ?? "")}: ${String(e[key]).trim()}`);
+  return lines.length ? lines.join("\n") : null;
+}
+
 export function orderMakingReportLines(rows: OrderMakingRow[]): { cells: Cell[]; filled: boolean }[] {
   const out: { cells: Cell[]; filled: boolean }[] = [];
   for (const o of rows) {
@@ -66,10 +75,12 @@ export function orderMakingReportLines(rows: OrderMakingRow[]): { cells: Cell[];
       text(o.complaint_no),
     ];
     const tail: Cell[] = [
-      date(o.ec_sent_operation_date),
+      // On Order Making's hold it has not gone to Operation: HOLD, not a date.
+      o.om_status === "Hold" ? "HOLD" : date(o.ec_sent_operation_date),
       text(o.so_assignee_name),
-      text(o.om_hold_reason),
-      text(o.om_hold_remarks),
+      // Every reason of delay and every remark the SO has had, oldest first.
+      historyText(o, "reason") ?? text(o.om_hold_reason),
+      historyText(o, "remarks") ?? text(o.om_hold_remarks),
       filled ? "Filled" : "Pending",
     ];
     const items = o.items ?? [];
