@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronRight, PlayCircle, RotateCw, ZoomOut } from "lucide-react";
 import { ReportBugTrigger } from "./report-bug";
 import { DiscussionBell } from "./discussion-bell";
+import { isCrm } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 
@@ -177,10 +178,13 @@ export function AppShell({
               <span className="hidden sm:inline">Demo</span>
             </a>
             <ReportBugTrigger />
-            <DiscussionBell
-              role={user.role}
-              initialUnread={discussionUnread}
-            />
+            {/* CRM only reads: no chat. */}
+            {!isCrm(user.role) && (
+              <DiscussionBell
+                role={user.role}
+                initialUnread={discussionUnread}
+              />
+            )}
             {showBugBell && (
               <Link
                 href="/risansi/bug-reports"

@@ -14,7 +14,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
-import { canSeeEscalations, departmentHrefForRole, canSeeClient, isRep } from "@/lib/roles";
+import { canSeeEscalations, departmentHrefForRole, canSeeClient, getsNotifications, isRep } from "@/lib/roles";
 import { ALERTS_PAGE_SIZE, listAlertsPage, type AlertRow } from "@/lib/alerts";
 import {
   listNotificationsPage,
@@ -384,6 +384,8 @@ export default async function NotificationsPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  // A Rep, Rep Manager or CRM has no Notifications.
+  if (!getsNotifications(user.role)) redirect("/risansi/dashboard");
 
   // Two lists, each paging on its own param (25 a page).
   const params = await searchParams;

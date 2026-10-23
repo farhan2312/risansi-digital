@@ -101,6 +101,11 @@ export function isReadOnlyViewer(role: string): boolean {
   return isRep(role) || isCrm(role);
 }
 
+/** The Notifications page and its badge: everyone but a Rep, Rep Manager or CRM (they only read). */
+export function getsNotifications(role: string): boolean {
+  return !isReadOnlyViewer(role);
+}
+
 /** Sees the whole tracker's screens (the Orders list; Central, Admin and a Rep every department too): Central, Admin, a Rep, CRM. */
 export function canViewAll(role: string): boolean {
   return isCentral(role) || isRep(role) || isCrm(role);
