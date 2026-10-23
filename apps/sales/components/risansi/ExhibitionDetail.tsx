@@ -2032,9 +2032,12 @@ const DANGER_BOX: CSSProperties = {
   border: '1px solid var(--neg)', borderRadius: 8, padding: '12px 14px',
   marginBottom: 14, background: 'var(--bg-paper)',
 };
+// --neg-fill, not --neg: a filled surface carrying a label has to stay
+// readable in dark mode, where --neg lightens and white text on it stops
+// being legible. fill-contrast-check enforces this and caught it here.
 const DANGER_BTN: CSSProperties = {
   padding: '7px 14px', fontSize: 12.5, fontWeight: 600, fontFamily: 'inherit',
-  border: 'none', borderRadius: 6, background: 'var(--neg)', color: '#fff',
+  border: 'none', borderRadius: 6, background: 'var(--neg-fill)', color: 'var(--on-accent)',
 };
 const GHOST_BTN: CSSProperties = {
   padding: '7px 12px', fontSize: 12.5, fontWeight: 600, fontFamily: 'inherit',
