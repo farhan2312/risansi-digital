@@ -13,8 +13,13 @@ const STATUSES = {
   wooden_box: ["In House", "Bought out"],
 } as const;
 
-/** One Alignment item on the front: Yes with its status, No, or not set. */
-function Value({ yes, status, done }: { yes: string; status: string; done: string }) {
+function shortDate(v: string): string {
+  const d = new Date(`${v.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** One Alignment item on the front: Yes with its status (and the base plate's day), No, or not set. */
+function Value({ yes, status, done, date = "" }: { yes: string; status: string; done: string; date?: string }) {
   if (yes === "No") return <span className="text-xs text-muted">No</span>;
   if (yes !== "Yes") return <span className="text-xs text-muted">—</span>;
   return (
@@ -29,6 +34,7 @@ function Value({ yes, status, done }: { yes: string; status: string; done: strin
           {status}
         </span>
       )}
+      {date && <span className="whitespace-nowrap text-[11px] text-muted">{shortDate(date)}</span>}
     </span>
   );
 }
@@ -50,6 +56,7 @@ export function AlignmentForm({
   const [v, setV] = useState<Alignment>({
     base_plate: str(a.base_plate),
     base_plate_status: str(a.base_plate_status),
+    base_plate_date: str(a.base_plate_date).slice(0, 10),
     wooden_box: str(a.wooden_box),
     wooden_box_status: str(a.wooden_box_status),
   });
@@ -110,6 +117,20 @@ export function AlignmentForm({
               </button>
             ))}
           </div>
+          {/* Manufactured on a day. */}
+          {key === "base_plate" && v.base_plate_status === "Manufactured" && (
+            <label className="mt-3 block">
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                Manufactured Date <span className="text-danger">*</span>
+              </span>
+              <input
+                type="date"
+                value={v.base_plate_date}
+                onChange={(e) => setV((p) => ({ ...p, base_plate_date: e.target.value }))}
+                className="h-10 w-full rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+              />
+            </label>
+          )}
         </div>
       )}
     </section>
@@ -192,7 +213,12 @@ export function AlignmentValue({
       title={canEdit ? "Set the alignment" : undefined}
       className="w-full text-left enabled:hover:opacity-80 disabled:cursor-default"
     >
-      <Value yes={str(a[which])} status={str(a[`${which}_status`])} done={which === "base_plate" ? "Manufactured" : "In House"} />
+      <Value
+        yes={str(a[which])}
+        status={str(a[`${which}_status`])}
+        done={which === "base_plate" ? "Manufactured" : "In House"}
+        date={which === "base_plate" && str(a.base_plate_status) === "Manufactured" ? str(a.base_plate_date) : ""}
+      />
     </button>
   );
 }

@@ -2899,3 +2899,6 @@ ALTER TABLE orders ADD CONSTRAINT orders_alignment_check CHECK (
     AND (base_plate_status IS NULL OR base_plate_status IN ('Manufactured', 'Pending'))
     AND (wooden_box IS NULL OR wooden_box IN ('Yes', 'No'))
     AND (wooden_box_status IS NULL OR wooden_box_status IN ('In House', 'Bought out')));
+
+-- 0031  When a pump SO's base plate was manufactured. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_date DATE;

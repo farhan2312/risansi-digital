@@ -2700,6 +2700,7 @@ export async function listItemsForSection(
                  (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status,
                  -- The SO's Alignment: base plate and wooden box, each with its status.
                  (SELECT jsonb_build_object('base_plate', oa.base_plate, 'base_plate_status', oa.base_plate_status,
+                                            'base_plate_date', to_char(oa.base_plate_date, 'YYYY-MM-DD'),
                                             'wooden_box', oa.wooden_box, 'wooden_box_status', oa.wooden_box_status)
                     FROM orders oa WHERE oa.id = it.order_id) AS alignment`
          }`

@@ -137,6 +137,8 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[]): P
 export type Alignment = {
   base_plate: string;
   base_plate_status: string;
+  /** When the base plate was manufactured (YYYY-MM-DD), once it is. */
+  base_plate_date: string;
   wooden_box: string;
   wooden_box_status: string;
 };
@@ -159,11 +161,17 @@ export async function saveAlignmentAction(orderId: string, a: Alignment): Promis
   const boxStatus = box === "Yes" && ["In House", "Bought out"].includes(a.wooden_box_status) ? a.wooden_box_status : null;
   if (plate === "Yes" && !plateStatus) return { ok: false, error: "Choose whether the base plate is manufactured or pending." };
   if (box === "Yes" && !boxStatus) return { ok: false, error: "Choose whether the wooden box is in house or bought out." };
+  // Manufactured on a day: the date goes with it, and only with it.
+  const plateDate = plateStatus === "Manufactured" ? (a.base_plate_date ?? "").trim() : "";
+  if (plateStatus === "Manufactured" && !/^\d{4}-\d{2}-\d{2}$/.test(plateDate)) {
+    return { ok: false, error: "Enter the date the base plate was manufactured." };
+  }
   try {
     await query(
-      `UPDATE orders SET base_plate = $2, base_plate_status = $3, wooden_box = $4, wooden_box_status = $5, updated_at = now()
+      `UPDATE orders SET base_plate = $2, base_plate_status = $3, base_plate_date = $6::date,
+                         wooden_box = $4, wooden_box_status = $5, updated_at = now()
         WHERE id = $1`,
-      [orderId, plate, plateStatus, box, boxStatus]
+      [orderId, plate, plateStatus, box, boxStatus, plateDate || null]
     );
   } catch (error) {
     console.error("saveAlignmentAction failed:", error);
@@ -176,7 +184,7 @@ export async function saveAlignmentAction(orderId: string, a: Alignment): Promis
     action: "order.update",
     category: "activity",
     target: label,
-    details: `Alignment — ${part("Base plate", plate, plateStatus)}; ${part("Wooden box", box, boxStatus)}`,
+    details: `Alignment — ${part("Base plate", plate, plateStatus)}${plateDate ? ` on ${plateDate}` : ""}; ${part("Wooden box", box, boxStatus)}`,
     subject: await subjectForOrder(orderId),
   });
   revalidatePath("/risansi/departments/assembly-dispatch");
