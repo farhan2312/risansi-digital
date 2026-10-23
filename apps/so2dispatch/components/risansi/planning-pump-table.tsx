@@ -111,7 +111,7 @@ export function PlanningPumpTable({
             <th key={f.column} className={th}>{f.label}</th>
           ))}
           <th className={th}>Status</th>
-          <th className={th}>Readiness Date</th>
+          <th className={th}>Assembly Readiness Date</th>
           {LOT_COLUMNS.map((n) => (
             <th key={n} className={th}>Lot {n}</th>
           ))}
