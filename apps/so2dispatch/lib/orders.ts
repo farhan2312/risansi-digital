@@ -1055,8 +1055,10 @@ export async function saveReadyLots(
           }
         }
       }
-      // The SO's status is its latest lot's (on a pump EC too, where it is the
-      // SO's readiness; Actual Pump Status stays the EC's own).
+      // The SO's status is its latest lot's, In plan included (on a pump EC
+      // too, where it is the SO's readiness; Actual Pump Status stays the EC's
+      // own). Assembly reads the lots themselves, so a ready earlier lot is
+      // still worked on.
       await c.query(
         `INSERT INTO order_planning (item_id, actual_spare_status, planning_readiness_date, readiness_date_status)
          VALUES ($1, $2, $3, $4)
@@ -1064,7 +1066,7 @@ export async function saveReadyLots(
             SET actual_spare_status = EXCLUDED.actual_spare_status,
                 planning_readiness_date = EXCLUDED.planning_readiness_date,
                 readiness_date_status = EXCLUDED.readiness_date_status`,
-        [itemId, [...lots].reverse().find((l) => l.status !== "In plan")?.status ?? "In plan", date, dateStatus]
+        [itemId, last.status, date, dateStatus]
       );
     }
   });
