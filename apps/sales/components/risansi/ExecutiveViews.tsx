@@ -402,7 +402,18 @@ export function ExecutiveViews({ data, selector, periodLabel, note, tabs }: {
         {/* Seven slices, not five: Prospect and Suspect have wording now, so the
             donut and the table below it cover every offer rather than the six
             stages that happened to be mapped. */}
-        <MiniTable title="Offer Status" note="₹ by opportunity status" table={data.offerStatus}
+        {/* The scope is named on the figure itself, not only in the control
+            above it. Comparing Lost here against Lost on the Opportunities
+            board is the thing people actually do, and the two differ by the
+            whole of a covered account — one rep's Lost read ₹1.69 Cr here and
+            ₹2.74 Cr there, entirely because this was set to owned-only. The
+            rolling window and the value column, which were the other suspects,
+            account for nothing and ₹0.09 Cr of it respectively. */}
+        <MiniTable title="Offer Status"
+          note={data.bookSplit
+            ? `₹ by status · ${data.bookSplit.scope === 'own' ? 'accounts they own' : 'owned + covered'}`
+            : '₹ by opportunity status'}
+          table={data.offerStatus}
           chart={<Donut slices={offerSlices} colors={OFFER_COLORS} fmt={fmtCr} />} />
         <MiniTable title="Attendance" note="field visits" table={data.attendance}
           chart={<GroupedBars cats={attCats} series={['Visit days', 'Clients']} colors={['var(--accent)', 'var(--pos)']} height={100} />} />
