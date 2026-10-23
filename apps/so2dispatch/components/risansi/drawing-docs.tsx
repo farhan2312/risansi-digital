@@ -16,6 +16,7 @@ import {
   type DrawingDocument,
 } from "@/lib/drawing-docs";
 import { ConfirmDialog } from "./confirm-dialog";
+import { versionLabel } from "@/lib/dept-view";
 
 function dayOnly(iso: string): string {
   const d = new Date(iso);
@@ -29,7 +30,7 @@ function dayOnly(iso: string): string {
 
 function revisionLabel(doc: Pick<DrawingDocument, "revision_no">): string {
   const no = (doc.revision_no ?? "").trim();
-  return `V${no || "1"}`;
+  return versionLabel(no);
 }
 
 const inputClass =

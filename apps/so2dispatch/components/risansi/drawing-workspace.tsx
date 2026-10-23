@@ -6,7 +6,7 @@ import { Fragment, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarCheck, CheckCircle2, FileText, Loader2, MessageSquare, PenTool, Plus, Send, Trash2, X } from "lucide-react";
 import { DRAWING_DOC_TYPES, type DrawingDocType } from "@/lib/order-schema";
-import { DEPT_VIEWS, dispatchRowTone, drawingDocStatus, drawingVersions, type DrawingStatusTone } from "@/lib/dept-view";
+import { DEPT_VIEWS, dispatchRowTone, drawingDocStatus, drawingVersions, versionLabel, type DrawingStatusTone } from "@/lib/dept-view";
 import type { OrderListOptions } from "@/lib/orders";
 import type { PageResult } from "@/lib/pagination";
 import type { DeptCompletion } from "@/lib/dept-completion";
@@ -393,7 +393,7 @@ export function DrawingWorkspace({
                     >
                       <span className="text-sm font-semibold">{d}</span>
                       <span className={`text-[11px] ${on ? "text-primary-foreground/80" : "text-muted"}`}>
-                        {st.version ? `V${st.version} · ` : ""}
+                        {st.version ? `${versionLabel(st.version)} · ` : ""}
                         {st.label}
                       </span>
                     </button>
@@ -461,7 +461,7 @@ function DocCell({ row, doc, onOpen }: { row: Row; doc: DrawingDocType; onOpen: 
   return (
     <button type="button" onClick={onOpen} title={`Open ${doc}`} className="flex flex-col items-start gap-0.5 text-left">
       <StatusPill label={st.label} tone={st.tone} />
-      <span className="text-[11px] text-muted">{[st.version ? `V${st.version}` : "", when].filter(Boolean).join(" · ")}</span>
+      <span className="text-[11px] text-muted">{[st.version ? versionLabel(st.version) : "", when].filter(Boolean).join(" · ")}</span>
     </button>
   );
 }
@@ -506,7 +506,7 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
                 on ? "border-primary bg-primary/10 text-foreground" : "border-input-border text-foreground hover:bg-background"
               }`}
             >
-              <span className="text-sm font-semibold">V{i + 1}</span>
+              <span className="text-sm font-semibold">{versionLabel(i + 1)}</span>
               <span className="text-[11px] text-muted">{st.label}</span>
             </button>
           );
@@ -519,7 +519,7 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
             className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-dashed border-primary/50 px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 disabled:opacity-60"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            {latest ? `New version V${versions.length + 1}` : "Start V1"}
+            {latest ? `New version ${versionLabel(versions.length + 1)}` : `Start ${versionLabel(1)}`}
           </button>
         )}
       </div>
@@ -688,7 +688,7 @@ function VersionForm({
   }
 
   async function remove() {
-    if (!window.confirm(`Delete ${doc} V${number}?`)) return;
+    if (!window.confirm(`Delete ${doc} ${versionLabel(number)}?`)) return;
     setSaving(true);
     const res = await deleteOrderChildAction(str(version.id), "order_drawing_revisions", str(ec.id));
     setSaving(false);
@@ -708,7 +708,7 @@ function VersionForm({
           </span>
           <div>
             <p className="text-base font-semibold text-foreground">
-              {doc} · V{number}
+              {doc} · {versionLabel(number)}
             </p>
             <p className="text-xs text-muted">{latest ? "Latest version" : "Earlier version"}</p>
           </div>
@@ -850,7 +850,7 @@ function VersionForm({
                 type="button"
                 onClick={() => save(true)}
                 disabled={saving}
-                title={`Save this ${doc} V${number} on every pump EC of this SO`}
+                title={`Save this ${doc} ${versionLabel(number)} on every pump EC of this SO`}
                 className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
               >
                 Save to all {siblings + 1} ECs

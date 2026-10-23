@@ -19,6 +19,7 @@ import {
   listRevisionDocuments,
   revisionContext,
 } from "@/lib/drawing-docs-db";
+import { versionLabel } from "@/lib/dept-view";
 
 export type DrawingDocsResult =
   | { ok: true; docs: DrawingDocument[]; canManage: boolean }
@@ -60,7 +61,7 @@ export type SaveDrawingDocResult = { ok: true } | { ok: false; error: string };
 
 function revisionLabel(rev: { revision_no: string | null }): string {
   const no = (rev.revision_no ?? "").trim();
-  return `V${no || "1"}`;
+  return versionLabel(no);
 }
 
 /**
