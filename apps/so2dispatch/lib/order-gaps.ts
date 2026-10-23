@@ -156,3 +156,84 @@ export async function listOrderGaps(opts: {
     total: Number(result.rows[0]?.total ?? 0),
   };
 }
+
+/** One field of the gap sheet: blank and owed, filled, or not applying to this SO. */
+export type GapCell = { s: "miss" | "ok" | "na"; v: string | null };
+
+export type GapSheet = {
+  /** The fields missing on at least one of the SOs, in the form's order. */
+  columns: { column: string; label: string; group: string; type: string; options: string[] }[];
+  rows: (Omit<OrderGapRow, "missing"> & { client_code: string | null; missing: number; cells: Record<string, GapCell> })[];
+};
+
+/**
+ * Every SO with details still blank as a sheet: a row per SO, a column per
+ * field missing anywhere in it — each cell the value, or blank and owed, or
+ * not applying (N/A). The Details-not-filled pop-up shows it and downloads it
+ * as Excel to fill in.
+ */
+export async function listOrderGapSheet(opts: { search: string; type?: string | null }): Promise<GapSheet> {
+  const term = opts.search.trim();
+  const like = term === "" ? null : `%${term}%`;
+  const type = opts.type?.trim() || null;
+  const value = (f: OrderField) =>
+    f.column === "payment_terms"
+      ? `COALESCE(NULLIF(btrim(o.payment_terms::text), ''),
+                  (SELECT string_agg(concat_ws(' ', t.percent::text || '%', t.term), ', ' ORDER BY t.seq)
+                     FROM order_payment_terms t WHERE t.order_id = o.id))`
+      : f.type === "date"
+        ? `to_char(o.${f.column}, 'YYYY-MM-DD')`
+        : `NULLIF(btrim(o.${f.column}::text), '')`;
+  const cols = GAP_FIELDS.map(
+    (f, i) =>
+      `jsonb_build_object('s', CASE WHEN NOT (${appliesSql(f)}) THEN 'na' WHEN ${filledSql(f)} THEN 'ok' ELSE 'miss' END,
+                          'v', ${value(f)}) AS f${i}`
+  ).join(",\n              ");
+  const result = await query<Record<string, unknown>>(
+    `WITH checked AS (
+       SELECT o.id, o.sl_no::int AS sl_no, o.so_no, o.client_name, o.client_code,
+              to_char(o.so_date, 'YYYY-MM-DD') AS so_date, o.order_type,
+              cardinality(${MISSING_SQL}) AS missing,
+              ${cols}
+         FROM orders o
+        WHERE ${orderOpenSql("o")}
+          AND ($1::text IS NULL
+               OR o.so_no ILIKE $1 OR o.client_name ILIKE $1 OR o.client_code ILIKE $1
+               OR o.po_no ILIKE $1 OR o.sl_no::text ILIKE $1)
+          AND ($2::text IS NULL
+               OR TRIM(COALESCE(o.order_type, '')) = $2
+               OR EXISTS (SELECT 1 FROM order_items s
+                           WHERE s.order_id = o.id AND TRIM(COALESCE(s.item_type, '')) = $2))
+     )
+     SELECT * FROM checked WHERE missing > 0 ORDER BY sl_no DESC`,
+    [like, type]
+  );
+  const missingAnywhere = new Set<number>();
+  const rows = result.rows.map((r) => {
+    const cells: Record<string, GapCell> = {};
+    GAP_FIELDS.forEach((f, i) => {
+      const c = r[`f${i}`] as GapCell;
+      cells[f.column] = c;
+      if (c.s === "miss") missingAnywhere.add(i);
+    });
+    return {
+      id: String(r.id),
+      sl_no: Number(r.sl_no),
+      so_no: (r.so_no as string | null) ?? null,
+      client_name: (r.client_name as string | null) ?? null,
+      client_code: (r.client_code as string | null) ?? null,
+      so_date: (r.so_date as string | null) ?? null,
+      order_type: (r.order_type as string | null) ?? null,
+      missing: Number(r.missing),
+      cells,
+    };
+  });
+  const columns = GAP_FIELDS.filter((_, i) => missingAnywhere.has(i)).map((f) => ({
+    column: f.column,
+    label: f.label,
+    group: f.group ?? "Order details",
+    type: f.type,
+    options: (f.options ?? []).map((o) => o.value),
+  }));
+  return { columns, rows };
+}
