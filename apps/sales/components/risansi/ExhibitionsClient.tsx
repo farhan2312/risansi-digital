@@ -111,9 +111,21 @@ export function ExhibitionsClient({ rows, users, me }: {
           {shown.length} of {rows.length}
         </span>
         {canCreate && (
-          <button onClick={() => setOpen(true)} style={{ ...BTN_PRIMARY, marginLeft: 'auto' }}>
-            + New Exhibition
-          </button>
+          <>
+            {/* Every exhibition that has actually taken place, as one workbook
+                with a sheet each for the events, meetings, contacts, team,
+                expenses and reviews. Admin-only, like the route behind it. */}
+            <a
+              href="/api/risansi/exhibitions/export"
+              title="Every completed and closed exhibition, as an Excel workbook"
+              style={{ ...BTN_GHOST, marginLeft: 'auto', textDecoration: 'none', whiteSpace: 'nowrap' }}
+            >
+              Export all
+            </a>
+            <button onClick={() => setOpen(true)} style={BTN_PRIMARY}>
+              + New Exhibition
+            </button>
+          </>
         )}
       </div>
 
