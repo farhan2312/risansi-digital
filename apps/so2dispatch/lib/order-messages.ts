@@ -70,8 +70,8 @@ export function laneOf(role: string): string {
   return role === "rep_manager" ? "rep" : role;
 }
 
-/** The department roles a conversation can be with — every non-central role that is its own side. */
-export const DEPARTMENT_LANES: Role[] = ALL_ROLES.filter((r) => !isCentral(r) && laneOf(r) === r);
+/** The department roles a conversation can be with — every non-central role that is its own side (CRM only reads). */
+export const DEPARTMENT_LANES: Role[] = ALL_ROLES.filter((r) => !isCentral(r) && r !== "crm" && laneOf(r) === r);
 
 /** Central Visibility as a conversation partner. Admin shares this side. */
 export const CENTRAL_PEER = "central_visibility";

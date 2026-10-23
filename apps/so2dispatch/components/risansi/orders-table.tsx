@@ -11,7 +11,7 @@ import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
 import { billModeLabel } from "@/lib/order-schema";
 import { dispatchRowTone } from "@/lib/dept-view";
-import { isCentral, isRep } from "@/lib/roles";
+import { isCentral, isReadOnlyViewer } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -272,7 +272,8 @@ export function OrdersTable({
   const [chatFor, setChatFor] = useState<OrderListRow | null>(null);
   const [detailsFor, setDetailsFor] = useState<OrderListRow | null>(null);
   // A Rep or Rep Manager views the list; nothing on it changes anything.
-  const readOnly = isRep(role);
+  // A Rep or CRM reads the list; they change nothing on it.
+  const readOnly = isReadOnlyViewer(role);
   // The filter lives in the URL, so it narrows the whole table rather than
   // only the page already loaded.
   const { get: getParam } = useUrlTable();
