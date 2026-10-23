@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
+import type { NewBoiItem } from "@/lib/orders";
 import { getCurrentUser } from "@/lib/session";
 import {
   addChildRow,
@@ -2107,7 +2108,7 @@ export async function boiItemsAction(itemId: string): Promise<BoiItemsResult> {
 
   try {
     const result = await query<Record<string, unknown>>(
-      `SELECT id, boi_item, boi_item_other, boi_make, boi_description,
+      `SELECT id, boi_item, boi_item_other, boi_make, boi_qty, boi_description,
               to_char(expected_receipt_date, 'YYYY-MM-DD') AS expected_receipt_date,
               to_char(receipt_date, 'YYYY-MM-DD') AS receipt_date, remarks
          FROM order_boi_items
@@ -2124,47 +2125,94 @@ export async function boiItemsAction(itemId: string): Promise<BoiItemsResult> {
 
 
 /**
- * Bought-out items added to an EC that already exists — the EC form, when an
- * EC is edited and its BOI is Yes. Those who manage ECs only (an Order Making
- * SO member on their own SOs). The EC must say BOI Yes; Purchase is told.
+ * An existing EC's bought-out items as the EC form leaves them: rows with
+ * an id are changed in place (the item, make, qty, description — Purchase's
+ * figures on them stay), rows without one are added, and saved rows left out
+ * are removed. Each row filled in full; BOI Yes keeps at least one. Those who
+ * manage ECs only (an Order Making SO member on their own SOs); Purchase is told.
  */
-export async function addEcBoiItemsAction(itemId: string, boi: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function saveEcBoiItemsAction(
+  itemId: string,
+  rows: (Record<string, unknown> & { id?: string | null })[]
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  const rows = cleanBoiRows(boi);
-  if (!rows.ok) return { ok: false, error: rows.error };
-  if (rows.rows.length === 0) return { ok: true };
   const ec = await getItemDetail(itemId);
   if (!ec) return { ok: false, error: "EC not found." };
   const orderId = String(ec.order.id);
   const denied = await ecDenied(user, orderId);
   if (denied) return { ok: false, error: denied };
-  if (String(ec.item.boi ?? "") !== "Yes") {
+  const boiYes = String(ec.item.boi ?? "") === "Yes";
+
+  // Each row checked as the form checks it; its id kept beside it.
+  const clean: { id: string | null; row: NewBoiItem }[] = [];
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const one = cleanBoiRows([r]);
+    if (!one.ok) return { ok: false, error: one.error };
+    if (one.rows[0]) clean.push({ id: r.id ? String(r.id) : null, row: one.rows[0] });
+  }
+  if (!boiYes && clean.length > 0) {
     return { ok: false, error: "This EC's BOI is not set to Yes, so it cannot list bought-out items." };
   }
+  if (boiYes && clean.length === 0) return { ok: false, error: "BOI is Yes: add the bought-out items." };
+
+  const saved = await query<{ id: string; boi_item: string | null; boi_item_other: string | null; boi_make: string | null; boi_qty: number | null; boi_description: string | null }>(
+    `SELECT id, boi_item, boi_item_other, boi_make, boi_qty, boi_description FROM order_boi_items WHERE item_id = $1`,
+    [itemId]
+  );
+  const byId = new Map(saved.rows.map((r) => [r.id, r]));
+  const keep = new Set(clean.map((c) => c.id).filter((x): x is string => !!x && byId.has(x)));
+  const removed = saved.rows.filter((r) => !keep.has(r.id));
+  const added: NewBoiItem[] = [];
+  const changed: NewBoiItem[] = [];
+  const nameOf = (r: { boi_item?: string | null; boi_item_other?: string | null }) =>
+    r.boi_item === "Others" ? r.boi_item_other || "Others" : r.boi_item || "Item";
   try {
-    for (const row of rows.rows) {
-      await query(
-        `INSERT INTO order_boi_items (item_id, boi_item, boi_item_other, boi_make, boi_qty, boi_description)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          itemId,
-          row.boi_item || null,
-          row.boi_item_other || null,
-          row.boi_make || null,
-          row.boi_qty ?? null,
-          row.boi_description || null,
-        ]
-      );
-    }
+    await withTransaction(async (client) => {
+      if (removed.length) {
+        await client.query(`DELETE FROM order_boi_items WHERE item_id = $1 AND id = ANY($2::uuid[])`, [itemId, removed.map((r) => r.id)]);
+      }
+      for (const { id, row } of clean) {
+        const was = id ? byId.get(id) : undefined;
+        const vals = [row.boi_item, row.boi_item_other || null, row.boi_make || null, row.boi_qty ?? null, row.boi_description || null];
+        if (was) {
+          const same =
+            (was.boi_item ?? "") === row.boi_item &&
+            (was.boi_item_other ?? "") === (row.boi_item_other ?? "") &&
+            (was.boi_make ?? "") === (row.boi_make ?? "") &&
+            Number(was.boi_qty ?? NaN) === Number(row.boi_qty ?? NaN) &&
+            (was.boi_description ?? "") === (row.boi_description ?? "");
+          if (same) continue;
+          await client.query(
+            `UPDATE order_boi_items SET boi_item = $2, boi_item_other = $3, boi_make = $4, boi_qty = $5, boi_description = $6
+              WHERE id = $1 AND item_id = $7`,
+            [was.id, ...vals, itemId]
+          );
+          changed.push(row);
+        } else {
+          await client.query(
+            `INSERT INTO order_boi_items (item_id, boi_item, boi_item_other, boi_make, boi_qty, boi_description)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [itemId, ...vals]
+          );
+          added.push(row);
+        }
+      }
+    });
   } catch (error) {
-    console.error("addEcBoiItemsAction failed:", error);
-    return { ok: false, error: "Could not add the bought-out items." };
+    console.error("saveEcBoiItemsAction failed:", error);
+    return { ok: false, error: "Could not save the bought-out items." };
   }
+  if (!added.length && !changed.length && !removed.length) return { ok: true };
+
   const soLabel = String(ec.order.so_no ?? `#${ec.order.sl_no}`);
   const ecLabel = String(ec.item.ec_no ?? "").trim();
   const label = ecLabel ? `${soLabel} · ${ecLabel}` : soLabel;
-  const named = rows.rows.map((r) => (r.boi_item === "Others" ? r.boi_item_other || "Others" : r.boi_item)).join(", ");
+  const parts = [
+    added.length ? `added ${added.map(nameOf).join(", ")}` : "",
+    changed.length ? `changed ${changed.map(nameOf).join(", ")}` : "",
+    removed.length ? `removed ${removed.map(nameOf).join(", ")}` : "",
+  ].filter(Boolean);
   const roles = ["purchase"];
   if (user.role !== "central_visibility") roles.push("central_visibility");
   await Promise.all([
@@ -2173,7 +2221,7 @@ export async function addEcBoiItemsAction(itemId: string, boi: unknown): Promise
       action: "order.update",
       category: "activity",
       target: label,
-      details: `Listed ${rows.rows.length} bought-out item(s) on ${ecLabel || "the EC"} — ${named}`,
+      details: `Bought-out items on ${ecLabel || "the EC"}: ${parts.join("; ")}`,
       subject: { orderId, itemId, soNo: soLabel, ecNo: ecLabel || null },
     }),
     emitNotification({
@@ -2181,7 +2229,7 @@ export async function addEcBoiItemsAction(itemId: string, boi: unknown): Promise
       orderId,
       itemId,
       type: "dept_update",
-      message: `Bought-out items to purchase — ${label} · ${named}`,
+      message: `Bought-out items updated — ${label} · ${parts.join("; ")}`,
     }),
   ]);
   revalidatePath(`/risansi/orders/${orderId}`);
