@@ -11,7 +11,7 @@
 
 import { query } from "@/lib/db";
 import { SECTION_BY_TABLE, SO_DETAIL_FIELDS, type OrderField } from "@/lib/order-schema";
-import { deptInvolvementSql, orderOpenSql } from "@/lib/dept-view";
+import { deptInvolvementSql, orderOpenSql, orderStatusSql } from "@/lib/dept-view";
 
 export type OrderGapRow = {
   id: string;
@@ -131,6 +131,8 @@ export async function listOrderGaps(opts: {
               ${MISSING_SQL} AS missing
          FROM orders o
         WHERE ${orderOpenSql("o")}
+          -- Gone out in full: nothing is left to fill on it (lot dispatched still counts).
+          AND lower(${orderStatusSql("o")}) <> 'fully dispatch'
           AND ($1::text IS NULL
                OR o.so_no ILIKE $1
                OR o.client_name ILIKE $1
@@ -197,6 +199,8 @@ export async function listOrderGapSheet(opts: { search: string; type?: string | 
               ${cols}
          FROM orders o
         WHERE ${orderOpenSql("o")}
+          -- Gone out in full: nothing is left to fill on it (lot dispatched still counts).
+          AND lower(${orderStatusSql("o")}) <> 'fully dispatch'
           AND ($1::text IS NULL
                OR o.so_no ILIKE $1 OR o.client_name ILIKE $1 OR o.client_code ILIKE $1
                OR o.po_no ILIKE $1 OR o.sl_no::text ILIKE $1)
