@@ -84,12 +84,16 @@ export async function uploadRevenue(rows: UploadPayloadRow[]): Promise<UploadRes
 
     // Check if exists (for count tracking)
     const existing = await risansiPool.query(
-      `SELECT id FROM client_revenue_monthly WHERE client_id = $1 AND month = $2`,
+      `SELECT id FROM client_revenue_uploaded WHERE client_id = $1 AND month = $2`,
       [clientId, monthDate],
     );
 
+      // client_revenue_uploaded, not client_revenue_monthly: the latter is now a
+      // VIEW that merges this table with portal invoices, and a UNION view
+      // cannot be written to. Writes belong to the physical table; the view is
+      // what the 57 read sites see.
     await risansiPool.query(
-      `INSERT INTO client_revenue_monthly
+      `INSERT INTO client_revenue_uploaded
          (client_id, month, half, pump_value, spare_value, total_value, entered_by, entered_at, upload_id)
        VALUES ($1, $2, $8, $3, $4, $5, $6, NOW(), $7)
        ON CONFLICT (client_id, month) DO UPDATE SET
@@ -149,7 +153,7 @@ export async function deleteUpload(logId: number, _month: string): Promise<void>
   // Legacy uploads (pre-0048) have no upload_id on their rows, so this removes
   // nothing for them — deliberately safer than guessing which rows were theirs.
   const del = await risansiPool.query(
-    `DELETE FROM client_revenue_monthly WHERE upload_id = $1`,
+    `DELETE FROM client_revenue_uploaded WHERE upload_id = $1`,
     [logId],
   );
 

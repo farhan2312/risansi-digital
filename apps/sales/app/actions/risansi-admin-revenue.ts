@@ -52,8 +52,12 @@ export async function uploadRevenue(rows: UploadRow[]): Promise<{ inserted: numb
     const spare    = Number(row.spare_value) || 0;
     const total    = pump + spare;
 
+      // client_revenue_uploaded, not client_revenue_monthly: the latter is now a
+      // VIEW that merges this table with portal invoices, and a UNION view
+      // cannot be written to. Writes belong to the physical table; the view is
+      // what the 57 read sites see.
     await risansiPool.query(
-      `INSERT INTO client_revenue_monthly
+      `INSERT INTO client_revenue_uploaded
          (client_id, month, pump_value, spare_value, total_value, entered_by, entered_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())
        ON CONFLICT (client_id, month) DO UPDATE SET
