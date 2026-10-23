@@ -1564,6 +1564,9 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
     suspect_reason:       (formData.get('suspect_reason') as string | null) || null,
     hold_reason:          (formData.get('hold_reason') as string | null) || null,
     po_date:              (formData.get('po_date') as string | null) || null,
+    invoice_no:           (formData.get('invoice_no') as string | null)?.trim() || null,
+    invoice_date:         (formData.get('invoice_date') as string | null) || null,
+    invoice_value_inr:    parseMoneyInput(formData.get('invoice_value_inr')),
     po_received_date:     ((formData.get('po_received_date') as string | null) || null)
                             ?? ((formData.get('po_date') as string | null) || null),
     // The quotation's own columns. These were only ever written by
@@ -1602,7 +1605,8 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
                    'lost_to_competitor_other','lost_reason',
                    'opportunity_type','opportunity_source','opportunity_category',
                    'client_reference','suspect_reason','hold_reason','po_date','po_received_date',
-                   'market','enquiry_no','enquiry_date']) {
+                   'market','enquiry_no','enquiry_date',
+                   'invoice_no','invoice_date','invoice_value_inr']) {
     if (formData.get(k) === null) delete candidates[k];
   }
   // A Total Offer is required at every quote stage, so a blank one is never a
@@ -1683,6 +1687,30 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
              WHERE opportunity_id = $1 AND lower(btrim(po_number)) = lower(btrim($2)))`,
         [oppId, poNum, poDate, poInrToCr(poInr), user.email ?? null],
       ).catch(e => console.error('[opp] could not record the PO from the Won form', e));
+    }
+
+    // And the invoice, which is what makes the revenue appear without waiting
+    // for the month to be uploaded.
+    //
+    // Deliberately NOT a write into client_revenue_monthly. That table is
+    // unique on (client, month) and both of its writers upsert with DO UPDATE
+    // SET total_value = EXCLUDED.total_value, so an invoice put there would
+    // show up at once and then be wiped, silently, by the next upload of that
+    // month. It goes to opportunity_invoices and the revenue reads prefer an
+    // uploaded figure wherever one exists.
+    const invNo = (formData.get('invoice_no') as string | null)?.trim() ?? '';
+    const invDate = (formData.get('invoice_date') as string | null)?.trim() ?? '';
+    const invInr = parseMoneyInput(formData.get('invoice_value_inr'));
+    if (invNo && /^\d{4}-\d{2}-\d{2}$/.test(invDate) && invInr != null && invInr > 0) {
+      await risansiPool.query(
+        `INSERT INTO opportunity_invoices (opportunity_id, client_id, invoice_no, invoice_date, invoice_value_inr, created_by)
+         SELECT $1, o.client_id, $2, $3::date, $4, $5
+           FROM opportunities o WHERE o.id = $1 AND o.client_id IS NOT NULL
+         ON CONFLICT (opportunity_id, lower(btrim(invoice_no))) DO UPDATE
+            SET invoice_date = EXCLUDED.invoice_date,
+                invoice_value_inr = EXCLUDED.invoice_value_inr`,
+        [oppId, invNo, invDate, invInr, user.email ?? null],
+      ).catch(e => console.error('[opp] could not record the invoice from the Won form', e));
     }
   }
 

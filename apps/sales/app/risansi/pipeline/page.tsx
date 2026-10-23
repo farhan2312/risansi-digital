@@ -426,6 +426,12 @@ export default async function PipelinePage({
                o.revised_offer_date::text  AS revised_offer_date,
                o.po_date::text             AS po_date,
                o.po_received_date::text    AS po_received_date,
+               -- ::text for the same reason every date above carries it: a raw
+               -- date column reaches the browser as a JS Date, the form hands
+               -- that straight back, and Postgres refuses it, losing the edit.
+               o.invoice_no                AS invoice_no,
+               o.invoice_date::text        AS invoice_date,
+               o.invoice_value_inr::float8 AS invoice_value_inr,
                (SELECT COALESCE(SUM(so.so_value_cr), 0) FROM opportunity_sales_orders so WHERE so.opportunity_id = o.id)::float8 AS so_sum_cr,
                -- Owner first, then whoever covers the account. Still keyed
                -- tour_people because the drawer reads that name; the people in

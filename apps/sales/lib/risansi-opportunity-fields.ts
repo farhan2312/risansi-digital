@@ -219,6 +219,19 @@ export const OPP_FIELDS: OppFieldDef[] = [
   { name: 'po_value_inr',    label: 'PO Value (₹)',         kind: 'inr',  asked: 'Won', onlyStages: ['Won'], requiredAt: ['Won'],
     help: 'What the customer ordered, as the PO says. Carried straight into the Purchase Orders list.' },
 
+  // ── The invoice, so revenue does not wait for the monthly upload ──
+  //
+  // Required at Won, as asked. Note that these do NOT write into
+  // client_revenue_monthly: that table is unique on (client, month) and its
+  // uploaders overwrite the cell, so an invoice put there would be erased
+  // without trace by the next upload. They are stored on their own and the
+  // revenue reads prefer an uploaded figure wherever one exists.
+  { name: 'invoice_no',       label: 'Invoice No.',   kind: 'text', asked: 'Won', onlyStages: ['Won'], requiredAt: ['Won'],
+    placeholder: 'e.g. RIL/INV/26-27/0412' },
+  { name: 'invoice_date',     label: 'Invoice Date',  kind: 'date', asked: 'Won', onlyStages: ['Won'], requiredAt: ['Won'], noFuture: true },
+  { name: 'invoice_value_inr', label: 'Invoice Value (₹)', kind: 'inr', asked: 'Won', onlyStages: ['Won'], requiredAt: ['Won'],
+    help: 'Counts as revenue straight away, until the month is uploaded.' },
+
   // ── Lost ────────────────────────────────────────────────────
   { name: 'lost_to_competitor', label: 'Lost To Competitor', kind: 'select', asked: 'Lost', onlyStages: ['Lost'], requiredAt: ['Lost'], options: [] },
   { name: 'lost_to_competitor_other', label: 'Name the competitor', kind: 'text',
