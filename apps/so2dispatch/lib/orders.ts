@@ -2676,6 +2676,9 @@ export async function listItemsForSection(
                  -- The parts the EC is short of.
                  COALESCE((SELECT jsonb_agg(to_jsonb(ps) ORDER BY ps.seq)
                              FROM order_part_shortages ps WHERE ps.item_id = it.id), '[]'::jsonb) AS part_shortages,
+                 -- Its bought-out items, as Purchase has them (Planning reads them).
+                 COALESCE((SELECT jsonb_agg(to_jsonb(bi) ORDER BY bi.created_at)
+                             FROM order_boi_items bi WHERE bi.item_id = it.id), '[]'::jsonb) AS boi_items,
                  COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
                              FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings,
                  (SELECT to_char(pad.actual_packing_date, 'YYYY-MM-DD')
