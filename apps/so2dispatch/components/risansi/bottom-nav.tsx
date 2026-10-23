@@ -19,6 +19,7 @@ import {
   canViewDepartment,
   canAccessOrderMaking,
   canSeeEscalations,
+  getsNotifications,
   isCentral,
   reminderDeptForRole,
   reminderDeptForTable,
@@ -90,10 +91,10 @@ export function BottomNav({
     ...(visiblePrimaryNav.length < 2 && visibleDepartments.length === 1
       ? [{ item: visibleDepartments[0] as NavItem, badge: reminderCount }]
       : []),
-    {
-      item: { label: "Alerts", href: "/risansi/notifications", icon: Bell },
-      badge: notifBadge,
-    },
+    // No Notifications for a Rep, Rep Manager or CRM.
+    ...(getsNotifications(user.role)
+      ? [{ item: { label: "Alerts", href: "/risansi/notifications", icon: Bell } as NavItem, badge: notifBadge }]
+      : []),
   ].slice(0, 4);
 
   // Anything not already a tab goes in the More sheet.

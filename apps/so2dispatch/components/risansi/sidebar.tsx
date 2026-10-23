@@ -19,6 +19,7 @@ import {
   canViewDepartment,
   canAccessOrderMaking,
   canSeeEscalations,
+  getsNotifications,
   isCentral,
   reminderDeptForRole,
   reminderDeptForTable,
@@ -131,14 +132,16 @@ export function Sidebar({
             {visiblePrimaryNav.map((item) => (
               <NavLink key={item.href} item={item} />
             ))}
-            <NavLink
-              item={{
-                label: "Notifications",
-                href: "/risansi/notifications",
-                icon: Bell,
-              }}
-              badge={notifBadge}
-            />
+            {getsNotifications(user.role) && (
+              <NavLink
+                item={{
+                  label: "Notifications",
+                  href: "/risansi/notifications",
+                  icon: Bell,
+                }}
+                badge={notifBadge}
+              />
+            )}
             {/* The admin reaches the whole tracker under Admin; everyone else
                 follows the reports they sent. */}
             {user.role !== "admin" && (
