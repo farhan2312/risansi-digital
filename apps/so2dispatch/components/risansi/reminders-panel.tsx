@@ -124,11 +124,12 @@ export function RemindersPanel({
 
       {shown.length > 0 && (
         <ul className="mt-2 divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm">
-          {shown.map((r) => {
+          {shown.map((r, i) => {
             const style = TIER_STYLE[r.tier];
             return (
               <li
-                key={`${r.id}-${r.dept}-${r.ec_no ?? ""}`}
+                // Two ECs can share an EC No., so the position keeps the key unique.
+                key={`${r.id}-${r.dept}-${r.ec_no ?? ""}-${i}`}
                 className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex min-w-0 items-start gap-3">

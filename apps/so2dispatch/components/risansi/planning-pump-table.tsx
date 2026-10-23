@@ -224,7 +224,8 @@ export function PlanningPumpTable({
                           const inLot = ecs
                             .map((e) => {
                               const rows = Array.isArray(e.ready_lots) ? (e.ready_lots as Row[]) : [];
-                              return { ec: str(e.ec_no), qty: Number(rows[n - 1]?.qty ?? 0) || 0 };
+                              // Keyed by the EC's id: two ECs can share an EC No.
+                              return { id: str(e.id), ec: str(e.ec_no), qty: Number(rows[n - 1]?.qty ?? 0) || 0 };
                             })
                             .filter((x) => x.qty > 0);
                           return (
@@ -236,7 +237,7 @@ export function PlanningPumpTable({
                                   </span>
                                   <span className="block text-[11px] text-muted">{lot.ready_date ? shortDate(lot.ready_date) : "—"}</span>
                                   {inLot.map((x) => (
-                                    <span key={x.ec} className="block text-[11px] text-foreground">
+                                    <span key={x.id} className="block text-[11px] text-foreground">
                                       {x.ec} <span className="text-muted">×{x.qty}</span>
                                     </span>
                                   ))}
