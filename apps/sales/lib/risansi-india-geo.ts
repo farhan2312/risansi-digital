@@ -7,22 +7,38 @@
 //
 // Three spellings are in play and they disagree. `clients.state` is whatever
 // was typed or imported ("ORISSA", "Jammu And Kashmir", "Uttaranchal"); the
-// boundary file (public/india-states.json, GADM) uses its own vintage of the
-// names, which predates Telangana and the 2019 reorganisations; and the portal
-// displays the current ones. normaliseStateName maps all of them onto one
-// label per state so the choropleth, the bubbles and the ranking agree.
+// boundary file spells them its own way ("Jammu and Kashmir", "Dadra and
+// Nagar Haveli and Daman and Diu"); and the portal displays the current ones.
+// normaliseStateName maps all of them onto one label per state so the
+// choropleth, the bubbles and the ranking agree.
 //
-// ── A real gap, recorded here rather than hidden ────────────────
+// ── The boundary file, and what it does and does not show ───────
 //
-// The boundary file has 35 features and no Telangana: it carries the pre-2014
-// Andhra Pradesh polygon. Telangana clients therefore aggregate and plot
-// correctly as Telangana, but the shading lands on the old combined shape.
-// TELANGANA_IN_AP_GEOMETRY below names it so nobody rediscovers it as a bug.
-// The same file is clipped to the Line of Control, so Jammu & Kashmir stops at
-// 35.5°N and neither Ladakh, Gilgit-Baltistan nor Aksai Chin appear. Both need
-// a replacement boundary file, not a code change.
+// public/india-states-goi.json, 36 features, from Vardhan-Systems/vardhan-maps
+// (OpenStreetMap-derived, ODbL 1.0, with the publisher's Government of India
+// border patches applied). The credit line is on the map's footer because ODbL
+// requires it wherever the data is shown.
+//
+// It replaced a GADM file that was wrong in two ways. That file was clipped to
+// the Line of Control - Jammu & Kashmir stopped at 35.50°N / 79.56°E, so Aksai
+// Chin, Gilgit-Baltistan and Azad Kashmir were not drawn as part of India at
+// all. It was also twelve years stale: 35 features, no Telangana (it carried
+// the pre-2014 combined Andhra Pradesh polygon), no Ladakh, "Orissa",
+// "Uttaranchal", and Daman & Diu still separate from Dadra & Nagar Haveli.
+//
+// Verified by point-in-polygon on the replacement before it was wired in:
+//
+//   Aksai Chin, Gilgit-Baltistan, Siachen      inside Ladakh
+//   Azad Kashmir (Muzaffarabad, Mirpur)        inside Jammu and Kashmir
+//   Arunachal Pradesh (Tawang, Itanagar)       present in full
+//   northern extent                            37.09°N, west to 72.51°E
+//
+// NOT covered: the Shaksgam Valley / Trans-Karakoram Tract, roughly
+// 76.2–77.8°E by 35.6–36.5°N, which India claims and this file leaves out.
+// Closing that needs a survey-grade boundary source, not a code change, and
+// nothing here should paper over it by drawing a polygon nobody surveyed.
 
-export const TELANGANA_IN_AP_GEOMETRY = true;
+export const SHAKSGAM_VALLEY_MISSING = true;
 
 // ── State centres [lng, lat] ──────────────────────────────────
 

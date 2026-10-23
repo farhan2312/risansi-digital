@@ -6,7 +6,14 @@ import {
   CITY_COORDS, STATE_CENTERS, INTL_STATES, normaliseStateName, cityKey,
 } from '@/lib/risansi-india-geo';
 
-const GEO_URL = '/india-states.json';
+// Boundaries that show India as the Government of India depicts it. The file
+// this replaced was GADM, clipped to the Line of Control: it stopped at
+// 35.5°N, so Aksai Chin, Gilgit-Baltistan and Azad Kashmir were simply absent
+// from the country. See public/india-states-goi.json's provenance note in
+// lib/risansi-india-geo.ts.
+const GEO_URL = '/india-states-goi.json';
+/** The boundary file's own property for the state name. */
+const GEO_NAME_PROP = 'name';
 
 // The field map, rebuilt.
 //
@@ -325,7 +332,7 @@ export function IndiaMap({ clients }: { clients: MapClient[] }) {
 
               <Geographies geography={GEO_URL}>
                 {({ geographies }) => geographies.map(geo => {
-                  const raw  = String(geo.properties?.NAME_1 ?? '');
+                  const raw  = String(geo.properties?.[GEO_NAME_PROP] ?? '');
                   const name = normaliseStateName(raw) ?? raw;
                   const agg  = byState.get(name);
                   const v    = agg ? metric.of(agg) : (metric.key === 'coverage' ? -1 : 0);
@@ -480,6 +487,15 @@ export function IndiaMap({ clients }: { clients: MapClient[] }) {
           {plottedCount.toLocaleString('en-IN')} of {total.toLocaleString('en-IN')} clients placed
           {' · '}{cityGroups.length} locations
           {intlCount > 0 && ` · ${intlCount} international, listed below`}
+          {/* ODbL requires this credit wherever the boundary data is shown. */}
+          <span style={{ marginLeft: 'auto', float: 'right', color: 'var(--fg-4)' }}>
+            Boundaries{' '}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
+               style={{ color: 'var(--fg-4)' }}>
+              &copy; OpenStreetMap contributors
+            </a>
+            {' '}(ODbL), Government of India depiction
+          </span>
         </div>
       </div>
 
