@@ -31,8 +31,13 @@ const lakh = (n: number) => `₹ ${(n / 1e5).toFixed(2)} L`;
 
 export interface GroupUnit {
   code: string; name: string; tcd: number | null;
-  rilPcp: number; rotoPcp: number; otherPcp: number; totalPcp: number;
-  rilMmp: number; otherMmp: number; totalPumps: number;
+  /** RIL pumps counted from the installed-base records, not the survey. */
+  rilPumps: number;
+  /** The PCP/MMP split of those, where the model plate says which. They do
+   *  not have to add up to rilPumps: 2.4% of plates say neither. */
+  rilPcp: number; rilMmp: number;
+  rotoPcp: number; otherPcp: number; totalPcp: number;
+  otherMmp: number; totalPumps: number;
   sparesPerPump: number | null;
   pumpByFy: (number | null)[];
   spareByFy: (number | null)[];
@@ -164,14 +169,17 @@ export function GroupReview({ d }: { d: GroupReviewData }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         <Kpi label="Units in group" value={String(d.units.length)} />
         <Kpi label="Total pumps" value={String(f.pcpTotal + f.mmpTotal)} sub={`${f.pcpTotal} PCP · ${f.mmpTotal} MMP`} />
-        <Kpi label="RIL share · PCP" value={`${pct(f.pcpRil, f.pcpTotal)}%`} sub={`${f.pcpRil} of ${f.pcpTotal}`} accent />
+        {/* RIL is now every RIL pump on record, so the label no longer
+            claims PCP specifically — the competitor side is still PCP, which
+            is all the survey counts. */}
+        <Kpi label="RIL share" value={`${pct(f.pcpRil, f.pcpTotal)}%`} sub={`${f.pcpRil} of ${f.pcpTotal}`} accent />
         <Kpi label="Spares / pump · avg-yr" value={d.sparesPerPumpAvg == null ? '—' : `₹ ${inr(d.sparesPerPumpAvg)}`} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 12 }}>
         <Panel title="Pumps Footprint">
           <ul style={UL}>
-            <li><b>PCP</b> — RIL {pct(f.pcpRil, f.pcpTotal)}% · Roto {pct(f.pcpRoto, f.pcpTotal)}% · Others {pct(f.pcpOther, f.pcpTotal)}% <span style={DIM}>({f.pcpTotal} pumps)</span></li>
+            <li><b>Installed base</b> — RIL {pct(f.pcpRil, f.pcpTotal)}% · Roto {pct(f.pcpRoto, f.pcpTotal)}% · Others {pct(f.pcpOther, f.pcpTotal)}% <span style={DIM}>({f.pcpTotal} pumps · RIL counted from the records, competitors from the site survey)</span></li>
             <li><b>MMP</b> — RIL {pct(f.mmpRil, f.mmpTotal)}% · Others {pct(f.mmpOther, f.mmpTotal)}% <span style={DIM}>({f.mmpTotal} pumps)</span></li>
             <li>Units with no footprint recorded: <b>{d.units.filter(u => u.totalPumps === 0).length}</b></li>
           </ul>
@@ -193,7 +201,10 @@ export function GroupReview({ d }: { d: GroupReviewData }) {
             <thead><tr>
               <SortTH {...unitSort('name')} style={TH} align="left">Unit</SortTH>
               <SortTH {...unitSort('tcd')} style={TH} align="right">Cap TCD</SortTH>
-              <SortTH {...unitSort('rilPcp')} style={TH} align="right">RIL PCP</SortTH>
+              {/* One RIL column, from the records, with the split underneath
+                  where the model plate says which it is. The survey this used
+                  to read disagreed with Client 360 for 851 of 970 clients. */}
+              <SortTH {...unitSort('rilPumps')} style={TH} align="right">RIL pumps</SortTH>
               <SortTH {...unitSort('rotoPcp')} style={TH} align="right">ROTO PCP</SortTH>
               <SortTH {...unitSort('otherPcp')} style={TH} align="right">OTHER PCP</SortTH>
               <SortTH {...unitSort('totalPcp')} style={TH} align="right">Total PCP</SortTH>
@@ -206,7 +217,19 @@ export function GroupReview({ d }: { d: GroupReviewData }) {
               {units.map(u => (
                 <tr key={u.code}>
                   <td style={{ ...TD, fontWeight: 500 }}>{u.name}</td>
-                  <Num v={u.tcd} /><Num v={u.rilPcp} /><Num v={u.rotoPcp} /><Num v={u.otherPcp} />
+                  <Num v={u.tcd} />
+                  {/* The count, with its PCP/MMP split beneath where the model
+                      plates say. A unit whose plates say neither shows the
+                      count alone rather than a split that adds up wrong. */}
+                  <td style={{ ...TD, textAlign: 'right' }}>
+                    {u.rilPumps || <span style={{ color: 'var(--fg-4)' }}>—</span>}
+                    {u.rilPumps > 0 && (u.rilPcp > 0 || u.rilMmp > 0) && (
+                      <div style={{ fontSize: 10, color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>
+                        {[u.rilPcp && `${u.rilPcp} PCP`, u.rilMmp && `${u.rilMmp} MMP`].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                  </td>
+                  <Num v={u.rotoPcp} /><Num v={u.otherPcp} />
                   <td style={{ ...TD, textAlign: 'right', fontFamily: MONO, fontWeight: 700 }}>{u.totalPcp || '—'}</td>
                   <Num v={u.rilMmp} /><Num v={u.otherMmp} />
                   <td style={{ ...TD, textAlign: 'right', fontFamily: MONO }}>{u.sparesPerPump == null ? '—' : inr(u.sparesPerPump)}</td>

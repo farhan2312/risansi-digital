@@ -6,6 +6,7 @@ import { OWN_OPEN, clientScopeSql, clientVisibilitySql, getCurrentUser, getManag
 import risansiPool from '@/lib/db-risansi';
 import { ExecutiveViews, ExecTabs, type ExecData, type Row, type ExecTab } from '@/components/risansi/ExecutiveViews';
 import { ExecExportButtons } from '@/components/risansi/ExecExportButtons';
+import { PUMP_TYPE_SQL } from '@/lib/risansi-pump-type';
 import { ProjectionFilters } from '@/components/risansi/ProjectionFilters';
 import { ExecutiveSelector, type SelRep } from '@/components/risansi/ExecutiveSelector';
 import { ExecDrilldownProvider } from '@/components/risansi/ExecDrilldown';
@@ -216,7 +217,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
           WHERE c.group_name = $1 AND c.deleted_at IS NULL${visAnd} ORDER BY c.legal_name`, [picked])).rows, []);
       const ids = units.map(u => Number(u.id));
 
-      const [foot, rev, comps] = await Promise.all([
+      const [foot, rev, pumpRecs, comps] = await Promise.all([
         q<{ client_id: number; ril_pcp: number; roto_pcp: number; total_pcp: number; ril_mmp: number; total_mmp: number; total_pumps: number }[]>(async () => (await risansiPool.query(
           `SELECT DISTINCT ON (client_id) client_id,
                   COALESCE(ril_pcp,0) ril_pcp, COALESCE(roto_pcp,0) roto_pcp, COALESCE(total_pcp,0) total_pcp,
@@ -226,6 +227,22 @@ export default async function ExecutiveReviewPage({ searchParams }: {
         q<{ client_id: number; fy: string; pump: string; spare: string }[]>(async () => (await risansiPool.query(
           `SELECT client_id, ${FY_EXPR('month')} fy, SUM(pump_value)::text pump, SUM(spare_value)::text spare
              FROM client_revenue_monthly WHERE client_id = ANY($1::int[]) GROUP BY 1,2`, [ids])).rows, []),
+        // RIL pumps counted from the records, not from the survey.
+        //
+        // competitor_installed_base.ril_pcp is a figure somebody wrote down on
+        // site; client_pumps is the itemised list, serial by serial, that every
+        // visit keeps current. They disagreed for 851 of 970 clients — Athani
+        // Kempwad read 17 against 11 real records, and Shivneri read 0 against
+        // 16 — because nothing ever tied them together. The records win: they
+        // are what Client 360 shows and what a rep can point at.
+        //
+        // The survey keeps the competitor columns, where it is the only source
+        // we have.
+        q<{ client_id: number; ril_pumps: number; ril_pcp_rec: number; ril_mmp_rec: number }[]>(async () => (await risansiPool.query(
+          `SELECT client_id, count(*)::int ril_pumps,
+                  count(*) FILTER (WHERE ${PUMP_TYPE_SQL('pump_model_plate')} = 'PCP')::int ril_pcp_rec,
+                  count(*) FILTER (WHERE ${PUMP_TYPE_SQL('pump_model_plate')} = 'MMP')::int ril_mmp_rec
+             FROM client_pumps WHERE client_id = ANY($1::int[]) GROUP BY 1`, [ids])).rows, []),
         // NB: `year` is reserved in Postgres — alias as yr.
         q<{ yr: number; nature: string; n: string }[]>(async () => (await risansiPool.query(
           `SELECT EXTRACT(YEAR FROM complaint_date)::int AS yr,
@@ -235,26 +252,39 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       ]);
 
       const fMap = new Map(foot.map(f => [f.client_id, f]));
+      const pMap = new Map(pumpRecs.map(p => [p.client_id, p]));
       const rMap = new Map(rev.map(r => [`${r.client_id}|${r.fy}`, r]));
       const gu: GroupUnit[] = units.map(u => {
         const id = Number(u.id); const f = fMap.get(id);
-        const totalPcp = f?.total_pcp ?? 0, rilPcp = f?.ril_pcp ?? 0, rotoPcp = f?.roto_pcp ?? 0;
-        const totalMmp = f?.total_mmp ?? 0, rilMmp = f?.ril_mmp ?? 0;
-        const totalPumps = f?.total_pumps ?? (totalPcp + totalMmp);
+        const rec = pMap.get(id);
+        const surveyPcp = f?.total_pcp ?? 0, rotoPcp = f?.roto_pcp ?? 0;
+        // RIL from the records. The split is shown where the model plate says
+        // which it is — 97.6% of the installed base — and the remainder is
+        // counted in the total without being guessed into one of the two.
+        const rilPumps = rec?.ril_pumps ?? 0;
+        const rilPcp = rec?.ril_pcp_rec ?? 0;
+        const rilMmp = rec?.ril_mmp_rec ?? 0;
+        const totalMmp = f?.total_mmp ?? 0;
+        // Competitor pumps are still the survey's to report: there are no
+        // records of somebody else's machines. Their count is whatever the
+        // survey said was there beyond the RIL ones it counted.
+        const otherPcp = Math.max(0, surveyPcp - (f?.ril_pcp ?? 0) - rotoPcp);
+        const totalPumps = rilPumps + rotoPcp + otherPcp + Math.max(0, totalMmp - (f?.ril_mmp ?? 0));
         const pumpByFy = FYS.map(fy => { const v = rMap.get(`${id}|${fy}`); return v ? Number(v.pump) || null : null; });
         const spareByFy = FYS.map(fy => { const v = rMap.get(`${id}|${fy}`); return v ? Number(v.spare) || null : null; });
         const spareTotal = spareByFy.reduce<number>((a, b) => a + (b ?? 0), 0);
         const sparesPerPump = totalPumps > 0 && spareTotal > 0 ? (spareTotal / FYS.length) / totalPumps : null;
         return {
           code: u.code, name: u.legal_name, tcd: u.tcd,
-          rilPcp, rotoPcp, otherPcp: Math.max(0, totalPcp - rilPcp - rotoPcp), totalPcp,
-          rilMmp, otherMmp: Math.max(0, totalMmp - rilMmp), totalPumps,
+          rilPumps, rilPcp, rilMmp,
+          rotoPcp, otherPcp, totalPcp: rilPumps + rotoPcp + otherPcp,
+          otherMmp: Math.max(0, totalMmp - (f?.ril_mmp ?? 0)), totalPumps,
           sparesPerPump, pumpByFy, spareByFy, actions: [],
         };
       });
 
       const F = gu.reduce((a, u) => ({
-        pcpRil: a.pcpRil + u.rilPcp, pcpRoto: a.pcpRoto + u.rotoPcp, pcpOther: a.pcpOther + u.otherPcp,
+        pcpRil: a.pcpRil + u.rilPumps, pcpRoto: a.pcpRoto + u.rotoPcp, pcpOther: a.pcpOther + u.otherPcp,
         pcpTotal: a.pcpTotal + u.totalPcp, mmpRil: a.mmpRil + u.rilMmp, mmpOther: a.mmpOther + u.otherMmp,
         mmpTotal: a.mmpTotal + u.rilMmp + u.otherMmp,
       }), { pcpRil: 0, pcpRoto: 0, pcpOther: 0, pcpTotal: 0, mmpRil: 0, mmpOther: 0, mmpTotal: 0 });
