@@ -16,6 +16,7 @@ import { getCurrentUser } from "@/lib/session";
 import { canCreateOrders, canViewAll, isRep } from "@/lib/roles";
 import { OrdersTable } from "@/components/risansi/orders-table";
 import { MissingDetailsButton } from "@/components/risansi/missing-details-modal";
+import { OneClickButton } from "@/components/risansi/one-click-modal";
 
 export const metadata: Metadata = {
   title: "Orders | Risansi",
@@ -112,6 +113,8 @@ export default async function OrdersPage({
             <Download className="h-4 w-4" />
             {isFiltered ? `Export ${result.total} filtered` : "Export all"}
           </a>
+          {/* The same, on a single sheet: a pop-up to look over, then download. */}
+          <OneClickButton query={orderListFilterParams(filter).toString()} />
           {canCreate && (
             <>
               <Link
