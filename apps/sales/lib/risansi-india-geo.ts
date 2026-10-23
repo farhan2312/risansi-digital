@@ -26,19 +26,34 @@
 // the pre-2014 combined Andhra Pradesh polygon), no Ladakh, "Orissa",
 // "Uttaranchal", and Daman & Diu still separate from Dadra & Nagar Haveli.
 //
-// Verified by point-in-polygon on the replacement before it was wired in:
+// Two corrections were applied to it, both repeatable from scripts/:
+//
+//   WINDING. Every one of the 36 features was wound backwards for d3-geo,
+//   which reads polygons spherically — a backwards ring is not mirrored, it
+//   is the whole globe MINUS the shape. Thirty-six of those stacked up paint
+//   a blank map, and that is what the first boundary swap shipped. GADM had
+//   happened to comply, so nothing caught it until the file changed.
+//   scripts/rewind-geojson.mjs fixes it and is idempotent; run it on any
+//   boundary file before committing one.
+//
+//   SHAKSGAM. The published file stopped at the Karakoram ridge, leaving out
+//   the Shaksgam Valley / Trans-Karakoram Tract, which India claims. The
+//   missing band was taken from datameet/maps india-composite.geojson (CC-0,
+//   which sources that tract from Natural Earth's disputed-areas set),
+//   differenced against this file inside a tight window on the Karakoram,
+//   sliver-filtered, and unioned into Ladakh. It added 4,822 km²; the tract
+//   is usually cited around 5,180 km², the difference being where the two
+//   datasets put the ridge line. No coordinate was drawn by hand.
+//
+// Verified by point-in-polygon, not taken on the publishers' word:
 //
 //   Aksai Chin, Gilgit-Baltistan, Siachen      inside Ladakh
+//   Shaksgam Valley / Trans-Karakoram          inside Ladakh
 //   Azad Kashmir (Muzaffarabad, Mirpur)        inside Jammu and Kashmir
 //   Arunachal Pradesh (Tawang, Itanagar)       present in full
+//   Kashgar, Kathmandu, Dhaka, Colombo         outside, as they should be
+//   total land area                            33,52,136 km²
 //   northern extent                            37.09°N, west to 72.51°E
-//
-// NOT covered: the Shaksgam Valley / Trans-Karakoram Tract, roughly
-// 76.2–77.8°E by 35.6–36.5°N, which India claims and this file leaves out.
-// Closing that needs a survey-grade boundary source, not a code change, and
-// nothing here should paper over it by drawing a polygon nobody surveyed.
-
-export const SHAKSGAM_VALLEY_MISSING = true;
 
 // ── State centres [lng, lat] ──────────────────────────────────
 

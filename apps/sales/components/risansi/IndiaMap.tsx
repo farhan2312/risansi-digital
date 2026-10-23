@@ -184,23 +184,39 @@ function radiusFor(v: number, max: number, zoom: number): number {
   return r / Math.sqrt(zoom);
 }
 
-/** Choropleth fill: a pale-to-accent ramp, with a flat tint for "no data". */
+// Land is --bg-paper and up; the sea is --bg-sunk; the border is --fg-3.
+//
+// The first version ramped from 8% accent over --bg-paper on a --bg-elev sea,
+// and painted no-data states --bg-sunk. In light mode that put an empty state
+// at 1.09:1 against the water and the border at 1.39:1 — so most of the
+// country was invisible and there was no outline to anchor it. The palette is
+// built against measured contrast now:
+//
+//   border (--fg-3) vs sea   3.35:1 light, 6.99:1 dark
+//   border vs palest land    4.12:1 light, 6.09:1 dark
+//   darkest land vs sea      3.81:1 light, 4.46:1 dark
+//
+// A single-hue ramp has to cross the sea's luminance somewhere, so neither
+// fill nor border can carry the silhouette alone. Between them one always
+// does: pale states read by their outline, saturated ones by their fill.
+const LAND_NO_DATA = 'var(--bg-paper)';
+
 function stateFill(v: number, max: number, metric: Metric): string {
   if (metric.key === 'coverage') {
     // Coverage is a rate, not a total, so it gets a verdict ramp rather than
     // an intensity one. A dark state on the Revenue map is good news; a dark
     // state on a coverage map would be ambiguous.
-    if (v < 0)   return 'var(--bg-sunk)';
-    if (v >= 75) return 'color-mix(in oklab, var(--pos) 55%, var(--bg-paper))';
-    if (v >= 50) return 'color-mix(in oklab, var(--pos) 28%, var(--bg-paper))';
-    if (v >= 25) return 'color-mix(in oklab, var(--warn) 34%, var(--bg-paper))';
-    return 'color-mix(in oklab, var(--neg) 30%, var(--bg-paper))';
+    if (v < 0)   return LAND_NO_DATA;
+    if (v >= 75) return 'color-mix(in oklab, var(--pos) 62%, var(--bg-paper))';
+    if (v >= 50) return 'color-mix(in oklab, var(--pos) 34%, var(--bg-paper))';
+    if (v >= 25) return 'color-mix(in oklab, var(--warn) 42%, var(--bg-paper))';
+    return 'color-mix(in oklab, var(--neg) 38%, var(--bg-paper))';
   }
-  if (max <= 0 || v <= 0) return 'var(--bg-sunk)';
+  if (max <= 0 || v <= 0) return LAND_NO_DATA;
   // sqrt again: a few states hold most of the business, and a linear ramp
   // leaves everything but Maharashtra and Gujarat looking empty.
   const t = Math.sqrt(v / max);
-  const pct = Math.round(8 + t * 62);
+  const pct = Math.round(10 + t * 75);
   return `color-mix(in oklab, var(--accent) ${pct}%, var(--bg-paper))`;
 }
 
@@ -321,7 +337,10 @@ export function IndiaMap({ clients }: { clients: MapClient[] }) {
           </div>
         </div>
 
-        <div style={{ position: 'relative', background: 'var(--bg-elev)' }}>
+        {/* The sea. --bg-sunk, not --bg-elev: the land ramp starts at
+            --bg-paper, and bg-elev sits between the two, which is what made
+            an empty state indistinguishable from the water. */}
+        <div style={{ position: 'relative', background: 'var(--bg-sunk)' }}>
           <ComposableMap
             projection="geoMercator"
             projectionConfig={{ center: [82.5, 22], scale: 1020 }}
@@ -342,8 +361,8 @@ export function IndiaMap({ clients }: { clients: MapClient[] }) {
                       key={geo.rsmKey}
                       geography={geo}
                       fill={stateFill(v, stateMax, metric)}
-                      stroke={on ? 'var(--accent)' : 'var(--line-strong)'}
-                      strokeWidth={(on ? 1.4 : 0.4) / zoom}
+                      stroke={on ? 'var(--accent)' : 'var(--fg-3)'}
+                      strokeWidth={(on ? 1.8 : 0.6) / zoom}
                       onMouseEnter={e => {
                         setActiveState(name);
                         showAt(e as unknown as MouseEvent, {
@@ -470,8 +489,8 @@ export function IndiaMap({ clients }: { clients: MapClient[] }) {
               </div>
             ) : (
               <>
-                <div style={{ height: 9, width: 152, borderRadius: 2, background:
-                  'linear-gradient(to right, color-mix(in oklab, var(--accent) 8%, var(--bg-paper)), color-mix(in oklab, var(--accent) 70%, var(--bg-paper)))' }} />
+                <div style={{ height: 9, width: 152, borderRadius: 2, border: '1px solid var(--fg-3)', background:
+                  'linear-gradient(to right, color-mix(in oklab, var(--accent) 10%, var(--bg-paper)), color-mix(in oklab, var(--accent) 85%, var(--bg-paper)))' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8.5, color: 'var(--fg-3)', marginTop: 2 }}>
                   <span>0</span><span>{metric.fmt(stateMax)}</span>
                 </div>
