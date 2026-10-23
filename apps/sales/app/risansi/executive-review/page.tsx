@@ -609,6 +609,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     //     two pages; this panel is where that gap is stated rather than hidden.
     q(async () => (await risansiPool.query<{
       own_clients: string; cov_clients: string; own_quoted: string; cov_quoted: string;
+      own_won_quoted: string; cov_won_quoted: string;
       own_won: string; cov_won: string; own_rev: string; cov_rev: string;
     }>(
       // IS NOT DISTINCT FROM, not =: an account somebody covers that nobody
@@ -616,7 +617,12 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       // null and FILTER drops the row from BOTH columns. One such client exists
       // today, and it was enough to stop a manager's two columns adding up.
       `WITH opp AS (
-         SELECT (c.primary_rep_id IS NOT DISTINCT FROM ${tsmId}) AS owns, o.stage, COALESCE(o.offer_value_inr,0) AS v
+         SELECT (c.primary_rep_id IS NOT DISTINCT FROM ${tsmId}) AS owns, o.stage,
+                COALESCE(o.offer_value_inr,0) AS v,
+                -- What the order was actually taken at, as against what it was
+                -- quoted at. final_value_cr is typed on the Won form; value_cr
+                -- stands in where nobody filled it, which is 3 deals in 1,111.
+                COALESCE(o.final_value_cr*10000000, o.value_cr*10000000, o.offer_value_inr, 0) AS fv
            FROM opportunities o JOIN clients c ON c.id=o.client_id
           WHERE ${bothF} AND ${conversionWhereSql()} AND ${inMonths(OPP_WINDOW_DATE)}),
        cl AS (
@@ -631,8 +637,15 @@ export default async function ExecutiveReviewPage({ searchParams }: {
          (SELECT count(*) FILTER (WHERE NOT owns) FROM cl)::text    AS cov_clients,
          (SELECT COALESCE(round(sum(v) FILTER (WHERE owns)),0) FROM opp)::text     AS own_quoted,
          (SELECT COALESCE(round(sum(v) FILTER (WHERE NOT owns)),0) FROM opp)::text AS cov_quoted,
-         (SELECT COALESCE(round(sum(v) FILTER (WHERE owns AND stage='Won')),0) FROM opp)::text     AS own_won,
-         (SELECT COALESCE(round(sum(v) FILTER (WHERE NOT owns AND stage='Won')),0) FROM opp)::text AS cov_won,
+         -- What the won deals were QUOTED at. This is the figure the row
+         -- labelled "Order received" carried until now — it sums the offer
+         -- value, not the order value, so the panel has been showing the
+         -- quote on won business and calling it the order.
+         (SELECT COALESCE(round(sum(v) FILTER (WHERE owns AND stage='Won')),0) FROM opp)::text     AS own_won_quoted,
+         (SELECT COALESCE(round(sum(v) FILTER (WHERE NOT owns AND stage='Won')),0) FROM opp)::text AS cov_won_quoted,
+         -- And what they were actually won at.
+         (SELECT COALESCE(round(sum(fv) FILTER (WHERE owns AND stage='Won')),0) FROM opp)::text     AS own_won,
+         (SELECT COALESCE(round(sum(fv) FILTER (WHERE NOT owns AND stage='Won')),0) FROM opp)::text AS cov_won,
          (SELECT COALESCE(round(sum(v) FILTER (WHERE owns)),0) FROM rev)::text     AS own_rev,
          (SELECT COALESCE(round(sum(v) FILTER (WHERE NOT owns)),0) FROM rev)::text AS cov_rev`)).rows[0], null),
 
@@ -905,6 +918,11 @@ export default async function ExecutiveReviewPage({ searchParams }: {
   // the panel's note rather than into a rupee column.
   const bookRows: Row[] = showBookSplit ? [
     { label: 'Total quoted',     vals: bookCr(bookSplit?.own_quoted, bookSplit?.cov_quoted) },
+    // Quoted-then-ordered, on the same deals, one above the other. The gap
+    // between these two rows is what the discounting actually cost: across
+    // the company this year it is ₹35.44 Cr quoted against ₹29.72 Cr ordered,
+    // on 549 of 1,111 won deals where the two differ.
+    { label: 'Quoted value of those orders', vals: bookCr(bookSplit?.own_won_quoted, bookSplit?.cov_won_quoted) },
     { label: 'Order received',   vals: bookCr(bookSplit?.own_won, bookSplit?.cov_won) },
     { label: 'Revenue invoiced', vals: bookCr(bookSplit?.own_rev, bookSplit?.cov_rev) },
   ] : [];
