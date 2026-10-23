@@ -48,6 +48,9 @@ import {
   pageWithTotal,
 } from "@/lib/pagination";
 import { ecDrawingDoneSql } from "@/lib/drawing-filter";
+import { soPurchaseStateSql } from "@/lib/purchase-filter";
+import { soQcStateSql } from "@/lib/qc-filter";
+import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, soStageStatusSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
 import { toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
@@ -3686,8 +3689,16 @@ export async function listOrdersPage(opts: {
   all?: boolean;
   /** Summary cards over the list as filtered, before its department statuses. */
   kpis?: KpiCardDef[];
+  /** More SQL over o for the list (not the cards): the Pump card picked. */
+  extraRestrict?: string | null;
 }): Promise<PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[] }> {
-  const { where, params } = orderListWhere(await withRepTeams(opts.filter));
+  const listed = orderListWhere(await withRepTeams(opts.filter));
+  const params = listed.params;
+  const where = opts.extraRestrict
+    ? listed.where
+      ? `${listed.where}\n        AND (${opts.extraRestrict})`
+      : `WHERE ${opts.extraRestrict}`
+    : listed.where;
   const kpisQ = opts.kpis
     ? countKpis(
         { restrict: "TRUE", cards: opts.kpis },
@@ -4017,8 +4028,69 @@ async function countKpis(
  * their ECs, then where each SO stands in Proforma Invoice, Planning,
  * Assembly & Packing and Dispatch. A card applies that department and status.
  */
+/**
+ * The Orders page's Pump cards, grouped as its columns: the SOs and their
+ * ECs, then where they stand in Drawing, Purchase, Quality, Planning,
+ * Assembly & Packing and Dispatch — each by its department's own rule. A card
+ * picks its SOs through the `pk` URL param (pumpCardSql).
+ */
+export function pumpOrderCards(): KpiCardDef[] {
+  const open = orderOpenSql("o");
+  const clear = { pk: null, dept: null, dstatus: null, pack: null, dsm: null, overdue: null } as Record<string, string | null>;
+  const pumps = (cond: string) =>
+    `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}) AND ${cond})`;
+  const drgOpen = pumps(`NOT ${ecDrawingDoneSql("s", "o")}`);
+  const card = (group: string, key: string, label: string, sql: string, tone: KpiCardDef["tone"]): KpiCardDef => ({
+    key,
+    label,
+    group,
+    sql: `(${sql}) AND ${open}`,
+    params: { ...clear, pk: key },
+    tone,
+  });
+  const [, asmPart, asmFull] = SO_ASSEMBLY_STATUSES;
+  const [, pkgPart, pkgFull] = SO_PACKING_STATUSES;
+  return [
+    { key: "all", label: "SOs", group: "Orders", sql: null, params: { ...clear }, tone: "neutral" },
+    {
+      key: "ecs",
+      label: "ECs",
+      group: "Orders",
+      sql: null,
+      params: {},
+      tone: "neutral",
+      measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}))`,
+    },
+    card("Drawing", "drg_open", "Drawing open", drgOpen, "pending"),
+    card("Drawing", "drg_closed", "Drawing closed", `${pumps("TRUE")} AND NOT ${drgOpen}`, "done"),
+    card("Drawing", "drg_overdue", "Drawing overdue", `${drgOpen} AND o.drg_readiness_date < ${TODAY_IST}`, "danger"),
+    card("Purchase", "boi_open", "BOI open", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Open'`, "pending"),
+    card("Purchase", "boi_closed", "BOI closed", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Closed'`, "done"),
+    card("Quality", "qc_open", "QC open", `COALESCE(o.qc_required, '') <> 'No' AND ${soQcStateSql("o")} = 'Open'`, "pending"),
+    card("Quality", "qc_closed", "QC closed", `COALESCE(o.qc_required, '') <> 'No' AND ${soQcStateSql("o")} = 'Closed'`, "done"),
+    card("Planning", "pl_awaited", "Date awaited", `${SO_PLANNING_STATUS} = 'Date awaited'`, "pending"),
+    card("Planning", "pl_plan", "In plan", `${SO_PLANNING_STATUS} = 'In plan'`, "part"),
+    card("Planning", "pl_partial", "Partial ready", `${SO_PLANNING_STATUS} = 'Partial ready'`, "part"),
+    card("Planning", "pl_ready", "Fully ready", `${SO_PLANNING_STATUS} = 'Fully ready'`, "done"),
+    card("Assembly & Packing", "asm_part", "Part assembled", `${soStageStatusSql("assembly", "o")} = '${asmPart}'`, "part"),
+    card("Assembly & Packing", "asm_full", "Assembled", `${soStageStatusSql("assembly", "o")} = '${asmFull}'`, "done"),
+    card("Assembly & Packing", "pkg_part", "Part packed", `${soStageStatusSql("packing", "o")} = '${pkgPart}'`, "part"),
+    card("Assembly & Packing", "pkg_full", "Packed", `${soStageStatusSql("packing", "o")} = '${pkgFull}'`, "done"),
+    card("Dispatch", "dsp_pending", "To dispatch", deptStatusPredicate("dispatch", PENDING), "pending"),
+    card("Dispatch", "dsp_lot", "Part dispatched", deptStatusPredicate("dispatch", "LOT dispatch"), "part"),
+    card("Dispatch", "dsp_full", "Dispatched", deptStatusPredicate("dispatch", "Fully dispatch"), "done"),
+  ];
+}
+
+/** The SQL a Pump card picks its SOs by, for the list (null for an unknown key). */
+export function pumpCardSql(key: string | null | undefined): string | null {
+  if (!key) return null;
+  const c = pumpOrderCards().find((x) => x.key === key && x.sql && !x.measure);
+  return c?.sql ?? null;
+}
+
 export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
-  if (kind !== "spare") return [];
+  if (kind === "pump") return pumpOrderCards();
   const clear = { dept: null, dstatus: null, pack: null, dsm: null, overdue: null } as Record<string, string | null>;
   const open = orderOpenSql("o");
   const card = (group: string, dept: DeptFilterKey, status: string, label: string, extra: Record<string, string> = {}, sql?: string): KpiCardDef => ({

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardList, Download, FileText, Plus, Upload } from "lucide-react";
-import { listOrderDeptStatuses, listOrdersPage, orderListKpiCards, parseQueueSort } from "@/lib/orders";
+import { listOrderDeptStatuses, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
 import { listPumpSummaries } from "@/lib/pump-summary";
 import { parsePage } from "@/lib/pagination";
 import {
@@ -48,8 +48,9 @@ export default async function OrdersPage({
     page: parsePage(params.page),
     filter,
     sort: parseQueueSort(params.sort),
-    // Spare: the department summary cards.
+    // The department summary cards (Spare or Pump); on Pump, the card picked narrows the list.
     kpis: orderListKpiCards(ordersKind(params.type)),
+    extraRestrict: ordersKind(params.type) === "pump" ? pumpCardSql(params.pk) : null,
   });
   const canCreate = canCreateOrders(user.role);
   // Every department on each SO of this page, for the row's tags; on the Pump
