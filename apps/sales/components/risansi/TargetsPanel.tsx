@@ -1,150 +1,194 @@
-import type { CSSProperties } from 'react';
+'use client';
+
+import { useState, type CSSProperties } from 'react';
 import { METRIC_DEFS, type TargetMetric, type TargetSet } from '@/lib/risansi-rep-targets';
 
-// Target vs Achieved, for the three things a rep is measured on.
+// Target vs Achieved, as a table.
 //
-// ── Why the year's progress is on it ────────────────────────────
+// It was three stacked metric blocks per person, which for sixteen people was
+// a page of its own standing between the reader and the dashboard. One row
+// each now, and the whole thing folds away - the header keeps the leading
+// figure, so collapsed is still an answer rather than a closed box.
 //
-// A target dashboard opened in July that shows "28% achieved" against a bar
-// ending at 100% is telling somebody they are failing when they are exactly
-// on pace. Every figure here is held against how much of the financial year
-// has actually gone, and the verdict says on track or behind rather than
-// leaving the reader to do the arithmetic. The faint marker on each bar is
-// where the year is; the fill is where the person is.
+// The faint notch on each bar is where the YEAR is; the fill is where the
+// person is. A dashboard showing "28% achieved" against a bar ending at 100%
+// tells somebody they are failing when they are exactly on pace.
 //
-// ── What a blank target means ───────────────────────────────────
-//
-// Nothing, deliberately. No bar, no percentage, no "0%" — a target of nothing
-// is not a bar anybody can clear, and showing 0% against it reads as failure
-// rather than as a target that was never set. The count is still shown,
-// because what somebody has done is true whether or not anyone set a number.
+// A blank target shows the count and no bar. A target of nothing is not a bar
+// anybody can clear, and 0% against it reads as failure rather than as a
+// target nobody set.
 
 export interface TargetEntry {
   label: string;
-  /** Shown under the label — "5 reps", "your own accounts". */
   sub?: string | null;
   target: TargetSet;
   achieved: Record<TargetMetric, number>;
 }
 
-const fmtCr = (n: number) => `₹${n.toFixed(2)} Cr`;
-const fmtCount = (n: number) => n.toLocaleString('en-IN');
-const fmt = (metric: TargetMetric, n: number) => (metric === 'revenue_cr' ? fmtCr(n) : fmtCount(n));
+const RS = '₹';
+const fmtCr = (n: number) => RS + n.toFixed(2);
+const fmtVal = (m: TargetMetric, n: number) =>
+  m === 'revenue_cr' ? fmtCr(n) : n.toLocaleString('en-IN');
 
-/** Behind by more than a tenth of the year's pace is "behind". The slack stops
- *  a dashboard flipping between verdicts on a single visit being logged. */
-function verdict(pct: number, elapsedPct: number): { text: string; color: string } {
-  if (elapsedPct <= 0) return { text: 'year not started', color: 'var(--fg-3)' };
-  if (pct >= 100) return { text: 'target met', color: 'var(--pos)' };
-  if (pct >= elapsedPct * 0.9) return { text: 'on track', color: 'var(--pos)' };
-  return { text: 'behind pace', color: 'var(--warn-strong)' };
+function verdict(pct: number, elapsed: number): { text: string; color: string } {
+  if (elapsed <= 0) return { text: 'not started', color: 'var(--fg-3)' };
+  if (pct >= 100) return { text: 'met', color: 'var(--pos)' };
+  if (pct >= elapsed * 0.9) return { text: 'on track', color: 'var(--pos)' };
+  return { text: 'behind', color: 'var(--warn-strong)' };
 }
 
-function Metric({ metric, target, achieved, elapsedPct }: {
-  metric: TargetMetric; target: number | null; achieved: number; elapsedPct: number;
+/** One metric in one row: figure, target, share, and a 3px bar. */
+function Cell({ metric, target, achieved, elapsedPct }: {
+  metric: TargetMetric;
+  target: number | null;
+  achieved: number;
+  elapsedPct: number;
 }) {
-  const def = METRIC_DEFS.find(d => d.key === metric)!;
   const pct = target && target > 0 ? (achieved / target) * 100 : null;
-  const v = pct == null ? null : verdict(pct, elapsedPct);
+  const v = pct === null ? null : verdict(pct, elapsedPct);
+  return (
+    <td style={CELL}>
+      <div style={ROW_INNER}>
+        <span style={FIG}>{fmtVal(metric, achieved)}</span>
+        {target !== null && <span style={OF}>/ {fmtVal(metric, target)}</span>}
+        <span style={{ ...PCTS, color: v ? v.color : 'var(--fg-4)' }}>
+          {pct === null || !v ? 'no target' : pct.toFixed(0) + '% ' + v.text}
+        </span>
+      </div>
+      {pct !== null && v && (
+        <div style={BAR}>
+          <div style={{ ...BAR_FILL, width: Math.min(pct, 100) + '%', background: v.color }} />
+          <div style={{ ...BAR_MARK, left: Math.min(elapsedPct, 100) + '%' }} />
+        </div>
+      )}
+    </td>
+  );
+}
+
+export function TargetsPanel({ fyLabel, elapsedPct, entries, defaultOpen }: {
+  fyLabel: string;
+  elapsedPct: number;
+  entries: TargetEntry[];
+  defaultOpen?: boolean;
+}) {
+  // Many rows start folded; one or two do not. Sixteen people unfolded at the
+  // top of the page was the complaint this answers.
+  const [open, setOpen] = useState(defaultOpen ?? entries.length <= 2);
+  if (entries.length === 0) return null;
+
+  const head = entries[0];
+  const hTarget = head.target.revenue_cr;
+  const headPct = hTarget && hTarget > 0 ? (head.achieved.revenue_cr / hTarget) * 100 : null;
+  const hv = headPct === null ? null : verdict(headPct, elapsedPct);
 
   return (
-    <div style={CELL} title={def.hint}>
-      <div style={LABEL}>{def.label}</div>
-      <div style={VALUE}>
-        {fmt(metric, achieved)}
-        {target != null && <span style={OF}> / {fmt(metric, target)}</span>}
-      </div>
+    <div style={PANEL}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={HEAD} aria-expanded={open}>
+        <span style={CARET}>{open ? '▾' : '▸'}</span>
+        <span>Targets &middot; {fyLabel}</span>
+        {/* Folded, the header still answers "how are we doing" - only the
+            per-person detail goes away. */}
+        {headPct !== null && hTarget !== null && hv && (
+          <span style={SUMMARY}>
+            {head.label} {fmtCr(head.achieved.revenue_cr)} / {fmtCr(hTarget)} Cr
+            <span style={{ color: hv.color, marginLeft: 6 }}>
+              {headPct.toFixed(0)}% {hv.text}
+            </span>
+          </span>
+        )}
+        <span style={YEAR}>{elapsedPct.toFixed(0)}% of the year gone</span>
+      </button>
 
-      {pct == null ? (
-        <div style={{ ...NOTE, color: 'var(--fg-3)' }}>no target set</div>
-      ) : (
-        <>
-          <div style={BAR}>
-            <div style={{ ...BAR_FILL, width: `${Math.min(pct, 100)}%`, background: v!.color }} />
-            {/* Where the year is. Sits on top of the fill so "ahead of pace"
-                is visible as fill past the marker rather than inferred. */}
-            <div style={{ ...BAR_MARK, left: `${Math.min(elapsedPct, 100)}%` }} />
-          </div>
-          <div style={{ ...NOTE, color: v!.color }}>
-            {pct.toFixed(0)}% · {v!.text}
-          </div>
-        </>
+      {open && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ ...TH, textAlign: 'left' }}>Person</th>
+                {METRIC_DEFS.map(d => (
+                  <th key={d.key} style={TH} title={d.hint}>{d.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e, i) => {
+                const isTotal = i === 0 && entries.length > 1;
+                return (
+                  <tr key={e.label} style={isTotal ? TOTAL_ROW : undefined}>
+                    <td style={{ ...CELL, whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: isTotal ? 700 : 500, color: 'var(--fg)' }}>
+                        {e.label}
+                      </span>
+                      {e.sub && <span style={SUB}>{e.sub}</span>}
+                    </td>
+                    {METRIC_DEFS.map(d => (
+                      <Cell
+                        key={d.key}
+                        metric={d.key}
+                        target={e.target[d.key]}
+                        achieved={e.achieved[d.key] ?? 0}
+                        elapsedPct={elapsedPct}
+                      />
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
 }
 
-export function TargetsPanel({ fyLabel, elapsedPct, entries }: {
-  fyLabel: string;
-  /** 0..100, how much of the financial year has gone. */
-  elapsedPct: number;
-  entries: TargetEntry[];
-}) {
-  if (entries.length === 0) return null;
-  return (
-    <div style={PANEL}>
-      <div style={HEAD}>
-        <span>Targets · {fyLabel}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: 'var(--fg-3)' }}>
-          {elapsedPct.toFixed(0)}% of the year gone
-        </span>
-      </div>
-      <div style={{ padding: '4px 0' }}>
-        {entries.map((e, i) => (
-          <div key={e.label} style={{ padding: '12px 16px', borderTop: i === 0 ? 'none' : '1px solid var(--line)' }}>
-            <div style={{ marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{e.label}</span>
-              {e.sub && <span style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 8 }}>{e.sub}</span>}
-            </div>
-            <div className="tgt-grid" style={GRID}>
-              {METRIC_DEFS.map(d => (
-                <Metric
-                  key={d.key} metric={d.key}
-                  target={e.target[d.key]} achieved={e.achieved[d.key] ?? 0}
-                  elapsedPct={elapsedPct}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const PANEL: CSSProperties = {
-  background: 'var(--bg-paper)', border: '1px solid var(--line)',
-  borderRadius: 'var(--radius)', marginBottom: 14, overflow: 'hidden',
+  background: 'var(--bg-paper)',
+  border: '1px solid var(--line)',
+  borderRadius: 'var(--radius)',
+  marginBottom: 14,
+  overflow: 'hidden',
 };
 const HEAD: CSSProperties = {
-  display: 'flex', alignItems: 'center', padding: '10px 16px',
-  background: 'var(--bg-elev)', borderBottom: '1px solid var(--line)',
-  fontSize: 12, fontWeight: 700, color: 'var(--fg-2)',
-  textTransform: 'uppercase', letterSpacing: '0.05em',
+  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+  padding: '7px 14px', background: 'var(--bg-elev)', border: 'none',
+  borderBottom: '1px solid var(--line)', cursor: 'pointer', fontFamily: 'inherit',
+  fontSize: 11, fontWeight: 700, color: 'var(--fg-2)',
+  textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left',
 };
-const GRID: CSSProperties = {
-  display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 18,
+const CARET: CSSProperties = { fontSize: 9, color: 'var(--fg-3)', width: 8 };
+const SUMMARY: CSSProperties = {
+  fontSize: 11, fontWeight: 500, textTransform: 'none', letterSpacing: 0,
+  color: 'var(--fg-2)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap',
 };
-const CELL: CSSProperties = { minWidth: 0 };
-const LABEL: CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: 'var(--fg-3)',
-  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4,
+const YEAR: CSSProperties = {
+  marginLeft: 'auto', fontSize: 10, fontWeight: 500, textTransform: 'none',
+  letterSpacing: 0, color: 'var(--fg-3)', whiteSpace: 'nowrap',
 };
-const VALUE: CSSProperties = {
-  fontSize: 17, fontWeight: 700, color: 'var(--fg)',
+const TH: CSSProperties = {
+  fontSize: 9, fontWeight: 700, color: 'var(--fg-3)', textAlign: 'left',
+  textTransform: 'uppercase', letterSpacing: '0.04em',
+  padding: '5px 14px 3px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap',
+};
+const CELL: CSSProperties = {
+  padding: '4px 14px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle',
+};
+const TOTAL_ROW: CSSProperties = { background: 'var(--bg-sunk)' };
+const ROW_INNER: CSSProperties = {
+  display: 'flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap',
+};
+const SUB: CSSProperties = { fontSize: 10, color: 'var(--fg-3)', marginLeft: 6 };
+const FIG: CSSProperties = {
+  fontSize: 12, fontWeight: 700, color: 'var(--fg)',
   fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
 };
-const OF: CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--fg-3)' };
+const OF: CSSProperties = { fontSize: 10, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' };
+const PCTS: CSSProperties = { fontSize: 10, fontFamily: 'var(--font-mono)', marginLeft: 'auto' };
 const BAR: CSSProperties = {
-  position: 'relative', marginTop: 7, height: 6,
-  background: 'var(--bg-sunk)', borderRadius: 3, overflow: 'hidden',
+  position: 'relative', marginTop: 2, height: 3,
+  background: 'var(--bg-sunk)', borderRadius: 2, overflow: 'hidden', minWidth: 96,
 };
-const BAR_FILL: CSSProperties = { height: '100%', borderRadius: 3 };
+const BAR_FILL: CSSProperties = { height: '100%', borderRadius: 2 };
 const BAR_MARK: CSSProperties = {
-  position: 'absolute', top: -1, bottom: -1, width: 2,
-  background: 'var(--fg-3)', opacity: 0.55,
-};
-const NOTE: CSSProperties = {
-  fontSize: 11, marginTop: 5, fontFamily: 'var(--font-mono)',
-  fontVariantNumeric: 'tabular-nums',
+  position: 'absolute', top: 0, bottom: 0, width: 1.5,
+  background: 'var(--fg-3)', opacity: 0.6,
 };

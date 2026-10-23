@@ -817,12 +817,6 @@ export default async function ExecDashboardPage({ searchParams }: {
           </div>
         </div>
 
-        {/* Target vs Achieved, the company total first and then every rep.
-            Above the revenue card deliberately: the card answers "how is the
-            company doing", and this answers "who is doing it", which is the
-            question the per-rep targets were set to make askable. */}
-        <TargetsPanel fyLabel={allTargets.fyLabel} elapsedPct={allTargets.elapsedPct} entries={allTargets.entries} />
-
         {/* ── Hero metrics row 1: full-width Revenue card ─────── */}
         <div style={{ marginBottom: 12 }}>
           <div style={{ ...KPI_PANEL }}>
@@ -1184,6 +1178,13 @@ export default async function ExecDashboardPage({ searchParams }: {
             </div>
           </div>
         </div>
+
+        {/* Target vs Achieved, the company total first and then every rep.
+            Below the revenue mix deliberately: the cards above answer "how is
+            the company doing", and this answers "who is doing it", which is a
+            second question and does not belong in front of the first. Folded
+            by default once there is more than a couple of rows. */}
+        <TargetsPanel fyLabel={allTargets.fyLabel} elapsedPct={allTargets.elapsedPct} entries={allTargets.entries} />
 
         {/* ── Bottom row ──────────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 14 }}>
