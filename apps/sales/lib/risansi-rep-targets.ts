@@ -17,28 +17,15 @@
 
 import risansiPool from '@/lib/db-risansi';
 
-export const TARGET_METRICS = ['revenue_cr', 'new_clients', 'visits'] as const;
-export type TargetMetric = typeof TARGET_METRICS[number];
-
-export interface MetricDef {
-  key: TargetMetric;
-  label: string;
-  /** What the number means, said once, on the tile. */
-  unit: 'cr' | 'count';
-  hint: string;
-}
-
-export const METRIC_DEFS: MetricDef[] = [
-  { key: 'revenue_cr',  label: 'Revenue',     unit: 'cr',
-    hint: 'Invoiced revenue on the accounts you own, this financial year.' },
-  { key: 'new_clients', label: 'New Clients', unit: 'count',
-    hint: 'Accounts you added this financial year — bulk imports are not counted.' },
-  { key: 'visits',      label: 'Visits',      unit: 'count',
-    hint: 'Visit reports you submitted this financial year.' },
-];
-
-export type TargetSet = Record<TargetMetric, number | null>;
-export const EMPTY_TARGETS: TargetSet = { revenue_cr: null, new_clients: null, visits: null };
+// The metric catalogue lives in risansi-target-metrics so client components
+// can read it without pulling the pg driver in behind it. Re-exported here
+// because every server caller already imports targets from this module.
+export {
+  TARGET_METRICS, METRIC_DEFS, EMPTY_TARGETS,
+  type TargetMetric, type MetricDef, type TargetSet,
+} from '@/lib/risansi-target-metrics';
+import { TARGET_METRICS, EMPTY_TARGETS, type TargetMetric, type TargetSet }
+  from '@/lib/risansi-target-metrics';
 
 export interface RepProgress {
   repId: number;

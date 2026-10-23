@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type CSSProperties } from 'react';
-import { METRIC_DEFS, type TargetMetric, type TargetSet } from '@/lib/risansi-rep-targets';
+import { METRIC_DEFS, type TargetMetric, type TargetSet } from '@/lib/risansi-target-metrics';
 
 // Target vs Achieved, as a table.
 //
