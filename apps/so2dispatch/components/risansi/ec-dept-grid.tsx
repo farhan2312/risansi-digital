@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { boiInHand, drawingDocStatus } from "@/lib/dept-view";
+import { boiInHand, drawingDocStatus, versionLabel } from "@/lib/dept-view";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { DEPT_LABELS } from "@/lib/dept-completion";
 import type { DeptCell, EcDeptStatus, ItemDetail, SoDeptStatus } from "@/lib/orders";
@@ -38,7 +38,7 @@ function keyLine(dept: DeptKey, e: ItemDetail): string {
       const revs = e.order_drawing_revisions ?? [];
       const gad = drawingDocStatus(revs, "GAD");
       if (!gad.version) return "";
-      return `GAD V${gad.version} · ${gad.label}`;
+      return `GAD ${versionLabel(gad.version)} · ${gad.label}`;
     }
     case "purchase": {
       const boi = e.order_boi_items ?? [];

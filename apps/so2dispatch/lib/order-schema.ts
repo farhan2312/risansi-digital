@@ -206,7 +206,7 @@ export const PUMP_SO_PLANNING_FIELDS: OrderField[] = [
   { column: "actual_spare_status", label: "Status", type: "select", options: opts(SPARE_PLANNING_STATUSES), defaultValue: "Date awaited" },
   {
     column: "planning_readiness_date",
-    label: "Readiness Date",
+    label: "Assembly Readiness Date",
     type: "date",
     dependsOn: [{ column: "actual_spare_status", value: "Date awaited", not: true }],
   },

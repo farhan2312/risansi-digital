@@ -4,7 +4,7 @@ import { Fragment, useState } from "react";
 import { ExternalLink, ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
-import { drawingDocStatus, drawingVersions } from "@/lib/dept-view";
+import { drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PartDrawingCell, PartPickerModal, ShortageCell } from "./part-drawing";
@@ -111,7 +111,7 @@ export function PlanningPumpTable({
             <th key={f.column} className={th}>{f.label}</th>
           ))}
           <th className={th}>Status</th>
-          <th className={th}>Readiness Date</th>
+          <th className={th}>Assembly Readiness Date</th>
           {LOT_COLUMNS.map((n) => (
             <th key={n} className={th}>Lot {n}</th>
           ))}
@@ -440,14 +440,14 @@ function GadCell({ versions }: { versions: Row[] }) {
   const last = all[all.length - 1];
   const issued = st.label === "Issued to planning";
   if (!issued) {
-    return <span className="text-xs text-muted">{st.version ? `V${st.version} · ` : ""}{st.label}</span>;
+    return <span className="text-xs text-muted">{st.version ? `${versionLabel(st.version)} · ` : ""}{st.label}</span>;
   }
   const link = str(last?.planning_link).trim();
   const date = str(last?.issued_to_production_date);
   return (
     <span className="flex flex-col gap-0.5">
       <span className="text-xs font-semibold text-emerald-700">
-        V{st.version} · Issued{date ? ` ${shortDate(date)}` : ""}
+        {versionLabel(st.version)} · Issued{date ? ` ${shortDate(date)}` : ""}
       </span>
       {/^https?:\/\//i.test(link) ? (
         <a

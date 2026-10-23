@@ -362,6 +362,15 @@ export function boiStatus(b: Record<string, unknown>): { label: string; tone: "d
   return part ? { label: "Partially received", tone: "part" } : { label: "Pending", tone: "pending" };
 }
 
+/**
+ * A drawing version as it reads: the first is V0, then V1, V2… — from its
+ * number (1 = the first) or a stored revision no. (blank = the first).
+ */
+export function versionLabel(n: unknown): string {
+  const x = Number(String(n ?? "").trim() || 1);
+  return Number.isFinite(x) && x >= 1 ? `V${x - 1}` : `V${String(n)}`;
+}
+
 /** One document's versions on an EC, oldest first (a row's doc_type, GAD when blank). */
 export function drawingVersions(rows: Record<string, unknown>[], docType: string): Record<string, unknown>[] {
   return rows

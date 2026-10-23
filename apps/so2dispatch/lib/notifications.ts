@@ -6,6 +6,7 @@ import {
   type PageResult,
 } from "@/lib/pagination";
 import { SECTION_BY_TABLE, type OrderTable } from "@/lib/order-schema";
+import { versionLabel } from "@/lib/dept-view";
 
 type Row = Record<string, unknown> | null;
 
@@ -502,13 +503,13 @@ export function drawingHandoffEvents(
   return events;
 }
 
-/** "SO26/1/999 · EC 123TEST · GAD V2" — a version from before numbering is V1. */
+/** "SO26/1/999 · EC 123TEST · GAD V1" — the first version is V0 (one from before numbering too). */
 export function drawingHandoffDetail(
   soLabel: string,
   after: DrawingHandoffs
 ): string {
   const rev = (after.revision_no ?? "").trim();
-  return `${soLabel} · EC ${after.ec_no ?? "—"} · ${after.doc_type ?? "GAD"} V${rev || "1"}`;
+  return `${soLabel} · EC ${after.ec_no ?? "—"} · ${after.doc_type ?? "GAD"} ${versionLabel(rev)}`;
 }
 
 /**

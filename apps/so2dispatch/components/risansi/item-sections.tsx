@@ -20,7 +20,7 @@ import { EditableSection, type DocumentsConfig } from "./editable-section";
 import { OrderChildList } from "./order-children";
 import { RevisionDocsButton } from "./drawing-docs";
 import { OrderCopyCell } from "./order-copy-cell";
-import { isSpareEc } from "@/lib/dept-view";
+import { isSpareEc, versionLabel } from "@/lib/dept-view";
 
 type Row = Record<string, unknown>;
 
@@ -154,7 +154,7 @@ export function ItemSections({
                             label={[
                               order.so_no,
                               item.ec_no,
-                              `${String(rev.doc_type ?? "GAD")} V${String(rev.revision_no ?? "").trim() || "1"}`,
+                              `${String(rev.doc_type ?? "GAD")} ${versionLabel(rev.revision_no)}`,
                             ]
                               .filter(Boolean)
                               .join(" · ")}
