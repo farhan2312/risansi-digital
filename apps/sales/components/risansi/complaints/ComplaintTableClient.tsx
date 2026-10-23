@@ -34,7 +34,7 @@ const fmtDays = (d: number) => (d < 1 ? '<1d' : `${Math.round(d)}d`);
 type ColId =
   | 'no' | 'client' | 'status' | 'sev' | 'severe' | 'category' | 'subcat' | 'industry'
   | 'ctype' | 'model' | 'qty' | 'action' | 'freeRepl'
-  | 'frEc' | 'frDispatch' | 'capa' | 'linked' | 'holder' | 'since' | 'age'
+  | 'item' | 'frEc' | 'frEcDate' | 'frDispatch' | 'capa' | 'linked' | 'holder' | 'since' | 'age'
   | 'late' | 'target' | 'rep' | 'raised' | 'docs' | 'open';
 
 interface Col {
@@ -102,6 +102,27 @@ const freeReplLabel = (r: ComplaintListRow): string | null =>
     : r.action_category ? (r.action_category === 'Paid Replacement' ? 'Paid' : 'No')
     : null;
 
+/**
+ * How many units the complaint is about.
+ *
+ * complaints.quantity is the legacy home and is NULL on every complaint
+ * raised since the part rows arrived — 165 old ones carry it, and nothing new
+ * does, which is why the Qty column had gone blank. The quantity now lives
+ * per part, so this adds the parts up and falls back to the old column.
+ */
+const qtyOf = (r: ComplaintListRow): number | null => {
+  const fromParts = (r.parts ?? []).reduce<number | null>(
+    (sum, p) => (p.quantity == null ? sum : (sum ?? 0) + Number(p.quantity)), null);
+  return fromParts ?? (r.quantity == null ? null : Number(r.quantity));
+};
+
+/** What is being replaced or complained about, from the part rows. */
+const itemsOf = (r: ComplaintListRow): string | null => {
+  const names = (r.parts ?? []).map(p => p.part_name).filter(Boolean) as string[];
+  if (names.length) return [...new Set(names)].join(', ');
+  return r.part_name ?? null;
+};
+
 const COLUMNS: Col[] = [
   { id: 'no',         head: 'No.', locked: true, kind: 'text', value: r => r.complaint_no },
   { id: 'client',     head: 'Client', kind: 'text', value: r => r.client_name },
@@ -120,10 +141,14 @@ const COLUMNS: Col[] = [
   { id: 'industry',   head: 'Industry', kind: 'text', value: r => r.industry },
   { id: 'ctype',      head: 'Direct / OEM', pick: 'Client type', kind: 'text', value: r => r.client_type },
   { id: 'model',      head: 'Pump model', kind: 'text', value: r => r.pump_model },
-  { id: 'qty',        head: 'Qty', pick: 'Quantity', right: true, kind: 'number', value: r => r.quantity },
+  { id: 'qty',        head: 'Qty', pick: 'Quantity', right: true, kind: 'number', value: qtyOf },
+  // What the complaint is about, which for a free replacement is the item
+  // being replaced. Reads the part rows, where it actually lives.
+  { id: 'item',       head: 'FR item', pick: 'Item / part', kind: 'text', value: itemsOf },
   { id: 'action',     head: 'Action taken', kind: 'text', value: r => r.action_category },
   { id: 'freeRepl',   head: 'Free repl.', pick: 'Free replacement', kind: 'text', value: freeReplLabel },
   { id: 'frEc',       head: 'FR EC no.', kind: 'text', value: r => r.fr_ec_no },
+  { id: 'frEcDate',   head: 'FR EC date', pick: 'FR EC date', kind: 'date', value: r => r.fr_ec_date },
   { id: 'frDispatch', head: 'FR dispatch', kind: 'date', value: r => r.target_dispatch_date },
   // Pending before under review before closed before nothing asked for.
   { id: 'capa',       head: 'CAPA', kind: 'status', order: ['open', 'review', 'closed', 'none'], value: r => r.capa_state },
@@ -149,9 +174,18 @@ const COLUMNS: Col[] = [
 
 const ALL_IDS = COLUMNS.map(c => c.id);
 
-// One-time reveal of a newly promoted column, remembered separately from the
+// One-time reveal of newly added columns, remembered separately from the
 // column choice itself so it fires once per browser and never again.
-const PROMOTED_KEY = 'risansi:cmp-cols:raised-promoted';
+//
+// A saved choice cannot mention a column that did not exist when it was
+// saved, so without this every person who has ever opened the Columns menu
+// would go on not seeing the new ones and would conclude nothing shipped.
+// Ticking one off afterwards sticks, because the save then records it.
+//
+// The key carries the set, so adding more columns later means a new key
+// rather than a second reveal of these.
+const PROMOTED = ['raised', 'item', 'frEcDate'] as const;
+const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v2';
 const PROMOTED_SEEN = () => {
   try { return localStorage.getItem(PROMOTED_KEY) === '1'; } catch { return true; }
 };
@@ -207,14 +241,9 @@ export function ComplaintTableClient({ rows }: { rows: ComplaintListRow[] }) {
       // Rebuilt from the canonical order, and the locked columns are added back
       // whatever the saved list says, so a hand-edited or stale entry cannot
       // produce a table with no way to identify a row.
+      const seen = PROMOTED_SEEN();
       const next = ALL_IDS.filter(id => arr.includes(id) || COLUMNS.find(c => c.id === id)?.locked
-        // A column that has just been promoted is shown once, even to somebody
-        // whose saved choice predates the move. Without this, everybody who had
-        // ever opened the Columns menu would go on not seeing the complaint
-        // date — the saved list simply does not mention it — and would conclude
-        // the change never shipped. Ticking it off afterwards sticks, because
-        // the save below then records the decision.
-        || (id === 'raised' && !arr.includes('raised') && !PROMOTED_SEEN()));
+        || (!seen && (PROMOTED as readonly string[]).includes(id) && !arr.includes(id)));
       if (next.length) setVisible(next);
       PROMOTE_MARK();
     } catch {
@@ -484,8 +513,14 @@ function renderCell(col: Col, r: ComplaintListRow, clientFrozen: boolean): React
           {r.part_name ? <div style={{ fontSize: 10.5, color: 'var(--fg-3)', fontFamily: 'inherit' }}>{r.part_name}</div> : null}
         </td>
       );
-    case 'qty':
-      return <td key={col.id} style={{ ...TD, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{r.quantity ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>;
+    case 'qty': {
+      const q = qtyOf(r);
+      return <td key={col.id} style={{ ...TD, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{q ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>;
+    }
+    case 'item': {
+      const it = itemsOf(r);
+      return <td key={col.id} style={TD}>{it ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>;
+    }
     case 'freeRepl':
       // Is the customer getting a replacement free of charge, and where has
       // that got to. Blank rather than "No" where no action has been decided
@@ -501,6 +536,8 @@ function renderCell(col: Col, r: ComplaintListRow, clientFrozen: boolean): React
       );
     case 'frEc':
       return <td key={col.id} style={{ ...TD, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{r.fr_ec_no ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>;
+    case 'frEcDate':
+      return <td key={col.id} style={{ ...TD, fontFamily: 'var(--font-mono)', fontSize: 11, whiteSpace: 'nowrap' }}>{day(r.fr_ec_date) || <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>;
     case 'frDispatch':
       return (
         <td key={col.id} style={{ ...TD, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-2)' }}>
