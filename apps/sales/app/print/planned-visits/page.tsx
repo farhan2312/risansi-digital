@@ -36,6 +36,8 @@ interface VRow {
   visit_date: string; status: string; purpose: string;
   legal_name: string; code: string; city: string | null; state: string | null;
   zone: string | null; tier: string | null; industry: string | null; rep_name: string;
+  /** What the rep wrote up afterwards, and what they committed to next. */
+  summary: string | null; action_points: string | null;
 }
 
 export default async function PlannedVisitsPrint({ searchParams }: {
@@ -63,6 +65,24 @@ export default async function PlannedVisitsPrint({ searchParams }: {
     rows = (await risansiPool.query<VRow>(
       `SELECT v.visit_date::text AS visit_date, v.status, COALESCE(v.purpose, '') AS purpose,
               c.legal_name, c.code, c.city, c.state, c.zone, c.tier, c.industry,
+              v.summary,
+              -- Action points come from the Action Register, not from
+              -- visits.action_points. That column is empty on all 1,570 visits
+              -- — nothing has ever written to it — while 106 real actions hang
+              -- off visits as tasks. Printing the column would have given a
+              -- page of dashes.
+              --
+              -- follow_up_text is the fallback: 17 visits carry one and no
+              -- task, from the visit form's own follow-up box.
+              COALESCE(
+                (SELECT string_agg(
+                          t.title || CASE WHEN t.due_date IS NOT NULL
+                                          THEN ' (by ' || to_char(t.due_date,'DD Mon') || ')'
+                                          ELSE '' END,
+                          '; ' ORDER BY t.due_date NULLS LAST, t.id)
+                   FROM tasks t WHERE t.visit_id = v.id),
+                NULLIF(btrim(v.follow_up_text), '')
+              ) AS action_points,
               COALESCE(r.name, '—') AS rep_name
          FROM visits v
          JOIN clients c ON c.id = v.client_id
@@ -101,32 +121,45 @@ export default async function PlannedVisitsPrint({ searchParams }: {
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
+            {/* The six headings this report was asked for, in that order.
+                Code, Location, Purpose and Tier came off to make room: summary
+                and action points are prose and need real width, and eleven
+                columns of it on A4 is a wall nobody reads. Status stays — on a
+                sheet that carries planned and completed visits together, which
+                one a row is matters. */}
             <tr>
-              <th style={{ ...TH, width: 84 }}>Date</th>
-              <th style={TH}>Client</th>
-              <th style={{ ...TH, width: 78 }}>Code</th>
-              <th style={{ ...TH, width: 150 }}>Location</th>
-              <th style={{ ...TH, width: 96 }}>Rep</th>
-              <th style={TH}>Purpose</th>
+              <th style={{ ...TH, width: 100 }}>Rep</th>
+              <th style={{ ...TH, width: 170 }}>Client</th>
+              <th style={{ ...TH, width: 100 }}>Industry</th>
+              <th style={{ ...TH, width: 84 }}>Visit date</th>
+              <th style={TH}>Visit summary</th>
+              <th style={TH}>Action points</th>
               <th style={{ ...TH, width: 74 }}>Status</th>
-              <th style={{ ...TH, width: 60 }}>Tier</th>
-              <th style={{ ...TH, width: 96 }}>Industry</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={i}>
+                <td style={TD}>{r.rep_name}</td>
+                <td style={{ ...TD, fontWeight: 600 }}>
+                  {r.legal_name}
+                  {/* The code keeps its place under the name rather than in a
+                      column of its own — it is how an account is looked up
+                      afterwards, and it costs no width here. */}
+                  <div style={{ fontFamily: 'ui-monospace, monospace', color: C.fg3, fontWeight: 400 }}>
+                    {r.code}{loc(r) ? ` · ${loc(r)}` : ''}
+                  </div>
+                </td>
+                <td style={{ ...TD, color: C.fg2 }}>{r.industry ?? '—'}</td>
                 <td style={{ ...TD, whiteSpace: 'nowrap' }}>
                   {fmtDate(r.visit_date)}<span style={{ color: C.fg3 }}> · {fmtDay(r.visit_date)}</span>
                 </td>
-                <td style={{ ...TD, fontWeight: 600 }}>{r.legal_name}</td>
-                <td style={{ ...TD, fontFamily: 'ui-monospace, monospace', color: C.fg3 }}>{r.code}</td>
-                <td style={TD}>{loc(r)}</td>
-                <td style={TD}>{r.rep_name}</td>
-                <td style={{ ...TD, color: C.fg2 }}>{r.purpose || '—'}</td>
+                {/* Prose, so it wraps and breaks anywhere rather than forcing
+                    the table wider than the page. A planned visit has neither
+                    yet, which is what the dash means. */}
+                <td style={{ ...TD, color: C.fg2, overflowWrap: 'anywhere' }}>{r.summary?.trim() || '—'}</td>
+                <td style={{ ...TD, color: C.fg2, overflowWrap: 'anywhere' }}>{r.action_points?.trim() || '—'}</td>
                 <td style={{ ...TD, textTransform: 'capitalize', color: statusColor(r.status), fontWeight: 600 }}>{r.status}</td>
-                <td style={TD}>{r.tier ?? '—'}</td>
-                <td style={{ ...TD, color: C.fg2 }}>{r.industry ?? '—'}</td>
               </tr>
             ))}
           </tbody>
