@@ -11,6 +11,8 @@ import { parseVisitFilters, getVisitFilterOptions, getScopedRepNames, getExhibit
 import { FieldFilterBar } from '@/components/risansi/FieldFilterBar';
 import { PlannedVisitsExport } from '@/components/risansi/PlannedVisitsExport';
 import { IndiaMapWrapper } from '@/components/risansi/IndiaMapWrapper';
+import { REV_JOIN } from '@/lib/risansi-client-filter';
+import { normaliseStateName } from '@/lib/risansi-india-geo';
 import { ClientCoverageList } from '@/components/risansi/ClientCoverageList';
 import { WeekNav } from '@/components/risansi/WeekNav';
 import { MonthNav } from '@/components/risansi/MonthNav';
@@ -84,6 +86,10 @@ interface MapClient {
   country: string | null;
   last_visit_date: string | null; days_since: number | null;
   tier: string | null; rep_name: string | null;
+  // Carried for the map, which shades and sizes by these rather than only
+  // plotting a dot per client. Rupees, both of them.
+  lifetime_rev: number; open_value: number; open_opps: number;
+  visit_waiver: string | null;
 }
 
 interface StatsRow {
@@ -477,7 +483,12 @@ export default async function FieldActivityPage({
            c.industry, c.city, c.state, c.country,
            c.last_visit_date::text,
            EXTRACT(DAY FROM NOW() - c.last_visit_date)::int AS days_since,
-           c.tier,
+           c.tier, c.visit_waiver,
+           -- The map shades states and sizes bubbles by these, so they travel
+           -- with the pin rather than being fetched again per hover.
+           COALESCE(rev.lifetime_rev, 0)::float8 AS lifetime_rev,
+           COALESCE(pipe.open_value, 0)::float8  AS open_value,
+           COALESCE(pipe.open_opps, 0)::int      AS open_opps,
            (SELECT string_agg(u.name, ', ' ORDER BY r.rank, u.name)
                 FROM (SELECT c2.primary_rep_id AS user_id, 0 AS rank FROM clients c2
                        WHERE c2.id = c.id AND c2.primary_rep_id IS NOT NULL
@@ -485,6 +496,15 @@ export default async function FieldActivityPage({
                       SELECT s.rep_id, 1 FROM client_secondary_reps s WHERE s.client_id = c.id) r
                 JOIN users u ON u.id = r.user_id) AS rep_name
          FROM clients c
+         ${REV_JOIN}
+         LEFT JOIN (
+           SELECT o.client_id,
+                  SUM(COALESCE(o.offer_value_inr, o.value_cr * 10000000, 0)) AS open_value,
+                  count(*) AS open_opps
+             FROM opportunities o
+            WHERE o.stage NOT IN ('Won','Lost','Dropped')
+            GROUP BY o.client_id
+         ) pipe ON pipe.client_id = c.id
          WHERE ${coverStatus}
            AND c.deleted_at IS NULL${cVisAnd}${filters.clientAnd}
          ORDER BY c.last_visit_date ASC NULLS FIRST`,
@@ -753,22 +773,22 @@ export default async function FieldActivityPage({
 
   // ── Derived ──────────────────────────────────────────────────
 
-  const INDIAN_STATES = new Set([
-    'Andhra Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-    'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh',
-    'Jammu And Kashmir', 'Jharkhand', 'Karnataka', 'Kerala',
-    'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya',
-    'Mizoram', 'Nagaland', 'Odisha', 'Puducherry', 'Punjab',
-    'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
-    'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-    'Dadra & Nagar Haveli',
-  ]);
-  // State values in the DB are uppercase (e.g. "MAHARASHTRA"), so match
-  // case-insensitively — otherwise no client lands on the India map.
-  const INDIAN_STATES_UC = new Set([...INDIAN_STATES].map(s => s.toUpperCase()));
-  const isIndianState = (s: string | null) => !!s && INDIAN_STATES_UC.has(s.trim().toUpperCase());
+  // State values in the DB are uppercase (e.g. "MAHARASHTRA") and some are the
+  // old names — "ORISSA", "Uttaranchal", "Jammu And Kashmir". This was a
+  // hand-kept Set of 31 exact spellings, so anything outside it went to the
+  // International panel; it was also missing Arunachal Pradesh, Chandigarh,
+  // Ladakh, Lakshadweep and Andaman & Nicobar outright. The normaliser in
+  // risansi-india-geo knows every alias the map plots by, so it decides the
+  // split too and the two cannot disagree about what counts as India.
+  const isIndianState = (s: string | null) => normaliseStateName(s) !== null;
   const indiaMapClients = mapClients.filter(c => isIndianState(c.state));
-  const intlMapClients  = mapClients.filter(c => !isIndianState(c.state));
+  // Three groups, not two. A client with no state at all is not international,
+  // and 440 of them were sitting in the International panel under "Unknown" —
+  // which read as "we export to Unknown" rather than "somebody never filled
+  // the address in". They get their own strip that says exactly that, and a
+  // link to go and fix it.
+  const unlocatedClients = mapClients.filter(c => !isIndianState(c.state) && !c.state && !c.country);
+  const intlMapClients   = mapClients.filter(c => !isIndianState(c.state) && (c.state || c.country));
 
   // Calendar stats (for week view header)
   const calPlanned   = calendarVisits.filter(v => v.status !== 'cancelled').length;
@@ -1310,8 +1330,14 @@ export default async function FieldActivityPage({
                 last_visit_date: c.last_visit_date,
                 tier:            c.tier,
                 rep_name:        c.rep_name ?? '',
+                industry:        c.industry,
+                lifetime_rev:    Number(c.lifetime_rev ?? 0),
+                open_value:      Number(c.open_value ?? 0),
+                open_opps:       Number(c.open_opps ?? 0),
+                visit_waiver:    c.visit_waiver,
               }))} />
               <InternationalPanel clients={intlMapClients} />
+              <UnlocatedPanel clients={unlocatedClients} />
             </div>
             <ClientCoverageList clients={mapClients.map(c => ({
               id:              c.id,
@@ -1385,6 +1411,35 @@ function CalendarVisitCard({ visit, compact = false, role }: { visit: CalendarVi
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// Clients with no state and no country on record.
+//
+// They cannot be plotted and they are not exports, so they get a count and a
+// way in rather than a silent omission — the map's footer says how many were
+// placed, and this says why the rest were not.
+function UnlocatedPanel({ clients }: { clients: MapClient[] }) {
+  if (clients.length === 0) return null;
+  const withRev = clients.filter(c => Number(c.lifetime_rev) > 0).length;
+  return (
+    <div style={{
+      marginTop: 12, padding: '10px 14px', background: 'var(--bg-paper)',
+      border: '1px solid var(--line)', borderLeft: '3px solid var(--warn)',
+      borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center',
+      gap: 10, flexWrap: 'wrap',
+    }}>
+      <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+        <strong style={{ color: 'var(--fg)' }}>{clients.length.toLocaleString('en-IN')}</strong>
+        {' '}client{clients.length === 1 ? '' : 's'} have no state on record, so they cannot be placed
+        {withRev > 0 && <> &mdash; {withRev} of them have billed revenue</>}.
+      </span>
+      <a href="/risansi/clients?q=" style={{
+        marginLeft: 'auto', fontSize: 11.5, color: 'var(--brand-blue)', textDecoration: 'none',
+      }}>
+        Open client list &rarr;
+      </a>
     </div>
   );
 }

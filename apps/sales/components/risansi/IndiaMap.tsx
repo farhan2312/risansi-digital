@@ -1,9 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps';
+import {
+  CITY_COORDS, STATE_CENTERS, INTL_STATES, normaliseStateName, cityKey,
+} from '@/lib/risansi-india-geo';
 
 const GEO_URL = '/india-states.json';
+
+// The field map, rebuilt.
+//
+// ── What was wrong with the old one ─────────────────────────────
+//
+// Flat grey states and one 2.5px dot per client, each shifted by a jitter
+// derived from its id. Three problems, and the first two are the same problem:
+//
+//   The states carried no information. The portal knows revenue, pipeline and
+//   coverage per state and the map showed none of it, so the one thing a map is
+//   for - "where is the business, and where is it not being covered" - had to
+//   be answered by reading the table beside it.
+//
+//   Thirty clients in Pune drew thirty overlapping dots in a 0.4 degree box.
+//   That is not thirty readable marks, it is one smudge, and the jitter made it
+//   a smudge in the wrong place: the dots implied per-client precision over
+//   coordinates that are really just the city centre.
+//
+//   Hardcoded #F4F7FC and white, so it stayed a white panel in dark mode.
+//
+// ── What it does now ────────────────────────────────────────────
+//
+// States are a choropleth over a metric the reader picks: clients, revenue,
+// open pipeline, or coverage. Cities are ONE bubble per city, area proportional
+// to the metric, split into a coverage ring so a big bubble that is mostly red
+// reads as a big problem at a glance. Hovering either gives the figures behind
+// it, and the right rail ranks the states so the map and the ranking cannot
+// disagree - both are the same aggregate.
+//
+// Everything is tokens, so dark mode works.
 
 export interface MapClient {
   id:              string;
@@ -13,301 +46,594 @@ export interface MapClient {
   last_visit_date: string | null;
   tier:            string | null;
   rep_name:        string;
+  industry:        string | null;
+  lifetime_rev:    number;
+  open_value:      number;
+  open_opps:       number;
+  visit_waiver:    string | null;
 }
 
-// ── State center coordinates [lng, lat] ───────────────────────
+// ── Metrics ───────────────────────────────────────────────────
 
-const STATE_CENTERS: Record<string, [number, number]> = {
-  'Andhra Pradesh':     [79.7, 15.9],
-  'Assam':              [92.9, 26.2],
-  'Bihar':              [85.3, 25.1],
-  'Chhattisgarh':       [81.9, 21.3],
-  'Delhi':              [77.2, 28.6],
-  'Goa':                [74.1, 15.3],
-  'Gujarat':            [71.2, 22.3],
-  'Haryana':            [76.1, 29.1],
-  'Himachal Pradesh':   [77.2, 31.1],
-  'Jammu And Kashmir':  [75.3, 33.7],
-  'Jammu and Kashmir':  [75.3, 33.7],
-  'Jharkhand':          [85.3, 23.6],
-  'Karnataka':          [75.7, 15.3],
-  'Kerala':             [76.3, 10.8],
-  'Madhya Pradesh':     [78.7, 23.5],
-  'Maharashtra':        [75.7, 19.7],
-  'Manipur':            [93.9, 24.7],
-  'Meghalaya':          [91.4, 25.5],
-  'Mizoram':            [92.7, 23.2],
-  'Nagaland':           [94.6, 26.1],
-  'Odisha':             [85.1, 20.9],
-  'Orissa':             [85.1, 20.9],
-  'Puducherry':         [79.8, 11.9],
-  'Punjab':             [75.3, 31.1],
-  'Rajasthan':          [74.2, 27.0],
-  'Sikkim':             [88.5, 27.5],
-  'Tamil Nadu':         [78.7, 11.1],
-  'Telangana':          [79.1, 18.1],
-  'Tripura':            [91.9, 23.9],
-  'Uttar Pradesh':      [80.9, 26.8],
-  'Uttarakhand':        [79.0, 30.1],
-  'Uttaranchal':        [79.0, 30.1],
-  'West Bengal':        [88.4, 22.9],
+type MetricKey = 'clients' | 'revenue' | 'pipeline' | 'coverage';
+
+interface Metric {
+  key: MetricKey;
+  label: string;
+  hint: string;
+  /** Rupees get formatted; counts and percentages do not. */
+  money: boolean;
+  /** Higher is better, so a pale state is a problem rather than an absence. */
+  of: (a: Agg) => number;
+  fmt: (n: number) => string;
+}
+
+const fmtInr = (n: number) => {
+  if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2) + ' Cr';
+  if (n >= 1e5) return '₹' + (n / 1e5).toFixed(1) + ' L';
+  if (n > 0)    return '₹' + Math.round(n).toLocaleString('en-IN');
+  return '—';
 };
+const fmtNum = (n: number) => (n > 0 ? n.toLocaleString('en-IN') : '—');
 
-// ── City center coordinates [lng, lat] ────────────────────────
+const METRICS: Metric[] = [
+  { key: 'clients',  label: 'Clients',  money: false,
+    hint: 'How many clients sit in each state.',
+    of: a => a.n, fmt: fmtNum },
+  { key: 'revenue',  label: 'Revenue',  money: true,
+    hint: 'Lifetime invoiced revenue, summed over the state.',
+    of: a => a.rev, fmt: fmtInr },
+  { key: 'pipeline', label: 'Pipeline', money: true,
+    hint: 'Open opportunity value: everything not yet Won, Lost or Dropped.',
+    of: a => a.pipe, fmt: fmtInr },
+  { key: 'coverage', label: 'Coverage', money: false,
+    hint: 'Share of clients visited in the last 90 days. Clients marked as needing no visit are left out of both sides.',
+    of: a => a.coveragePct, fmt: n => (n >= 0 ? n.toFixed(0) + '%' : '—') },
+];
 
-const CITY_COORDS: Record<string, [number, number]> = {
-  'Pune':              [73.86, 18.52],
-  'Mumbai':            [72.88, 19.08],
-  'Kolhapur':          [74.24, 16.70],
-  'Solapur':           [75.91, 17.69],
-  'Nashik':            [73.79, 20.00],
-  'Nagpur':            [79.09, 21.15],
-  'Aurangabad':        [75.34, 19.88],
-  'Sambhajinagar':     [75.34, 19.88],
-  'Bengaluru':         [77.59, 12.97],
-  'Bangalore':         [77.59, 12.97],
-  'Mysuru':            [76.64, 12.30],
-  'Belagavi':          [74.50, 15.85],
-  'Hubli':             [75.12, 15.36],
-  'Ahmedabad':         [72.59, 23.03],
-  'Surat':             [72.83, 21.17],
-  'Vadodara':          [73.19, 22.31],
-  'Rajkot':            [70.80, 22.30],
-  'Chennai':           [80.28, 13.08],
-  'Coimbatore':        [76.96, 11.02],
-  'Madurai':           [78.12, 9.92],
-  'Hyderabad':         [78.49, 17.39],
-  'Kanpur':            [80.35, 26.45],
-  'Lucknow':           [80.95, 26.85],
-  'Noida':             [77.39, 28.54],
-  'Ghaziabad':         [77.42, 28.67],
-  'Meerut':            [77.71, 28.98],
-  'Agra':              [78.02, 27.18],
-  'Varanasi':          [83.00, 25.32],
-  'Kolkata':           [88.37, 22.57],
-  'Patna':             [85.14, 25.60],
-  'Jaipur':            [75.79, 26.91],
-  'Indore':            [75.86, 22.72],
-  'Bhopal':            [77.41, 23.26],
-  'New Delhi':         [77.21, 28.61],
-  'Delhi':             [77.21, 28.61],
-  'Chandigarh':        [76.78, 30.73],
-  'Ludhiana':          [75.86, 30.90],
-  'Amritsar':          [74.87, 31.64],
-  'Panipat':           [76.97, 29.39],
-  'Gurugram':          [77.03, 28.46],
-  'Faridabad':         [77.31, 28.41],
-  'Haridwar':          [78.17, 29.95],
-  'Dehradun':          [78.03, 30.32],
-  'Kashipur':          [78.96, 29.21],
-  'Ranchi':            [85.33, 23.35],
-  'Dhanbad':           [86.43, 23.79],
-  'Raipur':            [81.63, 21.25],
-  'Visakhapatnam':     [83.30, 17.69],
-  'Guntur':            [80.44, 16.30],
-  'Bhubaneswar':       [85.82, 20.30],
-  'Guwahati':          [91.74, 26.14],
-  'Thiruvananthapuram': [76.95, 8.52],
-  'Kochi':             [76.27, 9.93],
-  'Thrissur':          [76.22, 10.53],
-};
+// ── Coverage ──────────────────────────────────────────────────
 
-// ── Helpers ────────────────────────────────────────────────────
+type Band = 'fresh' | 'ageing' | 'stale' | 'waived';
 
-const INTL_STATES = new Set([
-  'UAE', 'Bangkok', 'Dubai', 'Jakarta',
-  'Tanzania', 'Uganda', 'Kenya', 'Philippines', 'Vietnam',
-]);
+const BANDS: { key: Band; label: string; color: string }[] = [
+  { key: 'fresh',  label: 'Visited ≤ 30 days', color: 'var(--pos)' },
+  { key: 'ageing', label: '30–90 days',        color: 'var(--warn)' },
+  { key: 'stale',  label: 'Overdue / never',        color: 'var(--neg)' },
+  { key: 'waived', label: 'No visit required',      color: 'var(--fg-4)' },
+];
+const BAND_COLOR = Object.fromEntries(BANDS.map(b => [b.key, b.color])) as Record<Band, string>;
 
-function getCoords(client: MapClient): [number, number] | null {
-  if (client.state && INTL_STATES.has(client.state)) return null;
-  if (!client.state && !client.city) return null;
+function bandOf(c: MapClient): Band {
+  // A waiver wins over "overdue" but not over a real recent visit: the visit
+  // happened, and painting it grey would hide good news.
+  const d = c.last_visit_date ? daysSince(c.last_visit_date) : null;
+  if (d !== null && d >= 0 && d <= 30) return 'fresh';
+  if (c.visit_waiver) return 'waived';
+  if (d === null || d < 0) return 'stale';
+  if (d <= 90) return 'ageing';
+  return 'stale';
+}
 
-  const numId = parseInt(client.id, 10) || 0;
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
 
-  // City lookup (more precise)
-  if (client.city) {
-    const key = Object.keys(CITY_COORDS).find(
-      k => k.toLowerCase() === client.city!.toLowerCase(),
-    );
-    if (key) {
-      const [lng, lat] = CITY_COORDS[key];
-      return [
-        lng + ((numId * 0.007) % 0.4) - 0.2,
-        lat + ((numId * 0.011) % 0.4) - 0.2,
-      ];
+// ── Aggregation ───────────────────────────────────────────────
+
+interface Agg {
+  n: number;
+  rev: number;
+  pipe: number;
+  opps: number;
+  bands: Record<Band, number>;
+  /** −1 when every client in the group is waived: there is no coverage to score. */
+  coveragePct: number;
+  topRep: string | null;
+}
+
+function aggregate(clients: MapClient[]): Agg {
+  const bands: Record<Band, number> = { fresh: 0, ageing: 0, stale: 0, waived: 0 };
+  const reps = new Map<string, number>();
+  let rev = 0, pipe = 0, opps = 0;
+  for (const c of clients) {
+    bands[bandOf(c)]++;
+    rev  += c.lifetime_rev || 0;
+    pipe += c.open_value   || 0;
+    opps += c.open_opps    || 0;
+    if (c.rep_name) for (const r of c.rep_name.split(',').map(s => s.trim())) {
+      if (r) reps.set(r, (reps.get(r) ?? 0) + 1);
     }
   }
+  // The denominator excludes the waived, matching how coverage is counted
+  // everywhere else: a state whose only unvisited clients are waived is
+  // covered, not 50% covered.
+  const scored = bands.fresh + bands.ageing + bands.stale;
+  const topRep = [...reps.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return {
+    n: clients.length, rev, pipe, opps, bands, topRep,
+    coveragePct: scored > 0 ? (bands.fresh / scored) * 100 : -1,
+  };
+}
 
-  // State center fallback (larger jitter to spread dots)
-  if (client.state) {
-    const normalized = client.state.split(' ')
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(' ');
-    const key = STATE_CENTERS[normalized] ? normalized
-      : Object.keys(STATE_CENTERS).find(
-          k => k.toLowerCase() === client.state!.toLowerCase(),
-        );
-    if (key) {
-      const [lng, lat] = STATE_CENTERS[key];
-      return [
-        lng + ((numId * 0.031) % 3.0) - 1.5,
-        lat + ((numId * 0.019) % 3.0) - 1.5,
-      ];
-    }
+interface Group extends Agg {
+  key: string;
+  label: string;
+  coords: [number, number];
+  clients: MapClient[];
+}
+
+// ── Scales ────────────────────────────────────────────────────
+
+/**
+ * Bubble radius from the metric.
+ *
+ * Area, not radius, carries the value - a city with four times the revenue
+ * gets four times the ink, not sixteen. sqrt on a 0..1 share of the largest
+ * group, with a floor so a one-client city is still clickable.
+ */
+function radiusFor(v: number, max: number, zoom: number): number {
+  if (max <= 0 || v <= 0) return 3 / Math.sqrt(zoom);
+  const r = 3.5 + Math.sqrt(v / max) * 13;
+  return r / Math.sqrt(zoom);
+}
+
+/** Choropleth fill: a pale-to-accent ramp, with a flat tint for "no data". */
+function stateFill(v: number, max: number, metric: Metric): string {
+  if (metric.key === 'coverage') {
+    // Coverage is a rate, not a total, so it gets a verdict ramp rather than
+    // an intensity one. A dark state on the Revenue map is good news; a dark
+    // state on a coverage map would be ambiguous.
+    if (v < 0)   return 'var(--bg-sunk)';
+    if (v >= 75) return 'color-mix(in oklab, var(--pos) 55%, var(--bg-paper))';
+    if (v >= 50) return 'color-mix(in oklab, var(--pos) 28%, var(--bg-paper))';
+    if (v >= 25) return 'color-mix(in oklab, var(--warn) 34%, var(--bg-paper))';
+    return 'color-mix(in oklab, var(--neg) 30%, var(--bg-paper))';
   }
-
-  return null;
+  if (max <= 0 || v <= 0) return 'var(--bg-sunk)';
+  // sqrt again: a few states hold most of the business, and a linear ramp
+  // leaves everything but Maharashtra and Gujarat looking empty.
+  const t = Math.sqrt(v / max);
+  const pct = Math.round(8 + t * 62);
+  return `color-mix(in oklab, var(--accent) ${pct}%, var(--bg-paper))`;
 }
 
-function dotColor(lastVisit: string | null): string {
-  if (!lastVisit) return '#DC2626';
-  const days = Math.floor((Date.now() - new Date(lastVisit).getTime()) / 86_400_000);
-  if (days < 0)    return '#DC2626';  // future date (planned visit) → treat as never
-  if (days <= 30)  return '#0E9F6E';
-  if (days <= 90)  return '#D97706';
-  return '#DC2626';
+// ── Component ─────────────────────────────────────────────────
+
+interface Hover {
+  title: string;
+  sub: string | null;
+  agg: Agg;
+  x: number; y: number;
+  names: string[];
 }
 
-// ── Component ──────────────────────────────────────────────────
-
-interface TooltipState {
-  name: string; location: string; lastVisit: string; x: number; y: number;
-}
-
-const MAX_DOTS = 600;
+const HEIGHT = 560;
 
 export function IndiaMap({ clients }: { clients: MapClient[] }) {
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [metricKey, setMetricKey] = useState<MetricKey>('clients');
+  const [zoom, setZoom] = useState(1);
+  const [center, setCenter] = useState<[number, number]>([82.5, 22]);
+  const [hover, setHover] = useState<Hover | null>(null);
+  const [activeState, setActiveState] = useState<string | null>(null);
 
-  const sampled = clients.length > MAX_DOTS
-    ? clients.filter((_, i) => i % Math.ceil(clients.length / MAX_DOTS) === 0)
-    : clients;
+  const metric = METRICS.find(m => m.key === metricKey)!;
 
-  const plotted = sampled
-    .map(c => ({ client: c, coords: getCoords(c) }))
-    .filter((x): x is { client: MapClient; coords: [number, number] } => x.coords !== null);
+  // ── Grouping ──
+  // Both aggregates come from the same client list, so the choropleth, the
+  // bubbles and the ranking cannot drift from one another.
+  const { byState, cityGroups, stateMax, cityMax, plottedCount, intlCount, total } = useMemo(() => {
+    const stateBuckets = new Map<string, MapClient[]>();
+    const cityBuckets  = new Map<string, { label: string; coords: [number, number]; list: MapClient[] }>();
+    let intl = 0, plotted = 0;
 
-  const intlCount = clients.filter(c => c.state && INTL_STATES.has(c.state)).length;
+    for (const c of clients) {
+      if (c.state && INTL_STATES.has(c.state)) { intl++; continue; }
+      const st = normaliseStateName(c.state);
+      if (st) {
+        const cur = stateBuckets.get(st) ?? [];
+        cur.push(c); stateBuckets.set(st, cur);
+      }
+      // A city we have coordinates for gets its own bubble; everything else
+      // falls back to the state centre, labelled as such rather than
+      // pretending to be a place.
+      const ck = c.city ? cityKey(c.city) : null;
+      const coords = ck ? CITY_COORDS[ck] : (st ? STATE_CENTERS[st] : undefined);
+      if (!coords) continue;
+      plotted++;
+      const key = ck ?? `state:${st}`;
+      const label = ck ?? (st ? st + ' (city not recorded)' : '');
+      const b = cityBuckets.get(key) ?? { label, coords, list: [] };
+      b.list.push(c); cityBuckets.set(key, b);
+    }
+
+    const stateAggs = new Map<string, Agg>();
+    for (const [k, list] of stateBuckets) stateAggs.set(k, aggregate(list));
+
+    const cities: Group[] = [...cityBuckets.entries()].map(([key, b]) => ({
+      key, label: b.label, coords: b.coords, clients: b.list, ...aggregate(b.list),
+    }));
+
+    const sMax = Math.max(0, ...[...stateAggs.values()].map(a => metric.of(a)));
+    const cMax = Math.max(0, ...cities.map(a => metric.of(a)));
+    return {
+      byState: stateAggs, cityGroups: cities,
+      stateMax: sMax, cityMax: cMax,
+      plottedCount: plotted, intlCount: intl, total: clients.length,
+    };
+  }, [clients, metric]);
+
+  // Biggest first so the small bubbles land on top and stay hoverable.
+  const drawOrder = useMemo(
+    () => [...cityGroups].sort((a, b) => metric.of(b) - metric.of(a)),
+    [cityGroups, metric],
+  );
+
+  const ranking = useMemo(
+    () => [...byState.entries()]
+      .map(([name, a]) => ({ name, a, v: metric.of(a) }))
+      .filter(r => r.v > 0 || metric.key === 'coverage')
+      .sort((a, b) => b.v - a.v)
+      .slice(0, 12),
+    [byState, metric],
+  );
+
+  const totals = useMemo(() => aggregate(clients.filter(c => !(c.state && INTL_STATES.has(c.state)))), [clients]);
+
+  const showAt = (e: { clientX: number; clientY: number; target: EventTarget | null },
+                  h: Omit<Hover, 'x' | 'y'>) => {
+    const svg = (e.target as SVGElement | null)?.closest('svg');
+    const rect = svg ? svg.getBoundingClientRect() : { left: 0, top: 0 } as DOMRect;
+    setHover({ ...h, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const reset = () => { setZoom(1); setCenter([82.5, 22]); };
 
   return (
-    <div style={{ position: 'relative', background: '#F4F7FC', borderRadius: 8, overflow: 'hidden' }}>
-      <ComposableMap
-        projection="geoMercator"
-        projectionConfig={{ center: [82.5, 22], scale: 1000 }}
-        style={{ width: '100%', height: 520 }}
-      >
-        <ZoomableGroup center={[82.5, 22]} zoom={1} minZoom={0.8} maxZoom={8}>
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map(geo => (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  fill="#E8EDF5"
-                  stroke="#B8C9E8"
-                  strokeWidth={0.5}
-                  style={{
-                    default: { outline: 'none' },
-                    hover:   { fill: '#D0DCF0', outline: 'none' },
-                    pressed: { outline: 'none' },
-                  }}
-                />
-              ))
-            }
-          </Geographies>
-
-          {plotted.map(({ client, coords }) => (
-            <Marker
-              key={client.id}
-              coordinates={coords}
-              onMouseEnter={(e) => {
-                const svg = (e.target as SVGElement).closest('svg');
-                const rect = svg ? svg.getBoundingClientRect() : { left: 0, top: 0 };
-                const me = e as unknown as MouseEvent;
-                setTooltip({
-                  name:      client.legal_name,
-                  location:  [client.city, client.state].filter(Boolean).join(', '),
-                  lastVisit: client.last_visit_date &&
-                    new Date(client.last_visit_date).setHours(0, 0, 0, 0) <= new Date().setHours(0, 0, 0, 0)
-                    ? new Date(client.last_visit_date).toLocaleDateString('en-IN', {
-                        day: '2-digit', month: 'short', year: 'numeric',
-                      })
-                    : 'Never visited',
-                  x: me.clientX - rect.left,
-                  y: me.clientY - rect.top,
-                });
-              }}
-              onMouseLeave={() => setTooltip(null)}
-            >
-              <circle
-                r={client.tier === 'Key' ? 4 : 2.5}
-                fill={dotColor(client.last_visit_date)}
-                fillOpacity={0.82}
-                stroke="white"
-                strokeWidth={0.5}
-                style={{ cursor: 'pointer' }}
-              />
-            </Marker>
-          ))}
-        </ZoomableGroup>
-      </ComposableMap>
-
-      {/* Tooltip */}
-      {tooltip && (
-        <div style={{
-          position: 'absolute', left: tooltip.x + 14, top: tooltip.y - 12,
-          background: 'white', border: '1px solid #DDE6F5',
-          borderRadius: 7, padding: '8px 12px',
-          fontSize: 12, boxShadow: '0 4px 16px rgba(10,61,143,0.12)',
-          pointerEvents: 'none', zIndex: 100, maxWidth: 240,
-        }}>
-          <div style={{ fontWeight: 600, color: '#0D1B2A', marginBottom: 2 }}>
-            {tooltip.name}
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 232px', gap: 0,
+                  border: '1px solid var(--line)', borderRadius: 'var(--radius)',
+                  overflow: 'hidden', background: 'var(--bg-paper)' }}>
+      <div>
+        {/* ── Metric switcher + totals strip ── */}
+        <div style={BAR}>
+          <div style={{ display: 'flex', gap: 2, background: 'var(--bg-sunk)', borderRadius: 7, padding: 2 }}>
+            {METRICS.map(m => (
+              <button key={m.key} type="button" title={m.hint}
+                onClick={() => setMetricKey(m.key)}
+                style={{ ...SEG, ...(m.key === metricKey ? SEG_ON : null) }}>
+                {m.label}
+              </button>
+            ))}
           </div>
-          <div style={{ color: '#6B7FA3', fontSize: 11 }}>{tooltip.location}</div>
-          <div style={{
-            marginTop: 5, fontSize: 11,
-            color: tooltip.lastVisit === 'Never visited' ? '#DC2626' : '#2C3E5A',
-          }}>
-            Last visit: {tooltip.lastVisit}
+          <div style={{ display: 'flex', gap: 14, marginLeft: 'auto', flexWrap: 'wrap' }}>
+            <Stat label="Clients"  value={fmtNum(totals.n)} />
+            <Stat label="Revenue"  value={fmtInr(totals.rev)} />
+            <Stat label="Pipeline" value={fmtInr(totals.pipe)} sub={totals.opps + ' open'} />
+            <Stat label="Coverage"
+              value={totals.coveragePct >= 0 ? totals.coveragePct.toFixed(0) + '%' : '—'}
+              color={totals.coveragePct >= 50 ? 'var(--pos)' : 'var(--warn-strong)'} />
           </div>
         </div>
-      )}
 
-      {/* Legend */}
-      <div style={{
-        position: 'absolute', bottom: 12, left: 12,
-        background: 'white', border: '1px solid #DDE6F5',
-        borderRadius: 6, padding: '8px 12px',
-        fontSize: 11, color: '#6B7FA3',
-        display: 'flex', flexDirection: 'column', gap: 5,
-      }}>
-        {[
-          { color: '#0E9F6E', label: 'Visited < 30 days' },
-          { color: '#D97706', label: '30–90 days' },
-          { color: '#DC2626', label: 'Overdue / Never' },
-        ].map(l => (
-          <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, flexShrink: 0 }} />
-            {l.label}
+        <div style={{ position: 'relative', background: 'var(--bg-elev)' }}>
+          <ComposableMap
+            projection="geoMercator"
+            projectionConfig={{ center: [82.5, 22], scale: 1020 }}
+            style={{ width: '100%', height: HEIGHT, display: 'block' }}
+          >
+            <ZoomableGroup center={center} zoom={zoom} minZoom={0.9} maxZoom={10}
+              onMoveEnd={({ coordinates, zoom: z }) => { setCenter(coordinates as [number, number]); setZoom(z); }}>
+
+              <Geographies geography={GEO_URL}>
+                {({ geographies }) => geographies.map(geo => {
+                  const raw  = String(geo.properties?.NAME_1 ?? '');
+                  const name = normaliseStateName(raw) ?? raw;
+                  const agg  = byState.get(name);
+                  const v    = agg ? metric.of(agg) : (metric.key === 'coverage' ? -1 : 0);
+                  const on   = activeState === name;
+                  return (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      fill={stateFill(v, stateMax, metric)}
+                      stroke={on ? 'var(--accent)' : 'var(--line-strong)'}
+                      strokeWidth={(on ? 1.4 : 0.4) / zoom}
+                      onMouseEnter={e => {
+                        setActiveState(name);
+                        showAt(e as unknown as MouseEvent, {
+                          title: name,
+                          sub: agg ? null : 'No clients on record',
+                          agg: agg ?? aggregate([]),
+                          names: [],
+                        });
+                      }}
+                      onMouseLeave={() => { setActiveState(null); setHover(null); }}
+                      style={{
+                        default: { outline: 'none' },
+                        hover:   { outline: 'none', cursor: 'pointer' },
+                        pressed: { outline: 'none' },
+                      }}
+                    />
+                  );
+                })}
+              </Geographies>
+
+              {/* ── City bubbles ── */}
+              {drawOrder.map(g => {
+                const v = metric.of(g);
+                const r = radiusFor(metric.key === 'coverage' ? g.n : v,
+                                    metric.key === 'coverage' ? Math.max(...drawOrder.map(x => x.n)) : cityMax,
+                                    zoom);
+                // The ring is the coverage split, so the colour of a bubble is
+                // the state of the clients inside it rather than an average
+                // nobody can act on.
+                const ringW = Math.max(1.2, r * 0.42);
+                let acc = 0;
+                const circ = 2 * Math.PI * (r - ringW / 2);
+                return (
+                  <Marker key={g.key} coordinates={g.coords}
+                    onMouseEnter={e => showAt(e as unknown as MouseEvent, {
+                      title: g.label,
+                      sub: g.n === 1 ? g.clients[0].legal_name : g.n + ' clients',
+                      agg: g,
+                      names: g.clients.slice(0, 6).map(c => c.legal_name),
+                    })}
+                    onMouseLeave={() => setHover(null)}>
+                    <circle r={Math.max(r - ringW, 0.8)}
+                      fill="var(--bg-paper)" fillOpacity={0.55} stroke="none" />
+                    {BANDS.map(b => {
+                      const share = g.bands[b.key] / Math.max(g.n, 1);
+                      if (share <= 0) return null;
+                      const dash = share * circ;
+                      const off = -acc * circ;
+                      acc += share;
+                      return (
+                        <circle key={b.key}
+                          r={Math.max(r - ringW / 2, 0.6)}
+                          fill="none" stroke={b.color} strokeWidth={ringW}
+                          strokeDasharray={`${dash} ${circ - dash}`}
+                          strokeDashoffset={off}
+                          transform="rotate(-90)"
+                          style={{ cursor: 'pointer' }} />
+                      );
+                    })}
+                    {/* The count, once the bubble is big enough to hold it. */}
+                    {r > 9 && (
+                      <text textAnchor="middle" dy={r * 0.3} style={{ pointerEvents: 'none' }}
+                        fontSize={r * 0.85} fontWeight={700} fill="var(--fg)">
+                        {g.n}
+                      </text>
+                    )}
+                  </Marker>
+                );
+              })}
+
+              {/* State names, once there is room for them. */}
+              {zoom >= 2.2 && [...byState.keys()].map(name => {
+                const c = STATE_CENTERS[name];
+                if (!c) return null;
+                return (
+                  <Marker key={'lbl-' + name} coordinates={c}>
+                    <text textAnchor="middle" dy={-14 / zoom} style={{ pointerEvents: 'none' }}
+                      fontSize={11 / zoom} fontWeight={600} fill="var(--fg-3)"
+                      stroke="var(--bg-elev)" strokeWidth={3 / zoom} paintOrder="stroke">
+                      {name}
+                    </text>
+                  </Marker>
+                );
+              })}
+            </ZoomableGroup>
+          </ComposableMap>
+
+          {/* ── Zoom controls ── */}
+          <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <button type="button" onClick={() => setZoom(z => Math.min(z * 1.6, 10))} style={ZBTN} aria-label="Zoom in">+</button>
+            <button type="button" onClick={() => setZoom(z => Math.max(z / 1.6, 0.9))} style={ZBTN} aria-label="Zoom out">&minus;</button>
+            <button type="button" onClick={reset} style={{ ...ZBTN, fontSize: 9, letterSpacing: '0.04em' }} aria-label="Reset view">RESET</button>
           </div>
-        ))}
-        <div style={{ marginTop: 3, paddingTop: 5, borderTop: '1px solid #EBF1FB', fontSize: 10, lineHeight: 1.5 }}>
-          Large dot = Key account<br />Scroll to zoom · Drag to pan
+
+          {/* ── Legend ── */}
+          <div style={CARD_BL}>
+            <div style={LEG_T}>Bubble ring &middot; last visit</div>
+            {BANDS.map(b => (
+              <div key={b.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'var(--fg-2)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: b.color, flexShrink: 0 }} />
+                {b.label}
+                <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', color: 'var(--fg-3)' }}>
+                  {totals.bands[b.key]}
+                </span>
+              </div>
+            ))}
+            <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line)', fontSize: 9.5, color: 'var(--fg-3)', lineHeight: 1.55 }}>
+              Bubble area = {metric.key === 'coverage' ? 'clients' : metric.label.toLowerCase()} &middot; state shade = {metric.label.toLowerCase()}
+              <br />Scroll to zoom &middot; drag to pan
+            </div>
+          </div>
+
+          {/* ── Choropleth scale ── */}
+          <div style={CARD_BR}>
+            <div style={LEG_T}>State shade &middot; {metric.label}</div>
+            {metric.key === 'coverage' ? (
+              <div style={{ display: 'flex', gap: 0 }}>
+                {[['0–25%', 30, 'neg'], ['25–50%', 34, 'warn'], ['50–75%', 28, 'pos'], ['75%+', 55, 'pos']].map(([l, p, t]) => (
+                  <div key={String(l)} style={{ textAlign: 'center' }}>
+                    <div style={{ width: 38, height: 9, background: `color-mix(in oklab, var(--${t}) ${p}%, var(--bg-paper))` }} />
+                    <div style={{ fontSize: 8.5, color: 'var(--fg-3)', marginTop: 2 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div style={{ height: 9, width: 152, borderRadius: 2, background:
+                  'linear-gradient(to right, color-mix(in oklab, var(--accent) 8%, var(--bg-paper)), color-mix(in oklab, var(--accent) 70%, var(--bg-paper)))' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8.5, color: 'var(--fg-3)', marginTop: 2 }}>
+                  <span>0</span><span>{metric.fmt(stateMax)}</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── Hover card ── */}
+          {hover && <HoverCard h={hover} metric={metric} />}
+        </div>
+
+        <div style={FOOT}>
+          {plottedCount.toLocaleString('en-IN')} of {total.toLocaleString('en-IN')} clients placed
+          {' · '}{cityGroups.length} locations
+          {intlCount > 0 && ` · ${intlCount} international, listed below`}
         </div>
       </div>
 
-      {/* Client count */}
-      <div style={{
-        position: 'absolute', bottom: 12, right: 12,
-        background: 'white', border: '1px solid #DDE6F5',
-        borderRadius: 6, padding: '6px 10px',
-        fontSize: 11, color: '#6B7FA3',
-      }}>
-        {plotted.length} of {clients.length} clients plotted
-        {intlCount > 0 && ` · ${intlCount} international not shown`}
+      {/* ── Ranking rail ── */}
+      <div style={{ borderLeft: '1px solid var(--line)', background: 'var(--bg-paper)',
+                    height: HEIGHT + 86, overflowY: 'auto' }}>
+        <div style={{ ...LEG_T, padding: '10px 12px 8px', borderBottom: '1px solid var(--line)',
+                      position: 'sticky', top: 0, background: 'var(--bg-elev)', margin: 0 }}>
+          States by {metric.label}
+        </div>
+        {ranking.length === 0 && <div style={{ padding: 12, fontSize: 11, color: 'var(--fg-3)' }}>Nothing to rank.</div>}
+        {ranking.map(r => {
+          const share = metric.key === 'coverage'
+            ? Math.max(r.v, 0)
+            : (stateMax > 0 ? (r.v / stateMax) * 100 : 0);
+          return (
+            <div key={r.name}
+              onMouseEnter={() => setActiveState(r.name)}
+              onMouseLeave={() => setActiveState(null)}
+              style={{ padding: '7px 12px', borderBottom: '1px solid var(--line)',
+                       background: activeState === r.name ? 'var(--bg-sunk)' : 'transparent' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 11.5, color: 'var(--fg)', fontWeight: 500 }}>{r.name}</span>
+                <span style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--fg)' }}>
+                  {metric.fmt(r.v)}
+                </span>
+              </div>
+              <div style={{ height: 3, marginTop: 4, background: 'var(--bg-sunk)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: Math.min(share, 100) + '%',
+                              background: metric.key === 'coverage'
+                                ? (r.v >= 50 ? 'var(--pos)' : 'var(--warn-strong)')
+                                : 'var(--accent)' }} />
+              </div>
+              <div style={{ fontSize: 9.5, color: 'var(--fg-3)', marginTop: 3 }}>
+                {r.a.n} client{r.a.n === 1 ? '' : 's'}
+                {r.a.topRep && ' · ' + r.a.topRep}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
+
+// ── Hover card ────────────────────────────────────────────────
+
+function HoverCard({ h, metric }: { h: Hover; metric: Metric }) {
+  const a = h.agg;
+  // Flipped when it would run off the right edge of a 1fr column; 300 is the
+  // card's own width plus the offset.
+  const flip = h.x > 520;
+  return (
+    <div style={{
+      position: 'absolute',
+      left: flip ? undefined : h.x + 16, right: flip ? 16 : undefined,
+      top: Math.max(h.y - 10, 8),
+      background: 'var(--bg-paper)', border: '1px solid var(--line-strong)',
+      borderRadius: 8, padding: '9px 12px', minWidth: 196, maxWidth: 260,
+      boxShadow: '0 6px 24px rgba(0,0,0,0.14)', pointerEvents: 'none', zIndex: 50,
+    }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--fg)' }}>{h.title}</div>
+      {h.sub && <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 1 }}>{h.sub}</div>}
+
+      {a.n > 0 ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '2px 10px', marginTop: 7,
+                        fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+            <span style={{ color: 'var(--fg-3)' }}>Clients</span>
+            <span style={{ color: 'var(--fg)', textAlign: 'right' }}>{a.n}</span>
+            <span style={{ color: 'var(--fg-3)' }}>Revenue</span>
+            <span style={{ color: 'var(--fg)', textAlign: 'right' }}>{fmtInr(a.rev)}</span>
+            <span style={{ color: 'var(--fg-3)' }}>Pipeline</span>
+            <span style={{ color: 'var(--fg)', textAlign: 'right' }}>
+              {fmtInr(a.pipe)}{a.opps > 0 && <span style={{ color: 'var(--fg-3)' }}> / {a.opps}</span>}
+            </span>
+            <span style={{ color: 'var(--fg-3)' }}>Covered</span>
+            <span style={{ textAlign: 'right',
+                           color: a.coveragePct < 0 ? 'var(--fg-3)'
+                                : a.coveragePct >= 50 ? 'var(--pos)' : 'var(--warn-strong)' }}>
+              {a.coveragePct >= 0 ? a.coveragePct.toFixed(0) + '%' : 'n/a'}
+            </span>
+          </div>
+
+          {/* The coverage split, as the bar the ring is drawn from. */}
+          <div style={{ display: 'flex', height: 4, marginTop: 7, borderRadius: 2, overflow: 'hidden', background: 'var(--bg-sunk)' }}>
+            {BANDS.map(b => a.bands[b.key] > 0 && (
+              <div key={b.key} style={{ width: (a.bands[b.key] / a.n) * 100 + '%', background: BAND_COLOR[b.key] }} />
+            ))}
+          </div>
+
+          {h.names.length > 0 && (
+            <div style={{ marginTop: 7, paddingTop: 6, borderTop: '1px solid var(--line)',
+                          fontSize: 10, color: 'var(--fg-3)', lineHeight: 1.5 }}>
+              {h.names.join(' · ')}
+              {a.n > h.names.length && ` · +${a.n - h.names.length} more`}
+            </div>
+          )}
+          {metric.key !== 'clients' && (
+            <div style={{ marginTop: 5, fontSize: 9.5, color: 'var(--fg-4)' }}>{metric.hint}</div>
+          )}
+        </>
+      ) : (
+        <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 5 }}>Nothing on record here.</div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 8.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--fg-3)', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 700, color: color ?? 'var(--fg)', lineHeight: 1.2 }}>
+        {value}
+        {sub && <span style={{ fontSize: 9.5, fontWeight: 400, color: 'var(--fg-3)', marginLeft: 4 }}>{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────
+
+const BAR: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+  padding: '8px 12px', background: 'var(--bg-elev)', borderBottom: '1px solid var(--line)',
+};
+const SEG: CSSProperties = {
+  padding: '4px 11px', borderRadius: 5, border: 'none', background: 'transparent',
+  fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', cursor: 'pointer', fontFamily: 'inherit',
+};
+const SEG_ON: CSSProperties = {
+  background: 'var(--bg-paper)', color: 'var(--fg)',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.10)',
+};
+const ZBTN: CSSProperties = {
+  width: 26, height: 26, borderRadius: 6, border: '1px solid var(--line-strong)',
+  background: 'var(--bg-paper)', color: 'var(--fg-2)', cursor: 'pointer',
+  fontSize: 14, lineHeight: 1, fontFamily: 'inherit', display: 'grid', placeItems: 'center',
+  fontWeight: 600,
+};
+const CARD: CSSProperties = {
+  position: 'absolute', background: 'var(--bg-paper)',
+  border: '1px solid var(--line)', borderRadius: 7, padding: '7px 10px',
+  display: 'flex', flexDirection: 'column', gap: 4,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+};
+const CARD_BL: CSSProperties = { ...CARD, bottom: 10, left: 10, minWidth: 158 };
+const CARD_BR: CSSProperties = { ...CARD, bottom: 10, right: 10 };
+const LEG_T: CSSProperties = {
+  fontSize: 9, fontWeight: 700, color: 'var(--fg-3)',
+  textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 2,
+};
+const FOOT: CSSProperties = {
+  padding: '7px 12px', borderTop: '1px solid var(--line)', background: 'var(--bg-elev)',
+  fontSize: 10.5, color: 'var(--fg-3)',
+};
