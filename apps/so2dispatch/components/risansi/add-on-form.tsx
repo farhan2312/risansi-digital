@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import {
-  addEcBoiItemsAction,
+  saveEcBoiItemsAction,
   boiItemsAction,
   createItemAction,
   createSpareItemAction,
@@ -27,6 +27,8 @@ const inputClass =
 // One bought-out item as the form holds it. Central Visibility lists what is
 // bought out for the EC; Purchase records what happens to each afterwards.
 type BoiRow = {
+  /** A row already saved on the EC (editing); none on a new one. */
+  id?: string;
   boi_item: string;
   boi_item_other: string;
   boi_make: string;
@@ -78,14 +80,29 @@ export function AddOnForm({
   );
   const [boi, setBoi] = useState<BoiRow[]>([]);
   // A pump's BOI Yes opens its bought-out item list — adding the EC, or
-  // editing one (new rows join the ones it already has).
+  // editing one (its saved items load as rows to change or remove).
   const listsBoi = !isSpare && values.boi === "Yes";
   const itemId = item ? String(item.id) : null;
   const [existingBoi, setExistingBoi] = useState<Record<string, unknown>[] | null>(null);
   useEffect(() => {
     if (!itemId || isSpare) return;
     let live = true;
-    boiItemsAction(itemId).then((res) => live && res.ok && setExistingBoi(res.rows));
+    boiItemsAction(itemId).then((res) => {
+      if (!live || !res.ok) return;
+      setExistingBoi(res.rows);
+      const s = (v: unknown) => (v == null ? "" : String(v));
+      setBoi((rows) => [
+        ...res.rows.map((r) => ({
+          id: s(r.id),
+          boi_item: s(r.boi_item),
+          boi_item_other: s(r.boi_item_other),
+          boi_make: s(r.boi_make),
+          boi_qty: s(r.boi_qty),
+          boi_description: s(r.boi_description),
+        })),
+        ...rows,
+      ]);
+    });
     return () => {
       live = false;
     };
@@ -114,10 +131,16 @@ export function AddOnForm({
       setError(rows.error);
       return;
     }
-    // BOI Yes needs its bought-out items: at least one, unless the EC already lists some.
-    if (listsBoi && rows.rows.length === 0 && (existingBoi?.length ?? 0) === 0) {
+    // BOI Yes needs its bought-out items: at least one.
+    if (listsBoi && rows.rows.length === 0) {
       setError("BOI is Yes: add the bought-out items.");
       if (boi.length === 0) setBoi([blankBoiRow()]);
+      return;
+    }
+
+    // Editing an EC whose BOI is now No: its saved items go, once confirmed.
+    const hadItems = (existingBoi?.length ?? 0) > 0;
+    if (item && !isSpare && !listsBoi && hadItems && !window.confirm("BOI is No: remove this EC's bought-out items (and Purchase's details on them)?")) {
       return;
     }
 
@@ -134,11 +157,12 @@ export function AddOnForm({
       );
       ok = res.ok;
       err = res.ok ? undefined : res.error;
-      // Then the new bought-out items, once the EC says BOI Yes.
-      if (ok && rows.rows.length > 0) {
-        const added = await addEcBoiItemsAction(String(item.id), rows.rows);
-        ok = added.ok;
-        err = added.ok ? undefined : added.error;
+      // Then its bought-out items as the form leaves them: changed, added,
+      // removed — all of them gone when BOI is now No.
+      if (ok && !isSpare && (listsBoi || hadItems)) {
+        const saved = await saveEcBoiItemsAction(String(item.id), listsBoi ? boi : []);
+        ok = saved.ok;
+        err = saved.ok ? undefined : saved.error;
       }
     } else if (isSpare) {
       const fd = new FormData();
@@ -285,23 +309,6 @@ export function AddOnForm({
               </button>
             </div>
 
-            {/* Editing: what the EC already lists, kept as it is. */}
-            {existingBoi && existingBoi.length > 0 && (
-              <ul className="mt-3 divide-y divide-card-border rounded-lg border border-card-border bg-surface text-xs">
-                {existingBoi.map((r) => {
-                  const name = String(r.boi_item ?? "") === "Others" ? String(r.boi_item_other ?? "") || "Others" : String(r.boi_item ?? "");
-                  return (
-                    <li key={String(r.id)} className="flex flex-wrap items-baseline gap-x-2 px-3 py-1.5">
-                      <span className="font-semibold text-foreground">{name || "—"}</span>
-                      {r.boi_make ? <span className="text-muted">{String(r.boi_make)}</span> : null}
-                      {r.boi_description ? <span className="text-muted">· {String(r.boi_description)}</span> : null}
-                      <span className="ml-auto text-[11px] text-muted">listed</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-
             {boi.length > 0 && (
               <div className="mt-3 space-y-3">
                 {boi.map((row, i) => {
@@ -403,7 +410,11 @@ export function AddOnForm({
                         </div>
                         <button
                           type="button"
-                          onClick={() => setBoi((rs) => rs.filter((_, j) => j !== i))}
+                          onClick={() => {
+                            // A saved item takes Purchase's details on it with it.
+                            if (row.id && !window.confirm(`Remove ${row.boi_item === "Others" ? row.boi_item_other || "this item" : row.boi_item || "this item"}? Purchase's details on it go too (on Save).`)) return;
+                            setBoi((rs) => rs.filter((_, j) => j !== i));
+                          }}
                           aria-label="Remove this bought-out item"
                           className="mt-7 shrink-0 rounded-lg border border-input-border p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-danger"
                         >
