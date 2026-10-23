@@ -1579,7 +1579,8 @@ export async function setAccountsHold(
     `UPDATE orders
         SET accounts_hold_status = $2,
             accounts_hold_reason = CASE WHEN $2 = 'Hold' THEN NULLIF($3, '') END,
-            accounts_hold_remarks = CASE WHEN $2 = 'Hold' THEN NULLIF($4, '') END,
+            -- Remarks on a Clear too.
+            accounts_hold_remarks = NULLIF($4, ''),
             accounts_hold_at = CASE WHEN $2 = 'Hold' THEN COALESCE(CASE WHEN accounts_hold_status = 'Hold' THEN accounts_hold_at END, now()) END
       WHERE id = $1`,
     [orderId, hold.status, hold.reason.trim(), hold.remarks.trim()]
