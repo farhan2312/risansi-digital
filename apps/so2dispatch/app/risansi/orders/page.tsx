@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardList, Download, FileText, Plus, Upload } from "lucide-react";
 import { listOrderDeptStatuses, listOrdersPage, orderListKpiCards, parseQueueSort } from "@/lib/orders";
+import { listPumpSummaries } from "@/lib/pump-summary";
 import { parsePage } from "@/lib/pagination";
 import {
   isOrderListFiltered,
@@ -51,8 +52,14 @@ export default async function OrdersPage({
     kpis: orderListKpiCards(ordersKind(params.type)),
   });
   const canCreate = canCreateOrders(user.role);
-  // Every department on each SO of this page, for the row's tags.
-  const deptStatuses = Object.fromEntries(await listOrderDeptStatuses(result.rows.map((r) => r.id)));
+  // Every department on each SO of this page, for the row's tags; on the Pump
+  // view, each department's own standing on the SO (its column groups).
+  const pumpView = ordersKind(params.type) === "pump";
+  const pageIds = result.rows.map((r) => r.id);
+  const [deptStatuses, pumpSummaries] = await Promise.all([
+    listOrderDeptStatuses(pageIds).then((m) => Object.fromEntries(m)),
+    pumpView ? listPumpSummaries(pageIds) : Promise.resolve(undefined),
+  ]);
 
   // The export mirrors whatever the list is showing: with any filter on it
   // downloads just those SOs, otherwise the whole tracker.
@@ -125,7 +132,7 @@ export default async function OrdersPage({
         </div>
       </div>
 
-      <OrdersTable result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} />
+      <OrdersTable result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} pumpSummaries={pumpSummaries} />
     </div>
   );
 }

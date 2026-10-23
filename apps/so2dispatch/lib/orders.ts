@@ -3242,7 +3242,7 @@ function ecState(dept: DeptFilterKey, status: string): string {
  * awaited, In plan, Partial ready, Fully ready — kept on its ECs' planning;
  * Date awaited until it is set. Planning's cards and Status filter read it.
  */
-const SO_PLANNING_STATUS = `COALESCE((SELECT NULLIF(spl.actual_spare_status, '')
+export const SO_PLANNING_STATUS = `COALESCE((SELECT NULLIF(spl.actual_spare_status, '')
                                          FROM order_items ss JOIN order_planning spl ON spl.item_id = ss.id
                                         WHERE ss.order_id = o.id AND NULLIF(spl.actual_spare_status, '') IS NOT NULL
                                         ORDER BY ss.seq NULLS LAST LIMIT 1), 'Date awaited')`;
