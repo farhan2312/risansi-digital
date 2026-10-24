@@ -28,7 +28,7 @@ import { DEFAULT_GST_RATE } from "@/lib/order-validation";
 import { PLANNING_READY_SQL } from "@/lib/reminders";
 import type { LockFacts } from "@/lib/order-lock";
 import type { SoLot } from "@/lib/ready-lots";
-import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS,
+import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING_PUMP_STAGE_STATUS,
   isPerEcDept,
   NOT_APPLICABLE,
   PENDING,
@@ -3295,8 +3295,9 @@ function planningPacking(f: OrderListFilter): string {
     const asm = f.packingStatuses.filter((s) => PLANNING_PUMP_ASSEMBLY_OPTIONS.includes(s));
     const pkg = f.packingStatuses.filter((s) => PLANNING_PUMP_PACKING_OPTIONS.includes(s));
     const parts = [plan];
-    if (asm.length) parts.push(`${soStageStatusSql("assembly", "o")} IN (${asm.map(lit).join(", ")})`);
-    if (pkg.length) parts.push(`${soStageStatusSql("packing", "o")} IN (${pkg.map(lit).join(", ")})`);
+    const stage = (s: string) => lit(PLANNING_PUMP_STAGE_STATUS[s] ?? s);
+    if (asm.length) parts.push(`${soStageStatusSql("assembly", "o")} IN (${asm.map(stage).join(", ")})`);
+    if (pkg.length) parts.push(`${soStageStatusSql("packing", "o")} IN (${pkg.map(stage).join(", ")})`);
     return parts.join(" AND ");
   }
   return `${plan} AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
@@ -4193,9 +4194,31 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
           measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${ecKind})`,
         }]
       : []),
-    ...statuses.map((st) =>
-      // Planning's Fully ready card: ready and not packed yet — what is waiting on Assembly & Packing.
-      planning && st === "Fully ready"
+    ...statuses.flatMap((st) =>
+      // Planning's Fully ready on a Pump: ready but not assembled yet, and
+      // ready and assembled but not packed yet — what waits on Assembly & Packing.
+      planning && st === "Fully ready" && pump && !spare
+        ? [
+            {
+              key: "s:ready_unassembled",
+              label: "Fully ready (not assembled)",
+              sql: `${SO_PLANNING_STATUS} = 'Fully ready'
+                    AND ${soStageStatusSql("assembly", "o")} = 'Assembly pending' AND ${orderOpenSql("o")}`,
+              params: { ...clear, dstatus: st, pack: "Not assembled" },
+              tone: toneFor(st),
+            },
+            {
+              key: "s:ready_unpacked",
+              label: "Fully ready & assembled (not packed)",
+              sql: `${SO_PLANNING_STATUS} = 'Fully ready'
+                    AND ${soStageStatusSql("assembly", "o")} = 'Fully assembled'
+                    AND ${soStageStatusSql("packing", "o")} = 'Packing pending' AND ${orderOpenSql("o")}`,
+              params: { ...clear, dstatus: st, pack: "Fully assembled,Not packed" },
+              tone: toneFor(st),
+            },
+          ]
+        : // Planning's Fully ready card: ready and not packed yet — what is waiting on Assembly & Packing.
+          planning && st === "Fully ready"
         ? {
             key: `s:${st}`,
             label: "Fully ready (not packed)",

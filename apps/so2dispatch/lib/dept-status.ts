@@ -49,8 +49,13 @@ export const PLANNING_PACKING_OPTIONS = ["Partially packed", "Fully packed", "No
  * …and on a Pump SO, Assembly & Packing's own SO statuses, as its page reads
  * them (lib/assembly): assembly, then packing.
  */
-export const PLANNING_PUMP_ASSEMBLY_OPTIONS = ["Assembly pending", "Partial assembled", "Fully assembled"];
-export const PLANNING_PUMP_PACKING_OPTIONS = ["Packing pending", "Partially packed", "Fully packed"];
+export const PLANNING_PUMP_ASSEMBLY_OPTIONS = ["Not assembled", "Partial assembled", "Fully assembled"];
+export const PLANNING_PUMP_PACKING_OPTIONS = ["Not packed", "Partially packed", "Fully packed"];
+/** Planning says "Not assembled" / "Not packed" for Assembly & Packing's "… pending". */
+export const PLANNING_PUMP_STAGE_STATUS: Record<string, string> = {
+  "Not assembled": "Assembly pending",
+  "Not packed": "Packing pending",
+};
 /** The Assembly & Packing choices Planning's Status filter offers for these order types. */
 export function planningPackingOptions(types: string[]): string[] {
   const pump = types.length > 0 && types.every((t) => /^(pump|rolb)$/i.test(t));
