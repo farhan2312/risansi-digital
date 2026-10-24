@@ -44,7 +44,7 @@ export function KpiStrip({ cards }: { cards: KpiCard[] }) {
   if (groups.some((g) => g.name)) {
     // One row: compact cards, a hairline between departments.
     return (
-      <div className="mb-3 flex items-stretch gap-1.5 overflow-x-auto">
+      <div data-url-dim className="mb-3 flex items-stretch gap-1.5 overflow-x-auto">
         {groups.map((g, i) => (
           <div key={g.name ?? i} className={`flex min-w-0 flex-1 basis-0 items-stretch gap-1.5 ${i > 0 ? "border-l border-card-border pl-1.5" : ""}`} style={{ flexGrow: g.cards.length }}>
             <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} compact />
@@ -80,7 +80,7 @@ function KpiStripRow({
   const labelCls = compact ? "text-[10.5px] leading-tight" : "text-[11px]";
   const countCls = compact ? "text-lg" : "text-xl";
   return (
-    <div className={compact ? "contents" : `flex flex-wrap gap-2 ${className}`}>
+    <div data-url-dim className={compact ? "contents" : `flex flex-wrap gap-2 ${className}`}>
       {cards.map((c) => {
         const on = shown === c.key;
         const tone = TONE[c.tone ?? "neutral"];

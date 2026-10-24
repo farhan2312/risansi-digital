@@ -1,11 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2, Search, X } from "lucide-react";
 
 /** One request per typing pause, not one per keystroke. */
 const DEBOUNCE_MS = 300;
+
+// How many URL changes (a filter, a search, a page) are still loading, across
+// every control on the page — each holds its own transition, so they report here.
+let busy = 0;
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((l) => l());
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => listeners.delete(l);
+};
+
+/** Whether any filter, search or page change is still loading. */
+export function useUrlTableBusy(): boolean {
+  return useSyncExternalStore(subscribe, () => busy > 0, () => false);
+}
 
 /**
  * URL-backed table state. The server reads these params to fetch one page, so
@@ -22,6 +37,17 @@ export function useUrlTable() {
   // fresh instance on every render, which would give setParams a new identity
   // each time and restart any effect that lists it as a dependency.
   const qs = params?.toString() ?? "";
+
+  // Tell the page while this control's change loads, so it can grey the rows.
+  useEffect(() => {
+    if (!pending) return;
+    busy += 1;
+    notify();
+    return () => {
+      busy -= 1;
+      notify();
+    };
+  }, [pending]);
 
   const setParams = useCallback(
     (changes: Record<string, string | string[] | null>, resetPage = true) => {

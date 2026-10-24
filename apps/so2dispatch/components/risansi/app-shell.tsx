@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useUrlTableBusy } from "./url-table";
 import { Bell, ChevronRight, PlayCircle, RotateCw, ZoomOut } from "lucide-react";
 import { ReportBugTrigger } from "./report-bug";
 import { DiscussionBell } from "./discussion-bell";
@@ -83,6 +84,7 @@ export function AppShell({
   // router.refresh() re-runs the server components for the current route,
   // so the page picks up other people's saves without a full reload.
   const [refreshing, startRefresh] = useTransition();
+  const loading = useUrlTableBusy() || refreshing;
   const crumbs = useMemo(() => crumbsFor(pathname ?? ""), [pathname]);
   const showBugBell = user.role === "admin";
   // On mobile the breadcrumb's last segment doubles as the page title.
@@ -207,7 +209,22 @@ export function AppShell({
         </header>
 
         {/* Bottom padding clears the fixed mobile nav (plus safe-area inset). */}
-        <main className="min-w-0 flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        {/* While a filter, search or page loads: a bar along the top, and the
+            tables and cards greyed and held still until the new rows are in. */}
+        <main
+          data-url-loading={loading ? "1" : undefined}
+          aria-busy={loading || undefined}
+          className={`relative min-w-0 flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0 [&_table]:transition-[opacity,filter] [&_[data-url-dim]]:transition-[opacity,filter] ${
+            loading
+              ? "[&_table]:pointer-events-none [&_table]:opacity-45 [&_table]:grayscale [&_[data-url-dim]]:pointer-events-none [&_[data-url-dim]]:opacity-45 [&_[data-url-dim]]:grayscale"
+              : ""
+          }`}
+        >
+          {loading && (
+            <div className="pointer-events-none sticky top-0 z-30 -mb-[3px] h-[3px] overflow-hidden bg-primary/15">
+              <div className="h-full w-full animate-pulse bg-primary" />
+            </div>
+          )}
           {children}
         </main>
       </div>
