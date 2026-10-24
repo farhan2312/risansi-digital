@@ -1170,7 +1170,7 @@ function AssignmentPdfDialog({ onClose }: { onClose: () => void }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-surface shadow-xl sm:rounded-2xl"
+        className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-t-2xl bg-surface shadow-xl sm:rounded-2xl"
       >
         <div className="flex items-center justify-between gap-3 border-b border-card-border px-5 py-3">
           <div className="flex items-center gap-3">
@@ -1200,7 +1200,8 @@ function AssignmentPdfDialog({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
-        <iframe src={src} title="Assignment PDF" className="min-h-0 w-full flex-1 bg-white" />
+        {/* Fitted to the pop-up's width: the landscape page is wider than it. */}
+        <iframe src={`${src}#view=FitH`} title="Assignment PDF" className="min-h-0 w-full flex-1 bg-white" />
       </div>
     </div>
   );

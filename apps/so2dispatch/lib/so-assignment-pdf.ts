@@ -119,7 +119,8 @@ export async function buildSoAssignmentPdf(period: AssignPeriod): Promise<Uint8A
     headRow();
     for (const row of rows) {
       const client = wrap(row.client_name ?? "—", font, 8.5, cols[3].w - 8);
-      const h = Math.max(1, client.length) * 11 + 5;
+      // The row: its lines 11pt apart, 5pt clear above and below its rule.
+      const h = Math.max(1, client.length) * 11 + 8;
       if (y - h < M) {
         newPage();
         text(page, `${member} (continued)`, M, y, bold, 10);
@@ -145,8 +146,9 @@ export async function buildSoAssignmentPdf(period: AssignPeriod): Promise<Uint8A
         }
         x += cols[i].w;
       });
-      y -= h;
-      page.drawLine({ start: { x: M, y: y + 6 }, end: { x: W - M, y: y + 6 }, thickness: 0.4, color: line });
+      const rule = y - (Math.max(1, client.length) - 1) * 11 - 5;
+      page.drawLine({ start: { x: M, y: rule }, end: { x: W - M, y: rule }, thickness: 0.4, color: line });
+      y -= h + 3;
     }
     y -= 12;
   }
