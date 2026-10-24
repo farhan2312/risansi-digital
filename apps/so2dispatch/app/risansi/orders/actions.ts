@@ -506,6 +506,8 @@ export async function createSpareItemAction(
     internal_model: (formData.get("internal_model") as string | null) ?? undefined,
     version: (formData.get("version") as string | null) ?? undefined,
     quantity: (formData.get("quantity") as string | null) ?? undefined,
+    // A Spare even before the SO's Order Type is set — Planning reads it off the EC.
+    item_type: "Spare",
   };
 
   // The bought-out items ride along as JSON — FormData carries only strings.
@@ -792,6 +794,17 @@ export async function updateOrderSectionAction(
           BILL_TYPE_FOR_MODE[allowedValues.bill_mode] ?? null,
         ]);
         await markReplacementTerms(id);
+      }
+      // An EC added before the SO had an Order Type takes it now — Planning and
+      // the other departments read Pump or Spare off the EC.
+      if (tbl === "orders" && allowedValues.order_type) {
+        const typed = await query<{ id: string }>(
+          `UPDATE order_items SET item_type = $2 WHERE order_id = $1 AND NULLIF(btrim(item_type), '') IS NULL RETURNING id`,
+          [id, allowedValues.order_type]
+        );
+        if (allowedValues.order_type === "Spare") {
+          for (const r of typed.rows) await inheritSparePlanning(r.id, { id: user.id, role: user.role });
+        }
       }
       const after = before ? await getOrderDetail(id) : null;
       const pick = (d: NonNullable<typeof before>) =>
