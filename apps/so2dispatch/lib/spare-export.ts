@@ -197,7 +197,8 @@ export function buildSpareOneSheet(orders: OrderExportRow[], statuses?: OneClick
     { name: "SO", columns: [{ label: "Sl. No.", type: "int" }, { label: "SO No.", type: "text" }] },
     { name: "Order details", columns: order.map((x) => ({ label: x.label, type: x.type })) },
     { name: "ECs", columns: [{ label: "ECs", type: "int" }, { label: "EC details", type: "list" }] },
-    { name: "Planning", columns: [statusColumn("Planning"), ...PLANNING_FIELDS.map((x) => ({ label: x.label, type: x.type }))] },
+    // Planning's own Status is the SO's planning status: no second one here.
+    { name: "Planning", columns: PLANNING_FIELDS.map((x) => ({ label: x.label, type: x.type })) },
     ...Array.from({ length: MAX_LOTS }, (_, i) => ({
       name: `Lot ${i + 1}`,
       columns: lotCols.map((c) => ({ label: `L${i + 1} ${c}`, type: (c === "Ready Date" ? "date" : "text") as OrderFieldType })),
@@ -224,7 +225,6 @@ export function buildSpareOneSheet(orders: OrderExportRow[], statuses?: OneClick
       ...order.map((x) => cell(so, x)),
       o.items.length,
       lines(o.items.map((it) => join(str(it.item.ec_no), day(it.item.ec_date), str(it.item.model_no), str(it.item.quantity) ? `Qty ${str(it.item.quantity)}` : ""))),
-      st("planning"),
       ...PLANNING_FIELDS.map((x) => cell(pl, x)),
       ...Array.from({ length: MAX_LOTS }, (_, i) => {
         const l = lots[i];
