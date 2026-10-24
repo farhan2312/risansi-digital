@@ -220,5 +220,49 @@ check('page 2 on an Open complaint',          F.statusAfterSavingPage(2, 'Open')
 check('page 2 later in the flow does nothing', F.statusAfterSavingPage(2, 'Action Pending'), null);
 check('another page does nothing',            F.statusAfterSavingPage(1, 'Open'), null);
 
+// Conditional fields, every one of them, generically.
+//
+// A field that only appears once its gate is answered is invisible when the
+// rule is wrong, and nobody notices until someone goes looking for a box that
+// is not there. That is how a too-eager asList hid fifteen fields at once —
+// the CAPA departments, the vendor details, the FR charge values and the
+// whole Returnable Material page — by sending booleans down the list branch,
+// where `true` was compared against the string 'true'.
+//
+// Driven off PAGES rather than a hand-written list, so a new gated field is
+// covered the moment it is added.
+console.log('\nConditional fields appear when their gate is answered:');
+const gated = PAGES_GATED(F);
+for (const { field, page } of gated) {
+  const g = field.showWhen;
+  for (const want of g.equals) {
+    const shown = F.isFieldShown(field, { [g.field]: want });
+    check(`${field.name} shown when ${g.field} = ${JSON.stringify(want)}`, shown, true);
+  }
+  // And stays away when the gate says no. A bool gate answered false, or a
+  // value that is on nobody's list.
+  const off = typeof g.equals[0] === 'boolean' ? !g.equals[0] : '__nothing__';
+  check(`${field.name} hidden when ${g.field} = ${JSON.stringify(off)}`,
+    F.isFieldShown(field, { [g.field]: off }), false);
+}
+check('every gated field was exercised', gated.length > 0, true);
+
+// A multi gate still matches on membership, which is what asList is for.
+const frField = gated.find(x => x.field.name === 'fr_ec_no')?.field;
+if (frField) {
+  check('FR field shown for a list holding the answer',
+    F.isFieldShown(frField, { action_categories: ['Free Replacement', 'Visit'] }), true);
+  check('FR field shown for a pg text[] literal',
+    F.isFieldShown(frField, { action_categories: '{Free Replacement,Visit}' }), true);
+  check('FR field shown for a single string answer',
+    F.isFieldShown(frField, { action_categories: 'Free Replacement' }), true);
+  check('FR field hidden for a list without it',
+    F.isFieldShown(frField, { action_categories: ['Visit'] }), false);
+}
+
 console.log(bad ? `\n${bad} FAILURE(S)` : '\nevery rule behaves');
 process.exit(bad ? 1 : 0);
+
+function PAGES_GATED(F) {
+  return F.PAGES.flatMap(p => p.fields.filter(f => f.showWhen).map(f => ({ field: f, page: p.title })));
+}

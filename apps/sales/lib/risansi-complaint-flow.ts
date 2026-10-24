@@ -628,6 +628,18 @@ export const ALL_FIELD_NAMES = new Set(PAGES.flatMap(p => p.fields.map(f => f.na
 
 export type ComplaintValues = Record<string, unknown>;
 
+/**
+ * Does this value genuinely hold several answers?
+ *
+ * An array, or the `{a,b}` text[] literal pg can hand back. Anything else is
+ * one answer, whatever its type.
+ */
+function holdsList(v: unknown): boolean {
+  if (Array.isArray(v)) return true;
+  const s = String(v ?? '').trim();
+  return s.startsWith('{') && s.endsWith('}');
+}
+
 export function isFieldShown(f: ComplaintField, values: ComplaintValues): boolean {
   if (!f.showWhen) return true;
   const v = values[f.showWhen.field];
@@ -635,8 +647,18 @@ export function isFieldShown(f: ComplaintField, values: ComplaintValues): boolea
   // Without this every FR field — the EC number, the challan, the dispatch
   // date — would vanish the moment Action taken became a list, because a list
   // never equals the string 'Free Replacement'.
-  const picked = asList(v);
-  if (picked.length) return f.showWhen.equals.some(e => typeof e === 'string' && picked.includes(e));
+  //
+  // Only a value that REALLY holds a list is matched that way. asList turns
+  // any scalar into a one-element array — asList(true) is ['true'] — so
+  // sending booleans down this branch compared `true` against the string
+  // 'true', matched nothing, and hid every bool-gated field in the workflow:
+  // the CAPA departments, the vendor name and recovery, the FR transport and
+  // material values, and the whole of Returnable Material. Fifteen fields,
+  // from one helper being too eager.
+  if (holdsList(v)) {
+    const picked = asList(v);
+    return f.showWhen.equals.some(e => typeof e === 'string' && picked.includes(e));
+  }
   return f.showWhen.equals.some(e => e === v || (typeof e === 'string' && String(v ?? '') === e));
 }
 
