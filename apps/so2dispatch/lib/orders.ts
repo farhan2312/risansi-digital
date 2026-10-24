@@ -3638,8 +3638,13 @@ export async function orderEcKind(orderId: string | null | undefined): Promise<"
 }
 
 /** The filter as a WHERE clause of its own, for the queries it owns. */
+/**
+ * The Orders list (its page, cards, PDF and exports): only SOs with an SO No.
+ * One still without is Order Making's, not yet an order to follow.
+ */
 function orderListWhere(f: OrderListFilter): { where: string; params: unknown[] } {
   const { clauses, params } = orderListClauses(f);
+  clauses.push(`NULLIF(btrim(o.so_no), '') IS NOT NULL`);
   return {
     where: clauses.length ? `WHERE ${clauses.join("\n        AND ")}` : "",
     params,
