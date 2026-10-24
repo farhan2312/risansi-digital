@@ -912,8 +912,9 @@ export async function updateOrderSection(
   // change to either side restates it.
   if (table === "orders") {
     await recomputeDispatchStatus(id);
-  } else if (table === "order_assembly_dispatch") {
-    // Packed or not decides Lot vs Fully dispatched.
+  } else if (table === "order_assembly_dispatch" || table === "order_planning") {
+    // Packed or not decides Lot vs Fully dispatched — and Planning's lots
+    // say what there is to pack.
     await recomputeDispatchStatusForItem(id);
   }
 }
@@ -1079,6 +1080,8 @@ export async function saveReadyLots(
       );
     }
   });
+  // The lots decide how much is packed and sent: the dispatch status follows.
+  await recomputeDispatchStatusForItem(itemId);
 }
 
 /**
@@ -1769,17 +1772,13 @@ export async function recomputeDispatchStatus(orderId: string): Promise<void> {
               ELSE 'LOT dispatch'
             END
        FROM (
-         -- Count a row as "started" if EITHER the invoice or the challan
-         -- side has been filled in — Challan orders don't carry
-         -- invoice_no/qty/value, they carry challan_value instead.
-         SELECT COUNT(*) FILTER (
-                  WHERE invoice_no IS NOT NULL OR challan_no IS NOT NULL
-                        OR invoice_date IS NOT NULL OR challan_date IS NOT NULL
-                        OR invoice_value IS NOT NULL OR challan_value IS NOT NULL
-                ) AS n,
-                SUM(COALESCE(invoice_quantity, challan_quantity, packing_quantity, 0)) AS qty,
-                SUM(COALESCE(invoice_value, challan_value, 0)) AS val
-           FROM order_invoices WHERE order_id = $1
+         -- Count a dispatch once it has gone out: its invoice or challan
+         -- filled (Challan orders carry challan_value, not invoice_no/qty/
+         -- value) and its Dispatch step too. Only those count to the totals.
+         SELECT COUNT(*) FILTER (WHERE ${DISPATCHED("iv")}) AS n,
+                SUM(COALESCE(iv.invoice_quantity, iv.challan_quantity, iv.packing_quantity, 0)) FILTER (WHERE ${DISPATCHED("iv")}) AS qty,
+                SUM(COALESCE(iv.invoice_value, iv.challan_value, 0)) FILTER (WHERE ${DISPATCHED("iv")}) AS val
+           FROM order_invoices iv WHERE iv.order_id = $1
        ) inv
       WHERE o.id = $1`,
     [orderId]
@@ -4992,6 +4991,13 @@ const INVOICE_STARTED = (i: string) => `(${i}.invoice_no IS NOT NULL OR ${i}.cha
       OR ${i}.invoice_date IS NOT NULL OR ${i}.challan_date IS NOT NULL
       OR ${i}.invoice_value IS NOT NULL OR ${i}.challan_value IS NOT NULL)`;
 
+/**
+ * A dispatch gone out: its invoice (or challan) filled and its Dispatch step
+ * too — how it went (Delivery Mode). An invoice alone does not make the SO
+ * Lot or Fully dispatched.
+ */
+const DISPATCHED = (i: string) => `(${INVOICE_STARTED(i)} AND NULLIF(btrim(${i}.delivery_mode), '') IS NOT NULL)`;
+
 /** A dispatch's Invoice step is done: Invoice No. and Date (Challan No. and Date on a Challan order). */
 const INVOICE_STEP_DONE = (i: string, o: string) => `(CASE WHEN btrim(COALESCE(${o}.bill_type, '')) = 'Challan'
       THEN NULLIF(btrim(${i}.challan_no), '') IS NOT NULL AND ${i}.challan_date IS NOT NULL
@@ -5031,7 +5037,7 @@ export const UNSENT_PACKED_LOT_SQL = (o: string) => `SELECT 1 FROM order_ready_l
            JOIN order_invoice_slips usl ON usl.packing_slip_id = us.id
            JOIN order_invoices usi ON usi.id = usl.invoice_id
           WHERE us.order_id = ${o}.id AND us.kind = 'actual'
-            AND ${INVOICE_STARTED("usi")}
+            AND ${DISPATCHED("usi")}
             AND (SELECT count(*) FROM order_ready_lots u2
                   WHERE u2.item_id = ul.item_id AND u2.seq <= ul.seq) = ANY(us.lot_nos))`;
 
@@ -5052,7 +5058,7 @@ export const PACKED_LOT_WITHOUT_SLIP_SQL = (o: string) => `SELECT 1 FROM order_r
 /** The SO's slips that have gone out: linked to a dispatch that has started. */
 const SENT_SLIPS_SQL = (o: string) => `SELECT 1 FROM order_invoice_slips l
       JOIN order_invoices si ON si.id = l.invoice_id
-     WHERE si.order_id = ${o}.id AND ${INVOICE_STARTED("si")}`;
+     WHERE si.order_id = ${o}.id AND ${DISPATCHED("si")}`;
 
 /** Every EC of the SO is packed (a Spare's last lot Fully packed sets its date too). */
 const SO_FULLY_PACKED_SQL = (o: string) => `(EXISTS (SELECT 1 FROM order_items fi WHERE fi.order_id = ${o}.id)
