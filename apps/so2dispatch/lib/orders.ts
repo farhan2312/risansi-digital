@@ -3423,6 +3423,9 @@ function signOffPredicate(dept: DeptFilterKey, signOff: SignOff): string {
  * from `startAt` — so a queue that already has parameters of its own can AND
  * this in rather than growing a second dialect of the same filter.
  */
+/** The SO is on hold — by Central Visibility or by Accounts — as its hold badge says. */
+const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.accounts_hold_status, '') = 'Hold')`;
+
 function orderListClauses(
   f: OrderListFilter,
   startAt = 0
@@ -3523,6 +3526,8 @@ function orderListClauses(
   if (f.ready) clauses.push(READY_TO_DISPATCH);
   // A Spare lot packed but on no packing slip: nothing for Dispatch to send.
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
+  // On hold, by Central Visibility or by Accounts.
+  if (f.onHold) clauses.push(ON_HOLD_SQL);
   // One SO field, filled or pending. Pending is blank where the field applies.
   if (f.field) {
     const def = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column);
@@ -5435,6 +5440,8 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   }
   // A Spare lot packed but on no packing slip.
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
+  // On hold, by Central Visibility or by Accounts.
+  if (f.onHold) clauses.push(ON_HOLD_SQL);
 
   if (f.from || f.to) {
     const range = (column: string) =>

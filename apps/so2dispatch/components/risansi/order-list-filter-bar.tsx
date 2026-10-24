@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EcKindToggle } from "./planning-pump-table";
-import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, PauseCircle, X } from "lucide-react";
 import { UrlSearchInput, useUrlTable } from "./url-table";
 import { MultiSelectFilter, SingleSelectFilter, useShownValue } from "./multi-select-filter";
 import { DEPT_VIEWS } from "@/lib/dept-view";
@@ -409,6 +409,20 @@ export function OrderListFilterBar({
             Overdue only
           </button>
         )}
+        {/* Every department and the Orders list: only the SOs on hold (Central or Accounts). */}
+        <button
+          type="button"
+          onClick={() => setParams({ hold: filter.onHold ? null : "1" })}
+          aria-pressed={filter.onHold}
+          className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+            filter.onHold
+              ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+              : "border-input-border text-foreground hover:bg-background"
+          }`}
+        >
+          <PauseCircle className="h-3.5 w-3.5" />
+          On hold
+        </button>
         {/* Planning, Assembly & Packing, the Orders list: a lot packed but on no packing slip. */}
         {(!dept || dept === "planning" || dept === "assembly") && (
           <button

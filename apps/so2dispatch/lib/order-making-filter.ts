@@ -115,6 +115,7 @@ export function sharedFacets(f: OrderMakingFilter): OrderListFilter {
     overdue: false,
     ready: false,
     noSlip: false,
+    onHold: false,
     field: null,
     paymentTerms: [],
     billModes: f.billModes,
