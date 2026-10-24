@@ -3642,9 +3642,11 @@ export async function orderEcKind(orderId: string | null | undefined): Promise<"
  * The Orders list (its page, cards, PDF and exports): only SOs with an SO No.
  * One still without is Order Making's, not yet an order to follow.
  */
+const HAS_SO_NO = `NULLIF(btrim(o.so_no), '') IS NOT NULL`;
+
 function orderListWhere(f: OrderListFilter): { where: string; params: unknown[] } {
   const { clauses, params } = orderListClauses(f);
-  clauses.push(`NULLIF(btrim(o.so_no), '') IS NOT NULL`);
+  clauses.push(HAS_SO_NO);
   return {
     where: clauses.length ? `WHERE ${clauses.join("\n        AND ")}` : "",
     params,
@@ -3722,7 +3724,8 @@ export async function listOrdersPage(opts: {
     : listed.where;
   const kpisQ = opts.kpis
     ? countKpis(
-        { restrict: "TRUE", cards: opts.kpis },
+        // The cards count what the list shows: SOs with an SO No.
+        { restrict: HAS_SO_NO, cards: opts.kpis },
         { ...opts.filter, dept: null, search: "" },
         opts.filter.search ? likePattern(opts.filter.search) : null,
         (t) => orderSearchSql(t)
