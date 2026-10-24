@@ -18,6 +18,10 @@ function show(v: string | number | null, type: string): string {
   return String(v);
 }
 
+// A scrollbar that shows: wide enough to see and grab, in the primary colour.
+const SCROLLBAR =
+  "[scrollbar-color:color-mix(in_srgb,var(--primary)_55%,transparent)_transparent] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:bg-background [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/50 hover:[&::-webkit-scrollbar-thumb]:bg-primary/70";
+
 /** A column by its group and label, so what is hidden holds when the filter changes. */
 const keyOf = (group: string, label: string) => `${group}::${label}`;
 
@@ -50,6 +54,8 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
   const [error, setError] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState(false);
+  // Whether the Columns panel has more below (null until it is measured).
+  const [moreBelow, setMoreBelow] = useState<boolean | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -139,7 +145,10 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setPicking((v) => !v)}
+              onClick={() => {
+                setPicking((v) => !v);
+                setMoreBelow(null);
+              }}
               disabled={!data}
               aria-expanded={picking}
               className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors disabled:opacity-50 ${
@@ -172,8 +181,18 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
 
         {/* The columns to show: a group at a time, or one by one. */}
         {data && picking && (
-          <div className="max-h-[40vh] overflow-y-auto border-b border-card-border bg-background/40 px-5 py-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="relative border-b border-card-border bg-background/40">
+          <div
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              setMoreBelow(el.scrollTop + el.clientHeight < el.scrollHeight - 4);
+            }}
+            ref={(el) => {
+              if (el && moreBelow === null) setMoreBelow(el.scrollHeight > el.clientHeight + 4);
+            }}
+            className={`max-h-[45vh] overflow-y-scroll px-5 pb-3 ${SCROLLBAR}`}
+          >
+            <div className="sticky top-0 z-[1] -mx-5 mb-2 flex items-center justify-between gap-3 border-b border-card-border bg-surface px-5 py-2">
               <p className="text-xs text-muted">Hidden columns are left out of the preview and the Excel. SO keys always show.</p>
               <button
                 type="button"
@@ -232,9 +251,16 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
               })}
             </div>
           </div>
+          {/* More groups below: say so, until the end is reached. */}
+          {moreBelow && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-10 items-end justify-center bg-gradient-to-t from-surface to-transparent pb-1">
+              <span className="rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-semibold text-primary-foreground shadow">Scroll for more ↓</span>
+            </div>
+          )}
+          </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className={`min-h-0 flex-1 overflow-auto ${SCROLLBAR}`}>
           {!data && !error && (
             <p className="flex items-center justify-center gap-2 py-16 text-sm text-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
