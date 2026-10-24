@@ -12,6 +12,8 @@ import { DispatchInline } from "./dispatch-inline";
 import { SortHeader } from "./sort-header";
 import { HoldBadge } from "./hold-badge";
 import { DispatchStatusPill } from "./dispatch-status-pill";
+import { DispatchStatusControl } from "./order-status-panel";
+import { isCentral } from "@/lib/roles";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
@@ -254,7 +256,18 @@ export function BillingWorkspace({
                         </td>
                       )}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <DispatchStatusPill status={row.dispatch_status} />
+                        {mode === "dispatch" ? (
+                          // Dispatch may set it by hand, as well as by its invoices.
+                          <DispatchStatusControl
+                            orderId={row.id}
+                            status={row.dispatch_status}
+                            override={row.status_override}
+                            fromInvoices={row.invoice_dispatch_status}
+                            canSet={role === "dispatch" || isCentral(role)}
+                          />
+                        ) : (
+                          <DispatchStatusPill status={row.dispatch_status} />
+                        )}
                       </td>
                       {mode === "dispatch" && (
                         <td className="px-4 py-3 whitespace-nowrap">

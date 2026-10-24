@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Ban, Loader2, Shuffle, X } from "lucide-react";
 import { setOrderStatusAction } from "@/app/risansi/orders/actions";
 import { isCentral } from "@/lib/roles";
+import { DispatchStatusPill } from "./dispatch-status-pill";
 
 type Row = Record<string, unknown>;
 
@@ -137,14 +138,74 @@ export function OrderStatusPanel({
   );
 }
 
+/**
+ * Dispatch's queue: the SO's dispatch status, which Dispatch (and Central)
+ * may set by hand — Pending, Lot dispatch, Fully dispatched, or back to
+ * following the invoices. Cancelling or diverting stays Central's.
+ */
+export function DispatchStatusControl({
+  orderId,
+  status,
+  override,
+  fromInvoices,
+  canSet,
+}: {
+  orderId: string;
+  status: string | null;
+  override: string | null;
+  fromInvoices: string | null;
+  canSet: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const manual = !!str(override);
+  const closed = isClosedStatusLabel(str(override));
+  if (!canSet || closed) {
+    return (
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <DispatchStatusPill status={status} />
+        {manual && !closed && <span className="text-[10px] text-muted">Set by hand</span>}
+      </span>
+    );
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title="Change the dispatch status"
+        className="-m-1 inline-flex flex-col items-start gap-0.5 rounded-md p-1 text-left transition-colors hover:bg-background"
+      >
+        <DispatchStatusPill status={status} />
+        <span className="text-[10px] text-muted underline-offset-2 hover:underline">{manual ? "Set by hand · change" : "Change"}</span>
+      </button>
+      {open && (
+        <StatusDialog
+          orderId={orderId}
+          current={str(override) || "auto"}
+          fromInvoices={str(fromInvoices) || "Pending"}
+          reason=""
+          divertedTo=""
+          choices={CHOICES.filter((c) => !isClosedStatusLabel(c.value))}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+const isClosedStatusLabel = (s: string) => s === "Cancelled by client" || s === "Diverted";
+
 function StatusDialog({
   orderId,
   current,
   fromInvoices,
   reason: reasonNow,
   divertedTo: divertedNow,
+  choices = CHOICES,
   onClose,
 }: {
+  /** The statuses offered (all of them, unless narrowed). */
+  choices?: typeof CHOICES;
   orderId: string;
   current: string;
   fromInvoices: string;
@@ -210,7 +271,7 @@ function StatusDialog({
 
         <fieldset className="space-y-1.5">
           <legend className="sr-only">Status</legend>
-          {CHOICES.map((c) => (
+          {choices.map((c) => (
             <label
               key={c.value}
               className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${

@@ -2767,6 +2767,10 @@ export type BillingQueueRow = {
   challan_value: string | null;
   fr_reason: string | null;
   dispatch_status: string | null;
+  /** Set by hand (Central or Dispatch); null while it follows the invoices. */
+  status_override: string | null;
+  /** What the invoices alone make of it. */
+  invoice_dispatch_status: string | null;
   pi_docs: Row[];
   /** The SO's payment term lines, in order — each takes one PI (Billing). */
   term_lines: Row[];
@@ -2811,6 +2815,8 @@ export async function listOrdersForBilling(
             b.challan_value::text AS challan_value,
             b.fr_reason,
             ${DISPATCH_STATUS} AS dispatch_status,
+            NULLIF(o.status_override, '') AS status_override,
+            COALESCE(NULLIF(o.dispatch_status, ''), 'Pending') AS invoice_dispatch_status,
             COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.seq)
                       FROM order_billing_docs d WHERE d.order_id = o.id),
                      '[]'::jsonb) AS pi_docs,

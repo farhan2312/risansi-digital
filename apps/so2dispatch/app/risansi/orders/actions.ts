@@ -1799,6 +1799,9 @@ const ROLE_BY_DEPT: Record<DeptKey, string> = {
 
 export type SetOrderStatusResult = { ok: true } | { ok: false; error: string };
 
+/** The dispatch states Dispatch may set by hand. */
+const DISPATCH_MANUAL_STATUSES = ["Pending", "LOT dispatch", "Fully dispatch"];
+
 /**
  * Central Visibility sets an order's status by hand: cancelled by the client,
  * diverted, or a dispatch state the invoices do not show. "auto" hands it back
@@ -1815,9 +1818,12 @@ export async function setOrderStatusAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   const next = status === "auto" ? null : status;
-  // Order Making PO may cancel an SO (its Cancel button); the rest is Central's.
+  // Order Making PO may cancel an SO (its Cancel button); Dispatch may set
+  // the dispatch state by hand (or hand it back to the invoices); the rest is
+  // Central's.
   const omCancel = user.role === "order_making" && next === "Cancelled by client";
-  if (!isCentral(user.role) && !omCancel) {
+  const dispatchSet = user.role === "dispatch" && (next === null || DISPATCH_MANUAL_STATUSES.includes(next));
+  if (!isCentral(user.role) && !omCancel && !dispatchSet) {
     return { ok: false, error: "Only Central Visibility or Admin can change an order's status." };
   }
   if (next !== null && !ORDER_STATUS_OPTIONS.some((o) => o.value === next)) {
@@ -1834,6 +1840,10 @@ export async function setOrderStatusAction(
     if (!before) return { ok: false, error: "Order not found." };
     const label = before.so_no ?? `#${before.sl_no}`;
     const wasClosed = isClosedStatus(before.status_override);
+    // A cancelled or diverted order is Central's to reopen, not Dispatch's.
+    if (dispatchSet && !isCentral(user.role) && wasClosed) {
+      return { ok: false, error: "This order is cancelled or diverted — only Central Visibility can reopen it." };
+    }
 
     // Who had work on it — read before closing it, since a closed order
     // counts for no department.
@@ -1882,6 +1892,7 @@ export async function setOrderStatusAction(
     await Promise.all(follow);
     revalidatePath(`/risansi/orders/${orderId}`);
     revalidatePath("/risansi/orders");
+    revalidatePath("/risansi/departments/dispatch");
     return { ok: true };
   } catch (error) {
     console.error("setOrderStatus failed:", error);
