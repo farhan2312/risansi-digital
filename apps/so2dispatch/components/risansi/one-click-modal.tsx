@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Download, Loader2, Sheet, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Columns3, Download, EyeOff, Loader2, Sheet, X } from "lucide-react";
 import type { OneGroup } from "@/lib/one-click-export";
 
 type Preview = { scope: string; groups: OneGroup[]; total: number; rowLabel?: string; rows: (string | number | null)[][] };
@@ -18,20 +18,48 @@ function show(v: string | number | null, type: string): string {
   return String(v);
 }
 
+/** A column by its group and label, so what is hidden holds when the filter changes. */
+const keyOf = (group: string, label: string) => `${group}::${label}`;
+
+// The columns hidden, remembered in this browser for each kind of sheet.
+const storeKey = (rowLabel: string) => `one-click-hidden:${rowLabel}`;
+function readHidden(rowLabel: string): Set<string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(storeKey(rowLabel)) ?? "[]");
+    return new Set(Array.isArray(v) ? v.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+function writeHidden(rowLabel: string, hidden: Set<string>) {
+  try {
+    localStorage.setItem(storeKey(rowLabel), JSON.stringify([...hidden]));
+  } catch {
+    // Not remembered; the pop-up still works.
+  }
+}
+
 /**
  * One Click: the whole Export on one sheet, in a pop-up — the first rows to
- * look over, the groups over their columns as in the file, then Download.
+ * look over, the groups over their columns as in the file, columns hidden as
+ * wanted (and left out of the file), then Download.
  */
 function OneClickModal({ query, onClose }: { query: string; onClose: () => void }) {
   const qs = query ? `?${query}` : "";
   const [data, setData] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     let live = true;
     fetch(`/api/orders/export/one${qs}${qs ? "&" : "?"}view=1`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Could not load the sheet (${r.status}).`))))
-      .then((d: Preview) => live && setData(d))
+      .then((d: Preview) => {
+        if (!live) return;
+        setHidden(readHidden(d.rowLabel ?? "one per EC"));
+        setData(d);
+      })
       .catch((e: Error) => live && setError(e.message));
     return () => {
       live = false;
@@ -44,7 +72,43 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const cols = data ? data.groups.flatMap((g) => g.columns) : [];
+  // Every column with its place across the sheet; the keys (first group) always show.
+  const all = useMemo(() => {
+    if (!data) return [];
+    let at = 0;
+    return data.groups.flatMap((g, gi) =>
+      g.columns.map((c) => ({ ...c, group: g.name, gi, index: at++, key: keyOf(g.name, c.label), fixed: gi === 0 }))
+    );
+  }, [data]);
+  const shown = all.filter((c) => c.fixed || !hidden.has(c.key));
+  const hiddenCount = all.length - shown.length;
+  const groups = (data?.groups ?? [])
+    .map((g, gi) => ({ ...g, gi, cols: shown.filter((c) => c.gi === gi) }))
+    .filter((g) => g.cols.length > 0);
+
+  function change(next: Set<string>) {
+    setHidden(next);
+    if (data) writeHidden(data.rowLabel ?? "one per EC", next);
+  }
+  const toggle = (key: string) => {
+    const next = new Set(hidden);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    change(next);
+  };
+  const toggleGroup = (gi: number, hide: boolean) => {
+    const next = new Set(hidden);
+    for (const c of all.filter((x) => x.gi === gi)) {
+      if (hide) next.add(c.key);
+      else next.delete(c.key);
+    }
+    change(next);
+  };
+
+  // The file leaves out what is hidden here.
+  const hideParam = all.filter((c) => !c.fixed && hidden.has(c.key)).map((c) => c.index);
+  const download = `/api/orders/export/one${qs}${hideParam.length ? `${qs ? "&" : "?"}hide=${hideParam.join(",")}` : ""}`;
+  const keyCount = data?.groups[0]?.columns.length ?? 0;
 
   return (
     <div
@@ -67,14 +131,26 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
               <h2 className="font-display text-lg font-semibold text-foreground">One Click — every detail, one sheet</h2>
               <p className="text-xs text-muted">
                 {data
-                  ? `${data.scope} · ${data.total} rows, ${data.rowLabel ?? "one per EC"} · ${cols.length} columns${data.total > data.rows.length ? ` · showing the first ${data.rows.length}` : ""}`
+                  ? `${data.scope} · ${data.total} rows, ${data.rowLabel ?? "one per EC"} · ${shown.length} columns${hiddenCount ? ` (${hiddenCount} hidden)` : ""}${data.total > data.rows.length ? ` · showing the first ${data.rows.length}` : ""}`
                   : "Everything the Export has, on a single sheet"}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPicking((v) => !v)}
+              disabled={!data}
+              aria-expanded={picking}
+              className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors disabled:opacity-50 ${
+                picking || hiddenCount ? "border-primary/40 bg-primary/10 text-primary" : "border-input-border text-foreground hover:bg-background"
+              }`}
+            >
+              <Columns3 className="h-4 w-4" />
+              Columns{hiddenCount ? ` · ${hiddenCount} hidden` : ""}
+            </button>
             <a
-              href={`/api/orders/export/one${qs}`}
+              href={download}
               aria-disabled={!data}
               className={`inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 ${
                 data ? "" : "pointer-events-none opacity-50"
@@ -94,6 +170,70 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
           </div>
         </div>
 
+        {/* The columns to show: a group at a time, or one by one. */}
+        {data && picking && (
+          <div className="max-h-[40vh] overflow-y-auto border-b border-card-border bg-background/40 px-5 py-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs text-muted">Hidden columns are left out of the preview and the Excel. SO keys always show.</p>
+              <button
+                type="button"
+                onClick={() => change(new Set())}
+                disabled={!hiddenCount}
+                className="text-xs font-semibold text-primary hover:underline disabled:text-muted disabled:no-underline"
+              >
+                Show all
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {data.groups.map((g, gi) => {
+                if (gi === 0) return null;
+                const cols = all.filter((c) => c.gi === gi);
+                const on = cols.filter((c) => !hidden.has(c.key)).length;
+                return (
+                  <div key={g.name} className="rounded-lg border border-card-border bg-surface p-2.5">
+                    <label className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={on === cols.length}
+                        ref={(el) => {
+                          if (el) el.indeterminate = on > 0 && on < cols.length;
+                        }}
+                        onChange={() => toggleGroup(gi, on === cols.length)}
+                        className="h-3.5 w-3.5 accent-[var(--primary)]"
+                      />
+                      <span className="h-2.5 w-2.5 rounded-sm" style={{ background: GROUP_BG[gi % GROUP_BG.length] }} />
+                      {g.name}
+                      <span className="font-normal text-muted">
+                        {on}/{cols.length}
+                      </span>
+                    </label>
+                    <div className="flex flex-wrap gap-1">
+                      {cols.map((c) => {
+                        const visible = !hidden.has(c.key);
+                        return (
+                          <button
+                            key={c.key}
+                            type="button"
+                            onClick={() => toggle(c.key)}
+                            aria-pressed={visible}
+                            className={`rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
+                              visible
+                                ? "border-primary/30 bg-primary/10 text-foreground"
+                                : "border-dashed border-input-border text-muted line-through"
+                            }`}
+                          >
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="min-h-0 flex-1 overflow-auto">
           {!data && !error && (
             <p className="flex items-center justify-center gap-2 py-16 text-sm text-muted">
@@ -106,11 +246,11 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
             <table className="w-max min-w-full border-separate border-spacing-0 text-xs">
               <thead className="sticky top-0 z-10">
                 <tr>
-                  {data.groups.map((g, gi) => (
+                  {groups.map((g) => (
                     <th
                       key={g.name}
-                      colSpan={g.columns.length}
-                      style={{ background: GROUP_BG[gi % GROUP_BG.length] }}
+                      colSpan={g.cols.length}
+                      style={{ background: GROUP_BG[g.gi % GROUP_BG.length] }}
                       className="border-b border-r border-white/20 px-3 py-1.5 text-left text-[11px] font-semibold text-white"
                     >
                       {g.name}
@@ -118,33 +258,47 @@ function OneClickModal({ query, onClose }: { query: string; onClose: () => void 
                   ))}
                 </tr>
                 <tr>
-                  {data.groups.flatMap((g, gi) =>
-                    g.columns.map((c, ci) => (
-                      <th
-                        key={`${g.name}-${c.label}`}
-                        style={{ background: GROUP_BG[gi % GROUP_BG.length] }}
-                        className={`${gi === 0 && ci === 1 ? "sticky left-0 z-20" : ""} ${c.type === "list" ? "min-w-[16rem]" : "min-w-[7rem]"} max-w-[14rem] border-b border-r border-white/20 px-3 py-2 text-left align-bottom font-semibold leading-tight text-white/95`}
-                      >
-                        {c.label}
-                      </th>
-                    ))
-                  )}
+                  {shown.map((c) => (
+                    <th
+                      key={c.key}
+                      style={{ background: GROUP_BG[c.gi % GROUP_BG.length] }}
+                      className={`${c.index === 1 ? "sticky left-0 z-20" : ""} ${c.type === "list" ? "min-w-[16rem]" : "min-w-[7rem]"} group/col max-w-[14rem] border-b border-r border-white/20 px-3 py-2 text-left align-bottom font-semibold leading-tight text-white/95`}
+                    >
+                      <span className="flex items-end justify-between gap-1.5">
+                        <span>{c.label}</span>
+                        {!c.fixed && (
+                          <button
+                            type="button"
+                            onClick={() => toggle(c.key)}
+                            title={`Hide ${c.label}`}
+                            aria-label={`Hide ${c.label}`}
+                            className="shrink-0 rounded p-0.5 text-white/60 opacity-0 transition-opacity hover:bg-white/15 hover:text-white focus:opacity-100 group-hover/col:opacity-100"
+                          >
+                            <EyeOff className="h-3 w-3" />
+                          </button>
+                        )}
+                      </span>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {data.rows.map((r, ri) => (
                   <tr key={ri} className="odd:bg-background/40 hover:bg-primary/[0.04]">
-                    {r.map((v, i) => (
-                      <td
-                        key={i}
-                        className={`${i === 1 ? "sticky left-0 z-[1] bg-[#EAF0F8] font-semibold dark:bg-[#1c2740]" : i < (data.groups[0]?.columns.length ?? 0) ? "bg-[#EAF0F8] dark:bg-[#1c2740]" : ""} ${
-                          cols[i]?.type === "list" ? "whitespace-pre-line" : "max-w-[14rem] truncate"
-                        } border-b border-r border-card-border px-3 py-1.5 align-top text-foreground`}
-                        title={typeof v === "string" && v.length > 30 ? v : undefined}
-                      >
-                        {show(v, cols[i]?.type ?? "text")}
-                      </td>
-                    ))}
+                    {shown.map((c) => {
+                      const v = r[c.index] ?? null;
+                      return (
+                        <td
+                          key={c.key}
+                          className={`${c.index === 1 ? "sticky left-0 z-[1] bg-[#EAF0F8] font-semibold dark:bg-[#1c2740]" : c.index < keyCount ? "bg-[#EAF0F8] dark:bg-[#1c2740]" : ""} ${
+                            c.type === "list" ? "whitespace-pre-line" : "max-w-[14rem] truncate"
+                          } border-b border-r border-card-border px-3 py-1.5 align-top text-foreground`}
+                          title={typeof v === "string" && v.length > 30 ? v : undefined}
+                        >
+                          {show(v, c.type)}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>

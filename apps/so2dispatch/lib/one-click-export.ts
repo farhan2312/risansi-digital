@@ -219,6 +219,29 @@ const RULE = "FFBFC9D9";
 const KEY_BG = "FFEAF0F8";
 
 /** The sheet as Excel: a title, the groups over their columns, frozen keys, filters, wrapped lists. */
+/**
+ * The sheet without the columns hidden in the pop-up (by their place across
+ * the sheet). The keys (the first group) always stay; a group left with no
+ * columns goes.
+ */
+export function hideOneColumns(sheet: OneSheet, hidden: Set<number>): OneSheet {
+  const keys = sheet.groups[0]?.columns.length ?? 0;
+  const keep: number[] = [];
+  let at = 0;
+  const groups: OneGroup[] = [];
+  for (const g of sheet.groups) {
+    const columns = g.columns.filter((_, i) => {
+      const n = at + i;
+      const shown = n < keys || !hidden.has(n);
+      if (shown) keep.push(n);
+      return shown;
+    });
+    at += g.columns.length;
+    if (columns.length) groups.push({ ...g, columns });
+  }
+  return { ...sheet, groups, rows: sheet.rows.map((r) => keep.map((n) => r[n] ?? null)) };
+}
+
 export function buildOneClickWorkbook(sheet: OneSheet, scope: string): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Risansi SO to Dispatch";

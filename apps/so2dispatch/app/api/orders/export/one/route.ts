@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canViewAll } from "@/lib/roles";
 import { listOrderExports, listOrderIdsMatching } from "@/lib/orders";
-import { buildOneClickWorkbook, buildOneSheet } from "@/lib/one-click-export";
+import { buildOneClickWorkbook, buildOneSheet, hideOneColumns } from "@/lib/one-click-export";
 import { buildSpareOneSheet } from "@/lib/spare-export";
 import { listOneClickStatuses } from "@/lib/one-click-status";
 import {
@@ -52,7 +52,14 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const buffer = await buildOneClickWorkbook(sheet, scope).xlsx.writeBuffer();
+  // The columns hidden in the pop-up stay out of the file.
+  const hidden = new Set(
+    (params.get("hide") ?? "")
+      .split(",")
+      .map((v) => Number(v))
+      .filter((n) => Number.isInteger(n) && n >= 0)
+  );
+  const buffer = await buildOneClickWorkbook(hidden.size ? hideOneColumns(sheet, hidden) : sheet, scope).xlsx.writeBuffer();
   const today = new Date().toISOString().slice(0, 10);
   return new Response(buffer, {
     headers: {
