@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Layers, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
@@ -53,8 +53,45 @@ function cell(value: string | null): string {
   return value && value.trim() !== "" ? value : "—";
 }
 
+/** An SO's ECs in a pop-up, opened from the button at the start of its row. */
+function EcListModal({ order, onClose }: { order: OrderListRow; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const items = order.items ?? [];
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+      <div role="dialog" aria-modal className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-card-border bg-card shadow-xl sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-card-border px-5 py-4 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              ECs · {items.length}
+            </p>
+            <h2 className="mt-0.5 font-display text-lg font-semibold text-foreground">SO {order.so_no ?? `#${order.sl_no}`}</h2>
+            {order.client_name && <p className="truncate text-sm text-muted">{order.client_name}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="overflow-y-auto">
+          <ItemRows orderId={order.id} items={items} orderType={order.order_type} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
- * The EC sub-table under an expanded SO. Columns follow the SO's order type:
+ * The EC table in an SO's EC pop-up. Columns follow the SO's order type:
  * a Spare carries no Pump Type / Series Version (matching the Spare Add-On
  * form), a Pump shows both. Dispatch status is deliberately not here — it's
  * an SO-level value shown once on the parent row.
@@ -270,7 +307,7 @@ export function OrdersTable({
   const orders = result.rows;
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [ecsFor, setEcsFor] = useState<OrderListRow | null>(null);
   const [addFor, setAddFor] = useState<OrderListRow | null>(null);
   // The one department pop-up open, and the one discussion.
   const [popup, setPopup] = useState<{ order: OrderListRow; what: PopupKind } | null>(null);
@@ -301,14 +338,6 @@ export function OrdersTable({
   // Today in the browser's calendar, to mark a packing plan that has passed.
   const today = new Date().toLocaleDateString("en-CA");
   const colSpan = baseCols + (canDelete ? 1 : 0);
-  function toggle(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
 
   async function handleDelete(order: OrderListRow) {
     const label = order.so_no ?? `#${order.sl_no}`;
@@ -394,7 +423,6 @@ export function OrdersTable({
                 </tr>
               )}
               {pageRows.map((order) => {
-                const isOpen = expanded.has(order.id);
                 const orderPage = `/risansi/orders/${order.id}`;
                 const status = deptStatuses[order.id];
                 const soLabel = order.so_no ?? `#${order.sl_no}`;
@@ -413,8 +441,8 @@ export function OrdersTable({
                   );
                 return (
                   <Fragment key={order.id}>
-                    {/* A click on the row opens its Order details; the chevron
-                        shows its ECs; every other control does its own job. */}
+                    {/* A click on the row opens its Order details; the first
+                        button its ECs; every other control does its own job. */}
                     <tr
                       onClick={() => setDetailsFor(order)}
                       // Every cell starts at the top, so the row reads straight across;
@@ -428,12 +456,15 @@ export function OrdersTable({
                       <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          onClick={() => toggle(order.id)}
-                          aria-label={isOpen ? "Hide ECs" : "Show ECs"}
-                          aria-expanded={isOpen}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-input-border text-muted-foreground transition-colors hover:bg-background"
+                          onClick={() => setEcsFor(order)}
+                          aria-label="Show ECs"
+                          title={`ECs (${(order.items ?? []).length})`}
+                          className="inline-flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-md border border-input-border px-1 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
                         >
-                          {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          <Layers className="h-3.5 w-3.5" />
+                          {(order.items ?? []).length > 0 && (
+                            <span className="text-[10px] font-semibold tabular-nums">{(order.items ?? []).length}</span>
+                          )}
                         </button>
                       </td>
                       <td className="px-4 py-3 font-medium tabular-nums">{order.sl_no}</td>
@@ -700,13 +731,6 @@ export function OrdersTable({
                         </td>
                       )}
                     </tr>
-                    {isOpen && (
-                      <tr className="bg-background/40">
-                        <td colSpan={colSpan} className="p-0">
-                          <ItemRows orderId={order.id} items={order.items ?? []} orderType={order.order_type} />
-                        </td>
-                      </tr>
-                    )}
                   </Fragment>
                 );
               })}
@@ -722,6 +746,7 @@ export function OrdersTable({
         />
       </div>
 
+      {ecsFor && <EcListModal order={ecsFor} onClose={() => setEcsFor(null)} />}
       {popup && (
         <OrderPopupHost
           orderId={popup.order.id}
