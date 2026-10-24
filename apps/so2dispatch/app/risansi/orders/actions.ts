@@ -323,6 +323,22 @@ export async function getOrderPisAction(
   };
 }
 
+/** An SO and its ECs (every EC field), for the Orders page's EC pop-up. */
+export async function getOrderEcsAction(
+  orderId: string
+): Promise<{ order: Record<string, unknown>; items: Record<string, unknown>[] } | null> {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  if (!(await repMaySee(user, orderId))) return null;
+  const detail = await getOrderDetail(orderId);
+  if (!detail) return null;
+  const o = detail.order;
+  return {
+    order: { id: o.id, sl_no: o.sl_no, so_no: o.so_no, client_name: o.client_name, order_type: o.order_type },
+    items: [...detail.items].sort((a, b) => String(a.ec_no ?? "").localeCompare(String(b.ec_no ?? ""), undefined, { numeric: true })),
+  };
+}
+
 /** The SO's core "Order details" row, for a read-only popup. Any signed-in
  *  user with a workspace can view it (billing/accounts "View order details"). */
 export async function getOrderCoreAction(

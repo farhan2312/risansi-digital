@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { addOnFieldsFor } from "@/lib/order-schema";
 import { formatDisplay } from "./editable-section";
 
@@ -24,7 +25,10 @@ export function OmEcsModal({
   onDelete,
   onClose,
   initialId,
+  openHref,
 }: {
+  /** Where an EC's own page is, offered as Open on the one shown. */
+  openHref?: (item: Row) => string;
   /** The EC shown first (else the first EC). */
   initialId?: string;
   order: Row;
@@ -56,7 +60,7 @@ export function OmEcsModal({
       role="dialog"
       aria-modal="true"
       aria-label={`ECs of ${soLabel}`}
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
       onClick={onClose}
     >
       <div
@@ -133,6 +137,15 @@ export function OmEcsModal({
             <section role="tabpanel" className="rounded-xl border border-card-border">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border px-4 py-3">
                 <span className="font-semibold text-foreground">{str(current.ec_no) || "EC"}</span>
+                {openHref && (
+                  <Link
+                    href={openHref(current)}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-input-border px-2.5 text-xs font-medium text-foreground hover:bg-background"
+                  >
+                    Open
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
                 {canManage && (
                   <span className="flex items-center gap-2">
                     <button

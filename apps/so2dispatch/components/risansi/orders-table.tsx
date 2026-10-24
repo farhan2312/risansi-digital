@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Layers, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import { Layers, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
@@ -17,8 +17,9 @@ import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { CLOSED, READY, assemblyView, planningText, reachedDepts, type ReachedDept } from "@/lib/order-row-view";
-import type { DeptCell, ItemSummary, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
-import { deleteOrderAction } from "@/app/risansi/orders/actions";
+import type { DeptCell, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
+import { deleteOrderAction, getOrderEcsAction } from "@/app/risansi/orders/actions";
+import { OmEcsModal } from "./om-ecs-modal";
 import { UrlPagination, useUrlTable } from "./url-table";
 import type { PageResult } from "@/lib/pagination";
 import { AddOnForm } from "./add-on-form";
@@ -53,104 +54,43 @@ function cell(value: string | null): string {
   return value && value.trim() !== "" ? value : "—";
 }
 
-/** An SO's ECs in a pop-up, opened from the button at the start of its row. */
-function EcListModal({ order, onClose }: { order: OrderListRow; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  const items = order.items ?? [];
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
-      <div role="dialog" aria-modal className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-card-border bg-card shadow-xl sm:rounded-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-card-border px-5 py-4 sm:px-6">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              ECs · {items.length}
-            </p>
-            <h2 className="mt-0.5 font-display text-lg font-semibold text-foreground">SO {order.so_no ?? `#${order.sl_no}`}</h2>
-            {order.client_name && <p className="truncate text-sm text-muted">{order.client_name}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="overflow-y-auto">
-          <ItemRows orderId={order.id} items={items} orderType={order.order_type} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /**
- * The EC table in an SO's EC pop-up. Columns follow the SO's order type:
- * a Spare carries no Pump Type / Series Version (matching the Spare Add-On
- * form), a Pump shows both. Dispatch status is deliberately not here — it's
- * an SO-level value shown once on the parent row.
+ * An SO's ECs in a pop-up, opened from the button at the start of its row:
+ * Order Making's EC pop-up — every EC as a button, the one picked in full,
+ * and Open to its page.
  */
-function ItemRows({
-  orderId,
-  items,
-  orderType,
-}: {
-  orderId: string;
-  items: ItemSummary[];
-  orderType: string | null;
-}) {
-  if (items.length === 0) {
+function EcsPopup({ order, onClose }: { order: OrderListRow; onClose: () => void }) {
+  const [data, setData] = useState<{ order: Record<string, unknown>; items: Record<string, unknown>[] } | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    getOrderEcsAction(order.id)
+      .then((r) => live && (r ? setData(r) : setFailed(true)))
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [order.id]);
+  if (data) {
     return (
-      <p className="px-4 py-3 text-sm text-muted">No EC items yet.</p>
+      <OmEcsModal
+        order={data.order}
+        items={data.items}
+        canManage={false}
+        deletingId={null}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        onClose={onClose}
+        openHref={(it) => `/risansi/orders/${order.id}/items/${String(it.id)}`}
+      />
     );
   }
-  const isSpareSo = (orderType ?? "").trim().toLowerCase() === "spare";
   return (
-    <div className="overflow-x-auto px-4 py-3">
-      <table className="w-full min-w-[680px] text-sm">
-        <thead>
-          <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            <th className="px-3 py-1.5">EC No.</th>
-            <th className="px-3 py-1.5">EC Date</th>
-            {!isSpareSo && <th className="px-3 py-1.5">Pump Type</th>}
-            <th className="px-3 py-1.5">Model No.</th>
-            <th className="px-3 py-1.5">Internal Model</th>
-            <th className="px-3 py-1.5">Version</th>
-            <th className="px-3 py-1.5">Qty</th>
-            <th className="px-3 py-1.5" />
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it) => (
-            <tr key={it.id} className="text-foreground">
-              <td className="px-3 py-1.5 whitespace-nowrap font-medium">{cell(it.ec_no)}</td>
-              <td className="px-3 py-1.5 whitespace-nowrap text-muted">
-                {formatDate(it.ec_date)}
-              </td>
-              {!isSpareSo && <td className="px-3 py-1.5">{cell(it.pump_type)}</td>}
-              <td className="px-3 py-1.5">{cell(it.model_no)}</td>
-              <td className="px-3 py-1.5">{cell(it.internal_model)}</td>
-              <td className="px-3 py-1.5">{cell(it.version)}</td>
-              <td className="px-3 py-1.5 tabular-nums">{cell(it.quantity)}</td>
-              <td className="px-3 py-1.5 whitespace-nowrap text-right">
-                <Link
-                  href={`/risansi/orders/${orderId}/items/${it.id}`}
-                  className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
-                >
-                  Open
-                  <ChevronRight className="h-3 w-3" />
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="flex items-center gap-2 rounded-xl bg-surface px-5 py-4 text-sm text-muted shadow-xl">
+        {failed ? "Could not load the ECs." : (<><Loader2 className="h-4 w-4 animate-spin" /> Loading ECs…</>)}
+      </div>
     </div>
   );
 }
@@ -746,7 +686,7 @@ export function OrdersTable({
         />
       </div>
 
-      {ecsFor && <EcListModal order={ecsFor} onClose={() => setEcsFor(null)} />}
+      {ecsFor && <EcsPopup order={ecsFor} onClose={() => setEcsFor(null)} />}
       {popup && (
         <OrderPopupHost
           orderId={popup.order.id}
