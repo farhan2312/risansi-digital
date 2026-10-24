@@ -29,8 +29,9 @@ export function linksFromRows(rows: unknown): QcLink[] {
   });
 }
 
-/** A link counts once it is there. */
-const given = (l: QcLink | undefined) => !!l && /^https?:\/\//i.test(l.link.trim());
+/** A document counts once it is in: its link given, or the day it was submitted (a link is not a must). */
+export const given = (l: QcLink | undefined) =>
+  !!l && (/^https?:\/\//i.test(l.link.trim()) || !!l.submitted_date.trim());
 
 export type QcTone = "done" | "part" | "pending" | "na";
 

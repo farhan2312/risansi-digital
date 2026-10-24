@@ -4,7 +4,7 @@ import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ExternalLink, FileCheck2, Link2, Loader2, MessageSquare, X } from "lucide-react";
 import { DEPT_VIEWS, dispatchRowTone } from "@/lib/dept-view";
-import { linksFromRows, qcDocsStatus, requiredQcDocs, type QcLink, type QcTone } from "@/lib/qc-docs";
+import { given, linksFromRows, qcDocsStatus, requiredQcDocs, type QcLink, type QcTone } from "@/lib/qc-docs";
 import type { OrderListOptions } from "@/lib/orders";
 import type { PageResult } from "@/lib/pagination";
 import type { DeptCompletion } from "@/lib/dept-completion";
@@ -342,8 +342,9 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
           <div className="space-y-3">
             {links.map((l, i) => {
               const ok = /^https?:\/\//i.test(l.link.trim());
+              const isIn = given(l);
               return (
-                <section key={l.doc_type} className={`rounded-xl border p-4 ${ok ? "border-emerald-200 bg-emerald-50/30" : "border-card-border"}`}>
+                <section key={l.doc_type} className={`rounded-xl border p-4 ${isIn ?"border-emerald-200 bg-emerald-50/30" : "border-card-border"}`}>
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -355,6 +356,8 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
                       <a href={l.link.trim()} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
                         Open <ExternalLink className="h-3.5 w-3.5" />
                       </a>
+                    ) : isIn ? (
+                      <span className="text-xs font-semibold text-emerald-700">Submitted · no link</span>
                     ) : (
                       <span className="text-xs text-muted">Not in yet</span>
                     )}
@@ -375,7 +378,7 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[11px] font-medium text-muted-foreground">Submitted On</span>
-                      <input type="date" value={l.submitted_date} disabled={ro || !l.link.trim()} onChange={(e) => set(i, { submitted_date: e.target.value })} className={input} />
+                      <input type="date" value={l.submitted_date} disabled={ro} onChange={(e) => set(i, { submitted_date: e.target.value })} className={input} />
                     </label>
                     <label className="block sm:col-span-2">
                       <span className="mb-1 block text-[11px] font-medium text-muted-foreground">Remarks</span>

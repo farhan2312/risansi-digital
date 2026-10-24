@@ -54,7 +54,7 @@ export async function saveQcLinksAction(itemId: string, sent: QcLink[]): Promise
          ON CONFLICT (item_id, doc_type) DO UPDATE
             SET link = EXCLUDED.link, submitted_date = EXCLUDED.submitted_date,
                 remarks = EXCLUDED.remarks, updated_by = EXCLUDED.updated_by`,
-        [itemId, l.doc_type, link, link ? l.submitted_date || null : null, l.remarks.trim().slice(0, 1000), user.id]
+        [itemId, l.doc_type, link, l.submitted_date || null,l.remarks.trim().slice(0, 1000), user.id]
       );
     }
     const after = linksFromRows(

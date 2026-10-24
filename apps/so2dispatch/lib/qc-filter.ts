@@ -52,7 +52,7 @@ const neededSql = (o: string) =>
 export function ecQcStatusSql(it: string, o: string): string {
   const total = `(SELECT count(*) FROM ${neededSql(o)} n)`;
   const done = `(SELECT count(DISTINCT lower(ql.doc_type)) FROM order_qc_doc_links ql
-                  WHERE ql.item_id = ${it}.id AND btrim(ql.link) ~* '^https?://'
+                  WHERE ql.item_id = ${it}.id AND (btrim(ql.link) ~* '^https?://' OR ql.submitted_date IS NOT NULL)
                     AND lower(ql.doc_type) IN ${neededSql(o)})`;
   return `(CASE WHEN ${total} = 0 THEN 'Docs not specified'
                 WHEN ${done} >= ${total} THEN 'Submitted'
