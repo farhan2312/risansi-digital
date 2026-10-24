@@ -28,7 +28,7 @@ import { DEFAULT_GST_RATE } from "@/lib/order-validation";
 import { PLANNING_READY_SQL } from "@/lib/reminders";
 import type { LockFacts } from "@/lib/order-lock";
 import type { SoLot } from "@/lib/ready-lots";
-import {
+import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS,
   isPerEcDept,
   NOT_APPLICABLE,
   PENDING,
@@ -3289,6 +3289,16 @@ function planningPacking(f: OrderListFilter): string {
   const plan = f.deptStatuses.length
     ? `(${f.deptStatuses.map((s) => deptStatusPredicate("planning", s)).join(" OR ")})`
     : "TRUE";
+  // A Pump SO: Assembly & Packing's own SO statuses — any assembly status
+  // asked, and any packing status asked.
+  if (f.types.length > 0 && f.types.every((t) => /^(pump|rolb)$/i.test(t))) {
+    const asm = f.packingStatuses.filter((s) => PLANNING_PUMP_ASSEMBLY_OPTIONS.includes(s));
+    const pkg = f.packingStatuses.filter((s) => PLANNING_PUMP_PACKING_OPTIONS.includes(s));
+    const parts = [plan];
+    if (asm.length) parts.push(`${soStageStatusSql("assembly", "o")} IN (${asm.map(lit).join(", ")})`);
+    if (pkg.length) parts.push(`${soStageStatusSql("packing", "o")} IN (${pkg.map(lit).join(", ")})`);
+    return parts.join(" AND ");
+  }
   return `${plan} AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id
                                AND (${f.packingStatuses.map((s) => `(${packingState(s)})`).join(" OR ")}))`;
 }

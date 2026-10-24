@@ -10,7 +10,7 @@ import {
   DEPTS_WITHOUT_PARTY,
   DEPT_FILTER_KEYS,
   DEPT_FILTER_LABELS,
-  PLANNING_PACKING_OPTIONS,
+  planningPackingOptions,
   statusesFor,
   type DeptFilterKey,
 } from "@/lib/dept-status";
@@ -271,7 +271,8 @@ export function OrderListFilterBar({
               activeDept === "planning"
                 ? {
                     heading: "Assembly & Packing",
-                    options: PLANNING_PACKING_OPTIONS,
+                    // A Pump SO's own Assembly and Packing statuses; a Spare's, packed or not.
+                    options: planningPackingOptions(filter.types),
                     selected: filter.packingStatuses,
                     onChange: (next) => setParams({ pack: next }),
                   }

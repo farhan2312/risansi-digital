@@ -22,6 +22,8 @@ import {
   DEPT_FILTER_LABELS,
   statusesFor,
   PLANNING_PACKING_OPTIONS,
+  PLANNING_PUMP_ASSEMBLY_OPTIONS,
+  PLANNING_PUMP_PACKING_OPTIONS,
   type DeptFilterKey,
 } from "@/lib/dept-status";
 
@@ -315,7 +317,10 @@ export function parseOrderListFilter(
         ? list(get("dispst")).filter((v) => statusesFor("dispatch").includes(v))
         : [],
     dispatchStages: queue === "dispatch" ? list(get("dstage")).filter((v) => DISPATCH_STAGES.includes(v)) : [],
-    packingStatuses: dept === "planning" ? list(get("pack")).filter((v) => PLANNING_PACKING_OPTIONS.includes(v)) : [],
+    packingStatuses:
+      dept === "planning"
+        ? list(get("pack")).filter((v) => PLANNING_PACKING_OPTIONS.includes(v) || PLANNING_PUMP_ASSEMBLY_OPTIONS.includes(v) || PLANNING_PUMP_PACKING_OPTIONS.includes(v))
+        : [],
     clearance: list(get("clear")).filter((v) => CLEARANCE_FILTER_OPTIONS.includes(v)),
     holdReasons: list(get("hreason")).filter((v) => HOLD_REASON_FILTER_OPTIONS.includes(v)),
   };
