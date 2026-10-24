@@ -10,6 +10,7 @@ import { OmHoldBadge } from "./om-hold";
 import { canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
 import { OmEcsModal } from "./om-ecs-modal";
+import { useSoNoTaken } from "./use-so-no-taken";
 import { OmReportModal } from "./om-report-modal";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
@@ -35,6 +36,9 @@ import {
   selectOptionsFor,
   withFrZeros,
   withValueRules,
+  soNoPrefix,
+  numberFormatNote,
+  withoutBarePrefix,
   type OrderField,
 } from "@/lib/order-schema";
 import type { OrderMakingRow } from "@/lib/orders";
@@ -801,14 +805,17 @@ function OrderMakingEdit({
   const router = useRouter();
   const editable = mode === "so" ? ORDER_MAKING_SO_EDITABLE : ORDER_MAKING_EDITABLE;
   const [assignee, setAssignee] = useState<string>(row?.so_assignee_id ?? "");
-  // An FR SO opens with its discount, packing, GST and gross value at 0.
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    withFrZeros(
+  // An FR SO opens with its discount, packing, GST and gross value at 0; an
+  // SO with no SO No. yet, with all but its number ("SO26/1/").
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const start = withFrZeros(
       Object.fromEntries(
         ORDER_MAKING_EDITABLE.map((f) => [f.column, str(row?.[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
       )
-    )
-  );
+    );
+    if (!str(start.so_no).trim()) start.so_no = soNoPrefix(start.so_date);
+    return start;
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -910,6 +917,9 @@ function OrderMakingEdit({
       />
     );
   };
+  // Under the SO No.: a note when it strays from SO<yy>/1/<no.>, or when another SO has it.
+  const soNoNote = numberFormatNote("so_no", read("so_no"));
+  const soNoTaken = useSoNoTaken(read("so_no"), row?.id ?? null);
 
   return (
     <div
@@ -999,7 +1009,9 @@ function OrderMakingEdit({
                   {fields.map((f) => (
                     <div key={f.column} className="text-sm">
                       <dt className="text-[12px] text-muted">{f.label}</dt>
-                      <dd className="font-medium text-foreground">{formatDisplay(f, read(f.column)) || "—"}</dd>
+                      <dd className="font-medium text-foreground">
+                        {formatDisplay(f, f.column === "so_no" ? withoutBarePrefix("so_no", read(f.column)) : read(f.column)) || "—"}
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -1014,6 +1026,11 @@ function OrderMakingEdit({
                       {input(f)}
                       {challanLocked(f) && (
                         <span className="mt-1 block text-[11px] text-muted">0 INR on a Challan order</span>
+                      )}
+                      {f.column === "so_no" && (soNoNote || soNoTaken) && (
+                        <span className="mt-1 block text-[11px] text-amber-700 dark:text-amber-400">
+                          {soNoTaken ? `Already on ${soNoTaken}.` : soNoNote}
+                        </span>
                       )}
                     </label>
                   ))}

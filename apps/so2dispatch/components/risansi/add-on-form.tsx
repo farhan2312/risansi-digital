@@ -17,6 +17,8 @@ import {
   addOnFieldsFor,
   firstMissingAddOnField,
   selectOptionsFor,
+  ecNoPrefix,
+  numberFormatNote,
 } from "@/lib/order-schema";
 import { cleanBoiRows } from "@/lib/order-validation";
 import type { NewItemInput } from "@/lib/orders";
@@ -68,16 +70,21 @@ export function AddOnForm({
   const isSpare = orderType === "Spare";
   const fields = addOnFieldsFor(orderType);
   const editing = !!item;
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    item
+  // EC No. opens with all but its own number: "EC/26/1/1833/" from the SO
+  // No. (soLabel is it, when the SO has one). The whole stays editable.
+  const ecStart = ecNoPrefix(soLabel);
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const start: Record<string, string> = item
       ? Object.fromEntries(
           fields.map((f) => [f.column, item[f.column] == null ? "" : String(item[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
         )
       : // A new pump: BOI No until said otherwise (the SO's own answer, if Yes).
         isSpare
         ? {}
-        : { boi: (boiFlag ?? "") === "Yes" ? "Yes" : "No" }
-  );
+        : { boi: (boiFlag ?? "") === "Yes" ? "Yes" : "No" };
+    if (!String(start.ec_no ?? "").trim()) start.ec_no = ecStart;
+    return start;
+  });
   const [boi, setBoi] = useState<BoiRow[]>([]);
   // A pump's BOI Yes opens its bought-out item list — adding the EC, or
   // editing one (its saved items load as rows to change or remove).
@@ -277,6 +284,10 @@ export function AddOnForm({
                     }
                     className={inputClass}
                   />
+                )}
+                {/* EC No.: a note when it strays from the usual form; it still saves. */}
+                {field.column === "ec_no" && numberFormatNote("ec_no", values.ec_no) && (
+                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">{numberFormatNote("ec_no", values.ec_no)}</p>
                 )}
               </div>
               </Fragment>

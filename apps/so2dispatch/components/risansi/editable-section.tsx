@@ -11,6 +11,8 @@ import {
   selectOptionsFor,
   splitMulti,
   withValueRules,
+  soNoPrefix,
+  numberFormatNote,
   type OrderField,
   type OrderSection,
 } from "@/lib/order-schema";
@@ -133,9 +135,12 @@ export function EditableSection({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openDocs, setOpenDocs] = useState<DocumentsConfig | null>(null);
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(section.fields.map((f) => [f.column, seedValue(f, data)]))
-  );
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const start = Object.fromEntries(section.fields.map((f) => [f.column, seedValue(f, data)]));
+    // No SO No. yet: it opens with all but its number ("SO26/1/").
+    if (section.table === "orders" && "so_no" in start && !start.so_no.trim()) start.so_no = soNoPrefix(start.so_date);
+    return start;
+  });
 
   // A Spare's readiness lots live in Planning's form; once there is one, the
   // status and readiness date are the latest lot's.
@@ -419,6 +424,10 @@ export function EditableSection({
                             </span>
                             {fieldExtra?.(field)}
                           </div>
+                        )}
+                        {/* SO No. / EC No.: a note when it strays from the usual form; it still saves. */}
+                        {editing && fieldEditable && numberFormatNote(field.column, values[field.column]) && (
+                          <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">{numberFormatNote(field.column, values[field.column])}</p>
                         )}
                       </div>
                       {lotsHere && (

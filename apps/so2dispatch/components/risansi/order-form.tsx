@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useSoNoTaken } from "./use-so-no-taken";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { addOrderChildAction, createOrderAction, updateOrderChildAction } from "@/app/risansi/orders/actions";
@@ -16,6 +17,8 @@ import {
   ORDER_TYPE_OPTIONS,
   YES_NO_OPTIONS,
   withValueRules,
+  soNoPrefix,
+  numberFormatNote,
 } from "@/lib/order-schema";
 import { spareDeliveryDate, spareDeliveryRules } from "@/lib/target-rules";
 import { NewOrderTerms, blankTermLine, termLineValues, termLinesError, type NewTermLine } from "./new-order-terms";
@@ -312,7 +315,10 @@ function withSpareDates(values: NewOrderInput, auto: Set<string>): { values: New
 export function OrderForm() {
   const router = useRouter();
   // Every new SO starts Clear; Central Visibility holds it when needed.
-  const [values, setValues] = useState<NewOrderInput>({ clearance_status: "Clear" });
+  // …and its SO No. opens with all but its number ("SO26/1/"), still editable.
+  const [values, setValues] = useState<NewOrderInput>({ clearance_status: "Clear", so_no: soNoPrefix() });
+  const soNoNote = numberFormatNote("so_no", values.so_no);
+  const soNoTaken = useSoNoTaken(values.so_no ?? "", null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -497,6 +503,11 @@ export function OrderForm() {
                   )}
                   {disabled && (
                     <p className="mt-1 text-[11px] text-muted">0 INR on a Challan order</p>
+                  )}
+                  {field.name === "so_no" && (soNoNote || soNoTaken) && (
+                    <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
+                      {soNoTaken ? `Already on ${soNoTaken}.` : soNoNote}
+                    </p>
                   )}
                 </div>
                 );

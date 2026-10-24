@@ -60,6 +60,7 @@ import {
   READY_LOT_LIMIT,
   PAYMENT_HOLD_VALUE,
   coerceField,
+  withoutBarePrefix,
   ORDER_MAKING_FIELDS,
   SO_DETAIL_COLUMNS,
   SECTION_BY_TABLE,
@@ -335,7 +336,8 @@ export async function createOrder(
        )
        RETURNING id, sl_no::int AS sl_no`,
       [
-        nullify(input.so_no),
+        // A box left at its prefix ("SO26/1/") is no SO No. yet.
+        nullify(withoutBarePrefix("so_no", input.so_no)),
         nullify(input.so_date),
         nullify(input.client_code),
         nullify(input.client_type),
@@ -473,7 +475,7 @@ export async function createItem(
      RETURNING id, seq::int AS seq`,
     [
       orderId,
-      nullify(input.ec_no),
+      nullify(withoutBarePrefix("ec_no", input.ec_no)),
       nullify(input.ec_date),
       nullify(input.item_type),
       nullify(input.pump_type),
@@ -878,7 +880,8 @@ export async function updateOrderSection(
 
   if (columns.length > 0) {
     const coerced = columns.map((c) =>
-      coerceField(fieldByColumn.get(c)!.type, values[c])
+      // An SO No. / EC No. left at its prefix is saved as blank.
+      coerceField(fieldByColumn.get(c)!.type, c === "so_no" || c === "ec_no" ? withoutBarePrefix(c, values[c]) : values[c])
     );
 
     if (table === "orders" || table === "order_items") {

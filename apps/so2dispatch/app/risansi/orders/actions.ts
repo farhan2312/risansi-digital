@@ -83,6 +83,7 @@ import {
   paymentTermsText,
   type ChildTable,
   type OrderTable,
+  withoutBarePrefix,
 } from "@/lib/order-schema";
 import {
   getClientByCode,
@@ -324,6 +325,21 @@ export async function getOrderPisAction(
 }
 
 /** An SO and its ECs (every EC field), for the Orders page's EC pop-up. */
+/** Another SO already carrying this SO No., as "#<Sl. No.>" — for a warning on the form; null when none. */
+export async function soNoTakenAction(soNo: string, exceptOrderId: string | null): Promise<string | null> {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const v = withoutBarePrefix("so_no", soNo);
+  if (!v) return null;
+  const r = await query<{ sl_no: number }>(
+    `SELECT sl_no::int AS sl_no FROM orders
+      WHERE upper(btrim(so_no)) = upper($1) AND ($2::uuid IS NULL OR id <> $2::uuid)
+      ORDER BY sl_no LIMIT 1`,
+    [v, exceptOrderId && UUID_RE_ACTION.test(exceptOrderId) ? exceptOrderId : null]
+  );
+  return r.rows[0] ? `Sl. ${r.rows[0].sl_no}` : null;
+}
+
 export async function getOrderEcsAction(
   orderId: string
 ): Promise<{ order: Record<string, unknown>; items: Record<string, unknown>[] } | null> {

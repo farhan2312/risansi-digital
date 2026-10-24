@@ -1123,10 +1123,52 @@ export const ADD_ON_SPARE_FIELDS: OrderField[] = [
 /** What an FR (replacement) order's Payment Terms Remarks say. */
 export const FR_PAYMENT_TERMS_REMARKS = "REPLACEMENT";
 
-/**
- * One field's new value, with what it implies for the others: a Challan
- * carries no value, so picking it sets the order value to 0 INR.
- */
+// --- SO No. and EC No.: SO<yy>/1/<no.> and EC/<yy>/1/<SO no.>/<EC no.> -------
+// A new one opens with all but its own number filled in; the whole stays
+// editable, and a box left at the prefix alone is saved as blank.
+
+/** Two digits of the year: the SO Date's, else this year's. */
+function yearOf(soDate?: unknown): string {
+  const m = /^(\d{4})-/.exec(String(soDate ?? ""));
+  return (m ? m[1] : String(new Date().getFullYear())).slice(2);
+}
+
+/** "SO26/1/" — what a new SO No. opens with. */
+export function soNoPrefix(soDate?: unknown): string {
+  return `SO${yearOf(soDate)}/1/`;
+}
+
+/** "EC/26/1/1833/" from the SO No. ("SO26/1/1833"); "EC/26/1/" when the SO No. is not in the usual form. */
+export function ecNoPrefix(soNo?: unknown, soDate?: unknown): string {
+  const m = /^SO(\d{2})\/1\/(\d+)$/.exec(String(soNo ?? "").trim());
+  return m ? `EC/${m[1]}/1/${m[2]}/` : `EC/${yearOf(soDate)}/1/`;
+}
+
+const SO_NO_PREFIX_ONLY = /^SO\d{2}\/1\/$/;
+const EC_NO_PREFIX_ONLY = /^EC\/\d{2}\/1\/(\d+\/)?$/;
+
+/** The SO No. or EC No. as saved: blank when nothing past its prefix was typed. */
+export function withoutBarePrefix(column: string, value: unknown): string {
+  const v = String(value ?? "").trim();
+  if (column === "so_no" && SO_NO_PREFIX_ONLY.test(v)) return "";
+  if (column === "ec_no" && EC_NO_PREFIX_ONLY.test(v)) return "";
+  return v;
+}
+
+/** A new SO No. still at its prefix alone — it follows the SO Date's year. */
+export function isBareSoNoPrefix(value: unknown): boolean {
+  return SO_NO_PREFIX_ONLY.test(String(value ?? "").trim());
+}
+
+/** A note when an SO No. / EC No. strays from the usual form — a warning, never a block. */
+export function numberFormatNote(column: string, value: unknown): string | null {
+  const v = String(value ?? "").trim();
+  if (!v || withoutBarePrefix(column, v) === "") return null;
+  if (column === "so_no" && !/^SO\d{2}\/1\/\d+$/.test(v)) return "Doesn't follow SO<yy>/1/<no.> — it will still save.";
+  if (column === "ec_no" && !/^EC\/\d{2}\/1\/\d+\/\d+$/.test(v)) return "Doesn't follow EC/<yy>/1/<SO no.>/<EC no.> — it will still save.";
+  return null;
+}
+
 /** An FR order is worth nothing: no discount, packing, GST or gross value — each 0. */
 export const FR_ZERO_COLUMNS = ["discount_percent", "packing_forwarding_percent", "gst_percent", "taxable_value"];
 
@@ -1138,6 +1180,10 @@ export function withFrZeros<T extends Record<string, unknown>>(values: T): T {
   return next as T;
 }
 
+/**
+ * One field's new value, with what it implies for the others: a Challan
+ * carries no value, so picking it sets the order value to 0 INR.
+ */
 export function withValueRules<T extends Record<string, unknown>>(
   prev: T,
   column: string,
@@ -1154,6 +1200,10 @@ export function withValueRules<T extends Record<string, unknown>>(
   }
   if (column === "bill_mode" && value === "FR") {
     for (const c of FR_ZERO_COLUMNS) next[c] = "0";
+  }
+  // A new SO No. still at its prefix follows the SO Date's year.
+  if (column === "so_date" && isBareSoNoPrefix(next.so_no)) {
+    next.so_no = soNoPrefix(value);
   }
   // An FR order is a replacement: its terms say so.
   if (column === "bill_mode" && value === "FR" && !String(next.payment_terms_remarks ?? "").trim()) {
@@ -1219,7 +1269,8 @@ export function firstMissingAddOnField(
 ): OrderField | null {
   for (const f of addOnFieldsFor(orderType)) {
     if (isAddOnOptional(orderType, f.column)) continue;
-    const v = values[f.column];
+    // An EC No. left at its prefix ("EC/26/1/1833/") is not filled in.
+    const v = f.column === "ec_no" ? withoutBarePrefix("ec_no", values[f.column]) : values[f.column];
     if (v === null || v === undefined || String(v).trim() === "") return f;
   }
   return null;
