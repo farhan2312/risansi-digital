@@ -417,12 +417,13 @@ export function clearedSql(order = "o"): string {
 }
 
 /**
- * The SO has been released to the departments: cleared by Order Making (the
- * first step) and by Central Visibility (the second). A hold at either step
- * keeps it from every department until that step clears it.
+ * The SO has been released to the departments: Order Making has not held it
+ * (a hold there keeps it from every department), and Central Visibility has
+ * decided on it — Clear, or Hold. Departments see and work on an SO Central
+ * holds, marked with its reason.
  */
 export function releasedSql(order = "o"): string {
-  return clearedSql(order);
+  return `COALESCE(NULLIF(${order}.clearance_status, ''), 'Clear') IN ('Clear', 'Hold') AND ${omClearSql(order)}`;
 }
 
 /**
@@ -525,9 +526,9 @@ export function roleSeesOrder(
   if (isRep(role)) return repMatches(order.reps, repNames);
   const view = deptViewForRole(role);
   if (!view) return true;
-  // Held by Order Making (the first step) or by Central Visibility (the
-  // second): not forwarded to any department yet.
-  if (String(order.clearance_status || "Clear") !== "Clear") return false;
+  // Not yet cleared or held by Central Visibility: not theirs to see. A
+  // Central hold they see, with its reason; Order Making's keeps it from them.
+  if (!["Clear", "Hold"].includes(String(order.clearance_status || "Clear"))) return false;
   if (String(order.om_status || "") === "Hold") return false;
   if (String(order.only_billing || "") === "Yes") return false;
   if (view.key === "drawing") {

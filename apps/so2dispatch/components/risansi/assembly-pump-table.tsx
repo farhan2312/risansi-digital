@@ -20,6 +20,7 @@ import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { lotOnSlip } from "@/lib/ready-lots";
 import { AlignmentForm, AlignmentValue } from "./alignment-cell";
+import { HoldBadge } from "./hold-badge";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -199,7 +200,10 @@ export function AssemblyPumpTable({
                       {k === 0 && (
                         <>
                           <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
-                          <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>{soLabel}</td>
+                          <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>
+                            {soLabel}
+                            <HoldBadge order={head} />
+                          </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{shortDate(head.so_date)}</td>
                           <td rowSpan={span} className={soCell}>
                             <button

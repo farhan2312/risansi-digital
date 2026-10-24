@@ -266,7 +266,7 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold text-foreground">Clearance</h2>
-            <p className="text-xs text-muted">SO {str(order.so_no) || str(order.sl_no)} · on hold, it goes to no department until cleared</p>
+            <p className="text-xs text-muted">SO {str(order.so_no) || str(order.sl_no)} · every department sees a hold and its reason</p>
           </div>
           <button
             type="button"

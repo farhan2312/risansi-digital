@@ -11,6 +11,7 @@ import { PartDrawingCell, PartPickerModal, ShortageCell } from "./part-drawing";
 import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
 import { PumpAfterPlanningCells } from "./pump-dept-cells";
+import { HoldBadge } from "./hold-badge";
 import type { PumpSummary } from "@/lib/pump-summary";
 
 type Row = Record<string, unknown>;
@@ -182,6 +183,7 @@ export function PlanningPumpTable({
                           <span className="block text-[11px] font-normal text-muted">
                             {span} pump EC{span === 1 ? "" : "s"}
                           </span>
+                          <HoldBadge order={head} />
                         </td>
                         <td rowSpan={span} className={soCell}>
                           <button
