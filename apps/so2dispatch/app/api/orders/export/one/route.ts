@@ -4,6 +4,7 @@ import { canViewAll } from "@/lib/roles";
 import { listOrderExports, listOrderIdsMatching } from "@/lib/orders";
 import { buildOneClickWorkbook, buildOneSheet } from "@/lib/one-click-export";
 import { buildSpareOneSheet } from "@/lib/spare-export";
+import { listOneClickStatuses } from "@/lib/one-click-status";
 import {
   describeOrderListFilter,
   isOrderListFiltered,
@@ -37,7 +38,9 @@ export async function GET(req: NextRequest) {
   // Spare: a row per SO, as Spare is worked now (lots, per-PI payment); Pump keeps the EC rows.
   const spare = filter.types.length === 1 && filter.types[0] === "Spare";
   const orders = await listOrderExports(ids);
-  const sheet = spare ? buildSpareOneSheet(orders) : buildOneSheet(orders);
+  // Each department's status, at the head of its columns.
+  const statuses = await listOneClickStatuses(orders.map((o) => String(o.order.id)), spare);
+  const sheet = spare ? buildSpareOneSheet(orders, statuses) : buildOneSheet(orders, statuses);
   const scope = describeOrderListFilter(filter);
 
   if (params.get("view")) {

@@ -16,7 +16,8 @@ import {
   type OrderFieldType,
 } from "@/lib/order-schema";
 import { buildSummarySheet, writeSheet, type SheetSpec } from "@/lib/order-export";
-import type { OneCell, OneGroup, OneSheet } from "@/lib/one-click-export";
+import { statusColumn, statusOf, type OneCell, type OneGroup, type OneSheet } from "@/lib/one-click-export";
+import type { OneClickDept, OneClickStatuses } from "@/lib/one-click-status";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? "" : String(v).trim());
@@ -189,27 +190,31 @@ const lines = (xs: string[]) => (xs.length ? xs.join("\n") : null);
 const MAX_LOTS = 3;
 
 /** Every detail of each Spare SO on one row: the order, its ECs, Planning, Lot 1–3, slips, terms, PIs, invoices. */
-export function buildSpareOneSheet(orders: OrderExportRow[]): OneSheet {
+export function buildSpareOneSheet(orders: OrderExportRow[], statuses?: OneClickStatuses): OneSheet {
   const order = [...spareOrderFields(), ...ORDER_EXTRA];
   const lotCols = ["Status", "Ready Date", "ECs", "Packing Plan", "Packed", "Slips"];
   const groups: OneGroup[] = [
     { name: "SO", columns: [{ label: "Sl. No.", type: "int" }, { label: "SO No.", type: "text" }] },
     { name: "Order details", columns: order.map((x) => ({ label: x.label, type: x.type })) },
     { name: "ECs", columns: [{ label: "ECs", type: "int" }, { label: "EC details", type: "list" }] },
-    { name: "Planning", columns: PLANNING_FIELDS.map((x) => ({ label: x.label, type: x.type })) },
+    { name: "Planning", columns: [statusColumn("Planning"), ...PLANNING_FIELDS.map((x) => ({ label: x.label, type: x.type }))] },
     ...Array.from({ length: MAX_LOTS }, (_, i) => ({
       name: `Lot ${i + 1}`,
       columns: lotCols.map((c) => ({ label: `L${i + 1} ${c}`, type: (c === "Ready Date" ? "date" : "text") as OrderFieldType })),
     })),
-    { name: "Assembly & Packing", columns: [{ label: "Packing slips", type: "list" }] },
-    { name: "Proforma Invoice & Accounts", columns: [{ label: "Payment terms", type: "list" }, { label: "PIs", type: "list" }] },
-    { name: "Dispatch", columns: [{ label: "Invoices", type: "list" }] },
+    { name: "Assembly & Packing", columns: [statusColumn("Packing"), { label: "Packing slips", type: "list" }] },
+    {
+      name: "Proforma Invoice & Accounts",
+      columns: [statusColumn("Billing"), statusColumn("Accounts"), { label: "Payment terms", type: "list" }, { label: "PIs", type: "list" }],
+    },
+    { name: "Dispatch", columns: [statusColumn("Dispatch"), { label: "Invoices", type: "list" }] },
   ];
   const rows: OneCell[][] = [];
   for (const o of orders) {
     const so = orderRow(o);
     const pl = (o.items.map((it) => it.order_planning).find((p) => p && (str(p.actual_spare_status) || str(p.planning_readiness_date))) ?? {}) as Row;
     const lots = spareLots(o);
+    const st = (dept: OneClickDept) => statusOf(statuses, so.id, dept);
     const termById = new Map(o.order_payment_terms.map((t) => [str(t.id), termLabel(t)]));
     const paid = (status: unknown, date: unknown, amount: unknown, hold: unknown) =>
       join(str(status), day(date) ? `on ${day(date)}` : "", money(amount) ? `₹${money(amount)} recd` : "", str(hold) ? `Hold: ${str(hold)}` : "");
@@ -219,6 +224,7 @@ export function buildSpareOneSheet(orders: OrderExportRow[]): OneSheet {
       ...order.map((x) => cell(so, x)),
       o.items.length,
       lines(o.items.map((it) => join(str(it.item.ec_no), day(it.item.ec_date), str(it.item.model_no), str(it.item.quantity) ? `Qty ${str(it.item.quantity)}` : ""))),
+      st("planning"),
       ...PLANNING_FIELDS.map((x) => cell(pl, x)),
       ...Array.from({ length: MAX_LOTS }, (_, i) => {
         const l = lots[i];
@@ -232,17 +238,21 @@ export function buildSpareOneSheet(orders: OrderExportRow[]): OneSheet {
           str(l.slips) || null,
         ];
       }).flat(),
+      st("packing"),
       lines(
         o.order_packing_slips
           .filter((p) => str(p.kind) !== "tentative" && str(p.packing_slip_no))
           .map((p) => join(str(p.packing_slip_no), day(p.packing_slip_date), Array.isArray(p.lot_nos) ? (p.lot_nos as number[]).map((n) => `L${n}`).join("+") : "", str(p.quantity) ? `Qty ${str(p.quantity)}` : ""))
       ),
+      st("billing"),
+      st("accounts"),
       lines(o.order_payment_terms.map((t) => join(termLabel(t), paid(t.term_payment_status, t.term_confirmed_date, t.term_amount_received, t.term_hold_reason)))),
       lines(
         o.order_billing_docs.map((d) =>
           join(str(d.pi_no), day(d.pi_date), money(d.pi_value), termById.get(str(d.payment_term_id)) ?? "", paid(d.pi_payment_status, d.pi_confirmed_date, d.pi_amount_received, d.pi_hold_reason))
         )
       ),
+      st("dispatch"),
       lines(
         o.order_invoices.map((v) =>
           join(str(v.invoice_no) || str(v.challan_no), day(v.invoice_date) || day(v.challan_date), money(v.invoice_value) || money(v.challan_value), str(v.packing_slip_no) ? `Slip ${str(v.packing_slip_no)}` : "", str(v.docket_no) ? `Docket ${str(v.docket_no)}` : "")

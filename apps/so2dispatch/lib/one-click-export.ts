@@ -8,6 +8,7 @@ import ExcelJS from "exceljs";
 import type { OrderExportRow } from "@/lib/orders";
 import { SECTION_BY_TABLE, type OrderField, type OrderFieldType, type OrderTable } from "@/lib/order-schema";
 import { boiStatus, versionLabel } from "@/lib/dept-view";
+import type { OneClickDept, OneClickStatuses } from "@/lib/one-click-status";
 
 type Row = Record<string, unknown>;
 export type OneCell = string | number | Date | null;
@@ -126,8 +127,14 @@ const LISTS: { name: string; perEc: boolean; text: (so: OrderExportRow, item: Or
   },
 ];
 
+/** A department's status column, at the head of its group. */
+export const statusColumn = (label: string): OneColumn => ({ label: `${label} Status`, type: "text" });
+/** The SO's status in a department, from the sheet's statuses. */
+export const statusOf = (statuses: OneClickStatuses | undefined, orderId: unknown, dept: OneClickDept): string | null =>
+  statuses?.get(String(orderId ?? ""))?.[dept] ?? null;
+
 /** The sheet's columns, group by group, and a row per EC (or per SO with none). */
-export function buildOneSheet(orders: OrderExportRow[]): OneSheet {
+export function buildOneSheet(orders: OrderExportRow[], statuses?: OneClickStatuses): OneSheet {
   const order = [
     ...fieldsOf("orders"),
     { column: "order_status", label: "Order Status", type: "text" as OrderFieldType },
@@ -141,16 +148,31 @@ export function buildOneSheet(orders: OrderExportRow[]): OneSheet {
     { name: "SO", columns: [{ label: "Sl. No.", type: "int" }, { label: "SO No.", type: "text" }, { label: "EC No.", type: "text" }] },
     { name: "Order details", columns: order.map((f) => ({ label: f.label, type: f.type })) },
     { name: "EC", columns: ec.map((f) => ({ label: f.label, type: f.type })) },
-    { name: "Drawing", columns: [{ label: "Drawing versions", type: "list" }] },
-    { name: "Purchase", columns: [{ label: "Bought-out items", type: "list" }] },
-    { name: "Quality", columns: quality.map((f) => ({ label: f.label, type: f.type })) },
-    { name: "Planning", columns: planning.map((f) => ({ label: f.label, type: f.type })) },
-    { name: "Assembly & Packing", columns: [...assembly.map((f) => ({ label: f.label, type: f.type })), { label: "Packing slips", type: "list" as const }] },
+    { name: "Drawing", columns: [statusColumn("Drawing"), { label: "Drawing versions", type: "list" }] },
+    { name: "Purchase", columns: [statusColumn("Purchase"), { label: "Bought-out items", type: "list" }] },
+    { name: "Quality", columns: [statusColumn("Quality"), ...quality.map((f) => ({ label: f.label, type: f.type }))] },
+    // The SO's planning, beside the EC's own Planning Status field.
+    { name: "Planning", columns: [statusColumn("SO Planning"), ...planning.map((f) => ({ label: f.label, type: f.type }))] },
+    {
+      name: "Assembly & Packing",
+      columns: [
+        statusColumn("Assembly"),
+        statusColumn("Packing"),
+        ...assembly.map((f) => ({ label: f.label, type: f.type })),
+        { label: "Packing slips", type: "list" as const },
+      ],
+    },
     {
       name: "Proforma Invoice & Accounts",
-      columns: [{ label: "Payment terms", type: "list" }, { label: "PIs", type: "list" }, ...accounts.map((f) => ({ label: f.label, type: f.type }))],
+      columns: [
+        statusColumn("Billing"),
+        statusColumn("Accounts"),
+        { label: "Payment terms", type: "list" },
+        { label: "PIs", type: "list" },
+        ...accounts.map((f) => ({ label: f.label, type: f.type })),
+      ],
     },
-    { name: "Dispatch", columns: [{ label: "Invoices", type: "list" }] },
+    { name: "Dispatch", columns: [statusColumn("Dispatch"), { label: "Invoices", type: "list" }] },
   ];
   const list = (name: string, so: OrderExportRow, item: OrderExportRow["items"][number] | null) =>
     LISTS.find((l) => l.name === name)!.text(so, item);
@@ -159,6 +181,7 @@ export function buildOneSheet(orders: OrderExportRow[]): OneSheet {
   for (const so of orders) {
     const o = { ...so.order, order_status: so.order.status_override ?? so.order.dispatch_status ?? "Pending" } as Row;
     const items = so.items.length ? so.items : [null];
+    const st = (dept: OneClickDept) => statusOf(statuses, o.id, dept);
     for (const item of items) {
       rows.push([
         Number(o.sl_no ?? null) || null,
@@ -166,15 +189,24 @@ export function buildOneSheet(orders: OrderExportRow[]): OneSheet {
         item ? str(item.item.ec_no) || null : null,
         ...order.map((f) => cell(o, f)),
         ...ec.map((f) => cell(item?.item, f)),
+        st("drawing"),
         list("Drawing versions", so, item),
+        st("purchase"),
         list("Bought-out items", so, item),
+        st("quality"),
         ...quality.map((f) => cell(item?.order_qc, f)),
+        st("planning"),
         ...planning.map((f) => cell(item?.order_planning, f)),
+        st("assembly"),
+        st("packing"),
         ...assembly.map((f) => cell(item?.order_assembly_dispatch, f)),
         list("Packing slips", so, item),
+        st("billing"),
+        st("accounts"),
         list("Payment terms", so, item),
         list("PIs", so, item),
         ...accounts.map((f) => cell(so.order_accounts, f)),
+        st("dispatch"),
         list("Invoices", so, item),
       ]);
     }
