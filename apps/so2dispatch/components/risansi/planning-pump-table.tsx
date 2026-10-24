@@ -99,7 +99,7 @@ export function PlanningPumpTable({
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
   const soSpan = 6 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
-  // After Planning, once per SO at the row's end.
+  // After Planning, once per SO, right after its lots.
   const AFTER = ["Alignment", "Assembly", "Packing", "Packing Slips", "Dispatch Status"];
   const showAfter = !!summaries;
   // Today in the browser's calendar, to mark a plan that has passed.
@@ -110,11 +110,12 @@ export function PlanningPumpTable({
     <table className="w-full min-w-[2200px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-          <th colSpan={soSpan} className="px-3 pt-2.5 pb-1">SO</th>
-          <th colSpan={EC_COLUMNS.length} className={group}>EC details</th>
+          <th colSpan={soSpan - (canEdit ? 1 : 0)} className="px-3 pt-2.5 pb-1">SO</th>
+          {showAfter && <th colSpan={AFTER.length} className={group}>Assembly &amp; Packing · Dispatch</th>}
+          {canEdit && <th />}
+          <th colSpan={EC_COLUMNS.length + 1} className={group}>EC details</th>
           <th colSpan={2} className={group}>Drawing</th>
           <th colSpan={ecPlanCols.length + 1 + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
-          {showAfter && <th colSpan={AFTER.length} className={group}>Assembly &amp; Packing · Dispatch</th>}
         </tr>
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={th}>Sl.</th>
@@ -129,6 +130,10 @@ export function PlanningPumpTable({
           {LOT_COLUMNS.map((n) => (
             <th key={n} className={th}>Lot {n}</th>
           ))}
+          {showAfter &&
+            AFTER.map((h, i) => (
+              <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{h}</th>
+            ))}
           {canEdit && <th className={th} />}
           {EC_COLUMNS.map((f, i) => (
             <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>
@@ -143,10 +148,6 @@ export function PlanningPumpTable({
           ))}
           <th className={th}>Shortage</th>
           {canEdit && <th className={th} />}
-          {showAfter &&
-            AFTER.map((h, i) => (
-              <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{h}</th>
-            ))}
         </tr>
       </thead>
       <tbody>
@@ -263,6 +264,13 @@ export function PlanningPumpTable({
                             </td>
                           );
                         })}
+                        {/* After Planning, read-only: Alignment, Assembly & Packing, slips, dispatch. */}
+                        {showAfter &&
+                          (summaries?.[orderId] ? (
+                            <PumpAfterPlanningCells s={summaries[orderId]} today={today} rowSpan={span} className={soCell} />
+                          ) : (
+                            <td rowSpan={span} colSpan={AFTER.length} className={`${soCell} border-l border-card-border text-muted`}>—</td>
+                          ))}
                         {canEdit && (
                           <td rowSpan={span} className={soCell}>
                             <button
@@ -372,14 +380,6 @@ export function PlanningPumpTable({
                         </button>
                         )}
                       </td>
-                    )}
-                    {/* After Planning: once per SO, down the right of its ECs. */}
-                    {showAfter && k === 0 && (
-                      summaries?.[orderId] ? (
-                        <PumpAfterPlanningCells s={summaries[orderId]} today={today} rowSpan={span} className={soCell} />
-                      ) : (
-                        <td rowSpan={span} colSpan={AFTER.length} className={`${soCell} border-l border-card-border text-muted`}>—</td>
-                      )
                     )}
                   </tr>
                 );
