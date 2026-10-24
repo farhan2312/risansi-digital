@@ -5,6 +5,7 @@ import { MultiSelectField } from "./multi-select-field";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
+import type { PumpSummary } from "@/lib/pump-summary";
 import { AssemblyPumpTable } from "./assembly-pump-table";
 import { MultiSelectFilter } from "./multi-select-filter";
 import { ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY, SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES } from "@/lib/assembly";
@@ -199,7 +200,10 @@ export function DepartmentWorkspace({
   ecKind,
   kpis = [],
   embedded = false,
+  pumpSummaries,
 }: {
+  /** Planning's Pump view: each SO's Assembly & Packing, packing slips and dispatch. */
+  pumpSummaries?: Record<string, PumpSummary>;
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
   table: OrderTable;
@@ -728,6 +732,7 @@ export function DepartmentWorkspace({
               fieldApplies={fieldApplies}
               formatPlanning={formatValue}
               seesReadinessHistory={isCentral(role) || role === "planning"}
+              summaries={pumpSummaries}
               onEditSo={(orderId, ecs) =>
                 setEditSo({
                   orderId,

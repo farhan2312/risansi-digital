@@ -203,6 +203,66 @@ function stageCell(st: { status: string; next: string | null; last: string | nul
   };
 }
 
+/**
+ * Planning's view of what comes after it on a pump SO, read-only: the
+ * Alignment, assembly, packing, the packing slips and the dispatch status.
+ */
+export function PumpAfterPlanningCells({ s, today, className, rowSpan }: { s: PumpSummary; today: string; className: string; rowSpan?: number }) {
+  const a = s.alignment;
+  const asm = stageCell(s.assembly, today);
+  const pkg = stageCell(s.packing, today);
+  const part = (name: string, yes: string | null, status: string | null, date?: string | null) =>
+    yes === "Yes" ? `${name}: ${status ?? "Yes"}${date ? ` ${formatDate(date)}` : ""}` : yes === "No" ? `${name}: No` : null;
+  const lines = [part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date), part("Wooden box", a.wooden_box, a.wooden_box_status)].filter(
+    (x): x is string => !!x
+  );
+  const stage = (text: string, st: ReturnType<typeof stageCell>) => (
+    <>
+      <span className={`block text-[13px] font-medium ${TONE[st.tone]}`}>{text}</span>
+      {st.line && <span className={`block text-[11px] ${st.late ? "font-medium text-rose-600" : "text-muted"}`}>{st.line}</span>}
+    </>
+  );
+  const dispatched = /dispatched/i.test(s.dispatch) && !/partial|lot/i.test(s.dispatch);
+  return (
+    <>
+      <td rowSpan={rowSpan} className={`${className} border-l border-card-border`}>
+        {lines.length ? (
+          lines.map((l) => (
+            <span key={l} className="block whitespace-nowrap text-[12px] text-foreground">
+              {l}
+            </span>
+          ))
+        ) : (
+          <span className="text-xs text-muted">—</span>
+        )}
+      </td>
+      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>{stage(s.assembly.status, asm)}</td>
+      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>{stage(s.packing.status, pkg)}</td>
+      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
+        {s.slips.length ? (
+          s.slips.map((p, i) => (
+            <span key={`${p.no}-${i}`} className="block text-[12px] text-foreground">
+              {p.no}
+              <span className="text-muted">
+                {p.date ? ` · ${formatDate(p.date)}` : ""}
+                {p.qty != null ? ` · Qty ${p.qty}` : ""}
+                {p.kind === "tentative" ? " · tentative" : ""}
+              </span>
+            </span>
+          ))
+        ) : (
+          <span className="text-xs text-muted">—</span>
+        )}
+      </td>
+      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
+        <span className={`text-[13px] font-medium ${dispatched ? TONE.done : /partial|lot/i.test(s.dispatch) ? TONE.part : TONE.pending}`}>
+          {s.dispatch}
+        </span>
+      </td>
+    </>
+  );
+}
+
 /** Assembly & Packing's cells on a pump SO: the Alignment, then assembly and packing. */
 export function PumpTailCells({ s, today, onOpen }: { s: PumpSummary; today: string; onOpen: (dept: Dept) => void }) {
   const a = s.alignment;

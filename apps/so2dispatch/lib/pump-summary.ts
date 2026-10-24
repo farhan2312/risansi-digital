@@ -3,7 +3,7 @@
 // purchase-filter, qc-filter, assembly), one SO-level summary per row.
 
 import { query } from "@/lib/db";
-import { spareEcSql, boiReceivedSql } from "@/lib/dept-view";
+import { spareEcSql, boiReceivedSql, orderStatusSql } from "@/lib/dept-view";
 import { curveStatusSql, ecDrawingDoneSql, ecGadStatusSql, partStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
@@ -35,6 +35,10 @@ export type PumpSummary = {
     wooden_box: string | null;
     wooden_box_status: string | null;
   };
+  /** The SO's dispatch status, as on the Orders list. */
+  dispatch: string;
+  /** Its packing slips (Planning's tentative and Packing's actual), oldest first. */
+  slips: { no: string | null; date: string | null; qty: number | null; kind: string | null }[];
 };
 
 /** The earliest stage any EC is at (what holds the SO back), and how many reached the last. */
@@ -80,6 +84,8 @@ type Raw = {
   base_plate_date: string | null;
   wooden_box: string | null;
   wooden_box_status: string | null;
+  dispatch: string | null;
+  slips: { no: string | null; date: string | null; qty: number | null; kind: string | null }[];
 };
 
 /** Every department's standing on each of these pump SOs, by SO id — one read for the page. */
@@ -116,7 +122,14 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
             (SELECT to_char(min(rl.packing_plan_date), 'YYYY-MM-DD') ${lots} AND rl.packed_date IS NULL) AS packing_next,
             (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${lots}) AS packing_last,
             o.base_plate, o.base_plate_status, to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date,
-            o.wooden_box, o.wooden_box_status
+            o.wooden_box, o.wooden_box_status,
+            ${orderStatusSql("o")} AS dispatch,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('no', ps.packing_slip_no,
+                                       'date', to_char(ps.packing_slip_date, 'YYYY-MM-DD'),
+                                       'qty', ps.quantity, 'kind', ps.kind)
+                                       ORDER BY ps.packing_slip_date NULLS LAST, ps.created_at)
+                        FROM order_packing_slips ps
+                       WHERE ps.order_id = o.id AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL), '[]'::jsonb) AS slips
        FROM orders o
       WHERE o.id = ANY($1::uuid[])`,
     [orderIds]
@@ -153,6 +166,8 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
         wooden_box: x.wooden_box,
         wooden_box_status: x.wooden_box_status,
       },
+      dispatch: x.dispatch || "Pending",
+      slips: Array.isArray(x.slips) ? x.slips : [],
     };
   }
   return out;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { CalendarClock, Download, FileText } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
+import { listPumpSummaries } from "@/lib/pump-summary";
 import {
   canEditSection,
   canViewDepartment,
@@ -95,11 +96,13 @@ export default async function PlanningWorkspacePage({
   // The rows' sign-offs unread messages and drawing documents all hang off the queue's SOs and
   // not off one another, so they load together.
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
-  const [completions, unreadThreads, drawingDocCounts] = await Promise.all([
+  const [completions, unreadThreads, drawingDocCounts, pumpSummaries] = await Promise.all([
     listDeptCompletions(orderIds),
     unreadByOrder(orderIds, user),
     // Drawing documents shared with Planning, per EC, for the button badge.
     countEcDocuments(queue.rows.map((o) => String(o.id)), user.role),
+    // The Pump view reads on past Planning: Assembly & Packing, slips, dispatch.
+    ecKind === "pump" ? listPumpSummaries(orderIds) : Promise.resolve(undefined),
   ]);
 
   // The PDF report carries the queue's filter, search and sort — not which
@@ -164,6 +167,7 @@ export default async function PlanningWorkspacePage({
         openOrderId={edit}
         drawingDocCounts={drawingDocCounts}
         ecKind={ecKind}
+        pumpSummaries={pumpSummaries}
       />
     </div>
   );

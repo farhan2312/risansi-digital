@@ -10,6 +10,8 @@ import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PartDrawingCell, PartPickerModal, ShortageCell } from "./part-drawing";
 import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
+import { PumpAfterPlanningCells } from "./pump-dept-cells";
+import type { PumpSummary } from "@/lib/pump-summary";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -54,7 +56,10 @@ export function PlanningPumpTable({
   onEditSo,
   onEditEc,
   onThread,
+  summaries,
 }: {
+  /** Each SO's Assembly & Packing, packing slips and dispatch, by SO id. */
+  summaries?: Record<string, PumpSummary>;
   rows: Row[];
   /** Planning's own fields (the section form). */
   planningFields: OrderField[];
@@ -94,6 +99,11 @@ export function PlanningPumpTable({
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
   const soSpan = 6 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
+  // After Planning, once per SO at the row's end.
+  const AFTER = ["Alignment", "Assembly", "Packing", "Packing Slips", "Dispatch Status"];
+  const showAfter = !!summaries;
+  // Today in the browser's calendar, to mark a plan that has passed.
+  const today = new Date().toLocaleDateString("en-CA");
 
   return (
     <>
@@ -104,6 +114,7 @@ export function PlanningPumpTable({
           <th colSpan={EC_COLUMNS.length} className={group}>EC details</th>
           <th colSpan={2} className={group}>Drawing</th>
           <th colSpan={ecPlanCols.length + 1 + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
+          {showAfter && <th colSpan={AFTER.length} className={group}>Assembly &amp; Packing · Dispatch</th>}
         </tr>
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={th}>Sl.</th>
@@ -132,6 +143,10 @@ export function PlanningPumpTable({
           ))}
           <th className={th}>Shortage</th>
           {canEdit && <th className={th} />}
+          {showAfter &&
+            AFTER.map((h, i) => (
+              <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{h}</th>
+            ))}
         </tr>
       </thead>
       <tbody>
@@ -357,6 +372,14 @@ export function PlanningPumpTable({
                         </button>
                         )}
                       </td>
+                    )}
+                    {/* After Planning: once per SO, down the right of its ECs. */}
+                    {showAfter && k === 0 && (
+                      summaries?.[orderId] ? (
+                        <PumpAfterPlanningCells s={summaries[orderId]} today={today} rowSpan={span} className={soCell} />
+                      ) : (
+                        <td rowSpan={span} colSpan={AFTER.length} className={`${soCell} border-l border-card-border text-muted`}>—</td>
+                      )
                     )}
                   </tr>
                 );
