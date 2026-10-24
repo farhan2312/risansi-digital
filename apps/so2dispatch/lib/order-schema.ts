@@ -1127,6 +1127,17 @@ export const FR_PAYMENT_TERMS_REMARKS = "REPLACEMENT";
  * One field's new value, with what it implies for the others: a Challan
  * carries no value, so picking it sets the order value to 0 INR.
  */
+/** An FR order is worth nothing: no discount, packing, GST or gross value — each 0. */
+export const FR_ZERO_COLUMNS = ["discount_percent", "packing_forwarding_percent", "gst_percent", "taxable_value"];
+
+/** An FR SO's blank figures as 0 — what its form opens with. */
+export function withFrZeros<T extends Record<string, unknown>>(values: T): T {
+  if (String(values.bill_mode ?? "") !== "FR") return values;
+  const next: Record<string, unknown> = { ...values };
+  for (const c of FR_ZERO_COLUMNS) if (String(next[c] ?? "").trim() === "") next[c] = "0";
+  return next as T;
+}
+
 export function withValueRules<T extends Record<string, unknown>>(
   prev: T,
   column: string,
@@ -1140,6 +1151,9 @@ export function withValueRules<T extends Record<string, unknown>>(
   if ((column === "bill_type" && value === "Challan") || (column === "bill_mode" && value === "FR")) {
     next.order_value = "0";
     next.order_currency = "INR";
+  }
+  if (column === "bill_mode" && value === "FR") {
+    for (const c of FR_ZERO_COLUMNS) next[c] = "0";
   }
   // An FR order is a replacement: its terms say so.
   if (column === "bill_mode" && value === "FR" && !String(next.payment_terms_remarks ?? "").trim()) {

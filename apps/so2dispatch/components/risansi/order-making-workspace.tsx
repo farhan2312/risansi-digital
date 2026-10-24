@@ -33,6 +33,7 @@ import {
   SO_DETAIL_COLUMNS,
   dependsOnSatisfied,
   selectOptionsFor,
+  withFrZeros,
   withValueRules,
   type OrderField,
 } from "@/lib/order-schema";
@@ -800,9 +801,12 @@ function OrderMakingEdit({
   const router = useRouter();
   const editable = mode === "so" ? ORDER_MAKING_SO_EDITABLE : ORDER_MAKING_EDITABLE;
   const [assignee, setAssignee] = useState<string>(row?.so_assignee_id ?? "");
+  // An FR SO opens with its discount, packing, GST and gross value at 0.
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      ORDER_MAKING_EDITABLE.map((f) => [f.column, str(row?.[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
+    withFrZeros(
+      Object.fromEntries(
+        ORDER_MAKING_EDITABLE.map((f) => [f.column, str(row?.[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
+      )
     )
   );
   const [saving, setSaving] = useState(false);
