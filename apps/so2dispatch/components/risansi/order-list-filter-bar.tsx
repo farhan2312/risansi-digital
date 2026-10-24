@@ -127,6 +127,8 @@ export function OrderListFilterBar({
     dept ?? null,
     { noDispatchTarget }
   );
+  // Proforma Invoice, Accounts and Dispatch: All / Spare / Pump as a toggle in place of the Type filter.
+  const typeToggle = !kindToggle && !noTypeFilter && (dept === "billing" || dept === "accounts" || dept === "dispatch");
   // With the toggle, the type is pinned to it (statuses read that type's words).
   const filter = kindToggle ? { ...parsed, types: kindToggle === "pump" ? ["Pump", "ROLB"] : ["Spare"] } : parsed;
   const filtered = isOrderListFiltered(parsed) || extraKeys.some((k) => !!get(k));
@@ -155,6 +157,19 @@ export function OrderListFilterBar({
   return (
     <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
+        {/* Proforma Invoice, Accounts, Dispatch: All, Spare or Pump at a click. */}
+        {typeToggle && (
+          <OrderTypeToggle
+            value={
+              filter.types.length === 1 && filter.types[0].toLowerCase() === "spare"
+                ? "spare"
+                : filter.types.length > 0 && filter.types.every((t) => /^(pump|rolb)$/i.test(t))
+                  ? "pump"
+                  : "all"
+            }
+            onChange={(k) => setParams({ type: k === "spare" ? "Spare" : k === "pump" ? "Pump,ROLB" : null })}
+          />
+        )}
         {kindToggle && (
           <EcKindToggle
             value={kindToggle}
@@ -201,7 +216,7 @@ export function OrderListFilterBar({
         </>
         )}
         {/* Pump or Spare — every queue, since a department's work differs by type. */}
-        {!kindToggle && !noTypeFilter && (
+        {!kindToggle && !typeToggle && !noTypeFilter && (
         <MultiSelectFilter
           label="Type"
           options={options.types}
@@ -686,6 +701,27 @@ function DeptStatusMultiFilter({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** All, Spare or Pump: the SOs of either kind, or both. */
+function OrderTypeToggle({ value, onChange }: { value: "all" | "spare" | "pump"; onChange: (v: "all" | "spare" | "pump") => void }) {
+  return (
+    <div role="group" aria-label="All, Spare or Pump" className="inline-flex h-9 rounded-lg border border-input-border p-0.5">
+      {(["all", "spare", "pump"] as const).map((k) => (
+        <button
+          key={k}
+          type="button"
+          aria-pressed={value === k}
+          onClick={() => value !== k && onChange(k)}
+          className={`rounded-md px-3 text-sm font-semibold transition-colors ${
+            value === k ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
+          }`}
+        >
+          {k === "all" ? "All" : k === "spare" ? "Spare" : "Pump"}
+        </button>
+      ))}
     </div>
   );
 }
