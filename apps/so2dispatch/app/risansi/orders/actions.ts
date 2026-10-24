@@ -334,9 +334,23 @@ export async function getOrderEcsAction(
   if (!detail) return null;
   const o = detail.order;
   return {
-    order: { id: o.id, sl_no: o.sl_no, so_no: o.so_no, client_name: o.client_name, order_type: o.order_type },
+    order: { id: o.id, sl_no: o.sl_no, so_no: o.so_no, client_name: o.client_name, order_type: o.order_type, boi: o.boi },
     items: [...detail.items].sort((a, b) => String(a.ec_no ?? "").localeCompare(String(b.ec_no ?? ""), undefined, { numeric: true })),
   };
+}
+
+/** An EC's bought-out items in full (stock, vendor, received), for the EC pop-up. */
+export async function ecBoiListAction(itemId: string): Promise<Record<string, unknown>[]> {
+  const user = await getCurrentUser();
+  if (!user || !UUID_RE_ACTION.test(itemId)) return [];
+  const owner = await query<{ order_id: string }>(`SELECT order_id FROM order_items WHERE id = $1`, [itemId]);
+  const orderId = owner.rows[0]?.order_id;
+  if (!orderId || !(await repMaySee(user, orderId))) return [];
+  const r = await query<Record<string, unknown>>(
+    `SELECT * FROM order_boi_items WHERE item_id = $1 ORDER BY created_at`,
+    [itemId]
+  );
+  return r.rows;
 }
 
 /** The SO's core "Order details" row, for a read-only popup. Any signed-in

@@ -1,8 +1,9 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import Link from "next/link";
-import { ChevronRight, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ecBoiListAction } from "@/app/risansi/orders/actions";
+import { BoiStatusTag } from "./boi-detail-modal";
 import { addOnFieldsFor } from "@/lib/order-schema";
 import { formatDisplay } from "./editable-section";
 
@@ -25,10 +26,7 @@ export function OmEcsModal({
   onDelete,
   onClose,
   initialId,
-  openHref,
 }: {
-  /** Where an EC's own page is, offered as Open on the one shown. */
-  openHref?: (item: Row) => string;
   /** The EC shown first (else the first EC). */
   initialId?: string;
   order: Row;
@@ -137,15 +135,6 @@ export function OmEcsModal({
             <section role="tabpanel" className="rounded-xl border border-card-border">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border px-4 py-3">
                 <span className="font-semibold text-foreground">{str(current.ec_no) || "EC"}</span>
-                {openHref && (
-                  <Link
-                    href={openHref(current)}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-input-border px-2.5 text-xs font-medium text-foreground hover:bg-background"
-                  >
-                    Open
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Link>
-                )}
                 {canManage && (
                   <span className="flex items-center gap-2">
                     <button
@@ -183,10 +172,68 @@ export function OmEcsModal({
                   </Fragment>
                 ))}
               </dl>
+              {str(current.boi) === "Yes" && <EcBoiList itemId={str(current.id)} />}
             </section>
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The EC's bought-out items, a row each with where it stands. */
+function EcBoiList({ itemId }: { itemId: string }) {
+  const [rows, setRows] = useState<Row[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    ecBoiListAction(itemId)
+      .then((r) => live && setRows(r))
+      .catch(() => live && setRows([]));
+    return () => {
+      live = false;
+    };
+  }, [itemId]);
+  return (
+    <div className="border-t border-card-border px-4 py-3">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        BOI items{rows ? ` · ${rows.length}` : ""}
+      </h3>
+      {rows === null ? (
+        <p className="flex items-center gap-2 text-sm text-muted">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted">No BOI items listed.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <th className="py-1.5 pr-3">Item</th>
+                <th className="py-1.5 pr-3">Make</th>
+                <th className="py-1.5 pr-3">Qty</th>
+                <th className="py-1.5 pr-3">Description</th>
+                <th className="py-1.5">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((b) => (
+                <tr key={str(b.id)} className="border-t border-card-border align-top text-foreground">
+                  <td className="py-1.5 pr-3 font-medium">
+                    {str(b.boi_item) === "Others" ? str(b.boi_item_other) || "Others" : str(b.boi_item) || "—"}
+                  </td>
+                  <td className="py-1.5 pr-3">{str(b.boi_make) || "—"}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">{str(b.boi_qty) || "—"}</td>
+                  <td className="py-1.5 pr-3 text-muted">{str(b.boi_description) || "—"}</td>
+                  <td className="py-1.5">
+                    <BoiStatusTag item={b} small />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

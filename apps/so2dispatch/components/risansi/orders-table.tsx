@@ -11,14 +11,14 @@ import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
 import { billModeLabel } from "@/lib/order-schema";
 import { dispatchRowTone } from "@/lib/dept-view";
-import { isCentral, isReadOnlyViewer } from "@/lib/roles";
+import { canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { CLOSED, READY, assemblyView, planningText, reachedDepts, type ReachedDept } from "@/lib/order-row-view";
 import type { DeptCell, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
-import { deleteOrderAction, getOrderEcsAction } from "@/app/risansi/orders/actions";
+import { deleteItemAction, deleteOrderAction, getOrderEcsAction } from "@/app/risansi/orders/actions";
 import { OmEcsModal } from "./om-ecs-modal";
 import { UrlPagination, useUrlTable } from "./url-table";
 import type { PageResult } from "@/lib/pagination";
@@ -56,12 +56,17 @@ function cell(value: string | null): string {
 
 /**
  * An SO's ECs in a pop-up, opened from the button at the start of its row:
- * Order Making's EC pop-up — every EC as a button, the one picked in full,
- * and Open to its page.
+ * Order Making's EC pop-up — every EC as a button, the one picked in full
+ * with its BOI items — where those who manage ECs add, edit and delete them.
  */
-function EcsPopup({ order, onClose }: { order: OrderListRow; onClose: () => void }) {
+function EcsPopup({ order, canManage, onClose }: { order: OrderListRow; canManage: boolean; onClose: () => void }) {
+  const router = useRouter();
   const [data, setData] = useState<{ order: Record<string, unknown>; items: Record<string, unknown>[] } | null>(null);
   const [failed, setFailed] = useState(false);
+  // Read again after an EC is added, edited or deleted.
+  const [version, setVersion] = useState(0);
+  const [form, setForm] = useState<{ item: Record<string, unknown> | null } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     getOrderEcsAction(order.id)
@@ -70,28 +75,56 @@ function EcsPopup({ order, onClose }: { order: OrderListRow; onClose: () => void
     return () => {
       live = false;
     };
-  }, [order.id]);
-  if (data) {
+  }, [order.id, version]);
+
+  async function remove(item: Record<string, unknown>) {
+    const ec = String(item.ec_no ?? "") || "this EC";
+    if (!confirm(`Delete ${ec}? This removes the EC and all its department data.`)) return;
+    setDeletingId(String(item.id));
+    const res = await deleteItemAction(String(item.id));
+    setDeletingId(null);
+    if (!res.ok) alert(res.error);
+    else {
+      setVersion((v) => v + 1);
+      router.refresh();
+    }
+  }
+
+  if (!data) {
     return (
-      <OmEcsModal
-        order={data.order}
-        items={data.items}
-        canManage={false}
-        deletingId={null}
-        onAdd={() => {}}
-        onEdit={() => {}}
-        onDelete={() => {}}
-        onClose={onClose}
-        openHref={(it) => `/risansi/orders/${order.id}/items/${String(it.id)}`}
-      />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+        <div className="flex items-center gap-2 rounded-xl bg-surface px-5 py-4 text-sm text-muted shadow-xl">
+          {failed ? "Could not load the ECs." : (<><Loader2 className="h-4 w-4 animate-spin" /> Loading ECs…</>)}
+        </div>
+      </div>
     );
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="flex items-center gap-2 rounded-xl bg-surface px-5 py-4 text-sm text-muted shadow-xl">
-        {failed ? "Could not load the ECs." : (<><Loader2 className="h-4 w-4 animate-spin" /> Loading ECs…</>)}
-      </div>
-    </div>
+    <>
+      <OmEcsModal
+        order={data.order}
+        items={data.items}
+        canManage={canManage}
+        deletingId={deletingId}
+        onAdd={() => setForm({ item: null })}
+        onEdit={(item) => setForm({ item })}
+        onDelete={remove}
+        onClose={onClose}
+      />
+      {form && (
+        <AddOnForm
+          orderId={order.id}
+          soLabel={order.so_no ?? `#${order.sl_no}`}
+          orderType={(data.order.order_type as string | null) ?? null}
+          boiFlag={(data.order.boi as string | null) ?? null}
+          item={form.item}
+          onClose={() => {
+            setForm(null);
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -686,7 +719,7 @@ export function OrdersTable({
         />
       </div>
 
-      {ecsFor && <EcsPopup order={ecsFor} onClose={() => setEcsFor(null)} />}
+      {ecsFor && <EcsPopup order={ecsFor} canManage={!readOnly && canManageEcs(role)} onClose={() => setEcsFor(null)} />}
       {popup && (
         <OrderPopupHost
           orderId={popup.order.id}
