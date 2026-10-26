@@ -42,12 +42,20 @@ export function KpiStrip({ cards }: { cards: KpiCard[] }) {
     else groups.push({ name: c.group, cards: [c] });
   }
   if (groups.some((g) => g.name)) {
-    // One row: compact cards, a hairline between departments.
+    // Compact cards, each department's under its name; the departments wrap
+    // onto a second row (or more) rather than squeezing or scrolling.
     return (
-      <div data-url-dim className="mb-3 flex items-stretch gap-1.5 overflow-x-auto">
+      <div data-url-dim className="mb-3 flex flex-wrap items-stretch gap-x-3 gap-y-2.5">
         {groups.map((g, i) => (
-          <div key={g.name ?? i} className={`flex min-w-0 flex-1 basis-0 items-stretch gap-1.5 ${i > 0 ? "border-l border-card-border pl-1.5" : ""}`} style={{ flexGrow: g.cards.length }}>
-            <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} compact />
+          <div
+            key={g.name ?? i}
+            className="flex min-w-0 flex-col gap-1"
+            style={{ flexGrow: g.cards.length, flexBasis: `${g.cards.length * 5.6}rem` }}
+          >
+            {g.name && <span className="px-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g.name}</span>}
+            <div className="flex flex-1 items-stretch gap-1.5">
+              <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} compact />
+            </div>
           </div>
         ))}
       </div>

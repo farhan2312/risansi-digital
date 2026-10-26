@@ -4107,6 +4107,16 @@ export function pumpOrderCards(): KpiCardDef[] {
       tone: "neutral",
       measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}))`,
     },
+    {
+      // The pumps themselves: every pump EC's quantity, added up.
+      key: "pumps",
+      label: "Pumps",
+      group: "Orders",
+      sql: null,
+      params: {},
+      tone: "neutral",
+      measure: `(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}))`,
+    },
     card("Drawing", "drg_open", "Drawing open", drgOpen, "pending"),
     card("Drawing", "drg_closed", "Drawing closed", `${pumps("TRUE")} AND NOT ${drgOpen}`, "done"),
     card("Drawing", "drg_overdue", "Drawing overdue", `${drgOpen} AND o.drg_readiness_date < ${TODAY_IST}`, "danger"),
@@ -4117,7 +4127,22 @@ export function pumpOrderCards(): KpiCardDef[] {
     card("Planning", "pl_awaited", "Date awaited", `${SO_PLANNING_STATUS} = 'Date awaited'`, "pending"),
     card("Planning", "pl_plan", "In plan", `${SO_PLANNING_STATUS} = 'In plan'`, "part"),
     card("Planning", "pl_partial", "Partial ready", `${SO_PLANNING_STATUS} = 'Partial ready'`, "part"),
-    card("Planning", "pl_ready", "Fully ready", `${SO_PLANNING_STATUS} = 'Fully ready'`, "done"),
+    // Fully ready, split by what Assembly & Packing has done with it since.
+    card(
+      "Planning",
+      "pl_ready_unasm",
+      "Fully ready (not assembled)",
+      `${SO_PLANNING_STATUS} = 'Fully ready' AND ${soStageStatusSql("assembly", "o")} = 'Assembly pending'`,
+      "done"
+    ),
+    card(
+      "Planning",
+      "pl_ready_unpkd",
+      "Fully ready & assembled (not packed)",
+      `${SO_PLANNING_STATUS} = 'Fully ready' AND ${soStageStatusSql("assembly", "o")} = '${asmFull}'
+       AND ${soStageStatusSql("packing", "o")} = 'Packing pending'`,
+      "done"
+    ),
     card("Assembly & Packing", "asm_part", "Part assembled", `${soStageStatusSql("assembly", "o")} = '${asmPart}'`, "part"),
     card("Assembly & Packing", "asm_full", "Assembled", `${soStageStatusSql("assembly", "o")} = '${asmFull}'`, "done"),
     card("Assembly & Packing", "pkg_part", "Part packed", `${soStageStatusSql("packing", "o")} = '${pkgPart}'`, "part"),
