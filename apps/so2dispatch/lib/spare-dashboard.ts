@@ -5,7 +5,7 @@ import "server-only";
 // own (orderListKpiCards), so a card means the same thing on both pages.
 
 import { query } from "@/lib/db";
-import { listOrdersPage, orderListKpiCards, type OrderListOptions, type OrderListRow } from "@/lib/orders";
+import { isTestSo, listOrdersPage, orderListKpiCards, type OrderListOptions, type OrderListRow } from "@/lib/orders";
 import type { KpiCard } from "@/lib/kpis";
 import type { OrderListFilter } from "@/lib/order-list-filter";
 import { CLOSED } from "@/lib/order-row-view";
@@ -110,7 +110,8 @@ function stageOf(o: OrderListRow, packedLatest: boolean, packedAny: boolean): St
 /** The Spare dashboard for the Orders list's filter (types pinned to Spare by the caller). */
 export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareDashboard> {
   const result = await listOrdersPage({ page: 1, filter, all: true, kpis: orderListKpiCards("spare") });
-  const rows = result.rows;
+  // A test SO counts in nothing here.
+  const rows = result.rows.filter((r) => !isTestSo(r.so_no));
   const ids = rows.map((r) => r.id);
 
   // What the list rows do not carry: the delivery date, the first dispatch

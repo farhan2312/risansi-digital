@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EcKindToggle } from "./planning-pump-table";
-import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, PauseCircle, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, PauseCircle, Receipt, X } from "lucide-react";
 import { UrlSearchInput, useUrlTable } from "./url-table";
 import { MultiSelectFilter, SingleSelectFilter, useShownValue } from "./multi-select-filter";
 import { DEPT_VIEWS } from "@/lib/dept-view";
@@ -439,6 +439,22 @@ export function OrderListFilterBar({
           <PauseCircle className="h-3.5 w-3.5" />
           On hold
         </button>
+        {/* The Orders list: only the SOs sent to Billing alone. */}
+        {!dept && (
+          <button
+            type="button"
+            onClick={() => setParams({ ob: filter.onlyBilling ? null : "1" })}
+            aria-pressed={filter.onlyBilling}
+            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+              filter.onlyBilling
+                ? "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                : "border-input-border text-foreground hover:bg-background"
+            }`}
+          >
+            <Receipt className="h-3.5 w-3.5" />
+            Only billing
+          </button>
+        )}
         {/* Planning, Assembly & Packing, the Orders list: a lot packed but on no packing slip. */}
         {(!dept || dept === "planning" || dept === "assembly") && (
           <button

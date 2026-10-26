@@ -602,7 +602,16 @@ export function OrdersTable({
                               {dispatch}
                             </span>
                           )}
-                          {!closed && reachedDepts(order, status).map((t) => (
+                          {/* Sent to Billing alone: no department works on it. */}
+                          {!closed && order.only_billing === "Yes" && (
+                            <span
+                              title={order.only_billing_remarks ?? undefined}
+                              className="inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                            >
+                              Only billing
+                            </span>
+                          )}
+                          {!closed && order.only_billing !== "Yes" && reachedDepts(order, status).map((t) => (
                             <button
                               key={t.key}
                               type="button"

@@ -175,6 +175,8 @@ export type OrderListFilter = {
   noSlip: boolean;
   /** Only SOs on hold — by Central Visibility, by Accounts or by Dispatch. */
   onHold: boolean;
+  /** The Orders list: only the SOs Central sent to Billing alone. */
+  onlyBilling: boolean;
   /**
    * One of the SO's own fields, filled or still pending. Pending only counts
    * where the field applies — PO No. on an FR order is not owed.
@@ -297,6 +299,7 @@ export function parseOrderListFilter(
     ready: get("ready") === "1",
     noSlip: get("noslip") === "1" && (!dept || dept === "planning" || dept === "assembly"),
     onHold: get("hold") === "1",
+    onlyBilling: get("ob") === "1" && !dept,
     field,
     // Only where the controls are shown — a hidden filter would narrow
     // without saying so.
@@ -385,6 +388,7 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.ready ||
     f.noSlip ||
     f.onHold ||
+    f.onlyBilling ||
     f.overdue ||
     f.search ||
     f.zones.length ||
@@ -412,6 +416,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.ready) p.set("ready", "1");
   if (f.noSlip) p.set("noslip", "1");
   if (f.onHold) p.set("hold", "1");
+  if (f.onlyBilling) p.set("ob", "1");
   if (f.clearance.length) p.set("clear", f.clearance.join(","));
   if (f.holdReasons.length) p.set("hreason", f.holdReasons.join(","));
   if (f.paymentTerms.length) p.set("pterm", f.paymentTerms.join(","));
@@ -444,6 +449,7 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.ready) parts.push("Ready to dispatch");
   if (f.noSlip) parts.push("Packed, no slip");
   if (f.onHold) parts.push("On hold");
+  if (f.onlyBilling) parts.push("Only billing");
   if (f.field) {
     const label = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column)?.label ?? f.field.column;
     parts.push(`${label}: ${f.field.state === "filled" ? "filled" : "pending"}`);

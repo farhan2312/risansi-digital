@@ -3449,6 +3449,11 @@ function signOffPredicate(dept: DeptFilterKey, signOff: SignOff): string {
  * from `startAt` — so a queue that already has parameters of its own can AND
  * this in rather than growing a second dialect of the same filter.
  */
+/** A test SO, kept out of every count: its SO No. names TEST (SO26/1/TEST, SO26/1/TEST-SPARE). */
+export const TEST_SO_SQL = (o: string) => `(upper(COALESCE(${o}.so_no, '')) LIKE '%/TEST%')`;
+/** The same, for a row already read. */
+export const isTestSo = (soNo: unknown) => String(soNo ?? "").toUpperCase().includes("/TEST");
+
 /** The SO is on hold — by Central Visibility, by Accounts, or by Dispatch (its dispatch status Hold). */
 const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.accounts_hold_status, '') = 'Hold'
                       OR COALESCE(o.status_override, '') = 'Hold')`;
@@ -3555,6 +3560,8 @@ function orderListClauses(
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // On hold, by Central Visibility or by Accounts.
   if (f.onHold) clauses.push(ON_HOLD_SQL);
+  // Only Billing: sent to Billing alone.
+  if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
   // One SO field, filled or pending. Pending is blank where the field applies.
   if (f.field) {
     const def = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column);
@@ -4045,7 +4052,8 @@ async function countKpis(
       })
     : { clauses: [], params: [] };
   const own = `$${base.params.length + 1}`;
-  const where = `WHERE ${req.restrict}
+  // A test SO (SO No. with "TEST" after its prefix) counts in no card.
+  const where = `WHERE ${req.restrict} AND NOT ${TEST_SO_SQL("o")}
         ${base.clauses.map((c) => `AND ${c}`).join("\n        ")}
         AND (${own}::text IS NULL OR ${searchable(own)})`;
   const cols = req.cards.map((c, i) =>
@@ -5569,6 +5577,8 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // On hold, by Central Visibility or by Accounts.
   if (f.onHold) clauses.push(ON_HOLD_SQL);
+  // Only Billing: sent to Billing alone.
+  if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
 
   if (f.from || f.to) {
     const range = (column: string) =>
