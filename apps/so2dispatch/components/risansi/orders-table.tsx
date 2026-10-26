@@ -260,13 +260,110 @@ export function ClearanceChip({ status, reason }: { status: string | null; reaso
   return <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Clear</span>;
 }
 
+/** An SO's packing slips and dispatches (invoice, how it went, docket & LR), for the Orders list. */
+export type SoDispatchDocs = { packing_slips: Record<string, unknown>[]; invoices: Record<string, unknown>[] };
+
+const s = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
+const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+
+/** One line of a docs cell: the main text, and a muted line under it. */
+function DocLine({ main, sub, tone }: { main: string; sub?: string; tone?: "pending" | "muted" }) {
+  return (
+    <span className="block">
+      <span className={`block whitespace-nowrap text-[13px] font-medium ${tone === "pending" ? "text-amber-700 dark:text-amber-400" : tone === "muted" ? "text-muted-foreground" : "text-foreground"}`}>{main}</span>
+      {sub && <span className="block whitespace-nowrap text-[11px] text-muted">{sub}</span>}
+    </span>
+  );
+}
+
+/**
+ * Packing Slips, Invoice, Dispatch, Docket & LR: one cell each, a line per
+ * slip or per dispatch, opening the SO's Dispatch pop-up.
+ */
+function DispatchDocCells({ docs, onOpen }: { docs: SoDispatchDocs | undefined; onOpen: () => void }) {
+  const slips = docs?.packing_slips ?? [];
+  const invoices = docs?.invoices ?? [];
+  const lots = (v: unknown) => (Array.isArray(v) && v.length ? (v as number[]).map((n) => `L${n}`).join("+") : "");
+  const td = (first: boolean, children: React.ReactNode) => (
+    <td className={`px-4 py-3 align-top ${first ? "border-l border-card-border" : ""}`} onClick={(e) => e.stopPropagation()}>
+      <button type="button" onClick={onOpen} title="Open Dispatch" className="-m-1 flex flex-col items-start gap-1.5 rounded-md p-1 text-left transition-colors hover:bg-background">
+        {children}
+      </button>
+    </td>
+  );
+  const none = <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <>
+      {td(
+        true,
+        slips.length
+          ? slips.map((p, i) => (
+              <DocLine
+                key={i}
+                main={s(p.packing_slip_no) || "—"}
+                sub={[formatDate(s(p.packing_slip_date) || null), s(p.quantity) && `Qty ${s(p.quantity)}`, lots(p.lot_nos)].filter((x) => x && x !== "—").join(" · ")}
+                tone={s(p.invoice_id) ? undefined : "pending"}
+              />
+            ))
+          : none
+      )}
+      {td(
+        false,
+        invoices.length
+          ? invoices.map((v, i) => {
+              const no = s(v.invoice_no) || s(v.challan_no);
+              const date = s(v.invoice_date) || s(v.challan_date);
+              const value = s(v.invoice_value) || s(v.challan_value);
+              return no || date ? (
+                <DocLine key={i} main={no || "—"} sub={[date ? formatDate(date.slice(0, 10)) : "", value && `₹${inr.format(Number(value))}`].filter(Boolean).join(" · ")} />
+              ) : (
+                <DocLine key={i} main="Invoice pending" tone="pending" />
+              );
+            })
+          : none
+      )}
+      {td(
+        false,
+        invoices.length
+          ? invoices.map((v, i) =>
+              s(v.delivery_mode) ? (
+                <DocLine key={i} main={s(v.delivery_mode)} sub={[s(v.transporter_name), s(v.courier_mode), s(v.vehicle_no)].filter(Boolean).join(" · ")} />
+              ) : (
+                <DocLine key={i} main="Dispatch pending" tone="pending" />
+              )
+            )
+          : none
+      )}
+      {td(
+        false,
+        invoices.length
+          ? invoices.map((v, i) =>
+              s(v.docket_no) ? (
+                <DocLine
+                  key={i}
+                  main={s(v.docket_no)}
+                  sub={[s(v.booking_date) && `Booked ${formatDate(s(v.booking_date).slice(0, 10))}`, s(v.delivery_date) && `Delivered ${formatDate(s(v.delivery_date).slice(0, 10))}`, s(v.lr_link) ? "LR" : ""].filter(Boolean).join(" · ")}
+                />
+              ) : (
+                <DocLine key={i} main={s(v.delivery_mode) ? "Docket pending" : "—"} tone={s(v.delivery_mode) ? "pending" : "muted"} />
+              )
+            )
+          : none
+      )}
+    </>
+  );
+}
+
 export function OrdersTable({
   result,
   canDelete = false,
   role,
   deptStatuses = {},
   pumpSummaries,
+  dispatchDocs = {},
 }: {
+  /** Each SO's packing slips and dispatches, by SO id. */
+  dispatchDocs?: Record<string, SoDispatchDocs>;
   /** The Pump view: each pump SO's standing in every department (lib/pump-summary). */
   pumpSummaries?: Record<string, PumpSummary>;
   // One server-fetched page; every filter and the paging ran in SQL.
@@ -305,7 +402,8 @@ export function OrdersTable({
   // expand-toggle + 19 data columns (Planning and Assembly & Packing three lot
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
-  const baseCols = pump ? 15 + pumpDeptCols : 25;
+  // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
+  const baseCols = (pump ? 15 + pumpDeptCols : 25) + 4;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -367,7 +465,11 @@ export function OrdersTable({
                     <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Assembly &amp; Packing</th>
                   </>
                 )}
-                <th rowSpan={2} className="border-l border-card-border px-4 py-3">Dispatch</th>
+                <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">Packing Slips</th>
+                <th rowSpan={2} className="px-4 py-3">Invoice</th>
+                <th rowSpan={2} className="px-4 py-3">Dispatch</th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Docket &amp; LR</th>
+                <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">Dispatch Status</th>
                 <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
                 <th rowSpan={2} className="px-4 py-3" />
                 {canDelete && <th rowSpan={2} className="px-4 py-3" />}
@@ -651,6 +753,10 @@ export function OrdersTable({
                           )}
                         </>
                       )}
+                      <DispatchDocCells
+                        docs={dispatchDocs[order.id]}
+                        onOpen={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
+                      />
                       <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <StatusText
                           text={dispatch}

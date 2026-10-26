@@ -1,27 +1,17 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ClipboardList } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { DEPARTMENT_NAV } from "@/components/risansi/nav-config";
-import {
-  canSeeCentralDashboard,
-  canViewAll,
-  canViewDepartment,
-  isRep,
-  departmentHrefForRole,
-  roleLabel,
-} from "@/lib/roles";
-import { listDeptCompletions, listOrdersOverview } from "@/lib/orders";
-import { deptViewForRole } from "@/lib/dept-view";
+import { canSeeCentralDashboard, canViewAll, canViewDepartment, roleLabel } from "@/lib/roles";
 import { listRemindersForRole } from "@/lib/reminders";
-import { DEPT_DASHBOARDS } from "@/components/risansi/dept-dashboards";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { getDashboard } from "@/lib/dashboard";
-import { CentralOverview } from "@/components/risansi/central-overview";
-import { ordersKind } from "@/lib/order-list-filter";
-import { DashboardComingSoon } from "@/components/risansi/dashboard-coming-soon";
-
-/** The central dashboard is hidden while it is reworked; "Coming soon" shows instead. */
-const SHOW_CENTRAL_DASHBOARD = false;
+import { parseOrderListFilter, scopeToRep } from "@/lib/order-list-filter";
+import { getSpareDashboard } from "@/lib/spare-dashboard";
+import { OrderListFilterBar } from "@/components/risansi/order-list-filter-bar";
+import { KpiStrip } from "@/components/risansi/kpi-strip";
+import { SpareDashboardView } from "@/components/risansi/spare-dashboard/spare-dashboard";
 
 export const metadata: Metadata = {
   title: "Dashboard | Risansi",
@@ -29,6 +19,12 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The Spare dashboard: the Orders list's filters and cards over every Spare
+ * SO, then where the open ones stand, how dispatch is going, how long things
+ * take, and each Rep's book. Central Visibility, Admin, CRM, and Reps (their
+ * own SOs). Order Making and the departments land on their own pages.
+ */
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -37,52 +33,21 @@ export default async function DashboardPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   // Order Making has no dashboard: its page is its work.
-  if ((user.role === "order_making" || user.role === "order_making_so")) redirect("/risansi/departments/order-making");
+  if (user.role === "order_making" || user.role === "order_making_so") redirect("/risansi/departments/order-making");
   // Nor does any department account: it lands on its own page.
   if (!canViewAll(user.role)) {
     const own = DEPARTMENT_NAV.find((d) => d.table !== "orders" && canViewDepartment(user.role, d.table));
     if (own) redirect(own.href);
   }
 
-  if (canSeeCentralDashboard(user.role) && !SHOW_CENTRAL_DASHBOARD) {
-    return (
-      <div className="px-4 py-6 sm:px-8 sm:py-8">
-        <DashboardComingSoon />
-      </div>
-    );
-  }
-  if (canSeeCentralDashboard(user.role)) {
-    const params = await searchParams;
-    // Spare or Pump: the one choice on the dashboard (Spare when the URL says
-    // nothing). A Rep or Rep Manager: their reps' SOs only.
-    const dashboard = await getDashboard(ordersKind(params.type), isRep(user.role) ? (user.rep_names ?? []) : null);
-    return (
-      <div className="px-4 py-6 sm:px-8 sm:py-8">
-        <CentralOverview data={dashboard} />
-      </div>
-    );
-  }
-
-  // A department sees the same pipeline rows through its own dashboard: its
-  // status vocabulary, its target date, its sign-offs.
-  const view = deptViewForRole(user.role);
-  const Dashboard = view ? DEPT_DASHBOARDS[view.key] : undefined;
-  // The reminders and the department's rows don't depend on each other.
-  const [reminders, rows] = await Promise.all([
-    listRemindersForRole(user.role),
-    view && Dashboard ? listOrdersOverview(view.key) : Promise.resolve([]),
-  ]);
-
-  if (!view || !Dashboard) {
+  if (!canSeeCentralDashboard(user.role)) {
+    const reminders = await listRemindersForRole(user.role);
     return (
       <div className="px-4 py-6 sm:px-8 sm:py-8">
         <div className="mb-6">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Welcome, {user.full_name}
-          </h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Welcome, {user.full_name}</h1>
           <p className="mt-1 text-sm text-muted">
-            You&apos;re signed in as {roleLabel(user.role)}. Use the sidebar to
-            open your department workspace.
+            You&apos;re signed in as {roleLabel(user.role)}. Use the sidebar to open your department workspace.
           </p>
         </div>
         <RemindersPanel reminders={reminders} />
@@ -90,34 +55,39 @@ export default async function DashboardPage({
     );
   }
 
-  // Its own orders only: an order this department has nothing to do with
-  // (Purchase on a no-BOI order, Quality where QC is not needed) is off its
-  // dashboard entirely, not shown as N/A.
-  const completions = await listDeptCompletions([
-    ...new Set(rows.map((r) => r.order_id)),
-  ]);
+  const params = await searchParams;
+  // The Orders list's filters, pinned to Spare; a Rep sees only their own SOs.
+  const filter = scopeToRep(
+    { ...parseOrderListFilter((key) => params[key], { noDispatchTarget: true }), types: ["Spare"] },
+    user
+  );
+  const data = await getSpareDashboard(filter);
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-          {view.label} dashboard
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Welcome, {user.full_name} — every {view.perEc ? "EC" : "order"} on your
-          plate, where it stands, and what is due next.
-        </p>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Spare</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted">
+            Where every Spare SO stands, from planning to dispatch · as of {data.asOf} IST
+          </p>
+        </div>
+        <Link
+          href="/risansi/orders?type=spare"
+          className="inline-flex h-10 items-center gap-2 rounded-lg border border-input-border bg-surface px-4 text-sm font-semibold text-foreground transition-colors hover:bg-background"
+        >
+          <ClipboardList className="h-4 w-4" />
+          Open the Orders list
+        </Link>
       </div>
 
-      <div className="mb-6">
-        <RemindersPanel reminders={reminders} />
-      </div>
+      <OrderListFilterBar options={data.options} total={data.total} noDispatchTarget noTypeFilter />
+      <KpiStrip cards={data.kpis} />
 
-      <Dashboard
-        rows={rows}
-        completions={completions}
-        workspaceHref={departmentHrefForRole(user.role)}
-      />
+      <div className="mt-5">
+        <SpareDashboardView data={data} />
+      </div>
     </div>
   );
 }
