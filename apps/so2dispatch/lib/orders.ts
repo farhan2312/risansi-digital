@@ -4094,7 +4094,7 @@ export function pumpOrderCards(): KpiCardDef[] {
     params: { ...clear, pk: key },
     tone,
   });
-  const [, asmPart, asmFull] = SO_ASSEMBLY_STATUSES;
+  const [asmPending, asmPart, asmFull] = SO_ASSEMBLY_STATUSES;
   const [, pkgPart, pkgFull] = SO_PACKING_STATUSES;
   return [
     { key: "all", label: "SOs", group: "Orders", sql: null, params: { ...clear }, tone: "neutral" },
@@ -4143,6 +4143,7 @@ export function pumpOrderCards(): KpiCardDef[] {
        AND ${soStageStatusSql("packing", "o")} = 'Packing pending'`,
       "done"
     ),
+    card("Assembly & Packing", "asm_pending", "Assembly pending", `${soStageStatusSql("assembly", "o")} = '${asmPending}'`, "pending"),
     card("Assembly & Packing", "asm_part", "Part assembled", `${soStageStatusSql("assembly", "o")} = '${asmPart}'`, "part"),
     card("Assembly & Packing", "asm_full", "Assembled", `${soStageStatusSql("assembly", "o")} = '${asmFull}'`, "done"),
     card("Assembly & Packing", "pkg_part", "Part packed", `${soStageStatusSql("packing", "o")} = '${pkgPart}'`, "part"),
@@ -4150,6 +4151,7 @@ export function pumpOrderCards(): KpiCardDef[] {
     card("Dispatch", "dsp_pending", "To dispatch", deptStatusPredicate("dispatch", PENDING), "pending"),
     card("Dispatch", "dsp_lot", "Part dispatched", deptStatusPredicate("dispatch", "LOT dispatch"), "part"),
     card("Dispatch", "dsp_full", "Dispatched", deptStatusPredicate("dispatch", "Fully dispatch"), "done"),
+    card("Dispatch", "dsp_hold", "Dispatch hold", deptStatusPredicate("dispatch", "Hold"), "danger"),
   ];
 }
 
@@ -4204,6 +4206,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
     card("Dispatch", "dispatch", PENDING, "To dispatch"),
     card("Dispatch", "dispatch", "LOT dispatch", "Part dispatched"),
     card("Dispatch", "dispatch", "Fully dispatch", "Dispatched"),
+    card("Dispatch", "dispatch", "Hold", "Dispatch hold"),
   ];
 }
 
