@@ -218,7 +218,7 @@ function dispatchCells(b: BillingQueueRow | undefined): Partial<Record<Key, Line
 }
 
 /** Planning's Fully ready, counted only while not packed — what still waits on Assembly & Packing. */
-const READY_NOT_PACKED = "Ready, not packed";
+const READY_NOT_PACKED = "Fully ready, not packed";
 
 /**
  * Where Planning has a Spare SO, for the cards: its status, with Fully ready
@@ -512,7 +512,15 @@ export async function buildOrdersListPdf(
     y -= 13;
     const perRow = 8;
     const rw = (WIDTH - gap * (perRow - 1)) / perRow;
-    const rh = 58;
+    // Each card: the three earlier states two to a row (and any other), then
+    // Fully ready, not packed on a row of its own.
+    const layoutOf = (m: Map<string, number>) => {
+      const pairs = ["Date awaited", "In plan", "Partial ready"].concat(
+        [...m.keys()].filter((k) => k && !PLAN.includes(k))
+      );
+      return { pairs, rows: Math.ceil(pairs.length / 2) + 1 };
+    };
+    const rh = 30 + Math.max(...reps.map(([, m]) => layoutOf(m).rows)) * 10 + 4;
     reps.forEach(([rep, m], i) => {
       if (i && i % perRow === 0) y -= rh + 6;
       const x = MARGIN + (i % perRow) * (rw + gap);
@@ -524,10 +532,12 @@ export async function buildOrdersListPdf(
       const sos = String(m.get("") ?? 0);
       text(sos, x + rw - 10 - bold.widthOfTextAtSize(sos, 15), y - 18, 15, bold, C.primary);
       text("SOs", x + rw - 10 - font.widthOfTextAtSize("SOs", 6), y - 26, 6, font, C.muted);
-      PLAN.concat([...m.keys()].filter((k) => k && !PLAN.includes(k))).forEach((p, k) => {
+      const { pairs } = layoutOf(m);
+      [...pairs, READY_NOT_PACKED].forEach((p, k) => {
         const v = m.get(p) ?? 0;
-        const col = k % 2;
-        const row = Math.floor(k / 2);
+        const last = p === READY_NOT_PACKED;
+        const col = last ? 0 : k % 2;
+        const row = last ? Math.ceil(pairs.length / 2) : Math.floor(k / 2);
         const lx = x + 10 + col * ((rw - 14) / 2);
         const ly = y - 34 - row * 10;
         const color = p === READY_NOT_PACKED ? C.green : p === "Partial ready" ? C.blue : p === "In plan" ? C.ink : C.amber;
