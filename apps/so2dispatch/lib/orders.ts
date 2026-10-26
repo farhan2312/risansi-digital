@@ -4859,9 +4859,13 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
                ELSE 'done' END) AS purchase,
             o.qc_required,
             (qc.qc_doc_actual_date IS NOT NULL) AS qc_submitted,
-            COALESCE(NULLIF(pl.actual_pump_status, ''),
-                     NULLIF(pl.actual_spare_status, ''),
-                     NULLIF(pl.planning_status, '')) AS planning,
+            -- A pump EC reads its SO's planning status (its lots), as the
+            -- Planning page and the cards do; a Spare EC its own.
+            (CASE WHEN ${spareEcSql("it", "o")}
+                  THEN COALESCE(NULLIF(pl.actual_pump_status, ''),
+                                NULLIF(pl.actual_spare_status, ''),
+                                NULLIF(pl.planning_status, ''))
+                  ELSE ${SO_PLANNING_STATUS} END) AS planning,
             (ad.actual_packing_date IS NOT NULL) AS packed,
             ${ASSEMBLY_STATE_SQL("it")} AS assembly_state,
             to_char(ad.actual_packing_date, 'YYYY-MM-DD') AS packing_date
@@ -4897,7 +4901,11 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
             ? done("Submitted")
             : pending(),
       // A Spare starts at Date awaited, not "Pending".
-      planning: r.planning ? done(r.planning) : pending(r.spare ? SPARE_PLANNING_START : "Pending"),
+      // A pump SO is done with Planning once Fully ready; until then its
+      // status shows, still to go.
+      planning: r.spare
+        ? r.planning ? done(r.planning) : pending(SPARE_PLANNING_START)
+        : r.planning === "Fully ready" ? done(r.planning) : pending(r.planning ?? "Date awaited"),
       // A Spare reaches Assembly & Packing with its first readiness lot; until
       // then it has no status there at all.
       assembly: r.packed

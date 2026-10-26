@@ -42,10 +42,15 @@ export function KpiStrip({ cards }: { cards: KpiCard[] }) {
     else groups.push({ name: c.group, cards: [c] });
   }
   if (groups.some((g) => g.name)) {
-    // Every card the same size, in one grid that wraps onto as many rows as it needs.
+    // Every card the same size; a department's cards together, a little
+    // more space between departments, wrapping onto as many rows as needed.
     return (
-      <div data-url-dim className="mb-3 grid grid-cols-[repeat(auto-fill,minmax(6.25rem,1fr))] gap-1.5">
-        <KpiStripRow cards={cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} compact />
+      <div data-url-dim className="mb-3 flex flex-wrap items-stretch gap-x-4 gap-y-1.5">
+        {groups.map((g, i) => (
+          <div key={g.name ?? i} className="flex flex-wrap items-stretch gap-1.5">
+            <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} compact />
+          </div>
+        ))}
       </div>
     );
   }
@@ -72,7 +77,7 @@ function KpiStripRow({
 }) {
   const setAsked = onPick;
   // Compact: the cards share the row evenly, labels may wrap.
-  const size = compact ? "h-full min-h-[4.25rem] w-full rounded-lg px-2 py-1.5" : "min-w-[7.5rem] rounded-xl px-3 py-2";
+  const size = compact ? "min-h-[4.25rem] w-[6.5rem] shrink-0 rounded-lg px-2 py-1.5" : "min-w-[7.5rem] rounded-xl px-3 py-2";
   const labelCls = compact ? "text-[10.5px] leading-tight" : "text-[11px]";
   const countCls = compact ? "text-lg" : "text-xl";
   return (
