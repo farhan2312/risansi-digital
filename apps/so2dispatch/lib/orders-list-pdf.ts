@@ -126,22 +126,24 @@ const PUMP_OR_ALL_COLUMNS: Column[] = [
  */
 const SPARE_COLUMNS: Column[] = [
   { key: "sl", label: "Sl. No.", width: 24 },
-  { key: "so", label: "SO No.", width: 74 },
-  { key: "soDate", label: "SO Date", width: 44 },
-  { key: "client", label: "Client Name", width: 92 },
-  { key: "rep", label: "Rep", width: 52 },
+  // The SO Date sits under the SO No.
+  { key: "so", label: "SO No. & Date", width: 74 },
+  { key: "client", label: "Client Name", width: 86 },
+  { key: "rep", label: "Rep", width: 48 },
+  { key: "zone", label: "Zone", width: 34 },
+  { key: "bill", label: "Bill Mode", width: 50 },
   { key: "value", label: "Order Value", width: 60, align: "right" },
-  { key: "pay", label: "Payment terms, PIs & payment", width: 118 },
+  { key: "pay", label: "Payment terms, PIs & payment", width: 104 },
   { key: "p1", label: "Lot 1", width: 50, group: "Planning" },
   { key: "p2", label: "Lot 2", width: 50, group: "Planning" },
   { key: "p3", label: "Lot 3", width: 50, group: "Planning" },
   { key: "a1", label: "Lot 1", width: 54, group: "Assembly & Packing" },
   { key: "a2", label: "Lot 2", width: 54, group: "Assembly & Packing" },
   { key: "a3", label: "Lot 3", width: 54, group: "Assembly & Packing" },
-  { key: "slips", label: "Packing Slips", width: 72 },
-  { key: "invoice", label: "Invoice", width: 78 },
-  { key: "sent", label: "Dispatch", width: 76 },
-  { key: "docket", label: "Docket & LR", width: 82 },
+  { key: "slips", label: "Packing Slips", width: 68 },
+  { key: "invoice", label: "Invoice", width: 74 },
+  { key: "sent", label: "Dispatch", width: 72 },
+  { key: "docket", label: "Docket & LR", width: 78 },
   { key: "dispatch", label: "Dispatch Status", width: 51 },
 ];
 
@@ -334,6 +336,8 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
       // The Spare layout's lots, slips and dispatches.
       ...(billing
         ? {
+            // The SO Date under the SO No., in the one column.
+            so: [so[0], ...(day(o.so_date) ? [{ text: day(o.so_date), color: C.muted, size: 6.5 }] : []), ...so.slice(1)],
             p1: closed ? [] : planningLot(o.lots?.[0]),
             p2: closed ? [] : planningLot(o.lots?.[1]),
             p3: closed ? [] : planningLot(o.lots?.[2]),
