@@ -479,8 +479,16 @@ export function isFullyDispatched(row: Record<string, unknown>): boolean {
  */
 export function dispatchRowTone(row: Record<string, unknown>): string | null {
   const s = String(row.so_dispatch_status ?? row.dispatch_status ?? "").trim().toLowerCase();
-  return s === "fully dispatch" ? FULLY_DISPATCHED_ROW : s === "lot dispatch" ? LOT_DISPATCHED_ROW : null;
+  return s === "fully dispatch"
+    ? FULLY_DISPATCHED_ROW
+    : s === "lot dispatch"
+      ? LOT_DISPATCHED_ROW
+      : s === "hold"
+        ? DISPATCH_HOLD_ROW
+        : null;
 }
+/** Held by Dispatch: the whole row in orange. */
+export const DISPATCH_HOLD_ROW = "bg-orange-50 hover:bg-orange-100/70 dark:bg-orange-500/10 dark:hover:bg-orange-500/15";
 export const LOT_DISPATCHED_ROW = "bg-sky-50 hover:bg-sky-100/70 dark:bg-sky-500/10 dark:hover:bg-sky-500/15";
 export const FULLY_DISPATCHED_ROW =
   "bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15";

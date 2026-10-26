@@ -4237,7 +4237,8 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
           }
         : {
             key: `s:${st}`,
-            label: st,
+            // Dispatch's own Hold reads as a dispatch hold, not a clearance one.
+            label: dept === "dispatch" && st === "Hold" ? "Dispatch hold" : st,
             sql: `(${deptStatusPredicate(dept, st)}) AND ${orderOpenSql("o")}`,
             params: { ...clear, dstatus: st },
             tone: toneFor(st),
