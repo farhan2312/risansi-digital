@@ -4098,7 +4098,8 @@ export function pumpOrderCards(): KpiCardDef[] {
     key,
     label,
     group,
-    sql: `(${sql}) AND ${open}`,
+    // An Only Billing SO counts for the PI cards alone: no other department works on it.
+    sql: `(${sql}) AND ${open}${group === "Proforma Invoice" ? "" : ` AND NOT ${onlyBillingSql("o")}`}`,
     params: { ...clear, pk: key },
     tone,
   });
@@ -4181,7 +4182,8 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
     key: `${dept}:${status}:${extra.pack ?? ""}`,
     label,
     group,
-    sql: sql ?? `(${deptStatusPredicate(dept, status)}) AND ${open}`,
+    // An Only Billing SO is no department's but Billing's and Accounts'.
+    sql: `(${sql ?? deptStatusPredicate(dept, status)}) AND ${open}${dept === "billing" || dept === "accounts" ? "" : ` AND NOT ${onlyBillingSql("o")}`}`,
     params: { ...clear, dept, dstatus: status, ...extra },
     tone: toneFor(status),
   });

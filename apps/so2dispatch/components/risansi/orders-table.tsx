@@ -642,7 +642,19 @@ export function OrdersTable({
                           />
                         )}
                       </td>
-                      {pump ? (
+                      {order.only_billing === "Yes" ? (
+                        // Sent to Billing alone: no department works on it, so no status across their columns.
+                        <td
+                          colSpan={pump ? pumpDeptCols : 2 + LOT_COLUMNS.length * 2}
+                          className="border-l border-card-border px-4 py-3 align-top"
+                          title={order.only_billing_remarks ?? undefined}
+                        >
+                          <span className="inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">
+                            Only billing
+                          </span>
+                          <span className="ml-2 text-xs text-muted">No department works on this SO</span>
+                        </td>
+                      ) : pump ? (
                         // A pump SO, department by department; cancelled or diverted, nobody's work.
                         closed || !pumpSummaries?.[order.id] ? (
                           <td colSpan={pumpDeptCols} className="border-l border-card-border px-4 py-3 align-top text-xs text-muted-foreground">—</td>
@@ -768,8 +780,8 @@ export function OrdersTable({
                       />
                       <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <StatusText
-                          text={dispatch}
-                          tone={closed ? "na" : dispatch.toLowerCase() === "pending" ? "pending" : "done"}
+                          text={order.only_billing === "Yes" && dispatch === "Pending" ? "—" : dispatch}
+                          tone={closed || order.only_billing === "Yes" ? "na" : dispatch.toLowerCase() === "pending" ? "pending" : "done"}
                           onClick={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
                         />
                       </td>
