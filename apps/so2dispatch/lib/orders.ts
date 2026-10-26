@@ -3449,8 +3449,9 @@ function signOffPredicate(dept: DeptFilterKey, signOff: SignOff): string {
  * from `startAt` — so a queue that already has parameters of its own can AND
  * this in rather than growing a second dialect of the same filter.
  */
-/** The SO is on hold — by Central Visibility or by Accounts — as its hold badge says. */
-const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.accounts_hold_status, '') = 'Hold')`;
+/** The SO is on hold — by Central Visibility, by Accounts, or by Dispatch (its dispatch status Hold). */
+const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.accounts_hold_status, '') = 'Hold'
+                      OR COALESCE(o.status_override, '') = 'Hold')`;
 
 function orderListClauses(
   f: OrderListFilter,

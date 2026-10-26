@@ -173,7 +173,7 @@ export type OrderListFilter = {
   ready: boolean;
   /** A Spare lot packed but on no packing slip yet (Planning, Assembly & Packing, the Orders list). */
   noSlip: boolean;
-  /** Only SOs on hold — by Central Visibility or by Accounts. */
+  /** Only SOs on hold — by Central Visibility, by Accounts or by Dispatch. */
   onHold: boolean;
   /**
    * One of the SO's own fields, filled or still pending. Pending only counts
