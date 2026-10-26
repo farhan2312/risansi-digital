@@ -51,12 +51,13 @@ export function reachedDepts(order: OrderListRow, status: SoDeptStatus | undefin
   }
   const reachedPacking = status.ecs.some(
     (e) =>
-      e.assembly.label.toLowerCase() !== "pending" ||
+      !["pending", "assembly pending"].includes(e.assembly.label.toLowerCase()) ||
       READY_OR_BEYOND.includes(e.planning.label.toLowerCase())
   );
   if (reachedPacking) {
     const cell = acrossEcs(status, "assembly");
-    if (cell) tags.push({ key: "assembly", name: "Packing", cell });
+    const pump = (order.order_type ?? "").toLowerCase() !== "spare";
+    if (cell) tags.push({ key: "assembly", name: pump ? "Assembly" : "Packing", cell });
   }
   const hasTerms = (order.term_lines ?? []).length > 0;
   const hasPi = (order.pi_docs ?? []).length > 0;

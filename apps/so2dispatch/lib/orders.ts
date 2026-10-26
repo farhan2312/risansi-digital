@@ -47,9 +47,9 @@ import {
   type PageResult,
   pageWithTotal,
 } from "@/lib/pagination";
-import { ecDrawingDoneSql } from "@/lib/drawing-filter";
+import { ecDrawingDoneSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
-import { soQcStateSql } from "@/lib/qc-filter";
+import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
 import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, soStageStatusSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
@@ -4840,6 +4840,10 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
     packed: boolean;
     assembly_state: string | null;
     packing_date: string | null;
+    gad: string;
+    drg_done: boolean;
+    qc: string;
+    pump_asm: string;
   }>(
     `SELECT it.order_id, it.id, it.ec_no, it.item_type, o.boi,
             (${spareEcSql("it", "o")}) AS spare,
@@ -4852,6 +4856,14 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
                         THEN 'Issued to Operations'
                       ELSE NULL END
                FROM order_drawing_revisions rv WHERE rv.item_id = it.id AND rv.doc_type = 'GAD') AS drg,
+            -- What each department's own page reads: Drawing the GAD's status and
+            -- whether the EC's drawings are all done; Quality its documents;
+            -- Assembly & Packing (a pump) the SO's assembly, then its packing.
+            ${ecGadStatusSql("it")} AS gad,
+            ${ecDrawingDoneSql("it", "o")} AS drg_done,
+            ${ecQcStatusSql("it", "o")} AS qc,
+            (CASE WHEN ${soStageStatusSql("packing", "o")} <> 'Packing pending' THEN ${soStageStatusSql("packing", "o")}
+                  ELSE ${soStageStatusSql("assembly", "o")} END) AS pump_asm,
             (CASE
                WHEN COALESCE(o.boi, '') <> 'Yes' THEN 'na'
                WHEN NOT EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id) THEN 'pending'
@@ -4887,19 +4899,22 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
       id: r.id,
       ec_no: r.ec_no,
       item_type: r.item_type,
-      drawing: r.spare ? NA : r.drg ? done(r.drg) : pending(),
-      purchase:
-        r.purchase === "na"
-          ? NA
-          : r.purchase === "done"
-            ? done("Received")
-            : pending(),
+      // Drawing: done once the EC's drawings are (GAD issued to planning, and
+      // its curve and parts where asked); else the GAD's status.
+      drawing: r.spare
+        ? NA
+        : r.drg_done
+          ? done("Closed")
+          : pending(r.gad === "Issued to planning" ? "Curve / parts pending" : r.gad || "Pending"),
+      // Purchase: Closed once every bought-out item is in hand, as its page says.
+      purchase: r.purchase === "na" ? NA : r.purchase === "done" ? done("Closed") : pending("Open"),
+      // Quality: its documents, as its page reads them.
       quality:
         String(r.qc_required ?? "") === "No"
           ? NA
-          : r.qc_submitted
+          : r.qc === "Submitted"
             ? done("Submitted")
-            : pending(),
+            : pending(r.qc || "Pending"),
       // A Spare starts at Date awaited, not "Pending".
       // A pump SO is done with Planning once Fully ready; until then its
       // status shows, still to go.
@@ -4908,7 +4923,12 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
         : r.planning === "Fully ready" ? done(r.planning) : pending(r.planning ?? "Date awaited"),
       // A Spare reaches Assembly & Packing with its first readiness lot; until
       // then it has no status there at all.
-      assembly: r.packed
+      // A pump: its SO's assembly, then packing, as Assembly & Packing's page.
+      assembly: !r.spare
+        ? r.pump_asm === "Fully packed"
+          ? done(r.pump_asm)
+          : pending(r.pump_asm || "Assembly pending")
+        : r.packed
         ? done(r.assembly_state || "Fully packed")
         : r.spare && (!r.assembly_state || r.assembly_state === "Pending")
           ? { state: "na", label: "—" }
