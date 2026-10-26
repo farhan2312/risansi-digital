@@ -6,6 +6,7 @@ import { Ban, Loader2, Shuffle, X } from "lucide-react";
 import { setOrderStatusAction } from "@/app/risansi/orders/actions";
 import { isCentral } from "@/lib/roles";
 import { DispatchStatusPill } from "./dispatch-status-pill";
+import { DISPATCH_HOLD_REASONS } from "@/lib/order-schema";
 
 type Row = Record<string, unknown>;
 
@@ -23,6 +24,7 @@ const CHOICES: { value: string; label: string; hint: string }[] = [
   { value: "Pending", label: "Pending", hint: "Nothing dispatched yet" },
   { value: "LOT dispatch", label: "Lot dispatch", hint: "Partly dispatched" },
   { value: "Fully dispatch", label: "Fully dispatched", hint: "Everything dispatched" },
+  { value: "Hold", label: "Hold", hint: "Dispatch on hold, for a reason" },
   { value: "Cancelled by client", label: "Cancelled by client", hint: "Closes the order" },
   { value: "Diverted", label: "Diverted", hint: "Closes the order" },
 ];
@@ -33,6 +35,7 @@ const TONE: Record<string, string> = {
   "Fully dispatch": "bg-emerald-50 text-emerald-700",
   "Cancelled by client": "bg-rose-50 text-rose-700",
   Diverted: "bg-amber-50 text-amber-700",
+  Hold: "bg-rose-50 text-rose-700",
 };
 
 /**
@@ -149,13 +152,19 @@ export function DispatchStatusControl({
   override,
   fromInvoices,
   canSet,
+  reason,
 }: {
   orderId: string;
   status: string | null;
   override: string | null;
   fromInvoices: string | null;
   canSet: boolean;
+  /** Why it was set by hand — shown under Hold. */
+  reason?: string | null;
 }) {
+  const holdReason = str(override) === "Hold" && str(reason) ? (
+    <span className="max-w-[12rem] whitespace-normal text-[10.5px] font-medium text-rose-700">{str(reason)}</span>
+  ) : null;
   const [open, setOpen] = useState(false);
   const manual = !!str(override);
   const closed = isClosedStatusLabel(str(override));
@@ -163,6 +172,7 @@ export function DispatchStatusControl({
     return (
       <span className="inline-flex flex-col items-start gap-0.5">
         <DispatchStatusPill status={status} />
+        {holdReason}
         {manual && !closed && <span className="text-[10px] text-muted">Set by hand</span>}
       </span>
     );
@@ -176,6 +186,7 @@ export function DispatchStatusControl({
         className="-m-1 inline-flex flex-col items-start gap-0.5 rounded-md p-1 text-left transition-colors hover:bg-background"
       >
         <DispatchStatusPill status={status} />
+        {holdReason}
         <span className="text-[10px] text-muted underline-offset-2 hover:underline">{manual ? "Set by hand · change" : "Change"}</span>
       </button>
       {open && (
@@ -183,7 +194,7 @@ export function DispatchStatusControl({
           orderId={orderId}
           current={str(override) || "auto"}
           fromInvoices={str(fromInvoices) || "Pending"}
-          reason=""
+          reason={str(override) === "Hold" ? str(reason) : ""}
           divertedTo=""
           choices={CHOICES.filter((c) => !isClosedStatusLabel(c.value))}
           onClose={() => setOpen(false)}
@@ -228,6 +239,10 @@ function StatusDialog({
   }, [onClose, saving]);
 
   async function save() {
+    if (choice === "Hold" && !DISPATCH_HOLD_REASONS.includes(reason)) {
+      setError("Choose why the dispatch is on hold.");
+      return;
+    }
     if (closing && !reason.trim()) {
       setError("Say why — a reason is needed to cancel or divert an order.");
       return;
@@ -308,6 +323,26 @@ function StatusDialog({
           </label>
         )}
 
+        {choice === "Hold" ? (
+          // Hold: why, from Dispatch's list.
+          <label className="mt-4 block text-sm">
+            <span className="mb-1 block font-medium text-foreground">
+              Why on hold <span className="text-danger">*</span>
+            </span>
+            <select
+              value={DISPATCH_HOLD_REASONS.includes(reason) ? reason : ""}
+              onChange={(e) => setReason(e.target.value)}
+              className="h-9 w-full cursor-pointer rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground"
+            >
+              <option value="">Choose a reason…</option>
+              {DISPATCH_HOLD_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
         <label className="mt-4 block text-sm">
           <span className="mb-1 block font-medium text-foreground">
             Reason {closing ? <span className="text-danger">*</span> : <span className="font-normal text-muted">(optional)</span>}
@@ -319,6 +354,7 @@ function StatusDialog({
             className="w-full rounded-lg border border-input-border bg-surface px-3 py-2 text-sm text-foreground"
           />
         </label>
+        )}
 
         {closing && (
           <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">

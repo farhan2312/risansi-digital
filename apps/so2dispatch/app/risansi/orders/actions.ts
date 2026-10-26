@@ -69,6 +69,7 @@ import {
 import {
   CHILD_FIELDS,
   ORDER_STATUS_OPTIONS,
+  DISPATCH_HOLD_REASONS,
   PAYMENT_HOLD_VALUE,
   PAYMENT_STATUS_OPTIONS,
   SECTION_BY_TABLE,
@@ -1816,7 +1817,7 @@ const ROLE_BY_DEPT: Record<DeptKey, string> = {
 export type SetOrderStatusResult = { ok: true } | { ok: false; error: string };
 
 /** The dispatch states Dispatch may set by hand. */
-const DISPATCH_MANUAL_STATUSES = ["Pending", "LOT dispatch", "Fully dispatch"];
+const DISPATCH_MANUAL_STATUSES = ["Pending", "LOT dispatch", "Fully dispatch", "Hold"];
 
 /**
  * Central Visibility sets an order's status by hand: cancelled by the client,
@@ -1846,6 +1847,10 @@ export async function setOrderStatusAction(
     return { ok: false, error: "Unknown status." };
   }
   const why = reason.trim().slice(0, 1000) || null;
+  // Hold says why, from Dispatch's list.
+  if (next === "Hold" && !DISPATCH_HOLD_REASONS.includes(why ?? "")) {
+    return { ok: false, error: "Choose why the dispatch is on hold." };
+  }
   const closing = isClosedStatus(next);
   if (closing && !why) {
     return { ok: false, error: "Say why — a reason is needed to cancel or divert an order." };

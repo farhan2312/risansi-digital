@@ -2775,6 +2775,8 @@ export type BillingQueueRow = {
   dispatch_status: string | null;
   /** Set by hand (Central or Dispatch); null while it follows the invoices. */
   status_override: string | null;
+  /** Why it was set by hand (Hold: one of DISPATCH_HOLD_REASONS). */
+  status_reason?: string | null;
   /** What the invoices alone make of it. */
   invoice_dispatch_status: string | null;
   pi_docs: Row[];
@@ -2822,6 +2824,7 @@ export async function listOrdersForBilling(
             b.fr_reason,
             ${DISPATCH_STATUS} AS dispatch_status,
             NULLIF(o.status_override, '') AS status_override,
+            o.status_reason,
             COALESCE(NULLIF(o.dispatch_status, ''), 'Pending') AS invoice_dispatch_status,
             COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.seq)
                       FROM order_billing_docs d WHERE d.order_id = o.id),
@@ -4892,7 +4895,10 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
           ? done(head.payment_status)
           : pending(),
       dispatch:
-        head.dispatch_status && head.dispatch_status.toLowerCase() !== "pending"
+        // Held by Dispatch: still to go.
+        head.dispatch_status === "Hold"
+          ? pending("Hold")
+          : head.dispatch_status && head.dispatch_status.toLowerCase() !== "pending"
           ? done(head.dispatch_status)
           : pending(),
       targets: {

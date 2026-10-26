@@ -231,9 +231,21 @@ export const ORDER_STATUS_OPTIONS = opts([
   "Pending",
   "LOT dispatch",
   "Fully dispatch",
+  // Dispatch holds it, for one of DISPATCH_HOLD_REASONS.
+  "Hold",
   "Cancelled by client",
   "Diverted",
 ]);
+
+/** Why Dispatch holds an SO — the reason is required with Hold. */
+export const DISPATCH_HOLD_REASONS = [
+  "Dispatch instructions Awaited",
+  "Debit Note Confirmation",
+  "Payment Awaited Against PI",
+  "Freight Confirmation Awaited",
+  "Transportation Confirmation awaited",
+  "Dispatch along with other orders",
+];
 
 // --- Dispatch: dispatch/docket vocabularies ---------------------------------
 export const DELIVERY_TYPE_OPTIONS = opts(["Door delivery", "Godown delivery"]);
