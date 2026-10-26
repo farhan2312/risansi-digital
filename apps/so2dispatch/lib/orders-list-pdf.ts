@@ -3,7 +3,8 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB }
 import { sanitize, wrap } from "@/lib/pdf-text";
 import { billModeLabel, PAYMENT_HOLD_VALUE } from "@/lib/order-schema";
 import { CLOSED, READY, assemblyView, planningText, reachedDepts } from "@/lib/order-row-view";
-import type { DeptCell, OrderListRow, SoDeptStatus } from "@/lib/orders";
+import type { BillingQueueRow, DeptCell, OrderListRow, SoDeptStatus } from "@/lib/orders";
+import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 
 // The Orders list on paper: the same columns as the list on screen, every SO
 // on one line, with summary cards on top. A3 landscape, so all seventeen
@@ -93,9 +94,12 @@ const PAD = 4;
 
 type Key =
   | "sl" | "so" | "soDate" | "type" | "client" | "code" | "rep" | "zone" | "bill"
-  | "value" | "depts" | "pay" | "readiness" | "planning" | "assembly" | "dispatch" | "ecs";
+  | "value" | "depts" | "pay" | "readiness" | "planning" | "assembly" | "dispatch" | "ecs"
+  | "p1" | "p2" | "p3" | "a1" | "a2" | "a3" | "slips" | "invoice" | "sent" | "docket";
 
-const COLUMNS: { key: Key; label: string; width: number; align?: "right" | "center" }[] = [
+type Column = { key: Key; label: string; width: number; align?: "right" | "center" };
+
+const PUMP_OR_ALL_COLUMNS: Column[] = [
   { key: "sl", label: "Sl. No.", width: 26 },
   { key: "so", label: "SO No.", width: 78 },
   { key: "soDate", label: "SO Date", width: 50 },
@@ -115,6 +119,107 @@ const COLUMNS: { key: Key; label: string; width: number; align?: "right" | "cent
   { key: "ecs", label: "ECs", width: 24, align: "center" },
 ];
 
+/**
+ * The Spare list: Planning and Assembly & Packing lot by lot, then each
+ * dispatch's packing slips, invoice, how it went, and its docket & LR.
+ */
+const SPARE_COLUMNS: Column[] = [
+  { key: "sl", label: "Sl. No.", width: 24 },
+  { key: "so", label: "SO No.", width: 74 },
+  { key: "soDate", label: "SO Date", width: 44 },
+  { key: "client", label: "Client Name", width: 92 },
+  { key: "rep", label: "Rep", width: 52 },
+  { key: "value", label: "Order Value", width: 60, align: "right" },
+  { key: "pay", label: "Payment terms, PIs & payment", width: 118 },
+  { key: "p1", label: "Planning Lot 1", width: 50 },
+  { key: "p2", label: "Planning Lot 2", width: 50 },
+  { key: "p3", label: "Planning Lot 3", width: 50 },
+  { key: "a1", label: "Assembly & Packing Lot 1", width: 54 },
+  { key: "a2", label: "Assembly & Packing Lot 2", width: 54 },
+  { key: "a3", label: "Assembly & Packing Lot 3", width: 54 },
+  { key: "slips", label: "Packing Slips", width: 72 },
+  { key: "invoice", label: "Invoice", width: 78 },
+  { key: "sent", label: "Dispatch", width: 76 },
+  { key: "docket", label: "Docket & LR", width: 82 },
+  { key: "dispatch", label: "Dispatch Status", width: 51 },
+];
+
+/** A Spare lot's Planning half: its status and ready date. */
+function planningLot(l: SoLot | undefined): Line[] {
+  if (!l) return [];
+  return [
+    { text: l.status || "—", bold: true, color: l.status === "Fully ready" ? C.green : C.ink },
+    { text: l.ready_date ? `Ready ${day(l.ready_date)}` : "", color: C.muted, size: 6.5 },
+    ...(l.differ ? [{ text: "ECs differ", color: C.amber, size: 6.5 }] : []),
+  ];
+}
+
+/** …and its Assembly & Packing half: packed (on which slip), or its packing plan. */
+function packingLot(l: SoLot | undefined, today: string): Line[] {
+  if (!l) return [];
+  if (l.packed_date) {
+    return [
+      { text: `${PACKED_FOR[l.status ?? ""] ?? "Packed"} ${day(l.packed_date)}`, bold: true, color: C.green },
+      l.slips.length ? { text: l.slips.join(", "), color: C.muted, size: 6.5 } : { text: "No slip", color: C.red, size: 6.5 },
+    ];
+  }
+  const plan = l.packing_plan_date;
+  const late = !!plan && plan < today;
+  const extras = [l.packing_shift, l.pdi ? `PDI ${l.pdi}` : "", late ? "overdue" : ""].filter(Boolean).join(" · ");
+  return [
+    plan ? { text: `Pack ${day(plan)}`, bold: true, color: late ? C.red : C.ink } : { text: PACKING_IN_PROGRESS, bold: true, color: C.amber },
+    ...(extras ? [{ text: extras, color: late ? C.red : C.muted, size: 6.5 }] : []),
+  ];
+}
+
+/** The Spare columns past Planning: the slips, and each dispatch's invoice, mode and docket. */
+function dispatchCells(b: BillingQueueRow | undefined): Partial<Record<Key, Line[]>> {
+  if (!b) return {};
+  const slips = (b.packing_slips ?? []) as Row[];
+  const invoices = (b.invoices ?? []) as Row[];
+  const lots = (v: unknown) => (Array.isArray(v) && v.length ? (v as number[]).map((n) => `L${n}`).join("+") : "");
+  const each = (f: (inv: Row) => Line[]) =>
+    invoices.flatMap((inv, n) => f(inv).map((l, k) => (k === 0 && n ? { ...l, gapBefore: 3 } : l)));
+  return {
+    slips: slips.map((p, n) => ({
+      text: [str(p.packing_slip_no) || "—", day(p.packing_slip_date), str(p.quantity) && `Qty ${str(p.quantity)}`, lots(p.lot_nos)]
+        .filter(Boolean)
+        .join(" · "),
+      color: str(p.invoice_id) ? C.ink : C.amber,
+      gapBefore: n ? 2 : 0,
+    })),
+    invoice: each((inv) => {
+      const no = str(inv.invoice_no) || str(inv.challan_no);
+      if (!no && !str(inv.invoice_date) && !str(inv.challan_date)) return [{ text: "Invoice pending", color: C.amber }];
+      const value = str(inv.invoice_value) || str(inv.challan_value);
+      return [
+        { text: no || "—", bold: true },
+        { text: [day(inv.invoice_date) || day(inv.challan_date), value && `Rs ${money.format(Number(value))}`].filter(Boolean).join(" · "), color: C.muted, size: 6.5 },
+      ];
+    }),
+    sent: each((inv) => {
+      const mode = str(inv.delivery_mode);
+      if (!mode) return [{ text: "Dispatch pending", color: C.amber }];
+      const by = [str(inv.transporter_name), str(inv.courier_mode), str(inv.vehicle_no)].filter(Boolean).join(" · ");
+      return [{ text: mode, bold: true }, ...(by ? [{ text: by, color: C.muted, size: 6.5 }] : [])];
+    }),
+    docket: each((inv) => {
+      const docket = str(inv.docket_no);
+      if (!docket) return [{ text: str(inv.delivery_mode) ? "Docket pending" : "—", color: str(inv.delivery_mode) ? C.amber : C.muted }];
+      const sub = [day(inv.booking_date) && `Booked ${day(inv.booking_date)}`, day(inv.delivery_date) && `Delivered ${day(inv.delivery_date)}`, str(inv.lr_link) ? "LR" : ""]
+        .filter(Boolean)
+        .join(" · ");
+      return [{ text: docket, bold: true }, ...(sub ? [{ text: sub, color: C.muted, size: 6.5 }] : [])];
+    }),
+  };
+}
+
+/** A Spare SO's planning status: its latest lot's, else what the list says. */
+function sparePlanning(o: OrderListRow, status: SoDeptStatus | undefined): string {
+  const lots = o.lots ?? [];
+  return (lots.length ? lots[lots.length - 1].status : null) || planningText(o, status) || "Date awaited";
+}
+
 type Line = { text: string; bold?: boolean; color?: RGB; size?: number; gapBefore?: number };
 type Pill = { name: string; label: string; tone: DeptCell["state"] };
 
@@ -125,7 +230,7 @@ type SoRow = {
   tone: "closed" | "full" | "lot" | null;
 };
 
-function buildRow(o: OrderListRow, status: SoDeptStatus | undefined): SoRow {
+function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: BillingQueueRow, today = ""): SoRow {
   const dispatch = o.dispatch_status || "Pending";
   const closed = CLOSED.includes(dispatch);
   const planning = planningText(o, status);
@@ -225,6 +330,18 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined): SoRow {
         },
       ],
       ecs: [{ text: String(o.ec_count ?? 0) }],
+      // The Spare layout's lots, slips and dispatches.
+      ...(billing
+        ? {
+            p1: closed ? [] : planningLot(o.lots?.[0]),
+            p2: closed ? [] : planningLot(o.lots?.[1]),
+            p3: closed ? [] : planningLot(o.lots?.[2]),
+            a1: closed ? [] : packingLot(o.lots?.[0], today),
+            a2: closed ? [] : packingLot(o.lots?.[1], today),
+            a3: closed ? [] : packingLot(o.lots?.[2], today),
+            ...dispatchCells(billing),
+          }
+        : {}),
     },
     pills: closed
       ? [{ name: dispatch, label: "", tone: "na" }]
@@ -238,8 +355,16 @@ export async function buildOrdersListPdf(
   orders: OrderListRow[],
   statuses: Map<string, SoDeptStatus>,
   filterLine: string,
-  opts: { capped?: boolean; total?: number } = {}
+  opts: {
+    capped?: boolean;
+    total?: number;
+    /** The Spare list: its lots, slips and dispatches by SO id, and cards by Rep. */
+    spare?: Map<string, BillingQueueRow>;
+  } = {}
 ): Promise<Uint8Array> {
+  const spare = opts.spare;
+  const COLUMNS = spare ? SPARE_COLUMNS : PUMP_OR_ALL_COLUMNS;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const pdf = await PDFDocument.create();
   pdf.setTitle("Orders — Master tracker");
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -282,7 +407,7 @@ export async function buildOrdersListPdf(
   y -= bandH + 12;
 
   // ── Summary cards ──────────────────────────────────────────────────────
-  const rows = orders.map((o) => ({ o, r: buildRow(o, statuses.get(o.id)) }));
+  const rows = orders.map((o) => ({ o, r: buildRow(o, statuses.get(o.id), spare?.get(o.id) ?? (spare ? ({} as BillingQueueRow) : undefined), today) }));
   const n = orders.length;
   const dispatchOf = (o: OrderListRow) => (o.dispatch_status || "Pending").toLowerCase();
   const count = (f: (o: OrderListRow) => boolean) => orders.filter(f).length;
@@ -329,6 +454,53 @@ export async function buildOrdersListPdf(
     if (c.sub) text(c.sub, x + 10, y - 45, 6.3, font, C.muted);
   });
   y -= cardH + 12;
+
+  // ── Spare: a card per Rep, with their SOs and where Planning has them ──
+  if (spare && n) {
+    const PLAN = ["Date awaited", "In plan", "Partial ready", "Fully ready"];
+    const byRep = new Map<string, Map<string, number>>();
+    for (const o of orders) {
+      if (CLOSED.includes(o.dispatch_status ?? "")) continue;
+      const plan = sparePlanning(o, statuses.get(o.id));
+      // An SO shared by two Reps counts for each.
+      const reps = str(o.reps).split(",").map((r) => r.trim()).filter(Boolean);
+      for (const rep of reps.length ? reps : ["No Rep"]) {
+        const m = byRep.get(rep) ?? new Map<string, number>();
+        m.set("", (m.get("") ?? 0) + 1);
+        m.set(plan, (m.get(plan) ?? 0) + 1);
+        byRep.set(rep, m);
+      }
+    }
+    const reps = [...byRep].sort((a, b) => (b[1].get("") ?? 0) - (a[1].get("") ?? 0) || a[0].localeCompare(b[0]));
+    text("BY REP — open SOs and their Planning status", MARGIN, y - 7, 6.5, bold, C.muted);
+    y -= 13;
+    const perRow = 8;
+    const rw = (WIDTH - gap * (perRow - 1)) / perRow;
+    const rh = 58;
+    reps.forEach(([rep, m], i) => {
+      if (i && i % perRow === 0) y -= rh + 6;
+      const x = MARGIN + (i % perRow) * (rw + gap);
+      box(x, y, rw, rh, 6, C.white, C.rule);
+      page.drawRectangle({ x: x + 0.6, y: y - rh + 8, width: 2.6, height: rh - 16, color: C.primary });
+      let name = sanitize(rep, bold);
+      while (name.length > 1 && bold.widthOfTextAtSize(name, 7.5) > rw - 60) name = name.slice(0, -1);
+      text(name, x + 10, y - 13, 7.5, bold, C.ink);
+      const sos = String(m.get("") ?? 0);
+      text(sos, x + rw - 10 - bold.widthOfTextAtSize(sos, 15), y - 18, 15, bold, C.primary);
+      text("SOs", x + rw - 10 - font.widthOfTextAtSize("SOs", 6), y - 26, 6, font, C.muted);
+      PLAN.concat([...m.keys()].filter((k) => k && !PLAN.includes(k))).forEach((p, k) => {
+        const v = m.get(p) ?? 0;
+        const col = k % 2;
+        const row = Math.floor(k / 2);
+        const lx = x + 10 + col * ((rw - 14) / 2);
+        const ly = y - 34 - row * 10;
+        const color = p === "Fully ready" ? C.green : p === "Partial ready" ? C.blue : p === "In plan" ? C.ink : C.amber;
+        text(`${p} `, lx, ly, 6.2, font, C.muted);
+        text(String(v), lx + font.widthOfTextAtSize(`${p} `, 6.2), ly, 6.2, bold, v ? color : C.muted);
+      });
+    });
+    y -= rh + 12;
+  }
 
   // ── Dispatch mix: one stacked bar with its legend ──────────────────────
   if (n) {
@@ -389,7 +561,8 @@ export async function buildOrdersListPdf(
   if (!n) text("No orders match these filters.", MARGIN + PAD, y - 14, 9, font, C.muted);
 
   // Pills flow inside the Departments column.
-  const deptCol = COLUMNS.find((c) => c.key === "depts")!;
+  // (The Spare layout has no Departments column, and so no pills.)
+  const deptCol = COLUMNS.find((c) => c.key === "depts") ?? { width: 0 };
   const PILL_H = 10.5;
   const pillW = (p: Pill) => {
     const nameW = bold.widthOfTextAtSize(p.name, 6.3);
@@ -397,6 +570,7 @@ export async function buildOrdersListPdf(
     return Math.min(nameW + labelW + 8, deptCol.width - PAD * 2);
   };
   const layoutPills = (pills: Pill[]) => {
+    if (!deptCol.width) return { placed: [], height: 0 };
     const maxW = deptCol.width - PAD * 2;
     const placed: { p: Pill; x: number; row: number; w: number }[] = [];
     let x = 0;
