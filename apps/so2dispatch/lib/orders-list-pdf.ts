@@ -455,7 +455,8 @@ export async function buildOrdersListPdf(
 
   const cards: { label: string; value: string; sub: string; color: RGB }[] = [
     { label: "SOs", value: String(n), sub: `${pumpN} Pump · ${spareN} Spare`, color: C.primary },
-    { label: "ECs", value: String(ecN), sub: n ? `${(ecN / n).toFixed(1)} per SO` : "", color: C.primary },
+    // (Not on the Spare PDF: its SOs are what count there.)
+    ...(spare ? [] : [{ label: "ECs", value: String(ecN), sub: n ? `${(ecN / n).toFixed(1)} per SO` : "", color: C.primary }]),
     { label: "Order value", value: shortInr(valueInr), sub: "Open SOs, in INR", color: C.ink },
     { label: "Fully dispatched", value: String(fullN), sub: pct(fullN), color: C.green },
     { label: "LOT dispatch", value: String(lotN), sub: pct(lotN), color: C.blue },
