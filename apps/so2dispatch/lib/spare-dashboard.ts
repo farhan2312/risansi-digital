@@ -20,6 +20,7 @@ export const STAGES = [
   "Dispatch hold",
   "Lot dispatched",
   "Fully dispatched",
+  "Cancelled / Diverted",
 ] as const;
 export type Stage = (typeof STAGES)[number];
 
@@ -32,7 +33,7 @@ export type DashboardSo = {
   reps: string[];
   zone: string;
   value_inr: number;
-  stage: Stage | "Closed";
+  stage: Stage;
   dispatch: string;
   delivery_date: string | null;
   first_dispatch: string | null;
@@ -45,7 +46,7 @@ export type Bucket = { label: string; count: number; value?: number };
 
 export type RepRow = {
   rep: string;
-  /** All the Rep's SOs (not cancelled or diverted), and their value. */
+  /** All the Rep's SOs (cancelled and diverted included), and their value. */
   sos: number;
   value: number;
   stages: Record<Stage, number>;
@@ -69,9 +70,10 @@ export type SpareDashboard = {
   clients: Bucket[];
   reps: RepRow[];
   metrics: {
-    /** All SOs in view, not cancelled or diverted, and their value. */
+    /** All SOs in view (cancelled and diverted included), and their value. */
     sos: number;
     value: number;
+    closed: number;
     /** Of them, not fully dispatched yet. */
     open: number;
     avgAge: number | null;
@@ -93,9 +95,9 @@ const DAY = 86400000;
 const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 
 /** Where a Spare SO stands: dispatch first (it overrides), then its packing, then its planning. */
-function stageOf(o: OrderListRow, packedLatest: boolean, packedAny: boolean): Stage | "Closed" {
+function stageOf(o: OrderListRow, packedLatest: boolean, packedAny: boolean): Stage {
   const dispatch = str(o.dispatch_status) || "Pending";
-  if (CLOSED.includes(dispatch)) return "Closed";
+  if (CLOSED.includes(dispatch)) return "Cancelled / Diverted";
   if (dispatch === "Fully dispatch") return "Fully dispatched";
   if (dispatch === "Hold") return "Dispatch hold";
   if (dispatch === "LOT dispatch") return "Lot dispatched";
@@ -203,7 +205,9 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
     };
   });
 
-  const live = sos.filter((s) => s.stage !== "Closed");
+  // All SOs count, cancelled and diverted included; "live" (not cancelled or
+  // diverted) is what can be late, held, or still to go.
+  const live = sos.filter((s) => s.stage !== "Cancelled / Diverted");
   const open = live.filter((s) => s.stage !== "Fully dispatched");
   const count = (list: DashboardSo[], stage: Stage) => list.filter((s) => s.stage === stage).length;
 
@@ -214,7 +218,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
     mix("Lot dispatched", (s) => s.dispatch === "LOT dispatch"),
     mix("Dispatch hold", (s) => s.dispatch === "Hold"),
     mix("Pending", (s) => s.dispatch === "Pending"),
-    mix("Cancelled / Diverted", (s) => s.stage === "Closed"),
+    mix("Cancelled / Diverted", (s) => s.stage === "Cancelled / Diverted"),
   ];
 
   // The last twelve months of intake, by SO date.
@@ -223,7 +227,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
   for (let i = 11; i >= 0; i--) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
     const key = d.toISOString().slice(0, 7);
-    const inMonth = live.filter((s) => (s.so_date ?? "").startsWith(key));
+    const inMonth = sos.filter((s) => (s.so_date ?? "").startsWith(key));
     months.push({
       label: d.toLocaleDateString("en-GB", { month: "short", year: "2-digit", timeZone: "UTC" }),
       count: inMonth.length,
@@ -232,7 +236,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
   }
 
   // Every SO's age: days since its SO date.
-  const ages = live.filter((s) => s.so_date).map((s) => days(s.so_date!, today));
+  const ages = sos.filter((s) => s.so_date).map((s) => days(s.so_date!, today));
   const dispatched = live.filter((s) => s.first_dispatch && s.so_date);
   const leads = dispatched.map((s) => days(s.so_date!, s.first_dispatch!)).filter((d) => d >= 0);
   const sorted = [...leads].sort((a, b) => a - b);
@@ -266,7 +270,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
 
   // Each Rep's book: their open SOs by stage, and how their dispatches went.
   const repMap = new Map<string, RepRow>();
-  for (const s of live) {
+  for (const s of sos) {
     for (const rep of s.reps.length ? s.reps : ["No Rep"]) {
       const r =
         repMap.get(rep) ??
@@ -280,7 +284,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
           dispatchedMeasured: 0,
           late: 0,
         } satisfies RepRow);
-      r.stages[s.stage as Stage]++;
+      r.stages[s.stage]++;
       r.sos++;
       r.value += s.value_inr;
       if (isLate(s)) r.late++;
@@ -298,17 +302,18 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
     options: result.options,
     kpis: result.kpis ?? [],
     asOf: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }),
-    stages: STAGES.map((st) => ({ label: st, count: count(live, st) })),
+    stages: STAGES.map((st) => ({ label: st, count: count(sos, st) })),
     dispatchMix,
     intake: months,
     age: histogram(ages),
     leadTime: histogram(leads),
-    zones: group((s) => s.zone, live).sort((a, b) => b.count - a.count),
-    clients: group((s) => s.client || "—", live).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 8),
+    zones: group((s) => s.zone, sos).sort((a, b) => b.count - a.count),
+    clients: group((s) => s.client || "—", sos).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 8),
     reps: [...repMap.values()].sort((a, b) => b.sos - a.sos || a.rep.localeCompare(b.rep)),
     metrics: {
-      sos: live.length,
-      value: live.reduce((a, s) => a + s.value_inr, 0),
+      sos: sos.length,
+      value: sos.reduce((a, s) => a + s.value_inr, 0),
+      closed: sos.length - live.length,
       open: open.length,
       avgAge: ages.length ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : null,
       onTimeRate: measured.length ? onTime.length / measured.length : null,

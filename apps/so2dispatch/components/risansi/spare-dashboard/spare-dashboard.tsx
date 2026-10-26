@@ -24,6 +24,7 @@ const STAGE_COLOR: Record<Stage, string> = {
   "Dispatch hold": "var(--viz-orange)",
   "Lot dispatched": "var(--viz-seq-6)",
   "Fully dispatched": "var(--viz-aqua)",
+  "Cancelled / Diverted": "var(--viz-gray)",
 };
 
 /** Dispatch's statuses, ordered so no two neighbours are hard to tell apart (validated). */
@@ -80,6 +81,7 @@ const DISPATCH_COLS: { stage: Stage; label: string }[] = [
   { stage: "Dispatch hold", label: "Hold" },
   { stage: "Lot dispatched", label: "Lot" },
   { stage: "Fully dispatched", label: "Fully" },
+  { stage: "Cancelled / Diverted", label: "Cancelled" },
 ];
 
 /** A count cell: muted at zero, tinted by how much of the column's largest it is. */
@@ -149,6 +151,7 @@ function RepTable({ reps }: { reps: RepRow[] }) {
                 <CountCell n={r.stages["Dispatch hold"]} max={maxOf("Dispatch hold")} tone="orange" />
                 <CountCell n={r.stages["Lot dispatched"]} max={maxOf("Lot dispatched")} />
                 <CountCell n={r.stages["Fully dispatched"]} max={maxOf("Fully dispatched")} tone="aqua" />
+                <CountCell n={r.stages["Cancelled / Diverted"]} max={maxOf("Cancelled / Diverted")} tone="rose" />
                 <CountCell n={r.late} max={maxLate} tone="rose" strong />
                 <td className="px-2 py-2 text-center tabular-nums">
                   {onTime === null ? (
@@ -184,7 +187,7 @@ function RepTable({ reps }: { reps: RepRow[] }) {
         </tfoot>
       </table>
       <p className="mt-2 text-[11px] text-muted">
-        All SOs except cancelled or diverted; an SO shared by two Reps counts for each. Late: dispatched after its delivery date as per SO, or not
+        All SOs, cancelled and diverted included; an SO shared by two Reps counts for each. Late: dispatched after its delivery date as per SO, or not
         dispatched and past it. On time: dispatched SOs whose first dispatch was on or before that date.
       </p>
     </div>
@@ -212,7 +215,12 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
 
       {/* Performance at a glance. */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Metric icon={<PackageOpen className="h-5 w-5" />} label="SOs" value={String(m.sos)} sub={`${m.open} not fully dispatched yet`} />
+        <Metric
+          icon={<PackageOpen className="h-5 w-5" />}
+          label="SOs"
+          value={String(m.sos)}
+          sub={`${m.open} not fully dispatched · ${m.closed} cancelled / diverted`}
+        />
         <Metric
           icon={<Gauge className="h-5 w-5" />}
           label="On-time dispatch"
@@ -230,7 +238,7 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
         <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Late vs delivery date" value={String(m.late)} sub="dispatched late, or past it and not out" tone={m.late ? "bad" : "good"} />
         <Metric icon={<CalendarClock className="h-5 w-5" />} label="Due in 7 days" value={String(m.dueThisWeek)} sub="delivery date this week" tone={m.dueThisWeek ? "warn" : "default"} />
         <Metric icon={<PauseCircle className="h-5 w-5" />} label="On hold" value={String(m.holds)} sub="Clearance, Accounts or Dispatch" tone={m.holds ? "warn" : "good"} />
-        <Metric icon={<IndianRupee className="h-5 w-5" />} label="Order value" value={money(m.value)} sub="all SOs in view, in INR" />
+        <Metric icon={<IndianRupee className="h-5 w-5" />} label="Order value" value={money(m.value)} sub="all SOs, cancelled included, in INR" />
       </div>
 
       {/* Where the open SOs stand, and how dispatch has gone. */}
