@@ -247,6 +247,19 @@ export const DISPATCH_HOLD_REASONS = [
   "Dispatch along with other orders",
 ];
 
+/** A dispatch hold as saved: its reason, then any remarks after " · ". */
+export function joinHoldReason(reason: string, remarks: string): string {
+  const r = remarks.trim();
+  return r ? `${reason} · ${r}` : reason;
+}
+
+/** …and back: the reason from the list, and the remarks typed with it. */
+export function splitHoldReason(saved: unknown): { reason: string; remarks: string } {
+  const s = String(saved ?? "").trim();
+  const reason = DISPATCH_HOLD_REASONS.find((r) => s === r || s.startsWith(`${r} · `)) ?? "";
+  return { reason, remarks: reason ? s.slice(reason.length).replace(/^ · /, "") : s };
+}
+
 // --- Dispatch: dispatch/docket vocabularies ---------------------------------
 export const DELIVERY_TYPE_OPTIONS = opts(["Door delivery", "Godown delivery"]);
 export const DELIVERY_MODE_OPTIONS = opts([

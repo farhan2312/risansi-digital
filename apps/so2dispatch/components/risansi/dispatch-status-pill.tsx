@@ -9,7 +9,7 @@ export function DispatchStatusPill({ status }: { status: unknown }) {
       : k === "lot dispatch"
         ? "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300"
         : k === "hold"
-          ? "bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-300"
+          ? "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300"
           : k === "pending"
           ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
           : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300";

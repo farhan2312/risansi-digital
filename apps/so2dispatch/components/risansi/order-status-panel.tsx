@@ -6,7 +6,7 @@ import { Ban, Loader2, Shuffle, X } from "lucide-react";
 import { setOrderStatusAction } from "@/app/risansi/orders/actions";
 import { isCentral } from "@/lib/roles";
 import { DispatchStatusPill } from "./dispatch-status-pill";
-import { DISPATCH_HOLD_REASONS } from "@/lib/order-schema";
+import { DISPATCH_HOLD_REASONS, joinHoldReason, splitHoldReason } from "@/lib/order-schema";
 
 type Row = Record<string, unknown>;
 
@@ -35,7 +35,7 @@ const TONE: Record<string, string> = {
   "Fully dispatch": "bg-emerald-50 text-emerald-700",
   "Cancelled by client": "bg-rose-50 text-rose-700",
   Diverted: "bg-amber-50 text-amber-700",
-  Hold: "bg-rose-50 text-rose-700",
+  Hold: "bg-orange-50 text-orange-700",
 };
 
 /**
@@ -163,7 +163,7 @@ export function DispatchStatusControl({
   reason?: string | null;
 }) {
   const holdReason = str(override) === "Hold" && str(reason) ? (
-    <span className="max-w-[12rem] whitespace-normal text-[10.5px] font-medium text-rose-700">{str(reason)}</span>
+    <span className="max-w-[12rem] whitespace-normal text-[10.5px] font-medium text-orange-700 dark:text-orange-400">{str(reason)}</span>
   ) : null;
   const [open, setOpen] = useState(false);
   const manual = !!str(override);
@@ -227,6 +227,9 @@ function StatusDialog({
   const router = useRouter();
   const [choice, setChoice] = useState(current);
   const [reason, setReason] = useState(reasonNow);
+  // Hold: the reason from the list, and optional remarks with it.
+  const [holdReason, setHoldReason] = useState(() => splitHoldReason(reasonNow).reason);
+  const [holdRemarks, setHoldRemarks] = useState(() => splitHoldReason(reasonNow).remarks);
   const [divertedTo, setDivertedTo] = useState(divertedNow);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -239,7 +242,7 @@ function StatusDialog({
   }, [onClose, saving]);
 
   async function save() {
-    if (choice === "Hold" && !DISPATCH_HOLD_REASONS.includes(reason)) {
+    if (choice === "Hold" && !holdReason) {
       setError("Choose why the dispatch is on hold.");
       return;
     }
@@ -249,7 +252,12 @@ function StatusDialog({
     }
     setSaving(true);
     setError(null);
-    const res = await setOrderStatusAction(orderId, choice, reason, divertedTo);
+    const res = await setOrderStatusAction(
+      orderId,
+      choice,
+      choice === "Hold" ? joinHoldReason(holdReason, holdRemarks) : reason,
+      divertedTo
+    );
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -324,24 +332,37 @@ function StatusDialog({
         )}
 
         {choice === "Hold" ? (
-          // Hold: why, from Dispatch's list.
-          <label className="mt-4 block text-sm">
-            <span className="mb-1 block font-medium text-foreground">
-              Why on hold <span className="text-danger">*</span>
-            </span>
-            <select
-              value={DISPATCH_HOLD_REASONS.includes(reason) ? reason : ""}
-              onChange={(e) => setReason(e.target.value)}
-              className="h-9 w-full cursor-pointer rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground"
-            >
-              <option value="">Choose a reason…</option>
-              {DISPATCH_HOLD_REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </label>
+          // Hold: why, from Dispatch's list, and any remarks.
+          <div className="mt-4 space-y-3 rounded-lg border border-orange-200 bg-orange-50/60 p-3 dark:border-orange-500/30 dark:bg-orange-500/10">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-orange-800 dark:text-orange-300">
+                Why on hold <span className="text-danger">*</span>
+              </span>
+              <select
+                value={holdReason}
+                onChange={(e) => setHoldReason(e.target.value)}
+                className="h-9 w-full cursor-pointer rounded-lg border border-orange-300 bg-surface px-3 text-sm text-foreground focus:border-orange-500 focus:outline-none"
+              >
+                <option value="">Choose a reason…</option>
+                {DISPATCH_HOLD_REASONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-foreground">
+                Remarks <span className="font-normal text-muted">(optional)</span>
+              </span>
+              <textarea
+                value={holdRemarks}
+                onChange={(e) => setHoldRemarks(e.target.value)}
+                rows={2}
+                className="w-full rounded-lg border border-input-border bg-surface px-3 py-2 text-sm text-foreground"
+              />
+            </label>
+          </div>
         ) : (
         <label className="mt-4 block text-sm">
           <span className="mb-1 block font-medium text-foreground">

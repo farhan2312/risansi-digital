@@ -69,7 +69,7 @@ import {
 import {
   CHILD_FIELDS,
   ORDER_STATUS_OPTIONS,
-  DISPATCH_HOLD_REASONS,
+  splitHoldReason,
   PAYMENT_HOLD_VALUE,
   PAYMENT_STATUS_OPTIONS,
   SECTION_BY_TABLE,
@@ -1848,7 +1848,7 @@ export async function setOrderStatusAction(
   }
   const why = reason.trim().slice(0, 1000) || null;
   // Hold says why, from Dispatch's list.
-  if (next === "Hold" && !DISPATCH_HOLD_REASONS.includes(why ?? "")) {
+  if (next === "Hold" && !splitHoldReason(why).reason) {
     return { ok: false, error: "Choose why the dispatch is on hold." };
   }
   const closing = isClosedStatus(next);
