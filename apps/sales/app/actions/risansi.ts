@@ -1463,6 +1463,33 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
     }
   }
 
+  // The invoice is optional at Won, but it is all three fields or none.
+  //
+  // A half-filled invoice used to be dropped on the floor: the insert below
+  // only fires when the number, a real date and a positive value are all
+  // present, so typing a number and leaving the value for later saved the
+  // opportunity and silently discarded what was typed. Refused here instead,
+  // before anything is written, naming the boxes that are empty.
+  //
+  // Checked on every save and not only on the stage move, because the usual
+  // way this gets filled is editing an already-Won deal once the invoice is
+  // raised.
+  {
+    const invParts: [string, boolean][] = [
+      ['Invoice No.',   !!(formData.get('invoice_no') as string | null)?.trim()],
+      ['Invoice Date',  !!(formData.get('invoice_date') as string | null)?.trim()],
+      ['Invoice Value', (parseMoneyInput(formData.get('invoice_value_inr')) ?? 0) > 0],
+    ];
+    const given = invParts.filter(([, has]) => has);
+    const blank = invParts.filter(([, has]) => !has).map(([label]) => label);
+    if (given.length > 0 && blank.length > 0) {
+      return fail(
+        `The invoice needs all three or none of them — ${blank.join(' and ')} ${blank.length > 1 ? 'are' : 'is'} empty. `
+        + 'Leave all three blank if the invoice has not been raised yet.',
+      );
+    }
+  }
+
   // Sales Orders are optional at Won — see createPipelineOpportunity for why.
   // Whatever rows are supplied get written with the stage flip; none is fine,
   // and more can be added later through addSalesOrder, which bypasses the Won
@@ -1701,7 +1728,8 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
     const invNo = (formData.get('invoice_no') as string | null)?.trim() ?? '';
     const invDate = (formData.get('invoice_date') as string | null)?.trim() ?? '';
     const invInr = parseMoneyInput(formData.get('invoice_value_inr'));
-    if (invNo && /^\d{4}-\d{2}-\d{2}$/.test(invDate) && invInr != null && invInr > 0) {
+    const invComplete = !!invNo && /^\d{4}-\d{2}-\d{2}$/.test(invDate) && invInr != null && invInr > 0;
+    if (invComplete) {
       await risansiPool.query(
         `INSERT INTO opportunity_invoices (opportunity_id, client_id, invoice_no, invoice_date, invoice_value_inr, created_by)
          SELECT $1, o.client_id, $2, $3::date, $4, $5

@@ -221,15 +221,26 @@ export const OPP_FIELDS: OppFieldDef[] = [
 
   // ── The invoice, so revenue does not wait for the monthly upload ──
   //
-  // Required at Won, as asked. Note that these do NOT write into
-  // client_revenue_monthly: that table is unique on (client, month) and its
-  // uploaders overwrite the cell, so an invoice put there would be erased
-  // without trace by the next upload. They are stored on their own and the
-  // revenue reads prefer an uploaded figure wherever one exists.
-  { name: 'invoice_no',       label: 'Invoice No.',   kind: 'text', asked: 'Won', onlyStages: ['Won'], requiredAt: ['Won'],
-    placeholder: 'e.g. RIL/INV/26-27/0412' },
-  { name: 'invoice_date',     label: 'Invoice Date',  kind: 'date', asked: 'Won', onlyStages: ['Won'], requiredAt: ['Won'], noFuture: true },
-  { name: 'invoice_value_inr', label: 'Invoice Value (₹)', kind: 'inr', asked: 'Won', onlyStages: ['Won'], requiredAt: ['Won'],
+  // Optional. They were required at Won, which assumed the invoice exists by
+  // the time the PO does — and it often does not: the order is won, the
+  // invoice is raised later. Making it mandatory meant either holding the Won
+  // up or typing a placeholder, and a placeholder invoice number is worse
+  // than no invoice number.
+  //
+  // Leave all three blank and the deal is simply Won with no invoice yet; add
+  // them whenever the invoice is raised. Partial entries are refused rather
+  // than dropped — see the invoice check in updateOpportunity.
+  //
+  // These do NOT write into client_revenue_monthly: that table is unique on
+  // (client, month) and its uploaders overwrite the cell, so an invoice put
+  // there would be erased without trace by the next upload. They are stored on
+  // their own and the revenue reads prefer an uploaded figure wherever one
+  // exists.
+  { name: 'invoice_no',       label: 'Invoice No.',   kind: 'text', asked: 'Won', onlyStages: ['Won'],
+    placeholder: 'e.g. RIL/INV/26-27/0412',
+    help: 'Optional — add it when the invoice is raised. Revenue counts it from that day.' },
+  { name: 'invoice_date',     label: 'Invoice Date',  kind: 'date', asked: 'Won', onlyStages: ['Won'], noFuture: true },
+  { name: 'invoice_value_inr', label: 'Invoice Value (₹)', kind: 'inr', asked: 'Won', onlyStages: ['Won'],
     help: 'Counts as revenue straight away, until the month is uploaded.' },
 
   // ── Lost ────────────────────────────────────────────────────
