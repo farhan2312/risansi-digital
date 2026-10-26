@@ -13,7 +13,7 @@
 //   Delivery date as per SO →  Dispatch target   = delivery − 3 days
 //                              Packing target    = delivery − 5 days
 //
-// …and a Pump (or ROLB) SO created on or after PUMP_DELIVERY_RULES_FROM:
+// …and every Pump (or ROLB) SO (from 27 Oct 2026, applied to all of them):
 //   SO date                 →  Delivery date as per SO = SO date + 3 weeks (if blank)
 //   Delivery date as per SO →  Dispatch target   = delivery − 3 days
 //                              Packing target    = delivery − 5 days
@@ -51,8 +51,6 @@ export type TargetInputs = {
 export const SPARE_DELIVERY_RULES_FROM = "2026-10-14";
 /** A new Spare's delivery date as per SO, from its SO date. */
 export const SPARE_DELIVERY_DAYS_FROM_SO = 14;
-/** The day the Pump delivery-date rules start. */
-export const PUMP_DELIVERY_RULES_FROM = "2026-10-27";
 /** A new Pump's delivery date as per SO, from its SO date. */
 export const PUMP_DELIVERY_DAYS_FROM_SO = 21;
 
@@ -64,10 +62,9 @@ export function spareDeliveryRules(o: Pick<TargetInputs, "order_type" | "created
   return String(o.order_type ?? "").trim().toLowerCase() === "spare" && !!created && created >= SPARE_DELIVERY_RULES_FROM;
 }
 
-/** Whether an SO is a Pump under the delivery-date rules. */
+/** Whether an SO is a Pump under the delivery-date rules: every Pump, whenever made. */
 export function pumpDeliveryRules(o: Pick<TargetInputs, "order_type" | "created_on">): boolean {
-  const created = isoDate(o.created_on);
-  return isPump(o.order_type) && !!created && created >= PUMP_DELIVERY_RULES_FROM;
+  return isPump(o.order_type);
 }
 
 /**
