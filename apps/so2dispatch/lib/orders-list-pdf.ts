@@ -462,17 +462,27 @@ export async function buildOrdersListPdf(
 
   // ── Spare: a card per Rep, with their SOs and where Planning has them ──
   if (spare && n) {
-    const PLAN = ["Date awaited", "In plan", "Partial ready", "Fully ready"];
+    // Fully ready counts only while not packed yet — what still waits on Assembly & Packing.
+    const READY_NOT_PACKED = "Ready, not packed";
+    const PLAN = ["Date awaited", "In plan", "Partial ready", READY_NOT_PACKED];
     const byRep = new Map<string, Map<string, number>>();
     for (const o of orders) {
       if (CLOSED.includes(o.dispatch_status ?? "")) continue;
-      const plan = sparePlanning(o, statuses.get(o.id));
+      let plan: string | null = sparePlanning(o, statuses.get(o.id));
+      if (plan === "Fully ready") {
+        // Packed: its latest lot has a packed date (no lots: it has gone out).
+        const lots = o.lots ?? [];
+        const packed = lots.length
+          ? !!lots[lots.length - 1].packed_date
+          : ["fully dispatch", "lot dispatch"].includes((o.dispatch_status ?? "").toLowerCase());
+        plan = packed ? null : READY_NOT_PACKED;
+      }
       // An SO shared by two Reps counts for each.
       const reps = str(o.reps).split(",").map((r) => r.trim()).filter(Boolean);
       for (const rep of reps.length ? reps : ["No Rep"]) {
         const m = byRep.get(rep) ?? new Map<string, number>();
         m.set("", (m.get("") ?? 0) + 1);
-        m.set(plan, (m.get(plan) ?? 0) + 1);
+        if (plan) m.set(plan, (m.get(plan) ?? 0) + 1);
         byRep.set(rep, m);
       }
     }
@@ -499,7 +509,7 @@ export async function buildOrdersListPdf(
         const row = Math.floor(k / 2);
         const lx = x + 10 + col * ((rw - 14) / 2);
         const ly = y - 34 - row * 10;
-        const color = p === "Fully ready" ? C.green : p === "Partial ready" ? C.blue : p === "In plan" ? C.ink : C.amber;
+        const color = p === READY_NOT_PACKED ? C.green : p === "Partial ready" ? C.blue : p === "In plan" ? C.ink : C.amber;
         text(`${p} `, lx, ly, 6.2, font, C.muted);
         text(String(v), lx + font.widthOfTextAtSize(`${p} `, 6.2), ly, 6.2, bold, v ? color : C.muted);
       });
