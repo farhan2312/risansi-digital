@@ -425,7 +425,7 @@ export function OrderListFilterBar({
             Overdue only
           </button>
         )}
-        {/* Every department and the Orders list: only the SOs on hold (Central or Accounts). */}
+        {/* Every department and the Orders list: only the SOs on hold (Central, Accounts or Dispatch). */}
         <button
           type="button"
           onClick={() => setParams({ hold: filter.onHold ? null : "1" })}

@@ -91,7 +91,7 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   // "Pending" is itself a stored dispatch status, so it covers both a blank
   // column and an explicit Pending rather than appearing twice.
   // Dispatch's own words only: a cancelled or diverted SO is out of its queue.
-  dispatch: ["Fully dispatch", "LOT dispatch", PENDING],
+  dispatch: ["Fully dispatch", "LOT dispatch", "Hold", PENDING],
 };
 
 /**

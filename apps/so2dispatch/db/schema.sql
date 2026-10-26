@@ -2913,3 +2913,11 @@ UPDATE orders SET so_migrated = true
    AND (sl_no < 515
         OR COALESCE(status_override, '') IN ('Cancelled by client', 'Diverted')
         OR lower(COALESCE(NULLIF(dispatch_status, ''), 'Pending')) IN ('fully dispatch', 'lot dispatch'));
+
+-- 0033  Dispatch may hold an SO by hand: 'Hold' joins the statuses an
+-- override can take (its reason, from the Dispatch hold list, in
+-- status_reason). Idempotent.
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_override_check;
+ALTER TABLE orders ADD CONSTRAINT orders_status_override_check
+    CHECK (status_override IS NULL OR status_override IN
+           ('Pending', 'LOT dispatch', 'Fully dispatch', 'Hold', 'Cancelled by client', 'Diverted'));

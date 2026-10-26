@@ -263,6 +263,7 @@ export function BillingWorkspace({
                             status={row.dispatch_status}
                             override={row.status_override}
                             fromInvoices={row.invoice_dispatch_status}
+                            reason={row.status_reason}
                             canSet={role === "dispatch" || isCentral(role)}
                           />
                         ) : (

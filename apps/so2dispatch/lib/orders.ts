@@ -61,6 +61,7 @@ import {
   PAYMENT_HOLD_VALUE,
   coerceField,
   withoutBarePrefix,
+  canonicalZone,
   ORDER_MAKING_FIELDS,
   SO_DETAIL_COLUMNS,
   SECTION_BY_TABLE,
@@ -344,7 +345,7 @@ export async function createOrder(
         nullify(input.client_name),
         nullify(input.reps),
         nullify(input.market_type),
-        nullify(input.zone),
+        nullify(canonicalZone(input.zone)),
         nullify(input.industry_type),
         nullify(input.quotation_no),
         nullify(input.po_no),
@@ -881,7 +882,10 @@ export async function updateOrderSection(
   if (columns.length > 0) {
     const coerced = columns.map((c) =>
       // An SO No. / EC No. left at its prefix is saved as blank.
-      coerceField(fieldByColumn.get(c)!.type, c === "so_no" || c === "ec_no" ? withoutBarePrefix(c, values[c]) : values[c])
+      coerceField(
+        fieldByColumn.get(c)!.type,
+        c === "so_no" || c === "ec_no" ? withoutBarePrefix(c, values[c]) : c === "zone" ? canonicalZone(values[c]) : values[c]
+      )
     );
 
     if (table === "orders" || table === "order_items") {
@@ -2771,6 +2775,8 @@ export type BillingQueueRow = {
   dispatch_status: string | null;
   /** Set by hand (Central or Dispatch); null while it follows the invoices. */
   status_override: string | null;
+  /** Why it was set by hand (Hold: one of DISPATCH_HOLD_REASONS). */
+  status_reason?: string | null;
   /** What the invoices alone make of it. */
   invoice_dispatch_status: string | null;
   pi_docs: Row[];
@@ -2818,6 +2824,7 @@ export async function listOrdersForBilling(
             b.fr_reason,
             ${DISPATCH_STATUS} AS dispatch_status,
             NULLIF(o.status_override, '') AS status_override,
+            o.status_reason,
             COALESCE(NULLIF(o.dispatch_status, ''), 'Pending') AS invoice_dispatch_status,
             COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.seq)
                       FROM order_billing_docs d WHERE d.order_id = o.id),
@@ -3442,8 +3449,9 @@ function signOffPredicate(dept: DeptFilterKey, signOff: SignOff): string {
  * from `startAt` — so a queue that already has parameters of its own can AND
  * this in rather than growing a second dialect of the same filter.
  */
-/** The SO is on hold — by Central Visibility or by Accounts — as its hold badge says. */
-const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.accounts_hold_status, '') = 'Hold')`;
+/** The SO is on hold — by Central Visibility, by Accounts, or by Dispatch (its dispatch status Hold). */
+const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.accounts_hold_status, '') = 'Hold'
+                      OR COALESCE(o.status_override, '') = 'Hold')`;
 
 function orderListClauses(
   f: OrderListFilter,
@@ -4230,7 +4238,8 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
           }
         : {
             key: `s:${st}`,
-            label: st,
+            // Dispatch's own Hold reads as a dispatch hold, not a clearance one.
+            label: dept === "dispatch" && st === "Hold" ? "Dispatch hold" : st,
             sql: `(${deptStatusPredicate(dept, st)}) AND ${orderOpenSql("o")}`,
             params: { ...clear, dstatus: st },
             tone: toneFor(st),
@@ -4888,7 +4897,10 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
           ? done(head.payment_status)
           : pending(),
       dispatch:
-        head.dispatch_status && head.dispatch_status.toLowerCase() !== "pending"
+        // Held by Dispatch: still to go.
+        head.dispatch_status === "Hold"
+          ? pending("Hold")
+          : head.dispatch_status && head.dispatch_status.toLowerCase() !== "pending"
           ? done(head.dispatch_status)
           : pending(),
       targets: {
