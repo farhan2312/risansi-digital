@@ -97,7 +97,8 @@ type Key =
   | "value" | "depts" | "pay" | "readiness" | "planning" | "assembly" | "dispatch" | "ecs"
   | "p1" | "p2" | "p3" | "a1" | "a2" | "a3" | "slips" | "invoice" | "sent" | "docket";
 
-type Column = { key: Key; label: string; width: number; align?: "right" | "center" };
+/** group: a heading over several columns (Planning over its Lot 1, Lot 2, Lot 3). */
+type Column = { key: Key; label: string; width: number; align?: "right" | "center"; group?: string };
 
 const PUMP_OR_ALL_COLUMNS: Column[] = [
   { key: "sl", label: "Sl. No.", width: 26 },
@@ -131,12 +132,12 @@ const SPARE_COLUMNS: Column[] = [
   { key: "rep", label: "Rep", width: 52 },
   { key: "value", label: "Order Value", width: 60, align: "right" },
   { key: "pay", label: "Payment terms, PIs & payment", width: 118 },
-  { key: "p1", label: "Planning Lot 1", width: 50 },
-  { key: "p2", label: "Planning Lot 2", width: 50 },
-  { key: "p3", label: "Planning Lot 3", width: 50 },
-  { key: "a1", label: "Assembly & Packing Lot 1", width: 54 },
-  { key: "a2", label: "Assembly & Packing Lot 2", width: 54 },
-  { key: "a3", label: "Assembly & Packing Lot 3", width: 54 },
+  { key: "p1", label: "Lot 1", width: 50, group: "Planning" },
+  { key: "p2", label: "Lot 2", width: 50, group: "Planning" },
+  { key: "p3", label: "Lot 3", width: 50, group: "Planning" },
+  { key: "a1", label: "Lot 1", width: 54, group: "Assembly & Packing" },
+  { key: "a2", label: "Lot 2", width: 54, group: "Assembly & Packing" },
+  { key: "a3", label: "Lot 3", width: 54, group: "Assembly & Packing" },
   { key: "slips", label: "Packing Slips", width: 72 },
   { key: "invoice", label: "Invoice", width: 78 },
   { key: "sent", label: "Dispatch", width: 76 },
@@ -534,16 +535,35 @@ export async function buildOrdersListPdf(
 
   // ── The table ──────────────────────────────────────────────────────────
   const headerLines = COLUMNS.map((c) => wrap(c.label.toUpperCase(), bold, 6.2, c.width - PAD * 2));
-  const headH = Math.max(...headerLines.map((l) => l.length)) * 7.5 + 9;
+  // A grouped header: the group's name once across its columns, a line under
+  // it, and each column's own label below; the other labels take the full height.
+  const grouped = COLUMNS.some((c) => c.group);
+  const GROUP_H = grouped ? 12 : 0;
+  const labelRows = Math.max(...headerLines.map((l) => l.length));
+  const headH = GROUP_H + labelRows * 7.5 + 9;
   function tableHeader() {
     box(MARGIN, y, WIDTH, headH, 4, C.head);
     let cx = MARGIN;
     COLUMNS.forEach((c, i) => {
+      // A grouped column's label sits under its group; the others start at the top, spanning both.
+      const top = c.group ? y - GROUP_H - 9.5 : y - 9.5;
       headerLines[i].forEach((l, k) => {
         const w = bold.widthOfTextAtSize(l, 6.2);
-        const x = c.align === "right" ? cx + c.width - PAD - w : c.align === "center" ? cx + (c.width - w) / 2 : cx + PAD;
-        text(l, x, y - 9.5 - k * 7.5, 6.2, bold, C.white);
+        const x = c.group || c.align === "center" ? cx + (c.width - w) / 2 : c.align === "right" ? cx + c.width - PAD - w : cx + PAD;
+        text(l, x, top - k * 7.5, 6.2, bold, c.group ? C.primarySoft : C.white);
       });
+      // The group's name, once, over its first column to its last.
+      if (c.group && COLUMNS[i - 1]?.group !== c.group) {
+        let span = 0;
+        for (let j = i; j < COLUMNS.length && COLUMNS[j].group === c.group; j++) span += COLUMNS[j].width;
+        const label = c.group.toUpperCase();
+        const w = bold.widthOfTextAtSize(label, 6.6);
+        text(label, cx + (span - w) / 2, y - 9.5, 6.6, bold, C.white);
+        page.drawLine({ start: { x: cx + PAD, y: y - GROUP_H - 1 }, end: { x: cx + span - PAD, y: y - GROUP_H - 1 }, thickness: 0.6, color: C.primarySoft });
+        // A faint rule between groups and their neighbours.
+        page.drawLine({ start: { x: cx, y: y - 3 }, end: { x: cx, y: y - headH + 3 }, thickness: 0.4, color: C.slate });
+        page.drawLine({ start: { x: cx + span, y: y - 3 }, end: { x: cx + span, y: y - headH + 3 }, thickness: 0.4, color: C.slate });
+      }
       cx += c.width;
     });
     y -= headH;
