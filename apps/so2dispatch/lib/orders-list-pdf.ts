@@ -217,6 +217,25 @@ function dispatchCells(b: BillingQueueRow | undefined): Partial<Record<Key, Line
   };
 }
 
+/** Planning's Fully ready, counted only while not packed — what still waits on Assembly & Packing. */
+const READY_NOT_PACKED = "Ready, not packed";
+
+/**
+ * Where Planning has a Spare SO, for the cards: its status, with Fully ready
+ * as "Ready, not packed" until its latest lot is packed (no lots: until it has
+ * gone out); null once packed, or when closed.
+ */
+function sparePlanBucket(o: OrderListRow, status: SoDeptStatus | undefined): string | null {
+  if (CLOSED.includes(o.dispatch_status ?? "")) return null;
+  const plan = sparePlanning(o, status);
+  if (plan !== "Fully ready") return plan;
+  const lots = o.lots ?? [];
+  const packed = lots.length
+    ? !!lots[lots.length - 1].packed_date
+    : ["fully dispatch", "lot dispatch"].includes((o.dispatch_status ?? "").toLowerCase());
+  return packed ? null : READY_NOT_PACKED;
+}
+
 /** A Spare SO's planning status: its latest lot's, else what the list says. */
 function sparePlanning(o: OrderListRow, status: SoDeptStatus | undefined): string {
   const lots = o.lots ?? [];
@@ -441,7 +460,17 @@ export async function buildOrdersListPdf(
     { label: "Fully dispatched", value: String(fullN), sub: pct(fullN), color: C.green },
     { label: "LOT dispatch", value: String(lotN), sub: pct(lotN), color: C.blue },
     { label: "Dispatch pending", value: String(pendingN), sub: pct(pendingN), color: C.amber },
-    { label: "Ready / packed", value: String(readyN), sub: "Planning says ready", color: C.green },
+    ...(spare
+      ? (() => {
+          const plan = (p: string) => count((o) => sparePlanBucket(o, statuses.get(o.id)) === p);
+          return [
+            { label: "Date awaited", value: String(plan("Date awaited")), sub: "Planning", color: C.amber },
+            { label: "In plan", value: String(plan("In plan")), sub: "Planning", color: C.ink },
+            { label: "Partial ready", value: String(plan("Partial ready")), sub: "Planning", color: C.blue },
+            { label: "Fully ready, not packed", value: String(plan(READY_NOT_PACKED)), sub: "Waiting on Packing", color: C.green },
+          ];
+        })()
+      : [{ label: "Ready / packed", value: String(readyN), sub: "Planning says ready", color: C.green }]),
     { label: "Clearance hold", value: String(clearHoldN), sub: "Held by Central", color: C.red },
     { label: "Accounts hold", value: String(acctHoldN), sub: "Held by Accounts", color: C.red },
     { label: "Cancelled / Diverted", value: String(closedN), sub: pct(closedN), color: C.slate },
@@ -453,7 +482,9 @@ export async function buildOrdersListPdf(
     const x = MARGIN + i * (cardW + gap);
     box(x, y, cardW, cardH, 6, C.white, C.rule);
     page.drawRectangle({ x: x + 0.6, y: y - cardH + 8, width: 2.6, height: cardH - 16, color: c.color });
-    text(c.label.toUpperCase(), x + 10, y - 13, 6.3, bold, C.muted);
+    // A long label shrinks to fit its card.
+    const labelSize = Math.min(6.3, (6.3 * (cardW - 14)) / bold.widthOfTextAtSize(c.label.toUpperCase(), 6.3));
+    text(c.label.toUpperCase(), x + 10, y - 13, labelSize, bold, C.muted);
     const size = bold.widthOfTextAtSize(c.value, 17) > cardW - 16 ? 13 : 17;
     text(c.value, x + 10, y - 33, size, bold, c.color);
     if (c.sub) text(c.sub, x + 10, y - 45, 6.3, font, C.muted);
@@ -462,21 +493,11 @@ export async function buildOrdersListPdf(
 
   // ── Spare: a card per Rep, with their SOs and where Planning has them ──
   if (spare && n) {
-    // Fully ready counts only while not packed yet — what still waits on Assembly & Packing.
-    const READY_NOT_PACKED = "Ready, not packed";
     const PLAN = ["Date awaited", "In plan", "Partial ready", READY_NOT_PACKED];
     const byRep = new Map<string, Map<string, number>>();
     for (const o of orders) {
       if (CLOSED.includes(o.dispatch_status ?? "")) continue;
-      let plan: string | null = sparePlanning(o, statuses.get(o.id));
-      if (plan === "Fully ready") {
-        // Packed: its latest lot has a packed date (no lots: it has gone out).
-        const lots = o.lots ?? [];
-        const packed = lots.length
-          ? !!lots[lots.length - 1].packed_date
-          : ["fully dispatch", "lot dispatch"].includes((o.dispatch_status ?? "").toLowerCase());
-        plan = packed ? null : READY_NOT_PACKED;
-      }
+      const plan = sparePlanBucket(o, statuses.get(o.id));
       // An SO shared by two Reps counts for each.
       const reps = str(o.reps).split(",").map((r) => r.trim()).filter(Boolean);
       for (const rep of reps.length ? reps : ["No Rep"]) {
