@@ -4117,9 +4117,12 @@ export function pumpOrderCards(): KpiCardDef[] {
       tone: "neutral",
       measure: `(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}))`,
     },
+    // Proforma Invoice, as on the Spare cards: raised, partly, or not yet.
+    card("Proforma Invoice", "pi_full", "PI raised", deptStatusPredicate("billing", "Fully raised"), "done"),
+    card("Proforma Invoice", "pi_part", "PI partial", deptStatusPredicate("billing", "Partially raised"), "part"),
+    card("Proforma Invoice", "pi_pending", "PI pending", deptStatusPredicate("billing", PENDING), "pending"),
     card("Drawing", "drg_open", "Drawing open", drgOpen, "pending"),
     card("Drawing", "drg_closed", "Drawing closed", `${pumps("TRUE")} AND NOT ${drgOpen}`, "done"),
-    card("Drawing", "drg_overdue", "Drawing overdue", `${drgOpen} AND o.drg_readiness_date < ${TODAY_IST}`, "danger"),
     card("Purchase", "boi_open", "BOI open", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Open'`, "pending"),
     card("Purchase", "boi_closed", "BOI closed", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Closed'`, "done"),
     card("Quality", "qc_open", "QC open", `COALESCE(o.qc_required, '') <> 'No' AND ${soQcStateSql("o")} = 'Open'`, "pending"),

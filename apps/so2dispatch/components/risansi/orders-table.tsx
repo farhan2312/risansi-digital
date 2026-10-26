@@ -403,7 +403,7 @@ export function OrdersTable({
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
   // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
-  const baseCols = (pump ? 15 + pumpDeptCols : 25) + 4;
+  const baseCols = (pump ? 16 + pumpDeptCols : 25) + 4;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -435,7 +435,7 @@ export function OrdersTable({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className={`w-full ${pump ? "min-w-[2600px]" : "min-w-[2150px]"} text-sm`}>
+          <table className={`w-full ${pump ? "min-w-[2800px]" : "min-w-[2150px]"} text-sm`}>
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th rowSpan={2} className="w-8 px-2 py-3" />
@@ -450,7 +450,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3">Zone</th>
                 <th rowSpan={2} className="px-4 py-3">Bill Mode</th>
                 <th rowSpan={2} className="px-4 py-3 text-right">Order Value</th>
-                {!pump && <th rowSpan={2} className="px-4 py-3">Departments</th>}
+                <th rowSpan={2} className="px-4 py-3">Departments</th>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
                 {pump ? (
                   // A pump SO: each department's own columns.
@@ -594,7 +594,7 @@ export function OrdersTable({
                         )}
                       </td>
                       {/* The departments the SO has reached, each opening its pop-up. */}
-                      {!pump && (
+                      {(
                       <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <div className="flex min-w-[12rem] max-w-[18rem] flex-wrap gap-1">
                           {closed && (
