@@ -61,6 +61,7 @@ import {
   PAYMENT_HOLD_VALUE,
   coerceField,
   withoutBarePrefix,
+  canonicalZone,
   ORDER_MAKING_FIELDS,
   SO_DETAIL_COLUMNS,
   SECTION_BY_TABLE,
@@ -344,7 +345,7 @@ export async function createOrder(
         nullify(input.client_name),
         nullify(input.reps),
         nullify(input.market_type),
-        nullify(input.zone),
+        nullify(canonicalZone(input.zone)),
         nullify(input.industry_type),
         nullify(input.quotation_no),
         nullify(input.po_no),
@@ -881,7 +882,10 @@ export async function updateOrderSection(
   if (columns.length > 0) {
     const coerced = columns.map((c) =>
       // An SO No. / EC No. left at its prefix is saved as blank.
-      coerceField(fieldByColumn.get(c)!.type, c === "so_no" || c === "ec_no" ? withoutBarePrefix(c, values[c]) : values[c])
+      coerceField(
+        fieldByColumn.get(c)!.type,
+        c === "so_no" || c === "ec_no" ? withoutBarePrefix(c, values[c]) : c === "zone" ? canonicalZone(values[c]) : values[c]
+      )
     );
 
     if (table === "orders" || table === "order_items") {

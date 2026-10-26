@@ -1123,6 +1123,19 @@ export const ADD_ON_SPARE_FIELDS: OrderField[] = [
 /** What an FR (replacement) order's Payment Terms Remarks say. */
 export const FR_PAYMENT_TERMS_REMARKS = "REPLACEMENT";
 
+// --- Zone: one spelling each -------------------------------------------------
+// Typed, or filled from the client directory, a zone comes in any case
+// ("NORTH", "north india"); it is saved as one of these.
+export const ZONES = ["North", "South", "East", "West", "Central", "Export"];
+
+/** "NORTH" / "north india" → "North"; a zone not among ZONES is kept as typed. */
+export function canonicalZone(value: unknown): string {
+  const v = String(value ?? "").trim().replace(/\s+/g, " ");
+  if (!v) return "";
+  const bare = v.replace(/\s+india$/i, "").trim().toLowerCase();
+  return ZONES.find((z) => z.toLowerCase() === bare) ?? v;
+}
+
 // --- SO No. and EC No.: SO<yy>/1/<no.> and EC/<yy>/1/<SO no.>/<EC no.> -------
 // A new one opens with all but its own number filled in; the whole stays
 // editable, and a box left at the prefix alone is saved as blank.
