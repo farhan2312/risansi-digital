@@ -64,8 +64,6 @@ export type SpareDashboard = {
   stages: Bucket[];
   dispatchMix: Bucket[];
   intake: Bucket[];
-  age: Bucket[];
-  leadTime: Bucket[];
   zones: Bucket[];
   clients: Bucket[];
   reps: RepRow[];
@@ -76,11 +74,8 @@ export type SpareDashboard = {
     closed: number;
     /** Of them, not fully dispatched yet. */
     open: number;
-    avgAge: number | null;
     onTimeRate: number | null;
     onTimeMeasured: number;
-    avgLead: number | null;
-    medianLead: number | null;
     /** Dispatched after the delivery date, or not dispatched and past it. */
     late: number;
     dueThisWeek: number;
@@ -110,22 +105,6 @@ function stageOf(o: OrderListRow, packedLatest: boolean, packedAny: boolean): St
   if (plan === "Partial ready") return "Partial ready";
   if (plan === "In plan") return "In plan";
   return "Date awaited";
-}
-
-/** The histogram's buckets, in days. */
-const DAY_BUCKETS: { label: string; max: number }[] = [
-  { label: "0–7", max: 7 },
-  { label: "8–14", max: 14 },
-  { label: "15–30", max: 30 },
-  { label: "31–60", max: 60 },
-  { label: "61–90", max: 90 },
-  { label: "90+", max: Infinity },
-];
-function histogram(values: number[]): Bucket[] {
-  return DAY_BUCKETS.map((b, i) => ({
-    label: b.label,
-    count: values.filter((v) => v <= b.max && (i === 0 ? true : v > DAY_BUCKETS[i - 1].max)).length,
-  }));
 }
 
 /** The Spare dashboard for the Orders list's filter (types pinned to Spare by the caller). */
@@ -235,12 +214,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
     });
   }
 
-  // Every SO's age: days since its SO date.
-  const ages = sos.filter((s) => s.so_date).map((s) => days(s.so_date!, today));
-  const dispatched = live.filter((s) => s.first_dispatch && s.so_date);
-  const leads = dispatched.map((s) => days(s.so_date!, s.first_dispatch!)).filter((d) => d >= 0);
-  const sorted = [...leads].sort((a, b) => a - b);
-  const measured = dispatched.filter((s) => s.delivery_date);
+  const measured = live.filter((s) => s.first_dispatch && s.delivery_date);
   const onTime = measured.filter((s) => s.first_dispatch! <= s.delivery_date!);
   // Late: went out after its delivery date, or has not gone and is past it.
   const isLate = (s: DashboardSo) =>
@@ -305,8 +279,6 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
     stages: STAGES.map((st) => ({ label: st, count: count(sos, st) })),
     dispatchMix,
     intake: months,
-    age: histogram(ages),
-    leadTime: histogram(leads),
     zones: group((s) => s.zone, sos).sort((a, b) => b.count - a.count),
     clients: group((s) => s.client || "—", sos).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 8),
     reps: [...repMap.values()].sort((a, b) => b.sos - a.sos || a.rep.localeCompare(b.rep)),
@@ -315,11 +287,8 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
       value: sos.reduce((a, s) => a + s.value_inr, 0),
       closed: sos.length - live.length,
       open: open.length,
-      avgAge: ages.length ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : null,
       onTimeRate: measured.length ? onTime.length / measured.length : null,
       onTimeMeasured: measured.length,
-      avgLead: leads.length ? Math.round(leads.reduce((a, b) => a + b, 0) / leads.length) : null,
-      medianLead: sorted.length ? sorted[Math.floor(sorted.length / 2)] : null,
       late: live.filter(isLate).length,
       dueThisWeek: dueSoon.length,
       holds: live.filter((s) => s.holds.length).length,

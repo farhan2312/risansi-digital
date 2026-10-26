@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, Clock, Gauge, IndianRupee, PackageOpen, PauseCircle, Timer } from "lucide-react";
+import { AlertTriangle, CalendarClock, Gauge, IndianRupee, PackageOpen, PauseCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import type { RepRow, SpareDashboard, Stage } from "@/lib/spare-dashboard";
 import { ChartCard, Columns, Donut, HBars, StackBar, VizStyles, type Datum } from "./charts";
@@ -214,7 +214,7 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
       <VizStyles />
 
       {/* Performance at a glance. */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Metric
           icon={<PackageOpen className="h-5 w-5" />}
           label="SOs"
@@ -228,13 +228,6 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
           sub={`of ${m.onTimeMeasured} dispatched SOs, vs delivery date`}
           tone={m.onTimeRate === null ? "default" : m.onTimeRate >= 0.7 ? "good" : m.onTimeRate >= 0.4 ? "warn" : "bad"}
         />
-        <Metric
-          icon={<Timer className="h-5 w-5" />}
-          label="SO to first dispatch"
-          value={m.avgLead === null ? "—" : `${m.avgLead} days`}
-          sub={m.medianLead === null ? undefined : `average · median ${m.medianLead} days`}
-        />
-        <Metric icon={<Clock className="h-5 w-5" />} label="Average SO age" value={m.avgAge === null ? "—" : `${m.avgAge} days`} sub="since SO date, all SOs" />
         <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Late vs delivery date" value={String(m.late)} sub="dispatched late, or past it and not out" tone={m.late ? "bad" : "good"} />
         <Metric icon={<CalendarClock className="h-5 w-5" />} label="Due in 7 days" value={String(m.dueThisWeek)} sub="delivery date this week" tone={m.dueThisWeek ? "warn" : "default"} />
         <Metric icon={<PauseCircle className="h-5 w-5" />} label="On hold" value={String(m.holds)} sub="Clearance, Accounts or Dispatch" tone={m.holds ? "warn" : "good"} />
@@ -263,15 +256,6 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
           )}
         />
       </ChartCard>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <ChartCard title="SO age" sub="Days since SO date, all SOs">
-          <Columns data={data.age} color="var(--viz-violet)" xTitle="days" />
-        </ChartCard>
-        <ChartCard title="SO to first dispatch" sub="Days from SO date to its first dispatch, dispatched SOs">
-          <Columns data={data.leadTime} color="var(--viz-aqua)" xTitle="days" />
-        </ChartCard>
-      </div>
 
       <ChartCard title="By Rep" sub="Each Rep's SOs by stage, and how their dispatches are going">
         <RepTable reps={data.reps} />
