@@ -5303,6 +5303,7 @@ export async function fillFirstTargets(
     handover: string | null;
     qty: string | null;
     qc_required: string | null;
+    boi: string | null;
     drawing_involved: boolean;
     set_keys: string[];
     drg: boolean;
@@ -5321,6 +5322,7 @@ export async function fillFirstTargets(
             COALESCE(o.total_quantity,
                      (SELECT sum(it.quantity) FROM order_items it WHERE it.order_id = o.id))::text AS qty,
             o.qc_required,
+            o.boi,
             (${deptInvolvementSql("drawing", "o")}) AS drawing_involved,
             ARRAY(SELECT DISTINCT r.target_key FROM order_target_revisions r
                    WHERE r.order_id = o.id) AS set_keys,
@@ -5364,6 +5366,7 @@ export async function fillFirstTargets(
     so_handover_date: o.handover,
     total_quantity: o.qty,
     qc_required: o.qc_required,
+    boi: o.boi,
     drawing_involved: o.drawing_involved,
     created_on: o.created_on,
   })) {

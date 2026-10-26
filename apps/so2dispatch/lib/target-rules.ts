@@ -13,6 +13,14 @@
 //   Delivery date as per SO →  Dispatch target   = delivery − 3 days
 //                              Packing target    = delivery − 5 days
 //
+// …and a Pump (or ROLB) SO created on or after PUMP_DELIVERY_RULES_FROM:
+//   SO date                 →  Delivery date as per SO = SO date + 3 weeks (if blank)
+//   Delivery date as per SO →  Dispatch target   = delivery − 3 days
+//                              Packing target    = delivery − 5 days
+//                              Purchase target   = delivery − 7 days (BOI Yes)
+//                              Quality target    = delivery − 5 days (QC Yes)
+//   SO Hand Over date       →  Drawing target, as above
+//
 // Only a target that has never been set is filled: once a date exists, every
 // change to it is a revision someone makes on purpose, with a reason. Days are
 // calendar days.
@@ -33,6 +41,8 @@ export type TargetInputs = {
   qc_required?: unknown;
   /** Whether Drawing has any work on the order (not Spares only). */
   drawing_involved?: boolean;
+  /** Whether the SO has bought-out items — Purchase's target needs them. */
+  boi?: unknown;
   /** When the SO was created (IST date) — the Spare delivery rules apply from SPARE_DELIVERY_RULES_FROM. */
   created_on?: unknown;
 };
@@ -41,6 +51,12 @@ export type TargetInputs = {
 export const SPARE_DELIVERY_RULES_FROM = "2026-10-14";
 /** A new Spare's delivery date as per SO, from its SO date. */
 export const SPARE_DELIVERY_DAYS_FROM_SO = 14;
+/** The day the Pump delivery-date rules start. */
+export const PUMP_DELIVERY_RULES_FROM = "2026-10-27";
+/** A new Pump's delivery date as per SO, from its SO date. */
+export const PUMP_DELIVERY_DAYS_FROM_SO = 21;
+
+const isPump = (t: unknown) => ["pump", "rolb"].includes(String(t ?? "").trim().toLowerCase());
 
 /** Whether an SO is a Spare under the delivery-date rules. */
 export function spareDeliveryRules(o: Pick<TargetInputs, "order_type" | "created_on">): boolean {
@@ -48,11 +64,29 @@ export function spareDeliveryRules(o: Pick<TargetInputs, "order_type" | "created
   return String(o.order_type ?? "").trim().toLowerCase() === "spare" && !!created && created >= SPARE_DELIVERY_RULES_FROM;
 }
 
-/** A new Spare's delivery date as per SO: SO date + 2 weeks, or null when it does not apply. */
+/** Whether an SO is a Pump under the delivery-date rules. */
+export function pumpDeliveryRules(o: Pick<TargetInputs, "order_type" | "created_on">): boolean {
+  const created = isoDate(o.created_on);
+  return isPump(o.order_type) && !!created && created >= PUMP_DELIVERY_RULES_FROM;
+}
+
+/**
+ * A new SO's delivery date as per SO: SO date + 2 weeks (Spare) or + 3 weeks
+ * (Pump), or null when neither rule applies.
+ */
 export function spareDeliveryDate(o: Pick<TargetInputs, "order_type" | "created_on" | "so_date">): string | null {
   const soDate = isoDate(o.so_date);
-  return soDate && spareDeliveryRules(o) ? shift(soDate, SPARE_DELIVERY_DAYS_FROM_SO) : null;
+  if (!soDate) return null;
+  if (spareDeliveryRules(o)) return shift(soDate, SPARE_DELIVERY_DAYS_FROM_SO);
+  if (pumpDeliveryRules(o)) return shift(soDate, PUMP_DELIVERY_DAYS_FROM_SO);
+  return null;
 }
+
+/** Days before the delivery date each target falls, under the delivery-date rules (form and server alike). */
+export const DELIVERY_OFFSETS = {
+  spare: { dispatch: -3, packing: -5 },
+  pump: { dispatch: -3, packing: -5, purchase: -7, quality: -5 },
+} as const;
 
 export type AutoTarget = {
   key: TargetKey;
@@ -110,6 +144,23 @@ export function autoTargets(o: TargetInputs): AutoTarget[] {
     }
     return out;
   }
+  // A new Pump: everything but Drawing works back from the delivery date.
+  if (pumpDeliveryRules(o)) {
+    if (delivery) {
+      const from = `Delivery date as per SO (${readable(delivery)})`;
+      const d = DELIVERY_OFFSETS.pump;
+      out.push({ key: "dispatch", date: shift(delivery, d.dispatch), reason: `Auto: 3 days before ${from}, Pump` });
+      out.push({ key: "packing", date: shift(delivery, d.packing), reason: `Auto: 5 days before ${from}, Pump` });
+      if (String(o.boi ?? "").trim().toLowerCase() === "yes") {
+        out.push({ key: "purchase", date: shift(delivery, d.purchase), reason: `Auto: 7 days before ${from}, Pump` });
+      }
+      if (String(o.qc_required ?? "").trim().toLowerCase() === "yes") {
+        out.push({ key: "quality", date: shift(delivery, d.quality), reason: `Auto: 5 days before ${from}, Pump` });
+      }
+    }
+    pushDrawing(out, o);
+    return out;
+  }
   if (soDate && dispatchDays) {
     out.push({
       key: "dispatch",
@@ -127,10 +178,14 @@ export function autoTargets(o: TargetInputs): AutoTarget[] {
     }
   }
 
+  pushDrawing(out, o);
+  return out;
+}
+
+/** Drawing works to the hand-over, and only where there is something to draw; without a quantity there is no telling which allowance applies. */
+function pushDrawing(out: AutoTarget[], o: TargetInputs) {
   const handover = isoDate(o.so_handover_date);
   const qty = Number(String(o.total_quantity ?? "").trim());
-  // Drawing works to the hand-over, and only where there is something to
-  // draw; without a quantity there is no telling which allowance applies.
   if (handover && o.drawing_involved !== false && Number.isFinite(qty) && qty > 0) {
     const days = qty >= DRAWING_LARGE_QTY ? 3 : 2;
     out.push({
@@ -139,6 +194,4 @@ export function autoTargets(o: TargetInputs): AutoTarget[] {
       reason: `Auto: ${days} days after SO hand-over (${readable(handover)}), qty ${qty}`,
     });
   }
-
-  return out;
 }

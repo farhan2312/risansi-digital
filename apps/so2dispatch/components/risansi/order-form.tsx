@@ -20,7 +20,7 @@ import {
   soNoPrefix,
   numberFormatNote,
 } from "@/lib/order-schema";
-import { spareDeliveryDate, spareDeliveryRules } from "@/lib/target-rules";
+import { DELIVERY_OFFSETS, pumpDeliveryRules, spareDeliveryDate, spareDeliveryRules } from "@/lib/target-rules";
 import { NewOrderTerms, blankTermLine, termLineValues, termLinesError, type NewTermLine } from "./new-order-terms";
 import { MultiSelectField } from "./multi-select-field";
 import { QC_DOCUMENT_OPTIONS } from "@/lib/order-schema";
@@ -300,9 +300,24 @@ function withSpareDates(values: NewOrderInput, auto: Set<string>): { values: New
     next.delivery_date_as_per_so = delivery;
     nextAuto.add("delivery_date_as_per_so");
   }
-  const from = spareDeliveryRules({ order_type: next.order_type, created_on: today }) ? (next.delivery_date_as_per_so ?? "").trim() : "";
+  const spare = spareDeliveryRules({ order_type: next.order_type, created_on: today });
+  const pump = pumpDeliveryRules({ order_type: next.order_type, created_on: today });
+  const from = spare || pump ? (next.delivery_date_as_per_so ?? "").trim() : "";
+  // Spare: Dispatch and Packing; a Pump also Purchase (BOI Yes) and Quality (QC Yes).
+  const yes = (v: unknown) => String(v ?? "").trim().toLowerCase() === "yes";
+  const offsets: [string, number][] = pump
+    ? [
+        ["dispatch_target_date", DELIVERY_OFFSETS.pump.dispatch],
+        ["dispatch_team_target_date", DELIVERY_OFFSETS.pump.packing],
+        ...(yes(next.boi) ? ([["purchase_target_date", DELIVERY_OFFSETS.pump.purchase]] as [string, number][]) : []),
+        ...(yes(next.qc_required) ? ([["qc_doc_target_date", DELIVERY_OFFSETS.pump.quality]] as [string, number][]) : []),
+      ]
+    : [
+        ["dispatch_target_date", DELIVERY_OFFSETS.spare.dispatch],
+        ["dispatch_team_target_date", DELIVERY_OFFSETS.spare.packing],
+      ];
   if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
-    for (const [col, days] of [["dispatch_target_date", -3], ["dispatch_team_target_date", -5]] as const) {
+    for (const [col, days] of offsets) {
       if (own(col)) {
         next[col] = shift(from, days);
         nextAuto.add(col);
