@@ -22,8 +22,6 @@ export const STAGES = [
   "Fully dispatched",
 ] as const;
 export type Stage = (typeof STAGES)[number];
-/** The stages still open: everything before Fully dispatched. */
-export const OPEN_STAGES: Stage[] = STAGES.filter((s) => s !== "Fully dispatched");
 
 export type DashboardSo = {
   id: string;
@@ -47,8 +45,9 @@ export type Bucket = { label: string; count: number; value?: number };
 
 export type RepRow = {
   rep: string;
-  open: number;
-  openValue: number;
+  /** All the Rep's SOs (not cancelled or diverted), and their value. */
+  sos: number;
+  value: number;
   stages: Record<Stage, number>;
   noSlip: number;
   dispatchedOnTime: number;
@@ -70,13 +69,17 @@ export type SpareDashboard = {
   clients: Bucket[];
   reps: RepRow[];
   metrics: {
-    openSos: number;
-    openValue: number;
+    /** All SOs in view, not cancelled or diverted, and their value. */
+    sos: number;
+    value: number;
+    /** Of them, not fully dispatched yet. */
+    open: number;
     avgAge: number | null;
     onTimeRate: number | null;
     onTimeMeasured: number;
     avgLead: number | null;
     medianLead: number | null;
+    /** Dispatched after the delivery date, or not dispatched and past it. */
     late: number;
     dueThisWeek: number;
     holds: number;
@@ -228,12 +231,16 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
     });
   }
 
-  const ages = open.filter((s) => s.so_date).map((s) => days(s.so_date!, today));
+  // Every SO's age: days since its SO date.
+  const ages = live.filter((s) => s.so_date).map((s) => days(s.so_date!, today));
   const dispatched = live.filter((s) => s.first_dispatch && s.so_date);
   const leads = dispatched.map((s) => days(s.so_date!, s.first_dispatch!)).filter((d) => d >= 0);
   const sorted = [...leads].sort((a, b) => a - b);
   const measured = dispatched.filter((s) => s.delivery_date);
   const onTime = measured.filter((s) => s.first_dispatch! <= s.delivery_date!);
+  // Late: went out after its delivery date, or has not gone and is past it.
+  const isLate = (s: DashboardSo) =>
+    !!s.delivery_date && (s.first_dispatch ? s.first_dispatch > s.delivery_date : s.stage !== "Fully dispatched" && s.delivery_date < today);
   const lateList = open
     .filter((s) => s.delivery_date && s.delivery_date < today)
     .map((s) => ({ ...s, daysLate: days(s.delivery_date!, today) }))
@@ -265,8 +272,8 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
         repMap.get(rep) ??
         ({
           rep,
-          open: 0,
-          openValue: 0,
+          sos: 0,
+          value: 0,
           stages: Object.fromEntries(STAGES.map((st) => [st, 0])) as Record<Stage, number>,
           noSlip: 0,
           dispatchedOnTime: 0,
@@ -274,11 +281,9 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
           late: 0,
         } satisfies RepRow);
       r.stages[s.stage as Stage]++;
-      if (s.stage !== "Fully dispatched") {
-        r.open++;
-        r.openValue += s.value_inr;
-        if (s.delivery_date && s.delivery_date < today) r.late++;
-      }
+      r.sos++;
+      r.value += s.value_inr;
+      if (isLate(s)) r.late++;
       if (s.no_slip) r.noSlip++;
       if (s.first_dispatch && s.delivery_date) {
         r.dispatchedMeasured++;
@@ -293,23 +298,24 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
     options: result.options,
     kpis: result.kpis ?? [],
     asOf: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }),
-    stages: OPEN_STAGES.map((st) => ({ label: st, count: count(open, st) })),
+    stages: STAGES.map((st) => ({ label: st, count: count(live, st) })),
     dispatchMix,
     intake: months,
     age: histogram(ages),
     leadTime: histogram(leads),
-    zones: group((s) => s.zone, open).sort((a, b) => b.count - a.count),
-    clients: group((s) => s.client || "—", open).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 8),
-    reps: [...repMap.values()].sort((a, b) => b.open - a.open || a.rep.localeCompare(b.rep)),
+    zones: group((s) => s.zone, live).sort((a, b) => b.count - a.count),
+    clients: group((s) => s.client || "—", live).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 8),
+    reps: [...repMap.values()].sort((a, b) => b.sos - a.sos || a.rep.localeCompare(b.rep)),
     metrics: {
-      openSos: open.length,
-      openValue: open.reduce((a, s) => a + s.value_inr, 0),
+      sos: live.length,
+      value: live.reduce((a, s) => a + s.value_inr, 0),
+      open: open.length,
       avgAge: ages.length ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : null,
       onTimeRate: measured.length ? onTime.length / measured.length : null,
       onTimeMeasured: measured.length,
       avgLead: leads.length ? Math.round(leads.reduce((a, b) => a + b, 0) / leads.length) : null,
       medianLead: sorted.length ? sorted[Math.floor(sorted.length / 2)] : null,
-      late: lateList.length,
+      late: live.filter(isLate).length,
       dueThisWeek: dueSoon.length,
       holds: live.filter((s) => s.holds.length).length,
     },

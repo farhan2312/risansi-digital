@@ -102,7 +102,7 @@ function RepTable({ reps }: { reps: RepRow[] }) {
   const total = (s: Stage) => reps.reduce((a, r) => a + r.stages[s], 0);
   const th = "px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted";
   const group = "border-l border-card-border px-2 pt-2 pb-1 text-center text-[11px] font-semibold uppercase tracking-wider text-foreground";
-  const maxOpen = Math.max(0, ...reps.map((r) => r.open));
+  const maxSos = Math.max(0, ...reps.map((r) => r.sos));
   const maxLate = Math.max(0, ...reps.map((r) => r.late));
   const maxNoSlip = Math.max(0, ...reps.map((r) => r.noSlip));
   return (
@@ -118,8 +118,8 @@ function RepTable({ reps }: { reps: RepRow[] }) {
           </tr>
           <tr className="border-b border-card-border">
             <th className={`${th} text-left`}>Rep</th>
-            <th className={th}>Open SOs</th>
-            <th className={`${th} text-right`}>Open value</th>
+            <th className={th}>SOs</th>
+            <th className={`${th} text-right`}>Value</th>
             {PLAN_COLS.map((c, i) => (
               <th key={c.stage} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{c.label}</th>
             ))}
@@ -130,7 +130,7 @@ function RepTable({ reps }: { reps: RepRow[] }) {
             ))}
             <th className={`${th} border-l border-card-border`}>Late</th>
             <th className={th}>On time</th>
-            <th className={`${th} text-left`}>Open pipeline</th>
+            <th className={`${th} text-left`}>Pipeline</th>
           </tr>
         </thead>
         <tbody>
@@ -139,8 +139,8 @@ function RepTable({ reps }: { reps: RepRow[] }) {
             return (
               <tr key={r.rep} className="border-b border-card-border/60 hover:bg-background/60 [&>td]:border-b [&>td]:border-card-border/60">
                 <td className="whitespace-nowrap px-2 py-2 font-medium text-foreground">{r.rep}</td>
-                <CountCell n={r.open} max={maxOpen} strong />
-                <td className="px-2 py-2 text-right tabular-nums text-foreground">{r.openValue ? money(r.openValue) : "—"}</td>
+                <CountCell n={r.sos} max={maxSos} strong />
+                <td className="px-2 py-2 text-right tabular-nums text-foreground">{r.value ? money(r.value) : "—"}</td>
                 {PLAN_COLS.map((c) => (
                   <CountCell key={c.stage} n={r.stages[c.stage]} max={maxOf(c.stage)} />
                 ))}
@@ -160,7 +160,7 @@ function RepTable({ reps }: { reps: RepRow[] }) {
                   )}
                 </td>
                 <td className="px-2 py-2">
-                  <StackBar title={`${r.rep}'s open SOs`} parts={all.filter((c) => c.stage !== "Fully dispatched").map((c) => ({ label: c.label, count: r.stages[c.stage], color: STAGE_COLOR[c.stage] }))} />
+                  <StackBar title={`${r.rep}'s SOs`} parts={all.map((c) => ({ label: c.label, count: r.stages[c.stage], color: STAGE_COLOR[c.stage] }))} />
                 </td>
               </tr>
             );
@@ -169,8 +169,8 @@ function RepTable({ reps }: { reps: RepRow[] }) {
         <tfoot>
           <tr className="font-semibold">
             <td className="border-t-2 border-card-border px-2 py-2 text-foreground">All Reps</td>
-            <td className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{reps.reduce((a, r) => a + r.open, 0)}</td>
-            <td className="border-t-2 border-card-border px-2 py-2 text-right tabular-nums text-foreground">{money(reps.reduce((a, r) => a + r.openValue, 0))}</td>
+            <td className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{reps.reduce((a, r) => a + r.sos, 0)}</td>
+            <td className="border-t-2 border-card-border px-2 py-2 text-right tabular-nums text-foreground">{money(reps.reduce((a, r) => a + r.value, 0))}</td>
             {[...PLAN_COLS, ...PACK_COLS].map((c) => (
               <td key={c.stage} className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{total(c.stage)}</td>
             ))}
@@ -184,8 +184,8 @@ function RepTable({ reps }: { reps: RepRow[] }) {
         </tfoot>
       </table>
       <p className="mt-2 text-[11px] text-muted">
-        An SO shared by two Reps counts for each. Late: open SOs past their delivery date as per SO. On time: dispatched SOs whose first dispatch
-        was on or before that date.
+        All SOs except cancelled or diverted; an SO shared by two Reps counts for each. Late: dispatched after its delivery date as per SO, or not
+        dispatched and past it. On time: dispatched SOs whose first dispatch was on or before that date.
       </p>
     </div>
   );
@@ -212,7 +212,7 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
 
       {/* Performance at a glance. */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Metric icon={<PackageOpen className="h-5 w-5" />} label="Open SOs" value={String(m.openSos)} sub={`${money(m.openValue)} still to dispatch`} />
+        <Metric icon={<PackageOpen className="h-5 w-5" />} label="SOs" value={String(m.sos)} sub={`${m.open} not fully dispatched yet`} />
         <Metric
           icon={<Gauge className="h-5 w-5" />}
           label="On-time dispatch"
@@ -226,16 +226,16 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
           value={m.avgLead === null ? "—" : `${m.avgLead} days`}
           sub={m.medianLead === null ? undefined : `average · median ${m.medianLead} days`}
         />
-        <Metric icon={<Clock className="h-5 w-5" />} label="Average age, open" value={m.avgAge === null ? "—" : `${m.avgAge} days`} sub="since SO date" />
-        <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Past delivery date" value={String(m.late)} sub="open SOs, late" tone={m.late ? "bad" : "good"} />
+        <Metric icon={<Clock className="h-5 w-5" />} label="Average SO age" value={m.avgAge === null ? "—" : `${m.avgAge} days`} sub="since SO date, all SOs" />
+        <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Late vs delivery date" value={String(m.late)} sub="dispatched late, or past it and not out" tone={m.late ? "bad" : "good"} />
         <Metric icon={<CalendarClock className="h-5 w-5" />} label="Due in 7 days" value={String(m.dueThisWeek)} sub="delivery date this week" tone={m.dueThisWeek ? "warn" : "default"} />
         <Metric icon={<PauseCircle className="h-5 w-5" />} label="On hold" value={String(m.holds)} sub="Clearance, Accounts or Dispatch" tone={m.holds ? "warn" : "good"} />
-        <Metric icon={<IndianRupee className="h-5 w-5" />} label="Open order value" value={money(m.openValue)} sub={`${data.total} SOs in view`} />
+        <Metric icon={<IndianRupee className="h-5 w-5" />} label="Order value" value={money(m.value)} sub="all SOs in view, in INR" />
       </div>
 
       {/* Where the open SOs stand, and how dispatch has gone. */}
       <div className="grid gap-5 lg:grid-cols-5">
-        <ChartCard title="Open SO pipeline" sub="Every open SO at its furthest stage" className="lg:col-span-3">
+        <ChartCard title="SO pipeline" sub="Every SO at its furthest stage" className="lg:col-span-3">
           <HBars data={stages} />
         </ChartCard>
         <ChartCard title="Dispatch status" sub="All SOs in view" className="lg:col-span-2">
@@ -257,7 +257,7 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
       </ChartCard>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <ChartCard title="Age of open SOs" sub="Days since SO date">
+        <ChartCard title="SO age" sub="Days since SO date, all SOs">
           <Columns data={data.age} color="var(--viz-violet)" xTitle="days" />
         </ChartCard>
         <ChartCard title="SO to first dispatch" sub="Days from SO date to its first dispatch, dispatched SOs">
@@ -265,15 +265,15 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
         </ChartCard>
       </div>
 
-      <ChartCard title="By Rep" sub="Open SOs by stage, and how each Rep's dispatches are going">
+      <ChartCard title="By Rep" sub="Each Rep's SOs by stage, and how their dispatches are going">
         <RepTable reps={data.reps} />
       </ChartCard>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <ChartCard title="Open SOs by zone" sub="Count, with open value">
+        <ChartCard title="SOs by zone" sub="Count, with order value">
           <HBars data={zones} format={(d) => <><b>{d.count}</b> <span className="text-muted">· {money(d.value ?? 0)}</span></>} />
         </ChartCard>
-        <ChartCard title="Top clients" sub="By open order value">
+        <ChartCard title="Top clients" sub="By order value">
           <HBars data={clients} format={(d) => <b>{money(d.count)}</b>} />
         </ChartCard>
       </div>
