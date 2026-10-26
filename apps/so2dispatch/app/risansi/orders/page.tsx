@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardList, Download, FileText, Plus, Upload } from "lucide-react";
-import { listOrderDeptStatuses, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
+import { listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
 import { listPumpSummaries } from "@/lib/pump-summary";
 import { parsePage } from "@/lib/pagination";
 import {
@@ -58,9 +58,15 @@ export default async function OrdersPage({
   // view, each department's own standing on the SO (its column groups).
   const pumpView = ordersKind(params.type) === "pump";
   const pageIds = result.rows.map((r) => r.id);
-  const [deptStatuses, pumpSummaries] = await Promise.all([
+  // …and each SO's packing slips and dispatches, for their columns.
+  const [deptStatuses, pumpSummaries, dispatchDocs] = await Promise.all([
     listOrderDeptStatuses(pageIds).then((m) => Object.fromEntries(m)),
     pumpView ? listPumpSummaries(pageIds) : Promise.resolve(undefined),
+    pageIds.length
+      ? listOrdersForBilling(pageIds).then((rows) =>
+          Object.fromEntries(rows.map((r) => [r.id, { packing_slips: r.packing_slips, invoices: r.invoices }]))
+        )
+      : Promise.resolve({}),
   ]);
 
   // The export mirrors whatever the list is showing: with any filter on it
@@ -136,7 +142,7 @@ export default async function OrdersPage({
         </div>
       </div>
 
-      <OrdersTable result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} pumpSummaries={pumpSummaries} />
+      <OrdersTable result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} pumpSummaries={pumpSummaries} dispatchDocs={dispatchDocs} />
     </div>
   );
 }
