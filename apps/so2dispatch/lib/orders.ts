@@ -3539,6 +3539,10 @@ function orderListClauses(
     const dept = f.dept;
     clauses.push(`(${f.deptStatuses.map((s) => deptStatusPredicate(dept, s)).join(" OR ")})`);
   }
+  // A department status is no Only Billing SO's — save Billing's and Accounts'.
+  if (f.dept && f.dept !== "billing" && f.dept !== "accounts" && (f.deptStatuses.length || f.packingStatuses.length)) {
+    clauses.push(`NOT ${onlyBillingSql("o")}`);
+  }
   // The Orders list: several departments at once — any ticked status within
   // a department, every department ticked.
   for (const [k, statuses] of Object.entries(f.deptStatusMulti ?? {})) {
