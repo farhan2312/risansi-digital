@@ -10,6 +10,7 @@ import { isRep } from "@/lib/roles";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
 import {
   BILL_MODE_OPTIONS,
+  ONLY_BILLING,
   CLEARANCE_HOLD_REASONS,
   CLEARANCE_OPTIONS,
   PAYMENT_STATUS_OPTIONS,
@@ -75,6 +76,8 @@ export type FieldState = (typeof FIELD_STATES)[number]["value"];
 export const NOT_SET = "Not set";
 export const PAYMENT_TERM_FILTER_OPTIONS = [...PAYMENT_TERM_OPTIONS.map((o) => o.value), NOT_SET];
 export const BILL_MODE_FILTER_OPTIONS = [...BILL_MODE_OPTIONS.map((o) => o.value), NOT_SET];
+/** A department page: Billing or FR alone — an Only Billing SO reaches no department. */
+export const DEPT_BILL_MODE_FILTER_OPTIONS = BILL_MODE_OPTIONS.map((o) => o.value).filter((v) => v !== ONLY_BILLING);
 /** Accounts' payment status on the SO (the roll-up of its PIs), for the Orders list. */
 export const PAYMENT_STATUS_FILTER_OPTIONS = [...PAYMENT_STATUS_OPTIONS.map((o) => o.value), NOT_SET];
 /** Clearance: Clear or Hold; and why an SO is held. */
@@ -316,7 +319,7 @@ export function parseOrderListFilter(
         : [],
     billModes:
       !queue || BILL_MODE_FILTER_DEPTS.includes(queue)
-        ? list(get("bmode")).filter((v) => BILL_MODE_FILTER_OPTIONS.includes(v))
+        ? list(get("bmode")).filter((v) => (queue ? DEPT_BILL_MODE_FILTER_OPTIONS : BILL_MODE_FILTER_OPTIONS).includes(v))
         : [],
     paymentStatuses: !queue ? list(get("pstat")).filter((v) => PAYMENT_STATUS_FILTER_OPTIONS.includes(v)) : [],
     dispatchStatuses:

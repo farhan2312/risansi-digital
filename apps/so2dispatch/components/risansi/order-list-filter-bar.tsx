@@ -18,6 +18,7 @@ import {
   CLEARANCE_FILTER_OPTIONS,
   HOLD_REASON_FILTER_OPTIONS,
   BILL_MODE_FILTER_OPTIONS,
+  DEPT_BILL_MODE_FILTER_OPTIONS,
   PAYMENT_STATUS_FILTER_OPTIONS,
   DATE_PRESETS,
   FIELD_FILTER_FIELDS,
@@ -351,7 +352,7 @@ export function OrderListFilterBar({
           <MultiSelectFilter
             label="Bill mode"
             allLabel="Any mode"
-            options={BILL_MODE_FILTER_OPTIONS}
+            options={dept ? DEPT_BILL_MODE_FILTER_OPTIONS : BILL_MODE_FILTER_OPTIONS}
             selected={filter.billModes}
             onChange={(next) => setParams({ bmode: next })}
           />
