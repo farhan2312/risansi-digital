@@ -2,16 +2,18 @@
 
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Layers, Loader2, MessageSquare, Moon, Package, Sun, Wrench, X } from "lucide-react";
+import { CheckCircle2, Layers, Loader2, MessageSquare, Moon, Package, Plus, Sun, Wrench, X } from "lucide-react";
 import { PUMP_LIKE } from "@/lib/order-schema";
 import {
   ASSEMBLY_SHIFTS,
   PDI_CHOICES,
   ecDone,
   ecStageStatus,
+  lotAssembly,
   lotStagesError,
   pumpLotsFromEcs,
   soStatuses,
+  type AsmEntry,
   type LotStages,
   type PumpLot,
 } from "@/lib/assembly";
@@ -234,7 +236,13 @@ export function AssemblyPumpTable({
                                 <span key={l.n} className="block text-xs">
                                   <span className="font-semibold">Lot {l.n}</span>{" "}
                                   <span className="text-muted">
-                                    {l.packed_date ? "Packed" : l.assembled_date ? "Assembled" : l.status || "—"}
+                                    {l.packed_date
+                                      ? "Packed"
+                                      : l.assembled_date
+                                        ? "Assembled"
+                                        : l.ecs.some((x) => x.assembled > 0)
+                                          ? "Part assembled"
+                                          : l.status || "—"}
                                   </span>
                                   {/* Packed, but on no packing slip yet. */}
                                   {l.packed_date && !lotOnSlip(l.n, (head.so_child_rows ?? []) as Row[]) && (
@@ -341,10 +349,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /**
- * One SO's lots, as Planning made them: each lot's ECs, then its assembly
- * (day, shift, Assembled) and its packing (day, shift, PDI, Packed — once
- * assembled).
+ * One SO's lots, as Planning made them: each lot's ECs, then its assembly —
+ * EC by EC, entries picking an EC of the lot and how many, on a day and
+ * shift, ticked Assembled — and its packing as one (day, shift, PDI,
+ * Packed — once all of the lot is assembled).
  */
+type Entry = AsmEntry & { key: string };
+let entryKeys = 0;
+const newKey = () => `new-${++entryKeys}`;
+
 function LotStagesModal({
   orderId,
   soLabel,
@@ -362,33 +375,70 @@ function LotStagesModal({
 }) {
   const router = useRouter();
   const [lots, setLots] = useState<PumpLot[]>(initialLots);
+  const initialEntries = initialLots.flatMap((l) => l.entries.map((e) => ({ ...e, key: e.id })));
+  const [entries, setEntries] = useState<Entry[]>(initialEntries);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ro = !canEdit;
-  const dirty = JSON.stringify(lots) !== JSON.stringify(initialLots);
+  const dirty = JSON.stringify([lots, entries]) !== JSON.stringify([initialLots, initialEntries]);
   const set = (i: number, patch: Partial<PumpLot>) => setLots((ls) => ls.map((l, k) => (k === i ? { ...l, ...patch } : l)));
+  const setEntry = (key: string, patch: Partial<Entry>) => setEntries((es) => es.map((e) => (e.key === key ? { ...e, ...patch } : e)));
   const label = (id: string) => ecs.find((e) => e.id === id)?.label ?? "EC";
-  const so = soStatuses(ecs, lots);
+  const inLot = (l: PumpLot) => (e: Entry) => l.ecs.some((x) => x.row_id === e.lot_row_id);
+  // The lots as the entries now stand: how many of each EC are assembled, and whether all of the lot is.
+  const shown = lots.map((l) => {
+    const asm = lotAssembly(l.ecs, entries.filter(inLot(l)));
+    return { ...l, ecs: l.ecs.map((x) => ({ ...x, assembled: asm.assembled[x.id] ?? 0 })), assembled_date: asm.assembled_date };
+  });
+  const so = soStatuses(ecs, shown);
+  // How many of an EC's share of a lot no entry has picked yet.
+  const unpicked = (l: PumpLot, x: PumpLot["ecs"][number], except?: string) =>
+    x.qty - entries.filter((e) => e.lot_row_id === x.row_id && e.key !== except).reduce((t, e) => t + (Number(e.qty) || 0), 0);
+
+  function add(l: PumpLot, which: "one" | "all") {
+    const open = l.ecs.filter((x) => unpicked(l, x) > 0);
+    const pick = which === "one" ? open.slice(0, 1) : open;
+    if (pick.length === 0) return;
+    setEntries((es) => [
+      ...es,
+      ...pick.map((x) => ({
+        key: newKey(),
+        id: "",
+        lot_row_id: x.row_id,
+        item_id: x.id,
+        qty: unpicked(l, x),
+        plan_date: "",
+        shift: "",
+        assembled_date: "",
+      })),
+    ]);
+  }
 
   async function save() {
     const stages: LotStages[] = lots.map((l) => ({
       n: l.n,
-      assembly_plan_date: l.assembly_plan_date,
-      assembly_shift: l.assembly_shift,
-      assembled_date: l.assembled_date,
       packing_plan_date: l.packing_plan_date,
       packing_shift: l.packing_shift,
       pdi: l.pdi,
       packed_date: l.packed_date,
     }));
-    const problem = lotStagesError(stages);
+    const sending: AsmEntry[] = entries.map((e) => ({
+      id: e.id,
+      lot_row_id: e.lot_row_id,
+      item_id: e.item_id,
+      qty: Number(e.qty),
+      plan_date: e.plan_date,
+      shift: e.shift,
+      assembled_date: e.assembled_date,
+    }));
+    const problem = lotStagesError(initialLots, stages, sending);
     if (problem) {
       setError(problem);
       return;
     }
     setSaving(true);
     setError(null);
-    const res = await saveLotStagesAction(orderId, stages);
+    const res = await saveLotStagesAction(orderId, stages, sending);
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -400,11 +450,13 @@ function LotStagesModal({
 
   return (
     <div role="dialog" aria-modal="true" aria-label={`Lots · ${soLabel}`} className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-t-2xl bg-surface p-5 shadow-xl sm:rounded-2xl">
+      <div onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-t-2xl bg-surface p-5 shadow-xl sm:rounded-2xl">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold text-foreground">Assembly &amp; packing · {soLabel}</h2>
-            <p className="text-xs text-muted">Lot by lot, as Planning readied them: assemble a lot, then pack it.</p>
+            <p className="text-xs text-muted">
+              Lot by lot, as Planning readied them: pick the ECs of a lot and how many to assemble, then pack the lot once all of it is assembled.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Chip label={so.assembly} />
@@ -424,7 +476,11 @@ function LotStagesModal({
             {lots.map((l, i) => {
               // A lot only In plan is not ready: nothing to assemble or pack yet.
               const named = l.ecs.length > 0 && l.status !== "In plan";
-              const assembled = !!l.assembled_date;
+              const view = shown[i];
+              const assembled = !!view.assembled_date;
+              const some = view.ecs.some((x) => x.assembled > 0);
+              const mine = entries.filter(inLot(l));
+              const canAdd = !ro && named && l.ecs.some((x) => unpicked(l, x) > 0);
               return (
                 <section key={l.n} className={`rounded-xl border p-4 ${l.packed_date ? "border-emerald-200 bg-emerald-50/30" : "border-card-border"}`}>
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -433,50 +489,136 @@ function LotStagesModal({
                         Lot {l.n} <span className="font-normal text-muted">· {l.status || "—"} · ready {shortDate(l.ready_date)}</span>
                       </p>
                       <p className="text-xs text-muted">
-                        {l.ecs.length > 0 ? l.ecs.map((e) => `${label(e.id)} ×${e.qty}`).join(", ") : "No ECs named — Planning sets them in its lot form."}
+                        {l.ecs.length > 0
+                          ? view.ecs.map((x) => `${label(x.id)} ${x.assembled}/${x.qty} assembled`).join(" · ")
+                          : "No ECs named — Planning sets them in its lot form."}
                         {l.status === "In plan" ? " · In plan, not ready yet" : ""}
                       </p>
                     </div>
-                    <Chip label={l.packed_date ? "Packed" : assembled ? "Assembled" : "Pending"} />
+                    <Chip label={l.packed_date ? "Packed" : assembled ? "Assembled" : some ? "Partially assembled" : "Pending"} />
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-3 lg:grid-cols-[3fr_2fr]">
                     <div className="rounded-lg border border-card-border p-3">
-                      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-                        <Wrench className="h-3.5 w-3.5" /> Assembly
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Field label="Plan date">
-                          <input type="date" value={l.assembly_plan_date} disabled={ro || !named} onChange={(e) => set(i, { assembly_plan_date: e.target.value })} className={input} />
-                        </Field>
-                        <Field label="Shift">
-                          <select value={l.assembly_shift} disabled={ro || !named} onChange={(e) => set(i, { assembly_shift: e.target.value })} className={input}>
-                            <option value="">—</option>
-                            {ASSEMBLY_SHIFTS.map((s) => (
-                              <option key={s}>{s}</option>
-                            ))}
-                          </select>
-                        </Field>
-                        <label className="col-span-2 flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={assembled}
-                            disabled={ro || !named || !!l.packed_date}
-                            onChange={(e) => set(i, { assembled_date: e.target.checked ? l.assembly_plan_date || todayIso() : "" })}
-                            className="h-4 w-4 accent-primary"
-                          />
-                          Assembled
-                          {assembled && (
-                            <input
-                              type="date"
-                              value={l.assembled_date}
-                              disabled={ro || !!l.packed_date}
-                              onChange={(e) => set(i, { assembled_date: e.target.value })}
-                              aria-label={`Lot ${l.n} assembled on`}
-                              className={`${input} ml-auto w-40`}
-                            />
-                          )}
-                        </label>
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+                          <Wrench className="h-3.5 w-3.5" /> Assembly
+                        </p>
+                        {canAdd && (
+                          <span className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => add(l, "one")}
+                              className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-[11px] font-semibold text-foreground hover:bg-background"
+                            >
+                              <Plus className="h-3 w-3" /> Add EC
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => add(l, "all")}
+                              className="inline-flex h-7 items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 text-[11px] font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <Plus className="h-3 w-3" /> All remaining
+                            </button>
+                          </span>
+                        )}
                       </div>
+                      {mine.length === 0 ? (
+                        <p className="py-2 text-xs text-muted">
+                          {named ? "No ECs picked to assemble yet." : "Nothing to assemble until the lot is ready."}
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="hidden grid-cols-[minmax(0,2fr)_4.5rem_8.5rem_5.5rem_minmax(0,2fr)_1.75rem] gap-2 text-[11px] font-medium text-muted sm:grid">
+                            <span>EC</span>
+                            <span>Qty</span>
+                            <span>Plan date</span>
+                            <span>Shift</span>
+                            <span>Assembled</span>
+                            <span />
+                          </div>
+                          {mine.map((e) => {
+                            const x = l.ecs.find((y) => y.row_id === e.lot_row_id);
+                            const max = x ? unpicked(l, x, e.key) : 0;
+                            const lock = ro || !!l.packed_date;
+                            return (
+                              <div key={e.key} className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,2fr)_4.5rem_8.5rem_5.5rem_minmax(0,2fr)_1.75rem]">
+                                <select
+                                  value={e.lot_row_id}
+                                  disabled={lock}
+                                  aria-label="EC"
+                                  onChange={(ev) => {
+                                    const y = l.ecs.find((z) => z.row_id === ev.target.value);
+                                    if (y) setEntry(e.key, { lot_row_id: y.row_id, item_id: y.id, qty: Math.max(1, Math.min(Number(e.qty) || 1, unpicked(l, y, e.key))) });
+                                  }}
+                                  className={input}
+                                >
+                                  {l.ecs.map((y) => (
+                                    <option key={y.row_id} value={y.row_id}>
+                                      {label(y.id)} (of {y.qty})
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={max}
+                                  value={e.qty || ""}
+                                  disabled={lock}
+                                  aria-label="Quantity"
+                                  onChange={(ev) => setEntry(e.key, { qty: Number(ev.target.value) })}
+                                  className={input}
+                                />
+                                <input
+                                  type="date"
+                                  value={e.plan_date}
+                                  disabled={lock}
+                                  aria-label="Plan date"
+                                  onChange={(ev) => setEntry(e.key, { plan_date: ev.target.value })}
+                                  className={input}
+                                />
+                                <select value={e.shift} disabled={lock} aria-label="Shift" onChange={(ev) => setEntry(e.key, { shift: ev.target.value })} className={input}>
+                                  <option value="">—</option>
+                                  {ASSEMBLY_SHIFTS.map((s) => (
+                                    <option key={s}>{s}</option>
+                                  ))}
+                                </select>
+                                <span className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!e.assembled_date}
+                                    disabled={lock}
+                                    aria-label="Assembled"
+                                    onChange={(ev) => setEntry(e.key, { assembled_date: ev.target.checked ? e.plan_date || todayIso() : "" })}
+                                    className="h-4 w-4 accent-primary"
+                                  />
+                                  {e.assembled_date ? (
+                                    <input
+                                      type="date"
+                                      value={e.assembled_date}
+                                      disabled={lock}
+                                      aria-label="Assembled on"
+                                      onChange={(ev) => setEntry(e.key, { assembled_date: ev.target.value })}
+                                      className={input}
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-muted">Not yet</span>
+                                  )}
+                                </span>
+                                {!lock && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEntries((es) => es.filter((y) => y.key !== e.key))}
+                                    aria-label="Remove"
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-rose-600"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     <div className={`rounded-lg border border-card-border p-3 ${assembled ? "" : "opacity-60"}`}>
                       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -511,7 +653,7 @@ function LotStagesModal({
                             className="h-4 w-4 accent-primary"
                           />
                           Packed
-                          {!assembled && <span className="text-xs text-muted">(once assembled)</span>}
+                          {!assembled && <span className="text-xs text-muted">(once all of the lot is assembled)</span>}
                           {l.packed_date && (
                             <input
                               type="date"

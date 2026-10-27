@@ -2694,7 +2694,11 @@ export async function listItemsForSection(
       ? `, COALESCE((SELECT jsonb_agg(to_jsonb(rl) || jsonb_build_object('plan_moves',
                        (SELECT count(*) FROM order_packing_plan_history ph
                          WHERE ph.lot_id = rl.id AND ph.prev_plan_date IS NOT NULL
-                           AND ph.plan_date IS DISTINCT FROM ph.prev_plan_date)) ORDER BY rl.seq)
+                           AND ph.plan_date IS DISTINCT FROM ph.prev_plan_date),
+                       -- A pump lot's assembly entries, EC by EC.
+                       'asm', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', la.id, 'qty', la.qty,
+                         'plan_date', la.plan_date, 'shift', la.shift, 'assembled_date', la.assembled_date) ORDER BY la.seq)
+                       FROM order_lot_assembly la WHERE la.lot_row_id = rl.id), '[]'::jsonb)) ORDER BY rl.seq)
                      FROM order_ready_lots rl WHERE rl.item_id = it.id),
                   '[]'::jsonb) AS ready_lots${
            table === "order_planning"

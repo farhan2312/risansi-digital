@@ -116,8 +116,11 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
             (SELECT to_char(max(pl.planning_readiness_date), 'YYYY-MM-DD')
                FROM order_items s JOIN order_planning pl ON pl.item_id = s.id WHERE s.order_id = o.id) AS planning_readiness,
             ${soStageStatusSql("assembly", "o")} AS assembly_status,
-            (SELECT to_char(min(rl.assembly_plan_date), 'YYYY-MM-DD') ${lots} AND rl.assembled_date IS NULL) AS assembly_next,
-            (SELECT to_char(max(rl.assembled_date), 'YYYY-MM-DD') ${lots}) AS assembly_last,
+            -- Assembly goes by its entries, EC by EC.
+            (SELECT to_char(min(la.plan_date), 'YYYY-MM-DD') FROM order_lot_assembly la JOIN order_items s ON s.id = la.item_id
+              WHERE s.order_id = o.id AND la.assembled_date IS NULL) AS assembly_next,
+            (SELECT to_char(max(la.assembled_date), 'YYYY-MM-DD') FROM order_lot_assembly la JOIN order_items s ON s.id = la.item_id
+              WHERE s.order_id = o.id) AS assembly_last,
             ${soStageStatusSql("packing", "o")} AS packing_status,
             (SELECT to_char(min(rl.packing_plan_date), 'YYYY-MM-DD') ${lots} AND rl.packed_date IS NULL) AS packing_next,
             (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${lots}) AS packing_last,

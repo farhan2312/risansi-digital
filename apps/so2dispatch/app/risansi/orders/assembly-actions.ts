@@ -9,7 +9,15 @@ import { emitNotification } from "@/lib/notifications";
 import { getOrderLabel, saveLotPacking, syncPumpPackedDate } from "@/lib/orders";
 import { canEditSection } from "@/lib/roles";
 import { PUMP_LIKE } from "@/lib/order-schema";
-import { STAGE_WORDS, lotStagesError, pumpLotsFromEcs, soStatuses, type LotStages } from "@/lib/assembly";
+import {
+  STAGE_WORDS,
+  lotAssembly,
+  lotStagesError,
+  pumpLotsFromEcs,
+  soStatuses,
+  type AsmEntry,
+  type LotStages,
+} from "@/lib/assembly";
 
 export type AssemblyResult = { ok: true } | { ok: false; error: string };
 
@@ -20,7 +28,10 @@ type EcLots = { id: string; ec_no: string | null; quantity: number | null; ready
 async function soEcLots(orderId: string): Promise<EcLots[]> {
   const r = await query<EcLots>(
     `SELECT it.id, it.ec_no, it.quantity,
-            COALESCE((SELECT jsonb_agg(to_jsonb(rl) ORDER BY rl.seq) FROM order_ready_lots rl WHERE rl.item_id = it.id),
+            COALESCE((SELECT jsonb_agg(to_jsonb(rl) || jsonb_build_object('asm', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', la.id, 'qty', la.qty,
+                         'plan_date', la.plan_date, 'shift', la.shift, 'assembled_date', la.assembled_date) ORDER BY la.seq)
+                       FROM order_lot_assembly la WHERE la.lot_row_id = rl.id), '[]'::jsonb)) ORDER BY rl.seq)
+                        FROM order_ready_lots rl WHERE rl.item_id = it.id),
                      '[]'::jsonb) AS ready_lots
        FROM order_items it
       WHERE it.order_id = $1 AND it.item_type = ANY($2)
@@ -37,58 +48,99 @@ const statusesOf = (ecs: EcLots[]) =>
   );
 
 /**
- * Assembly & Packing on a pump SO's lots: each lot's assembly day, shift and
- * the day it was assembled, then its packing day, shift, PDI and the day it
- * was packed — written to every EC's row of that lot. A lot is packed only
- * once it is assembled.
+ * Assembly & Packing on a pump SO's lots. Assembly, EC by EC: the entries
+ * picking an EC of a lot and how many of it, on a day and shift, ticked
+ * Assembled with the day — added, changed or removed as sent. Packing, lot
+ * by lot once all of the lot is assembled: its day, shift, PDI and the day it
+ * was packed, written to every EC's row of the lot.
  */
-export async function saveLotStagesAction(orderId: string, lots: LotStages[]): Promise<AssemblyResult> {
+export async function saveLotStagesAction(orderId: string, lots: LotStages[], entries: AsmEntry[]): Promise<AssemblyResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   if (!canEditSection(user.role, "order_assembly_dispatch")) {
     return { ok: false, error: "Only Assembly & Packing can record assembly and packing." };
   }
   if (!UUID_RE.test(orderId)) return { ok: false, error: "SO not found." };
+  const t = (v: unknown) => String(v ?? "").trim();
   const clean: LotStages[] = (Array.isArray(lots) ? lots : []).map((l) => ({
     n: Math.floor(Number(l.n)) || 0,
-    assembly_plan_date: String(l.assembly_plan_date ?? "").trim(),
-    assembly_shift: String(l.assembly_shift ?? "").trim(),
-    assembled_date: String(l.assembled_date ?? "").trim(),
-    packing_plan_date: String(l.packing_plan_date ?? "").trim(),
-    packing_shift: String(l.packing_shift ?? "").trim(),
-    pdi: String(l.pdi ?? "").trim(),
-    packed_date: String(l.packed_date ?? "").trim(),
+    packing_plan_date: t(l.packing_plan_date),
+    packing_shift: t(l.packing_shift),
+    pdi: t(l.pdi),
+    packed_date: t(l.packed_date),
   }));
-  const problem = lotStagesError(clean);
-  if (problem) return { ok: false, error: problem };
+  const sent: AsmEntry[] = (Array.isArray(entries) ? entries : []).map((e) => ({
+    id: UUID_RE.test(t(e.id)) ? t(e.id) : "",
+    lot_row_id: t(e.lot_row_id),
+    item_id: t(e.item_id),
+    qty: Number(e.qty),
+    plan_date: t(e.plan_date),
+    shift: t(e.shift),
+    assembled_date: t(e.assembled_date),
+  }));
 
   try {
     const ecs = await soEcLots(orderId);
+    const before = pumpLotsFromEcs(ecs as unknown as Record<string, unknown>[]);
+    const problem = lotStagesError(before, clean, sent);
+    if (problem) return { ok: false, error: problem };
     const was = statusesOf(ecs);
     const actor = { id: user.id, role: user.role };
+    const lotOf = (rowId: string) => before.find((l) => l.ecs.some((x) => x.row_id === rowId));
+    const existing = new Map(before.flatMap((l) => l.entries).map((e) => [e.id, e]));
+    if (sent.some((e) => e.id && !existing.has(e.id))) return { ok: false, error: "An assembly entry was changed elsewhere — reopen the lots." };
+
+    // A plan's day or shift moved: kept in the plan history, as a lot's packing is.
+    const history = (e: AsmEntry, prev: AsmEntry | null) =>
+      query(
+        `INSERT INTO order_packing_plan_history
+           (item_id, lot_id, lot_no, plan_date, prev_plan_date, shift, prev_shift, changed_by, changed_by_role, stage)
+         VALUES ($1, $2, $3, NULLIF($4, '')::date, NULLIF($5, '')::date, NULLIF($6, ''), NULLIF($7, ''), $8, $9, 'assembly')`,
+        [e.item_id, e.lot_row_id, lotOf(e.lot_row_id)?.n ?? 0, e.plan_date, prev?.plan_date ?? "", e.shift, prev?.shift ?? "", user.id, user.role]
+      );
+    for (const e of sent) {
+      const prev = e.id ? existing.get(e.id)! : null;
+      if (prev) {
+        await query(
+          `UPDATE order_lot_assembly
+              SET qty = $2, plan_date = NULLIF($3, '')::date, shift = NULLIF($4, ''),
+                  assembled_date = NULLIF($5, '')::date, updated_at = now()
+            WHERE id = $1`,
+          [e.id, e.qty, e.plan_date, e.shift, e.assembled_date]
+        );
+        if (prev.plan_date !== e.plan_date || prev.shift !== e.shift) await history(e, prev);
+      } else {
+        await query(
+          `INSERT INTO order_lot_assembly (lot_row_id, item_id, qty, plan_date, shift, assembled_date)
+           VALUES ($1, $2, $3, NULLIF($4, '')::date, NULLIF($5, ''), NULLIF($6, '')::date)`,
+          [e.lot_row_id, e.item_id, e.qty, e.plan_date, e.shift, e.assembled_date]
+        );
+        if (e.plan_date) await history(e, null);
+      }
+    }
+    const kept = new Set(sent.map((e) => e.id).filter(Boolean));
+    const gone = [...existing.keys()].filter((id) => !kept.has(id));
+    if (gone.length) await query(`DELETE FROM order_lot_assembly WHERE id = ANY($1::uuid[])`, [gone]);
+
+    // Each lot's summary on every EC's row of it: the next planned day and
+    // shift, and its assembled day once all of it is.
+    for (const l of before) {
+      const asm = lotAssembly(l.ecs, sent.filter((e) => l.ecs.some((x) => x.row_id === e.lot_row_id)));
+      const rows = l.ecs.map((x) => x.row_id).filter((id) => UUID_RE.test(id));
+      if (rows.length === 0) continue;
+      await query(
+        `UPDATE order_ready_lots
+            SET assembly_plan_date = NULLIF($2, '')::date, assembly_shift = NULLIF($3, ''), assembled_date = NULLIF($4, '')::date
+          WHERE id = ANY($1::uuid[])`,
+        [rows, asm.plan_date, asm.shift, asm.assembled_date]
+      );
+    }
+
     for (const ec of ecs) {
       const packing: { id: string; packed_date: string; packing_plan_date: string; packing_shift: string; pdi: string }[] = [];
       for (const l of clean) {
         const row = ec.ready_lots[l.n - 1];
         if (!row || !UUID_RE.test(String(row.id))) continue;
-        const wasDate = String(row.assembly_plan_date ?? "").slice(0, 10);
-        const wasShift = String(row.assembly_shift ?? "");
-        if (wasDate !== l.assembly_plan_date || wasShift !== l.assembly_shift) {
-          await query(
-            `INSERT INTO order_packing_plan_history
-               (item_id, lot_id, lot_no, plan_date, prev_plan_date, shift, prev_shift, changed_by, changed_by_role, stage)
-             VALUES ($1, $2, $3, NULLIF($4, '')::date, NULLIF($5, '')::date, NULLIF($6, ''), NULLIF($7, ''), $8, $9, 'assembly')`,
-            [ec.id, row.id, l.n, l.assembly_plan_date, wasDate, l.assembly_shift, wasShift, user.id, user.role]
-          );
-        }
-        await query(
-          `UPDATE order_ready_lots
-              SET assembly_plan_date = NULLIF($2, '')::date,
-                  assembly_shift = NULLIF($3, ''),
-                  assembled_date = NULLIF($4, '')::date
-            WHERE id = $1`,
-          [row.id, l.assembly_plan_date, l.assembly_shift, l.assembled_date]
-        );
         packing.push({
           id: String(row.id),
           packed_date: l.packed_date,
