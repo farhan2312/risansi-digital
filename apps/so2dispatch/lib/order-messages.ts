@@ -371,43 +371,100 @@ export type ChatSummary = {
   last_author: string;
 };
 
+/** One page of the All chats list, and the unread total across all of it. */
+export type ChatPage = { chats: ChatSummary[]; hasMore: boolean; unread: number };
+
 /**
  * Every conversation the viewer is in, across all SOs, latest first — the
- * All chats list. Read state is the same as the SO's own chat.
+ * All chats list, a page at a time. Read state is the same as the SO's own
+ * chat. A search matches the SO No., client, the department or any message
+ * (or its author); `peerHits` are the departments whose name matched.
  */
 export async function listAllChats(
   viewer: { id: string; role: string },
-  limit = 500
-): Promise<ChatSummary[]> {
-  if (peersFor(viewer.role).length === 0) return [];
-  const { param, params } = withRole(viewer, [viewer.id, limit]);
+  opts: {
+    offset?: number;
+    limit?: number;
+    search?: string;
+    peerHits?: string[];
+    unreadOnly?: boolean;
+    /** A Rep: only SOs whose Rep is one of these. */
+    repNames?: string[];
+    /** An Order Making SO member: only the SOs assigned to them. */
+    assigneeId?: string;
+  } = {}
+): Promise<ChatPage> {
+  const peers = peersFor(viewer.role);
+  if (peers.length === 0) return { chats: [], hasMore: false, unread: 0 };
+  const limit = Math.min(Math.max(opts.limit ?? 40, 1), 200);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const search = (opts.search ?? "").trim();
+  const params: unknown[] = [viewer.id, peers];
+  const add = (v: unknown) => `$${params.push(v)}`;
+  const scope: string[] = [];
+  if (opts.repNames) scope.push(`lower(btrim(COALESCE(o.reps, ''))) = ANY(${add(opts.repNames.map((n) => n.trim().toLowerCase()))}::text[])`);
+  if (opts.assigneeId) scope.push(`o.so_assignee_id = ${add(opts.assigneeId)}`);
+  const like = search ? add(`%${search.replace(/[\%_]/g, (c) => `\${c}`)}%`) : "";
+  const hits = search ? add(opts.peerHits ?? []) : "";
+  const outer: string[] = [];
+  if (search) {
+    outer.push(`(c.hit OR c.so_no ILIKE ${like} OR c.client_name ILIKE ${like} OR c.peer = ANY(${hits}::text[]))`);
+  }
+  if (opts.unreadOnly) outer.push("c.unread > 0");
+  const lim = add(limit + 1);
+  const off = add(offset);
+  const { param, params: all } = withRole(viewer, params);
   const peerOf = peerOfSql(viewer.role, param);
-  const result = await query<ChatSummary>(
-    `SELECT m.order_id, o.so_no, o.sl_no::int AS sl_no, o.client_name, o.reps,
-            o.so_assignee_id::text AS so_assignee_id,
-            ${peerOf} AS peer,
-            COUNT(*)::int AS total,
-            COUNT(*) FILTER (
-              WHERE m.author_id <> $1
-                AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
-            )::int AS unread,
-            to_char(MAX(m.created_at) AT TIME ZONE 'UTC', ${ISO}) AS last_at,
-            (ARRAY_AGG(m.body ORDER BY m.created_at DESC))[1] AS last_body,
-            (ARRAY_AGG(m.author_name ORDER BY m.created_at DESC))[1] AS last_author
-       FROM order_messages m
-       JOIN orders o ON o.id = m.order_id
-       LEFT JOIN order_message_reads r
-              ON r.user_id = $1
-             AND r.order_id = m.order_id
-             AND r.dept_role = ${peerOf}
-      WHERE ${visibleSql(viewer.role, param)}
-      GROUP BY m.order_id, o.so_no, o.sl_no, o.client_name, o.reps, o.so_assignee_id, 7
-      ORDER BY MAX(m.created_at) DESC
-      LIMIT $2`,
-    params
+  const result = await query<ChatSummary & { all_unread: number }>(
+    `WITH c AS (
+       SELECT m.order_id, o.so_no, o.sl_no::int AS sl_no, o.client_name, o.reps,
+              o.so_assignee_id::text AS so_assignee_id,
+              ${peerOf} AS peer,
+              COUNT(*)::int AS total,
+              COUNT(*) FILTER (
+                WHERE m.author_id <> $1
+                  AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
+              )::int AS unread,
+              MAX(m.created_at) AS last_ts,
+              to_char(MAX(m.created_at) AT TIME ZONE 'UTC', ${ISO}) AS last_at,
+              (ARRAY_AGG(m.body ORDER BY m.created_at DESC))[1] AS last_body,
+              (ARRAY_AGG(m.author_name ORDER BY m.created_at DESC))[1] AS last_author,
+              ${search ? `bool_or(m.body ILIKE ${like} OR m.author_name ILIKE ${like})` : "false"} AS hit
+         FROM order_messages m
+         JOIN orders o ON o.id = m.order_id
+         LEFT JOIN order_message_reads r
+                ON r.user_id = $1
+               AND r.order_id = m.order_id
+               AND r.dept_role = ${peerOf}
+        WHERE ${visibleSql(viewer.role, param)}
+          ${scope.map((s) => `AND ${s}`).join(" ")}
+        GROUP BY m.order_id, o.so_no, o.sl_no, o.client_name, o.reps, o.so_assignee_id, 7
+     ),
+     -- Only conversations the viewer may still open.
+     v AS (SELECT * FROM c WHERE c.peer = ANY($2::text[]))
+     SELECT c.*, (SELECT COALESCE(SUM(unread), 0) FROM v)::int AS all_unread
+       FROM v c
+      ${outer.length ? `WHERE ${outer.join(" AND ")}` : ""}
+      ORDER BY c.last_ts DESC, c.order_id, c.peer
+      LIMIT ${lim} OFFSET ${off}`,
+    all
   );
-  // Only conversations the viewer may still open.
-  return result.rows.filter((r) => canUsePeer(viewer.role, r.peer));
+  const rows = result.rows;
+  return {
+    chats: rows.slice(0, limit),
+    hasMore: rows.length > limit,
+    // A filtered page may be empty while other chats are unread.
+    unread: rows[0]?.all_unread ?? (outer.length || offset ? await listAllChatsUnread(viewer, opts) : 0),
+  };
+}
+
+/** The unread total alone, when a page came back empty. */
+async function listAllChatsUnread(
+  viewer: { id: string; role: string },
+  opts: { repNames?: string[]; assigneeId?: string }
+): Promise<number> {
+  const page = await listAllChats(viewer, { repNames: opts.repNames, assigneeId: opts.assigneeId, limit: 1 });
+  return page.unread;
 }
 
 /** How many unread discussion entries the viewer has, in total. */

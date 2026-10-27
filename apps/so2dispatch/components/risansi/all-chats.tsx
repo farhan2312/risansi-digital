@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, MessagesSquare, Search, X } from "lucide-react";
-import { isCentral, isCrm, roleLabel } from "@/lib/roles";
+import { ALL_ROLES, isCentral, isCrm, roleLabel } from "@/lib/roles";
 import type { ChatSummary } from "@/lib/order-messages";
 import { allChatsAction } from "@/app/risansi/orders/thread-actions";
 import { OrderThreadModal } from "./order-thread-modal";
@@ -10,7 +10,8 @@ import { stamp } from "./discussion-bell";
 
 /**
  * "All chats", above a list's filters: every SO conversation the user is in,
- * latest first and grouped by SO, with what is unread. A click opens that
+ * latest first and grouped by SO, with what is unread. A page at a time, the
+ * next loading as the list is scrolled to its end. A click opens that
  * conversation over the page.
  */
 export function AllChatsButton() {
@@ -18,26 +19,67 @@ export function AllChatsButton() {
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [unread, setUnread] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  // The search as sent, a moment after typing stops.
+  const [search, setSearch] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [chat, setChat] = useState<{ orderId: string; soLabel: string; peer: string } | null>(null);
+  const sentinel = useRef<HTMLDivElement>(null);
+  // Which request is current: a newer search or reload drops an older answer.
+  const seq = useRef(0);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await allChatsAction();
-    setLoading(false);
-    if (res.ok) {
-      setRole(res.role);
-      setChats(res.chats);
-      setError(null);
-    } else setError(res.error);
-  }, []);
-
-  // Loaded once for the unread count on the button.
   useEffect(() => {
-    load();
-  }, [load]);
+    const t = setTimeout(() => setSearch(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  /** The first page afresh, or (more) the next one after what is loaded. */
+  const load = useCallback(
+    async (more = false) => {
+      const id = more ? seq.current : ++seq.current;
+      setLoading(true);
+      const term = search.toLowerCase();
+      const res = await allChatsAction({
+        offset: more ? (chats?.length ?? 0) : 0,
+        search,
+        // Departments whose name the search matches.
+        peerHits: term ? ALL_ROLES.filter((r) => roleLabel(r).toLowerCase().includes(term)) : [],
+        unreadOnly,
+      });
+      if (id !== seq.current) return;
+      setLoading(false);
+      if (res.ok) {
+        setRole(res.role);
+        setChats((prev) => (more ? [...(prev ?? []), ...res.chats] : res.chats));
+        setHasMore(res.hasMore);
+        setUnread(res.unread);
+        setError(null);
+      } else setError(res.error);
+    },
+    [search, unreadOnly, chats]
+  );
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  // The first page — at once for the unread count on the button, and again
+  // whenever the search or Unread only changes.
+  useEffect(() => {
+    loadRef.current(false);
+  }, [search, unreadOnly]);
+
+  // The next page as the end of the list scrolls into view.
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!open || !el || !hasMore) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !loading) loadRef.current(true);
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [open, hasMore, loading, chats]);
 
   useEffect(() => {
     if (!open || chat) return;
@@ -50,26 +92,13 @@ export function AllChatsButton() {
   const ownPeer = role ? (isCentral(role) ? "central_visibility" : role === "rep_manager" ? "rep" : role) : null;
   const peerName = (p: string) => (p === ownPeer ? `${roleLabel(p)} (own team)` : roleLabel(p));
 
-  const unread = (chats ?? []).reduce((s, c) => s + c.unread, 0);
-
   // Grouped by SO, in the order their latest message came.
+  // (A page can end mid-SO: the next page's lines join its group.)
   const groups = useMemo(() => {
-    const term = q.trim().toLowerCase();
     const out = new Map<string, ChatSummary[]>();
-    for (const c of chats ?? []) {
-      if (unreadOnly && !c.unread) continue;
-      if (
-        term &&
-        ![c.so_no, String(c.sl_no), c.client_name, c.last_body, c.last_author, roleLabel(c.peer)].some((v) =>
-          String(v ?? "").toLowerCase().includes(term)
-        )
-      ) {
-        continue;
-      }
-      out.set(c.order_id, [...(out.get(c.order_id) ?? []), c]);
-    }
+    for (const c of chats ?? []) out.set(c.order_id, [...(out.get(c.order_id) ?? []), c]);
     return [...out.values()];
-  }, [chats, q, unreadOnly]);
+  }, [chats]);
 
   // CRM only reads: no chats.
   if (role && isCrm(role)) return null;
@@ -80,7 +109,7 @@ export function AllChatsButton() {
         type="button"
         onClick={() => {
           setOpen(true);
-          load();
+          load(false);
         }}
         className="relative inline-flex h-9 items-center gap-1.5 rounded-lg border border-card-border bg-surface px-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-background"
       >
@@ -148,11 +177,11 @@ export function AllChatsButton() {
             <div className="min-h-[12rem] flex-1 overflow-y-auto">
               {error ? (
                 <p className="px-5 py-8 text-center text-sm text-danger">{error}</p>
-              ) : chats === null ? (
+              ) : chats === null || (loading && !chats.length) ? (
                 <p className="px-5 py-8 text-center text-sm text-muted">Loading…</p>
               ) : groups.length === 0 ? (
                 <p className="px-5 py-8 text-center text-sm text-muted">
-                  {chats.length ? "No chats match." : "No chats yet."}
+                  {search || unreadOnly ? "No chats match." : "No chats yet."}
                 </p>
               ) : (
                 groups.map((g) => {
@@ -191,6 +220,13 @@ export function AllChatsButton() {
                   );
                 })
               )}
+              {/* Reaching this loads the next page. */}
+              {hasMore && !error && (
+                <div ref={sentinel} className="flex justify-center py-3 text-xs text-muted">
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Loading more…
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -205,7 +241,7 @@ export function AllChatsButton() {
           onClose={() => {
             setChat(null);
             // What was read there is read here too.
-            load();
+            load(false);
           }}
         />
       )}

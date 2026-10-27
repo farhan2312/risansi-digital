@@ -18,7 +18,7 @@ import {
   markConversationRead,
   sidesFor,
   MAX_MESSAGE_LENGTH,
-  type ChatSummary,
+  type ChatPage,
   type ConversationSummary,
   type DelayLogReport,
   type InboxEntry,
@@ -176,24 +176,29 @@ export async function delayLogsAction(
 }
 
 export type AllChatsResult =
-  | { ok: true; role: string; chats: ChatSummary[] }
+  | ({ ok: true; role: string } & ChatPage)
   | { ok: false; error: string };
 
-/** Every SO conversation the user is in, latest first — the All chats list. */
-export async function allChatsAction(): Promise<AllChatsResult> {
+/**
+ * One page of every SO conversation the user is in, latest first — the All
+ * chats list. `peerHits`: the departments whose name the search matched.
+ */
+export async function allChatsAction(
+  opts: { offset?: number; search?: string; peerHits?: string[]; unreadOnly?: boolean } = {}
+): Promise<AllChatsResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   try {
-    const chats = await listAllChats(user);
-    // A Rep: their own SOs only; an Order Making SO member: the SOs assigned to them.
-    const mine = chats.filter((c) =>
-      isRep(user.role)
-        ? repMatches(c.reps, user.rep_names)
-        : user.role === "order_making_so"
-          ? c.so_assignee_id === user.id
-          : true
-    );
-    return { ok: true, role: user.role, chats: mine };
+    const page = await listAllChats(user, {
+      offset: opts.offset,
+      search: String(opts.search ?? "").slice(0, 100),
+      peerHits: (opts.peerHits ?? []).filter((p) => typeof p === "string").slice(0, 30),
+      unreadOnly: !!opts.unreadOnly,
+      // A Rep: their own SOs only; an Order Making SO member: the SOs assigned to them.
+      repNames: isRep(user.role) ? (user.rep_names ?? []) : undefined,
+      assigneeId: user.role === "order_making_so" ? user.id : undefined,
+    });
+    return { ok: true, role: user.role, ...page };
   } catch (error) {
     console.error("allChatsAction failed:", error);
     return { ok: false, error: "Could not load the chats." };
