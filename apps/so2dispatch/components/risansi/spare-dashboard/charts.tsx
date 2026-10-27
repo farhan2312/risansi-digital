@@ -15,14 +15,14 @@ export function VizStyles() {
         --viz-blue: #2a78d6; --viz-orange: #eb6834; --viz-aqua: #1baf7a; --viz-yellow: #eda100;
         --viz-violet: #6250d6; --viz-red: #e34948; --viz-green: #008300; --viz-gray: #b4b9c2;
         --viz-seq-1: #b7d3f6; --viz-seq-2: #86b6ef; --viz-seq-3: #5598e7; --viz-seq-4: #2a78d6;
-        --viz-seq-5: #1c5cab; --viz-seq-6: #104281;
+        --viz-seq-5: #1c5cab; --viz-seq-6: #104281; --viz-seq-7: #0b3263; --viz-seq-8: #072447;
         --viz-grid: #e6e8ec; --viz-axis: #c9cdd4; --viz-text: #52514e; --viz-ink: #0b0b0b; --viz-surface: #ffffff;
       }
       .dark .viz {
         --viz-blue: #3987e5; --viz-orange: #d95926; --viz-aqua: #199e70; --viz-yellow: #c98500;
         --viz-violet: #9085e9; --viz-red: #e66767; --viz-green: #2f9e2f; --viz-gray: #5b6170;
         --viz-seq-1: #184f95; --viz-seq-2: #1c5cab; --viz-seq-3: #256abf; --viz-seq-4: #3987e5;
-        --viz-seq-5: #6da7ec; --viz-seq-6: #9ec5f4;
+        --viz-seq-5: #6da7ec; --viz-seq-6: #9ec5f4; --viz-seq-7: #c3dbf8; --viz-seq-8: #e1edfc;
         --viz-grid: #2c2f36; --viz-axis: #3d414a; --viz-text: #c3c2b7; --viz-ink: #f0efec; --viz-surface: #1a1d23;
       }
     `}</style>

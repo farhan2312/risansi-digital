@@ -7,11 +7,13 @@ import { DEPARTMENT_NAV } from "@/components/risansi/nav-config";
 import { canSeeCentralDashboard, canViewAll, canViewDepartment, roleLabel } from "@/lib/roles";
 import { listRemindersForRole } from "@/lib/reminders";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { parseOrderListFilter, scopeToRep } from "@/lib/order-list-filter";
+import { ordersKind, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
 import { getSpareDashboard } from "@/lib/spare-dashboard";
+import { getPumpDashboard } from "@/lib/pump-dashboard";
 import { OrderListFilterBar } from "@/components/risansi/order-list-filter-bar";
 import { KpiStrip } from "@/components/risansi/kpi-strip";
 import { SpareDashboardView } from "@/components/risansi/spare-dashboard/spare-dashboard";
+import { PumpDashboardView } from "@/components/risansi/spare-dashboard/pump-dashboard";
 
 export const metadata: Metadata = {
   title: "Dashboard | Risansi",
@@ -20,9 +22,9 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 /**
- * The Spare dashboard: the Orders list's filters and cards over every Spare
- * SO, then where the open ones stand, how dispatch is going, how long things
- * take, and each Rep's book. Central Visibility, Admin, CRM, and Reps (their
+ * The dashboard, Spare or Pump as its toggle says: the Orders list's filters
+ * and cards over every SO of that kind, then where they stand, how dispatch
+ * is going, each Rep's book — and on Pump, every department's progress. Central Visibility, Admin, CRM, and Reps (their
  * own SOs). Order Making and the departments land on their own pages.
  */
 export default async function DashboardPage({
@@ -56,25 +58,29 @@ export default async function DashboardPage({
   }
 
   const params = await searchParams;
-  // The Orders list's filters, pinned to Spare; a Rep sees only their own SOs.
-  const filter = scopeToRep(
-    { ...parseOrderListFilter((key) => params[key], { noDispatchTarget: true }), types: ["Spare"] },
-    user
-  );
-  const data = await getSpareDashboard(filter);
+  // Spare or Pump, as the toggle says (Spare when it says nothing).
+  const kind = ordersKind(params.type);
+  // The Orders list's filters, pinned to that kind; a Rep sees only their own SOs.
+  const filter = scopeToRep(withOrdersKind(parseOrderListFilter((key) => params[key], { noDispatchTarget: true }), params.type), user);
+  // On Pump, the card picked narrows the SOs, as on the Orders list.
+  const data = kind === "pump" ? await getPumpDashboard(filter, params.pk ?? null) : await getSpareDashboard(filter);
+  const kindLabel = kind === "pump" ? "Pump" : "Spare";
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Spare</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{kindLabel}</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
           <p className="mt-1 text-sm text-muted">
-            Where every Spare SO stands, from planning to dispatch · as of {data.asOf} IST
+            {kind === "pump"
+              ? "Where every pump SO stands, department by department, from drawing to dispatch"
+              : "Where every Spare SO stands, from planning to dispatch"}{" "}
+            · as of {data.asOf} IST
           </p>
         </div>
         <Link
-          href="/risansi/orders?type=spare"
+          href={kind === "pump" ? "/risansi/orders?type=pump" : "/risansi/orders?type=spare"}
           className="inline-flex h-10 items-center gap-2 rounded-lg border border-input-border bg-surface px-4 text-sm font-semibold text-foreground transition-colors hover:bg-background"
         >
           <ClipboardList className="h-4 w-4" />
@@ -82,11 +88,11 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      <OrderListFilterBar options={data.options} total={data.total} noDispatchTarget noTypeFilter noChats />
+      <OrderListFilterBar options={data.options} total={data.total} noDispatchTarget noTypeFilter noChats kindToggle={kind} />
       <KpiStrip cards={data.kpis} />
 
       <div className="mt-5">
-        <SpareDashboardView data={data} />
+        {"depts" in data ? <PumpDashboardView data={data} /> : <SpareDashboardView data={data} />}
       </div>
     </div>
   );

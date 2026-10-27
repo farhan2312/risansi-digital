@@ -3401,7 +3401,7 @@ function ecDonePredicate(dept: DeptFilterKey): string {
  * a drawing issued but not approved would read as on time while the
  * escalation list chased it.
  */
-function deptOverduePredicate(dept: DeptFilterKey): string {
+export function deptOverduePredicate(dept: DeptFilterKey): string {
   // Planning is late against its own readiness date: an EC whose date has
   // passed and that is not ready yet.
   if (dept === "planning") {

@@ -44,14 +44,14 @@ export type DashboardSo = {
 
 export type Bucket = { label: string; count: number; value?: number };
 
-export type RepRow = {
+export type RepRow<S extends string = Stage> = {
   rep: string;
   /** All the Rep's SOs (cancelled and diverted included), and their value. */
   sos: number;
   value: number;
-  stages: Record<Stage, number>;
+  stages: Record<S, number>;
   /** The same, as order value (INR). */
-  stageValues: Record<Stage, number>;
+  stageValues: Record<S, number>;
   noSlip: number;
   noSlipValue: number;
   dispatchedOnTime: number;
