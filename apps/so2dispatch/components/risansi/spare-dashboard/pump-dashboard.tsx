@@ -67,7 +67,7 @@ const STANDING = [
   { key: "na", label: "Not needed", color: "var(--viz-gray)" },
 ] as const;
 
-/** Each department on the open SOs: a bar of where they stand, the counts, and what is overdue. */
+/** Each department on the open SOs: a bar of where they stand, and the counts. */
 function DeptProgress({ depts, open }: { depts: DeptRow[]; open: number }) {
   const th = "px-2 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-muted";
   return (
@@ -88,7 +88,6 @@ function DeptProgress({ depts, open }: { depts: DeptRow[]; open: number }) {
             {STANDING.map((s) => (
               <th key={s.key} className={th}>{s.label}</th>
             ))}
-            <th className={th}>Overdue</th>
           </tr>
         </thead>
         <tbody>
@@ -96,7 +95,7 @@ function DeptProgress({ depts, open }: { depts: DeptRow[]; open: number }) {
             <tr key={d.key} className="border-b border-card-border/60 hover:bg-background/60">
               <td className="whitespace-nowrap px-2 py-2.5 font-medium text-foreground">
                 {d.href ? (
-                  <Link href={d.href.replace(/[?&]overdue=1/, "").replace(/\?$/, "")} className="hover:text-primary hover:underline">
+                  <Link href={d.href} className="hover:text-primary hover:underline">
                     {d.label}
                   </Link>
                 ) : (
@@ -111,27 +110,13 @@ function DeptProgress({ depts, open }: { depts: DeptRow[]; open: number }) {
                   {d[s.key] || "·"}
                 </td>
               ))}
-              <td className="px-2 py-2.5 text-right tabular-nums">
-                {d.overdue === null ? (
-                  <span className="text-muted-foreground">—</span>
-                ) : d.overdue > 0 && d.href ? (
-                  <Link
-                    href={d.href}
-                    className="inline-flex min-w-[2rem] justify-center rounded-md bg-rose-50 px-1.5 py-0.5 font-semibold text-rose-700 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300"
-                  >
-                    {d.overdue}
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground">0</span>
-                )}
-              </td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="mt-2 text-[11px] text-muted">
         The {open} SOs not yet fully dispatched (cancelled and diverted left out), each department read as on its own page. Purchase and Quality have no work on an SO
-        without BOI or Quality. Overdue: past the department&apos;s own target and not done — click it to open that list.
+        without BOI or Quality.
       </p>
     </div>
   );
@@ -177,7 +162,7 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
       </div>
 
       {/* Every department on the open SOs. */}
-      <ChartCard title="Department progress" sub="Where each department stands on the open pump SOs, and what is overdue there">
+      <ChartCard title="Department progress" sub="Where each department stands on the open pump SOs">
         <DeptProgress depts={data.depts} open={m.open} />
       </ChartCard>
 

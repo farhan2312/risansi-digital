@@ -2,20 +2,18 @@ import "server-only";
 // The Pump dashboard: every pump SO the Orders list's filter selects, read
 // once and summed up like the Spare one — where the SOs stand, how dispatch
 // is going, each Rep's book — and, since a pump passes through every
-// department, how each department stands on the open SOs and what is
-// overdue there. The departments' standings are the Orders list's Pump view's
-// own (listPumpSummaries), so the two pages agree.
+// department, how each department stands on the open SOs. The departments'
+// standings are the Orders list's Pump view's own (listPumpSummaries), so
+// the two pages agree.
 
 import { query } from "@/lib/db";
 import {
-  deptOverduePredicate,
   isTestSo,
   listOrdersPage,
   orderListKpiCards,
   pumpCardSql,
   type OrderListOptions,
 } from "@/lib/orders";
-import { deptQueueSql, type DeptKey } from "@/lib/dept-view";
 import { listPumpSummaries, type PumpSummary } from "@/lib/pump-summary";
 import type { KpiCard } from "@/lib/kpis";
 import type { OrderListFilter } from "@/lib/order-list-filter";
@@ -60,14 +58,13 @@ export type PumpSo = {
 export type DeptRow = {
   key: string;
   label: string;
-  /** Its page, the Overdue card picked. */
+  /** Its page. */
   href: string | null;
   done: number;
   progress: number;
   pending: number;
   /** SOs it has no work on (no BOI, no Quality). */
   na: number;
-  overdue: number | null;
 };
 
 export type PumpDashboard = {
@@ -144,15 +141,15 @@ function standings(s: PumpSummary, dispatch: string): Record<string, Standing> {
   };
 }
 
-/** The departments, in the order a pump passes them; overdue from each one's own rule. */
-const DEPTS: { key: string; label: string; overdue: DeptKey | null; href: string }[] = [
-  { key: "drawing", label: "Drawing", overdue: "drawing", href: "/risansi/departments/drawing?overdue=1" },
-  { key: "purchase", label: "Purchase (BOI)", overdue: "purchase", href: "/risansi/departments/purchase?overdue=1" },
-  { key: "quality", label: "Quality", overdue: "quality", href: "/risansi/departments/qc?overdue=1" },
-  { key: "planning", label: "Planning", overdue: "planning", href: "/risansi/departments/planning?type=pump&overdue=1" },
-  { key: "assembly", label: "Assembly", overdue: "assembly", href: "/risansi/departments/assembly-dispatch?type=pump&overdue=1" },
-  { key: "packing", label: "Packing", overdue: null, href: "/risansi/departments/assembly-dispatch?type=pump" },
-  { key: "dispatch", label: "Dispatch", overdue: "dispatch", href: "/risansi/departments/dispatch?overdue=1" },
+/** The departments, in the order a pump passes them, each with its page. */
+const DEPTS: { key: string; label: string; href: string }[] = [
+  { key: "drawing", label: "Drawing", href: "/risansi/departments/drawing" },
+  { key: "purchase", label: "Purchase (BOI)", href: "/risansi/departments/purchase" },
+  { key: "quality", label: "Quality", href: "/risansi/departments/qc" },
+  { key: "planning", label: "Planning", href: "/risansi/departments/planning?type=pump" },
+  { key: "assembly", label: "Assembly", href: "/risansi/departments/assembly-dispatch?type=pump" },
+  { key: "packing", label: "Packing", href: "/risansi/departments/assembly-dispatch?type=pump" },
+  { key: "dispatch", label: "Dispatch", href: "/risansi/departments/dispatch" },
 ];
 
 /** The Pump dashboard for the Orders list's filter (types pinned to Pump / ROLB by the caller). */
@@ -171,8 +168,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
   const summaries = await listPumpSummaries(ids);
 
   // What neither carries: the delivery date, the first dispatch, the dispatch
-  // hold's reason, a packed lot on no slip, the pump ECs and their quantity,
-  // and each department's overdue.
+  // hold's reason, a packed lot on no slip, and the pump ECs and their quantity.
   type Facts = {
     id: string;
     delivery: string | null;
@@ -181,12 +177,9 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     no_slip: boolean;
     ecs: number;
     pumps: number;
-  } & Record<string, unknown>;
+  };
   const facts = new Map<string, Facts>();
   if (ids.length) {
-    const overdue = DEPTS.filter((d) => d.overdue).map(
-      (d) => `(${deptQueueSql(d.overdue!)} AND ${deptOverduePredicate(d.overdue!)}) AS overdue_${d.key}`
-    );
     const r = await query<Facts>(
       `SELECT o.id,
               to_char(o.delivery_date_as_per_so, 'YYYY-MM-DD') AS delivery,
@@ -203,8 +196,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
                                             AND (SELECT count(*) FROM order_ready_lots n2
                                                   WHERE n2.item_id = nl.item_id AND n2.seq <= nl.seq) = ANY(ns.lot_nos))) AS no_slip,
               (SELECT count(*)::int FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')) AS ecs,
-              (SELECT COALESCE(sum(s.quantity), 0)::int FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')) AS pumps,
-              ${overdue.join(",\n              ")}
+              (SELECT COALESCE(sum(s.quantity), 0)::int FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')) AS pumps
          FROM orders o WHERE o.id = ANY($1::uuid[])`,
       [ids]
     );
@@ -338,7 +330,6 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     progress: 0,
     pending: 0,
     na: 0,
-    overdue: d.overdue ? 0 : null,
   }));
   const gad = new Map<string, number>();
   const boi = { received: 0, pending: 0 };
@@ -347,11 +338,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     const sum = summaries[s.id];
     if (!sum) continue;
     const st = standings(sum, s.dispatch);
-    const f = facts.get(s.id);
-    for (const d of depts) {
-      d[st[d.key]]++;
-      if (d.overdue !== null && f?.[`overdue_${d.key}`]) d.overdue++;
-    }
+    for (const d of depts) d[st[d.key]]++;
     // An SO with no pump EC yet has no GAD to stand at.
     if (!sum.drawing.closed && sum.drawing.gad.total > 0) gad.set(sum.drawing.gad.label, (gad.get(sum.drawing.gad.label) ?? 0) + 1);
     if (sum.purchase.required) {
