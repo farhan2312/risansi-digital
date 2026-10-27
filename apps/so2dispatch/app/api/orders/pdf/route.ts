@@ -23,7 +23,8 @@ export async function GET(req: NextRequest) {
   const get = (key: string) => params.get(key) ?? undefined;
   // A Rep: their own SOs only.
   const filter = scopeToRep(withOrdersKind(parseOrderListFilter(get, { noDispatchTarget: true }), get("type")), user);
-  const result = await listOrdersPage({ page: 1, filter, sort: parseQueueSort(get("sort")), all: true });
+  const sort = parseQueueSort(get("sort"));
+  const result = await listOrdersPage({ page: 1, filter, sort, all: true });
   // A test SO is left out of the report altogether.
   const testCount = result.rows.filter((r) => isTestSo(r.so_no)).length;
   result.rows = result.rows.filter((r) => !isTestSo(r.so_no));
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
     capped: result.rows.length < result.total,
     total: result.total,
     spare: spare ? new Map(billing.map((b) => [b.id, b])) : undefined,
+    byRep: sort === "rep" || sort === "-rep",
   });
 
   const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });

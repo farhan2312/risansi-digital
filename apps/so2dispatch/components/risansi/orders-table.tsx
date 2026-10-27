@@ -446,7 +446,7 @@ export function OrdersTable({
                 {!pump && <th rowSpan={2} className="px-4 py-3">Type</th>}
                 <th rowSpan={2} className="px-4 py-3">Client Name</th>
                 <th rowSpan={2} className="px-4 py-3">Client Code</th>
-                <th rowSpan={2} className="px-4 py-3">Rep</th>
+                <th rowSpan={2} className="px-4 py-3"><SortHeader label="Rep" sortKey="rep" /></th>
                 <th rowSpan={2} className="px-4 py-3">Zone</th>
                 <th rowSpan={2} className="px-4 py-3">Bill Mode</th>
                 <th rowSpan={2} className="px-4 py-3 text-right">Order Value</th>

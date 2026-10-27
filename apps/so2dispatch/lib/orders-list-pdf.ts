@@ -236,6 +236,19 @@ function sparePlanBucket(o: OrderListRow, status: SoDeptStatus | undefined): str
   return packed ? null : READY_NOT_PACKED;
 }
 
+const PACKED_NOT_DISPATCHED = "Fully packed, not dispatched";
+const FULLY_DISPATCHED = "Fully dispatched";
+
+/**
+ * Where a Spare SO stands, for its Rep's card: Fully dispatched, else its
+ * Planning bucket, else (fully ready and packed) Fully packed, not dispatched.
+ */
+function spareRepBucket(o: OrderListRow, status: SoDeptStatus | undefined): string | null {
+  if (CLOSED.includes(o.dispatch_status ?? "")) return null;
+  if ((o.dispatch_status ?? "").toLowerCase() === "fully dispatch") return FULLY_DISPATCHED;
+  return sparePlanBucket(o, status) ?? PACKED_NOT_DISPATCHED;
+}
+
 /** A Spare SO's planning status: its latest lot's, else what the list says. */
 function sparePlanning(o: OrderListRow, status: SoDeptStatus | undefined): string {
   const lots = o.lots ?? [];
@@ -384,6 +397,8 @@ export async function buildOrdersListPdf(
     total?: number;
     /** The Spare list: its lots, slips and dispatches by SO id, and cards by Rep. */
     spare?: Map<string, BillingQueueRow>;
+    /** Sorted by Rep: a band naming each Rep above their SOs. */
+    byRep?: boolean;
   } = {}
 ): Promise<Uint8Array> {
   const spare = opts.spare;
@@ -494,11 +509,13 @@ export async function buildOrdersListPdf(
 
   // ── Spare: a card per Rep, with their SOs and where Planning has them ──
   if (spare && n) {
-    const PLAN = ["Date awaited", "In plan", "Partial ready", READY_NOT_PACKED];
+    // The later states, each on a row of its own.
+    const LAST = [READY_NOT_PACKED, PACKED_NOT_DISPATCHED, FULLY_DISPATCHED];
+    const PLAN = ["Date awaited", "In plan", "Partial ready", ...LAST];
     const byRep = new Map<string, Map<string, number>>();
     for (const o of orders) {
       if (CLOSED.includes(o.dispatch_status ?? "")) continue;
-      const plan = sparePlanBucket(o, statuses.get(o.id));
+      const plan = spareRepBucket(o, statuses.get(o.id));
       // An SO shared by two Reps counts for each.
       const reps = str(o.reps).split(",").map((r) => r.trim()).filter(Boolean);
       for (const rep of reps.length ? reps : ["No Rep"]) {
@@ -509,17 +526,17 @@ export async function buildOrdersListPdf(
       }
     }
     const reps = [...byRep].sort((a, b) => (b[1].get("") ?? 0) - (a[1].get("") ?? 0) || a[0].localeCompare(b[0]));
-    text("BY REP — open SOs and their Planning status", MARGIN, y - 7, 6.5, bold, C.muted);
+    text("BY REP — SOs (not cancelled / diverted) and where they stand", MARGIN, y - 7, 6.5, bold, C.muted);
     y -= 13;
     const perRow = 8;
     const rw = (WIDTH - gap * (perRow - 1)) / perRow;
     // Each card: the three earlier states two to a row (and any other), then
-    // Fully ready, not packed on a row of its own.
+    // the later ones a row each.
     const layoutOf = (m: Map<string, number>) => {
       const pairs = ["Date awaited", "In plan", "Partial ready"].concat(
         [...m.keys()].filter((k) => k && !PLAN.includes(k))
       );
-      return { pairs, rows: Math.ceil(pairs.length / 2) + 1 };
+      return { pairs, rows: Math.ceil(pairs.length / 2) + LAST.length };
     };
     const rh = 30 + Math.max(...reps.map(([, m]) => layoutOf(m).rows)) * 10 + 4;
     reps.forEach(([rep, m], i) => {
@@ -534,16 +551,25 @@ export async function buildOrdersListPdf(
       text(sos, x + rw - 10 - bold.widthOfTextAtSize(sos, 15), y - 18, 15, bold, C.primary);
       text("SOs", x + rw - 10 - font.widthOfTextAtSize("SOs", 6), y - 26, 6, font, C.muted);
       const { pairs } = layoutOf(m);
-      [...pairs, READY_NOT_PACKED].forEach((p, k) => {
+      [...pairs, ...LAST].forEach((p, k) => {
         const v = m.get(p) ?? 0;
-        const last = p === READY_NOT_PACKED;
-        const col = last ? 0 : k % 2;
-        const row = last ? Math.ceil(pairs.length / 2) : Math.floor(k / 2);
+        const last = LAST.indexOf(p);
+        const col = last >= 0 ? 0 : k % 2;
+        const row = last >= 0 ? Math.ceil(pairs.length / 2) + last : Math.floor(k / 2);
         const lx = x + 10 + col * ((rw - 14) / 2);
         const ly = y - 34 - row * 10;
-        const color = p === READY_NOT_PACKED ? C.green : p === "Partial ready" ? C.blue : p === "In plan" ? C.ink : C.amber;
-        text(`${p} `, lx, ly, 6.2, font, C.muted);
-        text(String(v), lx + font.widthOfTextAtSize(`${p} `, 6.2), ly, 6.2, bold, v ? color : C.muted);
+        const color =
+          p === FULLY_DISPATCHED ? C.green
+          : p === PACKED_NOT_DISPATCHED ? C.primary
+          : p === READY_NOT_PACKED ? C.green
+          : p === "Partial ready" ? C.blue
+          : p === "In plan" ? C.ink
+          : C.amber;
+        // A long label shrinks to fit the card.
+        const room = (last >= 0 ? rw - 14 : (rw - 14) / 2) - bold.widthOfTextAtSize(String(v), 6.2) - 2;
+        const size = Math.min(6.2, (6.2 * room) / font.widthOfTextAtSize(`${p} `, 6.2));
+        text(`${p} `, lx, ly, size, font, C.muted);
+        text(String(v), lx + font.widthOfTextAtSize(`${p} `, size), ly, 6.2, bold, v ? color : C.muted);
       });
     });
     y -= rh + 12;
@@ -653,7 +679,25 @@ export async function buildOrdersListPdf(
     return { placed, height: pills.length ? (row + 1) * (PILL_H + 2.5) : 0 };
   };
 
-  rows.forEach(({ r }, idx) => {
+  // Sorted by Rep: how many SOs each Rep has, for their bands.
+  const repOf = (o: OrderListRow) => str(o.reps).trim() || "No Rep";
+  const repCount = new Map<string, number>();
+  if (opts.byRep) for (const o of orders) repCount.set(repOf(o), (repCount.get(repOf(o)) ?? 0) + 1);
+  let lastRep: string | null = null;
+
+  rows.forEach(({ o, r }, idx) => {
+    // A band naming the Rep above their first SO (kept with that SO).
+    if (opts.byRep && repOf(o) !== lastRep) {
+      lastRep = repOf(o);
+      const BAND = 15;
+      if (y - BAND - 30 < BOTTOM) newPage();
+      page.drawRectangle({ x: MARGIN, y: y - BAND, width: WIDTH, height: BAND, color: C.slateBg });
+      page.drawRectangle({ x: MARGIN, y: y - BAND, width: 2.6, height: BAND, color: C.primary });
+      text(lastRep, MARGIN + 8, y - 10.5, 8, bold, C.primary);
+      const k = repCount.get(lastRep) ?? 0;
+      text(`${k} ${k === 1 ? "SO" : "SOs"}`, MARGIN + 14 + bold.widthOfTextAtSize(sanitize(lastRep, bold), 8), y - 10.5, 7, font, C.muted);
+      y -= BAND;
+    }
     // Wrap every cell to its column first, to know the row's height.
     const wrapped = COLUMNS.map((c) => {
       const lines = r.cells[c.key] ?? [];

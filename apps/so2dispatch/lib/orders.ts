@@ -4502,10 +4502,10 @@ const REPORT_LIMIT = 2000;
  * none chosen it runs newest Sl. No. first.
  */
 export type QueueSort =
-  | "sl" | "-sl" | "readiness" | "-readiness" | "packing" | "-packing" | "so_date" | "-so_date" | "ecs" | "-ecs";
+  | "sl" | "-sl" | "readiness" | "-readiness" | "packing" | "-packing" | "so_date" | "-so_date" | "ecs" | "-ecs" | "rep" | "-rep";
 
 const QUEUE_SORTS: QueueSort[] = [
-  "sl", "-sl", "readiness", "-readiness", "packing", "-packing", "so_date", "-so_date", "ecs", "-ecs",
+  "sl", "-sl", "readiness", "-readiness", "packing", "-packing", "so_date", "-so_date", "ecs", "-ecs", "rep", "-rep",
 ];
 
 export function parseQueueSort(value: string | undefined): QueueSort | null {
@@ -4521,6 +4521,10 @@ function queueOrderBy(sort: QueueSort | null | undefined): string | undefined {
   // How many ECs the SO has (the Orders list).
   if (sort.replace("-", "") === "ecs") {
     return `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id) ${dir}, o.sl_no DESC`;
+  }
+  // The Rep, A to Z (the Orders list): no Rep last.
+  if (sort.replace("-", "") === "rep") {
+    return `lower(NULLIF(btrim(o.reps), '')) ${dir} NULLS LAST, o.sl_no DESC`;
   }
   // Assembly & Packing's planned packing date: the SO's earliest among its lots.
   if (sort.replace("-", "") === "packing") {
