@@ -1,12 +1,32 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, MessagesSquare, Search, X } from "lucide-react";
 import { ALL_ROLES, isCentral, isCrm, roleLabel } from "@/lib/roles";
 import type { ChatSummary } from "@/lib/order-messages";
 import { allChatsAction } from "@/app/risansi/orders/thread-actions";
 import { OrderThreadModal } from "./order-thread-modal";
 import { stamp } from "./discussion-bell";
+
+/** Where a page's Reminders row takes the All chats button into itself. */
+export const ALL_CHATS_SLOT = "all-chats-slot";
+
+/**
+ * The All chats button above a list's filters: in the Reminders row when the
+ * page has one, else on a row of its own at the right.
+ */
+export function AllChatsRow() {
+  const [slot, setSlot] = useState<HTMLElement | null | undefined>(undefined);
+  useEffect(() => setSlot(document.getElementById(ALL_CHATS_SLOT)), []);
+  if (slot === undefined) return null;
+  if (slot) return createPortal(<AllChatsButton />, slot);
+  return (
+    <div className="mb-2 flex justify-end">
+      <AllChatsButton />
+    </div>
+  );
+}
 
 /**
  * "All chats", above a list's filters: every SO conversation the user is in,

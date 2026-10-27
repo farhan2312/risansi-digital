@@ -37,7 +37,7 @@ import type { OrderListOptions } from "@/lib/orders";
 import { SIGN_OFF_ENABLED } from "@/lib/dept-completion";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
 import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
-import { AllChatsButton } from "./all-chats";
+import { AllChatsRow } from "./all-chats";
 
 /** Every parameter the filter owns — what "Clear all" empties. */
 const FILTER_KEYS = [
@@ -175,11 +175,7 @@ export function OrderListFilterBar({
   return (
     <>
     {/* Every SO's chat at a glance, above the filters. */}
-    {!noChats && (
-      <div className="mb-2 flex justify-end">
-        <AllChatsButton />
-      </div>
-    )}
+    {!noChats && <AllChatsRow />}
     <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         {/* Proforma Invoice, Accounts, Dispatch: All, Spare or Pump at a click. */}
