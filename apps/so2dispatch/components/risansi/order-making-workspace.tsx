@@ -7,6 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Ban, CheckCircle2, Download, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
+import { HoldBadge } from "./hold-badge";
+import { OnlyBillingBadge } from "./order-popups";
 import { AllChatsRow } from "./all-chats";
 import { canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
@@ -522,6 +524,13 @@ export function OrderMakingWorkspace({
                       >
                         {formatDisplay(field(c.column), row[c.column])}
                         {c.column === "order_value" && str(row.order_currency) ? ` ${str(row.order_currency)}` : ""}
+                        {/* As in every department: Central's and Accounts' holds, and Only Billing. */}
+                        {c.column === "so_no" && (
+                          <>
+                            <HoldBadge order={row} />
+                            {isOnlyBilling(row) && <OnlyBillingBadge order={row} />}
+                          </>
+                        )}
                       </td>
                       {/* The SO's discussion with Central Visibility and the departments. */}
                       {c.column === "so_no" && (

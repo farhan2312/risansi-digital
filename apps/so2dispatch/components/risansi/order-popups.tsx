@@ -191,7 +191,7 @@ export function ClearanceBadge({ order, readOnly = false }: { order: Row; readOn
 }
 
 /** An Only Billing SO's badge, with its SO Reference and remarks. */
-function OnlyBillingBadge({ order }: { order: Row }) {
+export function OnlyBillingBadge({ order }: { order: Row }) {
   const ref = str(order.so_reference);
   const remarks = str(order.only_billing_remarks);
   return (

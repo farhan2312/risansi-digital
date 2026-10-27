@@ -4541,7 +4541,11 @@ export async function listOrdersForOrderMaking(opts: {
                         FROM order_om_status_history h WHERE h.order_id = o.id), '[]'::jsonb) AS om_history,
             to_char(o.so_assigned_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_assigned_at,
             to_char(o.so_details_filled_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS so_details_filled_at,
-            o.clearance_status, o.clearance_hold_reason,
+            o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
+            -- The holds every department shows on the SO, and Only Billing.
+            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks, o.only_billing,
+            -- The row colour, as in the departments: the SO's dispatch status, a Dispatch hold included.
+            ${DISPATCH_STATUS} AS so_dispatch_status,
             o.dispatch_status, o.status_override,
             (SELECT count(*)::int FROM order_items i WHERE i.order_id = o.id) AS ec_count,
             o.boi,
