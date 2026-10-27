@@ -91,7 +91,10 @@ export function OrderListFilterBar({
   extraFilters,
   searchClassName,
   extraKeys = [],
+  noChats = false,
 }: {
+  /** The dashboard: no All chats button. */
+  noChats?: boolean;
   /** A queue with statuses of its own (Drawing) drops the department Status filter… */
   noStatusFilter?: boolean;
   /** …and shows its own filters here, under these URL params. */
@@ -172,9 +175,11 @@ export function OrderListFilterBar({
   return (
     <>
     {/* Every SO's chat at a glance, above the filters. */}
-    <div className="mb-2 flex justify-end">
-      <AllChatsButton />
-    </div>
+    {!noChats && (
+      <div className="mb-2 flex justify-end">
+        <AllChatsButton />
+      </div>
+    )}
     <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         {/* Proforma Invoice, Accounts, Dispatch: All, Spare or Pump at a click. */}

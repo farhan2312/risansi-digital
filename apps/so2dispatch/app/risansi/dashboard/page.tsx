@@ -82,7 +82,7 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      <OrderListFilterBar options={data.options} total={data.total} noDispatchTarget noTypeFilter />
+      <OrderListFilterBar options={data.options} total={data.total} noDispatchTarget noTypeFilter noChats />
       <KpiStrip cards={data.kpis} />
 
       <div className="mt-5">
