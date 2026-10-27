@@ -36,6 +36,8 @@ import {
 import type { OrderListOptions } from "@/lib/orders";
 import { SIGN_OFF_ENABLED } from "@/lib/dept-completion";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
+import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
+import { AllChatsButton } from "./all-chats";
 
 /** Every parameter the filter owns — what "Clear all" empties. */
 const FILTER_KEYS = [
@@ -67,6 +69,8 @@ const FILTER_KEYS = [
   "pack",
   "clear",
   "hreason",
+  "ahold",
+  "areason",
 ];
 
 /**
@@ -148,6 +152,17 @@ export function OrderListFilterBar({
       : `${DEPT_FILTER_LABELS[activeDept]} target`
     : "Target date";
 
+  // Accounts: the hold reasons it keeps (a list it adds to), for its filter.
+  const [acctReasons, setAcctReasons] = useState<string[]>([]);
+  useEffect(() => {
+    if (dept !== "accounts") return;
+    let live = true;
+    listAccountsHoldReasonsAction().then((r) => live && setAcctReasons(r));
+    return () => {
+      live = false;
+    };
+  }, [dept]);
+
   const activePreset =
     DATE_PRESETS.find((p) => {
       const [from, to] = presetRange(p);
@@ -155,6 +170,11 @@ export function OrderListFilterBar({
     }) ?? null;
 
   return (
+    <>
+    {/* Every SO's chat at a glance, above the filters. */}
+    <div className="mb-2 flex justify-end">
+      <AllChatsButton />
+    </div>
     <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         {/* Proforma Invoice, Accounts, Dispatch: All, Spare or Pump at a click. */}
@@ -353,6 +373,26 @@ export function OrderListFilterBar({
             types={filter.types}
             onChange={(next) => setParams({ dsm: serializeDeptStatusMulti(next) })}
           />
+        )}
+        {/* Accounts: its own Hold / Clear on the SO, and why it holds them. */}
+        {dept === "accounts" && (
+          <>
+            <MultiSelectFilter
+              label="Accounts hold"
+              allLabel="Hold or clear"
+              options={["Hold", "Clear"]}
+              selected={filter.accountsHold}
+              onChange={(next) => setParams({ ahold: next })}
+            />
+            <MultiSelectFilter
+              label="Hold reason"
+              allLabel="Any reason"
+              options={[...new Set([...acctReasons, ...filter.accountsHoldReasons])]}
+              selected={filter.accountsHoldReasons}
+              // Kept apart by "|": a reason can hold a comma.
+              onChange={(next) => setParams({ areason: next.length ? next.join("|") : null })}
+            />
+          </>
         )}
         {/* The orders list: Central Visibility's clearance, and why SOs are held. */}
         {noDispatchTarget && (
@@ -604,6 +644,7 @@ export function OrderListFilterBar({
         )}
       </div>
     </div>
+    </>
   );
 }
 

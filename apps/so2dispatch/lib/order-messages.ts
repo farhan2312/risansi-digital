@@ -14,7 +14,9 @@ import { ALL_ROLES, isCentral, type Role } from "@/lib/roles";
  * conversation is strictly between them. Everyone — Central included — sees
  * only the conversations they are in: a department talks to Central and to
  * each other department, Central talks to each department. Two departments
- * talking to each other is theirs alone.
+ * talking to each other is theirs alone. Each side also has a conversation
+ * with itself — its own team — stored with itself on both sides
+ * (dept_role = to_role).
  *
  * Messages are append-only — nothing here updates or deletes them.
  */
@@ -87,14 +89,14 @@ function isPeer(value: string): boolean {
 /**
  * Who this user can hold a conversation with on an SO.
  *
- * A department talks to every other department and to Central; Central talks
- * to each department — one conversation per department, as before.
+ * A department talks to its own team, every other department and Central;
+ * Central talks to its own team and each department.
  */
 export function peersFor(role: string): string[] {
   role = laneOf(role);
-  if (isCentral(role)) return [...DEPARTMENT_LANES];
+  if (isCentral(role)) return [CENTRAL_PEER, ...DEPARTMENT_LANES];
   if (!isDepartmentLane(role)) return [];
-  return [...DEPARTMENT_LANES.filter((r) => r !== role), CENTRAL_PEER];
+  return [role, ...DEPARTMENT_LANES.filter((r) => r !== role), CENTRAL_PEER];
 }
 
 /**
@@ -123,18 +125,22 @@ export function canUsePeer(role: string, peer: string): boolean {
  */
 function conversationSql(viewerRole: string, peerParam: string, roleParam: string) {
   if (isCentral(viewerRole)) {
-    return `(m.dept_role = ${peerParam} AND m.to_role IS NULL)`;
+    // Central's own team: Central on both sides.
+    return `((m.dept_role = ${peerParam} AND m.to_role IS NULL)
+            OR (${peerParam} = '${CENTRAL_PEER}' AND m.dept_role = '${CENTRAL_PEER}' AND m.to_role = '${CENTRAL_PEER}'))`;
   }
-  return `(m.dept_role = ${peerParam}
-           OR COALESCE(m.to_role, '${CENTRAL_PEER}') = ${peerParam})
-          AND (m.dept_role = ${roleParam}
-               OR COALESCE(m.to_role, '${CENTRAL_PEER}') = ${roleParam})`;
+  // One side wrote to the other — which, with peer = role, is the own team.
+  return `((m.dept_role = ${peerParam} AND COALESCE(m.to_role, '${CENTRAL_PEER}') = ${roleParam})
+           OR (m.dept_role = ${roleParam} AND COALESCE(m.to_role, '${CENTRAL_PEER}') = ${peerParam}))`;
 }
 
 /** Every message this user may see at all, whatever conversation it is in. */
 function visibleSql(viewerRole: string, roleParam: string) {
-  // Central is a party to exactly the messages that name no other recipient.
-  if (isCentral(viewerRole)) return "m.to_role IS NULL";
+  // Central is a party to exactly the messages that name no other recipient,
+  // and to its own team's.
+  if (isCentral(viewerRole)) {
+    return `(m.to_role IS NULL OR (m.dept_role = '${CENTRAL_PEER}' AND m.to_role = '${CENTRAL_PEER}'))`;
+  }
   return `(m.dept_role = ${roleParam}
            OR COALESCE(m.to_role, '${CENTRAL_PEER}') = ${roleParam})`;
 }
@@ -348,6 +354,62 @@ export async function listDiscussionInbox(
   return result.rows;
 }
 
+/** One conversation on one SO, for the All chats list. */
+export type ChatSummary = {
+  order_id: string;
+  so_no: string | null;
+  sl_no: number;
+  client_name: string | null;
+  reps: string | null;
+  so_assignee_id: string | null;
+  /** The other side, from the viewer's (the viewer's own lane: their own team). */
+  peer: string;
+  total: number;
+  unread: number;
+  last_at: string;
+  last_body: string;
+  last_author: string;
+};
+
+/**
+ * Every conversation the viewer is in, across all SOs, latest first — the
+ * All chats list. Read state is the same as the SO's own chat.
+ */
+export async function listAllChats(
+  viewer: { id: string; role: string },
+  limit = 500
+): Promise<ChatSummary[]> {
+  if (peersFor(viewer.role).length === 0) return [];
+  const { param, params } = withRole(viewer, [viewer.id, limit]);
+  const peerOf = peerOfSql(viewer.role, param);
+  const result = await query<ChatSummary>(
+    `SELECT m.order_id, o.so_no, o.sl_no::int AS sl_no, o.client_name, o.reps,
+            o.so_assignee_id::text AS so_assignee_id,
+            ${peerOf} AS peer,
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (
+              WHERE m.author_id <> $1
+                AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
+            )::int AS unread,
+            to_char(MAX(m.created_at) AT TIME ZONE 'UTC', ${ISO}) AS last_at,
+            (ARRAY_AGG(m.body ORDER BY m.created_at DESC))[1] AS last_body,
+            (ARRAY_AGG(m.author_name ORDER BY m.created_at DESC))[1] AS last_author
+       FROM order_messages m
+       JOIN orders o ON o.id = m.order_id
+       LEFT JOIN order_message_reads r
+              ON r.user_id = $1
+             AND r.order_id = m.order_id
+             AND r.dept_role = ${peerOf}
+      WHERE ${visibleSql(viewer.role, param)}
+      GROUP BY m.order_id, o.so_no, o.sl_no, o.client_name, o.reps, o.so_assignee_id, 7
+      ORDER BY MAX(m.created_at) DESC
+      LIMIT $2`,
+    params
+  );
+  // Only conversations the viewer may still open.
+  return result.rows.filter((r) => canUsePeer(viewer.role, r.peer));
+}
+
 /** How many unread discussion entries the viewer has, in total. */
 export async function countDiscussionUnread(viewer: {
   id: string;
@@ -459,7 +521,8 @@ export function sidesFor(
 ): { deptRole: string; toRole: string | null } | null {
   role = laneOf(role);
   if (!canUsePeer(role, peer) || !isPeer(peer)) return null;
-  if (isCentral(role)) return { deptRole: peer, toRole: null };
+  // Central's own team: Central on both sides.
+  if (isCentral(role)) return peer === CENTRAL_PEER ? { deptRole: CENTRAL_PEER, toRole: CENTRAL_PEER } : { deptRole: peer, toRole: null };
   return { deptRole: role, toRole: peer === CENTRAL_PEER ? null : peer };
 }
 

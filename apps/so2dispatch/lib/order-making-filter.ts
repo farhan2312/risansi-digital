@@ -126,5 +126,7 @@ export function sharedFacets(f: OrderMakingFilter): OrderListFilter {
     packingStatuses: [],
     clearance: [],
     holdReasons: [],
+    accountsHold: [],
+    accountsHoldReasons: [],
   };
 }

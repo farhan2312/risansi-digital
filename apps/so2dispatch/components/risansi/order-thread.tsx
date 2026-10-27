@@ -58,6 +58,7 @@ export function OrderThread({
   orderId,
   role,
   soLabel,
+  initialPeer,
   className = "",
   collapsible = false,
   defaultOpen = true,
@@ -65,6 +66,8 @@ export function OrderThread({
   orderId: string;
   role: string;
   soLabel?: string;
+  /** Open on this conversation (All chats) rather than the one most worth reading. */
+  initialPeer?: string;
   className?: string;
   // Adds the expand/collapse control to the header. The modal keeps it off
   // — there is nothing to collapse into there.
@@ -72,11 +75,14 @@ export function OrderThread({
   defaultOpen?: boolean;
 }) {
   const central = isCentral(role);
+  // The viewer's own team (a Rep Manager shares the Reps' side).
+  const ownPeer = central ? "central_visibility" : role === "rep_manager" ? "rep" : role;
+  const peerName = (p: string) => (p === ownPeer ? `${roleLabel(p)} (own team)` : roleLabel(p));
   const [open, setOpen] = useState(collapsible ? defaultOpen : true);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   // The conversation on screen — who it is with. Everyone starts on the one
   // most worth reading, picked once the summaries arrive.
-  const [peer, setPeer] = useState<string | null>(null);
+  const [peer, setPeer] = useState<string | null>(initialPeer ?? null);
   const [messages, setMessages] = useState<OrderMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -231,7 +237,7 @@ export function OrderThread({
     refreshConversations();
   }
 
-  const peerLabel = peer ? roleLabel(peer) : "";
+  const peerLabel = peer ? peerName(peer) : "";
   // Every conversation can carry a delay — with Central or department to
   // department — beside a plain note.
   const canLogDelay = !!peer;
@@ -295,7 +301,9 @@ export function OrderThread({
 
         <div className="flex flex-wrap items-center gap-3">
           <p className="hidden text-xs text-muted lg:block">
-            {peerLabel
+            {peer === ownPeer
+              ? "Visible to your own team only"
+              : peerLabel
               ? `Visible to you and ${peerLabel} only`
               : "Pick who to talk to."}
           </p>
@@ -337,7 +345,7 @@ export function OrderThread({
                     : "border border-card-border bg-background text-muted hover:text-foreground"
                 }`}
               >
-                {roleLabel(c.peer)}
+                {peerName(c.peer)}
                 {c.unread > 0 ? (
                   <span
                     className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${

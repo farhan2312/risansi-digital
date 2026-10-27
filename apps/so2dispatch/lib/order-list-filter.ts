@@ -198,6 +198,10 @@ export type OrderListFilter = {
   clearance: string[];
   /** The orders list: why the held SOs are held. */
   holdReasons: string[];
+  /** Accounts: its own Hold or Clear on the SO (blank counts as Clear). */
+  accountsHold: string[];
+  /** Accounts: why the SOs it holds are held. */
+  accountsHoldReasons: string[];
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -326,6 +330,11 @@ export function parseOrderListFilter(
         : [],
     clearance: list(get("clear")).filter((v) => CLEARANCE_FILTER_OPTIONS.includes(v)),
     holdReasons: list(get("hreason")).filter((v) => HOLD_REASON_FILTER_OPTIONS.includes(v)),
+    // Accounts' queue only. Its reasons are a list Accounts adds to, so any is
+    // taken (it reaches SQL as a parameter).
+    accountsHold: queue === "accounts" ? list(get("ahold")).filter((v) => v === "Hold" || v === "Clear") : [],
+    accountsHoldReasons:
+      queue === "accounts" ? [...new Set((get("areason") ?? "").split("|").map((v) => v.trim()).filter(Boolean))] : [],
   };
 }
 
@@ -377,6 +386,8 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
   return !!(
     f.clearance.length ||
     f.holdReasons.length ||
+    f.accountsHold.length ||
+    f.accountsHoldReasons.length ||
     f.paymentTerms.length ||
     f.billModes.length ||
     f.paymentStatuses.length ||
@@ -419,6 +430,8 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.onlyBilling) p.set("ob", "1");
   if (f.clearance.length) p.set("clear", f.clearance.join(","));
   if (f.holdReasons.length) p.set("hreason", f.holdReasons.join(","));
+  if (f.accountsHold.length) p.set("ahold", f.accountsHold.join(","));
+  if (f.accountsHoldReasons.length) p.set("areason", f.accountsHoldReasons.join("|"));
   if (f.paymentTerms.length) p.set("pterm", f.paymentTerms.join(","));
   if (f.billModes.length) p.set("bmode", f.billModes.join(","));
   if (f.paymentStatuses.length) p.set("pstat", f.paymentStatuses.join(","));
@@ -456,6 +469,8 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   }
   if (f.clearance.length) parts.push(`Clearance: ${f.clearance.join(", ")}`);
   if (f.holdReasons.length) parts.push(`Hold reason: ${f.holdReasons.join(", ")}`);
+  if (f.accountsHold.length) parts.push(`Accounts hold: ${f.accountsHold.join(", ")}`);
+  if (f.accountsHoldReasons.length) parts.push(`Accounts hold reason: ${f.accountsHoldReasons.join(", ")}`);
   if (f.paymentTerms.length) parts.push(`Payment terms: ${f.paymentTerms.join(", ")}`);
   if (f.billModes.length) parts.push(`Bill mode: ${f.billModes.join(", ")}`);
   if (f.paymentStatuses.length) parts.push(`Payment status: ${f.paymentStatuses.join(", ")}`);
