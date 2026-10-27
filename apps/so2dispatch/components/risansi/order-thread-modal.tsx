@@ -8,11 +8,13 @@ export function OrderThreadModal({
   orderId,
   role,
   soLabel,
+  initialPeer,
   onClose,
 }: {
   orderId: string;
   role: string;
   soLabel?: string;
+  initialPeer?: string;
   onClose: () => void;
 }) {
   return (
@@ -49,6 +51,7 @@ export function OrderThreadModal({
           orderId={orderId}
           role={role}
           soLabel={soLabel}
+          initialPeer={initialPeer}
           className="rounded-none border-0 shadow-none"
         />
       </div>

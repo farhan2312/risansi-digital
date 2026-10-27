@@ -354,6 +354,62 @@ export async function listDiscussionInbox(
   return result.rows;
 }
 
+/** One conversation on one SO, for the All chats list. */
+export type ChatSummary = {
+  order_id: string;
+  so_no: string | null;
+  sl_no: number;
+  client_name: string | null;
+  reps: string | null;
+  so_assignee_id: string | null;
+  /** The other side, from the viewer's (the viewer's own lane: their own team). */
+  peer: string;
+  total: number;
+  unread: number;
+  last_at: string;
+  last_body: string;
+  last_author: string;
+};
+
+/**
+ * Every conversation the viewer is in, across all SOs, latest first — the
+ * All chats list. Read state is the same as the SO's own chat.
+ */
+export async function listAllChats(
+  viewer: { id: string; role: string },
+  limit = 500
+): Promise<ChatSummary[]> {
+  if (peersFor(viewer.role).length === 0) return [];
+  const { param, params } = withRole(viewer, [viewer.id, limit]);
+  const peerOf = peerOfSql(viewer.role, param);
+  const result = await query<ChatSummary>(
+    `SELECT m.order_id, o.so_no, o.sl_no::int AS sl_no, o.client_name, o.reps,
+            o.so_assignee_id::text AS so_assignee_id,
+            ${peerOf} AS peer,
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (
+              WHERE m.author_id <> $1
+                AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
+            )::int AS unread,
+            to_char(MAX(m.created_at) AT TIME ZONE 'UTC', ${ISO}) AS last_at,
+            (ARRAY_AGG(m.body ORDER BY m.created_at DESC))[1] AS last_body,
+            (ARRAY_AGG(m.author_name ORDER BY m.created_at DESC))[1] AS last_author
+       FROM order_messages m
+       JOIN orders o ON o.id = m.order_id
+       LEFT JOIN order_message_reads r
+              ON r.user_id = $1
+             AND r.order_id = m.order_id
+             AND r.dept_role = ${peerOf}
+      WHERE ${visibleSql(viewer.role, param)}
+      GROUP BY m.order_id, o.so_no, o.sl_no, o.client_name, o.reps, o.so_assignee_id, 7
+      ORDER BY MAX(m.created_at) DESC
+      LIMIT $2`,
+    params
+  );
+  // Only conversations the viewer may still open.
+  return result.rows.filter((r) => canUsePeer(viewer.role, r.peer));
+}
+
 /** How many unread discussion entries the viewer has, in total. */
 export async function countDiscussionUnread(viewer: {
   id: string;

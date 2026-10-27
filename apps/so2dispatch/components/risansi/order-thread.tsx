@@ -58,6 +58,7 @@ export function OrderThread({
   orderId,
   role,
   soLabel,
+  initialPeer,
   className = "",
   collapsible = false,
   defaultOpen = true,
@@ -65,6 +66,8 @@ export function OrderThread({
   orderId: string;
   role: string;
   soLabel?: string;
+  /** Open on this conversation (All chats) rather than the one most worth reading. */
+  initialPeer?: string;
   className?: string;
   // Adds the expand/collapse control to the header. The modal keeps it off
   // — there is nothing to collapse into there.
@@ -79,7 +82,7 @@ export function OrderThread({
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   // The conversation on screen — who it is with. Everyone starts on the one
   // most worth reading, picked once the summaries arrive.
-  const [peer, setPeer] = useState<string | null>(null);
+  const [peer, setPeer] = useState<string | null>(initialPeer ?? null);
   const [messages, setMessages] = useState<OrderMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);

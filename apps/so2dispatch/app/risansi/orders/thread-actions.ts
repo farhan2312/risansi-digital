@@ -13,10 +13,12 @@ import {
   listConversations,
   listDelayLogs,
   listDiscussionInbox,
+  listAllChats,
   listMessages,
   markConversationRead,
   sidesFor,
   MAX_MESSAGE_LENGTH,
+  type ChatSummary,
   type ConversationSummary,
   type DelayLogReport,
   type InboxEntry,
@@ -170,5 +172,30 @@ export async function delayLogsAction(
   } catch (error) {
     console.error("delayLogsAction failed:", error);
     return { ok: false, error: "Could not load the delay log." };
+  }
+}
+
+export type AllChatsResult =
+  | { ok: true; role: string; chats: ChatSummary[] }
+  | { ok: false; error: string };
+
+/** Every SO conversation the user is in, latest first — the All chats list. */
+export async function allChatsAction(): Promise<AllChatsResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  try {
+    const chats = await listAllChats(user);
+    // A Rep: their own SOs only; an Order Making SO member: the SOs assigned to them.
+    const mine = chats.filter((c) =>
+      isRep(user.role)
+        ? repMatches(c.reps, user.rep_names)
+        : user.role === "order_making_so"
+          ? c.so_assignee_id === user.id
+          : true
+    );
+    return { ok: true, role: user.role, chats: mine };
+  } catch (error) {
+    console.error("allChatsAction failed:", error);
+    return { ok: false, error: "Could not load the chats." };
   }
 }

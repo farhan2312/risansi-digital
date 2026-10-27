@@ -8,7 +8,7 @@ import type { InboxEntry } from "@/lib/order-messages";
 import { discussionInboxAction } from "@/app/risansi/orders/thread-actions";
 import { OrderThreadModal } from "./order-thread-modal";
 
-function stamp(iso: string): string {
+export function stamp(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const mins = Math.round((Date.now() - d.getTime()) / 60000);
