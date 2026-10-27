@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Ban, CheckCircle2, Download, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
+import { AllChatsButton } from "./all-chats";
 import { canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
 import { OmEcsModal } from "./om-ecs-modal";
@@ -339,6 +340,10 @@ export function OrderMakingWorkspace({
           )}
         </div>
       )}
+      {/* Every SO's chat at a glance, above the filters. */}
+      <div className="mb-2 flex justify-end">
+        <AllChatsButton />
+      </div>
       <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         {/* All, Spare or Pump: the SO's type (its own, or any of its ECs'). */}
