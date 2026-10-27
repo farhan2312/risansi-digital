@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { AlertTriangle, CalendarClock, Gauge, IndianRupee, PackageOpen, PauseCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import type { RepRow, SpareDashboard, Stage } from "@/lib/spare-dashboard";
@@ -84,8 +85,20 @@ const DISPATCH_COLS: { stage: Stage; label: string }[] = [
   { stage: "Cancelled / Diverted", label: "Cancelled" },
 ];
 
-/** A count cell: muted at zero, tinted by how much of the column's largest it is. */
-function CountCell({ n, max, tone = "blue", strong = false }: { n: number; max: number; tone?: "blue" | "orange" | "rose" | "aqua"; strong?: boolean }) {
+/** A count (or amount) cell: muted at zero, tinted by how much of the column's largest it is. */
+function CountCell({
+  n,
+  max,
+  tone = "blue",
+  strong = false,
+  fmt = String,
+}: {
+  n: number;
+  max: number;
+  tone?: "blue" | "orange" | "rose" | "aqua";
+  strong?: boolean;
+  fmt?: (n: number) => string;
+}) {
   const a = max ? Math.max(0.06, n / max) * 0.22 : 0;
   const bg = { blue: "42,120,214", orange: "235,104,52", rose: "227,73,72", aqua: "27,175,122" }[tone];
   return (
@@ -93,20 +106,29 @@ function CountCell({ n, max, tone = "blue", strong = false }: { n: number; max: 
       className={`px-2 py-2 text-center tabular-nums ${n ? (strong ? "font-semibold text-foreground" : "text-foreground") : "text-muted-foreground"}`}
       style={n ? { background: `rgba(${bg},${a})` } : undefined}
     >
-      {n || "·"}
+      {n ? fmt(n) : "·"}
     </td>
   );
 }
 
-function RepTable({ reps }: { reps: RepRow[] }) {
+/** The By Rep table's two views: how many SOs, or how much order value. */
+type RepView = "sos" | "value";
+
+function RepTable({ reps, view }: { reps: RepRow[]; view: RepView }) {
   const all = [...PLAN_COLS, ...PACK_COLS, ...DISPATCH_COLS];
-  const maxOf = (s: Stage) => Math.max(0, ...reps.map((r) => r.stages[s]));
-  const total = (s: Stage) => reps.reduce((a, r) => a + r.stages[s], 0);
+  const byValue = view === "value";
+  // Each figure in the chosen view.
+  const st = (r: RepRow, s: Stage) => (byValue ? r.stageValues[s] : r.stages[s]);
+  const noSlip = (r: RepRow) => (byValue ? r.noSlipValue : r.noSlip);
+  const late = (r: RepRow) => (byValue ? r.lateValue : r.late);
+  const fmt = byValue ? money : String;
+  const maxOf = (s: Stage) => Math.max(0, ...reps.map((r) => st(r, s)));
+  const total = (s: Stage) => reps.reduce((a, r) => a + st(r, s), 0);
   const th = "px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted";
   const group = "border-l border-card-border px-2 pt-2 pb-1 text-center text-[11px] font-semibold uppercase tracking-wider text-foreground";
   const maxSos = Math.max(0, ...reps.map((r) => r.sos));
-  const maxLate = Math.max(0, ...reps.map((r) => r.late));
-  const maxNoSlip = Math.max(0, ...reps.map((r) => r.noSlip));
+  const maxLate = Math.max(0, ...reps.map(late));
+  const maxNoSlip = Math.max(0, ...reps.map(noSlip));
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
@@ -144,15 +166,15 @@ function RepTable({ reps }: { reps: RepRow[] }) {
                 <CountCell n={r.sos} max={maxSos} strong />
                 <td className="px-2 py-2 text-right tabular-nums text-foreground">{r.value ? money(r.value) : "—"}</td>
                 {PLAN_COLS.map((c) => (
-                  <CountCell key={c.stage} n={r.stages[c.stage]} max={maxOf(c.stage)} />
+                  <CountCell key={c.stage} n={st(r, c.stage)} max={maxOf(c.stage)} fmt={fmt} />
                 ))}
-                <CountCell n={r.stages["Packed, to dispatch"]} max={maxOf("Packed, to dispatch")} />
-                <CountCell n={r.noSlip} max={maxNoSlip} tone="rose" />
-                <CountCell n={r.stages["Dispatch hold"]} max={maxOf("Dispatch hold")} tone="orange" />
-                <CountCell n={r.stages["Lot dispatched"]} max={maxOf("Lot dispatched")} />
-                <CountCell n={r.stages["Fully dispatched"]} max={maxOf("Fully dispatched")} tone="aqua" />
-                <CountCell n={r.stages["Cancelled / Diverted"]} max={maxOf("Cancelled / Diverted")} tone="rose" />
-                <CountCell n={r.late} max={maxLate} tone="rose" strong />
+                <CountCell n={st(r, "Packed, to dispatch")} max={maxOf("Packed, to dispatch")} fmt={fmt} />
+                <CountCell n={noSlip(r)} max={maxNoSlip} tone="rose" fmt={fmt} />
+                <CountCell n={st(r, "Dispatch hold")} max={maxOf("Dispatch hold")} tone="orange" fmt={fmt} />
+                <CountCell n={st(r, "Lot dispatched")} max={maxOf("Lot dispatched")} fmt={fmt} />
+                <CountCell n={st(r, "Fully dispatched")} max={maxOf("Fully dispatched")} tone="aqua" fmt={fmt} />
+                <CountCell n={st(r, "Cancelled / Diverted")} max={maxOf("Cancelled / Diverted")} tone="rose" fmt={fmt} />
+                <CountCell n={late(r)} max={maxLate} tone="rose" strong fmt={fmt} />
                 <td className="px-2 py-2 text-center tabular-nums">
                   {onTime === null ? (
                     <span className="text-muted-foreground">—</span>
@@ -163,7 +185,11 @@ function RepTable({ reps }: { reps: RepRow[] }) {
                   )}
                 </td>
                 <td className="px-2 py-2">
-                  <StackBar title={`${r.rep}'s SOs`} parts={all.map((c) => ({ label: c.label, count: r.stages[c.stage], color: STAGE_COLOR[c.stage] }))} />
+                  <StackBar
+                    title={byValue ? `${r.rep}'s order value` : `${r.rep}'s SOs`}
+                    parts={all.map((c) => ({ label: c.label, count: st(r, c.stage), color: STAGE_COLOR[c.stage] }))}
+                    fmt={fmt}
+                  />
                 </td>
               </tr>
             );
@@ -175,19 +201,19 @@ function RepTable({ reps }: { reps: RepRow[] }) {
             <td className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{reps.reduce((a, r) => a + r.sos, 0)}</td>
             <td className="border-t-2 border-card-border px-2 py-2 text-right tabular-nums text-foreground">{money(reps.reduce((a, r) => a + r.value, 0))}</td>
             {[...PLAN_COLS, ...PACK_COLS].map((c) => (
-              <td key={c.stage} className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{total(c.stage)}</td>
+              <td key={c.stage} className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{fmt(total(c.stage))}</td>
             ))}
-            <td className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{reps.reduce((a, r) => a + r.noSlip, 0)}</td>
+            <td className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{fmt(reps.reduce((a, r) => a + noSlip(r), 0))}</td>
             {DISPATCH_COLS.map((c) => (
-              <td key={c.stage} className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{total(c.stage)}</td>
+              <td key={c.stage} className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{fmt(total(c.stage))}</td>
             ))}
-            <td className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{reps.reduce((a, r) => a + r.late, 0)}</td>
+            <td className="border-t-2 border-card-border px-2 py-2 text-center tabular-nums text-foreground">{fmt(reps.reduce((a, r) => a + late(r), 0))}</td>
             <td className="border-t-2 border-card-border px-2 py-2" colSpan={2} />
           </tr>
         </tfoot>
       </table>
       <p className="mt-2 text-[11px] text-muted">
-        All SOs, cancelled and diverted included; an SO shared by two Reps counts for each. Late: dispatched after its delivery date as per SO, or not
+        {byValue ? "Order value in INR, each SO's in full under its stage. " : ""}All SOs, cancelled and diverted included; an SO shared by two Reps counts for each. Late: dispatched after its delivery date as per SO, or not
         dispatched and past it. On time: dispatched SOs whose first dispatch was on or before that date.
       </p>
     </div>
@@ -198,6 +224,8 @@ const day = (v: string | null) =>
   v ? new Date(`${v}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" }) : "—";
 
 export function SpareDashboardView({ data }: { data: SpareDashboard }) {
+  // By Rep: SO counts, or the order value behind them.
+  const [repView, setRepView] = useState<RepView>("sos");
   const m = data.metrics;
   const stages: Datum[] = data.stages.map((s) => ({ ...s, color: STAGE_COLOR[s.label as Stage] }));
   const dispatch: Datum[] = DISPATCH_ORDER.map((label) => ({
@@ -257,8 +285,31 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
         />
       </ChartCard>
 
-      <ChartCard title="By Rep" sub="Each Rep's SOs by stage, and how their dispatches are going">
-        <RepTable reps={data.reps} />
+      <ChartCard
+        title="By Rep"
+        sub={repView === "value" ? "Each Rep's order value by stage, and how their dispatches are going" : "Each Rep's SOs by stage, and how their dispatches are going"}
+        right={
+          <div className="inline-flex shrink-0 rounded-lg border border-input-border bg-background p-0.5 text-xs font-medium" role="group" aria-label="By Rep view">
+            {(
+              [
+                ["sos", "SO count"],
+                ["value", "Order value"],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setRepView(k)}
+                aria-pressed={repView === k}
+                className={`rounded-md px-2.5 py-1 transition-colors ${repView === k ? "bg-primary text-primary-foreground shadow-sm" : "text-muted hover:text-foreground"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        <RepTable reps={data.reps} view={repView} />
       </ChartCard>
 
       <div className="grid gap-5 lg:grid-cols-2">

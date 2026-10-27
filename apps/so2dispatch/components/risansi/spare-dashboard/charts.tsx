@@ -275,15 +275,24 @@ export function HBars({
 }
 
 /** A thin 100% bar of parts — the Rep table's pipeline at a glance. */
-export function StackBar({ parts, title }: { parts: { label: string; count: number; color: string }[]; title: string }) {
+export function StackBar({
+  parts,
+  title,
+  fmt = String,
+}: {
+  parts: { label: string; count: number; color: string }[];
+  title: string;
+  /** How a part's figure reads in the tooltip (a count, or an amount). */
+  fmt?: (n: number) => string;
+}) {
   const total = parts.reduce((a, p) => a + p.count, 0);
   if (!total) return <span className="text-xs text-muted">—</span>;
   return (
     <span
       className="flex h-2.5 w-full min-w-[7rem] overflow-hidden rounded-full bg-[var(--viz-grid)]"
       role="img"
-      aria-label={`${title}: ${parts.filter((p) => p.count).map((p) => `${p.label} ${p.count}`).join(", ")}`}
-      title={parts.filter((p) => p.count).map((p) => `${p.label}: ${p.count}`).join("\n")}
+      aria-label={`${title}: ${parts.filter((p) => p.count).map((p) => `${p.label} ${fmt(p.count)}`).join(", ")}`}
+      title={parts.filter((p) => p.count).map((p) => `${p.label}: ${fmt(p.count)}`).join("\n")}
     >
       {parts.map((p) =>
         p.count ? (

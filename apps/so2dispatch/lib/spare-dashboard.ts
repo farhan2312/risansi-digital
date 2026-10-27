@@ -50,10 +50,14 @@ export type RepRow = {
   sos: number;
   value: number;
   stages: Record<Stage, number>;
+  /** The same, as order value (INR). */
+  stageValues: Record<Stage, number>;
   noSlip: number;
+  noSlipValue: number;
   dispatchedOnTime: number;
   dispatchedMeasured: number;
   late: number;
+  lateValue: number;
 };
 
 export type SpareDashboard = {
@@ -254,16 +258,26 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
           sos: 0,
           value: 0,
           stages: Object.fromEntries(STAGES.map((st) => [st, 0])) as Record<Stage, number>,
+          stageValues: Object.fromEntries(STAGES.map((st) => [st, 0])) as Record<Stage, number>,
           noSlip: 0,
+          noSlipValue: 0,
           dispatchedOnTime: 0,
           dispatchedMeasured: 0,
           late: 0,
+          lateValue: 0,
         } satisfies RepRow);
       r.stages[s.stage]++;
+      r.stageValues[s.stage] += s.value_inr;
       r.sos++;
       r.value += s.value_inr;
-      if (isLate(s)) r.late++;
-      if (s.no_slip) r.noSlip++;
+      if (isLate(s)) {
+        r.late++;
+        r.lateValue += s.value_inr;
+      }
+      if (s.no_slip) {
+        r.noSlip++;
+        r.noSlipValue += s.value_inr;
+      }
       if (s.first_dispatch && s.delivery_date) {
         r.dispatchedMeasured++;
         if (s.first_dispatch <= s.delivery_date) r.dispatchedOnTime++;
