@@ -62,6 +62,8 @@ import {
   coerceField,
   withoutBarePrefix,
   canonicalZone,
+  canonicalClientField,
+  isClientField,
   ORDER_MAKING_FIELDS,
   SO_DETAIL_COLUMNS,
   SECTION_BY_TABLE,
@@ -341,12 +343,12 @@ export async function createOrder(
         nullify(withoutBarePrefix("so_no", input.so_no)),
         nullify(input.so_date),
         nullify(input.client_code),
-        nullify(input.client_type),
+        nullify(canonicalClientField("client_type", input.client_type)),
         nullify(input.client_name),
         nullify(input.reps),
-        nullify(input.market_type),
+        nullify(canonicalClientField("market_type", input.market_type)),
         nullify(canonicalZone(input.zone)),
-        nullify(input.industry_type),
+        nullify(canonicalClientField("industry_type", input.industry_type)),
         nullify(input.quotation_no),
         nullify(input.po_no),
         nullify(input.customer_po_date),
@@ -884,7 +886,7 @@ export async function updateOrderSection(
       // An SO No. / EC No. left at its prefix is saved as blank.
       coerceField(
         fieldByColumn.get(c)!.type,
-        c === "so_no" || c === "ec_no" ? withoutBarePrefix(c, values[c]) : c === "zone" ? canonicalZone(values[c]) : values[c]
+        c === "so_no" || c === "ec_no" ? withoutBarePrefix(c, values[c]) : isClientField(c) ? canonicalClientField(c, values[c]) : values[c]
       )
     );
 

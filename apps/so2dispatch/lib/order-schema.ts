@@ -1161,6 +1161,32 @@ export function canonicalZone(value: unknown): string {
   return ZONES.find((z) => z.toLowerCase() === bare) ?? v;
 }
 
+// --- Client fields: one spelling each -----------------------------------------
+// Typed, or filled from the client directory in capitals, Market Type, Client
+// Type and Industry are saved in the portal's own spelling, matched without
+// regard to case. A value not among them is kept as typed.
+const CLIENT_FIELD_VALUES: Record<string, string[]> = {
+  market_type: ["Domestic", "Export"],
+  client_type: ["End User", "Group (Mills)", "OEM", "Merchant Exporter", "Trader", "Channel Partner", "Unclassified"],
+  industry_type: [
+    "Sugar", "Non Sugar", "Distillery", "Paper", "CBG", "ETP/STP/WTP", "Cattle Feed", "Food & Beverages", "Chemicals",
+    "Pharma", "Engineering", "Bio-Fuel", "Manufacturing", "Oil & Gas", "Agriculture", "Dairy", "Metals & Minerals",
+    "Biogas", "Adhesive", "EPC", "FMCG", "Other",
+  ],
+};
+
+/** Zone, Market Type, Client Type, Industry as saved: one spelling each; other columns as given. */
+export function canonicalClientField(column: string, value: unknown): string {
+  if (column === "zone") return canonicalZone(value);
+  const list = CLIENT_FIELD_VALUES[column];
+  const v = String(value ?? "").trim().replace(/\s+/g, " ");
+  if (!list || !v) return list ? v : String(value ?? "");
+  return list.find((x) => x.toLowerCase() === v.toLowerCase()) ?? v;
+}
+const CLIENT_FIELDS = new Set(["zone", ...Object.keys(CLIENT_FIELD_VALUES)]);
+/** Whether a column is saved through canonicalClientField. */
+export const isClientField = (column: string) => CLIENT_FIELDS.has(column);
+
 // --- SO No. and EC No.: SO<yy>/1/<no.> and EC/<yy>/1/<SO no.>/<EC no.> -------
 // A new one opens with all but its own number filled in; the whole stays
 // editable, and a box left at the prefix alone is saved as blank.
