@@ -40,6 +40,20 @@ export function AccountsHoldButton({ order }: { order: Row }) {
   );
 }
 
+/** Accounts' Clear on an SO (set from the Hold pop-up), with its remarks on hover. */
+export function AccountsClearBadge({ order }: { order: Row }) {
+  if (str(order.accounts_hold_status) !== "Clear") return null;
+  return (
+    <span
+      title={["Cleared by Accounts", str(order.accounts_hold_remarks)].filter(Boolean).join(" — ")}
+      className="mt-1 flex w-fit max-w-[14rem] flex-col rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] leading-tight text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+    >
+      <span className="font-semibold">Accounts clear</span>
+      {str(order.accounts_hold_remarks) && <span className="whitespace-normal">{str(order.accounts_hold_remarks)}</span>}
+    </span>
+  );
+}
+
 function HoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
   const router = useRouter();
   const [status, setStatus] = useState(str(order.accounts_hold_status) === "Hold" ? "Hold" : "Clear");

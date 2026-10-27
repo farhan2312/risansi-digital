@@ -37,7 +37,7 @@ import {
 import { OrderChildList } from "./order-children";
 import { SortHeader } from "./sort-header";
 import { HoldBadge } from "./hold-badge";
-import { AccountsHoldButton } from "./accounts-hold";
+import { AccountsClearBadge, AccountsHoldButton } from "./accounts-hold";
 import { TermPis } from "./term-pis";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -876,6 +876,8 @@ export function DepartmentWorkspace({
                       {toInput(order.so_no) || "—"}
                       <HoldBadge order={order} />
                       {/* Accounts can hold the SO for a payment reason. */}
+                      {/* Accounts: an SO it has cleared says so, here only. */}
+                      {table === "order_accounts" && <AccountsClearBadge order={order} />}
                       {table === "order_accounts" && canEdit && <AccountsHoldButton order={order} />}
                     </td>
                     <td className="px-4 py-3">
