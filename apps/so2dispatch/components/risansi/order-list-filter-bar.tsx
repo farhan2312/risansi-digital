@@ -36,6 +36,7 @@ import {
 import type { OrderListOptions } from "@/lib/orders";
 import { SIGN_OFF_ENABLED } from "@/lib/dept-completion";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
+import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
 
 /** Every parameter the filter owns — what "Clear all" empties. */
 const FILTER_KEYS = [
@@ -67,6 +68,8 @@ const FILTER_KEYS = [
   "pack",
   "clear",
   "hreason",
+  "ahold",
+  "areason",
 ];
 
 /**
@@ -147,6 +150,17 @@ export function OrderListFilterBar({
       ? "Target Date for Packing Team"
       : `${DEPT_FILTER_LABELS[activeDept]} target`
     : "Target date";
+
+  // Accounts: the hold reasons it keeps (a list it adds to), for its filter.
+  const [acctReasons, setAcctReasons] = useState<string[]>([]);
+  useEffect(() => {
+    if (dept !== "accounts") return;
+    let live = true;
+    listAccountsHoldReasonsAction().then((r) => live && setAcctReasons(r));
+    return () => {
+      live = false;
+    };
+  }, [dept]);
 
   const activePreset =
     DATE_PRESETS.find((p) => {
@@ -353,6 +367,26 @@ export function OrderListFilterBar({
             types={filter.types}
             onChange={(next) => setParams({ dsm: serializeDeptStatusMulti(next) })}
           />
+        )}
+        {/* Accounts: its own Hold / Clear on the SO, and why it holds them. */}
+        {dept === "accounts" && (
+          <>
+            <MultiSelectFilter
+              label="Accounts hold"
+              allLabel="Hold or clear"
+              options={["Hold", "Clear"]}
+              selected={filter.accountsHold}
+              onChange={(next) => setParams({ ahold: next })}
+            />
+            <MultiSelectFilter
+              label="Hold reason"
+              allLabel="Any reason"
+              options={[...new Set([...acctReasons, ...filter.accountsHoldReasons])]}
+              selected={filter.accountsHoldReasons}
+              // Kept apart by "|": a reason can hold a comma.
+              onChange={(next) => setParams({ areason: next.length ? next.join("|") : null })}
+            />
+          </>
         )}
         {/* The orders list: Central Visibility's clearance, and why SOs are held. */}
         {noDispatchTarget && (

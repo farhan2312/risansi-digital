@@ -3503,6 +3503,13 @@ function orderListClauses(
   if (f.holdReasons.length) {
     clauses.push(`(COALESCE(o.clearance_status, '') = 'Hold' AND ${facet("o.clearance_hold_reason", f.holdReasons)})`);
   }
+  // Accounts' own Hold / Clear (blank counts as Clear), and its reasons for a Hold.
+  if (f.accountsHold.length) {
+    clauses.push(`COALESCE(NULLIF(TRIM(o.accounts_hold_status), ''), 'Clear') = ANY(${p(f.accountsHold)}::text[])`);
+  }
+  if (f.accountsHoldReasons.length) {
+    clauses.push(`(COALESCE(o.accounts_hold_status, '') = 'Hold' AND ${facet("o.accounts_hold_reason", f.accountsHoldReasons)})`);
+  }
   if (f.paymentStatuses.length) {
     const statuses = f.paymentStatuses.filter((m) => m !== NOT_SET);
     const any: string[] = [];
