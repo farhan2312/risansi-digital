@@ -14,7 +14,9 @@ import { ALL_ROLES, isCentral, type Role } from "@/lib/roles";
  * conversation is strictly between them. Everyone — Central included — sees
  * only the conversations they are in: a department talks to Central and to
  * each other department, Central talks to each department. Two departments
- * talking to each other is theirs alone.
+ * talking to each other is theirs alone. Each side also has a conversation
+ * with itself — its own team — stored with itself on both sides
+ * (dept_role = to_role).
  *
  * Messages are append-only — nothing here updates or deletes them.
  */
@@ -87,14 +89,14 @@ function isPeer(value: string): boolean {
 /**
  * Who this user can hold a conversation with on an SO.
  *
- * A department talks to every other department and to Central; Central talks
- * to each department — one conversation per department, as before.
+ * A department talks to its own team, every other department and Central;
+ * Central talks to its own team and each department.
  */
 export function peersFor(role: string): string[] {
   role = laneOf(role);
-  if (isCentral(role)) return [...DEPARTMENT_LANES];
+  if (isCentral(role)) return [CENTRAL_PEER, ...DEPARTMENT_LANES];
   if (!isDepartmentLane(role)) return [];
-  return [...DEPARTMENT_LANES.filter((r) => r !== role), CENTRAL_PEER];
+  return [role, ...DEPARTMENT_LANES.filter((r) => r !== role), CENTRAL_PEER];
 }
 
 /**
@@ -123,18 +125,22 @@ export function canUsePeer(role: string, peer: string): boolean {
  */
 function conversationSql(viewerRole: string, peerParam: string, roleParam: string) {
   if (isCentral(viewerRole)) {
-    return `(m.dept_role = ${peerParam} AND m.to_role IS NULL)`;
+    // Central's own team: Central on both sides.
+    return `((m.dept_role = ${peerParam} AND m.to_role IS NULL)
+            OR (${peerParam} = '${CENTRAL_PEER}' AND m.dept_role = '${CENTRAL_PEER}' AND m.to_role = '${CENTRAL_PEER}'))`;
   }
-  return `(m.dept_role = ${peerParam}
-           OR COALESCE(m.to_role, '${CENTRAL_PEER}') = ${peerParam})
-          AND (m.dept_role = ${roleParam}
-               OR COALESCE(m.to_role, '${CENTRAL_PEER}') = ${roleParam})`;
+  // One side wrote to the other — which, with peer = role, is the own team.
+  return `((m.dept_role = ${peerParam} AND COALESCE(m.to_role, '${CENTRAL_PEER}') = ${roleParam})
+           OR (m.dept_role = ${roleParam} AND COALESCE(m.to_role, '${CENTRAL_PEER}') = ${peerParam}))`;
 }
 
 /** Every message this user may see at all, whatever conversation it is in. */
 function visibleSql(viewerRole: string, roleParam: string) {
-  // Central is a party to exactly the messages that name no other recipient.
-  if (isCentral(viewerRole)) return "m.to_role IS NULL";
+  // Central is a party to exactly the messages that name no other recipient,
+  // and to its own team's.
+  if (isCentral(viewerRole)) {
+    return `(m.to_role IS NULL OR (m.dept_role = '${CENTRAL_PEER}' AND m.to_role = '${CENTRAL_PEER}'))`;
+  }
   return `(m.dept_role = ${roleParam}
            OR COALESCE(m.to_role, '${CENTRAL_PEER}') = ${roleParam})`;
 }
@@ -459,7 +465,8 @@ export function sidesFor(
 ): { deptRole: string; toRole: string | null } | null {
   role = laneOf(role);
   if (!canUsePeer(role, peer) || !isPeer(peer)) return null;
-  if (isCentral(role)) return { deptRole: peer, toRole: null };
+  // Central's own team: Central on both sides.
+  if (isCentral(role)) return peer === CENTRAL_PEER ? { deptRole: CENTRAL_PEER, toRole: CENTRAL_PEER } : { deptRole: peer, toRole: null };
   return { deptRole: role, toRole: peer === CENTRAL_PEER ? null : peer };
 }
 

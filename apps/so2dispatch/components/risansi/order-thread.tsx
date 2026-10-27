@@ -72,6 +72,9 @@ export function OrderThread({
   defaultOpen?: boolean;
 }) {
   const central = isCentral(role);
+  // The viewer's own team (a Rep Manager shares the Reps' side).
+  const ownPeer = central ? "central_visibility" : role === "rep_manager" ? "rep" : role;
+  const peerName = (p: string) => (p === ownPeer ? `${roleLabel(p)} (own team)` : roleLabel(p));
   const [open, setOpen] = useState(collapsible ? defaultOpen : true);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   // The conversation on screen — who it is with. Everyone starts on the one
@@ -231,7 +234,7 @@ export function OrderThread({
     refreshConversations();
   }
 
-  const peerLabel = peer ? roleLabel(peer) : "";
+  const peerLabel = peer ? peerName(peer) : "";
   // Every conversation can carry a delay — with Central or department to
   // department — beside a plain note.
   const canLogDelay = !!peer;
@@ -295,7 +298,9 @@ export function OrderThread({
 
         <div className="flex flex-wrap items-center gap-3">
           <p className="hidden text-xs text-muted lg:block">
-            {peerLabel
+            {peer === ownPeer
+              ? "Visible to your own team only"
+              : peerLabel
               ? `Visible to you and ${peerLabel} only`
               : "Pick who to talk to."}
           </p>
@@ -337,7 +342,7 @@ export function OrderThread({
                     : "border border-card-border bg-background text-muted hover:text-foreground"
                 }`}
               >
-                {roleLabel(c.peer)}
+                {peerName(c.peer)}
                 {c.unread > 0 ? (
                   <span
                     className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
