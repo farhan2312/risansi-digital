@@ -22,7 +22,7 @@ import { QC_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
 import { QcWorkspace } from "@/components/risansi/qc-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { deptKpiCards } from "@/lib/orders";
+import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import { toneFor, type KpiCardDef } from "@/lib/kpis";
 import {
@@ -72,7 +72,7 @@ export default async function QcWorkspacePage({
   // The cards: SOs open and closed (and overdue), then the ECs by documents
   // status — those count ECs, and filter like the rest.
   const qcKpiCards = (): KpiCardDef[] => {
-    const clear = { qc_so: null, qc_ec: null, overdue: null, dstatus: null } as Record<string, string | null>;
+    const clear = { qc_so: null, qc_ec: null, overdue: null, hold: null, dstatus: null } as Record<string, string | null>;
     const overdue = deptKpiCards("quality", [], DEPT_VIEWS.quality.hasTarget).find((c) => c.key === "overdue");
     return [
       { key: "all", label: "All SOs", group: "SO", sql: null, params: { ...clear }, tone: "neutral" },
@@ -85,6 +85,8 @@ export default async function QcWorkspacePage({
         tone: st === "Closed" ? ("done" as const) : ("pending" as const),
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
+      // Its SOs on any hold.
+      totalHoldCard(clear, "SO"),
       { key: "ecs", label: "ECs", group: "EC", sql: null, params: {}, tone: "neutral", measure: qcEcCountSql("o") },
       ...QC_EC_STATUSES.map((st) => ({
         key: `ec:${st}`,

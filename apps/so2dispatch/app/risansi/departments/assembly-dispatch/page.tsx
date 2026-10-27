@@ -30,7 +30,7 @@ import {
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { deptKpiCards } from "@/lib/orders";
+import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { toneFor, type KpiCardDef } from "@/lib/kpis";
 
 export const metadata: Metadata = {
@@ -82,7 +82,7 @@ export default async function AssemblyDispatchWorkspacePage({
       : undefined;
   // The Pump view's cards: the SOs' assembly, then their packing.
   const assemblyPumpCards = (): KpiCardDef[] => {
-    const clear = { asm: null, pkg: null, dstatus: null, overdue: null } as Record<string, string | null>;
+    const clear = { asm: null, pkg: null, dstatus: null, overdue: null, hold: null } as Record<string, string | null>;
     return [
       { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
       // How many pump ECs those SOs hold: a figure, not a filter.
@@ -108,6 +108,8 @@ export default async function AssemblyDispatchWorkspacePage({
         params: { ...clear, pkg: st },
         tone: toneFor(st),
       })),
+      // Its SOs on any hold.
+      totalHoldCard(clear),
     ];
   };
   const pumpRestrict =

@@ -22,7 +22,7 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { PurchaseWorkspace } from "@/components/risansi/purchase-workspace";
 import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { deptKpiCards, listBoiVendors, listVendorList } from "@/lib/orders";
+import { deptKpiCards, listBoiVendors, listVendorList, totalHoldCard } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import { toneFor, type KpiCardDef } from "@/lib/kpis";
 import {
@@ -75,7 +75,7 @@ export default async function PurchaseWorkspacePage({
   // EC and item cards count ECs and items, and filter like the rest. They
   // follow the BOI item and Vendor filters.
   const purchaseKpiCards = (): KpiCardDef[] => {
-    const clear = { pur_so: null, pur_ec: null, pur_boi: null, overdue: null, dstatus: null } as Record<string, string | null>;
+    const clear = { pur_so: null, pur_ec: null, pur_boi: null, overdue: null, hold: null, dstatus: null } as Record<string, string | null>;
     const overdue = deptKpiCards("purchase", [], DEPT_VIEWS.purchase.hasTarget).find((c) => c.key === "overdue");
     const tone = (st: string) => (st === "Closed" ? ("done" as const) : st === "Open" ? ("pending" as const) : ("neutral" as const));
     return [
@@ -89,6 +89,8 @@ export default async function PurchaseWorkspacePage({
         tone: tone(st),
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
+      // Its SOs on any hold.
+      totalHoldCard(clear, "SO"),
       { key: "ecs", label: "ECs", group: "EC", sql: null, params: {}, tone: "neutral", measure: ecCountSql("o") },
       ...PURCHASE_STATES.map((st) => ({
         key: `ec:${st}`,

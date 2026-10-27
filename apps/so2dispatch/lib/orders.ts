@@ -3471,9 +3471,25 @@ export const TEST_SO_SQL = (o: string) => `(upper(COALESCE(${o}.so_no, '')) LIKE
 /** The same, for a row already read. */
 export const isTestSo = (soNo: unknown) => String(soNo ?? "").toUpperCase().includes("/TEST");
 
-/** The SO is on hold — by Central Visibility, by Accounts, or by Dispatch (its dispatch status Hold). */
-const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.accounts_hold_status, '') = 'Hold'
-                      OR COALESCE(o.status_override, '') = 'Hold')`;
+/**
+ * The SO is on hold, by anyone — Central Visibility, Order Making, Accounts,
+ * or Dispatch (its dispatch status Hold). The Total hold card and the
+ * Orders list's On hold filter.
+ */
+export const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.om_status, '') = 'Hold'
+                      OR COALESCE(o.accounts_hold_status, '') = 'Hold' OR COALESCE(o.status_override, '') = 'Hold')`;
+
+/** A department's Total hold card: its open SOs on any hold (the `hold` filter). */
+export function totalHoldCard(clear: Record<string, string | null>, group?: string): KpiCardDef {
+  return {
+    key: "hold",
+    label: "Total hold",
+    ...(group ? { group } : {}),
+    sql: `${ON_HOLD_SQL} AND ${orderOpenSql("o")}`,
+    params: { ...clear, hold: "1" },
+    tone: "danger",
+  };
+}
 
 function orderListClauses(
   f: OrderListFilter,
@@ -3587,7 +3603,8 @@ function orderListClauses(
   // A Spare lot packed but on no packing slip: nothing for Dispatch to send.
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // On hold, by Central Visibility or by Accounts.
-  if (f.onHold) clauses.push(ON_HOLD_SQL);
+  // A cancelled or diverted SO is on no hold that matters.
+  if (f.onHold) clauses.push(`${ON_HOLD_SQL} AND ${orderOpenSql("o")}`);
   // Only Billing: sent to Billing alone.
   if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
   // One SO field, filled or pending. Pending is blank where the field applies.
@@ -4254,7 +4271,13 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
 export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
   const statuses = statusesFor(dept, types);
   const planning = dept === "planning";
-  const clear = { dstatus: null, overdue: null, ...(planning ? { pack: null } : {}) } as Record<string, string | null>;
+  const clear = {
+    dstatus: null,
+    overdue: null,
+    hold: null,
+    ...(planning ? { pack: null } : {}),
+    ...(dept === "accounts" ? { ahold: null } : {}),
+  } as Record<string, string | null>;
   // Planning, Assembly & Packing: how many ECs the SOs hold (of the kind shown), beside the SOs.
   const spare = types.some((t) => t.toLowerCase() === "spare");
   const pump = types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
@@ -4317,6 +4340,18 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
     ...(withOverdue
       ? [{ key: "overdue", label: "Overdue", sql: `(${deptOverduePredicate(dept)}) AND ${orderOpenSql("o")}`, params: { ...clear, overdue: "1" }, tone: "danger" as const }]
       : []),
+    // Accounts: the SOs it has put on hold itself.
+    ...(dept === "accounts"
+      ? [{
+          key: "ahold",
+          label: "Accounts hold",
+          sql: `COALESCE(o.accounts_hold_status, '') = 'Hold' AND ${orderOpenSql("o")}`,
+          params: { ...clear, ahold: "Hold" },
+          tone: "danger" as const,
+        }]
+      : []),
+    // Every department: its SOs on any hold.
+    totalHoldCard(clear),
   ];
 }
 
@@ -4404,6 +4439,8 @@ export async function listOrdersForOrderMaking(opts: {
     if (ff.soState === "filled") clauses.push(SO_DETAILS_FILLED_SQL);
     if (ff.soState === "pending") clauses.push(`NOT ${SO_DETAILS_FILLED_SQL}`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
+    if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
+    if (ff.hold === "all") clauses.push(`${ON_HOLD_SQL} AND ${orderOpenSql("o")}`);
     if (ff.billTypes.length) {
       const types = ff.billTypes.filter((t) => t !== NOT_SET);
       const any: string[] = [];
@@ -4423,13 +4460,13 @@ export async function listOrdersForOrderMaking(opts: {
   };
   const clauses = buildClauses(f);
   // The cards: the queue before the assignee / SO details / missing filters.
-  const base = buildClauses({ ...f, assignees: [], soState: null, missingOnly: false });
+  const base = buildClauses({ ...f, assignees: [], soState: null, missingOnly: false, hold: null });
   const omSpare = f.types.some((t) => t.toLowerCase() === "spare");
   const omPump = f.types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
   const omEcKind = omSpare && !omPump ? spareEcSql("s", "o") : omPump && !omSpare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
   const omCards: KpiCardDef[] | undefined = opts.withKpis
     ? [
-        { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null }, tone: "neutral" },
+        { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null, omhold: null }, tone: "neutral" },
         // How many ECs those SOs hold, of the kind shown: a figure, not a filter.
         {
           key: "ecs",
@@ -4447,6 +4484,21 @@ export async function listOrdersForOrderMaking(opts: {
           label: "Missing details",
           sql: `(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL}) AND ${orderOpenSql("o")}`,
           params: { sos: null, asg: null, missing: "1" },
+          tone: "danger",
+        },
+        // Order Making's own holds, and every hold on its SOs.
+        {
+          key: "omhold",
+          label: "Order Making hold",
+          sql: `COALESCE(o.om_status, '') = 'Hold' AND ${orderOpenSql("o")}`,
+          params: { sos: null, asg: null, missing: null, omhold: "om" },
+          tone: "danger",
+        },
+        {
+          key: "hold",
+          label: "Total hold",
+          sql: `${ON_HOLD_SQL} AND ${orderOpenSql("o")}`,
+          params: { sos: null, asg: null, missing: null, omhold: "all" },
           tone: "danger",
         },
       ]
@@ -5612,7 +5664,8 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   // A Spare lot packed but on no packing slip.
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // On hold, by Central Visibility or by Accounts.
-  if (f.onHold) clauses.push(ON_HOLD_SQL);
+  // A cancelled or diverted SO is on no hold that matters.
+  if (f.onHold) clauses.push(`${ON_HOLD_SQL} AND ${orderOpenSql("o")}`);
   // Only Billing: sent to Billing alone.
   if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
 

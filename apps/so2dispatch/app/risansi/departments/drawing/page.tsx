@@ -28,7 +28,7 @@ import {
 import { unreadByOrder } from "@/lib/order-messages";
 import { DrawingWorkspace } from "@/components/risansi/drawing-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { deptKpiCards } from "@/lib/orders";
+import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { toneFor, type KpiCardDef } from "@/lib/kpis";
 import { CURVE_STATUSES, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
 
@@ -67,7 +67,7 @@ export default async function DrawingWorkspacePage({
   // Curves and Part Drawings stand, and what is overdue against the Drawing
   // target — one compact row, a hairline between the groups.
   const drawingKpiCards = (): KpiCardDef[] => {
-    const clear = { drg_so: null, drg_gad: null, drg_pc: null, drg_part: null, overdue: null } as Record<string, string | null>;
+    const clear = { drg_so: null, drg_gad: null, drg_pc: null, drg_part: null, overdue: null, hold: null } as Record<string, string | null>;
     const none = { so: [] as string[], gad: [] as string[], curve: [] as string[], part: [] as string[] };
     const overdue = deptKpiCards("drawing").find((c) => c.key === "overdue");
     return [
@@ -81,6 +81,8 @@ export default async function DrawingWorkspacePage({
         tone: st === "Closed" ? ("done" as const) : ("pending" as const),
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
+      // Its SOs on any hold.
+      totalHoldCard(clear, "SO"),
       ...GAD_STATUSES.map((st) => ({
         key: `gad:${st}`,
         label: `GAD ${st}`,
