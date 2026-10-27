@@ -19,6 +19,8 @@ import {
   withValueRules,
   soNoPrefix,
   numberFormatNote,
+  ONLY_BILLING,
+  ONLY_BILLING_COLUMNS,
 } from "@/lib/order-schema";
 import { DELIVERY_OFFSETS, pumpDeliveryRules, spareDeliveryDate, spareDeliveryRules } from "@/lib/target-rules";
 import { NewOrderTerms, blankTermLine, termLineValues, termLinesError, type NewTermLine } from "./new-order-terms";
@@ -74,6 +76,9 @@ const SECTIONS: Section[] = [
         type: "select",
         options: BILL_MODE_OPTIONS,
       },
+      // Only Billing stands on the SO it bills for, and why.
+      { name: "so_reference", label: "SO Reference", type: "text", dependsOn: { name: "bill_mode", value: ONLY_BILLING } },
+      { name: "only_billing_remarks", label: "Remarks", type: "text", dependsOn: { name: "bill_mode", value: ONLY_BILLING } },
       // An FR stands on a complaint, with no quotation or purchase order.
       { name: "complaint_no", label: "Complaint No.", type: "text", dependsOn: { name: "bill_mode", value: "FR" } },
       { name: "complaint_date", label: "Complaint Date", type: "date", dependsOn: { name: "bill_mode", value: "FR" } },
@@ -327,6 +332,9 @@ function withSpareDates(values: NewOrderInput, auto: Set<string>): { values: New
   return { values: next as NewOrderInput, auto: nextAuto };
 }
 
+/** The Client section's fields — an Only Billing SO still asks for them. */
+const CLIENT_NAMES = new Set<string>(SECTIONS[0].fields.map((f) => f.name));
+
 export function OrderForm() {
   const router = useRouter();
   // Every new SO starts Clear; Central Visibility holds it when needed.
@@ -356,9 +364,12 @@ export function OrderForm() {
   // complaint instead of a quotation and PO, a Spare has no total quantity,
   // BOI or Quality, LD Date needs LD = Yes. A field that does not apply is
   // hidden and not sent.
+  // An Only Billing SO asks for its client, SO Reference, remarks, SO No. and Date alone.
+  const onlyBilling = values.bill_mode === ONLY_BILLING;
   const applies = (field: Field) =>
-    !field.dependsOn ||
-    ((values[field.dependsOn.name] ?? "") === field.dependsOn.value) === !field.dependsOn.not;
+    (!onlyBilling || CLIENT_NAMES.has(field.name) || ONLY_BILLING_COLUMNS.includes(field.name)) &&
+    (!field.dependsOn ||
+      ((values[field.dependsOn.name] ?? "") === field.dependsOn.value) === !field.dependsOn.not);
   // A Challan / FR order is worth 0 INR: its value and currency are set, not typed.
   const challanLocked = (field: Field) =>
     values.bill_mode === "FR" && (field.name === "order_value" || field.name === "order_currency");
@@ -400,7 +411,7 @@ export function OrderForm() {
     }
 
     // An FR order is a replacement: no payment terms.
-    const lines = values.bill_mode === "FR" ? [] : termLines.filter((l) => l.term);
+    const lines = values.bill_mode === "FR" || onlyBilling ? [] : termLines.filter((l) => l.term);
     const termsProblem = termLinesError(lines);
     if (termsProblem) {
       setError(termsProblem);
@@ -449,7 +460,7 @@ export function OrderForm() {
       )}
 
       <div className="space-y-8">
-        {SECTIONS.map((section) => (
+        {SECTIONS.filter((section) => section.fields.some(applies)).map((section) => (
           <section
             key={section.title}
             className="rounded-xl border border-card-border bg-surface p-6 shadow-sm"

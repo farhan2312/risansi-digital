@@ -127,8 +127,26 @@ export const BILL_TYPE_OPTIONS = opts(["Tax Invoice", "Challan"]);
 export const BILL_MODE_OPTIONS = [
   { value: "Billing", label: "Billing / Tax Invoice" },
   { value: "FR", label: "Challan / FR" },
+  { value: "Only Billing", label: "Only Billing" },
 ];
-export const BILL_TYPE_FOR_MODE: Record<string, string> = { Billing: "Tax Invoice", FR: "Challan" };
+export const BILL_TYPE_FOR_MODE: Record<string, string> = { Billing: "Tax Invoice", FR: "Challan", "Only Billing": "Tax Invoice" };
+
+/**
+ * Bill Mode Only Billing: an SO raised to bill alone. It stands on an SO
+ * Reference and remarks instead of a quotation and PO, carries an SO No. and
+ * Date and nothing else — no figures, ECs, terms, handover, target dates or
+ * clearance — and no department (Billing included) works on it.
+ */
+export const ONLY_BILLING = "Only Billing";
+/** Besides the Client (and Order Making's own hold), what an Only Billing SO asks for. */
+export const ONLY_BILLING_COLUMNS = [
+  "po_received_date", "order_type", "bill_mode", "so_reference", "only_billing_remarks", "so_no", "so_date",
+];
+/** Whether an SO is Only Billing: its Bill Mode (or the older switch it replaced). */
+export function isOnlyBilling(row: object | null | undefined): boolean {
+  const order = row as { bill_mode?: unknown; only_billing?: unknown } | null | undefined;
+  return String(order?.bill_mode ?? "").trim() === ONLY_BILLING || String(order?.only_billing ?? "") === "Yes";
+}
 
 /** How an SO's Bill Mode reads ("Billing / Tax Invoice"), from either column. */
 export function billModeLabel(billMode: unknown, billType?: unknown): string {
@@ -340,11 +358,6 @@ export const ORDER_SECTIONS: OrderSection[] = [
         dependsOn: [{ column: "clearance_status", value: "Hold" }],
         group: "Clearance",
       },
-      // Independent of Clear / Hold: Yes keeps the SO on Order Making and the
-      // Orders list alone — no department sees it (lib/dept-view onlyBillingSql).
-      { column: "only_billing", label: "Only Billing", type: "select", options: YES_NO, group: "Clearance" },
-      { column: "only_billing_remarks", label: "Only Billing Remarks", type: "text", dependsOn: [{ column: "only_billing", value: "Yes" }], group: "Clearance" },
-
       // Order Making's own Clear / Hold, before Central's clearance: an SO
       // Order Making holds goes to no department (lib/dept-view releasedSql).
       { column: "om_status", label: "Order Making Status", type: "select", options: CLEARANCE_OPTIONS, defaultValue: "Clear", group: "Order Making Hold" },
@@ -392,14 +405,18 @@ export const ORDER_SECTIONS: OrderSection[] = [
         options: BILL_MODE_OPTIONS,
         group: "Purchase Order",
       },
+      // An Only Billing SO stands on the SO it bills for (typed from its
+      // "SO26/1/" prefix), and says why, instead of a quotation and PO.
+      { column: "so_reference", label: "SO Reference", type: "text", dependsOn: [{ column: "bill_mode", value: ONLY_BILLING }], group: "Purchase Order" },
+      { column: "only_billing_remarks", label: "Remarks", type: "text", dependsOn: [{ column: "bill_mode", value: ONLY_BILLING }], group: "Purchase Order" },
       // An FR stands on a complaint instead.
       { column: "complaint_no", label: "Complaint No.", type: "text", dependsOn: [{ column: "bill_mode", value: "FR" }], group: "Purchase Order" },
       { column: "complaint_date", label: "Complaint Date", type: "date", dependsOn: [{ column: "bill_mode", value: "FR" }], group: "Purchase Order" },
       // Which EC the complaint is about: the earlier supply this FR replaces.
       { column: "complaint_ec_no", label: "Complaint Against EC No.", type: "text", dependsOn: [{ column: "bill_mode", value: "FR" }], group: "Purchase Order" },
-      { column: "quotation_no", label: "Quotation No.", type: "text", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
-      { column: "po_no", label: "Purchase Order Number", type: "text", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
-      { column: "customer_po_date", label: "Purchase Order Date", type: "date", dependsOn: [{ column: "bill_mode", value: "FR", not: true }], group: "Purchase Order" },
+      { column: "quotation_no", label: "Quotation No.", type: "text", dependsOn: [{ column: "bill_mode", value: ["FR", ONLY_BILLING], not: true }], group: "Purchase Order" },
+      { column: "po_no", label: "Purchase Order Number", type: "text", dependsOn: [{ column: "bill_mode", value: ["FR", ONLY_BILLING], not: true }], group: "Purchase Order" },
+      { column: "customer_po_date", label: "Purchase Order Date", type: "date", dependsOn: [{ column: "bill_mode", value: ["FR", ONLY_BILLING], not: true }], group: "Purchase Order" },
       {
         column: "order_value",
         label: "Purchase/Sales Order Value (without GST)",
@@ -866,6 +883,19 @@ export const ORDER_SECTIONS: OrderSection[] = [
   },
 ];
 
+// An Only Billing SO asks for its Client, Order Making's hold and
+// ONLY_BILLING_COLUMNS alone: every other field of the Order details (the
+// figures, terms, documents, handover, target dates and clearance) does not
+// apply to it — not shown, not saved, never a gap.
+for (const s of ORDER_SECTIONS) {
+  if (s.table !== "orders") continue;
+  s.fields = s.fields.map((f) =>
+    f.group === "Client" || f.group === "Order Making Hold" || ONLY_BILLING_COLUMNS.includes(f.column)
+      ? f
+      : { ...f, dependsOn: [...(f.dependsOn ?? []), { column: "bill_mode", value: ONLY_BILLING, not: true }] }
+  );
+}
+
 export const SECTION_BY_TABLE = new Map<OrderTable, OrderSection>(
   ORDER_SECTIONS.map((s) => [s.table, s])
 );
@@ -1214,7 +1244,7 @@ const EC_NO_PREFIX_ONLY = /^EC\/\d{2}\/1\/(\d+\/)?$/;
 /** The SO No. or EC No. as saved: blank when nothing past its prefix was typed. */
 export function withoutBarePrefix(column: string, value: unknown): string {
   const v = String(value ?? "").trim();
-  if (column === "so_no" && SO_NO_PREFIX_ONLY.test(v)) return "";
+  if ((column === "so_no" || column === "so_reference") && SO_NO_PREFIX_ONLY.test(v)) return "";
   if (column === "ec_no" && EC_NO_PREFIX_ONLY.test(v)) return "";
   return v;
 }
@@ -1268,6 +1298,10 @@ export function withValueRules<T extends Record<string, unknown>>(
   // A new SO No. still at its prefix follows the SO Date's year.
   if (column === "so_date" && isBareSoNoPrefix(next.so_no)) {
     next.so_no = soNoPrefix(value);
+  }
+  // An Only Billing SO's SO Reference opens at its prefix ("SO26/1/").
+  if (column === "bill_mode" && value === ONLY_BILLING && !String(next.so_reference ?? "").trim()) {
+    next.so_reference = soNoPrefix(next.so_date);
   }
   // An FR order is a replacement: its terms say so.
   if (column === "bill_mode" && value === "FR" && !String(next.payment_terms_remarks ?? "").trim()) {

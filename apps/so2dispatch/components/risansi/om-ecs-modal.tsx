@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { ecBoiListAction } from "@/app/risansi/orders/actions";
 import { BoiStatusTag } from "./boi-detail-modal";
-import { addOnFieldsFor } from "@/lib/order-schema";
+import { addOnFieldsFor, isOnlyBilling } from "@/lib/order-schema";
 import { formatDisplay } from "./editable-section";
 
 type Row = Record<string, unknown>;
@@ -75,7 +75,8 @@ export function OmEcsModal({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {canManage && (
+            {/* An Only Billing SO has no ECs. */}
+            {canManage && !isOnlyBilling(order) && (
               <button
                 type="button"
                 onClick={onAdd}

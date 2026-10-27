@@ -21,6 +21,7 @@ import { OrderThread } from "./order-thread";
 import type { TargetRevision } from "@/lib/target-dates";
 import { SoSections } from "./so-sections";
 import { HoldBanner } from "./hold-badge";
+import { isOnlyBilling } from "@/lib/order-schema";
 
 export { invoiceRowHeader } from "./so-sections";
 
@@ -59,7 +60,8 @@ export function OrderDetail({
 }) {
   const router = useRouter();
   const order = detail.order;
-  const canManageItems = canManageEcs(role);
+  // An Only Billing SO has no ECs.
+  const canManageItems = canManageEcs(role) && !isOnlyBilling(order);
   const [addOpen, setAddOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 

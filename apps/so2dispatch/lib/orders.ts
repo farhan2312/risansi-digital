@@ -61,6 +61,7 @@ import {
   PAYMENT_HOLD_VALUE,
   coerceField,
   withoutBarePrefix,
+  ONLY_BILLING,
   canonicalZone,
   canonicalClientField,
   isClientField,
@@ -227,6 +228,9 @@ export type NewOrderInput = {
   clearance_status?: string;
   clearance_hold_reason?: string;
   clearance_remarks?: string;
+  /** Only Billing: the SO it bills for, and why. */
+  so_reference?: string;
+  only_billing_remarks?: string;
 };
 
 /** Fields captured when adding an EC/pump item (the Add-On form). */
@@ -400,6 +404,18 @@ export async function createOrder(
         input.order_type === "Spare" ? null : nullify(input.performance_curve_required),
         // The QC documents, only when Quality is needed.
         input.qc_required === "Yes" ? nullify(input.qc_documents) : null,
+      ]
+    );
+    // Only Billing: the switch the departments read follows the Bill Mode,
+    // with the SO Reference and remarks that go with it.
+    const onlyBilling = input.bill_mode === ONLY_BILLING;
+    await client.query(
+      `UPDATE orders SET only_billing = $2, so_reference = $3, only_billing_remarks = $4 WHERE id = $1`,
+      [
+        result.rows[0].id,
+        onlyBilling ? "Yes" : "No",
+        onlyBilling ? nullify(withoutBarePrefix("so_reference", input.so_reference)) : null,
+        onlyBilling ? nullify(input.only_billing_remarks) : null,
       ]
     );
     return result.rows[0];
@@ -886,7 +902,7 @@ export async function updateOrderSection(
       // An SO No. / EC No. left at its prefix is saved as blank.
       coerceField(
         fieldByColumn.get(c)!.type,
-        c === "so_no" || c === "ec_no" ? withoutBarePrefix(c, values[c]) : isClientField(c) ? canonicalClientField(c, values[c]) : values[c]
+        c === "so_no" || c === "ec_no" || c === "so_reference" ? withoutBarePrefix(c, values[c]) : isClientField(c) ? canonicalClientField(c, values[c]) : values[c]
       )
     );
 
@@ -3545,8 +3561,8 @@ function orderListClauses(
     const dept = f.dept;
     clauses.push(`(${f.deptStatuses.map((s) => deptStatusPredicate(dept, s)).join(" OR ")})`);
   }
-  // A department status is no Only Billing SO's — save Billing's and Accounts'.
-  if (f.dept && f.dept !== "billing" && f.dept !== "accounts" && (f.deptStatuses.length || f.packingStatuses.length)) {
+  // A department status is no Only Billing SO's — not even Billing's.
+  if (f.dept && (f.deptStatuses.length || f.packingStatuses.length)) {
     clauses.push(`NOT ${onlyBillingSql("o")}`);
   }
   // The Orders list: several departments at once — any ticked status within
@@ -4110,8 +4126,8 @@ export function pumpOrderCards(): KpiCardDef[] {
     key,
     label,
     group,
-    // An Only Billing SO counts for the PI cards alone: no other department works on it.
-    sql: `(${sql}) AND ${open}${group === "Proforma Invoice" ? "" : ` AND NOT ${onlyBillingSql("o")}`}`,
+    // An Only Billing SO is no department's — not even Billing's.
+    sql: `(${sql}) AND ${open} AND NOT ${onlyBillingSql("o")}`,
     params: { ...clear, pk: key },
     tone,
   });
@@ -4194,8 +4210,8 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
     key: `${dept}:${status}:${extra.pack ?? ""}`,
     label,
     group,
-    // An Only Billing SO is no department's but Billing's and Accounts'.
-    sql: `(${sql ?? deptStatusPredicate(dept, status)}) AND ${open}${dept === "billing" || dept === "accounts" ? "" : ` AND NOT ${onlyBillingSql("o")}`}`,
+    // An Only Billing SO is no department's — not even Billing's.
+    sql: `(${sql ?? deptStatusPredicate(dept, status)}) AND ${open} AND NOT ${onlyBillingSql("o")}`,
     params: { ...clear, dept, dstatus: status, ...extra },
     tone: toneFor(status),
   });

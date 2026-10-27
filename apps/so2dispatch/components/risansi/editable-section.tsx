@@ -12,6 +12,7 @@ import {
   splitMulti,
   withValueRules,
   soNoPrefix,
+  ONLY_BILLING,
   numberFormatNote,
   type OrderField,
   type OrderSection,
@@ -139,6 +140,8 @@ export function EditableSection({
     const start = Object.fromEntries(section.fields.map((f) => [f.column, seedValue(f, data)]));
     // No SO No. yet: it opens with all but its number ("SO26/1/").
     if (section.table === "orders" && "so_no" in start && !start.so_no.trim()) start.so_no = soNoPrefix(start.so_date);
+    // …and an Only Billing SO's SO Reference likewise.
+    if (section.table === "orders" && start.bill_mode === ONLY_BILLING && !(start.so_reference ?? "").trim()) start.so_reference = soNoPrefix(start.so_date);
     return start;
   });
 

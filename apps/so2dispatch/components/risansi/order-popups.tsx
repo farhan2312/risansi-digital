@@ -6,7 +6,7 @@ import { Loader2, X } from "lucide-react";
 import { getOrderQuickViewAction, updateOrderSectionAction } from "@/app/risansi/orders/actions";
 import type { ItemDetail, OrderDetail } from "@/lib/orders";
 import type { TargetRevision } from "@/lib/target-dates";
-import { CLEARANCE_HOLD_REASONS } from "@/lib/order-schema";
+import { CLEARANCE_HOLD_REASONS, isOnlyBilling } from "@/lib/order-schema";
 import type { DeptKey } from "./ec-dept-grid";
 import { SoSections } from "./so-sections";
 import { DeptViewPopup } from "./dept-view-popup";
@@ -166,6 +166,8 @@ function Shell({
 export function ClearanceBadge({ order, readOnly = false }: { order: Row; readOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   const held = str(order.clearance_status) === "Hold";
+  // An Only Billing SO (its Bill Mode, set on Order Making) needs no clearance.
+  if (isOnlyBilling(order)) return <OnlyBillingBadge order={order} />;
   return (
     <>
       <button
@@ -183,17 +185,24 @@ export function ClearanceBadge({ order, readOnly = false }: { order: Row; readOn
         <span className="font-semibold">{held ? "On hold" : "Clear"}</span>
         {held && str(order.clearance_hold_reason) && <span className="whitespace-normal">{str(order.clearance_hold_reason)}</span>}
       </button>
-      {str(order.only_billing) === "Yes" && (
-        <span
-          title={["Only Billing: no department sees this SO", str(order.only_billing_remarks)].filter(Boolean).join(" — ")}
-          className="mt-1 flex w-fit max-w-[12rem] flex-col rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] leading-tight text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
-        >
-          <span className="font-semibold">Only billing</span>
-          {str(order.only_billing_remarks) && <span className="whitespace-normal">{str(order.only_billing_remarks)}</span>}
-        </span>
-      )}
       {open && <ClearanceForm order={order} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** An Only Billing SO's badge, with its SO Reference and remarks. */
+function OnlyBillingBadge({ order }: { order: Row }) {
+  const ref = str(order.so_reference);
+  const remarks = str(order.only_billing_remarks);
+  return (
+    <span
+      title={["Only Billing: no department sees this SO", ref && `SO Reference ${ref}`, remarks].filter(Boolean).join(" — ")}
+      className="mt-1 flex w-fit max-w-[12rem] flex-col rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] leading-tight text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+    >
+      <span className="font-semibold">Only billing</span>
+      {ref && <span className="whitespace-normal">Ref {ref}</span>}
+      {remarks && <span className="whitespace-normal">{remarks}</span>}
+    </span>
   );
 }
 
@@ -202,9 +211,6 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
   const [status, setStatus] = useState(str(order.clearance_status) === "Hold" ? "Hold" : "Clear");
   const [reason, setReason] = useState(str(order.clearance_hold_reason));
   const [remarks, setRemarks] = useState(str(order.clearance_remarks));
-  // Independent of Clear / Hold: the SO stays on Order Making and the Orders list.
-  const [onlyBilling, setOnlyBilling] = useState(str(order.only_billing) === "Yes");
-  const [onlyBillingRemarks, setOnlyBillingRemarks] = useState(str(order.only_billing_remarks));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -226,8 +232,6 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
       clearance_status: status,
       clearance_hold_reason: status === "Hold" ? reason : "",
       clearance_remarks: status === "Hold" ? remarks : "",
-      only_billing: onlyBilling ? "Yes" : "No",
-      only_billing_remarks: onlyBilling ? onlyBillingRemarks : "",
     });
     setSaving(false);
     if (!res.ok) {
@@ -292,44 +296,6 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
               Hold
             </button>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={onlyBilling}
-            onClick={() => setOnlyBilling((v) => !v)}
-            className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-              onlyBilling
-                ? "border-violet-400 bg-violet-50 dark:bg-violet-500/10"
-                : "border-input-border hover:bg-background"
-            }`}
-          >
-            <span
-              aria-hidden
-              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${onlyBilling ? "bg-violet-600" : "bg-input-border"}`}
-            >
-              <span
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${onlyBilling ? "left-[1.125rem]" : "left-0.5"}`}
-              />
-            </span>
-            <span className="min-w-0">
-              <span className={`block text-sm font-semibold ${onlyBilling ? "text-violet-700 dark:text-violet-300" : "text-foreground"}`}>
-                Only billing
-              </span>
-              <span className="block text-xs text-muted">The SO stays on Order Making and the Orders list — no department sees it.</span>
-            </span>
-          </button>
-          {onlyBilling && (
-            <label className="block text-sm">
-              <span className="mb-1 block text-[13px] font-medium text-brand-label">Only Billing Remarks</span>
-              <textarea
-                value={onlyBillingRemarks}
-                onChange={(e) => setOnlyBillingRemarks(e.target.value)}
-                rows={2}
-                placeholder="Why this SO stays with billing only…"
-                className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-              />
-            </label>
-          )}
           {status === "Hold" && (
             <>
               <label className="block text-sm">

@@ -40,6 +40,8 @@ import {
   soNoPrefix,
   numberFormatNote,
   withoutBarePrefix,
+  ONLY_BILLING,
+  isOnlyBilling,
   type OrderField,
 } from "@/lib/order-schema";
 import type { OrderMakingRow } from "@/lib/orders";
@@ -587,7 +589,8 @@ export function OrderMakingWorkspace({
                   <td className="px-4 py-3 whitespace-nowrap">
                     {/* The row itself opens the ECs; the count is just the count. */}
                     <span className={`mr-2 text-sm tabular-nums ${row.ec_count > 0 ? "text-foreground" : "text-muted"}`}>{row.ec_count}</span>
-                    {manageEcs && (
+                    {/* An Only Billing SO has no ECs. */}
+                    {manageEcs && !isOnlyBilling(row) && (
                       <button
                         type="button"
                         onClick={() => setAddFor(row)}
@@ -817,6 +820,7 @@ function OrderMakingEdit({
       )
     );
     if (!str(start.so_no).trim()) start.so_no = soNoPrefix(start.so_date);
+    if (start.bill_mode === ONLY_BILLING && !str(start.so_reference).trim()) start.so_reference = soNoPrefix(start.so_date);
     return start;
   });
   const [saving, setSaving] = useState(false);
@@ -946,7 +950,9 @@ function OrderMakingEdit({
               {row ? `SO ${str(row.so_no) || `#${row.sl_no}`} · ` : ""}
               {mode === "so"
                 ? "fill the Sales Order details; the client and PO are Order Making PO's"
-                : "Central Visibility is told once the SO details are in, and fills the terms, target dates and ECs"}
+                : read("bill_mode") === ONLY_BILLING
+                  ? "Only Billing: no ECs, terms, target dates or clearance — it goes to no department"
+                  : "Central Visibility is told once the SO details are in, and fills the terms, target dates and ECs"}
             </p>
           </div>
           <button

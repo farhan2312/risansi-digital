@@ -2921,3 +2921,13 @@ ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_override_check;
 ALTER TABLE orders ADD CONSTRAINT orders_status_override_check
     CHECK (status_override IS NULL OR status_override IN
            ('Pending', 'LOT dispatch', 'Fully dispatch', 'Hold', 'Cancelled by client', 'Diverted'));
+
+-- Only Billing becomes a third Bill Mode, chosen by Order Making (no longer a
+-- switch in Central's Clearance pop-up). It stands on an SO Reference and
+-- remarks instead of a quotation and PO; only_billing stays the switch every
+-- department reads, kept in step with the Bill Mode on save.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS so_reference TEXT;
+UPDATE orders SET bill_mode = 'Only Billing'
+ WHERE only_billing = 'Yes' AND bill_mode IS DISTINCT FROM 'Only Billing';
+UPDATE orders SET only_billing = 'Yes'
+ WHERE bill_mode = 'Only Billing' AND only_billing IS DISTINCT FROM 'Yes';

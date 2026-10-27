@@ -20,7 +20,7 @@ import {
   canonicalSelectValue,
   dependsOnSatisfied,
   type ChildTable,
-  type OrderField, billModeLabel } from "@/lib/order-schema";
+  type OrderField, billModeLabel, isOnlyBilling } from "@/lib/order-schema";
 import { canCreateOrders, canSeeClient, canViewDepartment, isCentral } from "@/lib/roles";
 import type { TargetRevision } from "@/lib/target-dates";
 import { ItemSections } from "./item-sections";
@@ -188,7 +188,8 @@ export function OrderOverview({
   const order = detail.order;
   const soLabel = str(order.so_no) || `#${str(order.sl_no) || "—"}`;
   const central = isCentral(role);
-  const canManageItems = canCreateOrders(role);
+  // An Only Billing SO has no ECs.
+  const canManageItems = canCreateOrders(role) && !isOnlyBilling(order);
   const [addOpen, setAddOpen] = useState(false);
   // One EC opens by itself; a longer list stays closed so the page still reads
   // as a summary until you ask for a particular EC.

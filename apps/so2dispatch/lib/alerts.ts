@@ -1,9 +1,10 @@
 import { query } from "@/lib/db";
-import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, spareEcSql } from "@/lib/dept-view";
+import { assemblyDueSql, boiReceivedSql, onlyBillingSql, orderOpenSql, orderStatusSql, spareEcSql } from "@/lib/dept-view";
 import { ecDrawingDoneSql } from "@/lib/drawing-filter";
 
 /** A cancelled or diverted order raises no escalation. `a.id` is the SO. */
-const OPEN_ONLY = `EXISTS (SELECT 1 FROM orders oo WHERE oo.id = a.id AND ${orderOpenSql("oo")})`;
+// An Only Billing SO is no department's, so nobody's alert either.
+const OPEN_ONLY = `EXISTS (SELECT 1 FROM orders oo WHERE oo.id = a.id AND ${orderOpenSql("oo")} AND NOT ${onlyBillingSql("oo")})`;
 import {
   offsetFor,
   pageResult,

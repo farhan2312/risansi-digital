@@ -85,6 +85,8 @@ import {
   type ChildTable,
   type OrderTable,
   withoutBarePrefix,
+  ONLY_BILLING,
+  isOnlyBilling,
 } from "@/lib/order-schema";
 import {
   getClientByCode,
@@ -415,6 +417,7 @@ export async function createItemAction(
 
   const order = await getOrderDetail(orderId);
   if (!order) return { ok: false, error: "Order not found." };
+  if (isOnlyBilling(order.order)) return { ok: false, error: "An Only Billing SO has no ECs." };
 
   // Every EC inherits the SO's Order Type (Pump/Spare) — the Add-On is of that
   // type, not re-selected per EC.
@@ -834,12 +837,17 @@ export async function updateOrderSectionAction(
       // The amount received may exceed the order value (with GST): Accounts
       // records what actually came in.
       await updateOrderSection(id, tbl, allowedValues);
-      // The bill type follows the Bill Mode (it is no longer chosen on its own).
+      // The bill type follows the Bill Mode (it is no longer chosen on its own),
+      // and so does Only Billing, the switch the departments read.
       if (tbl === "orders" && "bill_mode" in allowedValues) {
-        await query(`UPDATE orders SET bill_type = $2 WHERE id = $1`, [
-          id,
-          BILL_TYPE_FOR_MODE[allowedValues.bill_mode] ?? null,
-        ]);
+        const onlyBilling = allowedValues.bill_mode === ONLY_BILLING;
+        await query(
+          `UPDATE orders SET bill_type = $2, only_billing = $3,
+                  so_reference = CASE WHEN $3 = 'Yes' THEN so_reference END,
+                  only_billing_remarks = CASE WHEN $3 = 'Yes' THEN only_billing_remarks END
+            WHERE id = $1`,
+          [id, BILL_TYPE_FOR_MODE[allowedValues.bill_mode] ?? null, onlyBilling ? "Yes" : "No"]
+        );
         await markReplacementTerms(id);
       }
       // An EC added before the SO had an Order Type takes it now — Planning and
