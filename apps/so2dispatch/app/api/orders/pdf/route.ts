@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canViewAll } from "@/lib/roles";
-import { listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, parseQueueSort } from "@/lib/orders";
+import { isTestSo, listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, parseQueueSort } from "@/lib/orders";
 import { describeOrderListFilter, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
 import { buildOrdersListPdf } from "@/lib/orders-list-pdf";
 
@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
   // A Rep: their own SOs only.
   const filter = scopeToRep(withOrdersKind(parseOrderListFilter(get, { noDispatchTarget: true }), get("type")), user);
   const result = await listOrdersPage({ page: 1, filter, sort: parseQueueSort(get("sort")), all: true });
+  // A test SO is left out of the report altogether.
+  const testCount = result.rows.filter((r) => isTestSo(r.so_no)).length;
+  result.rows = result.rows.filter((r) => !isTestSo(r.so_no));
+  result.total -= testCount;
   const ids = result.rows.map((r) => r.id);
   // Spare: lot by lot, and each dispatch's slips, invoice, mode and docket.
   const spare = filter.types.length === 1 && filter.types[0] === "Spare";
