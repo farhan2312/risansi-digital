@@ -2356,7 +2356,6 @@ const overviewColumns = () => `it.id,
             o.boi,
             (CASE
                WHEN COALESCE(o.boi, '') <> 'Yes' THEN true
-               WHEN NOT EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id) THEN false
                WHEN EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id AND NOT ${boiReceivedSql("bi")}) THEN false
                ELSE true
              END) AS purchase_done,
@@ -4893,7 +4892,6 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
                   ELSE ${soStageStatusSql("assembly", "o")} END) AS pump_asm,
             (CASE
                WHEN COALESCE(o.boi, '') <> 'Yes' THEN 'na'
-               WHEN NOT EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id) THEN 'pending'
                WHEN EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id AND NOT ${boiReceivedSql("bi")}) THEN 'pending'
                ELSE 'done' END) AS purchase,
             o.qc_required,

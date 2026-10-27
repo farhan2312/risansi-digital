@@ -42,12 +42,12 @@ type Row = Record<string, unknown>;
 const itemsOf = (r: Row) => (Array.isArray(r.boi_items) ? (r.boi_items as Row[]) : []);
 
 /**
- * An EC is Closed once it lists its bought-out items and every one is in
- * hand; Open until then — with none listed yet, there is still work to do.
+ * An EC is Closed once every bought-out item it lists is in hand — or when
+ * it lists none (nothing to buy out); Open while any is still to come.
  */
 export function ecPurchaseState(r: Row): string {
   const items = itemsOf(r);
-  return items.length > 0 && items.every(boiInHand) ? "Closed" : "Open";
+  return items.every(boiInHand) ? "Closed" : "Open";
 }
 
 /** The SO is Closed once every pump EC on it is; Open while any is. */
@@ -85,7 +85,7 @@ export function boiStatusSql(b: string): string {
 
 /** An EC's Open / Closed in SQL (alias it). */
 export function ecPurchaseStateSql(it: string): string {
-  return `(CASE WHEN NOT EXISTS (SELECT 1 FROM order_boi_items eb WHERE eb.item_id = ${it}.id) THEN 'Open'
+  return `(CASE WHEN NOT EXISTS (SELECT 1 FROM order_boi_items eb WHERE eb.item_id = ${it}.id) THEN 'Closed'
                 WHEN EXISTS (SELECT 1 FROM order_boi_items eb WHERE eb.item_id = ${it}.id AND NOT ${boiReceivedSql("eb")}) THEN 'Open'
                 ELSE 'Closed' END)`;
 }
