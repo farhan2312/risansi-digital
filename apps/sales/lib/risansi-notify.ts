@@ -9,7 +9,7 @@
 
 import risansiPool from '@/lib/db-risansi';
 import { visitExpectedSql } from '@/lib/risansi-visit-waiver';
-import { sendNotification, notifyAdminEscalation } from '@/lib/risansi-email';
+import { sendNotification, notifyAdminEscalation, notifyBugDigest, type BugDigestRow } from '@/lib/risansi-email';
 import { pushInApp } from '@/lib/risansi-inapp';
 
 const BRAND = '#0A3D8F';
@@ -506,28 +506,85 @@ export async function notifyNewLead(clientId: number, creatorEmail: string) {
     });
   } catch (e) { console.error('[notify] new lead failed', e); }
 }
+/**
+ * A bug was filed. In-app only — the email is the Friday digest.
+ *
+ * This used to mail every sysadmin on every bug. On a busy week that is a
+ * dozen separate mails about a board that does not need opening a dozen
+ * times, and a mail nobody opens is worse than no mail: it teaches people to
+ * filter the sender, which costs the escalations too. The notification bell
+ * still fires immediately, so nothing is slower to find out about, and
+ * runWeeklyBugDigest sends one mail on Friday morning.
+ */
 export async function notifyBugReported(a: { title: string; severity?: string | null; reporterName?: string | null; reporterEmail?: string | null; pageUrl?: string | null }) {
   try {
     const admins = await sysadmins();
-    const skip = (a.reporterEmail || '').trim().toLowerCase();
-    for (const admin of admins) {
-      if (skip && admin.email.toLowerCase() === skip) continue;   // don't email the reporter themselves
-      await sendNotification({
-        to: admin.email, section: 'Bugs', accent: RED, greetingName: firstName(admin.name),
-        subject: `New bug reported: ${a.title}`,
-        intro: `${a.reporterName || 'Someone'} filed a bug in the portal.`,
-        title: a.title,
-        meta: [...(a.severity ? [['Severity', a.severity] as [string, string]] : []), ...(a.pageUrl ? [['Page', a.pageUrl] as [string, string]] : []), ['Reported by', a.reporterName || '—']],
-        ctaLabel: 'Open the Bugs board', ctaPath: '/risansi/admin/bugs',
-        footer: 'You are receiving this as a system administrator.',
-      });
-    }
     await pushInApp(inAppIds(admins, a.reporterEmail || ''), {
       kind: 'bug_reported', section: 'Bugs', actor: a.reporterEmail || null,
       title: `New bug reported: ${a.title}`, body: a.severity ? `Severity: ${a.severity}` : null,
       link: '/risansi/admin/bugs', entityType: 'bug',
     });
   } catch (e) { console.error('[notify] bug reported failed', e); }
+}
+
+/**
+ * One bug mail a week, Friday morning, to every sysadmin.
+ *
+ * It lists what is OPEN, split by whether it arrived this week or was carried
+ * over. Bugs fixed during the week are a count and not a list: they need no
+ * attention, and listing them buries the ones that do. Checked against the
+ * live board while writing this — a first draft listed everything touched in
+ * the window and came out as "26 new this week, 32 open" when 25 of those
+ * were already fixed and 7 were actually open.
+ *
+ * Carried-over is the half the per-bug alert never covered. An old bug
+ * generates no event, so it generated no mail; one filed three weeks ago and
+ * ignored was invisible. Now it is on the list every Friday until it is
+ * fixed.
+ *
+ * A quiet week sends nothing. A weekly "0 bugs" is the noise this exists to
+ * remove.
+ */
+export async function runWeeklyBugDigest(): Promise<number> {
+  let sent = 0;
+  try {
+    // One digest per ISO week however many times the route is hit.
+    if (!(await claimRun('bug_digest', "date_trunc('week', CURRENT_DATE)::date"))) return 0;
+
+    const { rows } = await risansiPool.query<{
+      id: number; title: string; severity: string; status: string;
+      reporter_name: string; days: number; fresh: boolean;
+    }>(
+      `SELECT id, title, severity, status, reporter_name,
+              GREATEST((CURRENT_DATE - created_at::date), 0)::int AS days,
+              (created_at >= now() - interval '7 days') AS fresh
+         FROM bugs
+        WHERE status <> 'fixed'
+        ORDER BY CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+                 created_at ASC`);
+
+    // Closed in the window. resolved_at is stamped when a bug reaches 'fixed';
+    // updated_at covers the rows that predate that column being filled in.
+    const fixedThisWeek = Number((await risansiPool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM bugs
+        WHERE status = 'fixed'
+          AND COALESCE(resolved_at, updated_at) >= now() - interval '7 days'`)).rows[0]?.n ?? 0);
+
+    if (rows.length === 0 && fixedThisWeek === 0) return 0;
+
+    const toRow = (r: typeof rows[number]): BugDigestRow => ({
+      id: r.id, title: r.title, severity: r.severity, status: r.status,
+      reporter: r.reporter_name || '—', days: Number(r.days),
+    });
+    const fresh  = rows.filter(r => r.fresh).map(toRow);
+    const ageing = rows.filter(r => !r.fresh).map(toRow);
+
+    for (const admin of await sysadmins()) {
+      await notifyBugDigest({ to: admin.email, toName: firstName(admin.name), fresh, ageing, fixedThisWeek });
+      sent++;
+    }
+  } catch (e) { console.error('[notify] weekly bug digest failed', e); }
+  return sent;
 }
 
 // ── small helpers ───────────────────────────────────────────────

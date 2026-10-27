@@ -459,3 +459,111 @@ export async function notifyAdminEscalation(a: {
 
   return sendEmail({ to: a.to, subject: `Escalation: ${total} item${total === 1 ? '' : 's'} overdue more than 5 days`, html });
 }
+
+// ── Weekly bug digest ───────────────────────────────────────────
+//
+// Replaces the per-bug email. Every new bug used to notify every sysadmin
+// immediately, which on a busy week is a dozen separate mails about a board
+// nobody opens a dozen times a day. One mail on Friday morning says the same
+// thing and gets read.
+//
+// Two sections, because they answer different questions. "Reported this week"
+// is what came in; "Still open" is what has been sitting there, which is the
+// half a per-bug alert never told anybody — an old bug generates no event, so
+// it generated no mail, so it was invisible.
+
+export interface BugDigestRow {
+  id: number;
+  title: string;
+  severity: string;           // low | medium | high
+  status: string;             // reported | recorded | in_progress | testing | fixed
+  reporter: string;
+  days: number;               // age since it was reported
+}
+
+const SEV_TONE: Record<string, { bg: string; fg: string }> = {
+  high:   { bg: '#FEE2E2', fg: '#B91C1C' },
+  medium: { bg: '#FEF3C7', fg: '#92400E' },
+  low:    { bg: '#F3F4F6', fg: '#4B5563' },
+};
+const STATUS_LABEL: Record<string, string> = {
+  reported: 'Reported', recorded: 'Recorded', in_progress: 'In progress',
+  testing: 'Testing', fixed: 'Fixed',
+};
+
+export async function notifyBugDigest(a: {
+  to: string;
+  toName?: string | null;
+  fresh: BugDigestRow[];       // open, reported in the last 7 days
+  ageing: BugDigestRow[];      // open, reported before that
+  fixedThisWeek: number;       // closed in the window — a count, not a list
+}) {
+  const RED = '#B91C1C';
+  const open = a.fresh.length + a.ageing.length;
+
+  const itemRow = (r: BugDigestRow) => {
+    const tone = SEV_TONE[r.severity] ?? SEV_TONE.low;
+    return `
+    <tr>
+      <td style="padding:11px 0;border-top:1px solid #F3F4F6;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="vertical-align:top;padding-right:10px;">
+            <div style="color:#111827;font-size:14px;font-weight:600;line-height:1.35;">${escapeHtml(r.title)}</div>
+            <div style="color:#6B7280;font-size:12px;line-height:1.4;margin-top:2px;">
+              ${escapeHtml(STATUS_LABEL[r.status] ?? r.status)} &middot; ${escapeHtml(r.reporter)} &middot; ${r.days}d old
+            </div>
+          </td>
+          <td style="vertical-align:top;text-align:right;white-space:nowrap;width:74px;">
+            <span style="display:inline-block;background:${tone.bg};color:${tone.fg};font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px;">${escapeHtml(r.severity)}</span>
+          </td>
+        </tr></table>
+      </td>
+    </tr>`;
+  };
+
+  const section = (label: string, rows: BugDigestRow[]) => rows.length ? `
+    <tr><td style="padding:14px 0 2px;">
+      <span style="color:${RED};font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;">${escapeHtml(label)} &middot; ${rows.length}</span>
+    </td></tr>
+    ${rows.map(itemRow).join('')}` : '';
+
+  const html = `
+  <div style="background:#F3F4F6;padding:24px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+      <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #E5E7EB;">
+        <tr><td style="background:${RED};padding:16px 24px;">
+          <span style="color:#ffffff;font-size:15px;font-weight:600;letter-spacing:0.02em;">Risansi &middot; Bugs this week</span>
+        </td></tr>
+        <tr><td style="padding:24px;">
+          <p style="margin:0 0 4px;color:#111827;font-size:15px;">Hi ${escapeHtml(a.toName || 'there')},</p>
+          <p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.5;">
+            ${open === 0
+              ? `Nothing open.${a.fixedThisWeek ? ` ${a.fixedThisWeek} fixed this week.` : ''}`
+              : `${open} open — ${a.fresh.length} raised this week, ${a.ageing.length} carried over.${a.fixedThisWeek ? ` ${a.fixedThisWeek} fixed this week.` : ''}`}
+          </p>
+          ${open === 0 ? '' : `
+          <div style="border:1px solid #E5E7EB;border-left:3px solid ${RED};border-radius:6px;padding:6px 16px 14px;margin-bottom:18px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              ${section('Raised this week', a.fresh)}
+              ${section('Carried over', a.ageing)}
+            </table>
+          </div>`}
+          <a href="${appLink('/risansi/admin/bugs')}" style="display:inline-block;background:${RED};color:#ffffff;text-decoration:none;font-size:14px;font-weight:500;padding:10px 20px;border-radius:6px;">
+            Open the Bugs board
+          </a>
+        </td></tr>
+        <tr><td style="padding:14px 24px;border-top:1px solid #F3F4F6;">
+          <span style="color:#9CA3AF;font-size:11px;">You are receiving this as a system administrator. One mail a week, Friday morning.</span>
+        </td></tr>
+      </table>
+    </td></tr></table>
+  </div>`;
+
+  // The subject carries the number somebody acts on. An earlier draft counted
+  // everything touched this week and said "32 open" when 7 were — fixed bugs
+  // inflating the one figure the subject line exists to give.
+  const subject = open === 0
+    ? `Bugs: nothing open${a.fixedThisWeek ? ` · ${a.fixedThisWeek} fixed this week` : ''}`
+    : `Bugs: ${open} open${a.fixedThisWeek ? ` · ${a.fixedThisWeek} fixed this week` : ''}`;
+  return sendEmail({ to: a.to, subject, html });
+}
