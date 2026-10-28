@@ -37,6 +37,13 @@ export type User = {
    * user only (lib/session.ts), never read from the table.
    */
   rep_names?: string[];
+  /**
+   * Every role they may work as — their main one first, then the extra
+   * departments Admin gave them — and the main one itself. `role` above is the
+   * one they are working as. Set on the signed-in user only (lib/session.ts).
+   */
+  roles?: UserRole[];
+  primary_role?: UserRole;
 };
 
 export type NewUser = {

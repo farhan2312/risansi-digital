@@ -44,7 +44,7 @@ export default async function RisansiLayout({
 
   return (
     <AppShell
-      user={{ name: user.full_name, email: user.email, role: user.role }}
+      user={{ name: user.full_name, email: user.email, role: user.role, roles: user.roles }}
       alertCount={alertCount}
       reminderCount={reminderCount}
       notifUnread={notifUnread}

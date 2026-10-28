@@ -9,6 +9,7 @@ import { ReportBugTrigger } from "./report-bug";
 import { DiscussionBell } from "./discussion-bell";
 import { isCrm } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
+import { RoleSwitcher } from "./role-switcher";
 import { BottomNav } from "./bottom-nav";
 
 // SharePoint-hosted demo walkthrough. Opens in a new tab; noopener/noreferrer
@@ -16,7 +17,8 @@ import { BottomNav } from "./bottom-nav";
 const DEMO_VIDEO_URL =
   "https://risansi-my.sharepoint.com/personal/asad_risansi_com/_layouts/15/stream.aspx?id=%2Fpersonal%2Fasad%5Frisansi%5Fcom%2FDocuments%2FSOdispatchDemo%2FSODispatch%2Emp4&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&ga=1&referrer=StreamWebApp%2EWeb&referrerScenario=AddressBarCopied%2Eview%2E4d270a1e%2Ddb24%2D4b77%2Da8f7%2D3e728102fe28";
 
-type ShellUser = { name: string; email: string; role: string };
+/** `roles`: every department they may work as (the switcher shows for more than one). */
+type ShellUser = { name: string; email: string; role: string; roles?: string[] };
 
 // Route-segment → friendly label + optional parent (for two-level breadcrumbs
 // like "Central Admin > Bug Tracker"). Segments not in the map get a
@@ -179,6 +181,10 @@ export function AppShell({
               <PlayCircle className="h-4 w-4 text-primary" />
               <span className="hidden sm:inline">Demo</span>
             </a>
+            {/* Below lg, where the sidebar is hidden: the department switcher here. */}
+            <span className="lg:hidden">
+              <RoleSwitcher role={user.role} roles={user.roles ?? []} variant="header" />
+            </span>
             <ReportBugTrigger />
             {/* CRM only reads: no chat. */}
             {!isCrm(user.role) && (

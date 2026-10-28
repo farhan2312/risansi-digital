@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
 import { HUB_URL } from "@/lib/hub";
+import { EXTRA_ROLE_CHOICES, listUserRoles } from "@/lib/user-roles";
+import { ExtraRolesEditor } from "@/components/risansi/extra-roles-editor";
 
 export const metadata: Metadata = {
   title: "Users & Access | Risansi",
@@ -21,11 +23,13 @@ export const dynamic = "force-dynamic";
  * as a permissions problem.
  *
  * Which account is which rep on the orders is this portal's own and stays,
- * on Reps.
+ * on Reps. So are extra departments: a person's main role is the hub's, the
+ * other departments they work for are given here (lib/user-roles.ts).
  */
 export default async function UserAccessControlPage() {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") redirect("/risansi/dashboard");
+  const people = await listUserRoles();
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
@@ -59,6 +63,19 @@ export default async function UserAccessControlPage() {
           You need approver access there. If you had it here and not there, ask an approver to add you.
         </p>
       </div>
+
+      {/* Extra departments: this portal's own. */}
+      <section className="mt-10">
+        <h2 className="font-display text-lg font-semibold text-foreground">Extra departments</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
+          For somebody who works for more than one department. Their main role is the one Risansi Digital gives them; tick
+          the others here. They then switch between them with <span className="font-medium text-foreground">Working as</span>{" "}
+          in the sidebar, and work as one department at a time — its pages, notifications and chat.
+        </p>
+        <div className="mt-4">
+          <ExtraRolesEditor people={people} choices={EXTRA_ROLE_CHOICES} />
+        </div>
+      </section>
     </div>
   );
 }

@@ -2961,3 +2961,15 @@ SELECT rl.id, rl.item_id, rl.qty, rl.assembly_plan_date, NULLIF(rl.assembly_shif
    AND COALESCE(rl.qty, 0) > 0
    AND (rl.assembled_date IS NOT NULL OR rl.assembly_plan_date IS NOT NULL)
    AND NOT EXISTS (SELECT 1 FROM order_lot_assembly la WHERE la.lot_row_id = rl.id);
+
+-- 0035  A person may work for more than one department: Admin adds their
+-- extra departments here, beside the main role Risansi Digital's grant gives
+-- them, and they switch between them in the sidebar (lib/user-roles.ts).
+-- Idempotent and additive.
+CREATE TABLE IF NOT EXISTS user_extra_roles (
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role       TEXT NOT NULL,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, role)
+);

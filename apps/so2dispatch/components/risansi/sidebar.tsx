@@ -32,8 +32,9 @@ import {
   type NavItem,
 } from "./nav-config";
 import { ThemeToggle } from "./theme-toggle";
+import { RoleSwitcher } from "./role-switcher";
 
-type SidebarUser = { name: string; email: string; role: string };
+type SidebarUser = { name: string; email: string; role: string; roles?: string[] };
 
 /**
  * Desktop navigation rail. Hidden below `lg`, where BottomNav takes over.
@@ -120,6 +121,9 @@ export function Sidebar({
           <Image src={logo} alt="Risansi" width={140} height={100} />
         </div>
       </div>
+
+      {/* More than one department: which one they are working as, up top. */}
+      <RoleSwitcher role={user.role} roles={user.roles ?? []} variant="sidebar" />
 
       {/* nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-2">
