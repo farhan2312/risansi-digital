@@ -35,6 +35,8 @@ export type PumpSummary = {
     wooden_box: string | null;
     wooden_box_status: string | null;
     wooden_box_received_date: string | null;
+    /** A row per way (in house, bought out), keyed as on Assembly & Packing's rows. */
+    wooden_boxes: Record<string, unknown>[];
   };
   /** The SO's dispatch status, as on the Orders list. */
   dispatch: string;
@@ -94,6 +96,7 @@ type Raw = {
   wooden_box: string | null;
   wooden_box_status: string | null;
   wooden_box_received_date: string | null;
+  wooden_boxes: Record<string, unknown>[] | null;
   dispatch: string | null;
   sent_asm: boolean;
   sent_dsp: boolean;
@@ -141,6 +144,11 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
             ${basePlateSql("o")} AS base_plate, o.base_plate_status, to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date,
             ${woodenBoxSql("o")} AS wooden_box, ${woodenBoxStatusSql("o")} AS wooden_box_status,
             ${woodenBoxReceivedSql("o")} AS wooden_box_received_date,
+            (SELECT jsonb_agg(jsonb_build_object('source', wb.source, 'required_qty', wb.required_qty,
+                      'stock_qty', wb.stock_qty, 'status', wb.status,
+                      'received_date', to_char(wb.received_date, 'YYYY-MM-DD'),
+                      'received_qty', wb.received_qty, 'remarks', wb.remarks) ORDER BY wb.source DESC)
+               FROM order_wooden_boxes wb WHERE wb.order_id = o.id) AS wooden_boxes,
             ${orderStatusSql("o")} AS dispatch,
             EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
                      WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")})
@@ -193,6 +201,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
         wooden_box: x.wooden_box,
         wooden_box_status: x.wooden_box_status,
         wooden_box_received_date: x.wooden_box_received_date,
+        wooden_boxes: x.wooden_boxes ?? [],
       },
       dispatch: x.dispatch || "Pending",
       sentToAssembly: !!x.sent_asm,

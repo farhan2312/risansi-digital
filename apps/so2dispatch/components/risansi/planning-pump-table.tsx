@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import { ExternalLink, ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
+import { pumpLotsFromEcs } from "@/lib/assembly";
 import { boiInHand, drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -280,7 +281,7 @@ export function PlanningPumpTable({
                         {/* After Planning, read-only: Alignment, Assembly & Packing, slips, dispatch. */}
                         {showAfter &&
                           (summaries?.[orderId] ? (
-                            <PumpAfterPlanningCells s={summaries[orderId]} today={today} rowSpan={span} className={soCell} />
+                            <PumpAfterPlanningCells s={summaries[orderId]} today={today} rowSpan={span} className={soCell} lots={pumpLotsFromEcs(ecs)} />
                           ) : (
                             <td rowSpan={span} colSpan={AFTER.length} className={`${soCell} border-l border-card-border text-muted`}>—</td>
                           ))}
