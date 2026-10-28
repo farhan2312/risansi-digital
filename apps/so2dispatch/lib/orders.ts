@@ -3049,7 +3049,7 @@ const BILLING_RAISED = `(EXISTS (SELECT 1 FROM order_billing_docs d
  * Fully raised once any PI has a number, else Pending. A Challan order is
  * Challan filed once its challan has a number.
  */
-const BILLING_STATE = `(CASE
+export const BILLING_STATE = `(CASE
     WHEN btrim(COALESCE(o.bill_type, '')) = 'Challan' THEN
       CASE WHEN EXISTS (SELECT 1 FROM order_billing bl WHERE bl.order_id = o.id AND COALESCE(bl.challan_no, '') <> '')
            THEN 'Challan filed' ELSE 'Pending' END
@@ -4904,12 +4904,15 @@ export async function listOrdersForBillingPage(opts: {
   /** Every matching SO rather than one page — for a printed report. */
   all?: boolean;
   kpis?: KpiCardDef[];
+  /** A further condition on the SO (alias o): the department's own filters. */
+  extraRestrict?: string;
 }): Promise<PageResult<BillingQueueRow> & { kpis?: KpiCard[] }> {
-  const restrict = opts.onlyPacked
+  const extra = opts.extraRestrict ? ` AND (${opts.extraRestrict})` : "";
+  const restrict = (opts.onlyPacked
     ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
                                          WHERE ps.order_id = o.id AND ps.kind = 'actual'
                                            AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL)`
-    : deptQueueSql("billing");
+    : deptQueueSql("billing")) + extra;
   const { ids, total, page, kpis } = await pageOfOrderIds({
     kpis: opts.kpis ? { restrict, cards: opts.kpis } : undefined,
     page: opts.page,
@@ -4917,12 +4920,7 @@ export async function listOrdersForBillingPage(opts: {
     focusOrderId: opts.focusOrderId ?? null,
     orderBy: queueOrderBy(opts.sort),
     // A cancelled or diverted order is no longer Billing's or Dispatch's work.
-    restrict: opts.onlyPacked
-      ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
-                                           WHERE ps.order_id = o.id AND ps.kind = 'actual'
-                                             AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL)`
-      // Billing: not a Challan order — there is no PI to raise on one.
-      : deptQueueSql("billing"),
+    restrict,
     searchable: (term) =>
       `(o.so_no ILIKE ${term} OR o.client_name ILIKE ${term} OR o.sl_no::text ILIKE ${term})`,
     filter: opts.filter,

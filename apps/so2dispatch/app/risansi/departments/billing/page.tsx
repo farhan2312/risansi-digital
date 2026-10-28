@@ -18,6 +18,8 @@ import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { cardBaseGet } from "@/lib/kpis";
 import { unreadByOrder } from "@/lib/order-messages";
 import { BillingWorkspace } from "@/components/risansi/billing-workspace";
+import { parsePendencyFilter } from "@/lib/pendency";
+import { listPendency, pendencyFilterSql } from "@/lib/pendency-db";
 import { deptKpiCards } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 
@@ -57,6 +59,8 @@ export default async function BillingWorkspacePage({
       focusOrderId,
       sort: parseQueueSort(params.sort),
       filter,
+      // Proforma Invoice's own: the pendency reason.
+      extraRestrict: pendencyFilterSql("billing", parsePendencyFilter((key) => params[key], "billing")),
     }),
     listOrderListOptions(filter),
   ]);
@@ -67,9 +71,10 @@ export default async function BillingWorkspacePage({
   // The rows' sign-offs and unread messages both hang off the queue's SOs and
   // not off each other, so they load together.
   const orderIds = [...new Set(queue.rows.map((o) => String(o.id)))];
-  const [completions, unreadThreads] = await Promise.all([
+  const [completions, unreadThreads, pendency] = await Promise.all([
     listDeptCompletions(orderIds),
     unreadByOrder(orderIds, user),
+    listPendency(orderIds, "billing"),
   ]);
 
   return (
@@ -92,6 +97,7 @@ export default async function BillingWorkspacePage({
 
       <BillingWorkspace
         completions={completions}
+        pendency={pendency}
         openThreadId={thread}
         focusOrderId={focusOrderId ?? undefined}
         role={user.role}

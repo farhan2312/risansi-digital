@@ -21,6 +21,8 @@ import { OrderThreadModal } from "./order-thread-modal";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import type { DeptCompletion } from "@/lib/dept-completion";
 import { MultiSelectFilter } from "./multi-select-filter";
+import { PendencyCell } from "./pendency-cell";
+import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS, PURCHASE_STATES } from "@/lib/purchase-filter";
 
 type Row = Record<string, unknown>;
@@ -51,7 +53,10 @@ export function PurchaseWorkspace({
   vendors = [],
   vendorList = [],
   embedded = false,
+  pendency = {},
 }: {
+  /** Why each Open SO is still pending with Purchase, by SO id. */
+  pendency?: Record<string, Pendency>;
   /** Purchase's vendor list, with the items each supplies. */
   vendorList?: BoiVendor[];
   /** Inside a pop-up (the Orders list's): one SO's rows — no filter bar, cards or paging. */
@@ -153,7 +158,7 @@ export function PurchaseWorkspace({
             searchPlaceholder={"Search SO, EC…"}
             noTypeFilter
             noStatusFilter
-            extraKeys={Object.values(PURCHASE_FILTER_KEYS)}
+            extraKeys={[...Object.values(PURCHASE_FILTER_KEYS), PENDENCY.purchase.key]}
             extraFilters={
               <>
                 <MultiSelectFilter
@@ -192,6 +197,13 @@ export function PurchaseWorkspace({
                   selected={(getParam(PURCHASE_FILTER_KEYS.vendor) ?? "").split("|").filter(Boolean)}
                   // Kept apart by "|": a vendor name can hold a comma.
                   onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.vendor]: next.length ? next.join("|") : null })}
+                />
+                <MultiSelectFilter
+                  label="Pendency reason"
+                  allLabel="Any"
+                  options={PENDENCY.purchase.reasons}
+                  selected={getList(PENDENCY.purchase.key)}
+                  onChange={(next) => setParams({ [PENDENCY.purchase.key]: next })}
                 />
               </>
             }
@@ -323,7 +335,22 @@ export function PurchaseWorkspace({
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.ld_date)}</td>
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.purchase_target_date)}</td>
                               <td rowSpan={span} className={soCell}>
-                                {cvHeld(g.head) ? <HoldChip /> : <StateChip state={soState} />}
+                                {cvHeld(g.head) ? (
+                                  <HoldChip />
+                                ) : soState === "open" ? (
+                                  // Open: why, with remarks.
+                                  <PendencyCell
+                                    orderId={String(g.head.order_id)}
+                                    soLabel={g.head.so_no ?? `#${g.head.sl_no}`}
+                                    dept="purchase"
+                                    pendency={pendency[String(g.head.order_id)]}
+                                    canEdit={canEdit}
+                                  >
+                                    <StateChip state={soState} />
+                                  </PendencyCell>
+                                ) : (
+                                  <StateChip state={soState} />
+                                )}
                               </td>
                             </>
                           )}

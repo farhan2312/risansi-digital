@@ -29,6 +29,8 @@ import { PartDrawingCell, PartProgress } from "./part-drawing";
 import { partDrawingStatus } from "@/lib/part-drawings";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { DrawingReadinessCell } from "./drawing-readiness-cell";
+import { PendencyCell } from "./pendency-cell";
+import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { applyDrawingVersionToSoAction } from "@/app/risansi/orders/drawing-readiness-actions";
 
 type Row = Record<string, unknown>;
@@ -71,9 +73,12 @@ export function DrawingWorkspace({
   filterOptions,
   kpis = [],
   embedded = false,
+  pendency = {},
 }: {
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
+  /** Why each Open SO is still pending with Drawing, by SO id. */
+  pendency?: Record<string, Pendency>;
   /** Inside a pop-up (the Orders list's): one SO's rows — no filter bar, cards or paging. */
   embedded?: boolean;
   queue: PageResult<Row>;
@@ -132,7 +137,7 @@ export function DrawingWorkspace({
             searchPlaceholder="Search SO, EC…"
             noTypeFilter
             noStatusFilter
-            extraKeys={Object.values(DRAWING_FILTER_KEYS)}
+            extraKeys={[...Object.values(DRAWING_FILTER_KEYS), PENDENCY.drawing.key]}
             extraFilters={
               <>
                 <MultiSelectFilter
@@ -162,6 +167,13 @@ export function DrawingWorkspace({
                   options={PART_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.part)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.part]: next })}
+                />
+                <MultiSelectFilter
+                  label="Pendency reason"
+                  allLabel="Any"
+                  options={PENDENCY.drawing.reasons}
+                  selected={getList(PENDENCY.drawing.key)}
+                  onChange={(next) => setParams({ [PENDENCY.drawing.key]: next })}
                 />
               </>
             }
@@ -281,7 +293,16 @@ export function DrawingWorkspace({
                                   </span>
                                 ) : (
                                   <span className="flex flex-col items-start gap-0.5">
-                                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+                                    {/* Open: why, with remarks. */}
+                                    <PendencyCell
+                                      orderId={str(g.head.order_id)}
+                                      soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
+                                      dept="drawing"
+                                      pendency={pendency[str(g.head.order_id)]}
+                                      canEdit={canEdit}
+                                    >
+                                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+                                    </PendencyCell>
                                     <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />
                                   </span>
                                 )}

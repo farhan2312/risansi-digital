@@ -6,6 +6,9 @@ import { Fragment, useEffect, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import type { BillingQueueRow } from "@/lib/orders";
 import { TermPis } from "./term-pis";
+import { PendencyCell } from "./pendency-cell";
+import { MultiSelectFilter } from "./multi-select-filter";
+import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { billModeLabel } from "@/lib/order-schema";
 import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchInline } from "./dispatch-inline";
@@ -59,9 +62,12 @@ export function BillingWorkspace({
   unreadThreads = {},
   filterOptions,
   kpis = [],
+  pendency = {},
 }: {
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
+  /** Why each SO's PI is still pending (Proforma Invoice), by SO id. */
+  pendency?: Record<string, Pendency>;
   // One server-fetched page; search and paging ran in SQL.
   queue: PageResult<BillingQueueRow>;
   /**
@@ -87,7 +93,7 @@ export function BillingWorkspace({
   unreadThreads?: Record<string, number>;
 }) {
   const rows = queue.rows;
-  const { get: getParam } = useUrlTable();
+  const { get: getParam, getList, setParams } = useUrlTable();
   // An empty table means one of two very different things — say which, so a
   // search that matched nothing isn't read as an empty queue.
   const emptyMessage = getParam("q")
@@ -128,6 +134,20 @@ export function BillingWorkspace({
             dept={mode}
             hasTarget={DEPT_VIEWS[mode].hasTarget}
             searchPlaceholder="Search SO, client…"
+            {...(mode === "billing"
+              ? {
+                  extraKeys: [PENDENCY.billing.key],
+                  extraFilters: (
+                    <MultiSelectFilter
+                      label="Pendency reason"
+                      allLabel="Any"
+                      options={PENDENCY.billing.reasons}
+                      selected={getList(PENDENCY.billing.key)}
+                      onChange={(next) => setParams({ [PENDENCY.billing.key]: next })}
+                    />
+                  ),
+                }
+              : {})}
           />
         ) : (
           <UrlSearchInput placeholder="Search SO, client…" />
@@ -271,7 +291,22 @@ export function BillingWorkspace({
                       </td>
                       {mode === "billing" && (
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {cvHeld(row) ? <HoldChip /> : <PiStatePill state={row.billing_state} />}
+                          {cvHeld(row) ? (
+                            <HoldChip />
+                          ) : ["Pending", "Partially raised"].includes((row.billing_state ?? "").trim() || "Pending") ? (
+                            // Still a PI to raise: why, with remarks.
+                            <PendencyCell
+                              orderId={String(row.id)}
+                              soLabel={row.so_no ?? String(row.sl_no)}
+                              dept="billing"
+                              pendency={pendency[String(row.id)]}
+                              canEdit={canEdit}
+                            >
+                              <PiStatePill state={row.billing_state} />
+                            </PendencyCell>
+                          ) : (
+                            <PiStatePill state={row.billing_state} />
+                          )}
                         </td>
                       )}
                       <td className="px-4 py-3 whitespace-nowrap">

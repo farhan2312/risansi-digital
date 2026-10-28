@@ -17,6 +17,8 @@ import {
 } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
+import { parsePendencyFilter } from "@/lib/pendency";
+import { listPendency, pendencyFilterSql } from "@/lib/pendency-db";
 import { listRemindersForDepartment } from "@/lib/reminders";
 import { unreadByOrder } from "@/lib/order-messages";
 import { PurchaseWorkspace } from "@/components/risansi/purchase-workspace";
@@ -118,8 +120,8 @@ export default async function PurchaseWorkspacePage({
   const [queue, reminders, filterOptions, vendors, vendorList] = await Promise.all([
     listItemsForPurchasePage({
       kpis: purchaseKpiCards(),
-      extraRestrict: purchaseFilterSql(purchaseFilter),
-      kpiRestrict: purchaseFilterSql(parsePurchaseFilter(cardGet)),
+      extraRestrict: `${purchaseFilterSql(purchaseFilter)} AND ${pendencyFilterSql("purchase", parsePendencyFilter((key) => params[key], "purchase"))}`,
+      kpiRestrict: `${purchaseFilterSql(parsePurchaseFilter(cardGet))} AND ${pendencyFilterSql("purchase", parsePendencyFilter(cardGet, "purchase"))}`,
       page: parsePage(page),
       search: parseQuery(q),
       focusOrderId,
@@ -156,11 +158,12 @@ export default async function PurchaseWorkspacePage({
   // Purchase's sign-offs for the SOs on this page, for the EC cards.
   // The rows' sign-offs, unread messages and drawing documents all hang off
   // the queue and not off one another, so they load together.
-  const [completions, unreadThreads, drawingDocCounts] = await Promise.all([
+  const [completions, unreadThreads, drawingDocCounts, pendency] = await Promise.all([
     listDeptCompletions([...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))]),
     unreadByOrder([...new Set(queue.rows.map((r) => String(r.order_id)))], user),
     // Drawing documents shared with Purchase, per EC, for the button badge.
     countEcDocuments(queue.rows.map((r) => String(r.id)), user.role),
+    listPendency([...new Set(queue.rows.map((r) => String(r.order_id)))], "purchase"),
   ]);
 
   return (
@@ -185,6 +188,7 @@ export default async function PurchaseWorkspacePage({
 
       <PurchaseWorkspace
         completions={completions}
+        pendency={pendency}
         openThreadId={thread}
         focusOrderId={focusOrderId ?? undefined}
         role={user.role}

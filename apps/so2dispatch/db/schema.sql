@@ -3011,3 +3011,17 @@ CREATE TABLE IF NOT EXISTS order_wooden_boxes (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (order_id, source)
 );
+
+-- 0038  Why an SO is still pending with a department — Proforma Invoice while
+-- a PI is Pending, Drawing and Purchase while the SO is Open: one of the
+-- department's reasons (lib/pendency), with remarks; one per SO per
+-- department. Idempotent and additive.
+CREATE TABLE IF NOT EXISTS order_pendency (
+    order_id    UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    dept        TEXT NOT NULL CHECK (dept IN ('billing', 'drawing', 'purchase')),
+    reason      TEXT NOT NULL,
+    remarks     TEXT,
+    set_by      TEXT,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (order_id, dept)
+);
