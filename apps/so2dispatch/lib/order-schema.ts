@@ -274,6 +274,8 @@ export const DISPATCH_HOLD_REASONS = [
   "Freight Confirmation Awaited",
   "Transportation Confirmation awaited",
   "Dispatch along with other orders",
+  "Payment Awaited",
+  "Packing Slip Awaited",
 ];
 
 /** A dispatch hold as saved: its reason, then any remarks after " · ". */
