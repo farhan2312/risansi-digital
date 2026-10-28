@@ -168,6 +168,18 @@ export function lotAssembly(
   };
 }
 
+/**
+ * How far a pump EC has got, for the eye: its readiness (Ready Qty against
+ * its quantity) until Assembly & Packing has started on it, then how much is
+ * assembled, then packed. Shown only — the saved Actual Pump Status, and
+ * every count, stay on readiness.
+ */
+export function pumpEcStage(readyStatus: string, quantity: number, done: { assembled: number; packed: number }): string {
+  if (done.packed > 0) return quantity > 0 && done.packed >= quantity ? "Fully packed" : "Partially packed";
+  if (done.assembled > 0) return quantity > 0 && done.assembled >= quantity ? "Fully assembled" : "Partially assembled";
+  return readyStatus;
+}
+
 /** How many of an EC the lots have assembled, and packed. */
 export function ecDone(lots: PumpLot[], ecId: string): { assembled: number; packed: number } {
   return lots.reduce(

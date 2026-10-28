@@ -4,7 +4,7 @@ import { Fragment, useState } from "react";
 import { ExternalLink, ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
-import { pumpLotsFromEcs } from "@/lib/assembly";
+import { ecDone, pumpEcStage, pumpLotsFromEcs } from "@/lib/assembly";
 import { boiInHand, drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -173,6 +173,7 @@ export function PlanningPumpTable({
           const soLabel = str(head.so_no) || `#${str(head.sl_no)}`;
           const unread = unreadThreads[orderId] ?? 0;
           const span = ecs.length;
+          const lots = pumpLotsFromEcs(ecs);
           // The SO's cells, once, down the left of all its EC rows.
           const soCell = "px-3 py-2 align-top border-b border-card-border";
           return (
@@ -284,7 +285,7 @@ export function PlanningPumpTable({
                           (summaries?.[orderId] ? (
                             <PumpAfterPlanningCells
                               s={summaries[orderId]}
-                              lots={pumpLotsFromEcs(ecs)}
+                              lots={lots}
                               lotCount={LOT_COLUMNS.length}
                               slips={(Array.isArray(head.so_slips) ? head.so_slips : []) as Row[]}
                               rowSpan={span}
@@ -382,8 +383,14 @@ export function PlanningPumpTable({
                         {!fieldApplies(f, r) ? (
                           <span className="text-muted">—</span>
                         ) : f.column === "actual_pump_status" ? (
-                          // Always as Ready Qty against the EC's quantity says.
-                          cvHeld(head) ? <HoldChip /> : <PumpStatus status={pumpEcStatus(r.ready_qty, ec.quantity)} />
+                          // Ready Qty against the EC's quantity, then how far Assembly & Packing has got (shown only).
+                          cvHeld(head) ? (
+                            <HoldChip />
+                          ) : (
+                            <PumpStatus
+                              status={pumpEcStage(pumpEcStatus(r.ready_qty, ec.quantity), Number(ec.quantity ?? 0) || 0, ecDone(lots, str(r.id)))}
+                            />
+                          )
                         ) : f.column === "ready_qty" ? (
                           `${str(r.ready_qty) || "0"} / ${str(ec.quantity) || "—"}`
                         ) : (
@@ -558,11 +565,10 @@ function GadCell({ versions }: { versions: Row[] }) {
 
 /** A pump EC's status as a chip: Pending, Partially ready, Fully ready. */
 function PumpStatus({ status }: { status: string }) {
-  const cls =
-    status === "Fully ready"
-      ? "bg-emerald-50 text-emerald-700"
-      : status === "Partially ready"
-        ? "bg-sky-50 text-sky-700"
-        : "bg-amber-50 text-amber-700";
+  const cls = /^fully/i.test(status)
+    ? "bg-emerald-50 text-emerald-700"
+    : /^partially/i.test(status)
+      ? "bg-sky-50 text-sky-700"
+      : "bg-amber-50 text-amber-700";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{status}</span>;
 }
