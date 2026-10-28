@@ -16,7 +16,7 @@ import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
-import { CLOSED, READY, assemblyView, planningText, reachedDepts, type ReachedDept } from "@/lib/order-row-view";
+import { CLOSED, READY, assemblyView, planningText, reachedAssembly, reachedDepts, reachedDispatch, type ReachedDept } from "@/lib/order-row-view";
 import type { DeptCell, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
 import { deleteItemAction, deleteOrderAction, getOrderEcsAction } from "@/app/risansi/orders/actions";
 import { OmEcsModal } from "./om-ecs-modal";
@@ -781,7 +781,7 @@ export function OrdersTable({
                             <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                               <StatusText
                                 hold={held}
-                                text={closed ? null : assemblyText}
+                                text={closed || !reachedAssembly(status) ? null : assemblyText}
                                 tone={assembly?.state ?? "pending"}
                                 line={closed ? undefined : assemblyLine}
                                 onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
@@ -797,7 +797,11 @@ export function OrdersTable({
                       <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <StatusText
                           hold={held || dispatch === "Hold"}
-                          text={order.only_billing === "Yes" && dispatch === "Pending" ? "—" : dispatch}
+                          text={
+                            !closed && (order.only_billing === "Yes" || !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order, dispatch) : reachedDispatch(order, dispatch)))
+                              ? null
+                              : dispatch
+                          }
                           tone={closed || order.only_billing === "Yes" ? "na" : dispatch.toLowerCase() === "pending" ? "pending" : "done"}
                           onClick={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
                         />

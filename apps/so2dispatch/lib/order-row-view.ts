@@ -39,6 +39,20 @@ const EC_TAG_NAMES = { drawing: "Drawing", purchase: "Purchase", quality: "Quali
  * planning), Dispatch once a numbered packing slip exists, Billing once there
  * are terms or PIs, Accounts once there is a PI or a payment.
  */
+/** Planning has sent the SO on to Assembly & Packing: an EC ready (or beyond), or one under way there. */
+export function reachedAssembly(status: SoDeptStatus | undefined): boolean {
+  return !!status?.ecs.some(
+    (e) =>
+      !["pending", "assembly pending", "—"].includes(e.assembly.label.toLowerCase()) ||
+      READY_OR_BEYOND.includes(e.planning.label.toLowerCase())
+  );
+}
+
+/** The SO has reached Dispatch: something packed (a slip filed), or a dispatch status set. */
+export function reachedDispatch(order: OrderListRow, dispatch: string): boolean {
+  return !!order.in_dispatch || !!order.packed_on || (dispatch !== "" && dispatch !== "Pending");
+}
+
 export function reachedDepts(order: OrderListRow, status: SoDeptStatus | undefined): ReachedDept[] {
   const tags: ReachedDept[] = [];
   if (!status) return tags;
@@ -49,12 +63,7 @@ export function reachedDepts(order: OrderListRow, status: SoDeptStatus | undefin
     if (!anyInvolved) continue;
     tags.push({ key, name: EC_TAG_NAMES[key], cell: acrossEcs(status, key)! });
   }
-  const reachedPacking = status.ecs.some(
-    (e) =>
-      !["pending", "assembly pending"].includes(e.assembly.label.toLowerCase()) ||
-      READY_OR_BEYOND.includes(e.planning.label.toLowerCase())
-  );
-  if (reachedPacking) {
+  if (reachedAssembly(status)) {
     const cell = acrossEcs(status, "assembly");
     const pump = (order.order_type ?? "").toLowerCase() !== "spare";
     if (cell) tags.push({ key: "assembly", name: pump ? "Assembly" : "Packing", cell });

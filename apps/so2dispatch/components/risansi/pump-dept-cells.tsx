@@ -305,10 +305,10 @@ export function PumpTailCells({ s, today, onOpen }: { s: PumpSummary; today: str
         </button>
       </td>
       <td className={`${td()} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
-        <Cell {...held(s, s.assembly.status, asm.tone)} line={asm.line} lineTone={asm.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
+        <Cell {...(s.held || s.sentToAssembly ? held(s, s.assembly.status, asm.tone) : { text: "—", tone: "na" as Tone })} line={s.sentToAssembly ? asm.line : undefined} lineTone={asm.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
       </td>
       <td className={`${td()} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
-        <Cell {...held(s, s.packing.status, pkg.tone)} line={pkg.line} lineTone={pkg.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
+        <Cell {...(s.held || s.sentToAssembly ? held(s, s.packing.status, pkg.tone) : { text: "—", tone: "na" as Tone })} line={s.sentToAssembly ? pkg.line : undefined} lineTone={pkg.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
       </td>
     </>
   );
