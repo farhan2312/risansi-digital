@@ -154,6 +154,7 @@ export function BillingWorkspace({
                 <th className="px-4 py-3">Order Type</th>
                 <th className="px-4 py-3">Client Name</th>
                 <th className="px-4 py-3">Bill Mode</th>
+                {mode === "dispatch" && <th className="px-4 py-3">Payment terms &amp; PIs</th>}
                 <th className="px-4 py-3">{mode === "billing" ? "Payment terms & PIs" : "Packing slips & dispatches"}</th>
                 <th className="px-4 py-3 text-right">Order Value</th>
                 {mode === "billing" && <th className="px-4 py-3">PI Status</th>}
@@ -225,6 +226,19 @@ export function BillingWorkspace({
                       <td className="px-4 py-3 whitespace-nowrap">{row.order_type ?? "—"}</td>
                       <td className="px-4 py-3">{row.client_name ?? "—"}</td>
                       <td className="px-4 py-3">{billModeLabel(null, row.bill_type) || "—"}</td>
+                      {/* Dispatch sees, read-only, each term line with its PI and payment. */}
+                      {mode === "dispatch" && (
+                        <td className="px-4 py-3 align-top">
+                          <TermPis
+                            orderId={row.id}
+                            soLabel={row.so_no ?? String(row.sl_no)}
+                            terms={(row.term_lines ?? []) as Row[]}
+                            pis={(row.pi_docs ?? []) as Row[]}
+                            canEdit={false}
+                            payments={{ canEdit: false }}
+                          />
+                        </td>
+                      )}
                       <td className="px-4 py-3 align-top">
                         {/* Billing: each term line with its PI, or "+ PI".
                             Dispatch: each dispatch and the slips still waiting. */}
