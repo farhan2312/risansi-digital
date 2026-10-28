@@ -4204,6 +4204,7 @@ export function pumpOrderCards(): KpiCardDef[] {
       tone: "neutral",
       measure: `(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}))`,
     },
+    soHoldCard(clear),
     // Proforma Invoice, as on the Spare cards: raised, partly, or not yet.
     card("Proforma Invoice", "pi_full", "PI raised", deptStatusPredicate("billing", "Fully raised"), "done"),
     card("Proforma Invoice", "pi_part", "PI partial", deptStatusPredicate("billing", "Partially raised"), "part"),
@@ -4242,7 +4243,6 @@ export function pumpOrderCards(): KpiCardDef[] {
     card("Dispatch", "dsp_lot", "Part dispatched", deptStatusPredicate("dispatch", "LOT dispatch"), "part"),
     card("Dispatch", "dsp_full", "Dispatched", deptStatusPredicate("dispatch", "Fully dispatch"), "done"),
     card("Dispatch", "dsp_hold", "Dispatch hold", deptStatusPredicate("dispatch", "Hold"), "danger"),
-    soHoldCard(clear),
   ];
 }
 
@@ -4293,6 +4293,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
       tone: "neutral",
       measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${spareEcSql("s", "o")})`,
     },
+    soHoldCard(clear),
     card("Proforma Invoice", "billing", "Fully raised", "PI raised"),
     card("Proforma Invoice", "billing", "Partially raised", "PI partial"),
     card("Proforma Invoice", "billing", PENDING, "PI pending"),
@@ -4315,7 +4316,6 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
     card("Dispatch", "dispatch", "LOT dispatch", "Part dispatched"),
     card("Dispatch", "dispatch", "Fully dispatch", "Dispatched"),
     card("Dispatch", "dispatch", "Hold", "Dispatch hold"),
-    soHoldCard(clear),
   ];
 }
 
