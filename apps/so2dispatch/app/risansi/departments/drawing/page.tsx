@@ -82,7 +82,7 @@ export default async function DrawingWorkspacePage({
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
       // Its SOs on any hold.
-      totalHoldCard(clear, "SO"),
+      totalHoldCard("drawing", clear, "SO"),
       ...GAD_STATUSES.map((st) => ({
         key: `gad:${st}`,
         label: `GAD ${st}`,

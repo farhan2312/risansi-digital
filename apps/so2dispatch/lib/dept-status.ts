@@ -41,6 +41,11 @@ export const DEPT_FILTER_LABELS: Record<DeptFilterKey, string> = {
 /** Nothing recorded yet. Every department offers it. */
 export const PENDING = "Pending";
 /**
+ * Central Visibility has put the SO on hold: every department reads Hold
+ * until it is cleared (Dispatch's own Hold, too).
+ */
+export const HOLD = "Hold";
+/**
  * Planning's Status filter also reads Assembly & Packing on the same EC, so
  * "Fully ready" splits into packed and not packed yet.
  */
@@ -91,7 +96,7 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   // "Pending" is itself a stored dispatch status, so it covers both a blank
   // column and an explicit Pending rather than appearing twice.
   // Dispatch's own words only: a cancelled or diverted SO is out of its queue.
-  dispatch: ["Fully dispatch", "LOT dispatch", "Hold", PENDING],
+  dispatch: ["Fully dispatch", "LOT dispatch", HOLD, PENDING],
 };
 
 /**
@@ -113,10 +118,11 @@ export const DEPTS_WITHOUT_PARTY: ReadonlySet<DeptFilterKey> = new Set<DeptFilte
 export function statusesFor(dept: DeptFilterKey, types: string[] = []): string[] {
   if (dept === "planning" && types.length === 1) {
     const t = types[0].trim().toLowerCase();
-    if (t === "spare") return [...SPARE_PLANNING_STATUSES];
-    if (t === "pump" || t === "rolb") return [...PUMP_PLANNING_STATUSES];
+    if (t === "spare") return [...SPARE_PLANNING_STATUSES, HOLD];
+    if (t === "pump" || t === "rolb") return [...PUMP_PLANNING_STATUSES, HOLD];
   }
-  return DEPT_STATUSES[dept];
+  const list = DEPT_STATUSES[dept];
+  return list.includes(HOLD) ? list : [...list, HOLD];
 }
 
 /** Drawing…Assembly are tracked per EC; the rest sit on the SO. */

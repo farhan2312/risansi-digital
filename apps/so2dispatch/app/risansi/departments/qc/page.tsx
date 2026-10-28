@@ -86,7 +86,7 @@ export default async function QcWorkspacePage({
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
       // Its SOs on any hold.
-      totalHoldCard(clear, "SO"),
+      totalHoldCard("quality", clear, "SO"),
       { key: "ecs", label: "ECs", group: "EC", sql: null, params: {}, tone: "neutral", measure: qcEcCountSql("o") },
       ...QC_EC_STATUSES.map((st) => ({
         key: `ec:${st}`,

@@ -109,7 +109,7 @@ export default async function AssemblyDispatchWorkspacePage({
         tone: toneFor(st),
       })),
       // Its SOs on any hold.
-      totalHoldCard(clear),
+      totalHoldCard("assembly", clear),
     ];
   };
   const pumpRestrict =

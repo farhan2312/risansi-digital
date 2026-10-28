@@ -90,7 +90,7 @@ export default async function PurchaseWorkspacePage({
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
       // Its SOs on any hold.
-      totalHoldCard(clear, "SO"),
+      totalHoldCard("purchase", clear, "SO"),
       { key: "ecs", label: "ECs", group: "EC", sql: null, params: {}, tone: "neutral", measure: ecCountSql("o") },
       ...PURCHASE_STATES.map((st) => ({
         key: `ec:${st}`,

@@ -29,6 +29,7 @@ import { PLANNING_DATE_MET_SQL } from "@/lib/reminders";
 import type { LockFacts } from "@/lib/order-lock";
 import type { SoLot } from "@/lib/ready-lots";
 import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING_PUMP_STAGE_STATUS,
+  HOLD,
   isPerEcDept,
   NOT_APPLICABLE,
   PENDING,
@@ -3428,7 +3429,25 @@ function deptOverduePredicate(dept: DeptFilterKey): string {
   return `(${column} < ${TODAY_IST} AND ${outstanding})`;
 }
 
+/** Central Visibility (Mitali) holds the SO. */
+const CV_HOLD_SQL = `COALESCE(o.clearance_status, '') = 'Hold'`;
+
+/**
+ * A department status, with Central Visibility's hold over it: a held SO is
+ * Hold in every department (N/A stays N/A) and none of its other statuses
+ * until it is cleared. Dispatch's Hold is its own hold or this one.
+ */
+function withCvHold(dept: DeptFilterKey, status: string, own: () => string): string {
+  if (status === NOT_APPLICABLE) return own();
+  if (status === HOLD) return dept === "dispatch" ? `(${CV_HOLD_SQL} OR (${own()}))` : CV_HOLD_SQL;
+  return `(NOT ${CV_HOLD_SQL} AND (${own()}))`;
+}
+
 function deptStatusPredicate(dept: DeptFilterKey, status: string): string {
+  return withCvHold(dept, status, () => ownDeptStatusPredicate(dept, status));
+}
+
+function ownDeptStatusPredicate(dept: DeptFilterKey, status: string): string {
   if (!isPerEcDept(dept)) return `(${soState(dept, status)})`;
   // Planning and Assembly & Packing go by the SO's own status, not any one EC's.
   if (dept === "planning") return `${SO_PLANNING_STATUS} = ${lit(status)}`;
@@ -3476,21 +3495,27 @@ export const TEST_SO_SQL = (o: string) => `(upper(COALESCE(${o}.so_no, '')) LIKE
 /** The same, for a row already read. */
 export const isTestSo = (soNo: unknown) => String(soNo ?? "").toUpperCase().includes("/TEST");
 
+/** The departments whose Total hold counts Dispatch's own hold too. */
+const DISPATCH_HOLD_DEPTS: readonly string[] = ["dispatch", "billing", "accounts"];
+
 /**
- * The SO is on hold, by anyone — Central Visibility, Order Making, Accounts,
- * or Dispatch (its dispatch status Hold). The Total hold card and the
- * Orders list's On hold filter.
+ * The SO is on hold — by Central Visibility, Order Making or Accounts, and
+ * by Dispatch (its dispatch status Hold) on the Orders list and in Dispatch,
+ * Proforma Invoice and Accounts only. The Total hold card and the On hold filter.
  */
-export const ON_HOLD_SQL = `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.om_status, '') = 'Hold'
-                      OR COALESCE(o.accounts_hold_status, '') = 'Hold' OR COALESCE(o.status_override, '') = 'Hold')`;
+export function onHoldSql(dept?: string | null): string {
+  const dispatch = !dept || DISPATCH_HOLD_DEPTS.includes(dept) ? ` OR COALESCE(o.status_override, '') = 'Hold'` : "";
+  return `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.om_status, '') = 'Hold'
+           OR COALESCE(o.accounts_hold_status, '') = 'Hold'${dispatch})`;
+}
 
 /** A department's Total hold card: its open SOs on any hold (the `hold` filter). */
-export function totalHoldCard(clear: Record<string, string | null>, group?: string): KpiCardDef {
+export function totalHoldCard(dept: string, clear: Record<string, string | null>, group?: string): KpiCardDef {
   return {
     key: "hold",
     label: "Total hold",
     ...(group ? { group } : {}),
-    sql: `${ON_HOLD_SQL} AND ${orderOpenSql("o")}`,
+    sql: `${onHoldSql(dept)} AND ${orderOpenSql("o")}`,
     params: { ...clear, hold: "1" },
     tone: "danger",
   };
@@ -3609,7 +3634,7 @@ function orderListClauses(
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // On hold, by Central Visibility or by Accounts.
   // A cancelled or diverted SO is on no hold that matters.
-  if (f.onHold) clauses.push(`${ON_HOLD_SQL} AND ${orderOpenSql("o")}`);
+  if (f.onHold) clauses.push(`${onHoldSql(f.dept)} AND ${orderOpenSql("o")}`);
   // Only Billing: sent to Billing alone.
   if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
   // One SO field, filled or pending. Pending is blank where the field applies.
@@ -4356,7 +4381,7 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
         }]
       : []),
     // Every department: its SOs on any hold.
-    totalHoldCard(clear),
+    totalHoldCard(dept, clear),
   ];
 }
 
@@ -4445,7 +4470,7 @@ export async function listOrdersForOrderMaking(opts: {
     if (ff.soState === "pending") clauses.push(`NOT ${SO_DETAILS_FILLED_SQL}`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
-    if (ff.hold === "all") clauses.push(`${ON_HOLD_SQL} AND ${orderOpenSql("o")}`);
+    if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);
     if (ff.billTypes.length) {
       const types = ff.billTypes.filter((t) => t !== NOT_SET);
       const any: string[] = [];
@@ -4502,7 +4527,7 @@ export async function listOrdersForOrderMaking(opts: {
         {
           key: "hold",
           label: "Total hold",
-          sql: `${ON_HOLD_SQL} AND ${orderOpenSql("o")}`,
+          sql: `${onHoldSql("order_making")} AND ${orderOpenSql("o")}`,
           params: { sos: null, asg: null, missing: null, omhold: "all" },
           tone: "danger",
         },
@@ -4894,6 +4919,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
 
   const so = await query<{
     order_id: string;
+    held: boolean;
     dispatch_status: string | null;
     bill_type: string | null;
     after_receipt_only: boolean;
@@ -4909,7 +4935,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
     dispatch_target_date: string | null;
     dispatch_target_revised_date: string | null;
   }>(
-    `SELECT o.id AS order_id, ${DISPATCH_STATUS} AS dispatch_status, o.bill_type,
+    `SELECT o.id AS order_id, ${CV_HOLD_SQL} AS held, ${DISPATCH_STATUS} AS dispatch_status, o.bill_type,
             ${AFTER_RECEIPT_ONLY} AS after_receipt_only,
             ${BILLING_RAISED} AS has_pi,
             ${BILLING_STATE} AS billing_state,
@@ -5044,6 +5070,8 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
 
     // PIs and payments are recorded on every order, whatever its terms.
     const paidAfterReceipt = false;
+    // Held by Central Visibility: Hold in every department until cleared.
+    const hold = (c: DeptCell): DeptCell => (head.held && c.state !== "na" ? pending(HOLD) : c);
     out.set(head.order_id, {
       billing:
         paidAfterReceipt || head.billing_state === "N/A"
@@ -5073,8 +5101,23 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
         dispatchRevised: head.dispatch_target_revised_date,
         drawingReadiness: head.drg_readiness_date ?? null,
       },
-      ecs,
+      ecs: head.held
+        ? ecs.map((e) => ({
+            ...e,
+            drawing: hold(e.drawing),
+            purchase: hold(e.purchase),
+            quality: hold(e.quality),
+            planning: hold(e.planning),
+            assembly: hold(e.assembly),
+          }))
+        : ecs,
     });
+    if (head.held) {
+      const s = out.get(head.order_id)!;
+      s.billing = hold(s.billing);
+      s.accounts = hold(s.accounts);
+      s.dispatch = hold(s.dispatch);
+    }
   }
   return out;
 }
@@ -5655,7 +5698,11 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
     const bySo = dept === "planning" || dept === "assembly";
     clauses.push(
       `(${f.deptStatuses
-        .map((s) => (bySo ? deptStatusPredicate(dept, s) : isPerEcDept(dept) ? `(${ecState(dept, s)})` : `(${soState(dept, s)})`))
+        .map((s) =>
+          bySo
+            ? deptStatusPredicate(dept, s)
+            : withCvHold(dept, s, () => (isPerEcDept(dept) ? `(${ecState(dept, s)})` : `(${soState(dept, s)})`))
+        )
         .join(" OR ")})`
     );
   }
@@ -5674,7 +5721,7 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // On hold, by Central Visibility or by Accounts.
   // A cancelled or diverted SO is on no hold that matters.
-  if (f.onHold) clauses.push(`${ON_HOLD_SQL} AND ${orderOpenSql("o")}`);
+  if (f.onHold) clauses.push(`${onHoldSql(f.dept)} AND ${orderOpenSql("o")}`);
   // Only Billing: sent to Billing alone.
   if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
 
