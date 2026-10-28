@@ -308,32 +308,40 @@ export function PlanningPumpTable({
                         </td>
                       );
                     })}
-                    {/* The EC's bought-out items: item, qty, where each stands and, until it is in,
-                        the day Purchase expects it (red once past); one opens in full. */}
+                    {/* The EC's bought-out items, one aligned line each: item, qty, where it
+                        stands, and its day — received on, or (until in) the day Purchase
+                        expects it, red once past. One opens in full. */}
                     <td className={ecCell}>
                       {Array.isArray(r.boi_items) && r.boi_items.length > 0 ? (
-                        <span className="flex flex-col items-start gap-1">
-                          {(r.boi_items as Row[]).map((b) => (
-                            <button
-                              key={str(b.id)}
-                              type="button"
-                              onClick={() => setBoiFor({ item: b, ecLabel: str(ec.ec_no) })}
-                              title="Open this item"
-                              className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1 py-0.5 text-left text-xs hover:bg-primary/5"
-                            >
-                              <span className="font-medium text-foreground underline-offset-2 hover:underline">{boiName(b)}</span>
-                              {str(b.boi_qty) && <span className="tabular-nums text-muted">×{str(b.boi_qty)}</span>}
-                              <BoiStatusTag item={b} small />
-                              {!boiInHand(b) && str(b.expected_receipt_date) && (
-                                <span
-                                  title="Vendor expected date"
-                                  className={`tabular-nums ${str(b.expected_receipt_date).slice(0, 10) < today ? "font-semibold text-rose-600" : "text-muted"}`}
-                                >
-                                  Exp {shortDay(b.expected_receipt_date)}
+                        <span className="grid grid-cols-[6.5rem_2.25rem_6.75rem_5.75rem] gap-y-1">
+                          {(r.boi_items as Row[]).map((b) => {
+                            const inHand = boiInHand(b);
+                            const date = str(inHand ? b.receipt_date : b.expected_receipt_date).slice(0, 10);
+                            const late = !inHand && !!date && date < today;
+                            return (
+                              <button
+                                key={str(b.id)}
+                                type="button"
+                                onClick={() => setBoiFor({ item: b, ecLabel: str(ec.ec_no) })}
+                                title={`Open ${boiName(b)}`}
+                                className="col-span-4 grid grid-cols-subgrid items-center rounded-md px-1 py-0.5 text-left text-xs hover:bg-primary/5"
+                              >
+                                <span className="truncate font-medium text-foreground">{boiName(b)}</span>
+                                <span className="tabular-nums text-muted">{str(b.boi_qty) ? `×${str(b.boi_qty)}` : ""}</span>
+                                <span>
+                                  <BoiStatusTag item={b} small />
                                 </span>
-                              )}
-                            </button>
-                          ))}
+                                <span
+                                  title={inHand ? "Received on" : "Vendor expected date"}
+                                  className={`whitespace-nowrap tabular-nums ${
+                                    inHand ? "text-emerald-700 dark:text-emerald-400" : late ? "font-semibold text-rose-600" : "text-muted"
+                                  }`}
+                                >
+                                  {date ? `${inHand ? "Rcvd" : "Exp"} ${shortDay(date)}` : ""}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </span>
                       ) : (
                         <span className="text-xs text-muted">—</span>
