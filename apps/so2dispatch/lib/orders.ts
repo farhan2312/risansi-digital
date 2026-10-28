@@ -3130,6 +3130,11 @@ const SO_PACKED_SQL = (o: string) => `(EXISTS (SELECT 1 FROM order_packing_slips
                       JOIN order_assembly_dispatch ad2 ON ad2.item_id = it2.id
                      WHERE it2.order_id = ${o}.id AND ad2.actual_packing_date IS NOT NULL))`;
 
+/** The SO (alias o) has reached Dispatch: packed (a slip filed, an EC or a lot packed). Until then it has no Pending there. */
+const SO_REACHED_DISPATCH = `(${SO_PACKED_SQL("o")}
+    OR EXISTS (SELECT 1 FROM order_ready_lots dl JOIN order_items di ON di.id = dl.item_id
+                WHERE di.order_id = o.id AND dl.packed_date IS NOT NULL))`;
+
 const READY_TO_DISPATCH = `(${SO_PACKED_SQL("o")}
                             AND lower(${orderStatusSql("o")}) <> 'fully dispatch'
                             AND ${orderOpenSql("o")})`;
@@ -3372,9 +3377,10 @@ function soState(dept: DeptFilterKey, status: string): string {
                          WHERE a.order_id = o.id
                            AND a.payment_status = ${lit(status)})`;
   }
-  // Dispatch: "Pending" is itself a stored value, so it also covers a blank.
+  // Dispatch: "Pending" is itself a stored value, so it also covers a blank —
+  // once the SO has reached Dispatch; before that it has no status there.
   return status === PENDING
-    ? `${orderStatusSql("o")} = ${lit(PENDING)}`
+    ? `${orderStatusSql("o")} = ${lit(PENDING)} AND ${SO_REACHED_DISPATCH}`
     : `${orderStatusSql("o")} = ${lit(status)}`;
 }
 

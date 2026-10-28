@@ -145,7 +145,9 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
                           WHERE sps.order_id = o.id AND sps.kind = 'actual'
                             AND (NULLIF(btrim(sps.packing_slip_no), '') IS NOT NULL OR sps.packing_slip_date IS NOT NULL))
               OR EXISTS (SELECT 1 FROM order_items s JOIN order_assembly_dispatch ad ON ad.item_id = s.id
-                          WHERE s.order_id = o.id AND ad.actual_packing_date IS NOT NULL)) AS sent_dsp,
+                          WHERE s.order_id = o.id AND ad.actual_packing_date IS NOT NULL)
+              OR EXISTS (SELECT 1 FROM order_ready_lots dl JOIN order_items s ON s.id = dl.item_id
+                          WHERE s.order_id = o.id AND dl.packed_date IS NOT NULL)) AS sent_dsp,
             COALESCE(o.clearance_status, '') = 'Hold' AS held,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('no', ps.packing_slip_no,
                                        'date', to_char(ps.packing_slip_date, 'YYYY-MM-DD'),
