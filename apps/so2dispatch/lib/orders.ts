@@ -2747,13 +2747,15 @@ export async function listItemsForSection(
                  (SELECT jsonb_build_object('base_plate', ${basePlateSql("oa")}, 'base_plate_status', oa.base_plate_status,
                                             'base_plate_date', to_char(oa.base_plate_date, 'YYYY-MM-DD'),
                                             'base_plate_remarks', oa.base_plate_remarks,
-                                            'wooden_box', ${woodenBoxSql("oa")}, 'wooden_box_status', oa.wooden_box_status,
-                                            'wooden_box_source', oa.wooden_box_source,
-                                            'wooden_box_required_qty', oa.wooden_box_required_qty,
-                                            'wooden_box_stock_qty', oa.wooden_box_stock_qty,
-                                            'wooden_box_received_date', to_char(oa.wooden_box_received_date, 'YYYY-MM-DD'),
-                                            'wooden_box_received_qty', oa.wooden_box_received_qty,
-                                            'wooden_box_remarks', oa.wooden_box_remarks)
+                                            'wooden_box', ${woodenBoxSql("oa")},
+                                            -- A row per way: in house, bought out.
+                                            'wooden_boxes', (SELECT jsonb_agg(jsonb_build_object(
+                                                                'source', wb.source, 'required_qty', wb.required_qty,
+                                                                'stock_qty', wb.stock_qty, 'status', wb.status,
+                                                                'received_date', to_char(wb.received_date, 'YYYY-MM-DD'),
+                                                                'received_qty', wb.received_qty, 'remarks', wb.remarks)
+                                                              ORDER BY wb.source DESC)
+                                                               FROM order_wooden_boxes wb WHERE wb.order_id = oa.id))
                     FROM orders oa WHERE oa.id = it.order_id) AS alignment`
          }`
       : "";

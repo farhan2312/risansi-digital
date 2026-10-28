@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { subjectForOrder } from "@/lib/audit-subject";
@@ -196,14 +196,19 @@ export type Alignment = {
   /** The day of the base plate's status (YYYY-MM-DD). */
   base_plate_date: string;
   base_plate_remarks: string;
-  /** In house, Bought out, or both. */
-  wooden_box_source: string[];
-  wooden_box_required_qty: string;
-  wooden_box_stock_qty: string;
-  wooden_box_status: string;
-  wooden_box_received_date: string;
-  wooden_box_received_qty: string;
-  wooden_box_remarks: string;
+  /** In house, bought out, or both: each way with its own. */
+  wooden_boxes: WoodenBox[];
+};
+
+/** One way the SO's wooden boxes come (In house or Bought out), with its own quantities, status and receipt. */
+export type WoodenBox = {
+  source: string;
+  required_qty: string;
+  stock_qty: string;
+  status: string;
+  received_date: string;
+  received_qty: string;
+  remarks: string;
 };
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -244,44 +249,53 @@ export async function saveAlignmentAction(orderId: string, a: Alignment): Promis
   }
   const plateRemarks = plate ? text(a.base_plate_remarks) : null;
 
-  // The wooden box: where it comes from, how many, its status, and what came in.
-  const source = box ? WOODEN_BOX_SOURCES.filter((x) => (a.wooden_box_source ?? []).includes(x)) : [];
-  const required = box ? qty(a.wooden_box_required_qty) : null;
-  const stock = box ? qty(a.wooden_box_stock_qty) : null;
-  const boxStatus = box ? (WOODEN_BOX_STATUSES.includes(a.wooden_box_status) ? a.wooden_box_status : "Pending") : null;
-  const received = boxStatus === "Received";
-  const receivedDate = received ? (a.wooden_box_received_date ?? "").trim() : "";
-  const receivedQty = received ? qty(a.wooden_box_received_qty) : null;
+  // The wooden boxes: each way (in house, bought out) with how many, its
+  // status, and what came in.
+  type Box = { source: string; required: number; stock: number | null; status: string; date: string | null; got: number | null; remarks: string | null };
+  const boxes: Box[] = [];
   if (box) {
-    if (source.length === 0) return { ok: false, error: "Choose whether the wooden box is in house, bought out, or both." };
-    if (required === false || stock === false || receivedQty === false) return { ok: false, error: "Quantities are whole numbers." };
-    if (required == null) return { ok: false, error: "Enter the wooden boxes required." };
-    if (received && !DAY_RE.test(receivedDate)) return { ok: false, error: "Enter the date the wooden box was received." };
-    if (received && !receivedQty) return { ok: false, error: "Enter the wooden boxes received." };
+    for (const source of WOODEN_BOX_SOURCES) {
+      const w = (a.wooden_boxes ?? []).find((x) => x?.source === source);
+      if (!w) continue;
+      const required = qty(w.required_qty);
+      const stock = qty(w.stock_qty);
+      const status = WOODEN_BOX_STATUSES.includes(w.status) ? w.status : "Pending";
+      const received = status === "Received";
+      const date = received ? (w.received_date ?? "").trim() : "";
+      const got = received ? qty(w.received_qty) : null;
+      if (required === false || stock === false || got === false) return { ok: false, error: `${source}: quantities are whole numbers.` };
+      if (required == null) return { ok: false, error: `${source}: enter the wooden boxes required.` };
+      if (received && !DAY_RE.test(date)) return { ok: false, error: `${source}: enter the date the wooden boxes were received.` };
+      if (received && !got) return { ok: false, error: `${source}: enter the wooden boxes received.` };
+      boxes.push({ source, required, stock, status, date: date || null, got, remarks: text(w.remarks) });
+    }
+    if (boxes.length === 0) return { ok: false, error: "Choose whether the wooden boxes are in house, bought out, or both." };
   }
-  const boxRemarks = box ? text(a.wooden_box_remarks) : null;
 
   try {
-    await query(
-      `UPDATE orders SET base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4,
-                         wooden_box_source = $5::text[], wooden_box_required_qty = $6, wooden_box_stock_qty = $7,
-                         wooden_box_status = $8, wooden_box_received_date = $9::date, wooden_box_received_qty = $10,
-                         wooden_box_remarks = $11, updated_at = now()
-        WHERE id = $1`,
-      [
+    await withTransaction(async (client) => {
+      await client.query(
+        `UPDATE orders SET base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4, updated_at = now()
+          WHERE id = $1`,
+        [orderId, plateStatus, plateDate || null, plateRemarks]
+      );
+      // The ways left off go; the rest are as the form leaves them.
+      await client.query(`DELETE FROM order_wooden_boxes WHERE order_id = $1 AND NOT (source = ANY($2::text[]))`, [
         orderId,
-        plateStatus,
-        plateDate || null,
-        plateRemarks,
-        box ? source : null,
-        required || required === 0 ? required : null,
-        stock || stock === 0 ? stock : null,
-        boxStatus,
-        receivedDate || null,
-        receivedQty || null,
-        boxRemarks,
-      ]
-    );
+        boxes.map((b) => b.source),
+      ]);
+      for (const b of boxes) {
+        await client.query(
+          `INSERT INTO order_wooden_boxes (order_id, source, required_qty, stock_qty, status, received_date, received_qty, remarks)
+           VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8)
+           ON CONFLICT (order_id, source) DO UPDATE
+             SET required_qty = EXCLUDED.required_qty, stock_qty = EXCLUDED.stock_qty, status = EXCLUDED.status,
+                 received_date = EXCLUDED.received_date, received_qty = EXCLUDED.received_qty,
+                 remarks = EXCLUDED.remarks, updated_at = now()`,
+          [orderId, b.source, b.required, b.stock, b.status, b.date, b.got, b.remarks]
+        );
+      }
+    });
   } catch (error) {
     console.error("saveAlignmentAction failed:", error);
     return { ok: false, error: "Could not save the alignment." };
@@ -292,9 +306,14 @@ export async function saveAlignmentAction(orderId: string, a: Alignment): Promis
       ? `Base plate: ${plateStatus}${plateDate ? ` on ${plateDate}` : ""}${plateRemarks ? ` (${plateRemarks})` : ""}`
       : "Base plate: not needed",
     box
-      ? `Wooden box: ${source.join(" + ")}, ${required} required${stock ? `, ${stock} in stock` : ""}; ${boxStatus}${
-          received ? ` ${receivedQty} on ${receivedDate}` : ""
-        }${boxRemarks ? ` (${boxRemarks})` : ""}`
+      ? `Wooden box: ${boxes
+          .map(
+            (b) =>
+              `${b.source} ${b.required} required${b.stock ? `, ${b.stock} in stock` : ""}, ${b.status}${
+                b.date ? ` ${b.got} on ${b.date}` : ""
+              }${b.remarks ? ` (${b.remarks})` : ""}`
+          )
+          .join(" · ")}`
       : "Wooden box: not needed",
   ];
   await logAudit({

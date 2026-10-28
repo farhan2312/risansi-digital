@@ -3,11 +3,24 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
-import { saveAlignmentAction, type Alignment } from "@/app/risansi/orders/assembly-actions";
+import { saveAlignmentAction, type Alignment, type WoodenBox } from "@/app/risansi/orders/assembly-actions";
 import { BASE_PLATE_STATUSES, WOODEN_BOX_SOURCES, WOODEN_BOX_STATUSES } from "@/lib/assembly";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? "" : String(v));
+
+/** The SO's wooden boxes, a row per way (in house, bought out). */
+const boxesOf = (a: Row): Row[] => (Array.isArray(a.wooden_boxes) ? (a.wooden_boxes as Row[]) : []);
+
+const blankBox = (source: string): WoodenBox => ({
+  source,
+  required_qty: "",
+  stock_qty: "",
+  status: "Pending",
+  received_date: "",
+  received_qty: "",
+  remarks: "",
+});
 
 /** The status each item is done at. */
 const DONE = { base_plate: "Manufactured", wooden_box: "Received" } as const;
@@ -76,17 +89,22 @@ export function AlignmentForm({
     base_plate_status: str(a.base_plate_status) || "Pending",
     base_plate_date: str(a.base_plate_date).slice(0, 10),
     base_plate_remarks: str(a.base_plate_remarks),
-    wooden_box_source: Array.isArray(a.wooden_box_source) ? a.wooden_box_source.map(String) : [],
-    wooden_box_required_qty: str(a.wooden_box_required_qty),
-    wooden_box_stock_qty: str(a.wooden_box_stock_qty),
-    wooden_box_status: str(a.wooden_box_status) || "Pending",
-    wooden_box_received_date: str(a.wooden_box_received_date).slice(0, 10),
-    wooden_box_received_qty: str(a.wooden_box_received_qty),
-    wooden_box_remarks: str(a.wooden_box_remarks),
+    wooden_boxes: boxesOf(a).map((b) => ({
+      source: str(b.source),
+      required_qty: str(b.required_qty),
+      stock_qty: str(b.stock_qty),
+      status: str(b.status) || "Pending",
+      received_date: str(b.received_date).slice(0, 10),
+      received_qty: str(b.received_qty),
+      remarks: str(b.remarks),
+    })),
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Alignment>) => setV((p) => ({ ...p, ...patch }));
+  const boxOf = (source: string) => v.wooden_boxes.find((b) => b.source === source);
+  const setBox = (source: string, patch: Partial<WoodenBox>) =>
+    setV((p) => ({ ...p, wooden_boxes: p.wooden_boxes.map((b) => (b.source === source ? { ...b, ...patch } : b)) }));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
@@ -171,40 +189,46 @@ export function AlignmentForm({
               <Field label="In house / Bought out" required group>
                 {pills(
                   WOODEN_BOX_SOURCES,
-                  (o) => v.wooden_box_source.includes(o),
+                  (o) => !!boxOf(o),
                   (o) =>
                     set({
-                      wooden_box_source: v.wooden_box_source.includes(o)
-                        ? v.wooden_box_source.filter((x) => x !== o)
-                        : WOODEN_BOX_SOURCES.filter((x) => x === o || v.wooden_box_source.includes(x)),
+                      wooden_boxes: boxOf(o)
+                        ? v.wooden_boxes.filter((b) => b.source !== o)
+                        : WOODEN_BOX_SOURCES.flatMap((s) => (s === o ? [blankBox(s)] : v.wooden_boxes.filter((b) => b.source === s))),
                     })
                 )}
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Required Quantity" required>
-                  <input type="number" min={0} step={1} value={v.wooden_box_required_qty} onChange={(e) => set({ wooden_box_required_qty: e.target.value })} className={input} />
-                </Field>
-                <Field label="Stock Quantity">
-                  <input type="number" min={0} step={1} value={v.wooden_box_stock_qty} onChange={(e) => set({ wooden_box_stock_qty: e.target.value })} className={input} />
-                </Field>
-              </div>
-              <Field label="Status" required group>
-                {pills(WOODEN_BOX_STATUSES, (o) => v.wooden_box_status === o, (o) => set({ wooden_box_status: o }))}
-              </Field>
-              {/* Received on a day, in a quantity. */}
-              {v.wooden_box_status === "Received" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Received Date" required>
-                    <input type="date" value={v.wooden_box_received_date} onChange={(e) => set({ wooden_box_received_date: e.target.value })} className={input} />
+              {/* Each way with its own: some pumps' boxes in house, some bought out. */}
+              {v.wooden_boxes.map((b) => (
+                <div key={b.source} className="space-y-3 rounded-lg border border-card-border/70 bg-background/40 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">{b.source}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Required Quantity" required>
+                      <input type="number" min={0} step={1} value={b.required_qty} onChange={(e) => setBox(b.source, { required_qty: e.target.value })} className={input} />
+                    </Field>
+                    <Field label="Stock Quantity">
+                      <input type="number" min={0} step={1} value={b.stock_qty} onChange={(e) => setBox(b.source, { stock_qty: e.target.value })} className={input} />
+                    </Field>
+                  </div>
+                  <Field label="Status" required group>
+                    {pills(WOODEN_BOX_STATUSES, (o) => b.status === o, (o) => setBox(b.source, { status: o }))}
                   </Field>
-                  <Field label="Received Quantity" required>
-                    <input type="number" min={1} step={1} value={v.wooden_box_received_qty} onChange={(e) => set({ wooden_box_received_qty: e.target.value })} className={input} />
+                  {/* Received on a day, in a quantity. */}
+                  {b.status === "Received" && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Received Date" required>
+                        <input type="date" value={b.received_date} onChange={(e) => setBox(b.source, { received_date: e.target.value })} className={input} />
+                      </Field>
+                      <Field label="Received Quantity" required>
+                        <input type="number" min={1} step={1} value={b.received_qty} onChange={(e) => setBox(b.source, { received_qty: e.target.value })} className={input} />
+                      </Field>
+                    </div>
+                  )}
+                  <Field label="Remarks">
+                    <input type="text" value={b.remarks} onChange={(e) => setBox(b.source, { remarks: e.target.value })} className={input} />
                   </Field>
                 </div>
-              )}
-              <Field label="Remarks">
-                <input type="text" value={v.wooden_box_remarks} onChange={(e) => set({ wooden_box_remarks: e.target.value })} className={input} />
-              </Field>
+              ))}
             </section>
           )}
           {!plate && !box && (
@@ -253,10 +277,7 @@ export function AlignmentValue({
 }) {
   const a = (alignment ?? {}) as Row;
   const needed = str(a[which]) === "Yes";
-  const status = str(a[`${which}_status`]);
-  const plate = which === "base_plate";
-  const required = str(a.wooden_box_required_qty);
-  const got = str(a.wooden_box_received_qty);
+  const boxes = which === "wooden_box" && needed ? boxesOf(a) : [];
   return (
     <button
       type="button"
@@ -265,13 +286,28 @@ export function AlignmentValue({
       title={canEdit && needed ? "Set the alignment" : undefined}
       className="w-full text-left enabled:hover:opacity-80 disabled:cursor-default"
     >
-      <Value
-        yes={str(a[which])}
-        status={status}
-        done={DONE[which]}
-        date={plate ? str(a.base_plate_date) : status === "Received" ? str(a.wooden_box_received_date) : ""}
-        note={plate || !required ? "" : status === "Received" ? `${got || 0} of ${required}` : `${required} required`}
-      />
+      {boxes.length ? (
+        // Each way on its own: in house, bought out.
+        <span className="flex flex-col items-start gap-1.5">
+          {boxes.map((b) => {
+            const st = str(b.status);
+            return (
+              <span key={str(b.source)} className="flex flex-col items-start gap-0.5">
+                <span className="whitespace-nowrap text-[11px] font-semibold text-foreground">{str(b.source)}</span>
+                <Value
+                  yes="Yes"
+                  status={st}
+                  done={DONE.wooden_box}
+                  date={st === "Received" ? str(b.received_date) : ""}
+                  note={st === "Received" ? `${str(b.received_qty) || 0} of ${str(b.required_qty)}` : `${str(b.required_qty)} required`}
+                />
+              </span>
+            );
+          })}
+        </span>
+      ) : (
+        <Value yes={str(a[which])} status={str(a[`${which}_status`])} done={DONE[which]} date={which === "base_plate" ? str(a.base_plate_date) : ""} />
+      )}
     </button>
   );
 }

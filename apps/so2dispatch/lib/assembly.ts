@@ -22,6 +22,20 @@ export const WOODEN_BOX_STATUSES = ["Pending", "In plan", "Received"];
 export const basePlateSql = (o: string) =>
   `CASE WHEN EXISTS (SELECT 1 FROM order_items bpi WHERE bpi.order_id = ${o}.id AND bpi.base_plate = 'Yes') THEN 'Yes' ELSE 'No' END`;
 
+/**
+ * The SO's (alias o) wooden boxes taken together: Received once every way
+ * (in house, bought out) is, Pending while every way is, else In plan; null
+ * before any is entered.
+ */
+export const woodenBoxStatusSql = (o: string) =>
+  `(SELECT CASE WHEN bool_and(wb.status = 'Received') THEN 'Received' WHEN bool_and(wb.status = 'Pending') THEN 'Pending' ELSE 'In plan' END
+      FROM order_wooden_boxes wb WHERE wb.order_id = ${o}.id)`;
+
+/** When the last of the SO's (alias o) wooden boxes came in, once all have. */
+export const woodenBoxReceivedSql = (o: string) =>
+  `(SELECT to_char(max(wb.received_date), 'YYYY-MM-DD') FROM order_wooden_boxes wb
+     WHERE wb.order_id = ${o}.id HAVING bool_and(wb.status = 'Received'))`;
+
 /** Yes when the SO (alias o) is packed in a wooden box, No for other packing, null before it is said. */
 export const woodenBoxSql = (o: string) =>
   `CASE WHEN ${o}.packing_requirement = 'Wooden Box' THEN 'Yes' WHEN NULLIF(btrim(${o}.packing_requirement), '') IS NOT NULL THEN 'No' END`;

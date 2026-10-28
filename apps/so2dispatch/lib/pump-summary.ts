@@ -7,7 +7,7 @@ import { spareEcSql, boiReceivedSql, orderStatusSql } from "@/lib/dept-view";
 import { curveStatusSql, ecDrawingDoneSql, ecGadStatusSql, partStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
-import { basePlateSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
+import { basePlateSql, soStageStatusSql, woodenBoxReceivedSql, woodenBoxSql, woodenBoxStatusSql } from "@/lib/assembly";
 import { SO_PLANNING_STATUS } from "@/lib/orders";
 
 /** One department's standing on the SO: the status holding it back, and how many of its ECs are through. */
@@ -139,8 +139,8 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
             (SELECT to_char(min(rl.packing_plan_date), 'YYYY-MM-DD') ${lots} AND rl.packed_date IS NULL) AS packing_next,
             (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${lots}) AS packing_last,
             ${basePlateSql("o")} AS base_plate, o.base_plate_status, to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date,
-            ${woodenBoxSql("o")} AS wooden_box, o.wooden_box_status,
-            to_char(o.wooden_box_received_date, 'YYYY-MM-DD') AS wooden_box_received_date,
+            ${woodenBoxSql("o")} AS wooden_box, ${woodenBoxStatusSql("o")} AS wooden_box_status,
+            ${woodenBoxReceivedSql("o")} AS wooden_box_received_date,
             ${orderStatusSql("o")} AS dispatch,
             EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
                      WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")})

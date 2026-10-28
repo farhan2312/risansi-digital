@@ -2887,11 +2887,10 @@ SELECT o.id, o.om_status, NULLIF(btrim(o.om_hold_reason), ''), NULLIF(btrim(o.om
    AND (o.om_status = 'Hold' OR NULLIF(btrim(o.om_hold_remarks), '') IS NOT NULL)
    AND NOT EXISTS (SELECT 1 FROM order_om_status_history h WHERE h.order_id = o.id);
 
--- 0030  Assembly & Packing's Alignment on a pump SO: the base plate's and
--- the wooden box's status (whether it needs either, and the check on the
--- values, are 0037's). Idempotent and additive.
+-- 0030  Assembly & Packing's Alignment on a pump SO: the base plate's
+-- status (whether it needs one, the check on its values, and the wooden box
+-- are 0037's). Idempotent and additive.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_status TEXT;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_status TEXT;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_alignment_check;
 
 -- 0031  When a pump SO's base plate was manufactured. Idempotent and additive.
@@ -2977,29 +2976,38 @@ ALTER TABLE order_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
 -- on the EC form, No unless set Yes), and a wooden box its Packing
 -- Requirement's: Assembly & Packing no longer says Yes or No, it tracks each.
 -- The base plate goes Pending, Fabrication, Marking, Drilling, Painting,
--- Manufactured, with a day and remarks. The wooden box is made in house,
--- bought out or both, in a required quantity (some in stock), Pending, In
--- plan, Received, received on a day in a quantity, with remarks. The old
--- Yes / No columns and statuses go (none was ever set). Idempotent.
+-- Manufactured, with a day and remarks. The wooden boxes are made in house,
+-- bought out or both — some pumps of the SO one way, some the other — each
+-- way with its own required quantity (some in stock), status (Pending, In
+-- plan, Received), receipt (a day and a quantity) and remarks: a row per
+-- way in order_wooden_boxes. The old Yes / No columns and statuses go (none
+-- was ever set). Idempotent.
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS base_plate TEXT;
 ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_base_plate_check;
 ALTER TABLE order_items ADD CONSTRAINT order_items_base_plate_check CHECK (base_plate IS NULL OR base_plate IN ('Yes', 'No'));
 ALTER TABLE orders DROP COLUMN IF EXISTS base_plate;
 ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_remarks TEXT;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_source TEXT[];
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_required_qty INTEGER;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_stock_qty INTEGER;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_received_date DATE;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_received_qty INTEGER;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_remarks TEXT;
+ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box_status;
+ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box_source;
+ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box_required_qty;
+ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box_stock_qty;
+ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box_received_date;
+ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box_received_qty;
+ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box_remarks;
 UPDATE orders SET base_plate_status = NULL
  WHERE base_plate_status NOT IN ('Pending', 'Fabrication', 'Marking', 'Drilling', 'Painting', 'Manufactured');
-UPDATE orders SET wooden_box_status = NULL WHERE wooden_box_status NOT IN ('Pending', 'In plan', 'Received');
 ALTER TABLE orders ADD CONSTRAINT orders_alignment_check CHECK (
-    (base_plate_status IS NULL OR base_plate_status IN ('Pending', 'Fabrication', 'Marking', 'Drilling', 'Painting', 'Manufactured'))
-    AND (wooden_box_status IS NULL OR wooden_box_status IN ('Pending', 'In plan', 'Received'))
-    AND (wooden_box_source IS NULL OR wooden_box_source <@ ARRAY['In house', 'Bought out']::text[])
-    AND COALESCE(wooden_box_required_qty, 0) >= 0
-    AND COALESCE(wooden_box_stock_qty, 0) >= 0
-    AND COALESCE(wooden_box_received_qty, 0) >= 0);
+    base_plate_status IS NULL OR base_plate_status IN ('Pending', 'Fabrication', 'Marking', 'Drilling', 'Painting', 'Manufactured'));
+CREATE TABLE IF NOT EXISTS order_wooden_boxes (
+    order_id       UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    source         TEXT NOT NULL CHECK (source IN ('In house', 'Bought out')),
+    required_qty   INTEGER NOT NULL CHECK (required_qty >= 0),
+    stock_qty      INTEGER CHECK (stock_qty >= 0),
+    status         TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'In plan', 'Received')),
+    received_date  DATE,
+    received_qty   INTEGER CHECK (received_qty >= 0),
+    remarks        TEXT,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (order_id, source)
+);
