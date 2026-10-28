@@ -231,7 +231,7 @@ export function BillingWorkspace({
                       {mode === "dispatch" && (
                         <td className="px-4 py-3 align-top">
                           {row.bill_type === "Challan" && !(row.term_lines ?? []).length ? (
-                            <span className="whitespace-nowrap text-xs text-muted">Not applicable · Challan / FR</span>
+                            <span className="whitespace-nowrap text-xs text-muted">REPLACEMENT - NO PAYMENT TERMS</span>
                           ) : (
                           <TermPis
                             orderId={row.id}
