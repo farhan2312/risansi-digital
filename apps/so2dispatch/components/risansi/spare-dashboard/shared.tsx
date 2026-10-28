@@ -57,14 +57,24 @@ export function Metric({
         : tone === "bad"
           ? "text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400"
           : "text-primary bg-primary/10";
+  // The figure carries its status too; a plain one stays in ink.
+  const ink =
+    tone === "good"
+      ? "text-emerald-700 dark:text-emerald-400"
+      : tone === "warn"
+        ? "text-amber-700 dark:text-amber-400"
+        : tone === "bad"
+          ? "text-rose-700 dark:text-rose-400"
+          : "text-foreground";
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-card-border bg-surface p-4 shadow-sm">
-      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${ring}`}>{icon}</span>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
-        <p className="mt-0.5 font-display text-2xl font-bold tabular-nums text-foreground">{value}</p>
-        {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+    <div className="flex min-w-0 flex-col rounded-2xl border border-card-border bg-surface p-3.5 shadow-sm">
+      <div className="flex items-start gap-2">
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${ring} [&>svg]:h-4 [&>svg]:w-4`}>{icon}</span>
+        {/* Two lines at most, never cut off: the tiles are narrow six to a row. */}
+        <p className="line-clamp-2 min-h-[2.4em] pt-px text-[11px] font-semibold uppercase leading-tight tracking-wide text-muted">{label}</p>
       </div>
+      <p className={`mt-2.5 font-display text-[1.75rem] font-bold leading-none tabular-nums ${ink}`}>{value}</p>
+      {sub && <p className="mt-1.5 line-clamp-2 text-[11px] leading-snug text-muted">{sub}</p>}
     </div>
   );
 }

@@ -50,7 +50,7 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
       <VizStyles />
 
       {/* Performance at a glance. */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <Metric
           icon={<PackageOpen className="h-5 w-5" />}
           label="SOs"
