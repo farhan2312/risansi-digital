@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canViewAll } from "@/lib/roles";
-import { isTestSo, listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, parseQueueSort } from "@/lib/orders";
-import { describeOrderListFilter, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
+import { isTestSo, listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
+import { describeOrderListFilter, ordersKind, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
 import { buildOrdersListPdf } from "@/lib/orders-list-pdf";
 import { listPumpSummaries } from "@/lib/pump-summary";
 
@@ -25,7 +25,16 @@ export async function GET(req: NextRequest) {
   // A Rep: their own SOs only.
   const filter = scopeToRep(withOrdersKind(parseOrderListFilter(get, { noDispatchTarget: true }), get("type")), user);
   const sort = parseQueueSort(get("sort"));
-  const result = await listOrdersPage({ page: 1, filter, sort, all: true });
+  // The Orders page's own cards, counted the same way, and the Pump card picked narrowing the list.
+  const kind = ordersKind(get("type"));
+  const result = await listOrdersPage({
+    page: 1,
+    filter,
+    sort,
+    all: true,
+    kpis: orderListKpiCards(kind),
+    extraRestrict: kind === "pump" ? pumpCardSql(get("pk")) : null,
+  });
   // A test SO is left out of the report altogether.
   const testCount = result.rows.filter((r) => isTestSo(r.so_no)).length;
   result.rows = result.rows.filter((r) => !isTestSo(r.so_no));
@@ -47,6 +56,7 @@ export async function GET(req: NextRequest) {
     spare: spare ? new Map(billing.map((b) => [b.id, b])) : undefined,
     byRep: sort === "rep" || sort === "-rep",
     pump: pump ? new Map(Object.entries(summaries)) : undefined,
+    kpis: result.kpis,
   });
 
   const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });

@@ -4,6 +4,7 @@ import { sanitize, wrap } from "@/lib/pdf-text";
 import { billModeLabel, PAYMENT_HOLD_VALUE } from "@/lib/order-schema";
 import { CLOSED, READY, assemblyView, planningText, reachedAssembly, reachedDepts, reachedDispatch } from "@/lib/order-row-view";
 import type { BillingQueueRow, DeptCell, OrderListRow, SoDeptStatus } from "@/lib/orders";
+import type { KpiCard, KpiTone } from "@/lib/kpis";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import type { PumpStage as SummaryStage, PumpSummary } from "@/lib/pump-summary";
 import { stageOf as pumpStageOf, type PumpStage } from "@/lib/pump-dashboard";
@@ -555,6 +556,8 @@ export async function buildOrdersListPdf(
     byRep?: boolean;
     /** The Pump list: each SO's departments by SO id, and cards by Rep. */
     pump?: Map<string, PumpSummary>;
+    /** The Orders page's summary cards, as counted there: the PDF's cards match them. */
+    kpis?: KpiCard[];
   } = {}
 ): Promise<Uint8Array> {
   const spare = opts.spare;
@@ -673,9 +676,18 @@ export async function buildOrdersListPdf(
     { label: "Accounts hold", value: String(acctHoldN), sub: "Held by Accounts", color: C.red },
     { label: "Cancelled / Diverted", value: String(closedN), sub: pct(closedN), color: C.slate },
   ];
+  // The Orders page's own cards when given — the same counts as on screen —
+  // with the open order value beside its Orders cards.
+  if (opts.kpis?.length) {
+    const TONE_COLOR: Record<KpiTone, RGB> = { neutral: C.primary, pending: C.amber, part: C.blue, done: C.green, danger: C.red };
+    const shown = opts.kpis.map((k) => ({ label: k.label, value: String(k.count), sub: k.group ?? "", color: TONE_COLOR[k.tone ?? "neutral"] }));
+    const lastOrders = shown.map((c) => c.sub).lastIndexOf("Orders");
+    shown.splice(lastOrders + 1, 0, { label: "Order value", value: shortInr(valueInr), sub: "Open SOs, in INR", color: C.ink });
+    cards.splice(0, cards.length, ...shown);
+  }
   const gap = 8;
-  // One row; more than twelve cards share two.
-  const perCardRow = cards.length > 12 ? Math.ceil(cards.length / 2) : cards.length;
+  // Up to twelve to a row, the rows even.
+  const perCardRow = Math.ceil(cards.length / Math.ceil(cards.length / 12));
   const cardW = (WIDTH - gap * (perCardRow - 1)) / perCardRow;
   const cardH = 52;
   cards.forEach((c, i) => {
@@ -768,11 +780,12 @@ export async function buildOrdersListPdf(
 
   // ── Dispatch mix: one stacked bar with its legend ──────────────────────
   if (n) {
+    const kpi = (label: string, own: number) => opts.kpis?.find((k) => k.group === "Dispatch" && k.label === label)?.count ?? own;
     const segs = [
-      { label: "Fully dispatch", k: fullN, color: C.green },
-      { label: "LOT dispatch", k: lotN, color: C.blue },
-      { label: "Pending", k: pendingN, color: rgb(0.96, 0.7, 0.2) },
-      { label: "Hold", k: heldDispatchN, color: C.red },
+      { label: "Fully dispatch", k: kpi("Dispatched", fullN), color: C.green },
+      { label: "LOT dispatch", k: kpi("Part dispatched", lotN), color: C.blue },
+      { label: "Pending", k: kpi("To dispatch", pendingN), color: rgb(0.96, 0.7, 0.2) },
+      { label: "Hold", k: kpi("Dispatch hold", heldDispatchN), color: C.red },
       { label: "Cancelled / Diverted", k: closedN, color: rgb(0.75, 0.78, 0.82) },
     ];
     text("DISPATCH MIX", MARGIN, y - 7, 6.5, bold, C.muted);
