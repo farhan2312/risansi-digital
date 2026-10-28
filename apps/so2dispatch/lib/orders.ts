@@ -4118,6 +4118,9 @@ async function countKpis(
         deptStatusMulti: {},
         packingStatuses: [],
         overdue: false,
+        // The SO hold and Accounts hold cards are cards too, not the bar.
+        onHold: false,
+        accountsHold: [],
       })
     : { clauses: [], params: [] };
   const own = `$${base.params.length + 1}`;
