@@ -25,7 +25,7 @@ import {
 } from "@/lib/dept-view";
 import { autoTargets, spareDeliveryDate } from "@/lib/target-rules";
 import { DEFAULT_GST_RATE } from "@/lib/order-validation";
-import { PLANNING_READY_SQL } from "@/lib/reminders";
+import { PLANNING_DATE_MET_SQL } from "@/lib/reminders";
 import type { LockFacts } from "@/lib/order-lock";
 import type { SoLot } from "@/lib/ready-lots";
 import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING_PUMP_STAGE_STATUS,
@@ -3403,12 +3403,13 @@ function ecDonePredicate(dept: DeptFilterKey): string {
  */
 function deptOverduePredicate(dept: DeptFilterKey): string {
   // Planning is late against its own readiness date: an EC whose date has
-  // passed and that is not ready yet.
+  // passed and that is not ready as planned — a Spare Fully ready, a Pump
+  // at least Partial ready (its date is its lot's).
   if (dept === "planning") {
     return `EXISTS (SELECT 1 FROM order_items it JOIN order_planning opl ON opl.item_id = it.id
                     WHERE it.order_id = o.id
                       AND opl.planning_readiness_date < ${TODAY_IST}
-                      AND NOT (${PLANNING_READY_SQL("opl")}))`;
+                      AND NOT ${PLANNING_DATE_MET_SQL("it", "opl")})`;
   }
   // Assembly & Packing is late against Planning's readiness date: an EC (or
   // a readiness lot of it) past that date and not packed yet.

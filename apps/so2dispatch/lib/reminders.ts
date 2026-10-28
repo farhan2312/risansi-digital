@@ -27,6 +27,17 @@ export type ReminderTier = "overdue" | "24h" | "72h" | "7d";
 export const PLANNING_READY_SQL = (pl: string) => `lower(btrim(COALESCE(NULLIF(${pl}.actual_spare_status, ''),
       NULLIF(${pl}.actual_pump_status, ''), ''))) IN ('fully ready', 'assembled', 'packed')`;
 
+/**
+ * Planning has met an EC's readiness date: a Spare once Fully ready (as
+ * above); a Pump once readied as the date was planned — a pump's readiness
+ * date is its lot's, so a Partial ready lot meets it. What Planning's
+ * overdue and reminders go by.
+ */
+export const PLANNING_DATE_MET_SQL = (it: string, pl: string) => `(CASE WHEN ${it}.item_type IN ('Pump', 'ROLB')
+      THEN lower(btrim(COALESCE(NULLIF(${pl}.actual_spare_status, ''), NULLIF(${pl}.actual_pump_status, ''), '')))
+             IN ('partial ready', 'fully ready', 'assembled', 'packed')
+      ELSE ${PLANNING_READY_SQL(pl)} END)`;
+
 export type ReminderRow = {
   id: string;
   sl_no: number;
@@ -111,7 +122,7 @@ const REMINDERS_SQL = `
       SELECT min(pl.planning_readiness_date) AS due
         FROM order_items it JOIN order_planning pl ON pl.item_id = it.id
        WHERE it.order_id = o.id AND pl.planning_readiness_date IS NOT NULL
-         AND NOT (${PLANNING_READY_SQL("pl")})
+         AND NOT ${PLANNING_DATE_MET_SQL("it", "pl")}
     ) r ON r.due IS NOT NULL
    WHERE r.due <= ${TODAY_IST} + 7
 
