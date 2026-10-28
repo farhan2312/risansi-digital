@@ -97,8 +97,9 @@ const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:0
 function stageOf(o: OrderListRow, packedLatest: boolean, packedAny: boolean): Stage {
   const dispatch = str(o.dispatch_status) || "Pending";
   if (CLOSED.includes(dispatch)) return "Cancelled / Diverted";
+  // Held by Central Visibility: Hold in every department, Dispatch's too.
+  if (dispatch === "Hold" || o.clearance_status === "Hold") return "Dispatch hold";
   if (dispatch === "Fully dispatch") return "Fully dispatched";
-  if (dispatch === "Hold") return "Dispatch hold";
   if (dispatch === "LOT dispatch") return "Lot dispatched";
   const lots = o.lots ?? [];
   const plan = (lots.length ? lots[lots.length - 1].status : null) || str(o.readiness_status) || "Date awaited";
@@ -181,7 +182,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
       zone: str(o.zone) || "No zone",
       value_inr: inr,
       stage: stageOf(o, !!f?.packed_latest, !!f?.packed_any),
-      dispatch: str(o.dispatch_status) || "Pending",
+      dispatch: o.clearance_status === "Hold" && !CLOSED.includes(str(o.dispatch_status)) ? "Hold" : str(o.dispatch_status) || "Pending",
       delivery_date: f?.delivery ?? null,
       first_dispatch: f?.first ?? null,
       no_slip: !!f?.no_slip,

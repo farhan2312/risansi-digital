@@ -64,6 +64,7 @@ const STANDING = [
   { key: "done", label: "Done", color: "var(--viz-aqua)" },
   { key: "progress", label: "In progress", color: "var(--viz-blue)" },
   { key: "pending", label: "Not started", color: "var(--viz-yellow)" },
+  { key: "hold", label: "Hold", color: "var(--viz-red)" },
   { key: "na", label: "Not needed", color: "var(--viz-gray)" },
 ] as const;
 

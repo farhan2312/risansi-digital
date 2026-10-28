@@ -63,6 +63,8 @@ export type DeptRow = {
   done: number;
   progress: number;
   pending: number;
+  /** Held by Central Visibility: Hold in every department it has work on. */
+  hold: number;
   /** SOs it has no work on (no BOI, no Quality). */
   na: number;
 };
@@ -111,8 +113,9 @@ const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:0
 export function stageOf(dispatchStatus: string, s: PumpSummary | undefined): PumpStage {
   const dispatch = dispatchStatus || "Pending";
   if (CLOSED.includes(dispatch)) return "Cancelled / Diverted";
+  // Held by Central Visibility: Hold in every department, Dispatch's too.
+  if (dispatch === "Hold" || s?.held) return "Dispatch hold";
   if (dispatch === "Fully dispatch") return "Fully dispatched";
-  if (dispatch === "Hold") return "Dispatch hold";
   if (dispatch === "LOT dispatch") return "Lot dispatched";
   if (!s) return "Date awaited";
   if (s.packing.status === "Fully packed") return "Packed, to dispatch";
@@ -125,12 +128,12 @@ export function stageOf(dispatchStatus: string, s: PumpSummary | undefined): Pum
   return "Date awaited";
 }
 
-type Standing = "done" | "progress" | "pending" | "na";
+type Standing = "done" | "progress" | "pending" | "hold" | "na";
 
 /** Each department's standing on one SO, as the Orders list's Pump view reads it. */
 function standings(s: PumpSummary, dispatch: string): Record<string, Standing> {
   const gadStarted = s.drawing.gad.label !== "Pending" || s.drawing.gad.done > 0;
-  return {
+  const own: Record<string, Standing> = {
     drawing: s.drawing.closed ? "done" : gadStarted ? "progress" : "pending",
     purchase: !s.purchase.required ? "na" : s.purchase.state === "Closed" ? "done" : s.purchase.received > 0 ? "progress" : "pending",
     quality: !s.quality.required ? "na" : s.quality.state === "Closed" ? "done" : s.quality.submitted > 0 ? "progress" : "pending",
@@ -139,6 +142,8 @@ function standings(s: PumpSummary, dispatch: string): Record<string, Standing> {
     packing: s.packing.status === "Fully packed" ? "done" : s.packing.status === "Partially packed" ? "progress" : "pending",
     dispatch: dispatch === "Fully dispatch" ? "done" : dispatch === "LOT dispatch" ? "progress" : "pending",
   };
+  // Held by Central Visibility: Hold wherever the department has work on it.
+  return s.held ? Object.fromEntries(Object.entries(own).map(([k, v]) => [k, v === "na" ? "na" : "hold"])) : own;
 }
 
 /** The departments, in the order a pump passes them, each with its page. */
@@ -221,7 +226,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
       zone: str(o.zone) || "No zone",
       value_inr: inr,
       stage: stageOf(str(o.dispatch_status), summaries[o.id]),
-      dispatch: str(o.dispatch_status) || "Pending",
+      dispatch: o.clearance_status === "Hold" && !CLOSED.includes(str(o.dispatch_status)) ? "Hold" : str(o.dispatch_status) || "Pending",
       delivery_date: f?.delivery ?? null,
       first_dispatch: f?.first ?? null,
       no_slip: !!f?.no_slip,
@@ -329,6 +334,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     done: 0,
     progress: 0,
     pending: 0,
+    hold: 0,
     na: 0,
   }));
   const gad = new Map<string, number>();

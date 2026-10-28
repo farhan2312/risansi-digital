@@ -4162,7 +4162,7 @@ async function countKpis(
  */
 export function pumpOrderCards(): KpiCardDef[] {
   const open = orderOpenSql("o");
-  const clear = { pk: null, dept: null, dstatus: null, pack: null, dsm: null, overdue: null } as Record<string, string | null>;
+  const clear = { pk: null, dept: null, dstatus: null, pack: null, dsm: null, overdue: null, hold: null } as Record<string, string | null>;
   const pumps = (cond: string) =>
     `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}) AND ${cond})`;
   const drgOpen = pumps(`NOT ${ecDrawingDoneSql("s", "o")}`);
@@ -4170,8 +4170,14 @@ export function pumpOrderCards(): KpiCardDef[] {
     key,
     label,
     group,
-    // An Only Billing SO is no department's — not even Billing's.
-    sql: `(${sql}) AND ${open} AND NOT ${onlyBillingSql("o")}`,
+    // An Only Billing SO is no department's — not even Billing's. Held by
+    // Central Visibility it is Hold everywhere (Dispatch hold counts it), and
+    // on any SO hold it is no department's Pending.
+    sql: `(${sql}) AND ${open} AND NOT ${onlyBillingSql("o")}${
+      key === "dsp_hold"
+        ? ""
+        : ` AND NOT ${CV_HOLD_SQL}${tone === "pending" ? ` AND NOT ${soHoldSql("o", PUMP_CARD_DEPT[group])}` : ""}`
+    }`,
     params: { ...clear, pk: key },
     tone,
   });
@@ -4236,7 +4242,24 @@ export function pumpOrderCards(): KpiCardDef[] {
     card("Dispatch", "dsp_lot", "Part dispatched", deptStatusPredicate("dispatch", "LOT dispatch"), "part"),
     card("Dispatch", "dsp_full", "Dispatched", deptStatusPredicate("dispatch", "Fully dispatch"), "done"),
     card("Dispatch", "dsp_hold", "Dispatch hold", deptStatusPredicate("dispatch", "Hold"), "danger"),
+    soHoldCard(clear),
   ];
+}
+
+/** The department a Pump card on the Orders list belongs to, for its SO hold. */
+const PUMP_CARD_DEPT: Record<string, DeptFilterKey> = {
+  "Proforma Invoice": "billing",
+  Drawing: "drawing",
+  Purchase: "purchase",
+  Quality: "quality",
+  Planning: "planning",
+  "Assembly & Packing": "assembly",
+  Dispatch: "dispatch",
+};
+
+/** The Orders list's SO hold card: its open SOs on hold (the On hold filter). */
+function soHoldCard(clear: Record<string, string | null>): KpiCardDef {
+  return { key: "hold", label: "SO hold", group: "Orders", sql: `${onHoldSql(null)} AND ${orderOpenSql("o")}`, params: { ...clear, hold: "1" }, tone: "danger" };
 }
 
 /** The SQL a Pump card picks its SOs by, for the list (null for an unknown key). */
@@ -4248,7 +4271,7 @@ export function pumpCardSql(key: string | null | undefined): string | null {
 
 export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
   if (kind === "pump") return pumpOrderCards();
-  const clear = { dept: null, dstatus: null, pack: null, dsm: null, overdue: null } as Record<string, string | null>;
+  const clear = { dept: null, dstatus: null, pack: null, dsm: null, overdue: null, hold: null } as Record<string, string | null>;
   const open = orderOpenSql("o");
   const card = (group: string, dept: DeptFilterKey, status: string, label: string, extra: Record<string, string> = {}, sql?: string): KpiCardDef => ({
     key: `${dept}:${status}:${extra.pack ?? ""}`,
@@ -4282,7 +4305,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
       "Fully ready",
       "Ready, not packed",
       { pack: "Not packed" },
-      `${SO_PLANNING_STATUS} = 'Fully ready'
+      `${SO_PLANNING_STATUS} = 'Fully ready' AND NOT ${CV_HOLD_SQL}
                 AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND (${packingState("Not packed")})) AND ${open}`
     ),
     card("Assembly & Packing", "assembly", "In Progress", "Packing on"),
@@ -4292,6 +4315,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
     card("Dispatch", "dispatch", "LOT dispatch", "Part dispatched"),
     card("Dispatch", "dispatch", "Fully dispatch", "Dispatched"),
     card("Dispatch", "dispatch", "Hold", "Dispatch hold"),
+    soHoldCard(clear),
   ];
 }
 
