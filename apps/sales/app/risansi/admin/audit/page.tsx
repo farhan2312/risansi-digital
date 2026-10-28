@@ -419,7 +419,7 @@ export default async function AuditPage({
         </div>
 
         {/* Tabs */}
-        <div className="field-tabs" style={{ display: 'flex', gap: 2, marginBottom: 14, borderBottom: '1px solid var(--line)', overflowX: 'auto' }}>
+        <div className="field-tabs" style={{ display: 'flex', gap: 2, marginBottom: 14, borderBottom: '1px solid var(--line)', overflowX: 'auto', overflowY: 'hidden' }}>
           {TABS.map(t => (
             <Link key={t.id} href={`/risansi/admin/audit?tab=${t.id}`} aria-current={tab === t.id} style={{
               display: 'block', padding: '9px 16px', fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0,

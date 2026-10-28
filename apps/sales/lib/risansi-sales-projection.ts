@@ -29,6 +29,17 @@ const VALUE = `COALESCE(o.offer_value_inr, o.value_cr * 10000000, 0)`;
 // The odds come from the probability code, never from the numeric column: that
 // column carried stage defaults nobody entered, so weighting on it inflated the
 // forecast with guesses. A quote with no code is unrated and weighs nothing.
+// Both queries in loadProjection select over the same population, so they
+// share one FROM. They did not, and the coverage query's missing clients join
+// is what blanked the tab the moment any rep condition was applied; see the
+// note on that query. Spelled once, they cannot drift apart again.
+// The archived-client exclusion rides on the join rather than only in OPEN's
+// EXISTS, so the constant is guarded wherever it is pasted and cannot be
+// lifted into a query that forgets it. Belt and braces with OPEN; verified
+// against the live board that it drops no row and moves no figure.
+const SCOPED_FROM = `FROM opportunities o
+      JOIN clients c ON c.id = o.client_id AND c.deleted_at IS NULL`;
+
 const PROB_PCT = probabilityPctSql('o');
 const HAS_PROB = hasProbabilitySql('o');
 
@@ -191,8 +202,7 @@ export async function loadProjection(
                       FILTER (WHERE ${HAS_PROB}), 0)::text AS weighted,
            COALESCE(sum(${VALUE}) FILTER (WHERE ${HAS_PROB}), 0)::text AS weighted_base,
            count(*)::text AS n
-      FROM opportunities o
-      JOIN clients c ON c.id = o.client_id
+      ${SCOPED_FROM}
       LEFT JOIN users u ON u.id = ${creditedRepSql()}
      WHERE ${OPEN}${repFilter}
      GROUP BY ${creditedRepSql()}, u.name, ${bucket}
@@ -220,6 +230,17 @@ export async function loadProjection(
   // Coverage, over the same population the table is built from. Computed here
   // rather than from the cells so it is a statement about the query, not a
   // restatement of the grid.
+  //
+  // The clients join is not decoration: `repFilter` can carry
+  // creditedRepSql(), which is COALESCE(o.credited_rep_id, c.primary_rep_id),
+  // and this query used to select FROM opportunities alone. Any rep condition
+  // therefore referenced a table that was not in the FROM clause, and
+  // Postgres answered 42P01 — which the page's q() wrapper caught and turned
+  // into a null projection, i.e. a blank tab. That is why picking a rep made
+  // the whole page vanish, and why the tab was blank for every non-admin:
+  // a viewer with a visibility list gets the same condition without touching
+  // a filter. The join costs nothing — OPEN already requires a live client
+  // through EXISTS, so it drops no row and no figure moves.
   const { rows: [c] } = await pool.query<Record<string, string>>(`
     SELECT COALESCE(sum(${VALUE}), 0)::text AS open_gross,
            count(*)::text AS open_count,
@@ -229,7 +250,8 @@ export async function loadProjection(
              WHERE ${ETA_MONTH} IS NOT NULL AND ${ETA_YEAR} IS NOT NULL
                AND make_date(${ETA_YEAR}, ${ETA_MONTH}, 1) < date_trunc('month', CURRENT_DATE)), 0)::text AS overdue_gross,
            COALESCE(sum(${VALUE}) FILTER (WHERE ${HAS_PROB}), 0)::text AS with_prob_gross
-      FROM opportunities o WHERE ${OPEN}${repFilter}`, params);
+      ${SCOPED_FROM}
+     WHERE ${OPEN}${repFilter}`, params);
 
   const openGross = Number(c?.open_gross ?? 0);
   const datedGross = Number(c?.dated_gross ?? 0);

@@ -169,7 +169,7 @@ export function MiniTable({ title, note, table, full, chart, footer }: { title: 
       {chart && <div style={{ padding: '14px 14px 6px' }}>{chart}</div>}
       {/* The grid itself is a client component so its headers can sort; the
           panel, the chart and the footnote stay on the server. */}
-      <div style={{ overflowX: 'auto' }}>
+      <div style={{ overflowX: 'auto', overflowY: 'hidden' }}>
         <ExecMiniTable table={table} />
       </div>
       {footer && <div style={{ padding: '10px 14px', borderTop: '1px solid var(--line)' }}>{footer}</div>}
@@ -298,9 +298,16 @@ export const EXEC_TABS: { key: ExecTab; label: string; hint: string }[] = [
   { key: 'account',    label: 'Account Review',   hint: 'A group of mills or a single OEM across the years' },
   { key: 'projection', label: 'Sales Projection', hint: 'Expected closures by rep, month and quarter' },
 ];
+// overflowY is spelled out next to overflowX, and that is not redundant.
+// When one axis is `auto` the CSS overflow spec computes the other from
+// `visible` to `auto`, so `overflowX: 'auto'` alone makes a strip a VERTICAL
+// scroll container too. The active tab's `marginBottom: -1` then puts its
+// underline one pixel past the content box — scrollHeight 48 against
+// clientHeight 47 — and Windows draws a stubby vertical scrollbar beside the
+// tabs for that one pixel. Measured in a browser before changing it.
 export function ExecTabs({ active, hrefFor }: { active: ExecTab; hrefFor: (t: ExecTab) => string }) {
   return (
-    <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--line)', marginBottom: 16, overflowX: 'auto' }}>
+    <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--line)', marginBottom: 16, overflowX: 'auto', overflowY: 'hidden' }}>
       {EXEC_TABS.map(t => {
         const on = t.key === active;
         return (

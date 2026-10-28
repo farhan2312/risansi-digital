@@ -933,7 +933,7 @@ export default async function FieldActivityPage({
         />
 
         {/* Tabs — underline on desktop, snappy scroll-snap pills on mobile (mobile.css) */}
-        <div className="field-tabs" style={{ display: 'flex', gap: 2, marginBottom: 18, borderBottom: '1px solid var(--line)', paddingBottom: 0, overflowX: 'auto', scrollSnapType: 'x proximity' }}>
+        <div className="field-tabs" style={{ display: 'flex', gap: 2, marginBottom: 18, borderBottom: '1px solid var(--line)', paddingBottom: 0, overflowX: 'auto', overflowY: 'hidden', scrollSnapType: 'x proximity' }}>
           {[
             { id: 'calendar', label: 'Calendar' },
             { id: 'feed',     label: 'Visit Feed' },

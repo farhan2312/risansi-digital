@@ -186,7 +186,7 @@ export function SalesProjection({ d, mode, hrefFor, filters, subtitle, embedded 
         </div>
       )}
 
-      <div style={{ overflowX: 'auto', border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--bg-paper)' }}>
+      <div style={{ overflowX: 'auto', overflowY: 'hidden', border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--bg-paper)' }}>
         {/* The grid is a client component so its headers can sort; everything
             above it stays on the server. */}
         <SalesProjectionGrid
