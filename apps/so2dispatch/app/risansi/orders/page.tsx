@@ -17,6 +17,7 @@ import { canCreateOrders, canViewAll, isRep } from "@/lib/roles";
 import { OrdersTable } from "@/components/risansi/orders-table";
 import { MissingDetailsButton } from "@/components/risansi/missing-details-modal";
 import { OneClickButton } from "@/components/risansi/one-click-modal";
+import { cardBaseGet } from "@/lib/kpis";
 
 export const metadata: Metadata = {
   title: "Orders | Risansi",
@@ -45,6 +46,8 @@ export default async function OrdersPage({
     withOrdersKind(parseOrderListFilter((key) => params[key], { noDispatchTarget: true }), params.type),
     user
   );
+  // The cards count over the filter bar as set, less the card clicked.
+  filter.kpiFilter = parseOrderListFilter(cardBaseGet((key) => params[key]), { noDispatchTarget: true });
   const result = await listOrdersPage({
     page: parsePage(params.page),
     filter,

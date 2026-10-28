@@ -7,6 +7,7 @@ import { listSoMembers, parseAssignPeriod, soMemberSummary } from "@/lib/so-assi
 import { listOrderListOptions, listOrdersForOrderMaking } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseOrderMakingFilter } from "@/lib/order-making-filter";
+import { cardBaseGet } from "@/lib/kpis";
 import { unreadByOrder } from "@/lib/order-messages";
 import { OrderMakingWorkspace } from "@/components/risansi/order-making-workspace";
 
@@ -34,6 +35,8 @@ export default async function OrderMakingPage({
 
   const params = await searchParams;
   const filter = parseOrderMakingFilter((key) => params[key]);
+  // The cards count over the filter bar as set, less the card clicked.
+  filter.kpiFilter = parseOrderMakingFilter(cardBaseGet((key) => params[key]));
   // An Order Making SO member works only on the SOs assigned to them.
   const soMember = isOrderMakingSo(user.role);
   const canAssign = canAssignSo(user.role);
@@ -44,7 +47,7 @@ export default async function OrderMakingPage({
       page: parsePage(params.page),
       withKpis: true,
       search: parseQuery(params.q),
-      filter: soMember ? { ...filter, assignees: [] } : filter,
+      filter: soMember ? { ...filter, assignees: [], kpiFilter: { ...filter.kpiFilter!, assignees: [] } } : filter,
       assigneeScope: soMember ? user.id : undefined,
     }),
     listOrderListOptions(),

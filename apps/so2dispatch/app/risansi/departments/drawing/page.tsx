@@ -29,7 +29,7 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { DrawingWorkspace } from "@/components/risansi/drawing-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
-import { toneFor, type KpiCardDef } from "@/lib/kpis";
+import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
 import { CURVE_STATUSES, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
 
 export const metadata: Metadata = {
@@ -54,6 +54,9 @@ export default async function DrawingWorkspacePage({
   // This department's own filter bar, with the department pinned.
   // A Rep sees only their own SOs.
   const filter = scopeToRep(parseDeptFilter((key) => params[key], "drawing"), user);
+  // The cards count over the filter bar as set, less the card clicked.
+  const cardGet = cardBaseGet((key) => params[key]);
+  filter.kpiFilter = parseDeptFilter(cardGet, "drawing");
   // A notification links to an EC (item id) or an SO; either way the queue
   // must open on the page that holds it.
   // Which SO a notification link should open on. Without a link this is
@@ -128,6 +131,7 @@ export default async function DrawingWorkspacePage({
         filter,
         sort: parseQueueSort(params.sort),
         extraRestrict: drawingFilterSql(drawingFilter),
+        kpiRestrict: drawingFilterSql(parseDrawingFilter(cardGet)),
       }
     ),
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),

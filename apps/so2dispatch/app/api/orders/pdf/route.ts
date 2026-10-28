@@ -5,6 +5,7 @@ import { isTestSo, listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, 
 import { describeOrderListFilter, ordersKind, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
 import { buildOrdersListPdf } from "@/lib/orders-list-pdf";
 import { listPumpSummaries } from "@/lib/pump-summary";
+import { cardBaseGet } from "@/lib/kpis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,8 @@ export async function GET(req: NextRequest) {
   const get = (key: string) => params.get(key) ?? undefined;
   // A Rep: their own SOs only.
   const filter = scopeToRep(withOrdersKind(parseOrderListFilter(get, { noDispatchTarget: true }), get("type")), user);
+  // The cards as on the page: the filter bar as set, less the card clicked.
+  filter.kpiFilter = parseOrderListFilter(cardBaseGet(get), { noDispatchTarget: true });
   const sort = parseQueueSort(get("sort"));
   // The Orders page's own cards, counted the same way, and the Pump card picked narrowing the list.
   const kind = ordersKind(get("type"));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { KpiCard, KpiTone } from "@/lib/kpis";
+import { KPI_PICKED, pickedValue, type KpiCard, type KpiTone } from "@/lib/kpis";
 import { useUrlTable } from "./url-table";
 
 const TONE: Record<KpiTone, { dot: string; ring: string; bar: string; on: string }> = {
@@ -25,7 +25,8 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
   const { get, setParams } = useUrlTable();
   // The card just clicked shows on at once; the page follows when it loads.
   const [asked, setAsked] = useState<string | null>(null);
-  const keys = [...new Set(cards.flatMap((c) => Object.keys(c.params)))];
+  // Clicking a card names it too (KPI_PICKED): the cards then count without its filter.
+  const keys = [...new Set([...cards.flatMap((c) => Object.keys(c.params)), KPI_PICKED])];
   const isOn = (c: KpiCard) => !readOnly(c) && Object.entries(c.params).every(([k, v]) => (get(k) || null) === v);
   const onKey = cards.find(isOn)?.key ?? null;
   const [seen, setSeen] = useState(onKey);
@@ -46,7 +47,7 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
     const pick = (c: KpiCard, on: boolean) => {
       const clear = Object.fromEntries(keys.map((k) => [k, null]));
       setAsked(on ? "__none" : c.key);
-      setParams(on ? clear : { ...clear, ...c.params });
+      setParams(on ? clear : { ...clear, ...c.params, [KPI_PICKED]: pickedValue(c.params) });
     };
     return (
       <div data-url-dim className="mb-4 flex flex-wrap items-stretch gap-3">
@@ -159,7 +160,7 @@ function KpiStripRow({
             onClick={() => {
               const clear = Object.fromEntries(keys.map((k) => [k, null]));
               setAsked(on ? "__none" : c.key);
-              setParams(on ? clear : { ...clear, ...c.params });
+              setParams(on ? clear : { ...clear, ...c.params, [KPI_PICKED]: pickedValue(c.params) });
             }}
             className={`group flex ${size} flex-col items-start justify-between border bg-surface text-left shadow-sm transition-all hover:-translate-y-px hover:shadow ${
               on ? `border-transparent ring-2 ${tone.ring}` : "border-card-border"

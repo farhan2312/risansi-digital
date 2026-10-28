@@ -176,6 +176,11 @@ export type OrderListFilter = {
   ready: boolean;
   /** A Spare lot packed but on no packing slip yet (Planning, Assembly & Packing, the Orders list). */
   noSlip: boolean;
+  /**
+   * What the summary cards count over: this filter less the card clicked
+   * (cardBaseGet). Unset, the cards leave out every status a card sets.
+   */
+  kpiFilter?: OrderListFilter;
   /** Only SOs on hold — by Central Visibility, by Accounts or by Dispatch. */
   onHold: boolean;
   /** The Orders list: only the SOs Central sent to Billing alone. */

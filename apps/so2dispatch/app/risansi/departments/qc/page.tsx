@@ -24,7 +24,7 @@ import { QcWorkspace } from "@/components/risansi/qc-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
-import { toneFor, type KpiCardDef } from "@/lib/kpis";
+import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
 import {
   QC_EC_STATUSES,
   QC_SO_STATES,
@@ -58,6 +58,9 @@ export default async function QcWorkspacePage({
   // This department's own filter bar, with the department pinned.
   // A Rep sees only their own SOs.
   const filter = scopeToRep(parseDeptFilter((key) => params[key], "quality"), user);
+  // The cards count over the filter bar as set, less the card clicked.
+  const cardGet = cardBaseGet((key) => params[key]);
+  filter.kpiFilter = parseDeptFilter(cardGet, "quality");
   // A notification links to an EC (item id) or an SO; either way the queue
   // must open on the page that holds it.
   // Which SO a notification link should open on. Without a link this is
@@ -117,6 +120,7 @@ export default async function QcWorkspacePage({
         sort: parseQueueSort(params.sort),
         kpis: qcKpiCards(),
         extraRestrict: qcFilterSql(qcFilter),
+        kpiRestrict: qcFilterSql(parseQcFilter(cardGet)),
       }
     ),
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),

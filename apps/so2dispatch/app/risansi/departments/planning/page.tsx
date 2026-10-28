@@ -19,6 +19,7 @@ import { listItemsForSectionPage,
 } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
+import { cardBaseGet } from "@/lib/kpis";
 import { listRemindersForDepartment } from "@/lib/reminders";
 import { PLANNING_CONTEXT_FIELDS, SECTION_BY_TABLE } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
@@ -58,6 +59,8 @@ export default async function PlanningWorkspacePage({
     { ...parseDeptFilter((key) => params[key], "planning"), types: ecKind === "pump" ? ["Pump", "ROLB"] : ["Spare"] },
     user
   );
+  // The cards count over the filter bar as set, less the card clicked.
+  filter.kpiFilter = parseDeptFilter(cardBaseGet((key) => params[key]), "planning");
   // A notification links to an EC (item id) or an SO; either way the queue
   // must open on the page that holds it.
   // Which SO a notification link should open on. Without a link this is

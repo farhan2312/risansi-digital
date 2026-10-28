@@ -24,7 +24,7 @@ import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards, listBoiVendors, listVendorList, totalHoldCard } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
-import { toneFor, type KpiCardDef } from "@/lib/kpis";
+import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
 import {
   BOI_STATUSES,
   PURCHASE_STATES,
@@ -61,6 +61,9 @@ export default async function PurchaseWorkspacePage({
   // This department's own filter bar, with the department pinned.
   // A Rep sees only their own SOs.
   const filter = scopeToRep(parseDeptFilter((key) => params[key], "purchase"), user);
+  // The cards count over the filter bar as set, less the card clicked.
+  const cardGet = cardBaseGet((key) => params[key]);
+  filter.kpiFilter = parseDeptFilter(cardGet, "purchase");
   // A notification links to an EC (item id) or an SO; open the page that holds it.
   // Which SO a notification link should open on. Without a link this is
   // immediate; everything else below loads side by side.
@@ -116,7 +119,7 @@ export default async function PurchaseWorkspacePage({
     listItemsForPurchasePage({
       kpis: purchaseKpiCards(),
       extraRestrict: purchaseFilterSql(purchaseFilter),
-      kpiRestrict: purchaseFilterSql({ ...none, vendor: purchaseFilter.vendor, item: purchaseFilter.item }),
+      kpiRestrict: purchaseFilterSql(parsePurchaseFilter(cardGet)),
       page: parsePage(page),
       search: parseQuery(q),
       focusOrderId,

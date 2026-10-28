@@ -15,6 +15,7 @@ import {
 } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
+import { cardBaseGet } from "@/lib/kpis";
 import { unreadByOrder } from "@/lib/order-messages";
 import { BillingWorkspace } from "@/components/risansi/billing-workspace";
 import { deptKpiCards } from "@/lib/orders";
@@ -42,6 +43,8 @@ export default async function DispatchWorkspacePage({
   // dispatch" is the one it adds: the orders Assembly & Packing has packed.
   // A Rep sees only their own SOs.
   const filter = scopeToRep(parseDeptFilter((key) => params[key], "dispatch"), user);
+  // The cards count over the filter bar as set, less the card clicked.
+  filter.kpiFilter = parseDeptFilter(cardBaseGet((key) => params[key]), "dispatch");
   // Which SO a notification link should open on. Without a link this is
   // immediate; everything else below loads side by side.
   const focusOrderId = await resolveFocusOrderId(thread ?? edit);

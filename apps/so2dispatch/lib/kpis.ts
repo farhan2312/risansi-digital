@@ -20,6 +20,31 @@ export type KpiCardDef = {
   group?: string;
 };
 
+/** The URL param holding what the card clicked set (as a query string). */
+export const KPI_PICKED = "kc";
+
+/** What a card sets, as KPI_PICKED carries it: its non-empty params. */
+export function pickedValue(params: Record<string, string | null>): string | null {
+  const set = Object.entries(params).filter((e): e is [string, string] => e[1] !== null);
+  return set.length ? new URLSearchParams(set).toString() : null;
+}
+
+/**
+ * The URL as the cards count it: the filter bar as set, less what the card
+ * clicked (KPI_PICKED) set — so clicking a card narrows the list but leaves
+ * the cards as they were, while a filter chosen in the bar narrows both. A
+ * card the URL no longer matches (its filter since changed in the bar) is no
+ * longer the pick, and everything set counts.
+ */
+export function cardBaseGet(get: (key: string) => string | undefined): (key: string) => string | undefined {
+  const raw = get(KPI_PICKED);
+  if (!raw) return get;
+  const picked = [...new URLSearchParams(raw)];
+  if (!picked.length || !picked.every(([k, v]) => get(k) === v)) return get;
+  const own = new Set(picked.map(([k]) => k));
+  return (key) => (own.has(key) || key === KPI_PICKED ? undefined : get(key));
+}
+
 /** A card as shown: its count. */
 export type KpiCard = Omit<KpiCardDef, "sql"> & { count: number };
 

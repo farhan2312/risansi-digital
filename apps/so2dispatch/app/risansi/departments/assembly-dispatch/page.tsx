@@ -31,7 +31,7 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
-import { toneFor, type KpiCardDef } from "@/lib/kpis";
+import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
 
 export const metadata: Metadata = {
   title: "Assembly & Packing | Risansi",
@@ -65,13 +65,19 @@ export default async function AssemblyDispatchWorkspacePage({
     { ...parseDeptFilter((key) => params[key], "assembly"), types: ecKind === "pump" ? ["Pump", "ROLB"] : ["Spare"] },
     user
   );
-  const pick = (key: string, allowed: string[]) =>
-    (params[key] ?? "")
+  // The cards count over the filter bar as set, less the card clicked.
+  const cardGet = cardBaseGet((key) => params[key]);
+  filter.kpiFilter = parseDeptFilter(cardGet, "assembly");
+  const pick = (key: string, allowed: string[], get: (key: string) => string | undefined = (k) => params[k]) =>
+    (get(key) ?? "")
       .split(",")
       .map((v) => v.trim())
       .filter((v) => allowed.includes(v));
   const assemblyStatuses = pick(ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES);
   const packingStatuses = pick(PACKING_STATUS_KEY, SO_PACKING_STATUSES);
+  // …and as the cards count them: the bar's, less the card clicked.
+  const cardAssembly = pick(ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES, cardGet);
+  const cardPacking = pick(PACKING_STATUS_KEY, SO_PACKING_STATUSES, cardGet);
   const inList = (vals: string[]) => vals.map((s) => `'${s}'`).join(", ");
   // The Pump view's SOs: those Planning has Partial or Fully ready.
   const pumpReady =
@@ -139,7 +145,14 @@ export default async function AssemblyDispatchWorkspacePage({
     ,
       {
         kpis: ecKind === "pump" ? assemblyPumpCards() : deptKpiCards("assembly", ["Spare"]),
-        kpiRestrict: pumpReady,
+        kpiRestrict:
+          ecKind === "pump"
+            ? [
+                pumpReady,
+                cardAssembly.length ? `${soStageStatusSql("assembly", "o")} IN (${inList(cardAssembly)})` : "TRUE",
+                cardPacking.length ? `${soStageStatusSql("packing", "o")} IN (${inList(cardPacking)})` : "TRUE",
+              ].join(" AND ")
+            : undefined,
         page: parsePage(page),
         search: parseQuery(q),
         focusOrderId,

@@ -14,6 +14,7 @@ import { listOrdersForSectionPage,
 } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
+import { cardBaseGet } from "@/lib/kpis";
 import {
   PAYMENT_TERMS_CONTEXT_FIELDS,
   SECTION_BY_TABLE,
@@ -45,6 +46,8 @@ export default async function AccountsWorkspacePage({
   // This department's own filter bar, with the department pinned.
   // A Rep sees only their own SOs.
   const filter = scopeToRep(parseDeptFilter((key) => params[key], "accounts"), user);
+  // The cards count over the filter bar as set, less the card clicked.
+  filter.kpiFilter = parseDeptFilter(cardBaseGet((key) => params[key]), "accounts");
   // A notification links to an EC (item id) or an SO; either way the queue
   // must open on the page that holds it.
   // Which SO a notification link should open on. Without a link this is

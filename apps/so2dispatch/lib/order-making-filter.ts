@@ -27,6 +27,8 @@ export type OmSort = "sl" | "-sl" | "so_date" | "-so_date" | "ecs" | "-ecs";
 const SORTS: OmSort[] = ["sl", "-sl", "so_date", "-so_date", "ecs", "-ecs"];
 
 export type OrderMakingFilter = {
+  /** What the summary cards count over: this filter less the card clicked (cardBaseGet). */
+  kpiFilter?: OrderMakingFilter;
   zones: string[];
   reps: string[];
   markets: string[];

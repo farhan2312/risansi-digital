@@ -14,6 +14,7 @@ import { OrderListFilterBar } from "@/components/risansi/order-list-filter-bar";
 import { KpiStrip } from "@/components/risansi/kpi-strip";
 import { SpareDashboardView } from "@/components/risansi/spare-dashboard/spare-dashboard";
 import { PumpDashboardView } from "@/components/risansi/spare-dashboard/pump-dashboard";
+import { cardBaseGet } from "@/lib/kpis";
 
 export const metadata: Metadata = {
   title: "Dashboard | Risansi",
@@ -62,6 +63,8 @@ export default async function DashboardPage({
   const kind = ordersKind(params.type);
   // The Orders list's filters, pinned to that kind; a Rep sees only their own SOs.
   const filter = scopeToRep(withOrdersKind(parseOrderListFilter((key) => params[key], { noDispatchTarget: true }), params.type), user);
+  // The cards count over the filter bar as set, less the card clicked.
+  filter.kpiFilter = parseOrderListFilter(cardBaseGet((key) => params[key]), { noDispatchTarget: true });
   // On Pump, the card picked narrows the SOs, as on the Orders list.
   const data = kind === "pump" ? await getPumpDashboard(filter, params.pk ?? null) : await getSpareDashboard(filter);
   const kindLabel = kind === "pump" ? "Pump" : "Spare";

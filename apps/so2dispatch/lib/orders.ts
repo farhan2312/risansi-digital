@@ -4110,7 +4110,23 @@ async function countKpis(
   search: string | null,
   searchable: (term: string) => string
 ): Promise<KpiCard[]> {
-  const base = filter
+  // The filter bar as set, less the card clicked (what a card sets, from
+  // kpiFilter); without it, less every status a card sets.
+  const kf = filter?.kpiFilter;
+  const base = filter && kf
+    ? orderListClauses({
+        ...(await withRepTeams(filter)),
+        search: "",
+        dept: kf.dept,
+        deptStatuses: kf.deptStatuses,
+        deptStatusMulti: kf.deptStatusMulti,
+        packingStatuses: kf.packingStatuses,
+        dispatchStatuses: kf.dispatchStatuses,
+        overdue: kf.overdue,
+        onHold: kf.onHold,
+        accountsHold: kf.accountsHold,
+      })
+    : filter
     ? orderListClauses({
         ...(await withRepTeams(filter)),
         search: "",
@@ -4512,7 +4528,12 @@ export async function listOrdersForOrderMaking(opts: {
   };
   const clauses = buildClauses(f);
   // The cards: the queue before the assignee / SO details / missing filters.
-  const base = buildClauses({ ...f, assignees: [], soState: null, missingOnly: false, hold: null });
+  const kf = f.kpiFilter;
+  const base = buildClauses(
+    kf
+      ? { ...f, assignees: kf.assignees, soState: kf.soState, missingOnly: kf.missingOnly, hold: kf.hold }
+      : { ...f, assignees: [], soState: null, missingOnly: false, hold: null }
+  );
   const omSpare = f.types.some((t) => t.toLowerCase() === "spare");
   const omPump = f.types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
   const omEcKind = omSpare && !omPump ? spareEcSql("s", "o") : omPump && !omSpare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
