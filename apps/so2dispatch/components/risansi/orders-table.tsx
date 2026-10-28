@@ -135,12 +135,21 @@ const TEXT_TONE: Record<DeptCell["state"], string> = {
 };
 
 /** A status as text (no pill) that opens its department, with a line under it. */
-function StatusText({ text, tone = "pending", line, onClick }: {
+function StatusText({ text, tone = "pending", line, hold = false, onClick }: {
   text: string | null;
   tone?: DeptCell["state"];
   line?: string;
+  /** Central Visibility holds the SO: it reads Hold. */
+  hold?: boolean;
   onClick: () => void;
 }) {
+  if (hold) {
+    return (
+      <button type="button" onClick={onClick} title="On hold — open" className="-m-1 flex flex-col items-start rounded-md p-1 text-left transition-colors hover:bg-background">
+        <span className="text-[13px] font-medium text-rose-700 dark:text-rose-400">Hold</span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -241,6 +250,7 @@ const DEPT_POPUP: Record<ReachedDept["key"], PopupKind> = {
   dispatch: { kind: "so", section: "order_dispatch", title: "Dispatch" },
 };
 
+const HOLD_TAG = "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300";
 const TAG_TONE: Record<DeptCell["state"], string> = {
   done: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
   pending: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
@@ -506,6 +516,8 @@ export function OrdersTable({
                 const dispatch = order.dispatch_status || "Pending";
                 // A cancelled or diverted SO is nobody's work: no departments, no progress.
                 const closed = CLOSED.includes(dispatch);
+                // Central Visibility holds it: every department reads Hold until cleared.
+                const held = !closed && order.clearance_status === "Hold";
                 const lots = order.lots ?? [];
                 const hasLots = lots.length > 0;
                 const planDate =
@@ -617,7 +629,9 @@ export function OrdersTable({
                               type="button"
                               onClick={() => setPopup({ order, what: DEPT_POPUP[t.key] })}
                               title={`${t.name}: ${t.cell.label} — open`}
-                              className={`inline-flex max-w-[12rem] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight transition-opacity hover:opacity-80 ${TAG_TONE[t.cell.state]}`}
+                              className={`inline-flex max-w-[12rem] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight transition-opacity hover:opacity-80 ${
+                                t.cell.label === "Hold" ? HOLD_TAG : TAG_TONE[t.cell.state]
+                              }`}
                             >
                               <span className="font-semibold">{t.name}</span>
                               <span className="truncate">{t.cell.label}</span>
@@ -726,7 +740,7 @@ export function OrdersTable({
                             )}
                           </td>
                           {/* Planning and Assembly & Packing lot by lot for a Spare; the SO's own status otherwise. */}
-                          {hasLots && !closed ? (
+                          {hasLots && !closed && !held ? (
                             LOT_COLUMNS.map((n) => (
                               <td
                                 key={`p${n}`}
@@ -742,13 +756,14 @@ export function OrdersTable({
                           ) : (
                             <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                               <StatusText
+                                hold={held}
                                 text={closed ? null : planning}
                                 tone={planning && READY.includes(planning.toLowerCase()) ? "done" : "pending"}
                                 onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
                               />
                             </td>
                           )}
-                          {hasLots && !closed ? (
+                          {hasLots && !closed && !held ? (
                             LOT_COLUMNS.map((n) => (
                               <td
                                 key={`a${n}`}
@@ -765,6 +780,7 @@ export function OrdersTable({
                           ) : (
                             <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                               <StatusText
+                                hold={held}
                                 text={closed ? null : assemblyText}
                                 tone={assembly?.state ?? "pending"}
                                 line={closed ? undefined : assemblyLine}
@@ -780,6 +796,7 @@ export function OrdersTable({
                       />
                       <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <StatusText
+                          hold={held || dispatch === "Hold"}
                           text={order.only_billing === "Yes" && dispatch === "Pending" ? "—" : dispatch}
                           tone={closed || order.only_billing === "Yes" ? "na" : dispatch.toLowerCase() === "pending" ? "pending" : "done"}
                           onClick={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}

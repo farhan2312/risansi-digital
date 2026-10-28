@@ -3,7 +3,7 @@
 import type { PumpStage, PumpSummary } from "@/lib/pump-summary";
 
 type Dept = "drawing" | "purchase" | "quality" | "planning" | "assembly";
-type Tone = "done" | "part" | "pending" | "rework" | "na";
+type Tone = "done" | "part" | "pending" | "rework" | "na" | "hold";
 
 const TONE: Record<Tone, string> = {
   done: "text-emerald-700 dark:text-emerald-400",
@@ -11,7 +11,12 @@ const TONE: Record<Tone, string> = {
   pending: "text-foreground",
   rework: "text-rose-700 dark:text-rose-400",
   na: "text-muted-foreground",
+  hold: "text-rose-700 dark:text-rose-400",
 };
+
+/** Central Visibility holds the SO: a department's status reads Hold (its figures stay under it). */
+const held = (s: PumpSummary, text: string, tone: Tone): { text: string; tone: Tone } =>
+  s.held ? { text: "Hold", tone: "hold" } : { text, tone };
 
 function formatDate(v: string | null): string {
   if (!v) return "—";
@@ -114,8 +119,7 @@ export function PumpLeadCells({
     <>
       <td className={td(true)} onClick={(e) => e.stopPropagation()}>
         <Cell
-          text={d.gad.total ? d.gad.label : "—"}
-          tone={d.gad.total ? stageTone(d.gad, "Issued to planning") : "na"}
+          {...(d.gad.total ? held(s, d.gad.label, stageTone(d.gad, "Issued to planning")) : { text: "—", tone: "na" as Tone })}
           line={d.gad.total ? `${d.gad.done}/${d.gad.total} issued` : undefined}
           onClick={() => onOpen("drawing")}
         />
@@ -123,8 +127,7 @@ export function PumpLeadCells({
       <td className={td()} onClick={(e) => e.stopPropagation()}>
         {d.curve ? (
           <Cell
-            text={d.curve.label}
-            tone={stageTone(d.curve, "Approved by client")}
+            {...held(s, d.curve.label, stageTone(d.curve, "Approved by client"))}
             line={`${d.curve.done}/${d.curve.total} approved`}
             onClick={() => onOpen("drawing")}
           />
@@ -135,8 +138,7 @@ export function PumpLeadCells({
       <td className={td()} onClick={(e) => e.stopPropagation()}>
         {d.part ? (
           <Cell
-            text={d.part.label}
-            tone={stageTone(d.part, "Fully complete")}
+            {...held(s, d.part.label, stageTone(d.part, "Fully complete"))}
             line={`${d.part.done}/${d.part.total} complete`}
             onClick={() => onOpen("drawing")}
           />
@@ -156,8 +158,7 @@ export function PumpLeadCells({
       <td className={td(true)} onClick={(e) => e.stopPropagation()}>
         {s.purchase.required ? (
           <Cell
-            text={s.purchase.state}
-            tone={s.purchase.state === "Closed" ? "done" : "pending"}
+            {...held(s, s.purchase.state, s.purchase.state === "Closed" ? "done" : "pending")}
             line={s.purchase.items ? `${s.purchase.received}/${s.purchase.items} received` : "No items yet"}
             onClick={() => onOpen("purchase")}
           />
@@ -168,8 +169,7 @@ export function PumpLeadCells({
       <td className={td(true)} onClick={(e) => e.stopPropagation()}>
         {s.quality.required ? (
           <Cell
-            text={s.quality.state}
-            tone={s.quality.state === "Closed" ? "done" : s.quality.submitted > 0 ? "part" : "pending"}
+            {...held(s, s.quality.state, s.quality.state === "Closed" ? "done" : s.quality.submitted > 0 ? "part" : "pending")}
             line={s.quality.total ? `${s.quality.submitted}/${s.quality.total} ECs submitted` : "No ECs yet"}
             title={s.quality.docs ? `Needs: ${s.quality.docs}` : "No documents named yet"}
             onClick={() => onOpen("quality")}
@@ -180,8 +180,7 @@ export function PumpLeadCells({
       </td>
       <td className={td(true)} onClick={(e) => e.stopPropagation()}>
         <Cell
-          text={s.planning.status}
-          tone={s.planning.status === "Fully ready" ? "done" : s.planning.status === "Partial ready" ? "part" : "pending"}
+          {...held(s, s.planning.status, s.planning.status === "Fully ready" ? "done" : s.planning.status === "Partial ready" ? "part" : "pending")}
           onClick={() => onOpen("planning")}
         />
       </td>
@@ -223,6 +222,7 @@ export function PumpAfterPlanningCells({ s, today, className, rowSpan }: { s: Pu
     </>
   );
   const dispatched = /dispatched/i.test(s.dispatch) && !/partial|lot/i.test(s.dispatch);
+  const holdText = <span className={`block text-[13px] font-medium ${TONE.hold}`}>Hold</span>;
   return (
     <>
       <td rowSpan={rowSpan} className={`${className} border-l border-card-border`}>
@@ -238,10 +238,10 @@ export function PumpAfterPlanningCells({ s, today, className, rowSpan }: { s: Pu
       </td>
       {/* Not sent on to Assembly & Packing yet: nothing there to show. */}
       <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
-        {s.sentToAssembly ? stage(s.assembly.status, asm) : <span className="text-xs text-muted">—</span>}
+        {s.held ? holdText : s.sentToAssembly ? stage(s.assembly.status, asm) : <span className="text-xs text-muted">—</span>}
       </td>
       <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
-        {s.sentToAssembly ? stage(s.packing.status, pkg) : <span className="text-xs text-muted">—</span>}
+        {s.held ? holdText : s.sentToAssembly ? stage(s.packing.status, pkg) : <span className="text-xs text-muted">—</span>}
       </td>
       <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
         {s.slips.length ? (
@@ -260,7 +260,9 @@ export function PumpAfterPlanningCells({ s, today, className, rowSpan }: { s: Pu
         )}
       </td>
       <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
-        {s.sentToDispatch ? (
+        {s.held ? (
+          holdText
+        ) : s.sentToDispatch ? (
           <span className={`text-[13px] font-medium ${dispatched ? TONE.done : /partial|lot/i.test(s.dispatch) ? TONE.part : TONE.pending}`}>
             {s.dispatch}
           </span>
@@ -303,10 +305,10 @@ export function PumpTailCells({ s, today, onOpen }: { s: PumpSummary; today: str
         </button>
       </td>
       <td className={`${td()} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
-        <Cell text={s.assembly.status} tone={asm.tone} line={asm.line} lineTone={asm.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
+        <Cell {...held(s, s.assembly.status, asm.tone)} line={asm.line} lineTone={asm.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
       </td>
       <td className={`${td()} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
-        <Cell text={s.packing.status} tone={pkg.tone} line={pkg.line} lineTone={pkg.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
+        <Cell {...held(s, s.packing.status, pkg.tone)} line={pkg.line} lineTone={pkg.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
       </td>
     </>
   );
