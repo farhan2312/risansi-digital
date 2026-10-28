@@ -3,6 +3,7 @@
 import type { PumpStage, PumpSummary } from "@/lib/pump-summary";
 import type { PumpLot } from "@/lib/assembly";
 import { AlignmentValue } from "./alignment-cell";
+import { LotCell } from "./lot-cell";
 
 type Dept = "drawing" | "purchase" | "quality" | "planning" | "assembly";
 type Tone = "done" | "part" | "pending" | "rework" | "na" | "hold";
@@ -218,143 +219,56 @@ function stageCell(st: { status: string; next: string | null; last: string | nul
 }
 
 /**
- * A stage lot by lot, read-only, as Assembly & Packing has it: each lot that
- * has pumps in it with its status, how many of it are done, and the day it
- * was done (or is planned, red once overdue).
- */
-function LotStageLines({ lots, stage, today }: { lots: PumpLot[]; stage: "assembly" | "packing"; today: string }) {
-  const shown = lots.filter((l) => l.ecs.length > 0);
-  if (!shown.length) return <span className="text-xs text-muted">—</span>;
-  return (
-    <span className="flex flex-col items-start gap-1">
-      {shown.map((l) => {
-        const qty = l.ecs.reduce((t, e) => t + e.qty, 0);
-        const done = stage === "assembly" ? l.ecs.reduce((t, e) => t + e.assembled, 0) : l.packed_date ? qty : 0;
-        const day = stage === "assembly" ? l.assembled_date : l.packed_date;
-        const plan = stage === "assembly" ? l.assembly_plan_date : l.packing_plan_date;
-        const full = !!day;
-        const word = stage === "assembly" ? (full ? "Assembled" : done > 0 ? "Partially assembled" : "Pending") : full ? "Packed" : "Pending";
-        const late = !full && !!plan && plan < today;
-        return (
-          <span key={l.n} className="flex flex-col items-start">
-            <span className="whitespace-nowrap text-[12px]">
-              <span className="font-semibold text-foreground">Lot {l.n}</span>{" "}
-              <span className={`font-medium ${full ? TONE.done : done > 0 ? TONE.part : TONE.pending}`}>{word}</span>{" "}
-              <span className="text-muted">
-                {done} of {qty}
-              </span>
-            </span>
-            {(day || plan) && (
-              <span className={`whitespace-nowrap text-[11px] ${late ? "font-medium text-rose-600" : "text-muted"}`}>
-                {day ? `Done ${formatDate(day)}` : `Plan ${formatDate(plan)}${late ? " · overdue" : ""}`}
-              </span>
-            )}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-/**
- * Planning's view of what comes after it on a pump SO, read-only: the
- * Alignment, assembly, packing, the packing slips and the dispatch status.
- * Given the SO's lots, assembly and packing read lot by lot, and the
- * Alignment as Assembly & Packing shows it.
+ * Planning's view of what comes after it on a pump SO, read-only, laid out
+ * as Assembly & Packing's own: the base plate and the wooden boxes, each lot's
+ * assembly and packing (lots 1 to lotCount, a column each), then the packing
+ * slips and the dispatch status.
  */
 export function PumpAfterPlanningCells({
   s,
-  today,
+  lots,
+  lotCount,
+  slips,
   className,
   rowSpan,
-  lots,
 }: {
   s: PumpSummary;
-  today: string;
+  lots: PumpLot[];
+  lotCount: number;
+  /** The SO's numbered packing slips, with the lots each carries. */
+  slips: Record<string, unknown>[];
   className: string;
   rowSpan?: number;
-  lots?: PumpLot[];
 }) {
-  const a = s.alignment;
-  const asm = stageCell(s.assembly, today);
-  const pkg = stageCell(s.packing, today);
-  const part = (name: string, yes: string | null, status: string | null, date?: string | null) =>
-    yes === "Yes" ? `${name}: ${status ?? "Pending"}${date ? ` ${formatDate(date)}` : ""}` : yes === "No" ? `${name}: No` : null;
-  const lines = [
-    part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date),
-    part("Wooden box", a.wooden_box, a.wooden_box_status, a.wooden_box_status === "Received" ? a.wooden_box_received_date : null),
-  ].filter(
-    (x): x is string => !!x
-  );
-  const stage = (text: string, st: ReturnType<typeof stageCell>) => (
-    <>
-      <span className={`block text-[13px] font-medium ${TONE[st.tone]}`}>{text}</span>
-      {st.line && <span className={`block text-[11px] ${st.late ? "font-medium text-rose-600" : "text-muted"}`}>{st.line}</span>}
-    </>
-  );
   const dispatched = /dispatched/i.test(s.dispatch) && !/partial|lot/i.test(s.dispatch);
   const holdText = <span className={`block text-[13px] font-medium ${TONE.hold}`}>Hold</span>;
+  const none = <span className="text-xs text-muted">—</span>;
   return (
     <>
-      <td rowSpan={rowSpan} className={`${className} border-l border-card-border`}>
-        {lots ? (
-          // As Assembly & Packing shows it: the base plate, then each way's wooden boxes.
-          <span className="flex flex-col items-start gap-1.5">
-            {(["base_plate", "wooden_box"] as const).map((which) => (
-              <span key={which} className="flex flex-col items-start gap-0.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{which === "base_plate" ? "Base Plate" : "Wooden Box"}</span>
-                <AlignmentValue alignment={a} which={which} canEdit={false} onOpen={() => {}} />
-              </span>
-            ))}
-          </span>
-        ) : lines.length ? (
-          lines.map((l) => (
-            <span key={l} className="block whitespace-nowrap text-[12px] text-foreground">
-              {l}
-            </span>
-          ))
-        ) : (
-          <span className="text-xs text-muted">—</span>
-        )}
-      </td>
+      {(["base_plate", "wooden_box"] as const).map((which, i) => (
+        <td key={which} rowSpan={rowSpan} className={`${className} ${i === 0 ? "border-l border-card-border" : ""}`}>
+          <AlignmentValue alignment={s.alignment} which={which} canEdit={false} onOpen={() => {}} />
+        </td>
+      ))}
       {/* Not sent on to Assembly & Packing yet: nothing there to show. */}
-      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
-        {s.held ? (
-          holdText
-        ) : !s.sentToAssembly ? (
-          <span className="text-xs text-muted">—</span>
-        ) : lots ? (
-          <LotStageLines lots={lots} stage="assembly" today={today} />
-        ) : (
-          stage(s.assembly.status, asm)
-        )}
-      </td>
-      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
-        {s.held ? (
-          holdText
-        ) : !s.sentToAssembly ? (
-          <span className="text-xs text-muted">—</span>
-        ) : lots ? (
-          <LotStageLines lots={lots} stage="packing" today={today} />
-        ) : (
-          stage(s.packing.status, pkg)
-        )}
-      </td>
-      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
-        {s.slips.length ? (
-          s.slips.map((p, i) => (
-            <span key={`${p.no}-${i}`} className="block text-[12px] text-foreground">
-              {p.no}
-              <span className="text-muted">
-                {p.date ? ` · ${formatDate(p.date)}` : ""}
-                {p.qty != null ? ` · Qty ${p.qty}` : ""}
-                {p.kind === "tentative" ? " · tentative" : ""}
+      {Array.from({ length: lotCount }, (_, i) => i + 1).map((n, i) => (
+        <td key={n} rowSpan={rowSpan} className={`${className} ${i === 0 ? "border-l border-card-border" : ""}`}>
+          {s.held ? holdText : s.sentToAssembly ? <LotCell lot={lots.find((l) => l.n === n && l.ecs.length > 0)} slips={slips} /> : none}
+        </td>
+      ))}
+      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap border-l border-card-border`}>
+        {s.slips.length
+          ? s.slips.map((p, i) => (
+              <span key={`${p.no}-${i}`} className="block text-[12px] text-foreground">
+                {p.no}
+                <span className="text-muted">
+                  {p.date ? ` · ${formatDate(p.date)}` : ""}
+                  {p.qty != null ? ` · Qty ${p.qty}` : ""}
+                  {p.kind === "tentative" ? " · tentative" : ""}
+                </span>
               </span>
-            </span>
-          ))
-        ) : (
-          <span className="text-xs text-muted">—</span>
-        )}
+            ))
+          : none}
       </td>
       <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
         {s.held ? (
@@ -364,7 +278,7 @@ export function PumpAfterPlanningCells({
             {s.dispatch}
           </span>
         ) : (
-          <span className="text-xs text-muted">—</span>
+          none
         )}
       </td>
     </>

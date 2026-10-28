@@ -109,7 +109,8 @@ export function PlanningPumpTable({
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
   const soSpan = 6 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
   // After Planning, once per SO, right after its lots.
-  const AFTER = ["Alignment", "Assembly", "Packing", "Packing Slips", "Dispatch Status"];
+  // After Planning, as Assembly & Packing lays it out: the Alignment, then a column per lot.
+  const AFTER = ["Base Plate", "Wooden Box", ...LOT_COLUMNS.map((n) => `Lot ${n}`), "Packing Slips", "Dispatch Status"];
   const showAfter = !!summaries;
   // Today in the browser's calendar, to mark a plan that has passed.
   const today = new Date().toLocaleDateString("en-CA");
@@ -281,7 +282,14 @@ export function PlanningPumpTable({
                         {/* After Planning, read-only: Alignment, Assembly & Packing, slips, dispatch. */}
                         {showAfter &&
                           (summaries?.[orderId] ? (
-                            <PumpAfterPlanningCells s={summaries[orderId]} today={today} rowSpan={span} className={soCell} lots={pumpLotsFromEcs(ecs)} />
+                            <PumpAfterPlanningCells
+                              s={summaries[orderId]}
+                              lots={pumpLotsFromEcs(ecs)}
+                              lotCount={LOT_COLUMNS.length}
+                              slips={(Array.isArray(head.so_slips) ? head.so_slips : []) as Row[]}
+                              rowSpan={span}
+                              className={soCell}
+                            />
                           ) : (
                             <td rowSpan={span} colSpan={AFTER.length} className={`${soCell} border-l border-card-border text-muted`}>—</td>
                           ))}

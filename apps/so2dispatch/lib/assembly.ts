@@ -28,7 +28,8 @@ export const basePlateSql = (o: string) =>
  * before any is entered.
  */
 export const woodenBoxStatusSql = (o: string) =>
-  `(SELECT CASE WHEN bool_and(wb.status = 'Received') THEN 'Received' WHEN bool_and(wb.status = 'Pending') THEN 'Pending' ELSE 'In plan' END
+  `(SELECT CASE WHEN count(*) = 0 THEN NULL WHEN bool_and(wb.status = 'Received') THEN 'Received'
+               WHEN bool_and(wb.status = 'Pending') THEN 'Pending' ELSE 'In plan' END
       FROM order_wooden_boxes wb WHERE wb.order_id = ${o}.id)`;
 
 /** When the last of the SO's (alias o) wooden boxes came in, once all have. */
