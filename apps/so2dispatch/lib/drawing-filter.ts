@@ -5,6 +5,7 @@
 
 import { drawingDocStatus, spareEcSql } from "@/lib/dept-view";
 import { partDrawingStatus } from "@/lib/part-drawings";
+import { inListNotHeld, soHoldSql } from "@/lib/dept-status";
 
 export const NOT_REQUIRED = "Not required";
 
@@ -169,9 +170,9 @@ function ecDoneSql(it: string, o: string): string {
 export function drawingFilterSql(f: DrawingFilter, o = "o"): string {
   const parts: string[] = [];
   const ec: string[] = [];
-  if (f.gad.length) ec.push(inList(docStatusSql("s", "GAD"), f.gad));
-  if (f.curve.length) ec.push(inList(curveStatusSql("s", o), f.curve));
-  if (f.part.length) ec.push(inList(partStatusSql("s"), f.part));
+  if (f.gad.length) ec.push(inListNotHeld(docStatusSql("s", "GAD"), f.gad, ["Pending"], o, "drawing"));
+  if (f.curve.length) ec.push(inListNotHeld(curveStatusSql("s", o), f.curve, ["Pending"], o, "drawing"));
+  if (f.part.length) ec.push(inListNotHeld(partStatusSql("s"), f.part, ["Pending"], o, "drawing"));
   if (ec.length) {
     parts.push(`EXISTS (SELECT 1 FROM order_items s
                          WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})
@@ -181,7 +182,7 @@ export function drawingFilterSql(f: DrawingFilter, o = "o"): string {
     const open = `EXISTS (SELECT 1 FROM order_items s
                            WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})
                              AND NOT ${ecDoneSql("s", o)})`;
-    parts.push(f.so[0] === "Open" ? open : `NOT ${open}`);
+    parts.push(f.so[0] === "Open" ? `${open} AND NOT ${soHoldSql(o, "drawing")}` : `NOT ${open}`);
   }
   return parts.length ? parts.join(" AND ") : "TRUE";
 }

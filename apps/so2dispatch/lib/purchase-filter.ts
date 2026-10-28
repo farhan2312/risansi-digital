@@ -5,6 +5,7 @@
 
 import { BOI_ITEM_OPTIONS } from "@/lib/order-schema";
 import { boiInHand, boiPartSql, boiReceivedSql, boiStatus, spareEcSql } from "@/lib/dept-view";
+import { inListNotHeld, soHoldSql } from "@/lib/dept-status";
 
 export const PURCHASE_STATES = ["Open", "Closed"];
 export const BOI_STATUSES = ["Pending", "Partially received", "Fully received"];
@@ -105,7 +106,7 @@ export function soPurchaseStateSql(o: string): string {
 function itemCond(f: PurchaseFilter, it: string): string | null {
   const c: string[] = [];
   if (f.item.length) c.push(inList("TRIM(COALESCE(fb.boi_item, ''))", f.item));
-  if (f.boi.length) c.push(inList(boiStatusSql("fb"), f.boi));
+  if (f.boi.length) c.push(inListNotHeld(boiStatusSql("fb"), f.boi, ["Pending"], "o", "purchase"));
   if (f.vendor.length) c.push(`fb.vendor_order = 'Yes' AND ${inList("TRIM(COALESCE(fb.vendor_name, ''))", f.vendor)}`);
   return c.length ? `EXISTS (SELECT 1 FROM order_boi_items fb WHERE fb.item_id = ${it}.id AND ${c.join(" AND ")})` : null;
 }
@@ -117,18 +118,18 @@ function itemCond(f: PurchaseFilter, it: string): string | null {
 export function purchaseFilterSql(f: PurchaseFilter, o = "o"): string {
   const parts: string[] = [];
   const ec: string[] = [];
-  if (f.ec.length) ec.push(inList(ecPurchaseStateSql("s"), f.ec));
+  if (f.ec.length) ec.push(inListNotHeld(ecPurchaseStateSql("s"), f.ec, ["Open"], o, "purchase"));
   const item = itemCond(f, "s");
   if (item) ec.push(item);
   if (ec.length) parts.push(pumpEcs(o, ec.join(" AND ")));
-  if (f.so.length) parts.push(inList(soPurchaseStateSql(o), f.so));
+  if (f.so.length) parts.push(inListNotHeld(soPurchaseStateSql(o), f.so, ["Open"], o, "purchase"));
   return parts.length ? parts.join(" AND ") : "TRUE";
 }
 
 /** How many of the SO's (alias o) pump ECs are in this state — a card's figure. */
 export function ecCountSql(o: string, state?: string): string {
   return `(SELECT count(*) FROM order_items s WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})${
-    state ? ` AND ${ecPurchaseStateSql("s")} = ${lit(state)}` : ""
+    state ? ` AND ${ecPurchaseStateSql("s")} = ${lit(state)}${state === "Open" ? ` AND NOT ${soHoldSql(o, "purchase")}` : ""}` : ""
   })`;
 }
 
@@ -136,7 +137,7 @@ export function ecCountSql(o: string, state?: string): string {
 export function boiCountSql(o: string, status: string | null, vendors: string[] = [], items: string[] = []): string {
   const c: string[] = [];
   if (items.length) c.push(inList("TRIM(COALESCE(cb.boi_item, ''))", items));
-  if (status) c.push(`${boiStatusSql("cb")} = ${lit(status)}`);
+  if (status) c.push(`${boiStatusSql("cb")} = ${lit(status)}${status === "Pending" ? ` AND NOT ${soHoldSql(o, "purchase")}` : ""}`);
   if (vendors.length) c.push(`cb.vendor_order = 'Yes' AND ${inList("TRIM(COALESCE(cb.vendor_name, ''))", vendors)}`);
   return `(SELECT count(*) FROM order_boi_items cb JOIN order_items s ON s.id = cb.item_id
             WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})${c.length ? ` AND ${c.join(" AND ")}` : ""})`;

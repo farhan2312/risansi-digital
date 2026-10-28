@@ -34,7 +34,6 @@ import {
   qcFilterActive,
   qcFilterSql,
   soQcState,
-  soQcStateSql,
 } from "@/lib/qc-filter";
 
 export const metadata: Metadata = {
@@ -80,7 +79,7 @@ export default async function QcWorkspacePage({
         key: `so:${st}`,
         label: `SO ${st}`,
         group: "SO",
-        sql: `${soQcStateSql("o")} = '${st}'`,
+        sql: qcFilterSql({ so: [st], ec: [] }),
         params: { ...clear, qc_so: st },
         tone: st === "Closed" ? ("done" as const) : ("pending" as const),
       })),

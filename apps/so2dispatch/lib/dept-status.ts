@@ -45,6 +45,29 @@ export const PENDING = "Pending";
  * until it is cleared (Dispatch's own Hold, too).
  */
 export const HOLD = "Hold";
+
+/** The departments whose SO hold counts Dispatch's own hold too. */
+const DISPATCH_HOLD_DEPTS: readonly string[] = ["dispatch", "billing", "accounts"];
+
+/**
+ * The SO is on hold (alias o) — by Central Visibility or Order Making, and by
+ * Dispatch (its dispatch status Hold) on the Orders list and in Dispatch,
+ * Proforma Invoice and Accounts. Accounts' own hold is not an SO hold. The SO
+ * hold card and filter; a held SO counts as no department's Open or Pending.
+ */
+export function soHoldSql(o = "o", dept?: string | null): string {
+  const dispatch = !dept || DISPATCH_HOLD_DEPTS.includes(dept) ? ` OR COALESCE(${o}.status_override, '') = 'Hold'` : "";
+  return `(COALESCE(${o}.clearance_status, '') = 'Hold' OR COALESCE(${o}.om_status, '') = 'Hold'${dispatch})`;
+}
+
+/** `expr IN values`, a held SO (alias o) left out of the open words. */
+export function inListNotHeld(expr: string, values: string[], open: string[], o: string, dept: string): string {
+  const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
+  const list = `${expr} IN (${values.map(lit).join(", ")})`;
+  return values.some((v) => open.includes(v))
+    ? `(${list} AND (${expr} NOT IN (${open.map(lit).join(", ")}) OR NOT ${soHoldSql(o, dept)}))`
+    : list;
+}
 /**
  * Planning's Status filter also reads Assembly & Packing on the same EC, so
  * "Fully ready" splits into packed and not packed yet.

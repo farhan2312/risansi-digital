@@ -37,7 +37,6 @@ import {
   purchaseFilterActive,
   purchaseFilterSql,
   soPurchaseState,
-  soPurchaseStateSql,
 } from "@/lib/purchase-filter";
 
 export const metadata: Metadata = {
@@ -84,7 +83,7 @@ export default async function PurchaseWorkspacePage({
         key: `so:${st}`,
         label: `SO ${st}`,
         group: "SO",
-        sql: `${soPurchaseStateSql("o")} = '${st}'`,
+        sql: purchaseFilterSql({ ...none, so: [st] }),
         params: { ...clear, pur_so: st },
         tone: tone(st),
       })),

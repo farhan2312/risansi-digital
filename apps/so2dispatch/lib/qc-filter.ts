@@ -3,6 +3,7 @@
 // filter matches what the table shows.
 
 import { QC_DOC_TYPES, linksFromRows, qcDocsStatus, requiredQcDocs } from "@/lib/qc-docs";
+import { inListNotHeld, soHoldSql } from "@/lib/dept-status";
 
 export const QC_SO_STATES = ["Open", "Closed"];
 export const QC_EC_STATUSES = ["Pending", "Partially submitted", "Submitted", "Docs not specified"];
@@ -41,7 +42,6 @@ export function soQcState(ecs: Row[]): string {
 // ---- SQL: the same rules over an EC alias and its SO's alias.
 
 const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
-const inList = (expr: string, values: string[]) => `${expr} IN (${values.map(lit).join(", ")})`;
 
 /** The documents the SO (alias o) names, lower-cased, of those Quality knows. */
 const neededSql = (o: string) =>
@@ -72,15 +72,15 @@ export function soQcStateSql(o: string): string {
 export function qcFilterSql(f: QcFilter, o = "o"): string {
   const parts: string[] = [];
   if (f.ec.length) {
-    parts.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND ${inList(ecQcStatusSql("s", o), f.ec)})`);
+    parts.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND ${inListNotHeld(ecQcStatusSql("s", o), f.ec, ["Pending"], o, "quality")})`);
   }
-  if (f.so.length) parts.push(inList(soQcStateSql(o), f.so));
+  if (f.so.length) parts.push(inListNotHeld(soQcStateSql(o), f.so, ["Open"], o, "quality"));
   return parts.length ? parts.join(" AND ") : "TRUE";
 }
 
 /** How many of the SO's (alias o) ECs are at this status (all of them with none) — a card's figure. */
 export function qcEcCountSql(o: string, status?: string): string {
   return `(SELECT count(*) FROM order_items s WHERE s.order_id = ${o}.id${
-    status ? ` AND ${ecQcStatusSql("s", o)} = ${lit(status)}` : ""
+    status ? ` AND ${ecQcStatusSql("s", o)} = ${lit(status)}${status === "Pending" ? ` AND NOT ${soHoldSql(o, "quality")}` : ""}` : ""
   })`;
 }

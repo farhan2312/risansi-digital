@@ -31,6 +31,7 @@ import type { SoLot } from "@/lib/ready-lots";
 import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING_PUMP_STAGE_STATUS,
   HOLD,
   isPerEcDept,
+  soHoldSql,
   NOT_APPLICABLE,
   PENDING,
   statusesFor,
@@ -3440,7 +3441,9 @@ const CV_HOLD_SQL = `COALESCE(o.clearance_status, '') = 'Hold'`;
 function withCvHold(dept: DeptFilterKey, status: string, own: () => string): string {
   if (status === NOT_APPLICABLE) return own();
   if (status === HOLD) return dept === "dispatch" ? `(${CV_HOLD_SQL} OR (${own()}))` : CV_HOLD_SQL;
-  return `(NOT ${CV_HOLD_SQL} AND (${own()}))`;
+  // Nor is an SO on hold any department's Pending.
+  const pending = toneFor(status) === "pending" ? ` AND NOT ${soHoldSql("o", dept)}` : "";
+  return `(NOT ${CV_HOLD_SQL}${pending} AND (${own()}))`;
 }
 
 function deptStatusPredicate(dept: DeptFilterKey, status: string): string {
@@ -3495,25 +3498,16 @@ export const TEST_SO_SQL = (o: string) => `(upper(COALESCE(${o}.so_no, '')) LIKE
 /** The same, for a row already read. */
 export const isTestSo = (soNo: unknown) => String(soNo ?? "").toUpperCase().includes("/TEST");
 
-/** The departments whose Total hold counts Dispatch's own hold too. */
-const DISPATCH_HOLD_DEPTS: readonly string[] = ["dispatch", "billing", "accounts"];
-
-/**
- * The SO is on hold — by Central Visibility, Order Making or Accounts, and
- * by Dispatch (its dispatch status Hold) on the Orders list and in Dispatch,
- * Proforma Invoice and Accounts only. The Total hold card and the On hold filter.
- */
+/** The SO is on hold, as this department reads it (soHoldSql). */
 export function onHoldSql(dept?: string | null): string {
-  const dispatch = !dept || DISPATCH_HOLD_DEPTS.includes(dept) ? ` OR COALESCE(o.status_override, '') = 'Hold'` : "";
-  return `(COALESCE(o.clearance_status, '') = 'Hold' OR COALESCE(o.om_status, '') = 'Hold'
-           OR COALESCE(o.accounts_hold_status, '') = 'Hold'${dispatch})`;
+  return soHoldSql("o", dept);
 }
 
-/** A department's Total hold card: its open SOs on any hold (the `hold` filter). */
+/** A department's SO hold card: its open SOs on hold (the `hold` filter). */
 export function totalHoldCard(dept: string, clear: Record<string, string | null>, group?: string): KpiCardDef {
   return {
     key: "hold",
-    label: "Total hold",
+    label: "SO hold",
     ...(group ? { group } : {}),
     sql: `${onHoldSql(dept)} AND ${orderOpenSql("o")}`,
     params: { ...clear, hold: "1" },
@@ -4526,7 +4520,7 @@ export async function listOrdersForOrderMaking(opts: {
         },
         {
           key: "hold",
-          label: "Total hold",
+          label: "SO hold",
           sql: `${onHoldSql("order_making")} AND ${orderOpenSql("o")}`,
           params: { sos: null, asg: null, missing: null, omhold: "all" },
           tone: "danger",
