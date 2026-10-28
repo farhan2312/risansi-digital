@@ -226,9 +226,13 @@ export function BillingWorkspace({
                       <td className="px-4 py-3 whitespace-nowrap">{row.order_type ?? "—"}</td>
                       <td className="px-4 py-3">{row.client_name ?? "—"}</td>
                       <td className="px-4 py-3">{billModeLabel(null, row.bill_type) || "—"}</td>
-                      {/* Dispatch sees, read-only, each term line with its PI and payment. */}
+                      {/* Dispatch sees, read-only, each term line with its PI and payment. A
+                          Challan / FR SO is a replacement: no terms to pay against. */}
                       {mode === "dispatch" && (
                         <td className="px-4 py-3 align-top">
+                          {row.bill_type === "Challan" && !(row.term_lines ?? []).length ? (
+                            <span className="whitespace-nowrap text-xs text-muted">Not applicable · Challan / FR</span>
+                          ) : (
                           <TermPis
                             orderId={row.id}
                             soLabel={row.so_no ?? String(row.sl_no)}
@@ -237,6 +241,7 @@ export function BillingWorkspace({
                             canEdit={false}
                             payments={{ canEdit: false }}
                           />
+                          )}
                         </td>
                       )}
                       <td className="px-4 py-3 align-top">
