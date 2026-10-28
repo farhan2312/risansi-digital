@@ -7,6 +7,7 @@ import { identityDb } from "@/lib/db-identity";
 import { query } from "@/lib/db";
 import { ALL_ROLES, isRep, type Role } from "@/lib/roles";
 import { getTeamRepNames } from "@/lib/market-intell";
+import { ACTIVE_ROLE_COOKIE, extraRolesFor } from "@/lib/user-roles";
 
 export const SESSION_COOKIE = "session";
 
@@ -109,8 +110,26 @@ export const getAccessRefusal = cache(async (): Promise<string | null> => (await
  */
 const readAccess = cache(async (): Promise<Access> => {
   const access = await resolveAccess();
-  return access.user ? { ...access, user: await withRepScope(access.user) } : access;
+  return access.user ? { ...access, user: await withRepScope(await withActiveRole(access.user)) } : access;
 });
+
+/**
+ * The role they are working as: one of their extra departments when they have
+ * switched to it (and it is still theirs), else their main role. Everything
+ * downstream reads `role` as before. Fails to the main role.
+ */
+async function withActiveRole(user: User): Promise<User> {
+  let extra: Role[] = [];
+  try {
+    extra = await extraRolesFor(user.id);
+  } catch (error) {
+    logOnce("extra-roles", `Could not read extra departments: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const roles = [user.role, ...extra.filter((r) => r !== user.role)];
+  const wanted = (await cookies()).get(ACTIVE_ROLE_COOKIE)?.value;
+  const role = roles.find((r) => r === wanted) ?? user.role;
+  return { ...user, role, roles, primary_role: user.role };
+}
 
 async function resolveAccess(): Promise<Access> {
   const cookieStore = await cookies();
