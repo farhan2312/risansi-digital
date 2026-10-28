@@ -18,7 +18,8 @@ import { ALL_ROLES, isCentral, type Role } from "@/lib/roles";
  * with itself — its own team — stored with itself on both sides
  * (dept_role = to_role).
  *
- * Messages are append-only — nothing here updates or deletes them.
+ * Its author may edit an entry (it then says so) or delete it — Admin may
+ * delete any — see editMessage / deleteMessage.
  */
 
 export type OrderMessage = {
@@ -32,6 +33,8 @@ export type OrderMessage = {
   kind: string;
   body: string;
   created_at: string;
+  /** When its author last changed it, or null. */
+  edited_at: string | null;
   mine: boolean;
 };
 
@@ -58,7 +61,8 @@ const ISO = `'YYYY-MM-DD"T"HH24:MI:SS"Z"'`;
 // read and the insert-returning share one shape.
 const MESSAGE_COLUMNS = `m.id, m.dept_role, m.to_role, m.author_id,
             m.author_name, m.author_role, m.kind, m.body,
-            to_char(m.created_at AT TIME ZONE 'UTC', ${ISO}) AS created_at`;
+            to_char(m.created_at AT TIME ZONE 'UTC', ${ISO}) AS created_at,
+            to_char(m.edited_at AT TIME ZONE 'UTC', ${ISO}) AS edited_at`;
 
 export const MAX_MESSAGE_LENGTH = 2000;
 
@@ -287,9 +291,9 @@ export async function unreadByOrder(
 
 /**
  * The newest thing the viewer can see on one SO — a change token for the
- * long poll. Messages are append-only, so this only ever moves forward, and
- * comparing it is enough to know something arrived in any conversation on the
- * order, not just the one on screen.
+ * long poll: the newest entry, how many there are and the latest edit, so a
+ * message arriving, changed or deleted in any conversation on the order — not
+ * just the one on screen — moves it.
  */
 export async function latestActivity(
   orderId: string,
@@ -298,7 +302,9 @@ export async function latestActivity(
   if (peersFor(viewer.role).length === 0) return null;
   const { param, params } = withRole(viewer, [orderId]);
   const result = await query<{ at: string | null }>(
-    `SELECT to_char(MAX(m.created_at) AT TIME ZONE 'UTC', ${ISO}) AS at
+    `SELECT CASE WHEN count(*) = 0 THEN NULL ELSE
+              concat_ws('|', to_char(MAX(m.created_at) AT TIME ZONE 'UTC', ${ISO}), count(*),
+                        to_char(MAX(m.edited_at) AT TIME ZONE 'UTC', ${ISO})) END AS at
        FROM order_messages m
       WHERE m.order_id = $1 AND ${visibleSql(viewer.role, param)}`,
     params
@@ -603,6 +609,7 @@ export async function insertMessage(input: {
      RETURNING id, dept_role, to_role, author_id, author_name, author_role,
                kind, body,
                to_char(created_at AT TIME ZONE 'UTC', ${ISO}) AS created_at,
+               NULL::text AS edited_at,
                true AS mine`,
     [
       input.orderId,
@@ -616,6 +623,31 @@ export async function insertMessage(input: {
     ]
   );
   return result.rows[0];
+}
+
+/** What an edit or a delete touched: where it was, and what it said before. */
+export type ChangedMessage = { order_id: string; dept_role: string; to_role: string | null; kind: string; body: string };
+
+/** Change an entry's text — its author's own only. Null when it is not theirs (or gone). */
+export async function editMessage(id: string, authorId: string, body: string): Promise<ChangedMessage | null> {
+  const result = await query<ChangedMessage>(
+    `UPDATE order_messages m SET body = $3, edited_at = now()
+       FROM (SELECT id, body FROM order_messages WHERE id = $1) old
+      WHERE m.id = old.id AND m.author_id = $2
+      RETURNING m.order_id, m.dept_role, m.to_role, m.kind, old.body`,
+    [id, authorId, body]
+  );
+  return result.rows[0] ?? null;
+}
+
+/** Delete an entry: its author's own, or any (Admin). Null when not allowed (or gone). */
+export async function deleteMessage(id: string, actorId: string, any: boolean): Promise<ChangedMessage | null> {
+  const result = await query<ChangedMessage>(
+    `DELETE FROM order_messages WHERE id = $1 AND ($3 OR author_id = $2)
+      RETURNING order_id, dept_role, to_role, kind, body`,
+    [id, actorId, any]
+  );
+  return result.rows[0] ?? null;
 }
 
 /**

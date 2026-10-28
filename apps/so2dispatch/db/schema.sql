@@ -2973,3 +2973,8 @@ CREATE TABLE IF NOT EXISTS user_extra_roles (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, role)
 );
+
+-- 0036  A discussion entry (note or delay) can be edited or deleted by its
+-- author (Admin may delete any). An edit keeps when it was made; a delete
+-- removes the row, the text kept in the audit log. Idempotent and additive.
+ALTER TABLE order_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;

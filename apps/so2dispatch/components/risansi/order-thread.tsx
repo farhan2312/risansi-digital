@@ -8,7 +8,9 @@ import {
   ChevronRight,
   Loader2,
   MessageSquare,
+  Pencil,
   Send,
+  Trash2,
 } from "lucide-react";
 import { isCentral, roleLabel } from "@/lib/roles";
 import type {
@@ -16,6 +18,8 @@ import type {
   OrderMessage,
 } from "@/lib/order-messages";
 import {
+  deleteMessageAction,
+  editMessageAction,
   listConversationsAction,
   openThreadAction,
   postMessageAction,
@@ -97,6 +101,11 @@ export function OrderThread({
   const [mode, setMode] = useState<"note" | "delay">("note");
   const [showLogs, setShowLogs] = useState(false);
   const [body, setBody] = useState("");
+  // Editing or deleting an entry: which one, its new text, and the one asking "Delete?".
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function refreshConversations() {
     const res = await listConversationsAction(orderId);
@@ -235,6 +244,141 @@ export function OrderThread({
     setMode("note");
     setMessages(res.messages);
     refreshConversations();
+  }
+
+  async function saveEdit(id: string) {
+    if (!peer || busyId) return;
+    setBusyId(id);
+    const res = await editMessageAction(orderId, peer, id, editText);
+    setBusyId(null);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setError(null);
+    setEditingId(null);
+    setMessages(res.messages);
+    refreshConversations();
+  }
+
+  async function remove(id: string) {
+    if (!peer || busyId) return;
+    setBusyId(id);
+    const res = await deleteMessageAction(orderId, peer, id);
+    setBusyId(null);
+    setConfirmId(null);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setError(null);
+    setMessages(res.messages);
+    refreshConversations();
+  }
+
+  // Your own entries you may edit and delete; Admin may delete anyone's.
+  const canEditMsg = (m: OrderMessage) => m.mine;
+  const canDeleteMsg = (m: OrderMessage) => m.mine || role === "admin";
+
+  /** An entry's text — or, while it is being edited, the box to change it. */
+  function messageBody(m: OrderMessage, tone: "mine" | "plain" | "delay") {
+    if (editingId !== m.id) {
+      return (
+        <p className={`whitespace-pre-wrap break-words text-sm ${tone === "delay" ? "text-amber-950" : ""}`}>{m.body}</p>
+      );
+    }
+    return (
+      <div className="min-w-[16rem]">
+        <textarea
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setEditingId(null);
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) saveEdit(m.id);
+          }}
+          rows={Math.min(6, Math.max(2, editText.split("\n").length))}
+          maxLength={MAX_MESSAGE_LENGTH}
+          autoFocus
+          className="w-full resize-y rounded-lg border border-input-border bg-surface px-2.5 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+        />
+        <div className="mt-1.5 flex justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={() => setEditingId(null)}
+            className="h-7 rounded-md border border-input-border bg-surface px-2.5 text-xs font-medium text-foreground hover:bg-background"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => saveEdit(m.id)}
+            disabled={busyId === m.id || editText.trim() === ""}
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {busyId === m.id && <Loader2 className="h-3 w-3 animate-spin" />}
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /** Edit and Delete under an entry (Delete asks first), and "edited" once changed. */
+  function messageTools(m: OrderMessage, tone: "mine" | "plain" | "delay") {
+    if (editingId === m.id) return null;
+    const link =
+      tone === "mine"
+        ? "text-primary-foreground/80 hover:text-primary-foreground"
+        : tone === "delay"
+          ? "text-amber-800 hover:text-amber-950"
+          : "text-muted-foreground hover:text-foreground";
+    const edited = m.edited_at ? <span title={`Edited ${stamp(m.edited_at)}`}>· edited</span> : null;
+    if (confirmId === m.id) {
+      return (
+        <span className="inline-flex items-center gap-1.5">
+          {edited}
+          <span className="font-semibold">Delete this?</span>
+          <button type="button" onClick={() => remove(m.id)} disabled={busyId === m.id} className="font-semibold text-rose-600 hover:underline disabled:opacity-60">
+            {busyId === m.id ? "Deleting…" : "Yes, delete"}
+          </button>
+          <button type="button" onClick={() => setConfirmId(null)} className={`hover:underline ${link}`}>
+            No
+          </button>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-2">
+        {edited}
+        {canEditMsg(m) && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditingId(m.id);
+              setEditText(m.body);
+              setConfirmId(null);
+            }}
+            aria-label="Edit message"
+            className={`inline-flex items-center gap-0.5 ${link}`}
+          >
+            <Pencil className="h-2.5 w-2.5" /> Edit
+          </button>
+        )}
+        {canDeleteMsg(m) && (
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmId(m.id);
+              setEditingId(null);
+            }}
+            aria-label="Delete message"
+            className={`inline-flex items-center gap-0.5 ${link}`}
+          >
+            <Trash2 className="h-2.5 w-2.5" /> Delete
+          </button>
+        )}
+      </span>
+    );
   }
 
   const peerLabel = peer ? peerName(peer) : "";
@@ -403,14 +547,15 @@ export function OrderThread({
                           {stamp(m.created_at)}
                         </span>
                       </div>
-                      <p className="whitespace-pre-wrap break-words text-sm text-amber-950">
-                        {m.body}
-                      </p>
-                      <div className="mt-1.5 text-[11px] text-amber-800">
-                        {m.author_name} · {roleLabel(m.author_role)}
-                        {central && m.to_role
-                          ? ` → ${roleLabel(m.to_role)}`
-                          : ""}
+                      {messageBody(m, "delay")}
+                      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-amber-800">
+                        <span>
+                          {m.author_name} · {roleLabel(m.author_role)}
+                          {central && m.to_role
+                            ? ` → ${roleLabel(m.to_role)}`
+                            : ""}
+                        </span>
+                        {messageTools(m, "delay")}
                       </div>
                     </div>
                   );
@@ -452,17 +597,16 @@ export function OrderThread({
                           {roleLabel(m.dept_role)} → {roleLabel(m.to_role)}
                         </div>
                       )}
-                      <p className="whitespace-pre-wrap break-words text-sm">
-                        {m.body}
-                      </p>
+                      {messageBody(m, m.mine ? "mine" : "plain")}
                       <div
-                        className={`mt-1 text-[10px] ${
+                        className={`mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] ${
                           m.mine
                             ? "text-primary-foreground/70"
                             : "text-muted-foreground"
                         }`}
                       >
-                        {stamp(m.created_at)}
+                        <span>{stamp(m.created_at)}</span>
+                        {messageTools(m, m.mine ? "mine" : "plain")}
                       </div>
                     </div>
                   </div>

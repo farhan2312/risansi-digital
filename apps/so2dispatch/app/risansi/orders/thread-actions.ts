@@ -3,11 +3,15 @@
 import { getCurrentUser } from "@/lib/session";
 import { getOrderRep } from "@/lib/orders";
 import { repMatches } from "@/lib/dept-view";
-import { isRep } from "@/lib/roles";
+import { isRep, roleLabel } from "@/lib/roles";
+import { logAudit } from "@/lib/audit";
+import { subjectForOrder } from "@/lib/audit-subject";
 
 import {
   canLogDelay,
   canUsePeer,
+  deleteMessage,
+  editMessage,
   insertMessage,
   isMessageKind,
   listConversations,
@@ -133,6 +137,71 @@ export async function postMessageAction(
   } catch (error) {
     console.error("postMessageAction failed:", error);
     return { ok: false, error: "Could not send that message." };
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Where an entry sat, as the audit log says it: "Planning → Central Visibility". */
+const laneOf = (m: { dept_role: string; to_role: string | null }) =>
+  `${roleLabel(m.dept_role)} → ${roleLabel(m.to_role ?? "central_visibility")}`;
+
+/**
+ * Change one of your own entries (a note or a delay) in this conversation.
+ * The old text goes to the audit log; the entry then says it was edited.
+ */
+export async function editMessageAction(orderId: string, peer: string, messageId: string, body: string): Promise<ThreadResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!UUID_RE.test(messageId) || !canUsePeer(user.role, peer)) return { ok: false, error: "That message is not here." };
+  if (!(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
+  const text = body.trim();
+  if (text === "") return { ok: false, error: "A message can't be empty — delete it instead." };
+  if (text.length > MAX_MESSAGE_LENGTH) return { ok: false, error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` };
+  try {
+    const was = await editMessage(messageId, user.id, text);
+    if (!was || was.order_id !== orderId) return { ok: false, error: "Only its author can edit a message." };
+    if (was.body !== text) {
+      await logAudit({
+        actor: { id: user.id, email: user.email, role: user.role },
+        action: "message.edit",
+        category: "activity",
+        target: `${was.kind === "delay" ? "Delay" : "Note"} · ${laneOf(was)}`,
+        details: `Was: ${was.body.slice(0, 500)}\nNow: ${text.slice(0, 500)}`,
+        subject: await subjectForOrder(orderId),
+      });
+    }
+    return { ok: true, messages: await listMessages(orderId, peer, user) };
+  } catch (error) {
+    console.error("editMessageAction failed:", error);
+    return { ok: false, error: "Could not save that change." };
+  }
+}
+
+/**
+ * Delete an entry (a note or a delay): your own, or — Admin — anyone's. A
+ * delay goes off the delay log with it. Its text is kept in the audit log.
+ */
+export async function deleteMessageAction(orderId: string, peer: string, messageId: string): Promise<ThreadResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!UUID_RE.test(messageId) || !canUsePeer(user.role, peer)) return { ok: false, error: "That message is not here." };
+  if (!(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
+  try {
+    const gone = await deleteMessage(messageId, user.id, (user.primary_role ?? user.role) === "admin");
+    if (!gone) return { ok: false, error: "Only its author can delete a message." };
+    await logAudit({
+      actor: { id: user.id, email: user.email, role: user.role },
+      action: "message.delete",
+      category: "activity",
+      target: `${gone.kind === "delay" ? "Delay" : "Note"} · ${laneOf(gone)}`,
+      details: `Deleted: ${gone.body.slice(0, 1000)}`,
+      subject: await subjectForOrder(gone.order_id),
+    });
+    return { ok: true, messages: await listMessages(orderId, peer, user) };
+  } catch (error) {
+    console.error("deleteMessageAction failed:", error);
+    return { ok: false, error: "Could not delete that message." };
   }
 }
 
