@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/sql-placeholder-audit.mjs && node scripts/proxy-coverage-check.mjs && node scripts/fill-contrast-check.mjs && node scripts/action-result-check.mjs && node scripts/opp-forms-render-check.mjs && node scripts/opportunity-scope-check.mjs && node scripts/complaint-flow-check.mjs && node scripts/search-box-check.mjs && node scripts/table-sort-check.mjs && next build",
+    "build": "node scripts/sql-placeholder-audit.mjs && node scripts/proxy-coverage-check.mjs && node scripts/fill-contrast-check.mjs && node scripts/action-result-check.mjs && node scripts/opp-forms-render-check.mjs && node scripts/opportunity-scope-check.mjs && node scripts/complaint-flow-check.mjs && node scripts/search-box-check.mjs && node scripts/table-sort-check.mjs && node scripts/user-role-vocabulary-check.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
