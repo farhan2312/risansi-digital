@@ -3130,10 +3130,14 @@ const SO_PACKED_SQL = (o: string) => `(EXISTS (SELECT 1 FROM order_packing_slips
                       JOIN order_assembly_dispatch ad2 ON ad2.item_id = it2.id
                      WHERE it2.order_id = ${o}.id AND ad2.actual_packing_date IS NOT NULL))`;
 
-/** The SO (alias o) has reached Dispatch: packed (a slip filed, an EC or a lot packed). Until then it has no Pending there. */
-const SO_REACHED_DISPATCH = `(${SO_PACKED_SQL("o")}
-    OR EXISTS (SELECT 1 FROM order_ready_lots dl JOIN order_items di ON di.id = dl.item_id
-                WHERE di.order_id = o.id AND dl.packed_date IS NOT NULL))`;
+/**
+ * The SO (alias o) has reached Dispatch: Assembly & Packing has filed a
+ * numbered packing slip for it — what puts it on Dispatch's queue. Until
+ * then it has no status there, so the Orders page's Dispatch cards count
+ * what Dispatch's own do.
+ */
+const SO_REACHED_DISPATCH = `EXISTS (SELECT 1 FROM order_packing_slips rps
+    WHERE rps.order_id = o.id AND rps.kind = 'actual' AND NULLIF(btrim(rps.packing_slip_no), '') IS NOT NULL)`;
 
 const READY_TO_DISPATCH = `(${SO_PACKED_SQL("o")}
                             AND lower(${orderStatusSql("o")}) <> 'fully dispatch'
@@ -3378,10 +3382,10 @@ function soState(dept: DeptFilterKey, status: string): string {
                            AND a.payment_status = ${lit(status)})`;
   }
   // Dispatch: "Pending" is itself a stored value, so it also covers a blank —
-  // once the SO has reached Dispatch; before that it has no status there.
+  // every status once the SO has reached Dispatch; before that it has none there.
   return status === PENDING
     ? `${orderStatusSql("o")} = ${lit(PENDING)} AND ${SO_REACHED_DISPATCH}`
-    : `${orderStatusSql("o")} = ${lit(status)}`;
+    : `${orderStatusSql("o")} = ${lit(status)} AND ${SO_REACHED_DISPATCH}`;
 }
 
 /** The target column a department is judged against, if it has one. */
@@ -3460,7 +3464,7 @@ const CV_HOLD_SQL = `COALESCE(o.clearance_status, '') = 'Hold'`;
  */
 function withCvHold(dept: DeptFilterKey, status: string, own: () => string): string {
   if (status === NOT_APPLICABLE) return own();
-  if (status === HOLD) return dept === "dispatch" ? `(${CV_HOLD_SQL} OR (${own()}))` : CV_HOLD_SQL;
+  if (status === HOLD) return dept === "dispatch" ? `((${CV_HOLD_SQL} AND ${SO_REACHED_DISPATCH}) OR (${own()}))` : CV_HOLD_SQL;
   // Nor is an SO on hold any department's Pending.
   const pending = toneFor(status) === "pending" ? ` AND NOT ${soHoldSql("o", dept)}` : "";
   return `(NOT ${CV_HOLD_SQL}${pending} AND (${own()}))`;

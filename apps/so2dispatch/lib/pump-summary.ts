@@ -39,7 +39,7 @@ export type PumpSummary = {
   dispatch: string;
   /** Planning has sent it on to Assembly & Packing: a pump EC Partial or Fully ready (or some ready). */
   sentToAssembly: boolean;
-  /** It has reached Dispatch: something packed (a packing slip filed), or a dispatch status set. */
+  /** It has reached Dispatch: a numbered packing slip filed (what puts it on Dispatch's queue). */
   sentToDispatch: boolean;
   /** Central Visibility holds the SO: every department reads Hold until it is cleared. */
   held: boolean;
@@ -143,14 +143,9 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
                      WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")})
                        AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))
               OR ${SO_PLANNING_STATUS} IN ('Partial ready', 'Fully ready') AS sent_asm,
-            (${orderStatusSql("o")} <> 'Pending'
-              OR EXISTS (SELECT 1 FROM order_packing_slips sps
-                          WHERE sps.order_id = o.id AND sps.kind = 'actual'
-                            AND (NULLIF(btrim(sps.packing_slip_no), '') IS NOT NULL OR sps.packing_slip_date IS NOT NULL))
-              OR EXISTS (SELECT 1 FROM order_items s JOIN order_assembly_dispatch ad ON ad.item_id = s.id
-                          WHERE s.order_id = o.id AND ad.actual_packing_date IS NOT NULL)
-              OR EXISTS (SELECT 1 FROM order_ready_lots dl JOIN order_items s ON s.id = dl.item_id
-                          WHERE s.order_id = o.id AND dl.packed_date IS NOT NULL)) AS sent_dsp,
+            EXISTS (SELECT 1 FROM order_packing_slips sps
+                     WHERE sps.order_id = o.id AND sps.kind = 'actual'
+                       AND NULLIF(btrim(sps.packing_slip_no), '') IS NOT NULL) AS sent_dsp,
             COALESCE(o.clearance_status, '') = 'Hold' AS held,
             EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AS has_ecs,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('no', ps.packing_slip_no,

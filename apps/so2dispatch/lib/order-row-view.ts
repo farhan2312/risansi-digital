@@ -48,9 +48,9 @@ export function reachedAssembly(status: SoDeptStatus | undefined): boolean {
   );
 }
 
-/** The SO has reached Dispatch: something packed (a slip filed), or a dispatch status set. */
-export function reachedDispatch(order: OrderListRow, dispatch: string): boolean {
-  return !!order.in_dispatch || !!order.packed_on || (dispatch !== "" && dispatch !== "Pending");
+/** The SO has reached Dispatch: a numbered packing slip filed — what puts it on Dispatch's queue. */
+export function reachedDispatch(order: OrderListRow): boolean {
+  return !!order.in_dispatch;
 }
 
 export function reachedDepts(order: OrderListRow, status: SoDeptStatus | undefined): ReachedDept[] {

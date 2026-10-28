@@ -420,7 +420,7 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
   const assembly = assemblyView(o, status, dayOrBlank);
   const held = cvHeld(o);
   // Not reached Dispatch yet (nothing packed, no status set): "—".
-  const atDispatch = closed || (pump ? pump.sentToDispatch : reachedDispatch(o, dispatch));
+  const atDispatch = closed || (pump ? pump.sentToDispatch : reachedDispatch(o));
 
   // SO No. with its clearance and any Accounts hold beneath.
   const so: Line[] = [{ text: str(o.so_no) || `#${o.sl_no}`, bold: true }];

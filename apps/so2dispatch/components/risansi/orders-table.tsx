@@ -798,7 +798,7 @@ export function OrdersTable({
                         <StatusText
                           hold={held || dispatch === "Hold"}
                           text={
-                            !closed && (order.only_billing === "Yes" || !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order, dispatch) : reachedDispatch(order, dispatch)))
+                            !closed && (order.only_billing === "Yes" || !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order) : reachedDispatch(order)))
                               ? null
                               : dispatch
                           }

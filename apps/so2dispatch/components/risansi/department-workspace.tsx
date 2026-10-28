@@ -429,11 +429,8 @@ export function DepartmentWorkspace({
         /^(Partial ready|Fully ready)$/.test(toInput(ec.actual_spare_status) || toInput(ec.actual_pump_status)) ||
         !!toInput(ec.actual_packing_date)
     );
-  /** The SO has reached Dispatch: something packed (a slip filed), or a dispatch status set. */
-  const sentToDispatch = (head: Row, ecs: Row[]) =>
-    (!!toInput(head.so_dispatch_status) && toInput(head.so_dispatch_status) !== "Pending") ||
-    (Array.isArray(head.so_slips) && head.so_slips.length > 0) ||
-    ecs.some((ec) => !!toInput(ec.actual_packing_date) || packingLotsFromRows(ec.ready_lots).some((l) => !!l.packed_date));
+  /** The SO has reached Dispatch: a numbered packing slip filed (what puts it on Dispatch's queue). */
+  const sentToDispatch = (head: Row) => Array.isArray(head.so_slips) && head.so_slips.length > 0;
   // Planning and Assembly & Packing edit the SO as one; an EC has its own Edit
   // only where that can't be done — an SO mixing Pump and Spare ECs.
   const ecEditFor = (ecs: Row[]) => !soEdit || new Set(ecs.map(isSpareRow)).size > 1;
@@ -1104,7 +1101,7 @@ export function DepartmentWorkspace({
                                     <td className="px-4 py-3 whitespace-nowrap">
                                       {cvHeld(g.head) ? (
                                         <HoldChip />
-                                      ) : sentToDispatch(g.head, g.ecs) ? (
+                                      ) : sentToDispatch(g.head) ? (
                                         <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
                                       ) : (
                                         <span className="text-muted">—</span>
