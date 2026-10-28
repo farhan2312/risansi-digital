@@ -2803,6 +2803,13 @@ export type BillingQueueRow = {
   packing_requirement: string | null;
   order_value: string | null;
   order_currency: string | null;
+  discount_percent: string | null;
+  packing_forwarding_percent: string | null;
+  gst_percent: string | null;
+  /** The Gross Order Value: the value less discount, plus packing & forwarding, plus GST. */
+  taxable_value: string | null;
+  /** The SO's invoices' (or challans') values, added up; null before any. */
+  invoiced_value: string | null;
   // Challan-only, when bill_type = Challan (used by the flat edit modal).
   challan_no: string | null;
   challan_date: string | null;
@@ -2854,6 +2861,13 @@ export async function listOrdersForBilling(
             o.packing_requirement,
             o.order_value::text AS order_value,
             o.order_currency,
+            -- How the order value comes to its gross, and how much of that is invoiced.
+            o.discount_percent::text AS discount_percent,
+            o.packing_forwarding_percent::text AS packing_forwarding_percent,
+            o.gst_percent::text AS gst_percent,
+            o.taxable_value::text AS taxable_value,
+            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
+               FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
             b.challan_no,
             to_char(b.challan_date, 'YYYY-MM-DD') AS challan_date,
             b.challan_value::text AS challan_value,

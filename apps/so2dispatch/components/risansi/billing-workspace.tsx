@@ -176,7 +176,14 @@ export function BillingWorkspace({
                 <th className="px-4 py-3">Bill Mode</th>
                 {mode === "dispatch" && <th className="px-4 py-3">Payment terms &amp; PIs</th>}
                 <th className="px-4 py-3">{mode === "billing" ? "Payment terms & PIs" : "Packing slips & dispatches"}</th>
-                <th className="px-4 py-3 text-right">Order Value</th>
+                {mode === "dispatch" ? (
+                  <>
+                    <th className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
+                    <th className="px-4 py-3 whitespace-nowrap text-right">Order in Hand</th>
+                  </>
+                ) : (
+                  <th className="px-4 py-3 text-right">Order Value</th>
+                )}
                 {mode === "billing" && <th className="px-4 py-3">PI Status</th>}
                 <th className="px-4 py-3">Dispatch Status</th>
                 {mode === "dispatch" && <th className="px-4 py-3">Stage</th>}
@@ -285,10 +292,21 @@ export function BillingWorkspace({
                           />
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
-                        {formatValue(row.order_value)}
-                        {row.order_currency ? ` ${row.order_currency}` : ""}
-                      </td>
+                      {mode === "dispatch" ? (
+                        <>
+                          <td className="px-4 py-3 align-top">
+                            <OrderValueDetails row={row} />
+                          </td>
+                          <td className="px-4 py-3 align-top text-right">
+                            <OrderInHand row={row} />
+                          </td>
+                        </>
+                      ) : (
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatValue(row.order_value)}
+                          {row.order_currency ? ` ${row.order_currency}` : ""}
+                        </td>
+                      )}
                       {mode === "billing" && (
                         <td className="px-4 py-3 whitespace-nowrap">
                           {cvHeld(row) ? (
@@ -367,6 +385,53 @@ export function BillingWorkspace({
         />
       )}
     </div>
+  );
+}
+
+/** How the SO's order value comes to its gross: the value, discount, packing & forwarding, GST, and the gross. */
+function OrderValueDetails({ row }: { row: BillingQueueRow }) {
+  const cur = row.order_currency ? ` ${row.order_currency}` : "";
+  const pct = (v: string | null) => (v && v.trim() !== "" ? `${numberFmt.format(Number(v))}%` : "—");
+  const lines: [string, string][] = [
+    ["Order value", row.order_value ? `${formatValue(row.order_value)}${cur}` : "—"],
+    ["Discount", pct(row.discount_percent)],
+    ["Packing", pct(row.packing_forwarding_percent)],
+    ["GST", pct(row.gst_percent)],
+  ];
+  return (
+    <div className="grid grid-cols-[auto_auto] gap-x-3 text-xs whitespace-nowrap">
+      {lines.map(([k, v]) => (
+        <Fragment key={k}>
+          <span className="text-muted">{k}</span>
+          <span className="text-right tabular-nums text-foreground">{v}</span>
+        </Fragment>
+      ))}
+      <span className="mt-0.5 border-t border-card-border pt-0.5 font-semibold text-foreground">Gross value</span>
+      <span className="mt-0.5 border-t border-card-border pt-0.5 text-right font-semibold tabular-nums text-foreground">
+        {row.taxable_value ? `${formatValue(row.taxable_value)}${cur}` : "—"}
+      </span>
+    </div>
+  );
+}
+
+/** What is still to invoice: the gross value less the invoices' (or challans') values. */
+function OrderInHand({ row }: { row: BillingQueueRow }) {
+  // A Challan / FR SO is a replacement, at no value: nothing in hand to invoice.
+  if (row.bill_type === "Challan") return <span className="text-xs text-muted-foreground">Replacement</span>;
+  if (!row.taxable_value || row.taxable_value.trim() === "") return <span className="text-muted-foreground">—</span>;
+  const invoiced = Number(row.invoiced_value ?? 0) || 0;
+  const diff = Number(row.taxable_value) - invoiced;
+  // Invoices are rounded to the rupee: under one either way is all invoiced.
+  const left = Math.abs(diff) < 1 ? 0 : diff;
+  const cur = row.order_currency ? ` ${row.order_currency}` : "";
+  return (
+    <span className="flex flex-col items-end whitespace-nowrap">
+      <span className={`text-sm font-semibold tabular-nums ${left > 0 ? "text-foreground" : "text-emerald-700 dark:text-emerald-400"}`}>
+        {numberFmt.format(left)}
+        {cur}
+      </span>
+      <span className="text-[11px] text-muted">Invoiced {numberFmt.format(invoiced)}</span>
+    </span>
   );
 }
 
