@@ -50,15 +50,15 @@ export const HOLD = "Hold";
 const ALL_HOLD_DEPTS: readonly string[] = ["dispatch", "billing", "accounts"];
 
 /**
- * The SO is on hold (alias o) — by Central Visibility or Order Making; on the
- * Orders list by Dispatch too (its dispatch status Hold); and in Dispatch,
- * Proforma Invoice and Accounts by anyone, Accounts included. The SO hold
+ * The SO is on hold (alias o) — by Central Visibility or Order Making; and on
+ * the Orders list and in Dispatch, Proforma Invoice and Accounts by anyone,
+ * Dispatch (its dispatch status Hold) and Accounts included. The SO hold
  * card and filter; a held SO counts as no department's Open or Pending.
  */
 export function soHoldSql(o = "o", dept?: string | null): string {
   const all = !!dept && ALL_HOLD_DEPTS.includes(dept);
   const dispatch = !dept || all ? ` OR COALESCE(${o}.status_override, '') = 'Hold'` : "";
-  const accounts = all ? ` OR COALESCE(${o}.accounts_hold_status, '') = 'Hold'` : "";
+  const accounts = !dept || all ? ` OR COALESCE(${o}.accounts_hold_status, '') = 'Hold'` : "";
   return `(COALESCE(${o}.clearance_status, '') = 'Hold' OR COALESCE(${o}.om_status, '') = 'Hold'${dispatch}${accounts})`;
 }
 

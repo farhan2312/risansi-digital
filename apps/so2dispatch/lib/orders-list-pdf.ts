@@ -633,9 +633,9 @@ export async function buildOrdersListPdf(
     const p = planningText(o, statuses.get(o.id));
     return !!p && READY.includes(p.toLowerCase());
   });
-  // SO hold, as the Orders list counts it: Central Visibility's, Order Making's or Dispatch's.
+  // SO hold, as the Orders list counts it: Central Visibility's, Order Making's, Dispatch's or Accounts'.
   const soHoldN = count(
-    (o) => !CLOSED.includes(o.dispatch_status ?? "") && (o.clearance_status === "Hold" || o.om_status === "Hold" || dispatchOf(o) === "hold")
+    (o) => !CLOSED.includes(o.dispatch_status ?? "") && (o.clearance_status === "Hold" || o.om_status === "Hold" || dispatchOf(o) === "hold" || o.accounts_hold_status === "Hold")
   );
   const acctHoldN = count((o) => o.accounts_hold_status === "Hold");
   const pct = (k: number) => (n ? `${Math.round((k / n) * 100)}% of SOs` : "");
@@ -676,7 +676,7 @@ export async function buildOrdersListPdf(
             ];
           })()
         : [{ label: "Ready / packed", value: String(readyN), sub: "Planning says ready", color: C.green }]),
-    { label: "SO hold", value: String(soHoldN), sub: "Central, Order Making or Dispatch", color: C.red },
+    { label: "SO hold", value: String(soHoldN), sub: "Central, Order Making, Dispatch or Accounts", color: C.red },
     { label: "Accounts hold", value: String(acctHoldN), sub: "Held by Accounts", color: C.red },
     { label: "Cancelled / Diverted", value: String(closedN), sub: pct(closedN), color: C.slate },
   ];
