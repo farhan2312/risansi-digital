@@ -4,7 +4,7 @@ import { Fragment, useState } from "react";
 import { ExternalLink, ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
-import { drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
+import { boiInHand, drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PartDrawingCell, PartPickerModal, ShortageCell } from "./part-drawing";
@@ -15,6 +15,13 @@ import { HoldBadge } from "./hold-badge";
 import type { PumpSummary } from "@/lib/pump-summary";
 
 type Row = Record<string, unknown>;
+/** 05 Nov 26. */
+function shortDay(v: unknown): string {
+  const s = String(v ?? "").slice(0, 10);
+  const d = new Date(`${s}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit", timeZone: "UTC" });
+}
+
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 
 // A value with its unit beside it reads as one column on the name plate.
@@ -301,7 +308,8 @@ export function PlanningPumpTable({
                         </td>
                       );
                     })}
-                    {/* The EC's bought-out items: item, qty and where each stands; one opens in full. */}
+                    {/* The EC's bought-out items: item, qty, where each stands and, until it is in,
+                        the day Purchase expects it (red once past); one opens in full. */}
                     <td className={ecCell}>
                       {Array.isArray(r.boi_items) && r.boi_items.length > 0 ? (
                         <span className="flex flex-col items-start gap-1">
@@ -316,6 +324,14 @@ export function PlanningPumpTable({
                               <span className="font-medium text-foreground underline-offset-2 hover:underline">{boiName(b)}</span>
                               {str(b.boi_qty) && <span className="tabular-nums text-muted">×{str(b.boi_qty)}</span>}
                               <BoiStatusTag item={b} small />
+                              {!boiInHand(b) && str(b.expected_receipt_date) && (
+                                <span
+                                  title="Vendor expected date"
+                                  className={`tabular-nums ${str(b.expected_receipt_date).slice(0, 10) < today ? "font-semibold text-rose-600" : "text-muted"}`}
+                                >
+                                  Exp {shortDay(b.expected_receipt_date)}
+                                </span>
+                              )}
                             </button>
                           ))}
                         </span>
