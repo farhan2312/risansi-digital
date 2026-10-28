@@ -770,6 +770,11 @@ export interface Editor {
   id: number | null;
   role: RisansiRole | string;
   departments: readonly string[];
+  /**
+   * app_settings.complaint_edit_override is on. Resolved by the caller rather
+   * than here, so this module never touches the database.
+   */
+  override?: boolean;
 }
 
 export interface ComplaintForAccess {
@@ -796,9 +801,17 @@ export interface ComplaintForAccess {
  * Responsible for Returnable page 7); reps and managers reach page 1 and page 5
  * through the client they work; admins edit everything. A legacy record
  * (schema_version 1) is read-only for everyone but an admin.
+ *
+ * The override short-circuits all of that for anyone who can already see the
+ * complaint. It sits below the admin check and above every refusal, because
+ * the three refusals underneath are the point of it: legacy rows, closed
+ * rows, and a department list almost nobody is on. See complaintEditOverride
+ * in lib/risansi-settings — the flag is read by the caller, so this module
+ * stays free of the database and its rules stay testable without one.
  */
 export function canEditPage(user: Editor, c: ComplaintForAccess, page: ComplaintPage): boolean {
   if (isAdminRole(user.role)) return true;
+  if (user.override) return true;
   if (c.schema_version < 2) return false;
   if (c.status === 'Closed') return false;
   const uid = user.id;

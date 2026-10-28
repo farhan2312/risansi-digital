@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import risansiPool from '@/lib/db-risansi';
+import { complaintEditOverride } from '@/lib/risansi-settings';
 import { getCurrentUser, hasRole, canViewClient, complaintVisibilitySql, type CurrentUser } from '@/lib/risansi-auth';
 import { recordAudit } from '@/lib/audit';
 import { pushInApp } from '@/lib/risansi-inapp';
@@ -50,7 +51,12 @@ async function loadAccess(id: number): Promise<{ user: CurrentUser; row: AccessR
   return { user, row, worksClient, canSee };
 }
 
-const editor = (u: CurrentUser) => ({ id: u.id, role: u.role, departments: u.departments });
+// Async because the edit override lives in app_settings. cache() behind it
+// means the extra awaits cost one query per request, not one per call.
+const editor = async (u: CurrentUser) => ({
+  id: u.id, role: u.role, departments: u.departments,
+  override: await complaintEditOverride(),
+});
 
 // ── Value coercion ─────────────────────────────────────────────────────────
 
@@ -235,7 +241,14 @@ export async function saveComplaintPage(id: number, pageId: number, input: Recor
   const a = await loadAccess(id);
   if (!a || !a.canSee) return fail('This complaint is not one you can see.');
   const { user, row } = a;
-  if (!canEditPage(editor(user), { ...row, worksClient: a.worksClient }, page)) {
+  // Would the normal rules have allowed this save? Asked without the override
+  // so the audit line can say which of the two let it through — "what got
+  // edited while editing was open" is the first thing anybody will want back
+  // when the switch goes off again.
+  const normallyAllowed = canEditPage(
+    { id: user.id, role: user.role, departments: user.departments },
+    { ...row, worksClient: a.worksClient }, page);
+  if (!canEditPage(await editor(user), { ...row, worksClient: a.worksClient }, page)) {
     return fail(row.schema_version < 2
       ? 'This is a legacy complaint, shown as it was recorded. It cannot be edited.'
       : row.status === 'Closed'
@@ -342,8 +355,10 @@ export async function saveComplaintPage(id: number, pageId: number, input: Recor
     }
   }
   await recordAudit({ action: 'update', entityType: 'complaint', entityId: id, entityLabel: row.complaint_no,
-    summary: `${page.title}: ${keys.filter(k => k !== 'severity').join(', ')}${changed.severity ? ` · severity ${changed.severity}` : ''}`,
-    metadata: changed, actorEmail: user.email });
+    summary: `${page.title}: ${keys.filter(k => k !== 'severity').join(', ')}`
+      + `${changed.severity ? ` · severity ${changed.severity}` : ''}`
+      + `${normallyAllowed ? '' : ' · via the complaint edit override'}`,
+    metadata: { ...changed, ...(normallyAllowed ? {} : { edit_override: true }) }, actorEmail: user.email });
 
   // Severe / Immediate Response, the moment it becomes true. Told once, on the
   // crossing, so re-saving page 3 does not page the department again.
@@ -437,7 +452,7 @@ export async function moveComplaint(id: number, to: ComplaintStatus, note?: stri
   const a = await loadAccess(id);
   if (!a || !a.canSee) return fail('This complaint is not one you can see.');
   const { user, row } = a;
-  if (!canMove(editor(user), { ...row, worksClient: a.worksClient })) {
+  if (!canMove(await editor(user), { ...row, worksClient: a.worksClient })) {
     return fail(row.schema_version < 2 ? 'Legacy complaints do not move; they are shown as they were recorded.'
       : 'Only the Complaint Team, QC, or the person a stage is assigned to can move a complaint.');
   }
@@ -504,7 +519,7 @@ export async function deleteComplaintAttachment(attachmentId: number): Promise<S
   const a = await loadAccess(att.complaint_id);
   if (!a || !a.canSee) return fail('This complaint is not one you can see.');
   const page = pageById(att.category === 'capa' ? 6 : 1)!;
-  if (!canEditPage(editor(a.user), { ...a.row, worksClient: a.worksClient }, page) && !canEditPage(editor(a.user), { ...a.row, worksClient: a.worksClient }, pageById(6)!)) {
+  if (!canEditPage(await editor(a.user), { ...a.row, worksClient: a.worksClient }, page) && !canEditPage(await editor(a.user), { ...a.row, worksClient: a.worksClient }, pageById(6)!)) {
     return fail('Only somebody who can edit this complaint can remove its files.');
   }
   await risansiPool.query('DELETE FROM complaint_attachments WHERE id = $1', [attachmentId]);
@@ -746,8 +761,7 @@ export async function addLookupFromForm(input: {
   const page = pageById(Number(input?.pageId));
   if (!page) return fail('Unknown page.');
   const may = hasRole(a.user.role, 'admin')
-    || canEditPage({ id: a.user.id, role: a.user.role, departments: a.user.departments },
-                   { ...a.row, worksClient: a.worksClient }, page);
+    || canEditPage(await editor(a.user), { ...a.row, worksClient: a.worksClient }, page);
   if (!may) return fail(`Only somebody who can edit ${page.title} can add to this list.`);
 
   const value = String(input?.value ?? '').trim().replace(/\s+/g, ' ');
@@ -826,7 +840,7 @@ export async function saveComplaintParts(complaintId: number, rows: ComplaintPar
   const a = await loadAccess(id);
   if (!a || !a.canSee) return fail('This complaint is not one you can see.');
   const { user, row } = a;
-  if (!canEditPage(editor(user), { ...row, worksClient: a.worksClient }, page)) {
+  if (!canEditPage(await editor(user), { ...row, worksClient: a.worksClient }, page)) {
     return fail(row.schema_version < 2
       ? 'This is a legacy complaint, shown as it was recorded. Its parts cannot be edited.'
       : row.status === 'Closed'

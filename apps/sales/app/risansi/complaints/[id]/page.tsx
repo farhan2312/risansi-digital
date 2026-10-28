@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { complaintEditOverride } from '@/lib/risansi-settings';
 import { Topbar } from '@/components/risansi';
 import risansiPool from '@/lib/db-risansi';
 import { getCurrentUser, canAccessComplaint, canViewClient, hasRole } from '@/lib/risansi-auth';
@@ -125,7 +126,7 @@ export default async function ComplaintPage({ params, searchParams }: {
   const legacy = c.schema_version < 2;
   const worksClient = c.client_id != null && !hasRole(user.role, 'admin') ? await canViewClient(user, c.client_id) : hasRole(user.role, 'admin');
   const access = { ...c, worksClient } as Parameters<typeof canEditPage>[1];
-  const editor = { id: user.id, role: user.role, departments: user.departments };
+  const editor = { id: user.id, role: user.role, departments: user.departments, override: await complaintEditOverride() };
   const mayMove = canMove(editor, access);
   const hasCapa = files.some(f => f.category === 'capa');
   const sev = (c.severity as Severity | null) ?? null;

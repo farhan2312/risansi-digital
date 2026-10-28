@@ -3,6 +3,7 @@ import risansiPool from '@/lib/db-risansi';
 import { getCurrentUser, canAccessComplaint, hasRole } from '@/lib/risansi-auth';
 import { recordAudit } from '@/lib/audit';
 import { canEditPage, pageById } from '@/lib/risansi-complaint-flow';
+import { complaintEditOverride } from '@/lib/risansi-settings';
 
 export const runtime = 'nodejs';
 
@@ -51,7 +52,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     const page = pageById(category === 'capa' ? 6 : 1)!;
     const may = hasRole(user.role, 'admin')
-      || canEditPage({ id: user.id, role: user.role, departments: user.departments }, { ...c, worksClient: true }, page);
+      || canEditPage({ id: user.id, role: user.role, departments: user.departments, override: await complaintEditOverride() },
+                     { ...c, worksClient: true }, page);
     if (!may) return NextResponse.json({ error: `Only somebody who can edit ${page.title} can attach files here.` }, { status: 403 });
 
     const mime = file.type || 'application/octet-stream';

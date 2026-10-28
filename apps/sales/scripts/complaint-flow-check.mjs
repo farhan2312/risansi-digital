@@ -260,6 +260,33 @@ if (frField) {
     F.isFieldShown(frField, { action_categories: ['Visit'] }), false);
 }
 
+// The company-wide edit override (app_settings.complaint_edit_override).
+//
+// It exists to lift exactly three refusals — a legacy row, a closed row, and
+// a department list almost nobody is on — so each is asserted directly. The
+// last two cases are the ones that matter when it is switched back off: it
+// must not widen anything else, and with the flag absent the rules must be
+// precisely what they were.
+console.log('\nComplaint edit override:');
+const staff = { id: 99, role: 'rep', departments: [] };
+const closed = { status: 'Closed', schema_version: 2 };
+const legacy = { status: 'Open', schema_version: 1 };
+const openRow = { status: 'Open', schema_version: 2 };
+const p6 = F.pageById(6);
+check('closed row, no override: refused',   F.canEditPage(staff, closed, p6), false);
+check('closed row, override: allowed',      F.canEditPage({ ...staff, override: true }, closed, p6), true);
+check('legacy row, no override: refused',   F.canEditPage(staff, legacy, p6), false);
+check('legacy row, override: allowed',      F.canEditPage({ ...staff, override: true }, legacy, p6), true);
+check('no department, no override: refused', F.canEditPage(staff, openRow, p6), false);
+check('no department, override: allowed',   F.canEditPage({ ...staff, override: true }, openRow, p6), true);
+// Off is the default: a missing flag must behave exactly as before it existed.
+check('override absent behaves as off',     F.canEditPage(staff, closed, p6), false);
+check('override false behaves as off',      F.canEditPage({ ...staff, override: false }, closed, p6), false);
+// It relaxes editing only. Moving a complaint between statuses is a separate
+// rule and the override must not touch it, or a closed complaint could be
+// reopened by anyone while the switch is on.
+check('override does not grant status moves', F.canMove({ ...staff, override: true }, closed), false);
+
 console.log(bad ? `\n${bad} FAILURE(S)` : '\nevery rule behaves');
 process.exit(bad ? 1 : 0);
 

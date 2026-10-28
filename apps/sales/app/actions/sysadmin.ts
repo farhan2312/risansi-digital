@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { revalidatePath } from 'next/cache';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import risansiPool from '@/lib/db-risansi';
+import { COMPLAINT_EDIT_OVERRIDE_KEY } from '@/lib/risansi-settings';
 import { getSession } from '@/lib/risansi-auth';
 
 // Refusals come back rather than being thrown: Next redacts a thrown
@@ -123,3 +124,26 @@ export async function deleteUser(_formData: FormData): Promise<SaveResult> {
 // Ownership is a property of the client now, so it is written by
 // app/actions/risansi-ownership.ts, which is admin-gated and returns its
 // failures instead of throwing them.
+
+// ── setComplaintEditOverride ───────────────────────────────────
+//
+// The complaint edit rules relaxed company-wide, from a switch rather than a
+// code change — see lib/risansi-settings for why it exists and what it does
+// not do. Sysadmin only, and both directions are audited, because "who opened
+// this and when" is the first question anybody will ask of an edit made while
+// it was on.
+export async function setComplaintEditOverride(on: boolean): Promise<SaveResult> {
+  const email = await requireSysadmin();
+  const { rows: before } = await risansiPool.query<{ value: string }>(
+    `SELECT value FROM app_settings WHERE key = $1`, [COMPLAINT_EDIT_OVERRIDE_KEY]);
+  const next = on ? 'on' : 'off';
+  await risansiPool.query(
+    `INSERT INTO app_settings (key, value, updated_by, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+    [COMPLAINT_EDIT_OVERRIDE_KEY, next, email]);
+  await audit('setting', COMPLAINT_EDIT_OVERRIDE_KEY, 'update', before[0]?.value ?? 'off', next, email);
+  revalidatePath('/risansi/admin/settings');
+  revalidatePath('/risansi/complaints');
+  return { ok: true };
+}
