@@ -3299,7 +3299,21 @@ export const SO_PLANNING_STATUS = `COALESCE((SELECT NULLIF(spl.actual_spare_stat
  * Fully packed once every one is, Partially packed once any is packed, else
  * In Progress. Its cards and Status filter read it.
  */
+/**
+ * Planning has sent the SO (alias o) on to Assembly & Packing: an EC with a
+ * readiness lot past In plan, one Partial or Fully ready (or some ready
+ * quantity), or one packed already. Until then it has no status there.
+ */
+const SO_REACHED_ASSEMBLY = `EXISTS (SELECT 1 FROM order_items ri WHERE ri.order_id = o.id AND (
+    EXISTS (SELECT 1 FROM order_ready_lots rrl WHERE rrl.item_id = ri.id AND rrl.status IS DISTINCT FROM 'In plan')
+    OR EXISTS (SELECT 1 FROM order_planning rpl WHERE rpl.item_id = ri.id
+                 AND (rpl.actual_spare_status IN ('Partial ready', 'Fully ready')
+                      OR rpl.actual_pump_status IN ('Partially ready', 'Fully ready')
+                      OR COALESCE(rpl.ready_qty, 0) > 0))
+    OR EXISTS (SELECT 1 FROM order_assembly_dispatch rad WHERE rad.item_id = ri.id AND rad.actual_packing_date IS NOT NULL)))`;
+
 const SO_ASSEMBLY_STATUS = `(CASE
+    WHEN NOT ${SO_REACHED_ASSEMBLY} THEN 'Not sent'
     WHEN EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("it")})
      AND NOT EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("it")}
                        AND ${ASSEMBLY_STATE_SQL("it")} <> 'Fully packed') THEN 'Fully packed'
