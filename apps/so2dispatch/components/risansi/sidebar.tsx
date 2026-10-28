@@ -122,6 +122,9 @@ export function Sidebar({
         </div>
       </div>
 
+      {/* More than one department: which one they are working as, up top. */}
+      <RoleSwitcher role={user.role} roles={user.roles ?? []} variant="sidebar" />
+
       {/* nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-2">
         <div className="mb-6">
@@ -216,8 +219,6 @@ export function Sidebar({
           </>
         )}
 
-        {/* More than one department: which one they are working as. */}
-        <RoleSwitcher role={user.role} roles={user.roles ?? []} variant="sidebar" />
         <button
           type="button"
           onClick={() => setMenuOpen((prev) => !prev)}
