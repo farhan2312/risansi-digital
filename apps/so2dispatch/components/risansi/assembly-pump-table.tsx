@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Layers, Loader2, MessageSquare, Moon, Package, Plus, Sun, Wrench, X } from "lucide-react";
-import { PUMP_LIKE } from "@/lib/order-schema";
+import { PUMP_LIKE, READY_LOT_LIMIT } from "@/lib/order-schema";
 import {
   ASSEMBLY_SHIFTS,
   PDI_CHOICES,
@@ -96,6 +96,50 @@ function PlannedCell({
 }
 
 /**
+ * One lot's work, read-only: where it stands, how many of it are assembled
+ * and packed, and the days — assembled (or planned) and packed (or planned).
+ */
+function LotCell({ lot, slips }: { lot: PumpLot | undefined; slips: Row[] }) {
+  if (!lot) return <span className="text-muted">—</span>;
+  const qty = lot.ecs.reduce((t, e) => t + e.qty, 0);
+  const assembled = lot.ecs.reduce((t, e) => t + e.assembled, 0);
+  const packed = lot.packed_date ? qty : 0;
+  const label = lot.packed_date
+    ? "Packed"
+    : lot.assembled_date
+      ? "Assembled"
+      : assembled > 0
+        ? "Partially assembled"
+        : lot.status || "Pending";
+  const day = (done: string, plan: string, word: string) =>
+    done ? (
+      <span className="whitespace-nowrap text-[11px] text-emerald-700">
+        {word} {shortDate(done)}
+      </span>
+    ) : plan ? (
+      <span className="whitespace-nowrap text-[11px] text-muted">
+        {word} plan {shortDate(plan)}
+      </span>
+    ) : null;
+  return (
+    <span className="flex flex-col items-start gap-0.5">
+      <Chip label={label} />
+      {qty > 0 && (
+        <span className="whitespace-nowrap text-[11px] text-muted">
+          Qty {qty} · Assembled {assembled} · Packed {packed}
+        </span>
+      )}
+      {day(lot.assembled_date, lot.assembly_plan_date, "Assembly")}
+      {day(lot.packed_date, lot.packing_plan_date, "Packing")}
+      {/* Packed, but on no packing slip yet. */}
+      {lot.packed_date && !lotOnSlip(lot.n, slips) && (
+        <span className="rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>
+      )}
+    </span>
+  );
+}
+
+/**
  * Assembly & Packing's Pump view: each SO once on the left — Planning's
  * status, its lots, and how far assembly and packing have got lot by lot —
  * and its pump ECs on the right with what is ready, assembled and packed.
@@ -125,6 +169,11 @@ export function AssemblyPumpTable({
   // The SO whose Alignment is open.
   const [alignFor, setAlignFor] = useState<string | null>(null);
   const alignSo = alignFor ? sos.find((x) => x.orderId === alignFor) : null;
+  // Lot 1 to n, each in its own column: as many as any SO here has, at least READY_LOT_LIMIT.
+  const lotCols = Array.from(
+    { length: Math.max(READY_LOT_LIMIT, ...sos.map((s) => pumpLotsFromEcs(s.ecs).length)) },
+    (_, i) => i + 1
+  );
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
 
@@ -141,7 +190,8 @@ export function AssemblyPumpTable({
       <table className="w-full min-w-[1900px] text-sm">
         <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-            <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
+            <th colSpan={5} className="px-3 pt-2.5 pb-1">SO</th>
+            <th colSpan={lotCols.length} className={group}>Lots</th>
             <th colSpan={2} className={group}>Alignment</th>
             <th colSpan={2} className={group}>Assembly</th>
             <th colSpan={3} className={group}>Packing</th>
@@ -154,7 +204,9 @@ export function AssemblyPumpTable({
             <th className={th}>SO Date</th>
             <th className={th}>Chat</th>
             <th className={th}>PPC Status</th>
-            <th className={th}>Lots</th>
+            {lotCols.map((n, i) => (
+              <th key={n} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
+            ))}
             <th className={`${th} border-l border-card-border`}>Base Plate</th>
             <th className={th}>Wooden Box</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
@@ -176,7 +228,7 @@ export function AssemblyPumpTable({
         <tbody>
           {sos.length === 0 && (
             <tr>
-              <td colSpan={22} className="px-4 py-10 text-center text-sm text-muted">
+              <td colSpan={21 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
                 No pump SO is ready to assemble.
               </td>
             </tr>
@@ -228,30 +280,12 @@ export function AssemblyPumpTable({
                             </span>
                             <span className="block text-[11px] text-muted">{shortDate(head.planning_readiness_date)}</span>
                           </td>
-                          <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            {lots.length === 0 ? (
-                              <span className="text-muted">—</span>
-                            ) : (
-                              lots.map((l) => (
-                                <span key={l.n} className="block text-xs">
-                                  <span className="font-semibold">Lot {l.n}</span>{" "}
-                                  <span className="text-muted">
-                                    {l.packed_date
-                                      ? "Packed"
-                                      : l.assembled_date
-                                        ? "Assembled"
-                                        : l.ecs.some((x) => x.assembled > 0)
-                                          ? "Part assembled"
-                                          : l.status || "—"}
-                                  </span>
-                                  {/* Packed, but on no packing slip yet. */}
-                                  {l.packed_date && !lotOnSlip(l.n, (head.so_child_rows ?? []) as Row[]) && (
-                                    <span className="ml-1 rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>
-                                  )}
-                                </span>
-                              ))
-                            )}
-                          </td>
+                          {/* Each lot's work, a column per lot. */}
+                          {lotCols.map((n, i) => (
+                            <td key={n} rowSpan={span} className={`${soCell} ${i === 0 ? "border-l border-card-border" : ""}`}>
+                              <LotCell lot={lots.find((l) => l.n === n)} slips={(head.so_child_rows ?? []) as Row[]} />
+                            </td>
+                          ))}
                           {/* The SO's Alignment: base plate and wooden box. */}
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
                             <AlignmentValue alignment={head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor(orderId)} />
