@@ -52,7 +52,7 @@ import {
 import { ecDrawingDoneSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
-import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, soStageStatusSql } from "@/lib/assembly";
+import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, basePlateSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
 import { toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
@@ -261,6 +261,8 @@ export type NewItemInput = {
   pump_speed?: string;
   liquid?: string;
   tag_no?: string;
+  /** Whether this pump needs a base plate, Yes or No. */
+  base_plate?: string;
   /** This pump's own BOI, Yes or No. */
   boi?: string;
 };
@@ -488,10 +490,10 @@ export async function createItem(
         order_id, ec_no, ec_date, item_type, pump_type, model_no, internal_model,
         quantity, orientation, suction, delivery, pump_sno, application, version,
         capacity, capacity_unit, head, head_unit, drive_motor_rating, drive_motor_rating_unit,
-        drive_motor_speed, pump_speed, liquid, tag_no, boi
+        drive_motor_speed, pump_speed, liquid, tag_no, boi, base_plate
      ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
+        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
      )
      RETURNING id, seq::int AS seq`,
     [
@@ -520,6 +522,8 @@ export async function createItem(
       nullify(input.liquid),
       nullify(input.tag_no),
       nullify(input.boi),
+      // A pump's is No unless said Yes; a Spare has none.
+      input.item_type === "Spare" ? null : input.base_plate === "Yes" ? "Yes" : "No",
     ]
   );
   return result.rows[0];
@@ -2739,10 +2743,17 @@ export async function listItemsForSection(
                  to_jsonb(it) - 'order_copy_file_data' AS ec,
                  (SELECT rpl.ready_qty FROM order_planning rpl WHERE rpl.item_id = it.id) AS ready_qty,
                  (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status,
-                 -- The SO's Alignment: base plate and wooden box, each with its status.
-                 (SELECT jsonb_build_object('base_plate', oa.base_plate, 'base_plate_status', oa.base_plate_status,
+                 -- The SO's Alignment: base plate and wooden box, whether needed and where each stands.
+                 (SELECT jsonb_build_object('base_plate', ${basePlateSql("oa")}, 'base_plate_status', oa.base_plate_status,
                                             'base_plate_date', to_char(oa.base_plate_date, 'YYYY-MM-DD'),
-                                            'wooden_box', oa.wooden_box, 'wooden_box_status', oa.wooden_box_status)
+                                            'base_plate_remarks', oa.base_plate_remarks,
+                                            'wooden_box', ${woodenBoxSql("oa")}, 'wooden_box_status', oa.wooden_box_status,
+                                            'wooden_box_source', oa.wooden_box_source,
+                                            'wooden_box_required_qty', oa.wooden_box_required_qty,
+                                            'wooden_box_stock_qty', oa.wooden_box_stock_qty,
+                                            'wooden_box_received_date', to_char(oa.wooden_box_received_date, 'YYYY-MM-DD'),
+                                            'wooden_box_received_qty', oa.wooden_box_received_qty,
+                                            'wooden_box_remarks', oa.wooden_box_remarks)
                     FROM orders oa WHERE oa.id = it.order_id) AS alignment`
          }`
       : "";

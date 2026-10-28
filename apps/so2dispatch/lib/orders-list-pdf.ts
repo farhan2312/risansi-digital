@@ -231,11 +231,14 @@ function pumpOwnCells(s: PumpSummary, today: string): Partial<Record<Key, Line[]
   const a = s.alignment;
   const part = (name: string, yes: string | null, status: string | null, date?: string | null): Line | null =>
     yes === "Yes"
-      ? { text: `${name}: ${status ?? "Yes"}${date ? ` ${day(date)}` : ""}`, color: status === "Pending" ? C.amber : C.ink }
+      ? { text: `${name}: ${status ?? "Pending"}${date ? ` ${day(date)}` : ""}`, color: !status || status === "Pending" ? C.amber : C.ink }
       : yes === "No"
         ? { text: `${name}: No`, color: C.muted }
         : null;
-  const align = [part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date), part("Wooden box", a.wooden_box, a.wooden_box_status)].filter(
+  const align = [
+    part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date),
+    part("Wooden box", a.wooden_box, a.wooden_box_status, a.wooden_box_status === "Received" ? a.wooden_box_received_date : null),
+  ].filter(
     (x): x is Line => !!x
   );
   return {

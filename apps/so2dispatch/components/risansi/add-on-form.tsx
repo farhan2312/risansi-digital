@@ -83,6 +83,8 @@ export function AddOnForm({
         ? {}
         : { boi: (boiFlag ?? "") === "Yes" ? "Yes" : "No" };
     if (!String(start.ec_no ?? "").trim()) start.ec_no = ecStart;
+    // A pump's Base Plate is No until said Yes.
+    if (!isSpare && !start.base_plate) start.base_plate = "No";
     return start;
   });
   const [boi, setBoi] = useState<BoiRow[]>([]);

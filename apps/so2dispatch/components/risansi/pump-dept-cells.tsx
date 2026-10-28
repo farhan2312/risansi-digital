@@ -224,8 +224,11 @@ export function PumpAfterPlanningCells({ s, today, className, rowSpan }: { s: Pu
   const asm = stageCell(s.assembly, today);
   const pkg = stageCell(s.packing, today);
   const part = (name: string, yes: string | null, status: string | null, date?: string | null) =>
-    yes === "Yes" ? `${name}: ${status ?? "Yes"}${date ? ` ${formatDate(date)}` : ""}` : yes === "No" ? `${name}: No` : null;
-  const lines = [part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date), part("Wooden box", a.wooden_box, a.wooden_box_status)].filter(
+    yes === "Yes" ? `${name}: ${status ?? "Pending"}${date ? ` ${formatDate(date)}` : ""}` : yes === "No" ? `${name}: No` : null;
+  const lines = [
+    part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date),
+    part("Wooden box", a.wooden_box, a.wooden_box_status, a.wooden_box_status === "Received" ? a.wooden_box_received_date : null),
+  ].filter(
     (x): x is string => !!x
   );
   const stage = (text: string, st: ReturnType<typeof stageCell>) => (
@@ -293,8 +296,11 @@ export function PumpTailCells({ s, today, onOpen }: { s: PumpSummary; today: str
   const asm = stageCell(s.assembly, today);
   const pkg = stageCell(s.packing, today);
   const part = (name: string, yes: string | null, status: string | null, date?: string | null) =>
-    yes === "Yes" ? `${name}: ${status ?? "Yes"}${date ? ` ${formatDate(date)}` : ""}` : yes === "No" ? `${name}: No` : null;
-  const lines = [part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date), part("Wooden box", a.wooden_box, a.wooden_box_status)].filter(
+    yes === "Yes" ? `${name}: ${status ?? "Pending"}${date ? ` ${formatDate(date)}` : ""}` : yes === "No" ? `${name}: No` : null;
+  const lines = [
+    part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date),
+    part("Wooden box", a.wooden_box, a.wooden_box_status, a.wooden_box_status === "Received" ? a.wooden_box_received_date : null),
+  ].filter(
     (x): x is string => !!x
   );
   return (

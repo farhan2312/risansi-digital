@@ -10,13 +10,18 @@ import { getOrderLabel, saveLotPacking, syncPumpPackedDate } from "@/lib/orders"
 import { canEditSection } from "@/lib/roles";
 import { PUMP_LIKE } from "@/lib/order-schema";
 import {
+  BASE_PLATE_STATUSES,
   STAGE_WORDS,
+  WOODEN_BOX_SOURCES,
+  WOODEN_BOX_STATUSES,
+  basePlateSql,
   lotAssembly,
   lotStagesError,
   pumpLotsFromEcs,
   soStatuses,
   type AsmEntry,
   type LotStages,
+  woodenBoxSql,
 } from "@/lib/assembly";
 
 export type AssemblyResult = { ok: true } | { ok: false; error: string };
@@ -185,20 +190,29 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
   }
 }
 
-/** An SO's Alignment as Assembly & Packing sets it: base plate and wooden box, each with its status. */
+/** An SO's Alignment as Assembly & Packing tracks it: its base plate and its wooden box. */
 export type Alignment = {
-  base_plate: string;
   base_plate_status: string;
-  /** When the base plate was manufactured (YYYY-MM-DD), once it is. */
+  /** The day of the base plate's status (YYYY-MM-DD). */
   base_plate_date: string;
-  wooden_box: string;
+  base_plate_remarks: string;
+  /** In house, Bought out, or both. */
+  wooden_box_source: string[];
+  wooden_box_required_qty: string;
+  wooden_box_stock_qty: string;
   wooden_box_status: string;
+  wooden_box_received_date: string;
+  wooden_box_received_qty: string;
+  wooden_box_remarks: string;
 };
 
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
- * Assembly & Packing's Alignment on a pump SO. A status only means something
- * once its item is Yes, so a No (or blank) clears it. Assembly & Packing,
- * Central Visibility and Admin.
+ * Assembly & Packing's Alignment on a pump SO. Each item is tracked only when
+ * the SO needs it — a base plate when an EC says so, a wooden box when its
+ * Packing Requirement is Wooden Box — and the other is cleared. Assembly &
+ * Packing, Central Visibility and Admin.
  */
 export async function saveAlignmentAction(orderId: string, a: Alignment): Promise<AssemblyResult> {
   const user = await getCurrentUser();
@@ -206,37 +220,89 @@ export async function saveAlignmentAction(orderId: string, a: Alignment): Promis
   if (!canEditSection(user.role, "order_assembly_dispatch")) {
     return { ok: false, error: "Only Assembly & Packing can set the alignment." };
   }
-  const yn = (v: string) => (v === "Yes" || v === "No" ? v : null);
-  const plate = yn(a.base_plate);
-  const box = yn(a.wooden_box);
-  const plateStatus = plate === "Yes" && ["Manufactured", "Pending"].includes(a.base_plate_status) ? a.base_plate_status : null;
-  const boxStatus = box === "Yes" && ["In House", "Bought out"].includes(a.wooden_box_status) ? a.wooden_box_status : null;
-  if (plate === "Yes" && !plateStatus) return { ok: false, error: "Choose whether the base plate is manufactured or pending." };
-  if (box === "Yes" && !boxStatus) return { ok: false, error: "Choose whether the wooden box is in house or bought out." };
-  // Manufactured on a day: the date goes with it, and only with it.
-  const plateDate = plateStatus === "Manufactured" ? (a.base_plate_date ?? "").trim() : "";
-  if (plateStatus === "Manufactured" && !/^\d{4}-\d{2}-\d{2}$/.test(plateDate)) {
-    return { ok: false, error: "Enter the date the base plate was manufactured." };
+  if (!UUID_RE.test(orderId)) return { ok: false, error: "Order not found." };
+  const need = await query<{ plate: string; box: string | null }>(
+    `SELECT ${basePlateSql("o")} AS plate, ${woodenBoxSql("o")} AS box FROM orders o WHERE o.id = $1`,
+    [orderId]
+  );
+  if (!need.rows[0]) return { ok: false, error: "Order not found." };
+  const plate = need.rows[0].plate === "Yes";
+  const box = need.rows[0].box === "Yes";
+  const text = (v: string) => (v ?? "").trim() || null;
+  const qty = (v: string): number | null | false => {
+    const t = (v ?? "").trim();
+    if (!t) return null;
+    return /^\d+$/.test(t) ? Number(t) : false;
+  };
+
+  // The base plate: a status, its day once past Pending, and remarks.
+  const plateStatus = plate ? (BASE_PLATE_STATUSES.includes(a.base_plate_status) ? a.base_plate_status : "Pending") : null;
+  const plateDate = plate ? (a.base_plate_date ?? "").trim() : "";
+  if (plateDate && !DAY_RE.test(plateDate)) return { ok: false, error: "Enter a valid base plate date." };
+  if (plateStatus && plateStatus !== "Pending" && !plateDate) {
+    return { ok: false, error: `Enter the date the base plate reached ${plateStatus}.` };
   }
+  const plateRemarks = plate ? text(a.base_plate_remarks) : null;
+
+  // The wooden box: where it comes from, how many, its status, and what came in.
+  const source = box ? WOODEN_BOX_SOURCES.filter((x) => (a.wooden_box_source ?? []).includes(x)) : [];
+  const required = box ? qty(a.wooden_box_required_qty) : null;
+  const stock = box ? qty(a.wooden_box_stock_qty) : null;
+  const boxStatus = box ? (WOODEN_BOX_STATUSES.includes(a.wooden_box_status) ? a.wooden_box_status : "Pending") : null;
+  const received = boxStatus === "Received";
+  const receivedDate = received ? (a.wooden_box_received_date ?? "").trim() : "";
+  const receivedQty = received ? qty(a.wooden_box_received_qty) : null;
+  if (box) {
+    if (source.length === 0) return { ok: false, error: "Choose whether the wooden box is in house, bought out, or both." };
+    if (required === false || stock === false || receivedQty === false) return { ok: false, error: "Quantities are whole numbers." };
+    if (required == null) return { ok: false, error: "Enter the wooden boxes required." };
+    if (received && !DAY_RE.test(receivedDate)) return { ok: false, error: "Enter the date the wooden box was received." };
+    if (received && !receivedQty) return { ok: false, error: "Enter the wooden boxes received." };
+  }
+  const boxRemarks = box ? text(a.wooden_box_remarks) : null;
+
   try {
     await query(
-      `UPDATE orders SET base_plate = $2, base_plate_status = $3, base_plate_date = $6::date,
-                         wooden_box = $4, wooden_box_status = $5, updated_at = now()
+      `UPDATE orders SET base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4,
+                         wooden_box_source = $5::text[], wooden_box_required_qty = $6, wooden_box_stock_qty = $7,
+                         wooden_box_status = $8, wooden_box_received_date = $9::date, wooden_box_received_qty = $10,
+                         wooden_box_remarks = $11, updated_at = now()
         WHERE id = $1`,
-      [orderId, plate, plateStatus, box, boxStatus, plateDate || null]
+      [
+        orderId,
+        plateStatus,
+        plateDate || null,
+        plateRemarks,
+        box ? source : null,
+        required || required === 0 ? required : null,
+        stock || stock === 0 ? stock : null,
+        boxStatus,
+        receivedDate || null,
+        receivedQty || null,
+        boxRemarks,
+      ]
     );
   } catch (error) {
     console.error("saveAlignmentAction failed:", error);
     return { ok: false, error: "Could not save the alignment." };
   }
   const label = (await getOrderLabel(orderId)) ?? orderId;
-  const part = (name: string, v: string | null, st: string | null) => `${name}: ${v ?? "—"}${st ? ` (${st})` : ""}`;
+  const parts = [
+    plate
+      ? `Base plate: ${plateStatus}${plateDate ? ` on ${plateDate}` : ""}${plateRemarks ? ` (${plateRemarks})` : ""}`
+      : "Base plate: not needed",
+    box
+      ? `Wooden box: ${source.join(" + ")}, ${required} required${stock ? `, ${stock} in stock` : ""}; ${boxStatus}${
+          received ? ` ${receivedQty} on ${receivedDate}` : ""
+        }${boxRemarks ? ` (${boxRemarks})` : ""}`
+      : "Wooden box: not needed",
+  ];
   await logAudit({
     actor: { id: user.id, email: user.email, role: user.role },
     action: "order.update",
     category: "activity",
     target: label,
-    details: `Alignment — ${part("Base plate", plate, plateStatus)}${plateDate ? ` on ${plateDate}` : ""}; ${part("Wooden box", box, boxStatus)}`,
+    details: `Alignment — ${parts.join("; ")}`,
     subject: await subjectForOrder(orderId),
   });
   revalidatePath("/risansi/departments/assembly-dispatch");

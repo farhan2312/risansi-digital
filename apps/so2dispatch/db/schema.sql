@@ -2214,9 +2214,10 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_value_inr NUMERIC(14,2);
 -- it follows the invoices.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_override TEXT;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_override_check;
+-- Hold as well (0033), so re-running this file passes over held SOs.
 ALTER TABLE orders ADD CONSTRAINT orders_status_override_check
     CHECK (status_override IS NULL OR status_override IN
-           ('Pending', 'LOT dispatch', 'Fully dispatch', 'Cancelled by client', 'Diverted'));
+           ('Pending', 'LOT dispatch', 'Fully dispatch', 'Hold', 'Cancelled by client', 'Diverted'));
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_reason TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_diverted_to TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_set_at TIMESTAMPTZ;
@@ -2886,19 +2887,12 @@ SELECT o.id, o.om_status, NULLIF(btrim(o.om_hold_reason), ''), NULLIF(btrim(o.om
    AND (o.om_status = 'Hold' OR NULLIF(btrim(o.om_hold_remarks), '') IS NOT NULL)
    AND NOT EXISTS (SELECT 1 FROM order_om_status_history h WHERE h.order_id = o.id);
 
--- 0030  Assembly & Packing's Alignment on a pump SO: whether it needs a base
--- plate (and whether that is manufactured yet) and a wooden box (and whether
--- it is made in house or bought out). Idempotent and additive.
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate TEXT;
+-- 0030  Assembly & Packing's Alignment on a pump SO: the base plate's and
+-- the wooden box's status (whether it needs either, and the check on the
+-- values, are 0037's). Idempotent and additive.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_status TEXT;
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_status TEXT;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_alignment_check;
-ALTER TABLE orders ADD CONSTRAINT orders_alignment_check CHECK (
-    (base_plate IS NULL OR base_plate IN ('Yes', 'No'))
-    AND (base_plate_status IS NULL OR base_plate_status IN ('Manufactured', 'Pending'))
-    AND (wooden_box IS NULL OR wooden_box IN ('Yes', 'No'))
-    AND (wooden_box_status IS NULL OR wooden_box_status IN ('In House', 'Bought out')));
 
 -- 0031  When a pump SO's base plate was manufactured. Idempotent and additive.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_date DATE;
@@ -2978,3 +2972,34 @@ CREATE TABLE IF NOT EXISTS user_extra_roles (
 -- author, and nobody else. An edit keeps when it was made; a delete
 -- removes the row, the text kept in the audit log. Idempotent and additive.
 ALTER TABLE order_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
+
+-- 0037  Whether a pump SO needs a base plate is its ECs' to say (Base Plate
+-- on the EC form, No unless set Yes), and a wooden box its Packing
+-- Requirement's: Assembly & Packing no longer says Yes or No, it tracks each.
+-- The base plate goes Pending, Fabrication, Marking, Drilling, Painting,
+-- Manufactured, with a day and remarks. The wooden box is made in house,
+-- bought out or both, in a required quantity (some in stock), Pending, In
+-- plan, Received, received on a day in a quantity, with remarks. The old
+-- Yes / No columns and statuses go (none was ever set). Idempotent.
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS base_plate TEXT;
+ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_base_plate_check;
+ALTER TABLE order_items ADD CONSTRAINT order_items_base_plate_check CHECK (base_plate IS NULL OR base_plate IN ('Yes', 'No'));
+ALTER TABLE orders DROP COLUMN IF EXISTS base_plate;
+ALTER TABLE orders DROP COLUMN IF EXISTS wooden_box;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_remarks TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_source TEXT[];
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_required_qty INTEGER;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_stock_qty INTEGER;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_received_date DATE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_received_qty INTEGER;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_remarks TEXT;
+UPDATE orders SET base_plate_status = NULL
+ WHERE base_plate_status NOT IN ('Pending', 'Fabrication', 'Marking', 'Drilling', 'Painting', 'Manufactured');
+UPDATE orders SET wooden_box_status = NULL WHERE wooden_box_status NOT IN ('Pending', 'In plan', 'Received');
+ALTER TABLE orders ADD CONSTRAINT orders_alignment_check CHECK (
+    (base_plate_status IS NULL OR base_plate_status IN ('Pending', 'Fabrication', 'Marking', 'Drilling', 'Painting', 'Manufactured'))
+    AND (wooden_box_status IS NULL OR wooden_box_status IN ('Pending', 'In plan', 'Received'))
+    AND (wooden_box_source IS NULL OR wooden_box_source <@ ARRAY['In house', 'Bought out']::text[])
+    AND COALESCE(wooden_box_required_qty, 0) >= 0
+    AND COALESCE(wooden_box_stock_qty, 0) >= 0
+    AND COALESCE(wooden_box_received_qty, 0) >= 0);

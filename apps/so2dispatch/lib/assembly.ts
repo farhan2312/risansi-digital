@@ -9,6 +9,23 @@
 
 export type Stage = "assembly" | "packing";
 
+/**
+ * The Alignment on a pump SO. It needs a base plate when an EC says so (Base
+ * Plate on the EC form), and a wooden box when its Packing Requirement is
+ * Wooden Box; Assembly & Packing tracks each.
+ */
+export const BASE_PLATE_STATUSES = ["Pending", "Fabrication", "Marking", "Drilling", "Painting", "Manufactured"];
+export const WOODEN_BOX_SOURCES = ["In house", "Bought out"];
+export const WOODEN_BOX_STATUSES = ["Pending", "In plan", "Received"];
+
+/** Yes when an EC of the SO (alias o) needs a base plate, else No. */
+export const basePlateSql = (o: string) =>
+  `CASE WHEN EXISTS (SELECT 1 FROM order_items bpi WHERE bpi.order_id = ${o}.id AND bpi.base_plate = 'Yes') THEN 'Yes' ELSE 'No' END`;
+
+/** Yes when the SO (alias o) is packed in a wooden box, No for other packing, null before it is said. */
+export const woodenBoxSql = (o: string) =>
+  `CASE WHEN ${o}.packing_requirement = 'Wooden Box' THEN 'Yes' WHEN NULLIF(btrim(${o}.packing_requirement), '') IS NOT NULL THEN 'No' END`;
+
 export const ASSEMBLY_SHIFTS = ["Day", "Night"];
 export const PDI_CHOICES = ["Yes", "No"];
 

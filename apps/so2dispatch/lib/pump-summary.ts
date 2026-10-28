@@ -7,7 +7,7 @@ import { spareEcSql, boiReceivedSql, orderStatusSql } from "@/lib/dept-view";
 import { curveStatusSql, ecDrawingDoneSql, ecGadStatusSql, partStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
-import { soStageStatusSql } from "@/lib/assembly";
+import { basePlateSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
 import { SO_PLANNING_STATUS } from "@/lib/orders";
 
 /** One department's standing on the SO: the status holding it back, and how many of its ECs are through. */
@@ -34,6 +34,7 @@ export type PumpSummary = {
     base_plate_date: string | null;
     wooden_box: string | null;
     wooden_box_status: string | null;
+    wooden_box_received_date: string | null;
   };
   /** The SO's dispatch status, as on the Orders list. */
   dispatch: string;
@@ -92,6 +93,7 @@ type Raw = {
   base_plate_date: string | null;
   wooden_box: string | null;
   wooden_box_status: string | null;
+  wooden_box_received_date: string | null;
   dispatch: string | null;
   sent_asm: boolean;
   sent_dsp: boolean;
@@ -136,8 +138,9 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
             ${soStageStatusSql("packing", "o")} AS packing_status,
             (SELECT to_char(min(rl.packing_plan_date), 'YYYY-MM-DD') ${lots} AND rl.packed_date IS NULL) AS packing_next,
             (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${lots}) AS packing_last,
-            o.base_plate, o.base_plate_status, to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date,
-            o.wooden_box, o.wooden_box_status,
+            ${basePlateSql("o")} AS base_plate, o.base_plate_status, to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date,
+            ${woodenBoxSql("o")} AS wooden_box, o.wooden_box_status,
+            to_char(o.wooden_box_received_date, 'YYYY-MM-DD') AS wooden_box_received_date,
             ${orderStatusSql("o")} AS dispatch,
             EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
                      WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")})
@@ -189,6 +192,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
         base_plate_date: x.base_plate_date,
         wooden_box: x.wooden_box,
         wooden_box_status: x.wooden_box_status,
+        wooden_box_received_date: x.wooden_box_received_date,
       },
       dispatch: x.dispatch || "Pending",
       sentToAssembly: !!x.sent_asm,
