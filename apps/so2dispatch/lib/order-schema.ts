@@ -159,6 +159,17 @@ export function billModeLabel(billMode: unknown, billType?: unknown): string {
 // Clearance: Central Visibility releases an SO to the departments (Clear) or
 // holds it, with the reason kept for regular review.
 export const CLEARANCE_OPTIONS = opts(["Clear", "Hold"]);
+/** Why Order Making holds an SO: the reasons it picks from. */
+export const OM_HOLD_REASONS = opts([
+  "Client side Delay",
+  "TSM Side Delay",
+  "PPC delay (Code or BOM not open in ERP)",
+  "SO making team Overloaded",
+  "Delay Due to PO missing or mismatch",
+  "Under Approval Process",
+  "Due to Holiday",
+]);
+
 export const CLEARANCE_HOLD_REASONS = opts([
   "Hold by Client",
   "Client Indent pending",
@@ -361,11 +372,12 @@ export const ORDER_SECTIONS: OrderSection[] = [
       // Order Making's own Clear / Hold, before Central's clearance: an SO
       // Order Making holds goes to no department (lib/dept-view releasedSql).
       { column: "om_status", label: "Order Making Status", type: "select", options: CLEARANCE_OPTIONS, defaultValue: "Clear", group: "Order Making Hold" },
-      // Typed: Order Making says why in its own words.
+      // Picked from Order Making's list (an older typed reason still shows).
       {
         column: "om_hold_reason",
         label: "Order Making Reason of Delay",
-        type: "text",
+        type: "select",
+        options: OM_HOLD_REASONS,
         dependsOn: [{ column: "om_status", value: "Hold" }],
         group: "Order Making Hold",
       },
