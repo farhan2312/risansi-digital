@@ -82,8 +82,9 @@ export function reachedDepts(order: OrderListRow, status: SoDeptStatus | undefin
   return tags;
 }
 
-/** Planning's word on the SO. A Spare starts at Date awaited — even before its first EC. */
+/** Planning's word on the SO. A Spare starts at Date awaited — once it has an EC; with none it reaches no department. */
 export function planningText(order: OrderListRow, status: SoDeptStatus | undefined): string | null {
+  if (Number(order.ec_count ?? 0) === 0) return null;
   return (
     order.readiness_status ??
     acrossEcs(status, "planning")?.label ??

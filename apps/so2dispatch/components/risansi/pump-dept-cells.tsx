@@ -115,6 +115,19 @@ export function PumpLeadCells({
 }) {
   const d = s.drawing;
   const readinessLate = !!d.readiness && !d.closed && d.readiness < today;
+  // No EC yet: the SO has reached none of these departments.
+  if (!s.hasEcs) {
+    const none = <span className="text-xs text-muted-foreground">—</span>;
+    return (
+      <>
+        {[true, false, false, false, true, true, true, false].map((first, i) => (
+          <td key={i} className={td(first)}>
+            {none}
+          </td>
+        ))}
+      </>
+    );
+  }
   return (
     <>
       <td className={td(true)} onClick={(e) => e.stopPropagation()}>

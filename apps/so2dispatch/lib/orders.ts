@@ -3470,10 +3470,13 @@ function deptStatusPredicate(dept: DeptFilterKey, status: string): string {
   return withCvHold(dept, status, () => ownDeptStatusPredicate(dept, status));
 }
 
+/** The SO (alias o) has an EC: until it does it reaches Drawing, Purchase, Quality and Planning not at all. */
+const HAS_EC_SQL = `EXISTS (SELECT 1 FROM order_items hi WHERE hi.order_id = o.id)`;
+
 function ownDeptStatusPredicate(dept: DeptFilterKey, status: string): string {
   if (!isPerEcDept(dept)) return `(${soState(dept, status)})`;
   // Planning and Assembly & Packing go by the SO's own status, not any one EC's.
-  if (dept === "planning") return `${SO_PLANNING_STATUS} = ${lit(status)}`;
+  if (dept === "planning") return `${HAS_EC_SQL} AND ${SO_PLANNING_STATUS} = ${lit(status)}`;
   if (dept === "assembly") return `${SO_ASSEMBLY_STATUS} = ${lit(status === "Packed" ? "Fully packed" : status)}`;
   return `EXISTS (SELECT 1 FROM order_items it
                    WHERE it.order_id = o.id AND (${ecState(dept, status)}))`;
@@ -4210,6 +4213,8 @@ export function pumpOrderCards(): KpiCardDef[] {
     // Central Visibility it is Hold everywhere (Dispatch hold counts it), and
     // on any SO hold it is no department's Pending.
     sql: `(${sql}) AND ${open} AND NOT ${onlyBillingSql("o")}${
+      ["Purchase", "Quality", "Planning"].includes(group) ? ` AND ${HAS_EC_SQL}` : ""
+    }${
       key === "dsp_hold"
         ? ""
         : ` AND NOT ${CV_HOLD_SQL}${tone === "pending" ? ` AND NOT ${soHoldSql("o", PUMP_CARD_DEPT[group])}` : ""}`

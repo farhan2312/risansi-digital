@@ -43,6 +43,8 @@ export type PumpSummary = {
   sentToDispatch: boolean;
   /** Central Visibility holds the SO: every department reads Hold until it is cleared. */
   held: boolean;
+  /** Any EC yet: with none it reaches Drawing, Purchase, Quality and Planning not at all. */
+  hasEcs: boolean;
   /** Its packing slips (Planning's tentative and Packing's actual), oldest first. */
   slips: { no: string | null; date: string | null; qty: number | null; kind: string | null }[];
 };
@@ -94,6 +96,7 @@ type Raw = {
   sent_asm: boolean;
   sent_dsp: boolean;
   held: boolean;
+  has_ecs: boolean;
   slips: { no: string | null; date: string | null; qty: number | null; kind: string | null }[];
 };
 
@@ -149,6 +152,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
               OR EXISTS (SELECT 1 FROM order_ready_lots dl JOIN order_items s ON s.id = dl.item_id
                           WHERE s.order_id = o.id AND dl.packed_date IS NOT NULL)) AS sent_dsp,
             COALESCE(o.clearance_status, '') = 'Hold' AS held,
+            EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AS has_ecs,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('no', ps.packing_slip_no,
                                        'date', to_char(ps.packing_slip_date, 'YYYY-MM-DD'),
                                        'qty', ps.quantity, 'kind', ps.kind)
@@ -195,6 +199,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
       sentToAssembly: !!x.sent_asm,
       sentToDispatch: !!x.sent_dsp,
       held: !!x.held,
+      hasEcs: !!x.has_ecs,
       slips: Array.isArray(x.slips) ? x.slips : [],
     };
   }

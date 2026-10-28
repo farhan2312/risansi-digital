@@ -208,10 +208,14 @@ function pumpStep(st: { status: string; next: string | null; last: string | null
 /** The Pump columns past the SO's own: Drawing, Purchase, Quality, Planning, Assembly & Packing, the slips. */
 function pumpCells(s: PumpSummary, today: string, held = false): Partial<Record<Key, Line[]>> {
   const cells = pumpOwnCells(s, today);
+  // No EC yet: it has reached none of Drawing, Purchase, Quality and Planning.
+  if (!s.hasEcs) {
+    for (const k of ["gad", "curve", "part", "drgReady", "boi", "qc", "plan", "planDate"] as const) cells[k] = NOT_YET;
+  }
   if (held) {
     for (const k of ["gad", "curve", "part", "boi", "qc", "plan", "asm", "pack"] as const) {
       // What is not required stays so.
-      if (cells[k]?.[0]?.text !== "Not required") cells[k] = HOLD;
+      if (cells[k]?.[0]?.text !== "Not required" && cells[k] !== NOT_YET) cells[k] = HOLD;
     }
   } else if (!s.sentToAssembly) {
     cells.asm = NOT_YET;
