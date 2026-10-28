@@ -46,18 +46,20 @@ export const PENDING = "Pending";
  */
 export const HOLD = "Hold";
 
-/** The departments whose SO hold counts Dispatch's own hold too. */
-const DISPATCH_HOLD_DEPTS: readonly string[] = ["dispatch", "billing", "accounts"];
+/** The departments whose SO hold is every hold: Dispatch's, Central Visibility's, Order Making's and Accounts'. */
+const ALL_HOLD_DEPTS: readonly string[] = ["dispatch", "billing", "accounts"];
 
 /**
- * The SO is on hold (alias o) — by Central Visibility or Order Making, and by
- * Dispatch (its dispatch status Hold) on the Orders list and in Dispatch,
- * Proforma Invoice and Accounts. Accounts' own hold is not an SO hold. The SO
- * hold card and filter; a held SO counts as no department's Open or Pending.
+ * The SO is on hold (alias o) — by Central Visibility or Order Making; on the
+ * Orders list by Dispatch too (its dispatch status Hold); and in Dispatch,
+ * Proforma Invoice and Accounts by anyone, Accounts included. The SO hold
+ * card and filter; a held SO counts as no department's Open or Pending.
  */
 export function soHoldSql(o = "o", dept?: string | null): string {
-  const dispatch = !dept || DISPATCH_HOLD_DEPTS.includes(dept) ? ` OR COALESCE(${o}.status_override, '') = 'Hold'` : "";
-  return `(COALESCE(${o}.clearance_status, '') = 'Hold' OR COALESCE(${o}.om_status, '') = 'Hold'${dispatch})`;
+  const all = !!dept && ALL_HOLD_DEPTS.includes(dept);
+  const dispatch = !dept || all ? ` OR COALESCE(${o}.status_override, '') = 'Hold'` : "";
+  const accounts = all ? ` OR COALESCE(${o}.accounts_hold_status, '') = 'Hold'` : "";
+  return `(COALESCE(${o}.clearance_status, '') = 'Hold' OR COALESCE(${o}.om_status, '') = 'Hold'${dispatch}${accounts})`;
 }
 
 /** `expr IN values`, a held SO (alias o) left out of the open words. */

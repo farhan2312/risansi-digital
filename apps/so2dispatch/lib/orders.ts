@@ -4296,7 +4296,8 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
 }
 
 export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
-  const statuses = statusesFor(dept, types);
+  // Hold is no status card: the SO hold card counts it (Dispatch keeps its own).
+  const statuses = statusesFor(dept, types).filter((st) => st !== HOLD || dept === "dispatch");
   const planning = dept === "planning";
   const clear = {
     dstatus: null,
