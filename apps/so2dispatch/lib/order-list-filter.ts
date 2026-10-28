@@ -86,8 +86,8 @@ export const HOLD_REASON_FILTER_OPTIONS = CLEARANCE_HOLD_REASONS.map((o) => o.va
 
 /** The departments that see those two filters. */
 export const PAYMENT_FILTER_DEPTS: readonly string[] = ["billing", "accounts"];
-/** The departments that filter by Bill Mode: those two, Planning and Assembly & Packing. */
-export const BILL_MODE_FILTER_DEPTS: readonly string[] = ["billing", "accounts", "planning", "assembly"];
+/** The departments that filter by Bill Mode: those two, Planning, Assembly & Packing and Dispatch. */
+export const BILL_MODE_FILTER_DEPTS: readonly string[] = ["billing", "accounts", "planning", "assembly", "dispatch"];
 /** The queues that filter by the SO's dispatch status beside their own status. */
 export const DISPATCH_STATUS_FILTER_DEPTS: readonly string[] = ["billing", "planning", "assembly"];
 

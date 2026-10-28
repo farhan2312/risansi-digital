@@ -347,7 +347,7 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ pterm: next })}
           />
         )}
-        {/* Billing, Accounts and Planning: how the SO is billed. */}
+        {/* Billing, Accounts, Planning, Assembly & Packing and Dispatch: how the SO is billed. */}
         {(!dept || (activeDept && BILL_MODE_FILTER_DEPTS.includes(activeDept))) && (
           <MultiSelectFilter
             label="Bill mode"
