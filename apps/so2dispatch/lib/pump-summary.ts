@@ -37,6 +37,10 @@ export type PumpSummary = {
   };
   /** The SO's dispatch status, as on the Orders list. */
   dispatch: string;
+  /** Planning has sent it on to Assembly & Packing: a pump EC Partial or Fully ready (or some ready). */
+  sentToAssembly: boolean;
+  /** It has reached Dispatch: something packed (a packing slip filed), or a dispatch status set. */
+  sentToDispatch: boolean;
   /** Its packing slips (Planning's tentative and Packing's actual), oldest first. */
   slips: { no: string | null; date: string | null; qty: number | null; kind: string | null }[];
 };
@@ -85,6 +89,8 @@ type Raw = {
   wooden_box: string | null;
   wooden_box_status: string | null;
   dispatch: string | null;
+  sent_asm: boolean;
+  sent_dsp: boolean;
   slips: { no: string | null; date: string | null; qty: number | null; kind: string | null }[];
 };
 
@@ -127,6 +133,16 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
             o.base_plate, o.base_plate_status, to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date,
             o.wooden_box, o.wooden_box_status,
             ${orderStatusSql("o")} AS dispatch,
+            EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
+                     WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")})
+                       AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))
+              OR ${SO_PLANNING_STATUS} IN ('Partial ready', 'Fully ready') AS sent_asm,
+            (${orderStatusSql("o")} <> 'Pending'
+              OR EXISTS (SELECT 1 FROM order_packing_slips sps
+                          WHERE sps.order_id = o.id AND sps.kind = 'actual'
+                            AND (NULLIF(btrim(sps.packing_slip_no), '') IS NOT NULL OR sps.packing_slip_date IS NOT NULL))
+              OR EXISTS (SELECT 1 FROM order_items s JOIN order_assembly_dispatch ad ON ad.item_id = s.id
+                          WHERE s.order_id = o.id AND ad.actual_packing_date IS NOT NULL)) AS sent_dsp,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('no', ps.packing_slip_no,
                                        'date', to_char(ps.packing_slip_date, 'YYYY-MM-DD'),
                                        'qty', ps.quantity, 'kind', ps.kind)
@@ -170,6 +186,8 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
         wooden_box_status: x.wooden_box_status,
       },
       dispatch: x.dispatch || "Pending",
+      sentToAssembly: !!x.sent_asm,
+      sentToDispatch: !!x.sent_dsp,
       slips: Array.isArray(x.slips) ? x.slips : [],
     };
   }

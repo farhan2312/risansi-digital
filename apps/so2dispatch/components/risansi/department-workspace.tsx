@@ -421,6 +421,19 @@ export function DepartmentWorkspace({
       ? { status: "Fully packed", date: `Packed ${shortDate(ec.actual_packing_date)}` }
       : { status: isSpareRow(ec) ? "—" : "Pending", date: "" };
   };
+  /** Planning has sent the SO on to Assembly & Packing: an EC ready (a lot past In plan) or packed. */
+  const sentToAssembly = (ecs: Row[]) =>
+    ecs.some(
+      (ec) =>
+        packingLotsFromRows(ec.ready_lots).some((l) => l.status !== "In plan") ||
+        /^(Partial ready|Fully ready)$/.test(toInput(ec.actual_spare_status) || toInput(ec.actual_pump_status)) ||
+        !!toInput(ec.actual_packing_date)
+    );
+  /** The SO has reached Dispatch: something packed (a slip filed), or a dispatch status set. */
+  const sentToDispatch = (head: Row, ecs: Row[]) =>
+    (!!toInput(head.so_dispatch_status) && toInput(head.so_dispatch_status) !== "Pending") ||
+    (Array.isArray(head.so_slips) && head.so_slips.length > 0) ||
+    ecs.some((ec) => !!toInput(ec.actual_packing_date) || packingLotsFromRows(ec.ready_lots).some((l) => !!l.packed_date));
   // Planning and Assembly & Packing edit the SO as one; an EC has its own Edit
   // only where that can't be done — an SO mixing Pump and Spare ECs.
   const ecEditFor = (ecs: Row[]) => !soEdit || new Set(ecs.map(isSpareRow)).size > 1;
@@ -1065,7 +1078,8 @@ export function DepartmentWorkspace({
                                       </td>
                                     ))}
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      {cvHeld(g.head) ? <HoldChip /> : asm.status}
+                                      {/* Not sent on to Assembly & Packing yet: "—". */}
+                                      {cvHeld(g.head) ? <HoldChip /> : sentToAssembly(g.ecs) ? asm.status : <span className="text-muted">—</span>}
                                       {asm.date !== "—" && asm.date !== "Mixed" && (
                                         <div className="text-[11px] text-muted">{asm.date}</div>
                                       )}
@@ -1088,7 +1102,13 @@ export function DepartmentWorkspace({
                                       )}
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      {cvHeld(g.head) ? <HoldChip /> : <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />}
+                                      {cvHeld(g.head) ? (
+                                        <HoldChip />
+                                      ) : sentToDispatch(g.head, g.ecs) ? (
+                                        <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
+                                      ) : (
+                                        <span className="text-muted">—</span>
+                                      )}
                                     </td>
                                   </>
                                 );

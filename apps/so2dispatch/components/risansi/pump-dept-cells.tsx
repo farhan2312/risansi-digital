@@ -236,8 +236,13 @@ export function PumpAfterPlanningCells({ s, today, className, rowSpan }: { s: Pu
           <span className="text-xs text-muted">—</span>
         )}
       </td>
-      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>{stage(s.assembly.status, asm)}</td>
-      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>{stage(s.packing.status, pkg)}</td>
+      {/* Not sent on to Assembly & Packing yet: nothing there to show. */}
+      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
+        {s.sentToAssembly ? stage(s.assembly.status, asm) : <span className="text-xs text-muted">—</span>}
+      </td>
+      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
+        {s.sentToAssembly ? stage(s.packing.status, pkg) : <span className="text-xs text-muted">—</span>}
+      </td>
       <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
         {s.slips.length ? (
           s.slips.map((p, i) => (
@@ -255,9 +260,13 @@ export function PumpAfterPlanningCells({ s, today, className, rowSpan }: { s: Pu
         )}
       </td>
       <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
-        <span className={`text-[13px] font-medium ${dispatched ? TONE.done : /partial|lot/i.test(s.dispatch) ? TONE.part : TONE.pending}`}>
-          {s.dispatch}
-        </span>
+        {s.sentToDispatch ? (
+          <span className={`text-[13px] font-medium ${dispatched ? TONE.done : /partial|lot/i.test(s.dispatch) ? TONE.part : TONE.pending}`}>
+            {s.dispatch}
+          </span>
+        ) : (
+          <span className="text-xs text-muted">—</span>
+        )}
       </td>
     </>
   );
