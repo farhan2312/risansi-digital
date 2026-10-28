@@ -18,8 +18,8 @@ import { ALL_ROLES, isCentral, type Role } from "@/lib/roles";
  * with itself — its own team — stored with itself on both sides
  * (dept_role = to_role).
  *
- * Its author may edit an entry (it then says so) or delete it — Admin may
- * delete any — see editMessage / deleteMessage.
+ * Its author may edit an entry (it then says so) or delete it — nobody
+ * else may — see editMessage / deleteMessage.
  */
 
 export type OrderMessage = {
@@ -640,12 +640,12 @@ export async function editMessage(id: string, authorId: string, body: string): P
   return result.rows[0] ?? null;
 }
 
-/** Delete an entry: its author's own, or any (Admin). Null when not allowed (or gone). */
-export async function deleteMessage(id: string, actorId: string, any: boolean): Promise<ChangedMessage | null> {
+/** Delete an entry — its author's own only. Null when it is not theirs (or gone). */
+export async function deleteMessage(id: string, authorId: string): Promise<ChangedMessage | null> {
   const result = await query<ChangedMessage>(
-    `DELETE FROM order_messages WHERE id = $1 AND ($3 OR author_id = $2)
+    `DELETE FROM order_messages WHERE id = $1 AND author_id = $2
       RETURNING order_id, dept_role, to_role, kind, body`,
-    [id, actorId, any]
+    [id, authorId]
   );
   return result.rows[0] ?? null;
 }

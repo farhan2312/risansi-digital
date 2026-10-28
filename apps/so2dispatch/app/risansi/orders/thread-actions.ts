@@ -179,8 +179,8 @@ export async function editMessageAction(orderId: string, peer: string, messageId
 }
 
 /**
- * Delete an entry (a note or a delay): your own, or — Admin — anyone's. A
- * delay goes off the delay log with it. Its text is kept in the audit log.
+ * Delete one of your own entries (a note or a delay). A delay goes off the
+ * delay log with it. Its text is kept in the audit log.
  */
 export async function deleteMessageAction(orderId: string, peer: string, messageId: string): Promise<ThreadResult> {
   const user = await getCurrentUser();
@@ -188,8 +188,8 @@ export async function deleteMessageAction(orderId: string, peer: string, message
   if (!UUID_RE.test(messageId) || !canUsePeer(user.role, peer)) return { ok: false, error: "That message is not here." };
   if (!(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
   try {
-    const gone = await deleteMessage(messageId, user.id, (user.primary_role ?? user.role) === "admin");
-    if (!gone) return { ok: false, error: "Only its author can delete a message." };
+    const gone = await deleteMessage(messageId, user.id);
+    if (!gone || gone.order_id !== orderId) return { ok: false, error: "Only its author can delete a message." };
     await logAudit({
       actor: { id: user.id, email: user.email, role: user.role },
       action: "message.delete",

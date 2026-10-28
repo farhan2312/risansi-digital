@@ -276,9 +276,9 @@ export function OrderThread({
     refreshConversations();
   }
 
-  // Your own entries you may edit and delete; Admin may delete anyone's.
+  // Only your own entries may be edited or deleted.
   const canEditMsg = (m: OrderMessage) => m.mine;
-  const canDeleteMsg = (m: OrderMessage) => m.mine || role === "admin";
+  const canDeleteMsg = (m: OrderMessage) => m.mine;
 
   /** An entry's text — or, while it is being edited, the box to change it. */
   function messageBody(m: OrderMessage, tone: "mine" | "plain" | "delay") {
