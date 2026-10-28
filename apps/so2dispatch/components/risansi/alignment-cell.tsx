@@ -31,7 +31,7 @@ function shortDate(v: string): string {
 }
 
 /** One Alignment item on the front: its status (Pending until set) and the day, No, or not set. */
-function Value({ yes, status, done, date = "", note = "" }: { yes: string; status: string; done: string; date?: string; note?: string }) {
+function Value({ yes, status, done, date = "" }: { yes: string; status: string; done: string; date?: string }) {
   if (yes === "No") return <span className="text-xs text-muted">No</span>;
   if (yes !== "Yes") return <span className="text-xs text-muted">—</span>;
   const st = status || "Pending";
@@ -45,7 +45,6 @@ function Value({ yes, status, done, date = "", note = "" }: { yes: string; statu
         {st}
       </span>
       {date && <span className="whitespace-nowrap text-[11px] text-muted">{shortDate(date)}</span>}
-      {note && <span className="whitespace-nowrap text-[11px] text-muted">{note}</span>}
     </span>
   );
 }
@@ -287,20 +286,30 @@ export function AlignmentValue({
       className="w-full text-left enabled:hover:opacity-80 disabled:cursor-default"
     >
       {boxes.length ? (
-        // Each way on its own: in house, bought out.
+        // In house and bought out together, each on a line with its status,
+        // then its required, stock and received quantities.
         <span className="flex flex-col items-start gap-1.5">
           {boxes.map((b) => {
-            const st = str(b.status);
+            const st = str(b.status) || "Pending";
+            const n = (v: unknown) => str(v) || "0";
             return (
               <span key={str(b.source)} className="flex flex-col items-start gap-0.5">
-                <span className="whitespace-nowrap text-[11px] font-semibold text-foreground">{str(b.source)}</span>
-                <Value
-                  yes="Yes"
-                  status={st}
-                  done={DONE.wooden_box}
-                  date={st === "Received" ? str(b.received_date) : ""}
-                  note={st === "Received" ? `${str(b.received_qty) || 0} of ${str(b.required_qty)}` : `${str(b.required_qty)} required`}
-                />
+                <span className="flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="text-[11px] font-semibold text-foreground">{str(b.source)}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      st === DONE.wooden_box ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {st}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap text-[11px] text-muted">
+                  Required {n(b.required_qty)} · Stock {n(b.stock_qty)} · Received {n(b.received_qty)}
+                </span>
+                {st === "Received" && str(b.received_date) && (
+                  <span className="whitespace-nowrap text-[11px] text-muted">{shortDate(str(b.received_date))}</span>
+                )}
               </span>
             );
           })}
