@@ -108,7 +108,7 @@ const DAY = 86400000;
 const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 
 /** Where a pump SO stands: dispatch first (it overrides), then packing, assembly and planning. */
-function stageOf(dispatchStatus: string, s: PumpSummary | undefined): PumpStage {
+export function stageOf(dispatchStatus: string, s: PumpSummary | undefined): PumpStage {
   const dispatch = dispatchStatus || "Pending";
   if (CLOSED.includes(dispatch)) return "Cancelled / Diverted";
   if (dispatch === "Fully dispatch") return "Fully dispatched";

@@ -4,6 +4,7 @@ import { canViewAll } from "@/lib/roles";
 import { isTestSo, listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, parseQueueSort } from "@/lib/orders";
 import { describeOrderListFilter, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
 import { buildOrdersListPdf } from "@/lib/orders-list-pdf";
+import { listPumpSummaries } from "@/lib/pump-summary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,9 +33,12 @@ export async function GET(req: NextRequest) {
   const ids = result.rows.map((r) => r.id);
   // Spare: lot by lot, and each dispatch's slips, invoice, mode and docket.
   const spare = filter.types.length === 1 && filter.types[0] === "Spare";
-  const [statuses, billing] = await Promise.all([
+  // Pump: every department on each SO, as the Pump view shows it.
+  const pump = !spare && filter.types.length > 0 && filter.types.every((t) => /^(pump|rolb)$/i.test(t));
+  const [statuses, billing, summaries] = await Promise.all([
     listOrderDeptStatuses(ids),
     spare ? listOrdersForBilling(ids) : Promise.resolve([]),
+    pump ? listPumpSummaries(ids) : Promise.resolve({}),
   ]);
 
   const bytes = await buildOrdersListPdf(result.rows, statuses, describeOrderListFilter(filter), {
@@ -42,6 +46,7 @@ export async function GET(req: NextRequest) {
     total: result.total,
     spare: spare ? new Map(billing.map((b) => [b.id, b])) : undefined,
     byRep: sort === "rep" || sort === "-rep",
+    pump: pump ? new Map(Object.entries(summaries)) : undefined,
   });
 
   const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });

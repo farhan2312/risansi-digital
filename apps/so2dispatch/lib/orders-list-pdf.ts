@@ -5,10 +5,14 @@ import { billModeLabel, PAYMENT_HOLD_VALUE } from "@/lib/order-schema";
 import { CLOSED, READY, assemblyView, planningText, reachedDepts } from "@/lib/order-row-view";
 import type { BillingQueueRow, DeptCell, OrderListRow, SoDeptStatus } from "@/lib/orders";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
+import type { PumpStage as SummaryStage, PumpSummary } from "@/lib/pump-summary";
+import { stageOf as pumpStageOf, type PumpStage } from "@/lib/pump-dashboard";
 
 // The Orders list on paper: the same columns as the list on screen, every SO
 // on one line, with summary cards on top. A3 landscape, so all seventeen
-// columns fit across without shrinking the text below reading size.
+// columns fit across without shrinking the text below reading size. The
+// Spare list goes lot by lot; the Pump list department by department, as the
+// Orders list's Pump view reads them (lib/pump-summary).
 
 type Row = Record<string, unknown>;
 
@@ -95,7 +99,8 @@ const PAD = 4;
 type Key =
   | "sl" | "so" | "soDate" | "type" | "client" | "code" | "rep" | "zone" | "bill"
   | "value" | "depts" | "pay" | "readiness" | "planning" | "assembly" | "dispatch" | "ecs"
-  | "p1" | "p2" | "p3" | "a1" | "a2" | "a3" | "slips" | "invoice" | "sent" | "docket";
+  | "p1" | "p2" | "p3" | "a1" | "a2" | "a3" | "slips" | "invoice" | "sent" | "docket"
+  | "gad" | "curve" | "part" | "drgReady" | "boi" | "qc" | "plan" | "planDate" | "align" | "asm" | "pack" | "pslips";
 
 /** group: a heading over several columns (Planning over its Lot 1, Lot 2, Lot 3). */
 type Column = { key: Key; label: string; width: number; align?: "right" | "center"; group?: string };
@@ -146,6 +151,123 @@ const SPARE_COLUMNS: Column[] = [
   { key: "docket", label: "Docket & LR", width: 78 },
   { key: "dispatch", label: "Dispatch Status", width: 51 },
 ];
+
+/** The Pump list: every department on the SO, as the Orders list's Pump view shows it. */
+const PUMP_COLUMNS: Column[] = [
+  { key: "sl", label: "Sl. No.", width: 22 },
+  // The SO Date sits under the SO No.
+  { key: "so", label: "SO No. & Date", width: 70 },
+  { key: "client", label: "Client Name", width: 88 },
+  { key: "rep", label: "Rep", width: 46 },
+  { key: "value", label: "Order Value", width: 58, align: "right" },
+  { key: "pay", label: "Payment terms, PIs & payment", width: 100 },
+  { key: "gad", label: "GAD", width: 64, group: "Drawing" },
+  { key: "curve", label: "Perf. Curve", width: 54, group: "Drawing" },
+  { key: "part", label: "Part Drawing", width: 50, group: "Drawing" },
+  { key: "drgReady", label: "Readiness", width: 46, group: "Drawing" },
+  { key: "boi", label: "BOI", width: 52, group: "Purchase" },
+  { key: "qc", label: "QC Docs", width: 54, group: "Quality" },
+  { key: "plan", label: "Status", width: 50, group: "Planning" },
+  { key: "planDate", label: "Assembly Readiness", width: 50, group: "Planning" },
+  { key: "align", label: "Alignment", width: 66, group: "Assembly & Packing" },
+  { key: "asm", label: "Assembly", width: 60, group: "Assembly & Packing" },
+  { key: "pack", label: "Packing", width: 60, group: "Assembly & Packing" },
+  { key: "pslips", label: "Packing Slips", width: 70, group: "Dispatch" },
+  { key: "dispatch", label: "Status", width: 54, group: "Dispatch" },
+  { key: "ecs", label: "ECs", width: 21, align: "center" },
+];
+
+/** A stage across the SO's ECs, as the Pump view colours it: its status and how many are through. */
+function pumpStage(s: SummaryStage, doneLabel: string, through: string): Line[] {
+  if (!s.total) return [{ text: "—", color: C.muted }];
+  const color = s.done === s.total ? C.green : s.label === "Resubmit" ? C.red : s.done > 0 || (s.label !== "Pending" && s.label !== doneLabel) ? C.blue : C.ink;
+  return [
+    { text: s.label, bold: true, color },
+    { text: `${s.done}/${s.total} ${through}`, color: C.muted, size: 6.5 },
+  ];
+}
+
+/** Assembly or packing on a pump SO: its status, and its next plan (red once past) or the last done. */
+function pumpStep(st: { status: string; next: string | null; last: string | null }, today: string): Line[] {
+  const full = /^fully/i.test(st.status);
+  const late = !full && !!st.next && st.next < today;
+  const line = !full && st.next ? `Plan ${day(st.next)}${late ? " · overdue" : ""}` : st.last ? `Done ${day(st.last)}` : "";
+  return [
+    { text: st.status, bold: true, color: full ? C.green : /^partial/i.test(st.status) ? C.blue : C.ink },
+    ...(line ? [{ text: line, color: late ? C.red : C.muted, size: 6.5 }] : []),
+  ];
+}
+
+/** The Pump columns past the SO's own: Drawing, Purchase, Quality, Planning, Assembly & Packing, the slips. */
+function pumpCells(s: PumpSummary, today: string): Partial<Record<Key, Line[]>> {
+  const notNeeded: Line[] = [{ text: "Not required", color: C.muted, size: 6.5 }];
+  const d = s.drawing;
+  const drgLate = !!d.readiness && !d.closed && d.readiness < today;
+  const a = s.alignment;
+  const part = (name: string, yes: string | null, status: string | null, date?: string | null): Line | null =>
+    yes === "Yes"
+      ? { text: `${name}: ${status ?? "Yes"}${date ? ` ${day(date)}` : ""}`, color: status === "Pending" ? C.amber : C.ink }
+      : yes === "No"
+        ? { text: `${name}: No`, color: C.muted }
+        : null;
+  const align = [part("Base plate", a.base_plate, a.base_plate_status, a.base_plate_date), part("Wooden box", a.wooden_box, a.wooden_box_status)].filter(
+    (x): x is Line => !!x
+  );
+  return {
+    gad: pumpStage(d.gad, "Issued to planning", "issued"),
+    curve: d.curve ? pumpStage(d.curve, "Approved by client", "approved") : notNeeded,
+    part: d.part ? pumpStage(d.part, "Fully complete", "complete") : notNeeded,
+    drgReady: d.closed
+      ? [{ text: "Closed", bold: true, color: C.green }, ...(d.readiness ? [{ text: day(d.readiness), color: C.muted, size: 6.5 }] : [])]
+      : d.readiness
+        ? [{ text: day(d.readiness), bold: true, color: drgLate ? C.red : C.ink }, ...(drgLate ? [{ text: "Overdue", color: C.red, size: 6.5 }] : [])]
+        : [],
+    boi: s.purchase.required
+      ? [
+          { text: s.purchase.state, bold: true, color: s.purchase.state === "Closed" ? C.green : C.ink },
+          { text: s.purchase.items ? `${s.purchase.received}/${s.purchase.items} received` : "No items yet", color: C.muted, size: 6.5 },
+        ]
+      : notNeeded,
+    qc: s.quality.required
+      ? [
+          { text: s.quality.state, bold: true, color: s.quality.state === "Closed" ? C.green : s.quality.submitted > 0 ? C.blue : C.ink },
+          { text: s.quality.total ? `${s.quality.submitted}/${s.quality.total} ECs submitted` : "No ECs yet", color: C.muted, size: 6.5 },
+        ]
+      : notNeeded,
+    plan: [
+      {
+        text: s.planning.status,
+        bold: true,
+        color: s.planning.status === "Fully ready" ? C.green : s.planning.status === "Partial ready" ? C.blue : C.ink,
+      },
+    ],
+    planDate: s.planning.readiness ? [{ text: day(s.planning.readiness) }] : [],
+    align,
+    asm: pumpStep(s.assembly, today),
+    pack: pumpStep(s.packing, today),
+    pslips: s.slips.map((p, n) => ({
+      text: [p.no, day(p.date), p.qty != null ? `Qty ${p.qty}` : "", p.kind === "tentative" ? "tentative" : ""].filter(Boolean).join(" · "),
+      color: p.kind === "tentative" ? C.amber : C.ink,
+      gapBefore: n ? 2 : 0,
+    })),
+  };
+}
+
+/** A pump SO's stage, as its Rep's card names it: the earlier ones in pairs, the later ones a row each. */
+const PUMP_REP_LABEL: Record<PumpStage, string | null> = {
+  "Date awaited": "Date awaited",
+  "In plan": "In plan",
+  "Partial ready": "Partial ready",
+  "Ready, not assembled": "Fully ready, not assembled",
+  "Assembly on": "Part assembled",
+  "Assembled, not packed": "Assembled, not packed",
+  "Packing on": "Part packed",
+  "Packed, to dispatch": "Fully packed, not dispatched",
+  "Dispatch hold": "Dispatch hold",
+  "Lot dispatched": "Lot dispatched",
+  "Fully dispatched": "Fully dispatched",
+  "Cancelled / Diverted": null,
+};
 
 /** A Spare lot's Planning half: its status and ready date. */
 function planningLot(l: SoLot | undefined): Line[] {
@@ -265,7 +387,7 @@ type SoRow = {
   tone: "closed" | "full" | "lot" | null;
 };
 
-function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: BillingQueueRow, today = ""): SoRow {
+function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: BillingQueueRow, today = "", pump?: PumpSummary): SoRow {
   const dispatch = o.dispatch_status || "Pending";
   const closed = CLOSED.includes(dispatch);
   const planning = planningText(o, status);
@@ -379,6 +501,13 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
             ...dispatchCells(billing),
           }
         : {}),
+      // The Pump layout's departments.
+      ...(pump
+        ? {
+            so: [so[0], ...(day(o.so_date) ? [{ text: day(o.so_date), color: C.muted, size: 6.5 }] : []), ...so.slice(1)],
+            ...(closed ? {} : pumpCells(pump, today)),
+          }
+        : {}),
     },
     pills: closed
       ? [{ name: dispatch, label: "", tone: "na" }]
@@ -399,10 +528,13 @@ export async function buildOrdersListPdf(
     spare?: Map<string, BillingQueueRow>;
     /** Sorted by Rep: a band naming each Rep above their SOs. */
     byRep?: boolean;
+    /** The Pump list: each SO's departments by SO id, and cards by Rep. */
+    pump?: Map<string, PumpSummary>;
   } = {}
 ): Promise<Uint8Array> {
   const spare = opts.spare;
-  const COLUMNS = spare ? SPARE_COLUMNS : PUMP_OR_ALL_COLUMNS;
+  const pump = spare ? undefined : opts.pump;
+  const COLUMNS = spare ? SPARE_COLUMNS : pump ? PUMP_COLUMNS : PUMP_OR_ALL_COLUMNS;
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const pdf = await PDFDocument.create();
   pdf.setTitle("Orders — Master tracker");
@@ -446,7 +578,10 @@ export async function buildOrdersListPdf(
   y -= bandH + 12;
 
   // ── Summary cards ──────────────────────────────────────────────────────
-  const rows = orders.map((o) => ({ o, r: buildRow(o, statuses.get(o.id), spare?.get(o.id) ?? (spare ? ({} as BillingQueueRow) : undefined), today) }));
+  const rows = orders.map((o) => ({
+    o,
+    r: buildRow(o, statuses.get(o.id), spare?.get(o.id) ?? (spare ? ({} as BillingQueueRow) : undefined), today, pump?.get(o.id)),
+  }));
   const n = orders.length;
   const dispatchOf = (o: OrderListRow) => (o.dispatch_status || "Pending").toLowerCase();
   const count = (f: (o: OrderListRow) => boolean) => orders.filter(f).length;
@@ -486,16 +621,34 @@ export async function buildOrdersListPdf(
             { label: "Fully ready, not packed", value: String(plan(READY_NOT_PACKED)), sub: "Waiting on Packing", color: C.green },
           ];
         })()
-      : [{ label: "Ready / packed", value: String(readyN), sub: "Planning says ready", color: C.green }]),
+      : pump
+        ? (() => {
+            // Each department on the open SOs: how many it still has open.
+            const open = orders.filter((o) => !CLOSED.includes(o.dispatch_status ?? "") && dispatchOf(o) !== "fully dispatch");
+            const sum = (o: OrderListRow) => pump.get(o.id);
+            const k = (f: (s: PumpSummary) => boolean) => open.filter((o) => { const s = sum(o); return !!s && f(s); }).length;
+            return [
+              { label: "Drawing open", value: String(k((s) => !s.drawing.closed)), sub: "Not closed by Drawing", color: C.amber },
+              { label: "BOI open", value: String(k((s) => s.purchase.required && s.purchase.state !== "Closed")), sub: "Items to come", color: C.amber },
+              { label: "QC open", value: String(k((s) => s.quality.required && s.quality.state !== "Closed")), sub: "Documents due", color: C.amber },
+              { label: "Fully ready", value: String(k((s) => s.planning.status === "Fully ready")), sub: "Planning", color: C.green },
+              { label: "Fully assembled", value: String(k((s) => s.assembly.status === "Fully assembled")), sub: "Assembly", color: C.green },
+              { label: "Fully packed", value: String(k((s) => s.packing.status === "Fully packed")), sub: "Waiting on Dispatch", color: C.primary },
+            ];
+          })()
+        : [{ label: "Ready / packed", value: String(readyN), sub: "Planning says ready", color: C.green }]),
     { label: "Clearance hold", value: String(clearHoldN), sub: "Held by Central", color: C.red },
     { label: "Accounts hold", value: String(acctHoldN), sub: "Held by Accounts", color: C.red },
     { label: "Cancelled / Diverted", value: String(closedN), sub: pct(closedN), color: C.slate },
   ];
   const gap = 8;
-  const cardW = (WIDTH - gap * (cards.length - 1)) / cards.length;
+  // One row; more than twelve cards share two.
+  const perCardRow = cards.length > 12 ? Math.ceil(cards.length / 2) : cards.length;
+  const cardW = (WIDTH - gap * (perCardRow - 1)) / perCardRow;
   const cardH = 52;
   cards.forEach((c, i) => {
-    const x = MARGIN + i * (cardW + gap);
+    if (i && i % perCardRow === 0) y -= cardH + gap;
+    const x = MARGIN + (i % perCardRow) * (cardW + gap);
     box(x, y, cardW, cardH, 6, C.white, C.rule);
     page.drawRectangle({ x: x + 0.6, y: y - cardH + 8, width: 2.6, height: cardH - 16, color: c.color });
     // A long label shrinks to fit its card.
@@ -507,15 +660,22 @@ export async function buildOrdersListPdf(
   });
   y -= cardH + 12;
 
-  // ── Spare: a card per Rep, with their SOs and where Planning has them ──
-  if (spare && n) {
-    // The later states, each on a row of its own.
-    const LAST = [READY_NOT_PACKED, PACKED_NOT_DISPATCHED, FULLY_DISPATCHED];
-    const PLAN = ["Date awaited", "In plan", "Partial ready", ...LAST];
+  // ── Spare / Pump: a card per Rep, with their SOs and where they stand ──
+  if ((spare || pump) && n) {
+    // The later states, each on a row of its own; the earlier ones two to a row.
+    const LAST = spare
+      ? [READY_NOT_PACKED, PACKED_NOT_DISPATCHED, FULLY_DISPATCHED]
+      : ["Fully ready, not assembled", "Assembled, not packed", "Fully packed, not dispatched", FULLY_DISPATCHED];
+    const EARLY = spare
+      ? ["Date awaited", "In plan", "Partial ready"]
+      : ["Date awaited", "In plan", "Partial ready", "Part assembled", "Part packed", "Dispatch hold", "Lot dispatched"];
+    const PLAN = [...EARLY, ...LAST];
+    const bucketOf = (o: OrderListRow) =>
+      spare ? spareRepBucket(o, statuses.get(o.id)) : PUMP_REP_LABEL[pumpStageOf(o.dispatch_status ?? "", pump!.get(o.id))];
     const byRep = new Map<string, Map<string, number>>();
     for (const o of orders) {
       if (CLOSED.includes(o.dispatch_status ?? "")) continue;
-      const plan = spareRepBucket(o, statuses.get(o.id));
+      const plan = bucketOf(o);
       // An SO shared by two Reps counts for each.
       const reps = str(o.reps).split(",").map((r) => r.trim()).filter(Boolean);
       for (const rep of reps.length ? reps : ["No Rep"]) {
@@ -533,9 +693,7 @@ export async function buildOrdersListPdf(
     // Each card: the three earlier states two to a row (and any other), then
     // the later ones a row each.
     const layoutOf = (m: Map<string, number>) => {
-      const pairs = ["Date awaited", "In plan", "Partial ready"].concat(
-        [...m.keys()].filter((k) => k && !PLAN.includes(k))
-      );
+      const pairs = EARLY.concat([...m.keys()].filter((k) => k && !PLAN.includes(k)));
       return { pairs, rows: Math.ceil(pairs.length / 2) + LAST.length };
     };
     const rh = 30 + Math.max(...reps.map(([, m]) => layoutOf(m).rows)) * 10 + 4;
@@ -560,9 +718,10 @@ export async function buildOrdersListPdf(
         const ly = y - 34 - row * 10;
         const color =
           p === FULLY_DISPATCHED ? C.green
-          : p === PACKED_NOT_DISPATCHED ? C.primary
-          : p === READY_NOT_PACKED ? C.green
-          : p === "Partial ready" ? C.blue
+          : p === PACKED_NOT_DISPATCHED || p === "Fully packed, not dispatched" ? C.primary
+          : p === READY_NOT_PACKED || p === "Fully ready, not assembled" || p === "Assembled, not packed" ? C.green
+          : p === "Partial ready" || p === "Part assembled" || p === "Part packed" || p === "Lot dispatched" ? C.blue
+          : p === "Dispatch hold" ? C.red
           : p === "In plan" ? C.ink
           : C.amber;
         // A long label shrinks to fit the card.
