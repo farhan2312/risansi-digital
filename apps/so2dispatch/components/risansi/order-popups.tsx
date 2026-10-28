@@ -3,8 +3,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
-import { getOrderQuickViewAction, updateOrderSectionAction } from "@/app/risansi/orders/actions";
-import type { ItemDetail, OrderDetail } from "@/lib/orders";
+import { updateOrderSectionAction } from "@/app/risansi/orders/actions";
+import type { OrderDetail } from "@/lib/orders";
+import { loadOrderQuickView } from "./order-prefetch";
 import type { TargetRevision } from "@/lib/target-dates";
 import { CLEARANCE_HOLD_REASONS, isOnlyBilling } from "@/lib/order-schema";
 import type { DeptKey } from "./ec-dept-grid";
@@ -12,7 +13,7 @@ import { SoSections } from "./so-sections";
 import { DeptViewPopup } from "./dept-view-popup";
 
 type Row = Record<string, unknown>;
-type Data = { detail: OrderDetail; items: ItemDetail[]; targetRevisions: TargetRevision[] };
+type Data = { detail: OrderDetail; targetRevisions: TargetRevision[] };
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 
@@ -54,18 +55,23 @@ export function OrderPopupHost({
   // A department of the ECs: its own screen for this SO (the department page's, not a generic form).
   const ecDept = what.kind === "ec" ? what.dept : null;
 
+  // The first read may already be under way (the details pop-up starts it);
+  // after a save the list refreshes and it is read afresh.
+  const [firstVersion] = useState(version);
   useEffect(() => {
     if (ecDept) return;
     let live = true;
-    getOrderQuickViewAction(orderId).then((res) => {
-      if (!live) return;
-      if (res.ok) setData({ detail: res.detail, items: res.items, targetRevisions: res.targetRevisions });
-      else setError(res.error);
-    });
+    loadOrderQuickView(orderId, version !== firstVersion)
+      .then((res) => {
+        if (!live) return;
+        if (res.ok) setData({ detail: res.detail, targetRevisions: res.targetRevisions });
+        else setError(res.error);
+      })
+      .catch(() => live && setError("Could not load the order."));
     return () => {
       live = false;
     };
-  }, [orderId, version, ecDept]);
+  }, [orderId, version, ecDept, firstVersion]);
 
   useEffect(() => {
     if (ecDept) return;

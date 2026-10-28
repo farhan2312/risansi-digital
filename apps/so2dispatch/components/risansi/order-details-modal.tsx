@@ -13,7 +13,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { getOrderCoreAction } from "@/app/risansi/orders/actions";
+import { loadOrderCore, loadOrderQuickView } from "./order-prefetch";
 import { SECTION_BY_TABLE, billModeLabel, dependsOnSatisfied, type OrderField } from "@/lib/order-schema";
 import { formatDisplay } from "./editable-section";
 
@@ -58,15 +58,23 @@ export function OrderDetailsModal({
 
   useEffect(() => {
     let active = true;
-    getOrderCoreAction(orderId).then((o) => {
-      if (!active) return;
-      setOrder(o);
-      setLoading(false);
-    });
+    loadOrderCore(orderId)
+      .then((o) => {
+        if (!active) return;
+        setOrder(o);
+        setLoading(false);
+      })
+      .catch(() => active && setLoading(false));
     return () => {
       active = false;
     };
   }, [orderId]);
+
+  // Whoever may edit is likely to: read the form's data now, so Edit opens on it.
+  const canEdit = !!onEdit;
+  useEffect(() => {
+    if (canEdit) loadOrderQuickView(orderId).catch(() => {});
+  }, [orderId, canEdit]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();

@@ -56,11 +56,7 @@ import {
   updateOrderSection,
   packingSlipReady,
   createDispatchFromSlips,
-  getOrderDeptStatus,
-  listItemDetails,
-  type ItemDetail,
   type OrderDetail as OrderDetailData,
-  type SoDeptStatus,
   type NewItemInput,
   type NewOrderInput,
   type QcDocTable,
@@ -1700,16 +1696,14 @@ async function notifyClearance(orderId: string, wasRaw: string, nowRaw: string, 
 }
 
 /**
- * The Orders list's quick view of one SO: the SO with its sections, every EC
- * with its departments, the department status and the target dates' history.
- * Central Visibility and Admin.
+ * The Orders list's quick view of one SO: the SO with its sections and the
+ * target dates' history — what its SO pop-ups (Order details, Dispatch, …)
+ * show. Central Visibility and Admin.
  */
 export async function getOrderQuickViewAction(orderId: string): Promise<
   | {
       ok: true;
       detail: OrderDetailData;
-      items: ItemDetail[];
-      status: SoDeptStatus | null;
       targetRevisions: TargetRevision[];
     }
   | { ok: false; error: string }
@@ -1719,14 +1713,9 @@ export async function getOrderQuickViewAction(orderId: string): Promise<
   if (!canViewAll(user.role)) return { ok: false, error: "Only Central Visibility and Admin see the quick view." };
   if (!(await repMaySee(user, orderId))) return { ok: false, error: "Order not found." };
   if (!UUID_RE_ACTION.test(orderId)) return { ok: false, error: "Order not found." };
-  const [detail, items, status, targetRevisions] = await Promise.all([
-    getOrderDetail(orderId),
-    listItemDetails([orderId]),
-    getOrderDeptStatus(orderId),
-    listTargetRevisions(orderId),
-  ]);
+  const [detail, targetRevisions] = await Promise.all([getOrderDetail(orderId), listTargetRevisions(orderId)]);
   if (!detail) return { ok: false, error: "Order not found." };
-  return { ok: true, detail, items, status, targetRevisions };
+  return { ok: true, detail, targetRevisions };
 }
 
 /** Accounts' hold reasons, for its hold pop-up. */

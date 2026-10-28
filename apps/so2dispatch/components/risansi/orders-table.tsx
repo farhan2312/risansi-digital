@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Layers, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
@@ -9,6 +9,7 @@ import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
+import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel } from "@/lib/order-schema";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
@@ -385,6 +386,14 @@ export function OrdersTable({
   deptStatuses?: Record<string, SoDeptStatus>;
 }) {
   const orders = result.rows;
+  // The list refreshed: whatever the pop-ups read ahead may be old now.
+  useEffect(() => clearOrderPrefetch(), [result]);
+  // Resting on a row reads its Order details ahead of the click.
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverRow = (id: string | null) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = id ? setTimeout(() => loadOrderCore(id).catch(() => {}), 250) : null;
+  };
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [ecsFor, setEcsFor] = useState<OrderListRow | null>(null);
@@ -532,6 +541,8 @@ export function OrdersTable({
                         button its ECs; every other control does its own job. */}
                     <tr
                       onClick={() => setDetailsFor(order)}
+                      onMouseEnter={() => hoverRow(order.id)}
+                      onMouseLeave={() => hoverRow(null)}
                       // Every cell starts at the top, so the row reads straight across;
                       // a cancelled or diverted SO is red end to end.
                       className={`cursor-pointer align-top text-foreground transition-colors ${
