@@ -22,10 +22,11 @@ export const DISPATCH_COLOR: Record<string, string> = {
   "Fully dispatched": "var(--viz-aqua)",
   "Dispatch hold": "var(--viz-orange)",
   "Lot dispatched": "var(--viz-blue)",
-  Pending: "var(--viz-yellow)",
+  "To dispatch": "var(--viz-yellow)",
+  "Not at Dispatch yet": "var(--viz-seq-2)",
   "Cancelled / Diverted": "var(--viz-gray)",
 };
-export const DISPATCH_ORDER = ["Fully dispatched", "Dispatch hold", "Lot dispatched", "Pending", "Cancelled / Diverted"];
+export const DISPATCH_ORDER = ["Fully dispatched", "Dispatch hold", "Lot dispatched", "To dispatch", "Not at Dispatch yet", "Cancelled / Diverted"];
 
 /** The dispatch mix as the donut draws it. */
 export function dispatchData(mix: Bucket[]): Datum[] {

@@ -13,15 +13,18 @@ import {
   orderListKpiCards,
   pumpCardSql,
   type OrderListOptions,
+  type OrderListRow,
 } from "@/lib/orders";
 import { listPumpSummaries, type PumpSummary } from "@/lib/pump-summary";
 import type { KpiCard } from "@/lib/kpis";
 import type { OrderListFilter } from "@/lib/order-list-filter";
 import { CLOSED } from "@/lib/order-row-view";
+import { stageByCards } from "@/lib/dashboard-stages";
 import type { Bucket, RepRow } from "@/lib/spare-dashboard";
 
 /** Where a pump SO stands, earliest first: Planning, then Assembly, Packing and Dispatch. */
 export const PUMP_STAGES = [
+  "No EC yet",
   "Date awaited",
   "In plan",
   "Partial ready",
@@ -29,6 +32,8 @@ export const PUMP_STAGES = [
   "Assembly on",
   "Assembled, not packed",
   "Packing on",
+  "Not at Dispatch yet",
+  "On hold",
   "Packed, to dispatch",
   "Dispatch hold",
   "Lot dispatched",
@@ -157,6 +162,36 @@ const DEPTS: { key: string; label: string; href: string }[] = [
   { key: "dispatch", label: "Dispatch", href: "/risansi/departments/dispatch" },
 ];
 
+/**
+ * Each stage from the Orders page's Pump card of the same meaning, dispatch
+ * first (stageByCards): a stage counts what its card counts.
+ */
+const STAGE_CARDS = [
+  ["dsp_full", "Fully dispatched"],
+  ["dsp_lot", "Lot dispatched"],
+  ["dsp_hold", "Dispatch hold"],
+  ["dsp_pending", "Packed, to dispatch"],
+  ["pkg_part", "Packing on"],
+  ["pl_ready_unpkd", "Assembled, not packed"],
+  ["asm_part", "Assembly on"],
+  ["pl_ready_unasm", "Ready, not assembled"],
+  ["pl_partial", "Partial ready"],
+  ["pl_plan", "In plan"],
+  ["pl_awaited", "Date awaited"],
+] as const;
+
+/** The stages Dispatch has the SO at (a numbered packing slip), or closed. */
+const DISPATCH_STAGES: readonly PumpStage[] = ["Fully dispatched", "Lot dispatched", "Dispatch hold", "Packed, to dispatch", "Cancelled / Diverted"];
+
+/** An SO no stage card takes: closed, with no EC yet, on hold, or none of these (packed, no slip yet). */
+function restStage(o: OrderListRow): "Cancelled / Diverted" | "No EC yet" | "On hold" | "Not at Dispatch yet" {
+  if (CLOSED.includes(o.dispatch_status ?? "")) return "Cancelled / Diverted";
+  if (Number(o.ec_count ?? 0) === 0) return "No EC yet";
+  // The Orders page's SO hold: Central Visibility's, Order Making's, Dispatch's or Accounts'.
+  if (o.clearance_status === "Hold" || o.om_status === "Hold" || o.dispatch_status === "Hold" || o.accounts_hold_status === "Hold") return "On hold";
+  return "Not at Dispatch yet";
+}
+
 /** The Pump dashboard for the Orders list's filter (types pinned to Pump / ROLB by the caller). */
 export async function getPumpDashboard(filter: OrderListFilter, card: string | null = null): Promise<PumpDashboard> {
   const result = await listOrdersPage({
@@ -170,7 +205,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
   // A test SO counts in nothing here.
   const rows = result.rows.filter((r) => !isTestSo(r.so_no));
   const ids = rows.map((r) => r.id);
-  const summaries = await listPumpSummaries(ids);
+  const [summaries, staged] = await Promise.all([listPumpSummaries(ids), stageByCards(ids, orderListKpiCards("pump"), STAGE_CARDS)]);
 
   // What neither carries: the delivery date, the first dispatch, the dispatch
   // hold's reason, a packed lot on no slip, and the pump ECs and their quantity.
@@ -225,7 +260,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
       reps: str(o.reps).split(",").map((r) => r.trim()).filter(Boolean),
       zone: str(o.zone) || "No zone",
       value_inr: inr,
-      stage: stageOf(str(o.dispatch_status), summaries[o.id]),
+      stage: staged.get(o.id) ?? restStage(o),
       dispatch: o.clearance_status === "Hold" && !CLOSED.includes(str(o.dispatch_status)) ? "Hold" : str(o.dispatch_status) || "Pending",
       delivery_date: f?.delivery ?? null,
       first_dispatch: f?.first ?? null,
@@ -240,10 +275,11 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
 
   const mix = (label: string, test: (s: PumpSo) => boolean) => ({ label, count: sos.filter(test).length });
   const dispatchMix = [
-    mix("Fully dispatched", (s) => s.dispatch === "Fully dispatch"),
-    mix("Lot dispatched", (s) => s.dispatch === "LOT dispatch"),
-    mix("Dispatch hold", (s) => s.dispatch === "Hold"),
-    mix("Pending", (s) => s.dispatch === "Pending"),
+    mix("Fully dispatched", (s) => s.stage === "Fully dispatched"),
+    mix("Lot dispatched", (s) => s.stage === "Lot dispatched"),
+    mix("Dispatch hold", (s) => s.stage === "Dispatch hold"),
+    mix("To dispatch", (s) => s.stage === "Packed, to dispatch"),
+    mix("Not at Dispatch yet", (s) => !DISPATCH_STAGES.includes(s.stage)),
     mix("Cancelled / Diverted", (s) => s.stage === "Cancelled / Diverted"),
   ];
 

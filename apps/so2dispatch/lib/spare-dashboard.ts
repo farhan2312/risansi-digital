@@ -9,19 +9,47 @@ import { isTestSo, listOrdersPage, orderListKpiCards, type OrderListOptions, typ
 import type { KpiCard } from "@/lib/kpis";
 import type { OrderListFilter } from "@/lib/order-list-filter";
 import { CLOSED } from "@/lib/order-row-view";
+import { stageByCards } from "@/lib/dashboard-stages";
 
 /** Where an SO stands, earliest first: the pipeline's stages. */
 export const STAGES = [
+  "No EC yet",
   "Date awaited",
   "In plan",
   "Partial ready",
   "Ready, not packed",
+  "Not at Dispatch yet",
+  "On hold",
   "Packed, to dispatch",
   "Dispatch hold",
   "Lot dispatched",
   "Fully dispatched",
   "Cancelled / Diverted",
 ] as const;
+
+/**
+ * Each stage from the Orders page's card of the same meaning, dispatch first
+ * (stageByCards): a stage counts what its card counts.
+ */
+const STAGE_CARDS = [
+  ["dispatch:Fully dispatch:", "Fully dispatched"],
+  ["dispatch:LOT dispatch:", "Lot dispatched"],
+  ["dispatch:Hold:", "Dispatch hold"],
+  ["dispatch:Pending:", "Packed, to dispatch"],
+  ["planning:Fully ready:Not packed", "Ready, not packed"],
+  ["planning:Partial ready:", "Partial ready"],
+  ["planning:In plan:", "In plan"],
+  ["planning:Date awaited:", "Date awaited"],
+] as const;
+
+/** An SO no stage card takes: closed, with no EC yet, on hold, or none of these (packed, no slip yet). */
+function restStage(o: OrderListRow): "Cancelled / Diverted" | "No EC yet" | "On hold" | "Not at Dispatch yet" {
+  if (CLOSED.includes(o.dispatch_status ?? "")) return "Cancelled / Diverted";
+  if (Number(o.ec_count ?? 0) === 0) return "No EC yet";
+  // The Orders page's SO hold: Central Visibility's, Order Making's, Dispatch's or Accounts'.
+  if (o.clearance_status === "Hold" || o.om_status === "Hold" || o.dispatch_status === "Hold" || o.accounts_hold_status === "Hold") return "On hold";
+  return "Not at Dispatch yet";
+}
 export type Stage = (typeof STAGES)[number];
 
 export type DashboardSo = {
@@ -91,33 +119,17 @@ export type SpareDashboard = {
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 const DAY = 86400000;
-const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
-
-/** Where a Spare SO stands: dispatch first (it overrides), then its packing, then its planning. */
-function stageOf(o: OrderListRow, packedLatest: boolean, packedAny: boolean): Stage {
-  const dispatch = str(o.dispatch_status) || "Pending";
-  if (CLOSED.includes(dispatch)) return "Cancelled / Diverted";
-  // Held by Central Visibility: Hold in every department, Dispatch's too.
-  if (dispatch === "Hold" || o.clearance_status === "Hold") return "Dispatch hold";
-  if (dispatch === "Fully dispatch") return "Fully dispatched";
-  if (dispatch === "LOT dispatch") return "Lot dispatched";
-  const lots = o.lots ?? [];
-  const plan = (lots.length ? lots[lots.length - 1].status : null) || str(o.readiness_status) || "Date awaited";
-  // Every EC's latest lot packed: it waits on Dispatch. (A migrated SO with no
-  // lots, Fully ready and packed somewhere, reads the same.)
-  if (packedLatest || (plan === "Fully ready" && packedAny && !lots.length)) return "Packed, to dispatch";
-  if (plan === "Fully ready") return "Ready, not packed";
-  if (plan === "Partial ready") return "Partial ready";
-  if (plan === "In plan") return "In plan";
-  return "Date awaited";
-}
+const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);/** The stages Dispatch has the SO at (a numbered packing slip), or closed. */
+const DISPATCH_STAGES: readonly Stage[] = ["Fully dispatched", "Lot dispatched", "Dispatch hold", "Packed, to dispatch", "Cancelled / Diverted"];
 
 /** The Spare dashboard for the Orders list's filter (types pinned to Spare by the caller). */
 export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareDashboard> {
-  const result = await listOrdersPage({ page: 1, filter, all: true, kpis: orderListKpiCards("spare") });
+  const cards = orderListKpiCards("spare");
+  const result = await listOrdersPage({ page: 1, filter, all: true, kpis: cards });
   // A test SO counts in nothing here.
   const rows = result.rows.filter((r) => !isTestSo(r.so_no));
   const ids = rows.map((r) => r.id);
+  const staged = await stageByCards(ids, cards, STAGE_CARDS);
 
   // What the list rows do not carry: the delivery date, the first dispatch
   // (invoice and its Dispatch step filled), the dispatch hold's reason, and
@@ -181,7 +193,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
       reps: str(o.reps).split(",").map((r) => r.trim()).filter(Boolean),
       zone: str(o.zone) || "No zone",
       value_inr: inr,
-      stage: stageOf(o, !!f?.packed_latest, !!f?.packed_any),
+      stage: staged.get(o.id) ?? restStage(o),
       dispatch: o.clearance_status === "Hold" && !CLOSED.includes(str(o.dispatch_status)) ? "Hold" : str(o.dispatch_status) || "Pending",
       delivery_date: f?.delivery ?? null,
       first_dispatch: f?.first ?? null,
@@ -199,10 +211,11 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
   // Dispatch: the SO's own status, closed ones included.
   const mix = (label: string, test: (s: DashboardSo) => boolean) => ({ label, count: sos.filter(test).length });
   const dispatchMix = [
-    mix("Fully dispatched", (s) => s.dispatch === "Fully dispatch"),
-    mix("Lot dispatched", (s) => s.dispatch === "LOT dispatch"),
-    mix("Dispatch hold", (s) => s.dispatch === "Hold"),
-    mix("Pending", (s) => s.dispatch === "Pending"),
+    mix("Fully dispatched", (s) => s.stage === "Fully dispatched"),
+    mix("Lot dispatched", (s) => s.stage === "Lot dispatched"),
+    mix("Dispatch hold", (s) => s.stage === "Dispatch hold"),
+    mix("To dispatch", (s) => s.stage === "Packed, to dispatch"),
+    mix("Not at Dispatch yet", (s) => !DISPATCH_STAGES.includes(s.stage)),
     mix("Cancelled / Diverted", (s) => s.stage === "Cancelled / Diverted"),
   ];
 

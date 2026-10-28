@@ -7,11 +7,14 @@ import { IntakeCard, Metric, RepCard, WatchHoldCards, ZoneClientCards, dispatchD
 
 /** Each open stage's colour: the pipeline as one blue ramp, earliest lightest; a hold in orange. */
 const STAGE_COLOR: Record<Stage, string> = {
+  "No EC yet": "var(--viz-gray)",
   "Date awaited": "var(--viz-seq-1)",
   "In plan": "var(--viz-seq-2)",
   "Partial ready": "var(--viz-seq-3)",
   "Ready, not packed": "var(--viz-seq-4)",
-  "Packed, to dispatch": "var(--viz-seq-5)",
+  "Not at Dispatch yet": "var(--viz-seq-5)",
+  "On hold": "var(--viz-red)",
+  "Packed, to dispatch": "var(--viz-seq-6)",
   "Dispatch hold": "var(--viz-orange)",
   "Lot dispatched": "var(--viz-seq-6)",
   "Fully dispatched": "var(--viz-aqua)",
