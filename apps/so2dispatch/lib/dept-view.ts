@@ -417,13 +417,15 @@ export function clearedSql(order = "o"): string {
 }
 
 /**
- * The SO has been released to the departments: Order Making has not held it
- * (a hold there keeps it from every department), and Central Visibility has
- * decided on it — Clear, or Hold. Departments see and work on an SO Central
- * holds, marked with its reason.
+ * The SO has been released to the departments: Order Making has filled its
+ * SO No. (until then it is Order Making's alone) and not held it (a hold there
+ * keeps it from every department), and Central Visibility has decided on it —
+ * Clear, or Hold. Departments see and work on an SO Central holds, marked
+ * with its reason.
  */
 export function releasedSql(order = "o"): string {
-  return `COALESCE(NULLIF(${order}.clearance_status, ''), 'Clear') IN ('Clear', 'Hold') AND ${omClearSql(order)}`;
+  return `NULLIF(btrim(${order}.so_no), '') IS NOT NULL
+          AND COALESCE(NULLIF(${order}.clearance_status, ''), 'Clear') IN ('Clear', 'Hold') AND ${omClearSql(order)}`;
 }
 
 /**
@@ -518,6 +520,8 @@ export function roleSeesOrder(
     om_status?: unknown;
     /** Only Billing: no department sees the SO. */
     only_billing?: unknown;
+    /** No SO No. yet: Order Making's alone, no department sees it. */
+    so_no?: unknown;
     /**
      * The types of the ECs in view — every EC on an SO page, the one EC on an
      * EC page. Drawing reaches the page while any of them is not a Spare.
@@ -539,6 +543,7 @@ export function roleSeesOrder(
   if (!["Clear", "Hold"].includes(String(order.clearance_status || "Clear"))) return false;
   if (String(order.om_status || "") === "Hold") return false;
   if (String(order.only_billing || "") === "Yes") return false;
+  if (!String(order.so_no ?? "").trim()) return false;
   if (view.key === "drawing") {
     const orderType = order.order_type == null ? null : String(order.order_type);
     const types = order.ec_types ?? [];

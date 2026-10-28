@@ -245,8 +245,10 @@ async function emit(
   // business: only Central, Admin and Order Making hear about it.
   const cleared = await query<{ clear: boolean }>(
     // Held by Order Making, it is forwarded to no one; a Central hold departments see.
+    // No SO No. yet: Order Making's alone.
     `SELECT COALESCE(NULLIF(clearance_status, ''), 'Clear') IN ('Clear', 'Hold')
-            AND COALESCE(NULLIF(om_status, ''), 'Clear') <> 'Hold' AS clear
+            AND COALESCE(NULLIF(om_status, ''), 'Clear') <> 'Hold'
+            AND NULLIF(btrim(so_no), '') IS NOT NULL AS clear
        FROM orders WHERE id = $1`,
     [input.orderId]
   );
