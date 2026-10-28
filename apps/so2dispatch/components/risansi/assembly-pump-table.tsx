@@ -22,7 +22,7 @@ import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { lotOnSlip } from "@/lib/ready-lots";
 import { AlignmentForm, AlignmentValue } from "./alignment-cell";
-import { HoldBadge } from "./hold-badge";
+import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -260,13 +260,13 @@ export function AssemblyPumpTable({
                             <AlignmentValue alignment={head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor(orderId)} />
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            <Chip label={so.assembly} />
+                            {cvHeld(head) ? <HoldChip /> : <Chip label={so.assembly} />}
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                             <PlannedCell lots={lots} stage="assembly" orderId={orderId} soLabel={soLabel} />
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            <Chip label={so.packing} />
+                            {cvHeld(head) ? <HoldChip /> : <Chip label={so.packing} />}
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                             <PlannedCell lots={lots} stage="packing" orderId={orderId} soLabel={soLabel} />
@@ -303,11 +303,11 @@ export function AssemblyPumpTable({
                       <td className={`${ecCell} tabular-nums`}>{e.ready}</td>
                       <td className={`${ecCell} tabular-nums`}>{d.assembled}</td>
                       <td className={ecCell}>
-                        <Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} />
+                        {cvHeld(head) ? <HoldChip /> : <Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} />}
                       </td>
                       <td className={`${ecCell} tabular-nums`}>{d.packed}</td>
                       <td className={ecCell}>
-                        <Chip label={ecStageStatus(d.packed, e.quantity, "packing")} />
+                        {cvHeld(head) ? <HoldChip /> : <Chip label={ecStageStatus(d.packed, e.quantity, "packing")} />}
                       </td>
                     </tr>
                   );

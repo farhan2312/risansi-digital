@@ -57,3 +57,20 @@ export function HoldBanner({ order }: { order: Record<string, unknown> }) {
     </>
   );
 }
+
+/** Central Visibility (Mitali) holds the SO: every department reads Hold until it is cleared. */
+export const cvHeld = (order: Record<string, unknown> | null | undefined) => String(order?.clearance_status ?? "").trim() === "Hold";
+
+/** A department's status while Central Visibility holds the SO. */
+export function HoldChip({ small = false }: { small?: boolean }) {
+  return (
+    <span
+      title="On hold by Central Visibility — this status shows again once it is cleared"
+      className={`inline-flex w-fit rounded-full bg-rose-50 font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300 ${
+        small ? "px-1.5 text-[10px]" : "px-2 py-0.5 text-xs"
+      }`}
+    >
+      Hold
+    </span>
+  );
+}

@@ -36,7 +36,7 @@ import {
 } from "@/lib/order-schema";
 import { OrderChildList } from "./order-children";
 import { SortHeader } from "./sort-header";
-import { HoldBadge } from "./hold-badge";
+import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { AccountsClearBadge, AccountsHoldButton } from "./accounts-hold";
 import { TermPis } from "./term-pis";
 import { PackingSlipsInline } from "./packing-slips-inline";
@@ -920,6 +920,8 @@ export function DepartmentWorkspace({
                       <td key={f.column} className="px-3 py-3 whitespace-nowrap">
                         {!fieldApplies(f, order)
                           ? "—"
+                          : f.column === "payment_status" && cvHeld(order)
+                            ? <HoldChip />
                           : table === "order_accounts"
                             ? contextValue(f, order)
                             : formatValue(f, order[f.column])}
@@ -1027,7 +1029,7 @@ export function DepartmentWorkspace({
                           const mixed = new Set(g.ecs.map(isSpareRow)).size > 1;
                           return (
                             <>
-                              <td className="px-4 py-3 whitespace-nowrap">{sum.status}</td>
+                              <td className="px-4 py-3 whitespace-nowrap">{cvHeld(g.head) ? <HoldChip /> : sum.status}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-muted">
                                 {/* Planning and Central can see how the lots moved; Assembly
                                     works from the latest. */}
@@ -1063,7 +1065,7 @@ export function DepartmentWorkspace({
                                       </td>
                                     ))}
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      {asm.status}
+                                      {cvHeld(g.head) ? <HoldChip /> : asm.status}
                                       {asm.date !== "—" && asm.date !== "Mixed" && (
                                         <div className="text-[11px] text-muted">{asm.date}</div>
                                       )}
@@ -1086,7 +1088,7 @@ export function DepartmentWorkspace({
                                       )}
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
+                                      {cvHeld(g.head) ? <HoldChip /> : <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />}
                                     </td>
                                   </>
                                 );
@@ -1122,7 +1124,7 @@ export function DepartmentWorkspace({
                               })()}
                               {table === "order_assembly_dispatch" && (
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
+                                  {cvHeld(g.head) ? <HoldChip /> : <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />}
                                 </td>
                               )}
                               {canEdit && (

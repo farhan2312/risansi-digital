@@ -11,7 +11,7 @@ import type { OrderListOptions } from "@/lib/orders";
 import type { PageResult } from "@/lib/pagination";
 import type { DeptCompletion } from "@/lib/dept-completion";
 import { addOrderChildAction, deleteOrderChildAction, updateOrderChildAction } from "@/app/risansi/orders/actions";
-import { HoldBadge } from "./hold-badge";
+import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { SortHeader } from "./sort-header";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
@@ -269,7 +269,9 @@ export function DrawingWorkspace({
                               </td>
                               <td rowSpan={span} className={soCell}>
                                 {/* Closed once Drawing is done with every EC on it. */}
-                                {g.head.so_drawing_closed ? (
+                                {cvHeld(g.head) ? (
+                                  <HoldChip />
+                                ) : g.head.so_drawing_closed ? (
                                   <span className="flex flex-col items-start gap-0.5">
                                     <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
                                     {str(g.head.so_drawing_closed_date) && (
@@ -463,7 +465,7 @@ function DocCell({ row, doc, onOpen }: { row: Row; doc: DrawingDocType; onOpen: 
     : "";
   return (
     <button type="button" onClick={onOpen} title={`Open ${doc}`} className="flex flex-col items-start gap-0.5 text-left">
-      <StatusPill label={st.label} tone={st.tone} />
+      {cvHeld(row) ? <HoldChip /> : <StatusPill label={st.label} tone={st.tone} />}
       <span className="text-[11px] text-muted">{[st.version ? versionLabel(st.version) : "", when].filter(Boolean).join(" · ")}</span>
     </button>
   );

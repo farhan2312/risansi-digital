@@ -10,7 +10,7 @@ import { billModeLabel } from "@/lib/order-schema";
 import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchInline } from "./dispatch-inline";
 import { SortHeader } from "./sort-header";
-import { HoldBadge } from "./hold-badge";
+import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { DispatchStatusPill } from "./dispatch-status-pill";
 import { DispatchStatusControl } from "./order-status-panel";
 import { isCentral } from "@/lib/roles";
@@ -252,12 +252,17 @@ export function BillingWorkspace({
                       </td>
                       {mode === "billing" && (
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <PiStatePill state={row.billing_state} />
+                          {cvHeld(row) ? <HoldChip /> : <PiStatePill state={row.billing_state} />}
                         </td>
                       )}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {mode === "dispatch" ? (
-                          // Dispatch may set it by hand, as well as by its invoices.
+                        {cvHeld(row) && mode !== "dispatch" ? (
+                          <HoldChip />
+                        ) : mode === "dispatch" ? (
+                          // Dispatch may set it by hand, as well as by its invoices
+                          // (Hold above it while Central Visibility holds the SO).
+                          <>
+                          {cvHeld(row) && <HoldChip />}
                           <DispatchStatusControl
                             orderId={row.id}
                             status={row.dispatch_status}
@@ -266,6 +271,7 @@ export function BillingWorkspace({
                             reason={row.status_reason}
                             canSet={role === "dispatch" || isCentral(role)}
                           />
+                          </>
                         ) : (
                           <DispatchStatusPill status={row.dispatch_status} />
                         )}

@@ -11,7 +11,7 @@ import { PartDrawingCell, PartPickerModal, ShortageCell } from "./part-drawing";
 import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
 import { PumpAfterPlanningCells } from "./pump-dept-cells";
-import { HoldBadge } from "./hold-badge";
+import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import type { PumpSummary } from "@/lib/pump-summary";
 
 type Row = Record<string, unknown>;
@@ -217,11 +217,15 @@ export function PlanningPumpTable({
                         ))}
                         {/* The SO's own status (as a Spare's) and its readiness date. */}
                         <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                          <span
-                            className={`font-medium ${/ready/i.test(str(head.actual_spare_status)) ? "text-emerald-700" : "text-foreground"}`}
-                          >
-                            {str(head.actual_spare_status) || "Date awaited"}
-                          </span>
+                          {cvHeld(head) ? (
+                            <HoldChip />
+                          ) : (
+                            <span
+                              className={`font-medium ${/ready/i.test(str(head.actual_spare_status)) ? "text-emerald-700" : "text-foreground"}`}
+                            >
+                              {str(head.actual_spare_status) || "Date awaited"}
+                            </span>
+                          )}
                           {str(head.pump_readiness_remarks) && (
                             <span className="block max-w-[14rem] whitespace-normal text-[11px] text-muted">
                               {str(head.pump_readiness_remarks)}
@@ -329,7 +333,7 @@ export function PlanningPumpTable({
                                 <span className="truncate font-medium text-foreground">{boiName(b)}</span>
                                 <span className="tabular-nums text-muted">{str(b.boi_qty) ? `×${str(b.boi_qty)}` : ""}</span>
                                 <span>
-                                  <BoiStatusTag item={b} small />
+                                  {cvHeld(head) ? <HoldChip small /> : <BoiStatusTag item={b} small />}
                                 </span>
                                 <span
                                   title={inHand ? "Received on" : "Vendor expected date"}
@@ -370,7 +374,7 @@ export function PlanningPumpTable({
                           <span className="text-muted">—</span>
                         ) : f.column === "actual_pump_status" ? (
                           // Always as Ready Qty against the EC's quantity says.
-                          <PumpStatus status={pumpEcStatus(r.ready_qty, ec.quantity)} />
+                          cvHeld(head) ? <HoldChip /> : <PumpStatus status={pumpEcStatus(r.ready_qty, ec.quantity)} />
                         ) : f.column === "ready_qty" ? (
                           `${str(r.ready_qty) || "0"} / ${str(ec.quantity) || "—"}`
                         ) : (

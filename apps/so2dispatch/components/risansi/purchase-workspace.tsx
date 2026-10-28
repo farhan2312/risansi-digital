@@ -9,7 +9,7 @@ import { VendorsModal } from "./vendors-modal";
 import { isCentral } from "@/lib/roles";
 import { BoiItemForm } from "./boi-item-form";
 import { SortHeader } from "./sort-header";
-import { HoldBadge } from "./hold-badge";
+import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { boiInHand, boiStatus, dispatchRowTone } from "@/lib/dept-view";
 import { UrlPagination, UrlSearchInput, UrlTabs, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
@@ -323,7 +323,7 @@ export function PurchaseWorkspace({
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.ld_date)}</td>
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.purchase_target_date)}</td>
                               <td rowSpan={span} className={soCell}>
-                                <StateChip state={soState} />
+                                {cvHeld(g.head) ? <HoldChip /> : <StateChip state={soState} />}
                               </td>
                             </>
                           )}
@@ -332,7 +332,7 @@ export function PurchaseWorkspace({
                           <td className={`${ecCell} whitespace-nowrap`}>{row.pump_type ?? "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.model_no ?? "—"}</td>
                           <td className={ecCell}>
-                            <StateChip state={stateOf(row.pur_ec_state) ?? ecState(row)} />
+                            {cvHeld(g.head) ? <HoldChip /> : <StateChip state={stateOf(row.pur_ec_state) ?? ecState(row)} />}
                             {items.length > 0 && (
                               <span className={`block text-[11px] font-semibold ${got === items.length ? "text-emerald-700" : "text-amber-700"}`}>
                                 {got}/{items.length} in hand
@@ -346,6 +346,7 @@ export function PurchaseWorkspace({
                             ) : (
                               <BoiDetailTable
                                 items={items}
+                                held={cvHeld(g.head)}
                                 onHistory={(b) => setHistoryFor(b)}
                                 onOpen={(b) => {
                                   setBoiFor(row.id);
@@ -601,10 +602,13 @@ function BoiTag({ item }: { item: Row }) {
  */
 function BoiDetailTable({
   items,
+  held,
   onOpen,
   onHistory,
 }: {
   items: Row[];
+  /** Central Visibility holds the SO: each item reads Hold. */
+  held: boolean;
   onOpen: (b: Row) => void;
   onHistory: (b: Row) => void;
 }) {
@@ -671,7 +675,7 @@ function BoiDetailTable({
               <td className="px-1.5 py-1 tabular-nums">{money(v(b.total_value))}</td>
               <td className="px-1.5 py-1 tabular-nums">{t(v(b.received_qty))}</td>
               <td className="whitespace-nowrap px-1.5 py-1">{d(v(b.receipt_date))}</td>
-              <td className="whitespace-nowrap px-1.5 py-1"><BoiTag item={b} /></td>
+              <td className="whitespace-nowrap px-1.5 py-1">{held ? <HoldChip small /> : <BoiTag item={b} />}</td>
             </tr>
           );
         })}
@@ -778,7 +782,7 @@ function BoiListTable({
               <td className="px-3 py-2 tabular-nums">{money(v(b.total_value))}</td>
               <td className="px-3 py-2 tabular-nums">{t(v(b.received_qty))}</td>
               <td className="whitespace-nowrap px-3 py-2">{d(v(b.receipt_date))}</td>
-              <td className="whitespace-nowrap px-3 py-2"><BoiTag item={b} /></td>
+              <td className="whitespace-nowrap px-3 py-2">{cvHeld(so) ? <HoldChip small /> : <BoiTag item={b} />}</td>
             </tr>
           );
         })}
