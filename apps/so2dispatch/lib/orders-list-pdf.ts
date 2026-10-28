@@ -2,7 +2,7 @@ import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import { sanitize, wrap } from "@/lib/pdf-text";
 import { billModeLabel, PAYMENT_HOLD_VALUE } from "@/lib/order-schema";
-import { CLOSED, READY, assemblyView, planningText, reachedDepts } from "@/lib/order-row-view";
+import { CLOSED, READY, assemblyView, planningText, reachedAssembly, reachedDepts, reachedDispatch } from "@/lib/order-row-view";
 import type { BillingQueueRow, DeptCell, OrderListRow, SoDeptStatus } from "@/lib/orders";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import type { PumpStage as SummaryStage, PumpSummary } from "@/lib/pump-summary";
@@ -74,11 +74,17 @@ const C = {
   slateBg: rgb(0.94, 0.95, 0.96),
 };
 
-const TONE: Record<DeptCell["state"], { fg: RGB; bg: RGB; line: RGB }> = {
+const TONE: Record<DeptCell["state"] | "hold", { fg: RGB; bg: RGB; line: RGB }> = {
   done: { fg: C.green, bg: C.greenBg, line: C.greenLine },
   pending: { fg: C.amber, bg: C.amberBg, line: C.amberLine },
   na: { fg: C.slate, bg: C.slateBg, line: C.rule },
+  hold: { fg: C.red, bg: C.redBg, line: C.redLine },
 };
+
+/** Central Visibility holds the SO: every department reads Hold until cleared (as on the Orders list). */
+const cvHeld = (o: OrderListRow) => !CLOSED.includes(o.dispatch_status ?? "") && o.clearance_status === "Hold";
+const HOLD: Line[] = [{ text: "Hold", bold: true, color: C.red }];
+const NOT_YET: Line[] = [{ text: "—", color: C.muted }];
 
 function paymentColor(status: string): RGB {
   if (status === PAYMENT_HOLD_VALUE) return C.red;
@@ -199,7 +205,21 @@ function pumpStep(st: { status: string; next: string | null; last: string | null
 }
 
 /** The Pump columns past the SO's own: Drawing, Purchase, Quality, Planning, Assembly & Packing, the slips. */
-function pumpCells(s: PumpSummary, today: string): Partial<Record<Key, Line[]>> {
+function pumpCells(s: PumpSummary, today: string, held = false): Partial<Record<Key, Line[]>> {
+  const cells = pumpOwnCells(s, today);
+  if (held) {
+    for (const k of ["gad", "curve", "part", "boi", "qc", "plan", "asm", "pack"] as const) {
+      // What is not required stays so.
+      if (cells[k]?.[0]?.text !== "Not required") cells[k] = HOLD;
+    }
+  } else if (!s.sentToAssembly) {
+    cells.asm = NOT_YET;
+    cells.pack = NOT_YET;
+  }
+  return cells;
+}
+
+function pumpOwnCells(s: PumpSummary, today: string): Partial<Record<Key, Line[]>> {
   const notNeeded: Line[] = [{ text: "Not required", color: C.muted, size: 6.5 }];
   const d = s.drawing;
   const drgLate = !!d.readiness && !d.closed && d.readiness < today;
@@ -367,6 +387,7 @@ const FULLY_DISPATCHED = "Fully dispatched";
  */
 function spareRepBucket(o: OrderListRow, status: SoDeptStatus | undefined): string | null {
   if (CLOSED.includes(o.dispatch_status ?? "")) return null;
+  if (cvHeld(o) || (o.dispatch_status ?? "") === "Hold") return "Hold";
   if ((o.dispatch_status ?? "").toLowerCase() === "fully dispatch") return FULLY_DISPATCHED;
   return sparePlanBucket(o, status) ?? PACKED_NOT_DISPATCHED;
 }
@@ -378,7 +399,7 @@ function sparePlanning(o: OrderListRow, status: SoDeptStatus | undefined): strin
 }
 
 type Line = { text: string; bold?: boolean; color?: RGB; size?: number; gapBefore?: number };
-type Pill = { name: string; label: string; tone: DeptCell["state"] };
+type Pill = { name: string; label: string; tone: DeptCell["state"] | "hold" };
 
 /** Every SO's cells, ready to draw. */
 type SoRow = {
@@ -392,6 +413,9 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
   const closed = CLOSED.includes(dispatch);
   const planning = planningText(o, status);
   const assembly = assemblyView(o, status, dayOrBlank);
+  const held = cvHeld(o);
+  // Not reached Dispatch yet (nothing packed, no status set): "—".
+  const atDispatch = closed || (pump ? pump.sentToDispatch : reachedDispatch(o, dispatch));
 
   // SO No. with its clearance and any Accounts hold beneath.
   const so: Line[] = [{ text: str(o.so_no) || `#${o.sl_no}`, bold: true }];
@@ -471,15 +495,16 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
       value,
       pay,
       readiness: [{ text: readiness, color: C.muted }],
-      planning: closed || !planning ? [] : [{ text: planning, bold: true, color: READY.includes(planning.toLowerCase()) ? C.green : C.ink }],
-      assembly:
-        closed || !assembly.text
+      planning: held ? HOLD : closed || !planning ? [] : [{ text: planning, bold: true, color: READY.includes(planning.toLowerCase()) ? C.green : C.ink }],
+      assembly: held
+        ? HOLD
+        : closed || !assembly.text || !reachedAssembly(status)
           ? []
           : [
               { text: assembly.text, bold: true, color: assembly.cell?.state === "done" ? C.green : C.ink },
               ...(assembly.line ? [{ text: assembly.line, color: C.muted, size: 6.5 }] : []),
             ],
-      dispatch: [
+      dispatch: held || dispatch === "Hold" ? HOLD : !atDispatch ? NOT_YET : [
         {
           text: dispatch,
           bold: true,
@@ -492,12 +517,12 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
         ? {
             // The SO Date under the SO No., in the one column.
             so: [so[0], ...(day(o.so_date) ? [{ text: day(o.so_date), color: C.muted, size: 6.5 }] : []), ...so.slice(1)],
-            p1: closed ? [] : planningLot(o.lots?.[0]),
-            p2: closed ? [] : planningLot(o.lots?.[1]),
-            p3: closed ? [] : planningLot(o.lots?.[2]),
-            a1: closed ? [] : packingLot(o.lots?.[0], today),
-            a2: closed ? [] : packingLot(o.lots?.[1], today),
-            a3: closed ? [] : packingLot(o.lots?.[2], today),
+            p1: held ? HOLD : closed ? [] : planningLot(o.lots?.[0]),
+            p2: held || closed ? [] : planningLot(o.lots?.[1]),
+            p3: held || closed ? [] : planningLot(o.lots?.[2]),
+            a1: held ? HOLD : closed ? [] : packingLot(o.lots?.[0], today),
+            a2: held || closed ? [] : packingLot(o.lots?.[1], today),
+            a3: held || closed ? [] : packingLot(o.lots?.[2], today),
             ...dispatchCells(billing),
           }
         : {}),
@@ -505,13 +530,13 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
       ...(pump
         ? {
             so: [so[0], ...(day(o.so_date) ? [{ text: day(o.so_date), color: C.muted, size: 6.5 }] : []), ...so.slice(1)],
-            ...(closed ? {} : pumpCells(pump, today)),
+            ...(closed ? {} : pumpCells(pump, today, held)),
           }
         : {}),
     },
     pills: closed
       ? [{ name: dispatch, label: "", tone: "na" }]
-      : reachedDepts(o, status).map((t) => ({ name: t.name, label: t.cell.label, tone: t.cell.state })),
+      : reachedDepts(o, status).map((t) => ({ name: t.name, label: t.cell.label, tone: t.cell.label === "Hold" ? "hold" : t.cell.state })),
     tone: closed ? "closed" : dispatchKey === "fully dispatch" ? "full" : dispatchKey === "lot dispatch" ? "lot" : null,
   };
 }
@@ -586,9 +611,11 @@ export async function buildOrdersListPdf(
   const dispatchOf = (o: OrderListRow) => (o.dispatch_status || "Pending").toLowerCase();
   const count = (f: (o: OrderListRow) => boolean) => orders.filter(f).length;
   const closedN = count((o) => CLOSED.includes(o.dispatch_status ?? ""));
-  const fullN = count((o) => dispatchOf(o) === "fully dispatch");
-  const lotN = count((o) => dispatchOf(o) === "lot dispatch");
-  const pendingN = n - closedN - fullN - lotN;
+  const fullN = count((o) => dispatchOf(o) === "fully dispatch" && !cvHeld(o));
+  const lotN = count((o) => dispatchOf(o) === "lot dispatch" && !cvHeld(o));
+  // A held SO (Central Visibility's, or Dispatch's own) is Hold, not pending.
+  const heldDispatchN = count((o) => !CLOSED.includes(o.dispatch_status ?? "") && (cvHeld(o) || dispatchOf(o) === "hold"));
+  const pendingN = count((o) => dispatchOf(o) === "pending" && !cvHeld(o));
   const pumpN = count((o) => str(o.order_type).toLowerCase() === "pump");
   const spareN = count((o) => str(o.order_type).toLowerCase() === "spare");
   const ecN = orders.reduce((s, o) => s + Number(o.ec_count ?? 0), 0);
@@ -599,7 +626,10 @@ export async function buildOrdersListPdf(
     const p = planningText(o, statuses.get(o.id));
     return !!p && READY.includes(p.toLowerCase());
   });
-  const clearHoldN = count((o) => o.clearance_status === "Hold");
+  // SO hold, as the Orders list counts it: Central Visibility's, Order Making's or Dispatch's.
+  const soHoldN = count(
+    (o) => !CLOSED.includes(o.dispatch_status ?? "") && (o.clearance_status === "Hold" || o.om_status === "Hold" || dispatchOf(o) === "hold")
+  );
   const acctHoldN = count((o) => o.accounts_hold_status === "Hold");
   const pct = (k: number) => (n ? `${Math.round((k / n) * 100)}% of SOs` : "");
 
@@ -611,9 +641,10 @@ export async function buildOrdersListPdf(
     { label: "Fully dispatched", value: String(fullN), sub: pct(fullN), color: C.green },
     { label: "LOT dispatch", value: String(lotN), sub: pct(lotN), color: C.blue },
     { label: "Dispatch pending", value: String(pendingN), sub: pct(pendingN), color: C.amber },
+    { label: "Dispatch hold", value: String(heldDispatchN), sub: pct(heldDispatchN), color: C.red },
     ...(spare
       ? (() => {
-          const plan = (p: string) => count((o) => sparePlanBucket(o, statuses.get(o.id)) === p);
+          const plan = (p: string) => count((o) => !cvHeld(o) && sparePlanBucket(o, statuses.get(o.id)) === p);
           return [
             { label: "Date awaited", value: String(plan("Date awaited")), sub: "Planning", color: C.amber },
             { label: "In plan", value: String(plan("In plan")), sub: "Planning", color: C.ink },
@@ -624,7 +655,8 @@ export async function buildOrdersListPdf(
       : pump
         ? (() => {
             // Each department on the open SOs: how many it still has open.
-            const open = orders.filter((o) => !CLOSED.includes(o.dispatch_status ?? "") && dispatchOf(o) !== "fully dispatch");
+            // A held SO is Hold in every department, so in none of these.
+            const open = orders.filter((o) => !CLOSED.includes(o.dispatch_status ?? "") && dispatchOf(o) !== "fully dispatch" && !cvHeld(o));
             const sum = (o: OrderListRow) => pump.get(o.id);
             const k = (f: (s: PumpSummary) => boolean) => open.filter((o) => { const s = sum(o); return !!s && f(s); }).length;
             return [
@@ -637,7 +669,7 @@ export async function buildOrdersListPdf(
             ];
           })()
         : [{ label: "Ready / packed", value: String(readyN), sub: "Planning says ready", color: C.green }]),
-    { label: "Clearance hold", value: String(clearHoldN), sub: "Held by Central", color: C.red },
+    { label: "SO hold", value: String(soHoldN), sub: "Central, Order Making or Dispatch", color: C.red },
     { label: "Accounts hold", value: String(acctHoldN), sub: "Held by Accounts", color: C.red },
     { label: "Cancelled / Diverted", value: String(closedN), sub: pct(closedN), color: C.slate },
   ];
@@ -740,6 +772,7 @@ export async function buildOrdersListPdf(
       { label: "Fully dispatch", k: fullN, color: C.green },
       { label: "LOT dispatch", k: lotN, color: C.blue },
       { label: "Pending", k: pendingN, color: rgb(0.96, 0.7, 0.2) },
+      { label: "Hold", k: heldDispatchN, color: C.red },
       { label: "Cancelled / Diverted", k: closedN, color: rgb(0.75, 0.78, 0.82) },
     ];
     text("DISPATCH MIX", MARGIN, y - 7, 6.5, bold, C.muted);
