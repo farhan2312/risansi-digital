@@ -45,12 +45,8 @@ export interface Session {
 
 export const COOKIE_NAME = 'risansi_session';
 
-/**
- * Eight hours, matching what the sales portal already does, so moving to the
- * shared session does not quietly extend how long a forgotten browser stays
- * signed in.
- */
-export const SESSION_SECONDS = 8 * 60 * 60;
+/** Fifteen hours: a full working day and more on one sign-in. */
+export const SESSION_SECONDS = 15 * 60 * 60;
 
 /**
  * No fallback value on purpose.
