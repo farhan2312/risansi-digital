@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronDown, FileSpreadsheet, Loader2, Maximize2, Minus, Plus } from "lucide-react";
+import { ChevronDown, FileSpreadsheet, Loader2, Maximize2, Minus, Plus, Printer } from "lucide-react";
 
 type Line = { cells: (string | number | null)[]; filled: boolean };
 type Report = { scope: string; columns: { header: string; date?: boolean }[]; lines: Line[] };
@@ -137,6 +137,40 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
   const step = (d: number) => setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((scale + d) * 10) / 10)));
 
   const loading = open && loadedFor !== query && !error;
+
+  /**
+   * The sheet in a window of its own, at its full size on A4 landscape, and
+   * the browser's print dialog over it — to print, or Save as PDF.
+   */
+  function printSheet() {
+    const sheetEl = sheetRef.current?.firstElementChild;
+    if (!sheetEl) return;
+    const win = window.open("", "_blank", "width=1280,height=900");
+    if (!win) {
+      alert("Allow pop-ups for this site to print the report.");
+      return;
+    }
+    // The page's own styles, so the sheet looks as it does here.
+    const styles = [...document.querySelectorAll('link[rel="stylesheet"], style')].map((n) => n.outerHTML).join("");
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Order Making report</title>${styles}
+      <style>
+        @page { size: A4 landscape; margin: 8mm; }
+        html, body { background: #fff !important; margin: 0; }
+        body { padding: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .om-print { zoom: 0.86; }
+        tr { break-inside: avoid; }
+        thead { display: table-header-group; }
+        @media print { body { padding: 0; } }
+      </style></head><body><div class="om-print">${sheetEl.outerHTML}</div></body></html>`);
+    win.document.close();
+    // Once its styles are in, open the print dialog.
+    const go = () => {
+      win.focus();
+      win.print();
+    };
+    if (win.document.readyState === "complete") setTimeout(go, 400);
+    else win.addEventListener("load", () => setTimeout(go, 200));
+  }
   const blocks = report ? blocksOf(report) : [];
   const ecCount = blocks.reduce((t, b) => t + b.ecs.length, 0);
 
@@ -166,6 +200,15 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
             <span className="w-11 text-center text-xs font-semibold tabular-nums text-foreground">{Math.round(scale * 100)}%</span>
             <button type="button" onClick={() => step(ZOOM_STEP)} disabled={scale >= ZOOM_MAX} aria-label="Zoom in" className={zoomButton}>
               <Plus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={printSheet}
+              title="Print, or Save as PDF"
+              className="ml-0.5 inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-semibold text-muted transition-colors hover:bg-background hover:text-foreground"
+            >
+              <Printer className="h-3 w-3" />
+              Print / PDF
             </button>
             <button
               type="button"

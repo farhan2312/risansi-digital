@@ -4562,6 +4562,9 @@ export async function listOrdersForOrderMaking(opts: {
     }
     if (ff.soState === "filled") clauses.push(SO_DETAILS_FILLED_SQL);
     if (ff.soState === "pending") clauses.push(`NOT ${SO_DETAILS_FILLED_SQL}`);
+    // SO Sent to Operation: Yes once its date is entered.
+    if (ff.sentOps === "yes") clauses.push(`o.ec_sent_operation_date IS NOT NULL`);
+    if (ff.sentOps === "no") clauses.push(`o.ec_sent_operation_date IS NULL`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
     if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);
