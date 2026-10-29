@@ -19,6 +19,7 @@ export { BILL_MODE_FILTER_OPTIONS };
 export const OM_DATE_FIELDS = [
   { value: "po_date", label: "PO receiving date" },
   { value: "so_date", label: "SO date" },
+  { value: "cpo_date", label: "Purchase order date" },
   { value: "op_date", label: "SO sent to Operation" },
 ] as const;
 export type OmDateField = (typeof OM_DATE_FIELDS)[number]["value"];
