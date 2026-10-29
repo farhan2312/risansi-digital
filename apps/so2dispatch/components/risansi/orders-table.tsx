@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Layers, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { Layers, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
@@ -422,7 +422,7 @@ export function OrdersTable({
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
   // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
-  const baseCols = (pump ? 17 + pumpDeptCols : 26) + 4;
+  const baseCols = (pump ? 16 + pumpDeptCols : 25) + 4;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -491,7 +491,6 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Docket &amp; LR</th>
                 <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">Dispatch Status</th>
                 <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
-                <th rowSpan={2} className="px-4 py-3" />
                 {canDelete && <th rowSpan={2} className="px-4 py-3" />}
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -822,25 +821,7 @@ export function OrdersTable({
                         />
                       </td>
                       <td className="px-4 py-3 text-center tabular-nums">{order.ec_count}</td>
-                      <td
-                        className="px-4 py-3 whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {/* The row itself opens the order; no Open button. */}
-                        <div className="flex items-center gap-2">
-                          {canDelete && (
-                            <button
-                              type="button"
-                              onClick={() => setAddFor(order)}
-                              aria-label={`${order.order_type ?? "Pump"} Add-On`}
-                              title={`${order.order_type ?? "Pump"} Add-On`}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary-hover"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      {/* No Open or Add-On buttons: the row opens the order, Add-On is in its pop-up. */}
                       {canDelete && (
                         <td
                           className="px-4 py-3 text-right"
