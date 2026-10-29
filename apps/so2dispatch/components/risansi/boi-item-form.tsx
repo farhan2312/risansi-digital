@@ -155,7 +155,8 @@ export function BoiItemForm({
     e.preventDefault();
     setSaving(true);
     setError(null);
-    const keys = canEditItem ? [...ITEM_FIELDS, ...PURCHASE_FIELDS] : [...PURCHASE_FIELDS];
+    // Purchase sends its own, and the item's Make and Description it may correct.
+    const keys = canEditItem ? [...ITEM_FIELDS, ...PURCHASE_FIELDS] : ["boi_make", "boi_description", ...PURCHASE_FIELDS];
     const res = await updateOrderChildAction(
       str(item.id),
       "order_boi_items",
@@ -227,6 +228,21 @@ export function BoiItemForm({
             </Field>
             <Field label="Qty">
               <input type="number" min={0} step={1} value={v.boi_qty} onChange={(e) => set("boi_qty", e.target.value)} className={input} />
+            </Field>
+            <Field label="Description" wide>
+              <textarea
+                rows={2}
+                value={v.boi_description}
+                onChange={(e) => set("boi_description", e.target.value)}
+                className="w-full rounded-lg border border-input-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+              />
+            </Field>
+          </div>
+        ) : canEdit ? (
+          // Purchase: the item and qty as listed, its Make and Description to correct.
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Make">
+              <input value={v.boi_make} onChange={(e) => set("boi_make", e.target.value)} className={input} />
             </Field>
             <Field label="Description" wide>
               <textarea

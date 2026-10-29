@@ -1590,9 +1590,10 @@ export const BOI_ITEM_FIELDS: OrderField[] = [
     centralOnly: true,
     group: "Item",
   },
-  { column: "boi_make", label: "BOI Make", type: "text", centralOnly: true, group: "Item" },
+  // Make and Description Purchase may correct too; the item and its qty are Central's.
+  { column: "boi_make", label: "BOI Make", type: "text", group: "Item" },
   { column: "boi_qty", label: "Qty", type: "int", min: 0, centralOnly: true, group: "Item" },
-  { column: "boi_description", label: "Description", type: "text", centralOnly: true, group: "Item" },
+  { column: "boi_description", label: "Description", type: "text", group: "Item" },
 
   // Purchase: what RIL already has in stock for it.
   { column: "stock_allocated_qty", label: "Allocated Qty", type: "int", min: 0, group: "In stock (RIL allocated)" },
