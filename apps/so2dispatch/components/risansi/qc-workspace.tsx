@@ -19,7 +19,7 @@ import { OrderThreadModal } from "./order-thread-modal";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { KpiStrip } from "./kpi-strip";
 import { MultiSelectFilter } from "./multi-select-filter";
-import { QC_EC_STATUSES, QC_FILTER_KEYS, QC_SO_STATES, soQcState } from "@/lib/qc-filter";
+import { QC_ASSEMBLY_STATES, QC_EC_STATUSES, QC_FILTER_KEYS, QC_SO_STATES, soQcState } from "@/lib/qc-filter";
 import { ecStageStatus } from "@/lib/assembly";
 import type { EcAssembly } from "@/lib/ec-assembly";
 
@@ -143,6 +143,13 @@ export function QcWorkspace({
                   options={QC_EC_STATUSES}
                   selected={getList(QC_FILTER_KEYS.ec)}
                   onChange={(next) => setParams({ [QC_FILTER_KEYS.ec]: next })}
+                />
+                <MultiSelectFilter
+                  label="Assembly"
+                  allLabel="Any"
+                  options={QC_ASSEMBLY_STATES}
+                  selected={getList(QC_FILTER_KEYS.asm)}
+                  onChange={(next) => setParams({ [QC_FILTER_KEYS.asm]: next })}
                 />
               </>
             }

@@ -22,6 +22,7 @@ import { QC_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
 import { QcWorkspace } from "@/components/risansi/qc-workspace";
 import { listEcAssembly } from "@/lib/ec-assembly";
+import { ecStageStatus } from "@/lib/assembly";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
@@ -83,7 +84,7 @@ export default async function QcWorkspacePage({
         key: `so:${st}`,
         label: `SO ${st}`,
         group: "SO",
-        sql: qcFilterSql({ so: [st], ec: [] }),
+        sql: qcFilterSql({ so: [st], ec: [], asm: [] }),
         params: { ...clear, qc_so: st },
         tone: st === "Closed" ? ("done" as const) : ("pending" as const),
       })),
@@ -149,6 +150,13 @@ export default async function QcWorkspacePage({
   // Open / Closed above still counts every EC).
   const assembly = await listEcAssembly(queue.rows.map((r) => String(r.id)));
   queue.rows = queue.rows.filter((r) => (assembly[String(r.id)]?.assembled ?? 0) > 0);
+  // Partially or fully assembled, as asked: only the ECs that are.
+  if (qcFilter.asm.length) {
+    queue.rows = queue.rows.filter((r) => {
+      const a = assembly[String(r.id)];
+      return !!a && qcFilter.asm.includes(ecStageStatus(a.assembled, a.qty, "assembly"));
+    });
+  }
   if (qcFilterActive(qcFilter) && qcFilter.ec.length) {
     queue.rows = queue.rows.filter((r) => qcFilter.ec.includes(ecQcStatus(r)));
   }

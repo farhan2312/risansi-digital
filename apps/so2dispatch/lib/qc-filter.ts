@@ -7,11 +7,13 @@ import { inListNotHeld, soHoldSql } from "@/lib/dept-status";
 
 export const QC_SO_STATES = ["Open", "Closed"];
 export const QC_EC_STATUSES = ["Pending", "Partially submitted", "Submitted", "Docs not specified"];
+/** How far Assembly has got with an EC Quality sees (it sees none still pending). */
+export const QC_ASSEMBLY_STATES = ["Partially assembled", "Assembled"];
 
 /** The URL params Quality's own filters live under. */
-export const QC_FILTER_KEYS = { so: "qc_so", ec: "qc_ec" } as const;
+export const QC_FILTER_KEYS = { so: "qc_so", ec: "qc_ec", asm: "qc_asm" } as const;
 
-export type QcFilter = { so: string[]; ec: string[] };
+export type QcFilter = { so: string[]; ec: string[]; asm: string[] };
 
 const pick = (raw: string | undefined, allowed: string[]) =>
   (raw ?? "")
@@ -20,11 +22,15 @@ const pick = (raw: string | undefined, allowed: string[]) =>
     .filter((v) => allowed.includes(v));
 
 export function parseQcFilter(get: (key: string) => string | undefined): QcFilter {
-  return { so: pick(get(QC_FILTER_KEYS.so), QC_SO_STATES), ec: pick(get(QC_FILTER_KEYS.ec), QC_EC_STATUSES) };
+  return {
+    so: pick(get(QC_FILTER_KEYS.so), QC_SO_STATES),
+    ec: pick(get(QC_FILTER_KEYS.ec), QC_EC_STATUSES),
+    asm: pick(get(QC_FILTER_KEYS.asm), QC_ASSEMBLY_STATES),
+  };
 }
 
 export function qcFilterActive(f: QcFilter): boolean {
-  return f.so.length + f.ec.length > 0;
+  return f.so.length + f.ec.length + f.asm.length > 0;
 }
 
 type Row = Record<string, unknown>;
@@ -68,6 +74,13 @@ export function qcEcReadySql(it: string): string {
   return `EXISTS (SELECT 1 FROM order_lot_assembly qla WHERE qla.item_id = ${it}.id AND qla.assembled_date IS NOT NULL)`;
 }
 
+/** The EC's (alias it) assembly — Assembled once all of its qty is, else Partially assembled — the words its chip shows. */
+function ecAssemblySql(it: string): string {
+  const done = `COALESCE((SELECT sum(qa.qty) FROM order_lot_assembly qa WHERE qa.item_id = ${it}.id AND qa.assembled_date IS NOT NULL), 0)`;
+  return `(CASE WHEN COALESCE(${it}.quantity, 0) > 0 AND ${done} >= ${it}.quantity THEN 'Assembled'
+                WHEN ${done} > 0 THEN 'Partially assembled' ELSE 'Pending' END)`;
+}
+
 /** The SO's (alias o) Open / Closed in SQL. */
 export function soQcStateSql(o: string): string {
   return `(CASE WHEN EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id)
@@ -83,6 +96,9 @@ export function qcFilterSql(f: QcFilter, o = "o"): string {
     parts.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND ${qcEcReadySql("s")} AND ${inListNotHeld(ecQcStatusSql("s", o), f.ec, ["Pending"], o, "quality")})`);
   }
   if (f.so.length) parts.push(inListNotHeld(soQcStateSql(o), f.so, ["Open"], o, "quality"));
+  if (f.asm.length) {
+    parts.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND ${ecAssemblySql("s")} IN (${f.asm.map(lit).join(", ")}))`);
+  }
   return parts.length ? parts.join(" AND ") : "TRUE";
 }
 
