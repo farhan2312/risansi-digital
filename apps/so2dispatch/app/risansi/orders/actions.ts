@@ -75,6 +75,7 @@ import {
   ORDER_MAKING_FIELDS,
   ORDER_MAKING_SO_EDITABLE,
   firstOrderMakingMissing,
+  firstAfterOperationMissing,
   ADD_ON_PUMP_FIELDS,
   ADD_ON_SPARE_FIELDS,
   firstMissingAddOnField,
@@ -811,6 +812,16 @@ export async function updateOrderSectionAction(
   if (table === "order_accounts" && (await orderHasPi(id))) {
     const rolledUp = new Set(PI_ROLLED_UP);
     allowedValues = Object.fromEntries(Object.entries(allowedValues).filter(([k]) => !rolledUp.has(k)));
+  }
+
+  // Gone to Operation: Central's Order details carry its terms, documents,
+  // target dates and the day it went to PPC — as they stand once saved.
+  if (table === "orders" && !orderMaker) {
+    const detail = await getOrderDetail(id);
+    const now = detail?.order ?? {};
+    const after = (c: string) => String((c in allowedValues ? allowedValues[c] : now[c]) ?? "");
+    const missing = firstAfterOperationMissing(after, (detail?.order_payment_terms ?? []).length > 0);
+    if (missing) return { ok: false, error: `Sent to Operation: ${missing.label} is required.` };
   }
 
   const tbl = table as OrderTable;

@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Loader2, Paperclip, Pencil } from "lucide-react";
 import { updateOrderSectionAction, updateSectionForSoAction } from "@/app/risansi/orders/actions";
 import {
+  afterOperationRequired,
   canonicalSelectValue,
+  firstAfterOperationMissing,
   dependsOnSatisfied,
   readyLotsOpen,
   selectOptionsFor,
@@ -159,6 +161,14 @@ export function EditableSection({
     toInput(data?.item_type).trim().toLowerCase() === "spare";
   const [packLots, setPackLots] = useState<PackingLot[]>(() => packingLotsFromRows(data?.ready_lots));
 
+  // A field's value as the form stands: typed, else as saved.
+  const readNow = (c: string) => (c in values ? values[c] : toInput(data?.[c]));
+  // Gone to Operation: the fields Central must fill (marked *).
+  const afterOps =
+    section.table === "orders" && readNow("ec_sent_operation_date").trim()
+      ? new Set(afterOperationRequired().filter((f) => dependsOnSatisfied(f, readNow)).map((f) => f.column))
+      : new Set<string>();
+
   function startEdit() {
     setValues(
       Object.fromEntries(section.fields.map((f) => [f.column, seedValue(f, data)]))
@@ -196,6 +206,15 @@ export function EditableSection({
     if (lotProblem) {
       setError(lotProblem);
       return;
+    }
+    // Gone to Operation: its terms, documents, target dates and SO Sent to PPC
+    // Date before it saves (payment terms, kept as lines, the server checks).
+    if (section.table === "orders") {
+      const missing = firstAfterOperationMissing(readNow, true);
+      if (missing) {
+        setError(`Sent to Operation: ${missing.label} is required.`);
+        return;
+      }
     }
     setSaving(true);
     setError(null);
@@ -344,6 +363,7 @@ export function EditableSection({
                       <div>
                         <div className="mb-1 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
                           {field.label}
+                          {editing && afterOps.has(field.column) && <span className="text-danger">*</span>}
                           {field.centralOnly && !canEditCentral && (
                             <span className="rounded bg-slate-100 px-1 text-[9px] font-semibold text-slate-500">
                               read-only

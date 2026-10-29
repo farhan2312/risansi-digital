@@ -1001,6 +1001,37 @@ export function firstOrderMakingMissing(
   );
 }
 
+/**
+ * Once an SO has gone to Operation (SO Sent to Operation Date in), Central
+ * Visibility's Order details must carry the rest: every Terms & Conditions,
+ * Document Required and Target Dates field that applies (a remarks box
+ * aside), and the SO Sent to PPC Date.
+ */
+const AFTER_OPERATION_GROUPS = ["Terms & Conditions", "Document Required", "Target Dates"];
+export function afterOperationRequired(): OrderField[] {
+  return (ORDER_SECTIONS.find((s) => s.table === "orders")?.fields ?? []).filter(
+    (f) =>
+      (AFTER_OPERATION_GROUPS.includes(f.group ?? "") && !/remarks/i.test(f.column) && !f.computed) ||
+      f.column === "so_handover_date"
+  );
+}
+
+/**
+ * The first of them that applies and is blank, once the SO has gone to
+ * Operation — else null. `hasTermLines`: its payment terms are kept as lines
+ * (the prose field may be blank).
+ */
+export function firstAfterOperationMissing(read: (column: string) => string, hasTermLines = false): OrderField | null {
+  if (!String(read("ec_sent_operation_date") ?? "").trim()) return null;
+  return (
+    afterOperationRequired().find((f) => {
+      if (!dependsOnSatisfied(f, read)) return false;
+      if (f.column === "payment_terms" && hasTermLines) return false;
+      return String(read(f.column) ?? "").trim() === "";
+    }) ?? null
+  );
+}
+
 /** The Sales Order details that must be in for the SO's details to count as filled. */
 export const SO_DETAIL_FIELDS: OrderField[] = ORDER_MAKING_FIELDS.filter(
   (f) => SO_REQUIRED_COLUMNS.includes(f.column) && !f.computed
