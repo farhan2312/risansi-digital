@@ -90,6 +90,7 @@ export default async function OrderMakingPage({
         summary={summary}
         role={user.role}
         unreadThreads={unreadThreads}
+        viewerId={user.id}
       />
     </div>
   );

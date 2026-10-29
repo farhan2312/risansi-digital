@@ -122,6 +122,7 @@ export function OrderMakingWorkspace({
   summary = null,
   period = "daily",
   assignRange = null,
+  viewerId,
   role,
   unreadThreads,
   kpis = [],
@@ -148,6 +149,8 @@ export function OrderMakingWorkspace({
   period?: "daily" | "all" | "range";
   /** The days picked, when the period is a range. */
   assignRange?: { from: string; to: string } | null;
+  /** Who is looking: an SO assigned to them is theirs to fill in full. */
+  viewerId?: string;
   /** The viewer's role, for the SO discussion. */
   role: string;
   /** Unread discussion messages per SO, for the chat badge. */
@@ -831,6 +834,7 @@ export function OrderMakingWorkspace({
           row={editing === "new" ? null : editing}
           mode={mode}
           members={canAssign ? members : null}
+          viewerId={viewerId}
           onClose={() => setEditing(null)}
         />
       )}
@@ -855,8 +859,10 @@ function OrderMakingEdit({
   row,
   mode,
   members,
+  viewerId,
   onClose,
 }: {
+  viewerId?: string;
   row: OrderMakingRow | null;
   /** "so": an Order Making SO member fills the Sales Order details only. */
   mode: "po" | "so";
@@ -890,8 +896,12 @@ function OrderMakingEdit({
 
   const read = (c: string) => values[c] ?? "";
   const set = (c: string, v: string) => setValues((prev) => withValueRules(prev, c, v));
+  // Order Making PO filling an SO assigned to themself: its Sales Order details too.
+  const selfAssigned = mode === "po" && !!viewerId && assignee === viewerId;
   // The fields this form will not save without (marked *).
-  const requiredHere = new Set(orderMakingRequired(mode, read).map((f) => f.column));
+  const requiredHere = new Set(
+    [...orderMakingRequired(mode, read), ...(selfAssigned ? orderMakingRequired("so", read) : [])].map((f) => f.column)
+  );
 
   // Picking a client from the directory fills the Client group.
   function applyClient(client: MarketIntellClient) {
@@ -914,7 +924,7 @@ function OrderMakingEdit({
       return;
     }
     // Order Making PO: every Purchase Order detail; an SO member: every Sales Order detail.
-    const missing = firstOrderMakingMissing(mode, read);
+    const missing = firstOrderMakingMissing(mode, read) ?? (selfAssigned ? firstOrderMakingMissing("so", read) : null);
     if (missing) {
       setError(`${missing.label} is required.`);
       document.getElementById(missing.column)?.focus();
