@@ -74,6 +74,7 @@ import {
   ORDER_MAKING_EDITABLE,
   ORDER_MAKING_FIELDS,
   ORDER_MAKING_SO_EDITABLE,
+  firstOrderMakingMissing,
   ADD_ON_PUMP_FIELDS,
   ADD_ON_SPARE_FIELDS,
   firstMissingAddOnField,
@@ -162,7 +163,9 @@ export type CreateOrderResult =
   | { ok: false; error: string };
 
 export async function createOrderAction(
-  input: NewOrderInput
+  input: NewOrderInput,
+  /** From Order Making's own form: its Purchase Order details must all be in. */
+  opts?: { orderMakingForm?: boolean }
 ): Promise<CreateOrderResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
@@ -181,6 +184,11 @@ export async function createOrderAction(
   }
   if (!(input.client_code ?? "").trim()) {
     return { ok: false, error: "Client Code is required." };
+  }
+  if (opts?.orderMakingForm && isOrderMaking(user.role)) {
+    const given = input as Record<string, unknown>;
+    const missing = firstOrderMakingMissing("po", (c) => String(given[c] ?? ""));
+    if (missing) return { ok: false, error: `${missing.label} is required.` };
   }
   // The bill type follows the Bill Mode.
   if (input.bill_mode) input = { ...input, bill_type: BILL_TYPE_FOR_MODE[input.bill_mode] ?? input.bill_type };
@@ -775,6 +783,11 @@ export async function updateOrderSectionAction(
     if (allowedValues.order_type === "Spare") {
       allowedValues = { ...allowedValues, boi: "No", qc_required: "No" };
     }
+    // Its own details all in: the PO's Purchase Order, an SO member's Sales Order — as they stand once saved.
+    const now = (await getOrderDetail(id))?.order ?? {};
+    const after = (c: string) => String((c in allowedValues ? allowedValues[c] : now[c]) ?? "");
+    const missing = firstOrderMakingMissing(isOrderMakingSo(user.role) ? "so" : "po", after);
+    if (missing) return { ok: false, error: `${missing.label} is required.` };
   }
   if (omEc) {
     const own = new Set([...ADD_ON_PUMP_FIELDS, ...ADD_ON_SPARE_FIELDS].map((f) => f.column));

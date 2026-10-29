@@ -35,6 +35,8 @@ import {
   ORDER_MAKING_EDITABLE,
   ORDER_MAKING_FIELDS,
   ORDER_MAKING_SO_EDITABLE,
+  firstOrderMakingMissing,
+  orderMakingRequired,
   SO_DETAIL_COLUMNS,
   dependsOnSatisfied,
   selectOptionsFor,
@@ -888,6 +890,8 @@ function OrderMakingEdit({
 
   const read = (c: string) => values[c] ?? "";
   const set = (c: string, v: string) => setValues((prev) => withValueRules(prev, c, v));
+  // The fields this form will not save without (marked *).
+  const requiredHere = new Set(orderMakingRequired(mode).map((f) => f.column));
 
   // Picking a client from the directory fills the Client group.
   function applyClient(client: MarketIntellClient) {
@@ -909,6 +913,13 @@ function OrderMakingEdit({
       setError("Client Code is required.");
       return;
     }
+    // Order Making PO: every Purchase Order detail; an SO member: every Sales Order detail.
+    const missing = firstOrderMakingMissing(mode, read);
+    if (missing) {
+      setError(`${missing.label} is required.`);
+      document.getElementById(missing.column)?.focus();
+      return;
+    }
     setSaving(true);
     setError(null);
     // Only fields that apply go: a PO typed before switching to FR is not saved.
@@ -921,7 +932,8 @@ function OrderMakingEdit({
     const res = row
       ? await updateOrderSectionAction(row.id, "orders", sending)
       : await createOrderAction(
-          Object.fromEntries(Object.entries(sending).filter(([, v]) => v.trim() !== "")) as NewOrderInput
+          Object.fromEntries(Object.entries(sending).filter(([, v]) => v.trim() !== "")) as NewOrderInput,
+          { orderMakingForm: true }
         );
     if (!res.ok) {
       setSaving(false);
@@ -1084,7 +1096,7 @@ function OrderMakingEdit({
                     <label key={f.column} htmlFor={f.column} className="block text-sm">
                       <span className="mb-1 block text-[13px] font-medium text-brand-label">
                         {f.label}
-                        {f.column === "client_code" && <span className="text-danger"> *</span>}
+                        {(f.column === "client_code" || requiredHere.has(f.column)) && <span className="text-danger"> *</span>}
                       </span>
                       {input(f)}
                       {challanLocked(f) && (

@@ -953,6 +953,29 @@ const SO_REQUIRED_COLUMNS = ["so_no", "so_date", "order_value", "order_currency"
 export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter(
   (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.column === "ec_sent_operation_date" || f.group === "Order Making Hold"
 );
+/**
+ * What Order Making must fill before its form saves. Order Making PO: every
+ * Purchase Order detail that applies (a remarks box aside). Order Making SO:
+ * every Sales Order detail that applies. Defined after the field lists, as a
+ * function, since ORDER_MAKING_EDITABLE is.
+ */
+export function orderMakingRequired(mode: "po" | "so"): OrderField[] {
+  return ORDER_MAKING_EDITABLE.filter((f) =>
+    mode === "so"
+      ? SO_DETAIL_COLUMNS.includes(f.column)
+      : f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && !/remarks/i.test(f.column)
+  );
+}
+
+/** The first of them that applies and is still blank (an SO No. at its prefix alone is blank), or null. */
+export function firstOrderMakingMissing(mode: "po" | "so", read: (column: string) => string): OrderField | null {
+  return (
+    orderMakingRequired(mode).find(
+      (f) => dependsOnSatisfied(f, read) && withoutBarePrefix(f.column, read(f.column)).trim() === ""
+    ) ?? null
+  );
+}
+
 /** The Sales Order details that must be in for the SO's details to count as filled. */
 export const SO_DETAIL_FIELDS: OrderField[] = ORDER_MAKING_FIELDS.filter(
   (f) => SO_REQUIRED_COLUMNS.includes(f.column) && !f.computed
