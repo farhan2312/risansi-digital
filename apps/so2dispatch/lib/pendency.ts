@@ -7,7 +7,7 @@ export type PendencyDept = "billing" | "drawing" | "purchase";
 
 export const PENDENCY: Record<PendencyDept, { reasons: string[]; key: string }> = {
   billing: {
-    reasons: ["Proof of Readiness awaited", "TSM Instruction Awaited", "Client confirmation Awaited"],
+    reasons: ["Proof of Readiness awaited", "TSM Instruction Awaited", "Client confirmation Awaited", "Along with another SO"],
     key: "pi_pend",
   },
   drawing: {
