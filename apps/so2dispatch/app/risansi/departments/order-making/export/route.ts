@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canAccessOrderMaking, isOrderMakingSo } from "@/lib/roles";
 import { buildOrderMakingWorkbook, loadOrderMakingReport, orderMakingReport } from "@/lib/order-making-export";
+import { buildOrderMakingReportPdf } from "@/lib/order-making-report-pdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,17 @@ export async function GET(req: NextRequest) {
   const omit = isOrderMakingSo(user.role) ? ["SO Sent to Operation"] : [];
   if (params.get("view")) {
     return Response.json({ scope, ...orderMakingReport(rows, omit) }, { headers: { "Cache-Control": "no-store" } });
+  }
+  // As a PDF, laid out as the on-page report: shown in its pop-up, or saved with download=1.
+  if (params.get("pdf")) {
+    const bytes = await buildOrderMakingReportPdf({ scope, ...orderMakingReport(rows, omit) });
+    return new Response(bytes as unknown as ArrayBuffer, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `${params.get("download") ? "attachment" : "inline"}; filename="order-making-report${filtered ? "-filtered" : ""}-${today}.pdf"`,
+        "Cache-Control": "no-store",
+      },
+    });
   }
   const buffer = await buildOrderMakingWorkbook(rows, scope, omit).xlsx.writeBuffer();
 

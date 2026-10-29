@@ -1,81 +1,15 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronDown, FileSpreadsheet, Loader2, Maximize2, Minus, Plus, Printer } from "lucide-react";
+import { ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Maximize2, Minus, Plus, Printer, X } from "lucide-react";
+import { blocksOf, type SoBlock } from "@/lib/order-making-blocks";
 
 type Line = { cells: (string | number | null)[]; filled: boolean };
 type Report = { scope: string; columns: { header: string; date?: boolean }[]; lines: Line[] };
 
-/** One SO as the view shows it: its own details once, and each of its ECs. */
-type SoBlock = {
-  poDate: string;
-  client: string;
-  orderType: string;
-  billMode: string;
-  soNo: string;
-  soDate: string;
-  sentToOps: string;
-  assigned: string;
-  reason: string;
-  remarks: string;
-  ecs: { no: string; date: string }[];
-};
-
 const ZOOM_STEP = 0.1;
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 1.5;
-
-function day(v: string | number | null | undefined): string {
-  if (v == null || v === "") return "";
-  const d = new Date(String(v));
-  return Number.isNaN(d.getTime())
-    ? String(v)
-    : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
-}
-
-/** The report's lines (one per EC, the SO repeated on each) as one block per SO. */
-function blocksOf(report: Report): SoBlock[] {
-  const at = (h: string) => report.columns.findIndex((c) => c.header === h);
-  const ix = {
-    po: at("PO Receiving Date"),
-    client: at("Client Name"),
-    type: at("Order Type"),
-    bill: at("Bill Mode"),
-    so: at("SO No."),
-    soDate: at("SO Date"),
-    ec: at("EC No."),
-    ecDate: at("EC Date"),
-    ops: at("SO Sent to Operation"),
-    who: at("Assigned Person"),
-    reason: at("Reason for Delay"),
-    remarks: at("Remarks"),
-  };
-  const s = (l: Line, i: number) => (i < 0 || l.cells[i] == null ? "" : String(l.cells[i]));
-  const out: SoBlock[] = [];
-  for (const l of report.lines) {
-    const last = out[out.length - 1];
-    const ec = { no: s(l, ix.ec), date: day(l.cells[ix.ec] ? l.cells[ix.ecDate] : null) };
-    if (last && last.soNo && last.soNo === s(l, ix.so) && last.client === s(l, ix.client)) {
-      if (ec.no) last.ecs.push(ec);
-      continue;
-    }
-    const ops = s(l, ix.ops);
-    out.push({
-      poDate: day(l.cells[ix.po]),
-      client: s(l, ix.client),
-      orderType: s(l, ix.type),
-      billMode: s(l, ix.bill),
-      soNo: s(l, ix.so),
-      soDate: day(l.cells[ix.soDate]),
-      sentToOps: ops === "HOLD" ? "HOLD" : day(ops),
-      assigned: s(l, ix.who),
-      reason: s(l, ix.reason),
-      remarks: s(l, ix.remarks),
-      ecs: ec.no ? [ec] : [],
-    });
-  }
-  return out;
-}
 
 const HEADS = ["PO Received", "Client", "Type", "Sales Order", "ECs", "Sent to Operation", "Assigned to", "Reason for Delay", "Remarks"];
 
@@ -138,39 +72,8 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
 
   const loading = open && loadedFor !== query && !error;
 
-  /**
-   * The sheet in a window of its own, at its full size on A4 landscape, and
-   * the browser's print dialog over it — to print, or Save as PDF.
-   */
-  function printSheet() {
-    const sheetEl = sheetRef.current?.firstElementChild;
-    if (!sheetEl) return;
-    const win = window.open("", "_blank", "width=1280,height=900");
-    if (!win) {
-      alert("Allow pop-ups for this site to print the report.");
-      return;
-    }
-    // The page's own styles, so the sheet looks as it does here.
-    const styles = [...document.querySelectorAll('link[rel="stylesheet"], style')].map((n) => n.outerHTML).join("");
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Order Making report</title>${styles}
-      <style>
-        @page { size: A4 landscape; margin: 8mm; }
-        html, body { background: #fff !important; margin: 0; }
-        body { padding: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .om-print { zoom: 0.86; }
-        tr { break-inside: avoid; }
-        thead { display: table-header-group; }
-        @media print { body { padding: 0; } }
-      </style></head><body><div class="om-print">${sheetEl.outerHTML}</div></body></html>`);
-    win.document.close();
-    // Once its styles are in, open the print dialog.
-    const go = () => {
-      win.focus();
-      win.print();
-    };
-    if (win.document.readyState === "complete") setTimeout(go, 400);
-    else win.addEventListener("load", () => setTimeout(go, 200));
-  }
+  // The report as a PDF, in its pop-up: to print or download.
+  const [showPdf, setShowPdf] = useState(false);
   const blocks = report ? blocksOf(report) : [];
   const ecCount = blocks.reduce((t, b) => t + b.ecs.length, 0);
 
@@ -179,6 +82,7 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
 
   return (
     <section className="mb-4 overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm">
+      {showPdf && <ReportPdfDialog query={query} onClose={() => setShowPdf(false)} />}
       <div className="flex items-center gap-3 px-4 py-3">
         <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-3 text-left">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15">
@@ -203,7 +107,7 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
             </button>
             <button
               type="button"
-              onClick={printSheet}
+              onClick={() => setShowPdf(true)}
               title="Print, or Save as PDF"
               className="ml-0.5 inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-semibold text-muted transition-colors hover:bg-background hover:text-foreground"
             >
@@ -368,4 +272,83 @@ function Pill({ tone, children }: { tone: "indigo" | "teal" | "rose"; children: 
     rose: "bg-rose-50 text-rose-700 ring-rose-200",
   }[tone];
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10.5px] font-semibold ring-1 ring-inset ${cls}`}>{children}</span>;
+}
+
+/**
+ * The report as a PDF in a pop-up — as filtered, A4 landscape, laid out as on
+ * the page — to look over, print or download.
+ */
+function ReportPdfDialog({ query, onClose }: { query: string; onClose: () => void }) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const src = `/risansi/departments/order-making/export?${query ? `${query}&` : ""}pdf=1`;
+  const print = () => {
+    try {
+      frameRef.current?.contentWindow?.focus();
+      frameRef.current?.contentWindow?.print();
+    } catch {
+      // The viewer would not print from here: open it on its own to print.
+      window.open(src, "_blank");
+    }
+  };
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Order Making report PDF"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-t-2xl bg-surface shadow-2xl ring-1 ring-black/5 sm:rounded-2xl"
+      >
+        <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#1F3864] to-[#2F5496] px-5 py-3.5 text-white">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15">
+              <FileText className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="font-display text-base font-semibold">Order Making report</h2>
+              <p className="text-xs text-white/75">As filtered · A4 landscape · print it or save it as a PDF</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={print}
+              disabled={!ready}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white/15 px-3 text-sm font-semibold text-white transition-colors hover:bg-white/25 disabled:opacity-50"
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </button>
+            <a
+              href={`${src}&download=1`}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white px-3 text-sm font-semibold text-[#1F3864] transition-colors hover:bg-white/90"
+            >
+              <Download className="h-4 w-4" />
+              Download PDF
+            </a>
+            <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+        <div className="relative min-h-0 flex-1 bg-slate-100">
+          {!ready && (
+            <p className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" /> Preparing the PDF…
+            </p>
+          )}
+          <iframe ref={frameRef} src={`${src}#view=FitH`} title="Order Making report PDF" onLoad={() => setReady(true)} className="h-full w-full" />
+        </div>
+      </div>
+    </div>
+  );
 }
