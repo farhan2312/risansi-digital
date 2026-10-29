@@ -213,20 +213,27 @@ export async function listOrderGapSheet(opts: {
                OR o.so_no ILIKE $1 OR o.client_name ILIKE $1 OR o.client_code ILIKE $1
                OR o.po_no ILIKE $1 OR o.sl_no::text ILIKE $1)
           AND ($2::text IS NULL
-               OR TRIM(COALESCE(o.order_type, '')) = $2
+               OR TRIM(COALESCE(o.order_type, '')) = $2${
+                 // Every SO, a sheet per type: each SO on its own type's sheet only.
+                 opts.everySo
+                   ? ""
+                   : `
                OR EXISTS (SELECT 1 FROM order_items s
-                           WHERE s.order_id = o.id AND TRIM(COALESCE(s.item_type, '')) = $2))
+                           WHERE s.order_id = o.id AND TRIM(COALESCE(s.item_type, '')) = $2)`
+               })
      )
      SELECT * FROM checked WHERE missing > 0 ORDER BY sl_no DESC`,
     [like, type]
   );
   const missingAnywhere = new Set<number>();
+  const appliesAnywhere = new Set<number>();
   const rows = result.rows.map((r) => {
     const cells: Record<string, GapCell> = {};
     GAP_FIELDS.forEach((f, i) => {
       const c = r[`f${i}`] as GapCell;
       cells[f.column] = c;
       if (c.s === "miss") missingAnywhere.add(i);
+      if (c.s !== "na") appliesAnywhere.add(i);
     });
     return {
       id: String(r.id),
@@ -240,7 +247,8 @@ export async function listOrderGapSheet(opts: {
       cells,
     };
   });
-  const columns = GAP_FIELDS.filter((_, i) => missingAnywhere.has(i)).map((f) => ({
+  // The fields missing anywhere, and every target date that applies to any of them — filled or not.
+  const columns = GAP_FIELDS.filter((f, i) => missingAnywhere.has(i) || (f.group === "Target Dates" && appliesAnywhere.has(i))).map((f) => ({
     column: f.column,
     label: f.label,
     group: f.group ?? "Order details",

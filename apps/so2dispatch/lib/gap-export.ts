@@ -28,10 +28,20 @@ const isDate = (t: string) => t === "date";
 const isNumber = (t: string) => t === "number" || t === "int";
 
 export function buildGapWorkbook(sheet: GapSheet, scope: string): ExcelJS.Workbook {
+  return buildGapWorkbookSheets([{ name: "Details not filled", sheet, scope }]);
+}
+
+/** One worksheet per part (Pump, Spare…), each laid out as buildGapWorkbook's. */
+export function buildGapWorkbookSheets(parts: { name: string; sheet: GapSheet; scope: string }[]): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Risansi SO to Dispatch";
   wb.created = new Date();
-  const ws = wb.addWorksheet("Details not filled", {
+  for (const p of parts) addGapSheet(wb, p.name, p.sheet, p.scope);
+  return wb;
+}
+
+function addGapSheet(wb: ExcelJS.Workbook, name: string, sheet: GapSheet, scope: string): void {
+  const ws = wb.addWorksheet(name, {
     views: [{ state: "frozen", xSplit: 2, ySplit: 3 }],
   });
   const total = KEYS.length + sheet.columns.length;
@@ -135,5 +145,4 @@ export function buildGapWorkbook(sheet: GapSheet, scope: string): ExcelJS.Workbo
     });
   }
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: Math.max(3, ws.rowCount), column: total } };
-  return wb;
 }
