@@ -116,7 +116,20 @@ export async function loadOrderMakingReport(
   return { rows, scope, filtered, today };
 }
 
-export function buildOrderMakingWorkbook(rows: OrderMakingRow[], scope: string): ExcelJS.Workbook {
+/**
+ * The report's columns and lines, less the columns named in `omit` (an
+ * Order Making SO member does not see SO Sent to Operation).
+ */
+export function orderMakingReport(rows: OrderMakingRow[], omit: string[] = []) {
+  const keep = COLUMNS.map((c, i) => (omit.includes(c.header) ? -1 : i)).filter((i) => i >= 0);
+  return {
+    columns: keep.map((i) => COLUMNS[i]),
+    lines: orderMakingReportLines(rows).map((l) => ({ ...l, cells: keep.map((i) => l.cells[i]) })),
+  };
+}
+
+export function buildOrderMakingWorkbook(rows: OrderMakingRow[], scope: string, omit: string[] = []): ExcelJS.Workbook {
+  const { columns: COLS, lines } = orderMakingReport(rows, omit);
   const wb = new ExcelJS.Workbook();
   wb.creator = "Risansi SO to Dispatch";
   wb.created = new Date();
@@ -125,25 +138,25 @@ export function buildOrderMakingWorkbook(rows: OrderMakingRow[], scope: string):
   // A line saying what the sheet holds, then the header.
   const title = ws.addRow([`Order Making report — ${scope}`]);
   title.font = { bold: true, size: 12 };
-  ws.mergeCells(1, 1, 1, COLUMNS.length);
+  ws.mergeCells(1, 1, 1, COLS.length);
 
-  const head = ws.addRow(COLUMNS.map((c) => c.header));
+  const head = ws.addRow(COLS.map((c) => c.header));
   head.height = 30;
   head.eachCell((cell) => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEAD_BG } };
     cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   });
-  COLUMNS.forEach((c, i) => {
+  COLS.forEach((c, i) => {
     const col = ws.getColumn(i + 1);
     col.width = c.width;
     if (c.date) col.numFmt = "dd-mmm-yyyy";
   });
 
-  for (const { cells, filled } of orderMakingReportLines(rows)) {
+  for (const { cells, filled } of lines) {
     const r = ws.addRow(cells);
     r.alignment = { vertical: "top", wrapText: true };
-    r.getCell(COLUMNS.length).font = { bold: true, color: { argb: filled ? "FF047857" : "FFB45309" } };
+    r.getCell(COLS.length).font = { bold: true, color: { argb: filled ? "FF047857" : "FFB45309" } };
   }
 
   const last = ws.rowCount;
@@ -157,6 +170,6 @@ export function buildOrderMakingWorkbook(rows: OrderMakingRow[], scope: string):
       };
     });
   }
-  ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: Math.max(2, last), column: COLUMNS.length } };
+  ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: Math.max(2, last), column: COLS.length } };
   return wb;
 }

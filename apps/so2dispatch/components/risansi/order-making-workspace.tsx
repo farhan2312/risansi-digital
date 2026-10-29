@@ -235,7 +235,8 @@ export function OrderMakingWorkspace({
     { column: "complaint_no", label: "Complaint No." },
     { column: "po_no", label: "PO No." },
     { column: "order_value", label: "Order Value" },
-    { column: "ec_sent_operation_date", label: "SO Sent to Operation" },
+    // Order Making PO's: an SO member does not see it.
+    ...(mode === "so" ? [] : [{ column: "ec_sent_operation_date", label: "SO Sent to Operation" }]),
   ];
 
   const headButton =
@@ -393,7 +394,7 @@ export function OrderMakingWorkspace({
       {/* Every SO's chat at a glance, above the filters. */}
       <AllChatsRow />
       {/* The report on the page, as filtered: opens and closes, to screenshot. */}
-      <OmReportPanel query={excelQuery} />
+      <OmReportPanel query={excelQuery} hideSentToOps={mode === "so"} />
       <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         {/* All, Spare or Pump: the SO's type (its own, or any of its ECs'). */}
@@ -1057,9 +1058,10 @@ function OrderMakingEdit({
           const fields = ORDER_MAKING_EDITABLE.filter((f) => section.fields(f) && dependsOnSatisfied(f, read));
           const isSo = section.title === "Sales Order";
           const isHandover = section.title === "Handover";
-          // An SO member sees the client and PO as they stand, to fill against;
-          // the Handover's date is theirs too.
-          const readOnly = mode === "so" && !isSo && !isHandover;
+          // The Handover (SO Sent to Operation) is Order Making PO's: an SO member does not see it.
+          if (isHandover && mode === "so") return null;
+          // An SO member sees the client and PO as they stand, to fill against.
+          const readOnly = mode === "so" && !isSo;
           return (
             <section
               key={section.title}

@@ -952,7 +952,8 @@ export const SO_DETAIL_COLUMNS = [
 const SO_REQUIRED_COLUMNS = ["so_no", "so_date", "order_value", "order_currency", "total_quantity"];
 /** What Order Making SO types into — and Clear / Hold on the SOs assigned to them. */
 export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter(
-  (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.column === "ec_sent_operation_date" || f.group === "Order Making Hold"
+  // Not the SO Sent to Operation Date: that is Order Making PO's.
+  (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.group === "Order Making Hold"
 );
 /**
  * What Order Making must fill before its form saves. Order Making PO: every
@@ -966,10 +967,11 @@ export function orderMakingRequired(mode: "po" | "so", read?: (column: string) =
       ? SO_DETAIL_COLUMNS.includes(f.column)
       : f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && !/remarks/i.test(f.column)
   );
-  // Once the Sales Order details are all in, the day the SO went to Operation
-  // is owed too — unless Order Making holds it (it has not gone).
+  // Once the Sales Order details are all in, Order Making PO owes the day the
+  // SO went to Operation too — unless Order Making holds it (it has not gone).
+  // An SO member never sees it.
   const sent = ORDER_MAKING_EDITABLE.find((f) => f.column === "ec_sent_operation_date");
-  if (read && sent && String(read("om_status") ?? "") !== "Hold" && salesOrderFilled(read)) own.push(sent);
+  if (mode === "po" && read && sent && String(read("om_status") ?? "") !== "Hold" && salesOrderFilled(read)) own.push(sent);
   return own;
 }
 

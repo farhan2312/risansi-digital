@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { canAccessOrderMaking } from "@/lib/roles";
-import { buildOrderMakingWorkbook, COLUMNS, loadOrderMakingReport, orderMakingReportLines } from "@/lib/order-making-export";
+import { canAccessOrderMaking, isOrderMakingSo } from "@/lib/roles";
+import { buildOrderMakingWorkbook, loadOrderMakingReport, orderMakingReport } from "@/lib/order-making-export";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,13 +17,12 @@ export async function GET(req: NextRequest) {
 
   const params = req.nextUrl.searchParams;
   const { rows, scope, filtered, today } = await loadOrderMakingReport(user, (key) => params.get(key) ?? undefined);
+  // SO Sent to Operation is Order Making PO's: an SO member does not see it.
+  const omit = isOrderMakingSo(user.role) ? ["SO Sent to Operation"] : [];
   if (params.get("view")) {
-    return Response.json(
-      { scope, columns: COLUMNS, lines: orderMakingReportLines(rows) },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    return Response.json({ scope, ...orderMakingReport(rows, omit) }, { headers: { "Cache-Control": "no-store" } });
   }
-  const buffer = await buildOrderMakingWorkbook(rows, scope).xlsx.writeBuffer();
+  const buffer = await buildOrderMakingWorkbook(rows, scope, omit).xlsx.writeBuffer();
 
   return new Response(buffer, {
     headers: {

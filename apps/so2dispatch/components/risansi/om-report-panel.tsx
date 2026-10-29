@@ -85,7 +85,7 @@ const HEADS = ["PO Received", "Client", "Type", "Sales Order", "ECs", "Sent to O
  * fitted to the panel's width (or zoomed in and out), in a panel that opens
  * and closes.
  */
-export function OmReportPanel({ query }: { query: string }) {
+export function OmReportPanel({ query, hideSentToOps = false }: { query: string; hideSentToOps?: boolean }) {
   const [open, setOpen] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -202,7 +202,7 @@ export function OmReportPanel({ query }: { query: string }) {
               {/* Scaled as a whole; the box beneath takes its scaled size so nothing is cut or left blank. */}
               <div style={{ width: sheet.w * scale || undefined, height: sheet.h * scale || undefined }}>
                 <div ref={sheetRef} style={{ transform: `scale(${scale})`, transformOrigin: "top left" }} className="w-max">
-                  <Sheet scope={report.scope} blocks={blocks} ecCount={ecCount} />
+                  <Sheet scope={report.scope} blocks={blocks} ecCount={ecCount} hideSentToOps={hideSentToOps} />
                 </div>
               </div>
             </div>
@@ -214,7 +214,9 @@ export function OmReportPanel({ query }: { query: string }) {
 }
 
 /** The report itself: a title, then one card-row per SO. */
-function Sheet({ scope, blocks, ecCount }: { scope: string; blocks: SoBlock[]; ecCount: number }) {
+function Sheet({ scope, blocks, ecCount, hideSentToOps }: { scope: string; blocks: SoBlock[]; ecCount: number; hideSentToOps: boolean }) {
+  // An Order Making SO member does not see Sent to Operation.
+  const heads = hideSentToOps ? HEADS.filter((h) => h !== "Sent to Operation") : HEADS;
   return (
     <div className="w-[1180px] overflow-hidden rounded-xl bg-white text-[12.5px] text-slate-700 shadow-sm ring-1 ring-slate-200">
       <div className="flex items-end justify-between gap-4 bg-gradient-to-r from-[#1F3864] to-[#2F5496] px-5 py-4 text-white">
@@ -236,14 +238,14 @@ function Sheet({ scope, blocks, ecCount }: { scope: string; blocks: SoBlock[]; e
           <col className="w-[92px]" />
           <col className="w-[120px]" />
           <col className="w-[170px]" />
-          <col className="w-[96px]" />
+          {!hideSentToOps && <col className="w-[96px]" />}
           <col className="w-[110px]" />
           <col />
           <col />
         </colgroup>
         <thead>
           <tr>
-            {HEADS.map((h) => (
+            {heads.map((h) => (
               <th key={h} className="border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">
                 {h}
               </th>
@@ -281,15 +283,17 @@ function Sheet({ scope, blocks, ecCount }: { scope: string; blocks: SoBlock[]; e
                   <span className="text-slate-300">No EC yet</span>
                 )}
               </Td>
-              <Td>
-                {b.sentToOps === "HOLD" ? (
-                  <Pill tone="rose">HOLD</Pill>
-                ) : b.sentToOps ? (
-                  <span className="text-emerald-700">{b.sentToOps}</span>
-                ) : (
-                  <span className="text-slate-300">Not yet</span>
-                )}
-              </Td>
+              {!hideSentToOps && (
+                <Td>
+                  {b.sentToOps === "HOLD" ? (
+                    <Pill tone="rose">HOLD</Pill>
+                  ) : b.sentToOps ? (
+                    <span className="text-emerald-700">{b.sentToOps}</span>
+                  ) : (
+                    <span className="text-slate-300">Not yet</span>
+                  )}
+                </Td>
+              )}
               <Td>{b.assigned === "Migrated" ? <span className="text-slate-400">Migrated</span> : b.assigned}</Td>
               <Td>
                 <span className="whitespace-pre-line text-amber-800">{b.reason}</span>
