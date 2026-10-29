@@ -4,7 +4,7 @@ import { query } from "@/lib/db";
 import { sanitize, wrap } from "@/lib/pdf-text";
 import { SO_DETAILS_FILLED_SQL } from "@/lib/order-gaps";
 import { orderOpenSql } from "@/lib/dept-view";
-import type { AssignPeriod } from "@/lib/so-assignment";
+import { inWindowSql, windowLabel, type AssignWindow } from "@/lib/so-assignment";
 
 /** One SO in the assignment grid. */
 type Row = {
@@ -19,16 +19,14 @@ type Row = {
   filled: boolean;
 };
 
-/** "Today" in the business's own calendar. */
-const TODAY_SQL = `(now() AT TIME ZONE 'Asia/Kolkata')::date`;
-
 /**
  * The SOs and who their Sales Order details are assigned to, as a grid —
  * one table per Order Making SO member, then the unassigned ones. Daily: the
  * SOs assigned today, and the open ones made today that nobody has yet.
  */
-export async function buildSoAssignmentPdf(period: AssignPeriod): Promise<Uint8Array> {
-  const daily = period === "daily";
+export async function buildSoAssignmentPdf(w: AssignWindow): Promise<Uint8Array> {
+  // Today, or a range of days: the SOs assigned on them, and those made on them nobody has.
+  const daily = w.period !== "all";
   const r = await query<Row>(
     `SELECT u.full_name AS member, o.so_no, o.sl_no::int AS sl_no,
             to_char(o.so_date, 'DD Mon YYYY') AS so_date, o.client_name, o.order_type,
@@ -40,8 +38,8 @@ export async function buildSoAssignmentPdf(period: AssignPeriod): Promise<Uint8A
       WHERE ${orderOpenSql("o")}
         ${
           daily
-            ? `AND ((o.so_assignee_id IS NOT NULL AND (o.so_assigned_at AT TIME ZONE 'Asia/Kolkata')::date = ${TODAY_SQL})
-                 OR (o.so_assignee_id IS NULL AND (o.created_at AT TIME ZONE 'Asia/Kolkata')::date = ${TODAY_SQL}))`
+            ? `AND ((o.so_assignee_id IS NOT NULL ${inWindowSql("o.so_assigned_at", w)})
+                 OR (o.so_assignee_id IS NULL ${inWindowSql("o.created_at", w)}))`
             : ""
         }
       ORDER BY u.full_name NULLS LAST, o.so_assigned_at DESC NULLS LAST, o.sl_no DESC`
@@ -81,7 +79,7 @@ export async function buildSoAssignmentPdf(period: AssignPeriod): Promise<Uint8A
   const stamp = new Date().toLocaleString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const header = () => {
     text(page, "SO details assignment", M, y, bold, 15);
-    text(page, `${daily ? "Today" : "All time"} · ${r.rows.length} SOs · ${stamp}`, M, y - 16, font, 9, muted);
+    text(page, `${windowLabel(w)} · ${r.rows.length} SOs · ${stamp}`, M, y - 16, font, 9, muted);
     y -= 34;
   };
   const newPage = () => {
@@ -100,7 +98,7 @@ export async function buildSoAssignmentPdf(period: AssignPeriod): Promise<Uint8A
 
   header();
   if (r.rows.length === 0) {
-    text(page, daily ? "Nothing assigned or made today." : "No open SOs.", M, y, font, 10, muted);
+    text(page, daily ? `Nothing assigned or made ${w.period === "daily" ? "today" : "in these days"}.` : "No open SOs.", M, y, font, 10, muted);
   }
   for (const [member, rows] of groups) {
     const filled = rows.filter((x) => x.filled).length;

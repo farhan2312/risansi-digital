@@ -158,21 +158,52 @@ export type SoMemberSummary = {
   unassigned: { total: number; pending: number };
 };
 
-/** The assignment cards and PDF: today's (the default), or all time. */
-export type AssignPeriod = "daily" | "all";
-export function parseAssignPeriod(v: string | undefined): AssignPeriod {
-  return v === "all" ? "all" : "daily";
+/** The assignment cards and PDF: today's (the default), all time, or a range of days picked. */
+export type AssignPeriod = "daily" | "all" | "range";
+/** The period, with the days it covers (from–to, inclusive; blank for all time). */
+export type AssignWindow = { period: AssignPeriod; from: string; to: string };
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+/** The window from the URL: period=all, or period=range with pfrom / pto; else today. */
+export function parseAssignWindow(period: string | undefined, from?: string | null, to?: string | null): AssignWindow {
+  if (period === "all") return { period: "all", from: "", to: "" };
+  if (period === "range") {
+    const f = ISO_DAY.test(from ?? "") ? from! : "";
+    const t = ISO_DAY.test(to ?? "") ? to! : "";
+    // One end alone is that one day; the two in either order.
+    const a = f || t;
+    const b = t || f;
+    if (a) return { period: "range", from: a <= b ? a : b, to: a <= b ? b : a };
+  }
+  const d = todayIst();
+  return { period: "daily", from: d, to: d };
+}
+
+/** "and the timestamp falls on one of the window's days" — empty for all time. */
+export function inWindowSql(col: string, w: AssignWindow): string {
+  if (w.period === "all") return "";
+  return `AND (${col} AT TIME ZONE 'Asia/Kolkata')::date BETWEEN '${w.from}'::date AND '${w.to}'::date`;
+}
+
+/** The window in words: Today, All time, or "01 Oct 2026 – 29 Oct 2026". */
+export function windowLabel(w: AssignWindow): string {
+  if (w.period === "all") return "All time";
+  if (w.period === "daily") return "Today";
+  const fmt = (d: string) =>
+    new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+  return w.from === w.to ? fmt(w.from) : `${fmt(w.from)} – ${fmt(w.to)}`;
 }
 
 /**
  * Per Order Making SO member: open SOs assigned, still pending, filled. And
- * what nobody has yet. Daily: SOs assigned today, and the unassigned ones
- * made today; all time: every open SO.
+ * what nobody has yet. Daily (or a range): SOs assigned on those days, and
+ * the unassigned ones made on them; all time: every open SO.
  */
-export async function soMemberSummary(period: AssignPeriod = "daily"): Promise<SoMemberSummary> {
-  const today = `(now() AT TIME ZONE 'Asia/Kolkata')::date`;
-  const assignedToday = period === "daily" ? `AND (o.so_assigned_at AT TIME ZONE 'Asia/Kolkata')::date = ${today}` : "";
-  const madeToday = period === "daily" ? `AND (o.created_at AT TIME ZONE 'Asia/Kolkata')::date = ${today}` : "";
+export async function soMemberSummary(w: AssignWindow = parseAssignWindow(undefined)): Promise<SoMemberSummary> {
+  const assignedToday = inWindowSql("o.so_assigned_at", w);
+  const madeToday = inWindowSql("o.created_at", w);
   const [members, counts, unassigned] = await Promise.all([
     listSoMembers(),
     query<{ id: string; assigned: number; filled: number }>(

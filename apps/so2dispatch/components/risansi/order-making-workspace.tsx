@@ -119,6 +119,7 @@ export function OrderMakingWorkspace({
   members = [],
   summary = null,
   period = "daily",
+  assignRange = null,
   role,
   unreadThreads,
   kpis = [],
@@ -141,8 +142,10 @@ export function OrderMakingWorkspace({
   canAssign?: boolean;
   members?: SoMember[];
   summary?: SoMemberSummary | null;
-  /** The cards' period: today's assignments (default) or all time. */
-  period?: "daily" | "all";
+  /** The cards' period: today's assignments (default), all time, or a range of days. */
+  period?: "daily" | "all" | "range";
+  /** The days picked, when the period is a range. */
+  assignRange?: { from: string; to: string } | null;
   /** The viewer's role, for the SO discussion. */
   role: string;
   /** Unread discussion messages per SO, for the chat badge. */
@@ -160,10 +163,18 @@ export function OrderMakingWorkspace({
   // The Excel report: the list as filtered and searched, every page.
   const urlParams = useSearchParams();
   const [showReport, setShowReport] = useState(false);
-  const excelQuery = new URLSearchParams([...urlParams.entries()].filter(([k]) => !["page", "period"].includes(k))).toString();
+  const excelQuery = new URLSearchParams([...urlParams.entries()].filter(([k]) => !["page", "period", "pfrom", "pto"].includes(k))).toString();
   // The Daily / All time toggle switches the moment it is clicked; the cards
   // follow when the counts arrive (dimmed meanwhile).
-  const [requestedPeriod, setShownPeriod] = useState<"daily" | "all" | null>(null);
+  const [requestedPeriod, setShownPeriod] = useState<"daily" | "all" | "range" | null>(null);
+  // The range being picked (applied once both days are in).
+  const [rangeFrom, setRangeFrom] = useState(assignRange?.from ?? "");
+  const [rangeTo, setRangeTo] = useState(assignRange?.to ?? "");
+  const applyRange = (from: string, to: string) => {
+    if (!from || !to) return;
+    setShownPeriod("range");
+    setParams({ period: "range", pfrom: from, pto: to });
+  };
   // When the page catches up (or moves by Back), the page's period rules again.
   const [seenPeriod, setSeenPeriod] = useState(period);
   if (seenPeriod !== period) {
@@ -252,26 +263,55 @@ export function OrderMakingWorkspace({
       {summary && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <div role="group" aria-label="Period" className="inline-flex rounded-lg border border-input-border p-0.5">
-            {(["daily", "all"] as const).map((p) => (
+            {(["daily", "all", "range"] as const).map((p) => (
               <button
                 key={p}
                 type="button"
                 onClick={() => {
                   if (p === shownPeriod) return;
                   setShownPeriod(p);
-                  setParams({ period: p === "daily" ? null : p });
+                  // A range waits for its days; the others switch at once.
+                  if (p === "range") applyRange(rangeFrom, rangeTo);
+                  else setParams({ period: p === "daily" ? null : p, pfrom: null, pto: null });
                 }}
                 aria-pressed={shownPeriod === p}
                 className={`h-8 rounded-md px-3 text-xs font-semibold transition-colors ${
                   shownPeriod === p ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
                 }`}
               >
-                {p === "daily" ? "Daily" : "All time"}
+                {p === "daily" ? "Daily" : p === "all" ? "All time" : "Pick range"}
               </button>
             ))}
           </div>
-          {/* The PDF is the day's assignments only. */}
-          {shownPeriod === "daily" && (
+          {/* The range's days: from and to, applied once both are in. */}
+          {shownPeriod === "range" && (
+            <div className="inline-flex items-center gap-1.5 text-xs text-muted">
+              <span>From</span>
+              <input
+                type="date"
+                value={rangeFrom}
+                max={rangeTo || undefined}
+                onChange={(e) => {
+                  setRangeFrom(e.target.value);
+                  applyRange(e.target.value, rangeTo);
+                }}
+                className="h-8 rounded-lg border border-input-border bg-surface px-2 text-xs text-foreground focus:border-primary focus:outline-none"
+              />
+              <span>To</span>
+              <input
+                type="date"
+                value={rangeTo}
+                min={rangeFrom || undefined}
+                onChange={(e) => {
+                  setRangeTo(e.target.value);
+                  applyRange(rangeFrom, e.target.value);
+                }}
+                className="h-8 rounded-lg border border-input-border bg-surface px-2 text-xs text-foreground focus:border-primary focus:outline-none"
+              />
+            </div>
+          )}
+          {/* The PDF: the day's assignments, or the range's once its days are in. */}
+          {(shownPeriod === "daily" || (shownPeriod === "range" && period === "range" && !!assignRange)) && (
           <button
             type="button"
             onClick={() => setShowAssignPdf(true)}
@@ -729,7 +769,9 @@ export function OrderMakingWorkspace({
           </table>
         </div>
         {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
-        {showAssignPdf && <AssignmentPdfDialog onClose={() => setShowAssignPdf(false)} />}
+        {showAssignPdf && (
+          <AssignmentPdfDialog range={period === "range" ? assignRange : null} onClose={() => setShowAssignPdf(false)} />
+        )}
         {ecsRow && (
           <OmEcsModal
             order={ecsRow}
@@ -1190,14 +1232,17 @@ function CancelSoDialog({ row, onClose }: { row: OrderMakingRow; onClose: () => 
   );
 }
 
-/** The day's Assignment PDF in a pop-up, to read here and download. */
-function AssignmentPdfDialog({ onClose }: { onClose: () => void }) {
+/** The Assignment PDF in a pop-up — the day's, or a range's — to read here and download. */
+function AssignmentPdfDialog({ range, onClose }: { range: { from: string; to: string } | null; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
-  const src = "/risansi/departments/order-making/assignments-pdf";
+  const qs = range ? `period=range&pfrom=${range.from}&pto=${range.to}` : "";
+  const src = `/risansi/departments/order-making/assignments-pdf${qs ? `?${qs}` : ""}`;
+  const day = (d: string) =>
+    new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
   return (
     <div
       role="dialog"
@@ -1217,12 +1262,14 @@ function AssignmentPdfDialog({ onClose }: { onClose: () => void }) {
             </span>
             <div>
               <h2 className="font-display text-base font-semibold text-foreground">Assignment PDF</h2>
-              <p className="text-xs text-muted">Today&apos;s SO assignments, by member</p>
+              <p className="text-xs text-muted">
+                {range ? `SO assignments ${range.from === range.to ? `on ${day(range.from)}` : `from ${day(range.from)} to ${day(range.to)}`}, by member` : "Today\u2019s SO assignments, by member"}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <a
-              href={`${src}?download=1`}
+              href={`${src}${qs ? "&" : "?"}download=1`}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
             >
               <Download className="h-4 w-4" />
