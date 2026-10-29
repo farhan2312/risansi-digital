@@ -37,7 +37,8 @@ export const SCOPE_ITEMS = [
   "Driven Coupling",
   "Foundation & Grouting Bolts",
   "V-Belts",
-  "Coupling & Motor Guard",
+  "Coupling Guard",
+  "Motor Guard",
   "Matching Flange",
   "(For Suc. & Delivery) Gasket & Fasteners",
   "Gear Box",
@@ -245,6 +246,7 @@ export const EMPTY_OFFER_CONFIG: OfferConfig = {
 
 const MAX_TEXT = 300;
 const MAX_SCOPE_ITEM = 120;
+const OLD_GUARD_ITEM = "Coupling & Motor Guard";
 const MAX_SCOPE_ITEMS = 40;
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const text = (v: unknown, max = MAX_TEXT): string => String(v ?? "").trim().slice(0, max);
@@ -275,11 +277,13 @@ export function normalizeOfferConfig(raw: unknown): OfferConfig {
     for (const [tagId, v] of Object.entries(perTag)) m[tagId.slice(0, 60)] = text(v);
     if (Object.keys(m).length) values[k] = m;
   }
-  // A list of items; an older free-text line is kept as one item.
+  // A list of items; an older free-text line is kept as one item. The old
+  // "Coupling & Motor Guard" item is now two (user, 2026-10-29).
   const scopeList = (v: unknown): string[] | null => {
     if (typeof v === "string") return text(v, MAX_SCOPE_ITEM) ? [text(v, MAX_SCOPE_ITEM)] : [];
     if (!Array.isArray(v)) return null;
-    return [...new Set(v.map((x) => text(x, MAX_SCOPE_ITEM)).filter(Boolean))].slice(0, MAX_SCOPE_ITEMS);
+    const items = v.map((x) => text(x, MAX_SCOPE_ITEM)).flatMap((x) => (x === OLD_GUARD_ITEM ? ["Coupling Guard", "Motor Guard"] : [x]));
+    return [...new Set(items.filter(Boolean))].slice(0, MAX_SCOPE_ITEMS);
   };
   return {
     extras: keyList(r.extras).filter((k) => OFFER_EXTRA_KEYS.has(k)),
