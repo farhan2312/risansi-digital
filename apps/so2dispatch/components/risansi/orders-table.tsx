@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Layers, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
@@ -519,7 +518,6 @@ export function OrdersTable({
                 </tr>
               )}
               {pageRows.map((order) => {
-                const orderPage = `/risansi/orders/${order.id}`;
                 const status = deptStatuses[order.id];
                 const soLabel = order.so_no ?? `#${order.sl_no}`;
                 const planning = planningText(order, status);
@@ -828,13 +826,8 @@ export function OrdersTable({
                         className="px-4 py-3 whitespace-nowrap"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        {/* The row itself opens the order; no Open button. */}
                         <div className="flex items-center gap-2">
-                          <Link
-                            href={orderPage}
-                            className="inline-flex h-8 items-center rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                          >
-                            Open
-                          </Link>
                           {canDelete && (
                             <button
                               type="button"
