@@ -61,6 +61,7 @@ import {
   type NewOrderInput,
   type QcDocTable,
   type QcDocumentMeta,
+  BILLING_STATE,
 } from "@/lib/orders";
 import {
   CHILD_FIELDS,
@@ -110,7 +111,8 @@ import {
 import { parsePiWorkbook } from "@/lib/pi-import";
 import { isAssignedTo, markSoDetails } from "@/lib/so-assignment";
 import { DEPT_FILTER_KEYS } from "@/lib/dept-status";
-import { isClosedStatus, repMatches } from "@/lib/dept-view";
+import { boiStatus, isClosedStatus, repMatches } from "@/lib/dept-view";
+import { curveStatusSql, ecGadStatusSql, partStatusSql } from "@/lib/drawing-filter";
 import {
   describeDays,
   DEPT_LABELS,
@@ -1571,12 +1573,37 @@ export async function updateOrderChildAction(
       const after = await drawingHandoffs(id);
       if (after && soOrderId) {
         const events = drawingHandoffEvents(drgBefore, after, notifyMuted);
+        const soLabel = (await getOrderLabel(soOrderId)) ?? soOrderId;
+        // Central Visibility: the SO and EC, and where each of its drawings stands.
+        if (!notifyMuted && (events.length > 0 || changes)) {
+          const st = (
+            await query<{ ec_no: string | null; gad: string; curve: string; part: string }>(
+              `SELECT it.ec_no, ${ecGadStatusSql("it")} AS gad, ${curveStatusSql("it", "o")} AS curve, ${partStatusSql("it")} AS part
+                 FROM order_items it JOIN orders o ON o.id = it.order_id WHERE it.id = $1`,
+              [orderId]
+            )
+          ).rows[0];
+          if (st) {
+            const docs = [`GAD ${st.gad}`, st.curve !== "Not required" ? `Curve ${st.curve}` : "", st.part !== "Not required" ? `Part ${st.part}` : ""]
+              .filter(Boolean)
+              .join(" · ");
+            await emitNotification({
+              roles: ["central_visibility"],
+              orderId: soOrderId,
+              itemId: orderId,
+              type: "dept_update",
+              message: `Drawing updated — ${soLabel} · EC ${st.ec_no ?? "—"}: ${docs}`,
+            });
+          }
+        }
         if (events.length > 0) {
-          const soLabel = (await getOrderLabel(soOrderId)) ?? soOrderId;
           const detail = drawingHandoffDetail(soLabel, after);
           for (const event of events) {
+            // Central heard of it above, with the statuses.
+            const roles = event.roles.filter((r) => r !== "central_visibility");
+            if (!roles.length) continue;
             await emitNotification({
-              roles: event.roles,
+              roles,
               orderId: soOrderId,
               // Per-EC child: this action's `orderId` arg is the item id, so the
               // bell can deep-link straight to the EC.
@@ -1606,14 +1633,24 @@ export async function updateOrderChildAction(
       // without going looking.
       if (soOrderId) {
         const soLabel = (await getOrderLabel(soOrderId)) ?? soOrderId;
-        const roles = ["planning"];
-        if (!notifyMuted) roles.push("central_visibility");
         await emitNotification({
-          roles,
+          roles: ["planning"],
           orderId: soOrderId,
           type: "dept_update",
           message: `Purchase BOI updated for ${soLabel}`,
         });
+        // Central Visibility: which item of which EC, and its status now.
+        if (!notifyMuted && rowAfter) {
+          const ec = (await query<{ id: string; ec_no: string | null }>(`SELECT id, ec_no FROM order_items WHERE id = $1`, [String(rowAfter.item_id ?? "")])).rows[0];
+          const item = String(rowAfter.boi_item ?? "") === "Others" ? String(rowAfter.boi_item_other ?? "") || "Others" : String(rowAfter.boi_item ?? "") || "BOI item";
+          await emitNotification({
+            roles: ["central_visibility"],
+            orderId: soOrderId,
+            itemId: ec?.id ?? null,
+            type: "dept_update",
+            message: `Purchase — ${soLabel} · EC ${ec?.ec_no ?? "—"}: ${item} ${boiStatus(rowAfter).label}`,
+          });
+        }
       }
     }
     // Refresh the parent SO detail page when the child is per-EC (its
@@ -1978,19 +2015,38 @@ async function notifyPiCreated(
   // Always tell Accounts; also tell Central Visibility (and by extension Admin,
   // via recipientRolesForUser) unless Mitali herself saved the PI. Admin
   // saves still notify central_visibility so admin's bell picks it up.
-  const roles = ["accounts"];
-  if (actorRole !== "central_visibility") roles.push("central_visibility");
+  // The term the PI is raised against, and where the SO's PIs stand now.
+  const ctx = (
+    await query<{ term: string | null; state: string | null }>(
+      `SELECT (SELECT concat_ws(' ', rtrim(rtrim(t.percent::text, '0'), '.') || '%', t.term)
+                 FROM order_billing_docs d JOIN order_payment_terms t ON t.id = d.payment_term_id WHERE d.id = $2) AS term,
+              ${BILLING_STATE} AS state
+         FROM orders o WHERE o.id = $1`,
+      [orderId, piId]
+    )
+  ).rows[0];
+  const against = ctx?.term ? ` against ${ctx.term}` : "";
+  const state = ctx?.state ? ` · PI status: ${ctx.state}` : "";
   // itemId is intentionally null here: notifications.item_id is a FK to
   // order_items(id), and a PI id (order_billing_docs.id) would fail that
   // constraint. The PI goes in billingDocId instead, so the feed can show its
   // number and amount. Deep-link is by order_id — Accounts opens the SO detail.
   await emitNotification({
-    roles,
+    roles: ["accounts"],
     orderId,
     billingDocId: piId,
     type: "dept_update",
     message: `PI ${piNo} created for ${soLabel}`,
   });
+  if (actorRole !== "central_visibility") {
+    await emitNotification({
+      roles: ["central_visibility"],
+      orderId,
+      billingDocId: piId,
+      type: "dept_update",
+      message: `Proforma Invoice: PI ${piNo} created for ${soLabel}${against}${state}`,
+    });
+  }
 }
 
 const MAX_LR_BYTES = 8 * 1024 * 1024;
@@ -2864,8 +2920,10 @@ export async function savePiPaymentAction(
   const line = (
     await query<{ name: string | null; status: string | null; amount: string | null }>(
       piId
-        ? `SELECT 'PI ' || COALESCE(pi_no, '—') AS name, pi_payment_status AS status, pi_amount_received::text AS amount
-             FROM order_billing_docs WHERE id = $1 AND order_id = $2`
+        ? `SELECT 'PI ' || COALESCE(pi_no, '—') || COALESCE(' (' || (SELECT concat_ws(' ', rtrim(rtrim(t.percent::text, '0'), '.') || '%', t.term)
+                    FROM order_payment_terms t WHERE t.id = d.payment_term_id) || ')', '') AS name,
+                  pi_payment_status AS status, pi_amount_received::text AS amount
+             FROM order_billing_docs d WHERE id = $1 AND order_id = $2`
         : `SELECT concat_ws(' ', rtrim(rtrim(percent::text, '0'), '.') || '%', term) AS name,
                   term_payment_status AS status, term_amount_received::text AS amount
              FROM order_payment_terms WHERE id = $1 AND order_id = $2`,
@@ -2885,6 +2943,18 @@ export async function savePiPaymentAction(
     details: `${line.name ?? "—"}: payment ${line.status ?? "—"} → ${status || "—"}, received ${line.amount ?? "—"} → ${amount || "—"}`,
     subject: { orderId, soNo: label },
   });
+  // Central Visibility hears what Accounts received against which term, and
+  // where the SO's payment now stands.
+  if (user.role !== "central_visibility" && (status !== (line.status ?? "") || amount !== (line.amount ?? ""))) {
+    const so = (await query<{ status: string | null }>(`SELECT payment_status AS status FROM order_accounts WHERE order_id = $1`, [orderId])).rows[0];
+    const received = amount ? ` · received ${Number(amount).toLocaleString("en-IN")}` : "";
+    await emitNotification({
+      roles: ["central_visibility"],
+      orderId,
+      type: "dept_update",
+      message: `Accounts: ${line.name ?? "Payment"} for ${label} — ${status || "no status"}${received}${so?.status ? ` · SO payment: ${so.status}` : ""}`,
+    });
+  }
   revalidatePath("/risansi/departments/accounts");
   return { ok: true };
 }

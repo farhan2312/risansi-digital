@@ -84,7 +84,8 @@ export async function saveQcLinksAction(itemId: string, sent: QcLink[]): Promise
       details: `QC documents: ${now.done}/${now.total} submitted`,
       subject: await subjectForItem(itemId),
     });
-    if (now.label === "Submitted" && was.label !== "Submitted") {
+    // Central Visibility: the EC's status whenever its documents move.
+    if (user.role !== "central_visibility" && (now.label !== was.label || now.done !== was.done)) {
       const orderId = String(row.order_id);
       const so = (await getOrderLabel(orderId)) ?? orderId;
       await emitNotification({
@@ -92,7 +93,7 @@ export async function saveQcLinksAction(itemId: string, sent: QcLink[]): Promise
         orderId,
         itemId,
         type: "dept_update",
-        message: `QC documents submitted for ${so} · EC ${String(row.ec_no ?? "—")}`,
+        message: `Quality — ${so} · EC ${String(row.ec_no ?? "—")}: ${now.label}${now.total ? ` (${now.done}/${now.total} documents)` : ""}`,
       });
     }
     revalidatePath("/risansi/departments/qc");
