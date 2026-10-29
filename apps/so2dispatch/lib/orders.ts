@@ -1439,7 +1439,7 @@ async function recomputeAccountsBalance(orderId: string): Promise<void> {
   if (!UUID_RE.test(orderId)) return;
   await query(
     `UPDATE order_accounts a
-        SET balance_of_payment = ${ORDER_VALUE_GST_SQL("o", "a")} - COALESCE(a.amount_received, 0)
+        SET balance_of_payment = ${ORDER_GROSS_INR_SQL("o")} - COALESCE(a.amount_received, 0)
        FROM orders o
       WHERE a.order_id = o.id AND o.id = $1`,
     [orderId]
@@ -1649,9 +1649,16 @@ export async function orderHasPi(orderId: string): Promise<boolean> {
  * The SO's value with GST, as orderValueWithGst: the INR value (a foreign
  * order's conversion) × (1 + the rate Accounts set, 18% when blank).
  */
-export const ORDER_VALUE_GST_SQL = (o: string, a: string): string => `round(
-    COALESCE(CASE WHEN upper(COALESCE(${o}.order_currency, 'INR')) <> 'INR' THEN ${o}.order_value_inr END, ${o}.order_value)
-    * (1 + COALESCE(${a}.gst_rate, ${DEFAULT_GST_RATE}) / 100.0), 2)`;
+/**
+ * What Accounts counts payments against: the SO's (alias o) gross order value
+ * in INR — its Gross Order Value (taken to INR for a foreign-currency order),
+ * else its order value with the SO's GST % (18% when none). Accounts sets no
+ * GST of its own.
+ */
+export const ORDER_GROSS_INR_SQL = (o: string): string => `round(
+    COALESCE(${o}.taxable_value, ${o}.order_value * (1 + COALESCE(${o}.gst_percent, ${DEFAULT_GST_RATE}) / 100.0))
+    * (CASE WHEN upper(COALESCE(${o}.order_currency, 'INR')) <> 'INR' AND COALESCE(${o}.order_value, 0) <> 0
+            THEN COALESCE(${o}.order_value_inr / ${o}.order_value, 1) ELSE 1 END), 2)`;
 
 // Which parent column each 1:many child hangs off: per-SO tables key on
 // order_id, per-EC tables on item_id.
@@ -2515,7 +2522,7 @@ export async function listOrdersForSection(
       // Accounts: the balance as it stands — the value with GST less what came
       // in — even on an SO Accounts has not opened yet (no row stored).
       table === "order_accounts" && f.column === "balance_of_payment"
-        ? `(${ORDER_VALUE_GST_SQL("o", "d")} - COALESCE(d.amount_received, 0))::text AS balance_of_payment`
+        ? `(${ORDER_GROSS_INR_SQL("o")} - COALESCE(d.amount_received, 0))::text AS balance_of_payment`
         : detailSelect("d", f)
     )
     .join(", ");
@@ -2530,9 +2537,14 @@ export async function listOrdersForSection(
       if (from === "orders" && f.column === "payment_terms") {
         return `, ${PAYMENT_TERMS_SQL("o")} AS payment_terms`;
       }
-      // Accounts: the value with GST, from the SO and its accounts row (d).
-      if (f.column === "order_value_gst" && table === "order_accounts") {
-        return `, (${ORDER_VALUE_GST_SQL("o", "d")})::text AS order_value_gst`;
+      // Accounts: the order value to its gross (as Dispatch shows it), and the
+      // gross in INR its balance counts against.
+      if (f.column === "order_value_details") {
+        return `, o.order_value::text AS order_value, o.order_currency,
+                  o.discount_percent::text AS discount_percent,
+                  o.packing_forwarding_percent::text AS packing_forwarding_percent,
+                  o.gst_percent::text AS gst_percent, o.taxable_value::text AS taxable_value,
+                  (${ORDER_GROSS_INR_SQL("o")})::text AS order_value_gst, NULL::text AS order_value_details`;
       }
       let alias: string;
       if (from === "orders") alias = "o";
