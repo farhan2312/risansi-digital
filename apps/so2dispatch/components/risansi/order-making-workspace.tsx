@@ -15,6 +15,7 @@ import { AddOnForm } from "./add-on-form";
 import { OmEcsModal } from "./om-ecs-modal";
 import { useSoNoTaken } from "./use-so-no-taken";
 import { OmReportModal } from "./om-report-modal";
+import { OmReportPanel } from "./om-report-panel";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
   BILL_MODE_FILTER_OPTIONS,
@@ -346,6 +347,8 @@ export function OrderMakingWorkspace({
       )}
       {/* Every SO's chat at a glance, above the filters. */}
       <AllChatsRow />
+      {/* The report on the page, as filtered: opens and closes, to screenshot. */}
+      <OmReportPanel query={excelQuery} />
       <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         {/* All, Spare or Pump: the SO's type (its own, or any of its ECs'). */}
