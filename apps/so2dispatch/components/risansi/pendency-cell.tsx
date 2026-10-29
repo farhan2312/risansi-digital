@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { savePendencyAction } from "@/app/risansi/orders/pendency-actions";
-import { PENDENCY, type Pendency, type PendencyDept } from "@/lib/pendency";
+import { OTHERS, PENDENCY, type Pendency, type PendencyDept } from "@/lib/pendency";
 
 /**
  * A department's Pending / Open status with why it is still pending: the
@@ -114,6 +114,10 @@ function PendencyForm({
       setError("Choose a reason.");
       return;
     }
+    if (reason === OTHERS && !remarks.trim()) {
+      setError("Others: write what it is in the remarks.");
+      return;
+    }
     void save(reason);
   };
 
@@ -162,7 +166,9 @@ function PendencyForm({
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted-foreground">Remarks</span>
+            <span className="mb-1 block text-xs font-medium text-muted-foreground">
+              Remarks {reason === OTHERS && <span className="text-danger">*</span>}
+            </span>
             <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} className={`${field} py-2`} />
           </label>
           {pendency && (

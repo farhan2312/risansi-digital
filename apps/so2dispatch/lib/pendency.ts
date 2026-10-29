@@ -5,17 +5,20 @@
 
 export type PendencyDept = "billing" | "drawing" | "purchase";
 
+/** The catch-all reason, last in every list; its remarks say what it is. */
+export const OTHERS = "Others";
+
 export const PENDENCY: Record<PendencyDept, { reasons: string[]; key: string }> = {
   billing: {
-    reasons: ["Proof of Readiness awaited", "TSM Instruction Awaited", "Client confirmation Awaited", "Along with another SO"],
+    reasons: ["Proof of Readiness awaited", "TSM Instruction Awaited", "Client confirmation Awaited", "Along with another SO", OTHERS],
     key: "pi_pend",
   },
   drawing: {
-    reasons: ["Client Confirmation delay on GB/Motor design", "Occupied on other urgent Issues", "EC awaited"],
+    reasons: ["Client Confirmation delay on GB/Motor design", "Occupied on other urgent Issues", "EC awaited", OTHERS],
     key: "drg_pend",
   },
   purchase: {
-    reasons: ["EC not received", "Vendor Quotation awaited"],
+    reasons: ["EC not received", "Vendor Quotation awaited", OTHERS],
     key: "pur_pend",
   },
 };
