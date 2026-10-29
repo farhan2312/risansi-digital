@@ -7,6 +7,27 @@ import type { DeptCell, OrderListRow, SoDeptStatus } from "@/lib/orders";
 export const READY = ["fully ready", "assembled", "packed"];
 /** The order statuses that close an SO. */
 export const CLOSED = ["Cancelled by client", "Diverted"];
+
+/**
+ * The order's own status, always worked out — never set by hand: Canceled or
+ * Diverted as it was closed; Closed once fully dispatched; Active-Hold while
+ * any hold is on it (Central Visibility's, Order Making's, Dispatch's or
+ * Accounts'); else Active.
+ */
+export type OrderStatus = "Active" | "Active-Hold" | "Canceled" | "Diverted" | "Closed";
+export function orderStatusOf(o: {
+  dispatch_status?: string | null;
+  clearance_status?: string | null;
+  om_status?: string | null;
+  accounts_hold_status?: string | null;
+}): OrderStatus {
+  const dispatch = String(o.dispatch_status ?? "");
+  if (dispatch === "Cancelled by client") return "Canceled";
+  if (dispatch === "Diverted") return "Diverted";
+  if (dispatch === "Fully dispatch") return "Closed";
+  const held = [o.clearance_status, o.om_status, o.accounts_hold_status].some((v) => v === "Hold") || dispatch === "Hold";
+  return held ? "Active-Hold" : "Active";
+}
 const READY_OR_BEYOND = ["partial ready", "fully ready", "assembled", "packed"];
 
 export type EcDeptKey = "drawing" | "purchase" | "quality" | "planning" | "assembly";

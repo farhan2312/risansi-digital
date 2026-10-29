@@ -17,7 +17,8 @@ import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
-import { CLOSED, READY, assemblyView, planningText, reachedAssembly, reachedDepts, reachedDispatch, type ReachedDept } from "@/lib/order-row-view";
+import { CLOSED, READY, assemblyView, planningText, reachedAssembly, reachedDepts, orderStatusOf, reachedDispatch, type ReachedDept } from "@/lib/order-row-view";
+import { OrderStatusPill } from "./order-status-pill";
 import type { DeptCell, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
 import { deleteItemAction, deleteOrderAction, getOrderEcsAction } from "@/app/risansi/orders/actions";
 import { OmEcsModal } from "./om-ecs-modal";
@@ -422,7 +423,7 @@ export function OrdersTable({
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
   // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
-  const baseCols = (pump ? 16 + pumpDeptCols : 25) + 4;
+  const baseCols = (pump ? 17 + pumpDeptCols : 26) + 4;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -468,6 +469,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="Rep" sortKey="rep" /></th>
                 <th rowSpan={2} className="px-4 py-3">Zone</th>
                 <th rowSpan={2} className="px-4 py-3">Bill Mode</th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Status</th>
                 <th rowSpan={2} className="px-4 py-3 text-right">Order Value</th>
                 <th rowSpan={2} className="px-4 py-3">Departments</th>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
@@ -602,6 +604,10 @@ export function OrdersTable({
                       <td className="px-4 py-3">{cell(order.reps)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{cell(order.zone)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{billModeLabel(order.bill_mode, order.bill_type) || "—"}</td>
+                      {/* Worked out, never set: Active, Active-Hold, Canceled, Diverted or Closed. */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <OrderStatusPill status={orderStatusOf(order)} />
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
                         {/* With its unit; a USD order shows its INR figure beneath. */}
                         {order.order_value ? (
@@ -893,6 +899,7 @@ export function OrdersTable({
         <OrderDetailsModal
           orderId={detailsFor.id}
           onClose={() => setDetailsFor(null)}
+          canSetStatus={isCentral(role)}
           addOnLabel={canDelete ? `${detailsFor.order_type ?? "Pump"} Add-On` : undefined}
           onAddOn={() => {
             const order = detailsFor;

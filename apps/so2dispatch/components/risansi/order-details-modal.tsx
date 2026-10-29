@@ -16,6 +16,8 @@ import {
 import { loadOrderCore, loadOrderQuickView } from "./order-prefetch";
 import { SECTION_BY_TABLE, billModeLabel, dependsOnSatisfied, type OrderField } from "@/lib/order-schema";
 import { formatDisplay } from "./editable-section";
+import { OrderStatusControl } from "./order-status-pill";
+import { orderStatusOf } from "@/lib/order-row-view";
 
 const CORE = SECTION_BY_TABLE.get("orders")!;
 
@@ -44,9 +46,12 @@ export function OrderDetailsModal({
   onEdit,
   onAddOn,
   addOnLabel,
+  canSetStatus = false,
 }: {
   orderId: string;
   onClose: () => void;
+  /** Central Visibility and Admin may cancel or divert the order here. */
+  canSetStatus?: boolean;
   // Adds an EC (Spare / Pump Add-On) — offered with its label when given.
   onAddOn?: () => void;
   addOnLabel?: string;
@@ -56,9 +61,11 @@ export function OrderDetailsModal({
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Read again after the order is cancelled or diverted from here.
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     let active = true;
-    loadOrderCore(orderId)
+    loadOrderCore(orderId, version > 0)
       .then((o) => {
         if (!active) return;
         setOrder(o);
@@ -68,7 +75,7 @@ export function OrderDetailsModal({
     return () => {
       active = false;
     };
-  }, [orderId]);
+  }, [orderId, version]);
 
   // Whoever may edit is likely to: read the form's data now, so Edit opens on it.
   const canEdit = !!onEdit;
@@ -137,6 +144,14 @@ export function OrderDetailsModal({
                       {held ? `On hold${str(order.clearance_hold_reason) ? ` · ${str(order.clearance_hold_reason)}` : ""}` : "Clear"}
                     </span>
                   )}
+                  {/* The order's own status: by itself, save cancelled or diverted here. */}
+                  <OrderStatusControl
+                    orderId={orderId}
+                    // The dispatch status as it stands: set by hand, else from the invoices.
+                    status={orderStatusOf({ ...order, dispatch_status: str(order.status_override) || str(order.dispatch_status) } as Parameters<typeof orderStatusOf>[0])}
+                    canSet={canSetStatus}
+                    onChanged={() => setVersion((v) => v + 1)}
+                  />
                   {str(order.accounts_hold_status) === "Hold" && (
                     <span
                       title={str(order.accounts_hold_remarks) || undefined}
