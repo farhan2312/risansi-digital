@@ -20,6 +20,8 @@ import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { KpiStrip } from "./kpi-strip";
 import { MultiSelectFilter } from "./multi-select-filter";
 import { QC_EC_STATUSES, QC_FILTER_KEYS, QC_SO_STATES, soQcState } from "@/lib/qc-filter";
+import { ecStageStatus } from "@/lib/assembly";
+import type { EcAssembly } from "@/lib/ec-assembly";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -47,6 +49,17 @@ function Chip({ label, tone }: { label: string; tone: QcTone }) {
   );
 }
 
+/** An EC's assembly: green once assembled, blue part-way, amber pending. */
+function AssemblyChip({ label }: { label: string }) {
+  const cls =
+    label === "Assembled"
+      ? "bg-emerald-50 text-emerald-700"
+      : label === "Partially assembled"
+        ? "bg-sky-50 text-sky-700"
+        : "bg-amber-50 text-amber-700";
+  return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>;
+}
+
 /**
  * Quality's queue: each SO once, with the QC documents it needs; its ECs
  * beside it, each with how many of those documents are in and a pop-up to
@@ -64,7 +77,10 @@ export function QcWorkspace({
   filterOptions,
   kpis = [],
   embedded = false,
+  assembly = {},
 }: {
+  /** How far Assembly has got on each pump EC, by EC id. */
+  assembly?: Record<string, EcAssembly>;
   queue: PageResult<Row>;
   canEdit: boolean;
   openItemId?: string;
@@ -144,7 +160,7 @@ export function QcWorkspace({
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={7} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={11} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
@@ -157,6 +173,10 @@ export function QcWorkspace({
                 <th className="px-3 py-2">EC Date</th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
+                <th className="px-3 py-2">Qty</th>
+                <th className="px-3 py-2">Ready</th>
+                <th className="px-3 py-2">Assembled</th>
+                <th className="px-3 py-2">Assembly</th>
                 <th className="px-3 py-2">Documents</th>
                 <th className="px-3 py-2 whitespace-nowrap">Submitted On</th>
                 <th className="px-3 py-2" />
@@ -238,6 +258,22 @@ export function QcWorkspace({
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.model_no) || "—"}</td>
+                          {/* Where Assembly has got with the EC, and the last day it assembled any. */}
+                          {(() => {
+                            const a = assembly[ecId];
+                            if (!a) return <td colSpan={4} className={`${ecCell} text-muted`}>—</td>;
+                            return (
+                              <>
+                                <td className={`${ecCell} tabular-nums`}>{a.qty || "—"}</td>
+                                <td className={`${ecCell} tabular-nums`}>{a.ready}</td>
+                                <td className={`${ecCell} tabular-nums`}>{a.assembled}</td>
+                                <td className={`${ecCell} whitespace-nowrap`}>
+                                  <AssemblyChip label={ecStageStatus(a.assembled, a.qty, "assembly")} />
+                                  {a.lastAssembled && <span className="block text-[11px] text-muted">{formatDate(a.lastAssembled)}</span>}
+                                </td>
+                              </>
+                            );
+                          })()}
                           <td className={ecCell}>
                             <button type="button" onClick={() => setDocsFor(ecId)} className="flex flex-col items-start gap-0.5 text-left" title="Open the QC documents">
                               {cvHeld(g.head) ? <HoldChip /> : <Chip label={st.label} tone={st.tone} />}

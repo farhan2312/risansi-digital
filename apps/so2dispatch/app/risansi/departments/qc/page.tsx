@@ -21,6 +21,7 @@ import { listRemindersForDepartment } from "@/lib/reminders";
 import { QC_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
 import { QcWorkspace } from "@/components/risansi/qc-workspace";
+import { listEcAssembly } from "@/lib/ec-assembly";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
@@ -148,9 +149,11 @@ export default async function QcWorkspacePage({
     queue.rows = queue.rows.filter((r) => qcFilter.ec.includes(ecQcStatus(r)));
   }
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
-  const [completions, unreadThreads] = await Promise.all([
+  const [completions, unreadThreads, assembly] = await Promise.all([
     listDeptCompletions(orderIds),
     unreadByOrder(orderIds, user),
+    // How far Assembly has got on each EC, for Quality to see.
+    listEcAssembly(queue.rows.map((r) => String(r.id))),
   ]);
 
   return (
@@ -178,6 +181,7 @@ export default async function QcWorkspacePage({
         kpis={queue.kpis}
         canEdit={canEdit}
         completions={completions}
+        assembly={assembly}
         openThreadId={thread}
         openItemId={edit}
         focusOrderId={focusOrderId ?? undefined}
