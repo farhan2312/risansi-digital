@@ -1288,7 +1288,8 @@ export const FR_ZERO_COLUMNS = ["discount_percent", "packing_forwarding_percent"
 export function withFrZeros<T extends Record<string, unknown>>(values: T): T {
   if (String(values.bill_mode ?? "") !== "FR") return values;
   const next: Record<string, unknown> = { ...values };
-  for (const c of FR_ZERO_COLUMNS) if (String(next[c] ?? "").trim() === "") next[c] = "0";
+  // Its order value too: a replacement is worth nothing.
+  for (const c of ["order_value", ...FR_ZERO_COLUMNS]) if (String(next[c] ?? "").trim() === "") next[c] = "0";
   return next as T;
 }
 
