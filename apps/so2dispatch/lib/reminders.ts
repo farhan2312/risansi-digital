@@ -102,7 +102,7 @@ const REMINDERS_SQL = `
     FROM orders o
    WHERE o.qc_doc_target_date >= ${TODAY_IST}
      AND o.qc_doc_target_date <= ${TODAY_IST} + 7
-     AND (o.qc_required IS NULL OR o.qc_required <> 'No')
+     AND o.qc_required = 'Yes'
      AND EXISTS (
        SELECT 1 FROM order_items it
         LEFT JOIN order_qc qc ON qc.item_id = it.id

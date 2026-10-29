@@ -74,7 +74,7 @@ const ALERTS_SQL = `
     FROM orders o JOIN order_items it ON it.order_id = o.id
     LEFT JOIN order_qc qc ON qc.item_id = it.id
    WHERE o.qc_doc_target_date < ${TODAY_IST}
-     AND (o.qc_required IS NULL OR o.qc_required <> 'No')
+     AND o.qc_required = 'Yes'
      AND qc.qc_doc_actual_date IS NULL
 
   UNION ALL

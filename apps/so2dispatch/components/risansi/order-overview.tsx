@@ -206,7 +206,7 @@ export function OrderOverview({
       return next;
     });
 
-  const qcNeeded = str(order.qc_required).trim().toLowerCase() !== "no";
+  const qcNeeded = str(order.qc_required).trim().toLowerCase() === "yes";
 
   // The departments that chase and record the money work to the payment
   // terms and are notified of each one, so they can read the list even though

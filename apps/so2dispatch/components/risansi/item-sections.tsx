@@ -51,7 +51,7 @@ export function ItemSections({
 
   // Item + department sections the role can see (QC section hidden when the SO
   // is flagged QC Needed = No).
-  const qcNeeded = str(order.qc_required).trim().toLowerCase() !== "no";
+  const qcNeeded = str(order.qc_required).trim().toLowerCase() === "yes";
   // A Spare is supplied as it is: no drawing to track on it.
   const drawingNeeded = !isSpareEc({
     item_type: str(item.item_type),

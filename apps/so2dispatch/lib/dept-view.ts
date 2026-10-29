@@ -195,15 +195,16 @@ export const DEPT_VIEWS: Record<DeptKey, DeptView> = {
     key: "quality",
     label: DEPT_FILTER_LABELS.quality,
     perEc: true,
+    // Quality's only where Quality Required is Yes.
     status: (r) =>
-      same(r.qc_required, "no")
+      !same(r.qc_required, "yes")
         ? NOT_APPLICABLE
         : r.qc_submitted
           ? "Submitted"
           : PENDING,
-    done: (r) => !same(r.qc_required, "no") && r.qc_submitted,
-    na: (r) => same(r.qc_required, "no"),
-    hidden: (r) => same(r.qc_required, "no"),
+    done: (r) => same(r.qc_required, "yes") && r.qc_submitted,
+    na: (r) => !same(r.qc_required, "yes"),
+    hidden: (r) => !same(r.qc_required, "yes"),
     target: (r) => r.qc_doc_target_date,
     hasTarget: true,
   },
@@ -462,7 +463,7 @@ function deptOwnInvolvementSql(dept: DeptKey, alias: string): string {
     case "purchase":
       return `lower(coalesce(${alias}.boi, '')) = 'yes'`;
     case "quality":
-      return `lower(coalesce(${alias}.qc_required, '')) <> 'no'`;
+      return `lower(coalesce(${alias}.qc_required, '')) = 'yes'`;
     // A Challan order has no PI and no A/R: its challan is filed by Dispatch.
     case "billing":
     case "accounts":

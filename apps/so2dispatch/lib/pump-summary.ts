@@ -174,7 +174,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
   for (const x of r.rows) {
     const curves = x.curve.filter((s) => s !== "Not required");
     const parts = x.part.filter((s) => s !== "Not required");
-    const qcNeeded = String(x.qc_required ?? "") !== "No";
+    const qcNeeded = String(x.qc_required ?? "") === "Yes";
     out[x.id] = {
       drawing: {
         gad: stage(x.gad, GAD_ORDER, "Issued to planning"),

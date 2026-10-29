@@ -2640,11 +2640,11 @@ export async function listItemsForSection(
     .map(([t, a]) => `LEFT JOIN ${t} ${a} ON ${a}.item_id = it.id`)
     .join("\n       ");
 
-  // QC isn't involved when the SO is flagged QC Needed = No, nor Drawing on a
-  // Spare EC.
+  // QC is involved only when the SO's Quality Required is Yes; Drawing not on
+  // a Spare EC.
   const clauses: string[] = [];
   if (table === "order_qc") {
-    clauses.push(`(o.qc_required IS NULL OR o.qc_required <> 'No')`);
+    clauses.push(`o.qc_required = 'Yes'`);
   }
   if (deptForTable(table) === "drawing") {
     clauses.push(`NOT (${spareEcSql("it", "o")})`);
@@ -3232,7 +3232,7 @@ const PLANNING_ANY = `EXISTS (SELECT 1 FROM order_planning pl
                                 AND ${PLANNING_STATUS} IS NOT NULL)`;
 
 const NO_BOI = `COALESCE(o.boi, '') <> 'Yes'`;
-const NO_QC = `COALESCE(o.qc_required, '') = 'No'`;
+const NO_QC = `COALESCE(o.qc_required, '') <> 'Yes'`;
 // A Spare EC is supplied as it is: Drawing has nothing to draw.
 const NO_DRG = spareEcSql("it", "o");
 // Paid only on receipt: no PI is due and Accounts has nothing to confirm, so
@@ -4285,8 +4285,8 @@ export function pumpOrderCards(): KpiCardDef[] {
     card("Drawing", "drg_closed", "Drawing closed", `${pumps("TRUE")} AND NOT ${drgOpen}`, "done"),
     card("Purchase", "boi_open", "BOI open", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Open'`, "pending"),
     card("Purchase", "boi_closed", "BOI closed", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Closed'`, "done"),
-    card("Quality", "qc_open", "QC open", `COALESCE(o.qc_required, '') <> 'No' AND ${soQcStateSql("o")} = 'Open'`, "pending"),
-    card("Quality", "qc_closed", "QC closed", `COALESCE(o.qc_required, '') <> 'No' AND ${soQcStateSql("o")} = 'Closed'`, "done"),
+    card("Quality", "qc_open", "QC open", `COALESCE(o.qc_required, '') = 'Yes' AND ${soQcStateSql("o")} = 'Open'`, "pending"),
+    card("Quality", "qc_closed", "QC closed", `COALESCE(o.qc_required, '') = 'Yes' AND ${soQcStateSql("o")} = 'Closed'`, "done"),
     card("Planning", "pl_awaited", "Date awaited", `${SO_PLANNING_STATUS} = 'Date awaited'`, "pending"),
     card("Planning", "pl_plan", "In plan", `${SO_PLANNING_STATUS} = 'In plan'`, "part"),
     card("Planning", "pl_partial", "Partial ready", `${SO_PLANNING_STATUS} = 'Partial ready'`, "part"),
@@ -5135,7 +5135,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
       purchase: r.purchase === "na" ? NA : r.purchase === "done" ? done("Closed") : pending("Open"),
       // Quality: its documents, as its page reads them.
       quality:
-        String(r.qc_required ?? "") === "No"
+        String(r.qc_required ?? "") !== "Yes"
           ? NA
           : r.qc === "Submitted"
             ? done("Submitted")
