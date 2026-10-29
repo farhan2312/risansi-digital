@@ -247,8 +247,11 @@ export async function listOrderGapSheet(opts: {
       cells,
     };
   });
-  // The fields missing anywhere, and every target date that applies to any of them — filled or not.
-  const columns = GAP_FIELDS.filter((f, i) => missingAnywhere.has(i) || (f.group === "Target Dates" && appliesAnywhere.has(i))).map((f) => ({
+  // The fields missing anywhere, and every target date that applies to any of them — filled or not;
+  // every SO's sheet, every field that applies to any of them, so each SO reads whole.
+  const columns = GAP_FIELDS.filter(
+    (f, i) => missingAnywhere.has(i) || ((opts.everySo || f.group === "Target Dates") && appliesAnywhere.has(i))
+  ).map((f) => ({
     column: f.column,
     label: f.label,
     group: f.group ?? "Order details",
