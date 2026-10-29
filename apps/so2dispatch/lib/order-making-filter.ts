@@ -15,9 +15,10 @@ import {
 export const BILL_TYPE_FILTER_OPTIONS = [...BILL_TYPE_OPTIONS.map((o) => o.value), NOT_SET];
 export { BILL_MODE_FILTER_OPTIONS };
 
+// PO receiving date first: the default.
 export const OM_DATE_FIELDS = [
+  { value: "po_date", label: "PO receiving date" },
   { value: "so_date", label: "SO date" },
-  { value: "po_date", label: "PO date" },
   { value: "op_date", label: "SO sent to Operation" },
 ] as const;
 export type OmDateField = (typeof OM_DATE_FIELDS)[number]["value"];
@@ -73,7 +74,7 @@ export function parseOrderMakingFilter(get: (key: string) => string | undefined)
     types: list(get("type")),
     billModes: list(get("bmode")).filter((v) => BILL_MODE_FILTER_OPTIONS.includes(v)),
     billTypes: list(get("btype")).filter((v) => BILL_TYPE_FILTER_OPTIONS.includes(v)),
-    dateField: OM_DATE_FIELDS.find((d) => d.value === get("datefield"))?.value ?? "so_date",
+    dateField: OM_DATE_FIELDS.find((d) => d.value === get("datefield"))?.value ?? "po_date",
     from,
     to,
     missingOnly: get("missing") === "1",

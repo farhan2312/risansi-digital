@@ -457,13 +457,13 @@ export function OrderMakingWorkspace({
         </button>
       </div>
 
-      {/* When: by SO date, PO date or the date the SO went to Operation. */}
+      {/* When: by PO receiving date (the default), SO date or the date the SO went to Operation. */}
       <div className="flex flex-wrap items-center gap-2">
         <SingleSelectFilter
           label="Date"
-          allLabel="SO date"
-          options={OM_DATE_FIELDS.filter((d) => d.value !== "so_date").map((d) => ({ value: d.value, label: d.label }))}
-          selected={filter.dateField === "so_date" ? null : filter.dateField}
+          allLabel="PO receiving date"
+          options={OM_DATE_FIELDS.filter((d) => d.value !== "po_date").map((d) => ({ value: d.value, label: d.label }))}
+          selected={filter.dateField === "po_date" ? null : filter.dateField}
           onChange={(next) => setParams({ datefield: next })}
         />
         {DATE_PRESETS.map((label) => (
