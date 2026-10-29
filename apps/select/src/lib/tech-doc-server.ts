@@ -24,7 +24,7 @@ import {
 } from "@/lib/db/schema";
 import { DRIVE_GROUPS, erpQuotationNumber, quotationNumber } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
-import { normalizeOfferConfigs, offerOutOfScope, offerScope } from "@/lib/commercial-offer";
+import { normalizeOfferConfigs, offerOutOfScope, offerScope, pickedOutOfScope, pickedScope } from "@/lib/commercial-offer";
 import { dotDate, normalizeTechDocConfigs, type TechDocData, type TechDocForm, type TechDocPump } from "@/lib/tech-doc";
 
 // Every wizard table a tag's data lives in. Their columns merge into one flat
@@ -151,6 +151,15 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
       Object.entries(normalizeOfferConfigs(p.offerConfig, [...DRIVE_GROUPS])).map(([g, c]) => [
         g,
         { scope: offerScope(c, g), out: offerOutOfScope(c) },
+      ]),
+    ),
+    scopeEdit: Object.fromEntries(
+      Object.entries(normalizeOfferConfigs(p.offerConfig, [...DRIVE_GROUPS])).map(([g, c]) => [
+        g,
+        {
+          typed: { scope: c.scopeText ?? "", out: c.outOfScopeText ?? "" },
+          picked: { scope: pickedScope(c, g), out: pickedOutOfScope(c) },
+        },
       ]),
     ),
   };

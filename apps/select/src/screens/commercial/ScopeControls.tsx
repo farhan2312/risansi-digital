@@ -46,6 +46,7 @@ export default function ScopeControls({
   onChange: (next: OfferConfig) => void;
 }) {
   const pool = scopePool(config, group);
+  const typed = !!config.scopeText || !!config.outOfScopeText;
   const inScope = scopeItems(config, group);
   const outScope = outOfScopeItems(config);
   const ordered = (set: Set<string>) => pool.filter((i) => set.has(i));
@@ -118,6 +119,23 @@ export default function ScopeControls({
         onReset={() => reset("out")}
       />
       <span className="text-[11.5px] text-fg-3">Ticked items print on the sheet; an item is in one list or the other.</span>
+      {typed && (
+        // A line typed on a document prints instead of the ticked items.
+        <span className="flex w-full flex-wrap items-center gap-2 rounded-md bg-[var(--warn-soft)] px-2.5 py-1.5 text-[12px] text-fg-2">
+          <b className="text-warn">
+            {config.scopeText && config.outOfScopeText ? "Both lines are" : config.scopeText ? "Scope of supply is" : "Out of scope is"} typed
+            on the document
+          </b>
+          — it prints instead of the ticked items.
+          <button
+            type="button"
+            className="font-semibold text-accent hover:underline"
+            onClick={() => onChange({ ...config, scopeText: "", outOfScopeText: "" })}
+          >
+            Restore picked items
+          </button>
+        </span>
+      )}
     </div>
   );
 }

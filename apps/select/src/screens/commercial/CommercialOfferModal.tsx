@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import TechDocEditor, { DocHeaderEditor } from "../../components/reports/TechDocEditor";
+import TechDocEditor, { DocHeaderEditor, DocScopeEditor } from "../../components/reports/TechDocEditor";
 import { DRIVE_GROUP_LABEL, type DriveGroup, type QuoteFx } from "../../lib/commercial";
 import {
   EMPTY_OFFER_CONFIG,
@@ -10,6 +10,8 @@ import {
   buildOffer,
   buildOfferHtml,
   isGearedGroup,
+  pickedOutOfScope,
+  pickedScope,
   type CommercialOfferData,
   type OfferConfig,
   type OfferSheet,
@@ -118,6 +120,8 @@ export default function CommercialOfferModal({
     config.scopeExtra.length > 0 ||
     !!config.quotationText ||
     !!config.erpText ||
+    !!config.scopeText ||
+    !!config.outOfScopeText ||
     (config.headerHidden?.length ?? 0) > 0;
 
   const geared = isGearedGroup(group);
@@ -272,6 +276,13 @@ export default function CommercialOfferModal({
                         onChange: (v) => update({ ...config, erpText: v }),
                       },
                     ]}
+                  />
+                  <DocScopeEditor
+                    scope={config.scopeText ?? ""}
+                    out={config.outOfScopeText ?? ""}
+                    autoScope={pickedScope(config, group)}
+                    autoOut={pickedOutOfScope(config)}
+                    onChange={(l) => update({ ...config, scopeText: l.scope, outOfScopeText: l.out })}
                   />
                   <TechDocEditor
                     tags={tags}

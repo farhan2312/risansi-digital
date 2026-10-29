@@ -12,3 +12,13 @@ export const saveCommercialOfferConfig = async (projectId: string, group: string
   const { data } = await apiClient.put<{ config: OfferConfig }>("/commercial-offer", { projectId, group, config });
   return data.config;
 };
+
+/** The Scope of supply / Out of scope lines typed on a document ("" = from
+ *  the scope pickers); nothing else of the group's offer config changes. */
+export const saveOfferScopeText = async (
+  projectId: string,
+  group: string,
+  lines: { scopeText: string; outOfScopeText: string },
+): Promise<void> => {
+  await apiClient.put("/commercial-offer/scope", { projectId, group, ...lines });
+};

@@ -3,13 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import PrintPageSizeSelect, { usePrintPageSize } from "../../components/reports/PrintPageSize";
-import TechDocEditor, { DocHeaderEditor } from "../../components/reports/TechDocEditor";
+import TechDocEditor, { DocHeaderEditor, DocScopeEditor } from "../../components/reports/TechDocEditor";
 import { DRIVE_GROUP_LABEL, type DriveGroup, type QuoteFx } from "../../lib/commercial";
 import {
   EMPTY_OFFER_CONFIG,
   OFFER_EXTRAS,
   buildOffer,
   isGearedGroup,
+  pickedOutOfScope,
+  pickedScope,
   type CommercialOfferData,
   type OfferConfig,
   type OfferSheet,
@@ -174,10 +176,12 @@ export default function TechnoCommercialModal({
       offerConfig.custom.length >
       0 ||
     !!offerConfig.erpText ||
+    !!offerConfig.scopeText ||
+    !!offerConfig.outOfScopeText ||
     (offerConfig.headerHidden?.length ?? 0) > 0;
   const resetAll = () => {
     updateTech({ ...EMPTY_TECH_DOC_CONFIG, extras: techConfig.extras });
-    // Scope lines are set on the Quotation step / Commercial page - kept.
+    // The picked scope items are kept; typed scope lines go.
     updateOffer({
       ...offerConfig,
       hidden: [],
@@ -186,6 +190,8 @@ export default function TechnoCommercialModal({
       custom: [],
       erpText: undefined,
       headerHidden: [],
+      scopeText: "",
+      outOfScopeText: "",
     });
   };
 
@@ -340,6 +346,13 @@ export default function TechnoCommercialModal({
                         onChange: (v) => updateOffer({ ...offerConfig, erpText: v }),
                       },
                     ]}
+                  />
+                  <DocScopeEditor
+                    scope={offerConfig.scopeText ?? ""}
+                    out={offerConfig.outOfScopeText ?? ""}
+                    autoScope={pickedScope(offerConfig, group)}
+                    autoOut={pickedOutOfScope(offerConfig)}
+                    onChange={(l) => updateOffer({ ...offerConfig, scopeText: l.scope, outOfScopeText: l.out })}
                   />
                   <p className={partTitle}>Technical part (Technical Data Sheet)</p>
                   <TechDocEditor

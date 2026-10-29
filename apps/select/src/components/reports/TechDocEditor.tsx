@@ -301,3 +301,101 @@ function AddRow({ onAdd, colSpan }: { onAdd: (label: string) => void; colSpan: n
     </tr>
   );
 }
+
+/** The sheet's Scope of supply / Out of scope lines, typed by hand. Each box
+ *  starts with the line as printed (from the scope pickers); typing replaces
+ *  it, Restore brings back the picked line. One pair per drive group, shared
+ *  by the Technical Data Sheet, the Commercial Offer and the Techno-Commercial
+ *  Offer. */
+export function DocScopeEditor({
+  scope,
+  out,
+  autoScope,
+  autoOut,
+  onChange,
+}: {
+  /** The typed lines ("" = from the pickers). */
+  scope: string;
+  out: string;
+  /** The lines the pickers make. */
+  autoScope: string;
+  autoOut: string;
+  onChange: (next: { scope: string; out: string }) => void;
+}) {
+  const lines = [
+    { key: "scope" as const, label: "Scope of supply :-", value: scope, auto: autoScope },
+    { key: "out" as const, label: "Out Of Scope :-", value: out, auto: autoOut },
+  ];
+  return (
+    <section className="rounded-lg border border-line">
+      <h4 className="bg-[#dcebfb] px-3 py-1.5 text-center text-[12.5px] font-semibold text-[#0b3d7e]">
+        Scope of supply / Out of scope
+      </h4>
+      <div className="flex flex-col divide-y divide-line">
+        {lines.map((l) => (
+          <ScopeLineBox
+            key={l.key}
+            label={l.label}
+            value={l.value}
+            auto={l.auto}
+            onChange={(v) => onChange({ scope: l.key === "scope" ? v : scope, out: l.key === "out" ? v : out })}
+          />
+        ))}
+      </div>
+      <p className="border-t border-line px-3 py-1.5 text-[11.5px] text-fg-3">
+        Typed lines replace the scope pickers&apos; lines on all three documents for this drive group. Restore goes back to the
+        picked items.
+      </p>
+    </section>
+  );
+}
+
+function ScopeLineBox({
+  label,
+  value,
+  auto,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  auto: string;
+  onChange: (v: string) => void;
+}) {
+  // Local while typing, so clearing the box to retype doesn't snap the picked
+  // line back in; "" or the picked line itself saves as "not typed".
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? (value || auto);
+  const typed = !!value && value !== auto;
+  return (
+    <div className="grid grid-cols-1 items-start gap-2 px-3 py-2 sm:grid-cols-[200px_1fr_auto]">
+      <span className={`pt-1 text-[12.5px] font-semibold ${label.startsWith("Scope") ? "text-[#c00000]" : "text-fg"}`}>{label}</span>
+      <textarea
+        className={`${cellCls} min-h-[52px] resize-y ${typed ? "border-accent" : "border-line"}`}
+        value={shown}
+        maxLength={1000}
+        rows={2}
+        placeholder="—"
+        onFocus={() => setDraft(value || auto)}
+        onBlur={() => setDraft(null)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          const v = e.target.value.trim();
+          onChange(v === auto ? "" : v);
+        }}
+        aria-label={label}
+      />
+      <button
+        type="button"
+        className={`${linkBtn} pt-1 text-fg-3 hover:text-accent`}
+        onClick={() => {
+          setDraft(null);
+          onChange("");
+        }}
+        disabled={!typed}
+        title={auto ? `From the pickers: ${auto}` : "Back to the picked items"}
+      >
+        Restore
+      </button>
+    </div>
+  );
+}
