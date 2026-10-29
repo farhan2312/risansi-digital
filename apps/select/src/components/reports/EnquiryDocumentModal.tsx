@@ -16,8 +16,10 @@ import {
   type TechDocData,
   type TechDocGroup,
   type TechDocVersion,
+  type ScopeLines,
 } from "../../lib/tech-doc";
-import TechDocEditor, { DocHeaderEditor } from "./TechDocEditor";
+import TechDocEditor, { DocHeaderEditor, DocScopeEditor } from "./TechDocEditor";
+import { saveOfferScopeText } from "../../services/commercialOfferService";
 import { downloadTechDocExcel } from "../../lib/tech-doc-excel";
 import { printHtml } from "../../lib/enquiry-print";
 import PrintPageSizeSelect, { usePrintPageSize } from "./PrintPageSize";
@@ -54,6 +56,9 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
   const [error, setError] = useState<string | null>(null);
   // One sheet per drive group, each with its own edits.
   const [configs, setConfigs] = useState<Record<string, TechDocConfig>>({});
+  // Per drive group: the Scope of supply / Out of scope lines typed on a
+  // document ("" = from the scope pickers). Shared with the Commercial Offer.
+  const [typedScopes, setTypedScopes] = useState<Record<string, ScopeLines>>({});
   const [activeGroup, setActiveGroup] = useState<TechDocGroup | null>(null);
   const [mode, setMode] = useState<"preview" | "edit">("preview");
   const [showPicker, setShowPicker] = useState(false);
@@ -85,6 +90,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
         if (cancelled) return;
         setData(d);
         setConfigs(d.configs);
+        setTypedScopes(Object.fromEntries(Object.entries(d.scopeEdit ?? {}).map(([g, e]) => [g, e.typed])));
       })
       .catch(() => !cancelled && setError("Couldn't load the enquiry document."));
     return () => {
@@ -117,6 +123,22 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
         .catch(() => setSaveState("error"));
     }, 700);
   };
+  // Typed scope lines: shown at once, saved to the group's offer config.
+  const updateScope = (next: ScopeLines) => {
+    if (!group || group === "NONE") return;
+    const g = group;
+    setTypedScopes((m) => ({ ...m, [g]: next }));
+    setSaveState("saving");
+    const key = `scope:${g}`;
+    clearTimeout(saveTimers.current[key]);
+    saveTimers.current[key] = setTimeout(() => {
+      saveOfferScopeText(source.projectId, g, { scopeText: next.scope, outOfScopeText: next.out })
+        .then(() => setSaveState("saved"))
+        .catch(() => setSaveState("error"));
+    }, 700);
+  };
+  const pickedScopes = group ? data?.scopeEdit?.[group]?.picked : undefined;
+  const typedScope = (group && typedScopes[group]) || { scope: "", out: "" };
   const toggleExtra = (key: string) => {
     const on = config.extras.includes(key);
     updateConfig({
@@ -133,10 +155,16 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
     (config.headerHidden?.length ?? 0) > 0;
   const resetAll = () => updateConfig({ ...EMPTY_TECH_DOC_CONFIG, extras: config.extras });
 
-  const doc = useMemo(
-    () => (data && group ? techDocSheet({ ...data, configs }, group) : null),
-    [data, configs, group],
-  );
+  const doc = useMemo(() => {
+    if (!data || !group) return null;
+    // The printed lines: typed, else from the pickers.
+    const scopes = { ...(data.scopes ?? {}) };
+    for (const [g, e] of Object.entries(data.scopeEdit ?? {})) {
+      const t = typedScopes[g] ?? e.typed;
+      scopes[g] = { scope: t.scope || e.picked.scope, out: t.out || e.picked.out };
+    }
+    return techDocSheet({ ...data, configs, scopes }, group);
+  }, [data, configs, group, typedScopes]);
   // What is shown / printed / exported: the open sent version, else the live sheet.
   const shown = viewing ? viewing.sheet : doc;
   const html = useMemo(
@@ -394,6 +422,15 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                       },
                     ]}
                   />
+                  {group !== "NONE" && pickedScopes && (
+                    <DocScopeEditor
+                      scope={typedScope.scope}
+                      out={typedScope.out}
+                      autoScope={pickedScopes.scope}
+                      autoOut={pickedScopes.out}
+                      onChange={updateScope}
+                    />
+                  )}
                   <TechDocEditor
                     tags={doc.tags}
                     blocks={buildTechDoc(doc.tags, config, { includeHidden: true })}

@@ -221,6 +221,10 @@ export interface OfferConfig {
   outOfScope: string[] | null;
   /** Items added by hand to this sheet's pool. */
   scopeExtra: string[];
+  /** The two lines typed in by hand on a document ("" / absent = built from
+   *  the scope / out-of-scope items above). Shared by all three documents. */
+  scopeText?: string;
+  outOfScopeText?: string;
   /** Header lines typed in for this sheet ("" / absent = automatic). */
   quotationText?: string;
   erpText?: string;
@@ -286,6 +290,8 @@ export function normalizeOfferConfig(raw: unknown): OfferConfig {
     scope: scopeList(r.scope),
     outOfScope: scopeList(r.outOfScope),
     scopeExtra: scopeList(r.scopeExtra) ?? [],
+    scopeText: text(r.scopeText, MAX_SCOPE_LINE),
+    outOfScopeText: text(r.outOfScopeText, MAX_SCOPE_LINE),
     quotationText: text(r.quotationText),
     erpText: text(r.erpText),
     headerHidden: headerHiddenList(r.headerHidden),
@@ -387,12 +393,17 @@ export const scopePool = (c: OfferConfig, group: string | null | undefined): str
 ];
 
 /** "A, B, C & D" — the scope line as the format writes it. */
-export const offerScope = (c: OfferConfig, group: string | null | undefined): string => {
+export const pickedScope = (c: OfferConfig, group: string | null | undefined): string => {
   const items = scopeItems(c, group);
   return items.length > 1 ? `${items.slice(0, -1).join(", ")} & ${items[items.length - 1]}` : (items[0] ?? "");
 };
 /** "A + B + C" — the out-of-scope line as the format writes it. */
-export const offerOutOfScope = (c: OfferConfig): string => outOfScopeItems(c).join(" + ");
+export const pickedOutOfScope = (c: OfferConfig): string => outOfScopeItems(c).join(" + ");
+/** The printed lines: typed on a document, else built from the items. */
+export const offerScope = (c: OfferConfig, group: string | null | undefined): string => c.scopeText || pickedScope(c, group);
+export const offerOutOfScope = (c: OfferConfig): string => c.outOfScopeText || pickedOutOfScope(c);
+/** Longest typed scope / out-of-scope line. */
+export const MAX_SCOPE_LINE = 1000;
 
 // --- HTML (preview + print) ---------------------------------------------------
 

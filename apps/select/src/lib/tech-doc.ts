@@ -126,6 +126,9 @@ export interface TechDocData {
   /** Drive group → its Scope of supply / Out of scope lines (shared with the
    *  Commercial Offer; set on the Quotation step). */
   scopes?: Record<string, ScopeLines>;
+  /** Drive group → the same lines for editing: as typed on a document ("" =
+   *  not typed) and as the scope pickers make them. */
+  scopeEdit?: Record<string, { typed: ScopeLines; picked: ScopeLines }>;
 }
 
 export const techDocGroupOf = (t: TechDocTag): TechDocGroup =>
