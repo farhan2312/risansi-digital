@@ -896,12 +896,14 @@ function OrderMakingEdit({
   }, [saving, onClose]);
 
   const read = (c: string) => values[c] ?? "";
+  // The SO as last saved: once its Sales Order details were in, SO Sent to Operation is owed.
+  const saved = row ? (c: string) => str(row[c as keyof OrderMakingRow]) : undefined;
   const set = (c: string, v: string) => setValues((prev) => withValueRules(prev, c, v));
   // Order Making PO filling an SO assigned to themself: its Sales Order details too.
   const selfAssigned = mode === "po" && !!viewerId && assignee === viewerId;
   // The fields this form will not save without (marked *).
   const requiredHere = new Set(
-    [...orderMakingRequired(mode, read), ...(selfAssigned ? orderMakingRequired("so", read) : [])].map((f) => f.column)
+    [...orderMakingRequired(mode, read, saved), ...(selfAssigned ? orderMakingRequired("so", read) : [])].map((f) => f.column)
   );
 
   // Picking a client from the directory fills the Client group.
@@ -925,7 +927,7 @@ function OrderMakingEdit({
       return;
     }
     // Order Making PO: every Purchase Order detail; an SO member: every Sales Order detail.
-    const missing = firstOrderMakingMissing(mode, read) ?? (selfAssigned ? firstOrderMakingMissing("so", read) : null);
+    const missing = firstOrderMakingMissing(mode, read, saved) ?? (selfAssigned ? firstOrderMakingMissing("so", read) : null);
     if (missing) {
       setError(`${missing.label} is required.`);
       document.getElementById(missing.column)?.focus();

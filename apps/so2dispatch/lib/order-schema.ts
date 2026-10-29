@@ -961,17 +961,23 @@ export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filt
  * every Sales Order detail that applies. Defined after the field lists, as a
  * function, since ORDER_MAKING_EDITABLE is.
  */
-export function orderMakingRequired(mode: "po" | "so", read?: (column: string) => string): OrderField[] {
+export function orderMakingRequired(
+  mode: "po" | "so",
+  read?: (column: string) => string,
+  /** The SO as last saved (none for a new one). */
+  saved?: (column: string) => string
+): OrderField[] {
   const own = ORDER_MAKING_EDITABLE.filter((f) =>
     mode === "so"
       ? SO_DETAIL_COLUMNS.includes(f.column)
       : f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && !/remarks/i.test(f.column)
   );
-  // Once the Sales Order details are all in, Order Making PO owes the day the
-  // SO went to Operation too — unless Order Making holds it (it has not gone).
-  // An SO member never sees it.
+  // Order Making PO owes the day the SO went to Operation once its Sales
+  // Order details were saved in full: the save that completes them goes
+  // through without it, the next does not — unless Order Making holds the SO
+  // (it has not gone). An SO member never sees it.
   const sent = ORDER_MAKING_EDITABLE.find((f) => f.column === "ec_sent_operation_date");
-  if (mode === "po" && read && sent && String(read("om_status") ?? "") !== "Hold" && salesOrderFilled(read)) own.push(sent);
+  if (mode === "po" && read && saved && sent && String(read("om_status") ?? "") !== "Hold" && salesOrderFilled(saved)) own.push(sent);
   return own;
 }
 
@@ -983,9 +989,13 @@ function salesOrderFilled(read: (column: string) => string): boolean {
 }
 
 /** The first of them that applies and is still blank (an SO No. at its prefix alone is blank), or null. */
-export function firstOrderMakingMissing(mode: "po" | "so", read: (column: string) => string): OrderField | null {
+export function firstOrderMakingMissing(
+  mode: "po" | "so",
+  read: (column: string) => string,
+  saved?: (column: string) => string
+): OrderField | null {
   return (
-    orderMakingRequired(mode, read).find(
+    orderMakingRequired(mode, read, saved).find(
       (f) => dependsOnSatisfied(f, read) && withoutBarePrefix(f.column, read(f.column)).trim() === ""
     ) ?? null
   );

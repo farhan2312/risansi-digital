@@ -790,7 +790,8 @@ export async function updateOrderSectionAction(
     // Order Making PO on an SO assigned to themself fills its Sales Order details too.
     const selfAssigned = !soMemberHere && String(now.so_assignee_id ?? "") === user.id;
     const missing =
-      firstOrderMakingMissing(soMemberHere ? "so" : "po", after) ?? (selfAssigned ? firstOrderMakingMissing("so", after) : null);
+      firstOrderMakingMissing(soMemberHere ? "so" : "po", after, (c) => String(now[c] ?? "")) ??
+      (selfAssigned ? firstOrderMakingMissing("so", after) : null);
     if (missing) return { ok: false, error: `${missing.label} is required.` };
   }
   if (omEc) {
