@@ -3,8 +3,7 @@ import { query } from "@/lib/db";
 import { SO_DETAILS_FILLED_SQL } from "@/lib/order-gaps";
 import { orderOpenSql } from "@/lib/dept-view";
 import { listApprovedUsersByRole } from "@/lib/users";
-import { emitNotification, emitToUser } from "@/lib/notifications";
-import { isCentral } from "@/lib/roles";
+import { emitToUser } from "@/lib/notifications";
 
 // Order Making's split: Order Making PO opens an SO and assigns its Sales
 // Order details to one Order Making SO member, who fills them. Central
@@ -130,15 +129,9 @@ export async function markSoDetails(orderId: string, actor: { id: string; role: 
     if (!row) return;
     const label = (row.so_no ?? "").trim() || `#${row.sl_no}`;
     const client = row.client_name ? ` for ${row.client_name}` : "";
+    // Central Visibility hears when the SO goes to Operation, not when its
+    // SO details are filled; whoever assigned it hears of it.
     await Promise.all([
-      isCentral(actor.role)
-        ? null
-        : emitNotification({
-            roles: ["central_visibility"],
-            orderId,
-            type: "dept_update",
-            message: `SO ${label}${client}: SO details filled by Order Making — fill its terms, target dates and ECs`,
-          }),
       row.so_assigned_by && row.so_assignee_id === actor.id && row.so_assigned_by !== actor.id
         ? emitToUser({
             userId: row.so_assigned_by,

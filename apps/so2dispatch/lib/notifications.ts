@@ -395,6 +395,37 @@ export async function notifySectionSaved(params: {
       }
     }
 
+    // Order Making's own saves tell Central Visibility only two things: its
+    // hold put on or taken off, and the day the SO went to Operation — not
+    // every edit.
+    if (table === "orders" && (actorRole === "order_making" || actorRole === "order_making_so")) {
+      const wasHeld = val(before, "om_status") === "Hold";
+      const held = val(after, "om_status") === "Hold";
+      if (held !== wasHeld) {
+        const why = val(after, "om_hold_reason");
+        await emit(["central_visibility"], {
+          orderId,
+          type: "dept_update",
+          message: held
+            ? `Order Making put ${orderLabel} on hold${why ? ` · ${why}` : ""}`
+            : `Order Making cleared the hold on ${orderLabel}`,
+        });
+      }
+      const sent = val(after, "ec_sent_operation_date");
+      if (sent && !val(before, "ec_sent_operation_date")) {
+        const d = new Date(`${sent.slice(0, 10)}T00:00:00Z`);
+        const day = Number.isNaN(d.getTime())
+          ? sent
+          : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+        await emit(["central_visibility"], {
+          orderId,
+          type: "dept_update",
+          message: `${orderLabel} sent to Operation on ${day} — fill its terms, target dates and ECs`,
+        });
+      }
+      return;
+    }
+
     // Any department edit → Central Visibility, reported uniformly as an
     // update. Only Mitali (central_visibility) herself is self-muted; admin
     // saves still notify central_visibility so admin's bell picks it up.
