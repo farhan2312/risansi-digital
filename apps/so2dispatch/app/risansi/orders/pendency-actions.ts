@@ -7,7 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { subjectForOrder } from "@/lib/audit-subject";
 import { getOrderLabel } from "@/lib/orders";
 import { canEditChild } from "@/lib/roles";
-import { PENDENCY, type PendencyDept } from "@/lib/pendency";
+import { OTHERS, PENDENCY, type PendencyDept } from "@/lib/pendency";
 
 export type PendencyResult = { ok: true } | { ok: false; error: string };
 
@@ -45,6 +45,8 @@ export async function savePendencyAction(
   const why = (reason ?? "").trim();
   if (why && !PENDENCY[dept].reasons.includes(why)) return { ok: false, error: "Choose a reason from the list." };
   const note = (remarks ?? "").trim();
+  // Others says nothing on its own: its remarks say what it is.
+  if (why === OTHERS && !note) return { ok: false, error: "Others: write what it is in the remarks." };
   try {
     if (why) {
       await query(
