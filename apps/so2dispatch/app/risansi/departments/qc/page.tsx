@@ -145,16 +145,15 @@ export default async function QcWorkspacePage({
       for (const r of ecs) Object.assign(r, { qc_so_state: st });
     }
   }
+  // An EC reaches Quality once Assembly has assembled some of it (the SO's
+  // Open / Closed above still counts every EC).
+  const assembly = await listEcAssembly(queue.rows.map((r) => String(r.id)));
+  queue.rows = queue.rows.filter((r) => (assembly[String(r.id)]?.assembled ?? 0) > 0);
   if (qcFilterActive(qcFilter) && qcFilter.ec.length) {
     queue.rows = queue.rows.filter((r) => qcFilter.ec.includes(ecQcStatus(r)));
   }
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
-  const [completions, unreadThreads, assembly] = await Promise.all([
-    listDeptCompletions(orderIds),
-    unreadByOrder(orderIds, user),
-    // How far Assembly has got on each EC, for Quality to see.
-    listEcAssembly(queue.rows.map((r) => String(r.id))),
-  ]);
+  const [completions, unreadThreads] = await Promise.all([listDeptCompletions(orderIds), unreadByOrder(orderIds, user)]);
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
