@@ -28,13 +28,15 @@ export function PendencyCell({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  // Cleared: no longer pending, the latest reason kept beneath.
+  const active = pendency && !pendency.clearedAt ? pendency : undefined;
   return (
     <span className="flex flex-col items-start gap-0.5">
       {canEdit ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          title={pendency ? "Change the pendency reason" : "Give the pendency reason"}
+          title={active ? "Change the pendency reason" : "Give the pendency reason"}
           className="rounded-full hover:opacity-80"
         >
           {children}
@@ -42,17 +44,25 @@ export function PendencyCell({
       ) : (
         children
       )}
-      {pendency ? (
+      {active ? (
         <span className="max-w-[14rem] text-[11px] leading-snug">
-          <span className="font-medium text-amber-700 dark:text-amber-400">{pendency.reason}</span>
-          {pendency.remarks && <span className="block text-muted">{pendency.remarks}</span>}
+          <span className="font-medium text-amber-700 dark:text-amber-400">{active.reason}</span>
+          {active.remarks && <span className="block text-muted">{active.remarks}</span>}
         </span>
       ) : (
-        canEdit && (
-          <button type="button" onClick={() => setOpen(true)} className="text-[11px] font-medium text-primary hover:underline">
-            + Reason
-          </button>
-        )
+        <>
+          {canEdit && (
+            <button type="button" onClick={() => setOpen(true)} className="text-[11px] font-medium text-primary hover:underline">
+              + Reason
+            </button>
+          )}
+          {pendency && (
+            <span className="max-w-[14rem] text-[11px] leading-snug text-muted" title={`Cleared ${pendency.clearedAt}${pendency.clearedBy ? ` by ${pendency.clearedBy}` : ""}`}>
+              Last: <span className="line-through">{pendency.reason}</span>
+              {pendency.remarks && <span className="block">{pendency.remarks}</span>}
+            </span>
+          )}
+        </>
       )}
       {open && <PendencyForm orderId={orderId} soLabel={soLabel} dept={dept} pendency={pendency} onClose={() => setOpen(false)} />}
     </span>
@@ -73,6 +83,8 @@ function PendencyForm({
   onClose: () => void;
 }) {
   const router = useRouter();
+  // A cleared one is the latest still: the form starts from it.
+  const active = pendency && !pendency.clearedAt;
   const [reason, setReason] = useState(pendency?.reason ?? "");
   const [remarks, setRemarks] = useState(pendency?.remarks ?? "");
   const [saving, setSaving] = useState(false);
@@ -156,12 +168,13 @@ function PendencyForm({
           {pendency && (
             <p className="text-[11px] text-muted">
               Last set by {pendency.by || "—"} on {pendency.at}
+              {pendency.clearedAt && ` · cleared ${pendency.clearedAt}${pendency.clearedBy ? ` by ${pendency.clearedBy}` : ""}`}
             </p>
           )}
         </div>
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
         <div className="mt-5 flex items-center justify-between gap-2">
-          {pendency ? (
+          {active ? (
             <button
               type="button"
               onClick={() => void save("")}

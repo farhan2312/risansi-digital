@@ -20,8 +20,19 @@ export const PENDENCY: Record<PendencyDept, { reasons: string[]; key: string }> 
   },
 };
 
-/** An SO's pendency with a department, as saved. */
-export type Pendency = { reason: string; remarks: string; by: string; at: string };
+/**
+ * An SO's latest pendency with a department, as saved. Cleared, it stays —
+ * reason and remarks as they were — but no longer counts as pending.
+ */
+export type Pendency = {
+  reason: string;
+  remarks: string;
+  by: string;
+  at: string;
+  /** When it was cleared (YYYY-MM-DD), and by whom; blank while it stands. */
+  clearedAt: string;
+  clearedBy: string;
+};
 
 /** The reasons asked for in the URL, keeping only the department's own. */
 export function parsePendencyFilter(get: (key: string) => string | undefined, dept: PendencyDept): string[] {

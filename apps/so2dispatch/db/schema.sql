@@ -3025,3 +3025,9 @@ CREATE TABLE IF NOT EXISTS order_pendency (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (order_id, dept)
 );
+
+-- 0039  A pendency cleared is kept: when and by whom, the reason and remarks
+-- staying as they were — the latest one stands until a new one is given.
+-- Idempotent and additive.
+ALTER TABLE order_pendency ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMPTZ;
+ALTER TABLE order_pendency ADD COLUMN IF NOT EXISTS cleared_by TEXT;

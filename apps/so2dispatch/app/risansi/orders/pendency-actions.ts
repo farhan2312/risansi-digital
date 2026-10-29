@@ -28,7 +28,8 @@ const NAME: Record<PendencyDept, string> = { billing: "Proforma Invoice", drawin
 
 /**
  * Why the SO is still pending with a department: one of its reasons, with
- * remarks. A blank reason clears it.
+ * remarks. A blank reason clears it — the reason and remarks are kept, as
+ * the latest pendency, until a new one is given.
  */
 export async function savePendencyAction(
   orderId: string,
@@ -50,11 +51,16 @@ export async function savePendencyAction(
         `INSERT INTO order_pendency (order_id, dept, reason, remarks, set_by)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (order_id, dept) DO UPDATE
-           SET reason = EXCLUDED.reason, remarks = EXCLUDED.remarks, set_by = EXCLUDED.set_by, updated_at = now()`,
+           SET reason = EXCLUDED.reason, remarks = EXCLUDED.remarks, set_by = EXCLUDED.set_by, updated_at = now(),
+               cleared_at = NULL, cleared_by = NULL`,
         [orderId, dept, why, note || null, user.full_name || user.email]
       );
     } else {
-      await query(`DELETE FROM order_pendency WHERE order_id = $1 AND dept = $2`, [orderId, dept]);
+      await query(
+        `UPDATE order_pendency SET cleared_at = now(), cleared_by = $3
+          WHERE order_id = $1 AND dept = $2 AND cleared_at IS NULL`,
+        [orderId, dept, user.full_name || user.email]
+      );
     }
   } catch (error) {
     console.error("savePendencyAction failed:", error);
