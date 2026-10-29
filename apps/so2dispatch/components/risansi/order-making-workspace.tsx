@@ -891,7 +891,7 @@ function OrderMakingEdit({
   const read = (c: string) => values[c] ?? "";
   const set = (c: string, v: string) => setValues((prev) => withValueRules(prev, c, v));
   // The fields this form will not save without (marked *).
-  const requiredHere = new Set(orderMakingRequired(mode).map((f) => f.column));
+  const requiredHere = new Set(orderMakingRequired(mode, read).map((f) => f.column));
 
   // Picking a client from the directory fills the Client group.
   function applyClient(client: MarketIntellClient) {

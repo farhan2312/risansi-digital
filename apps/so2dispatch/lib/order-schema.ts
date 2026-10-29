@@ -959,18 +959,30 @@ export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filt
  * every Sales Order detail that applies. Defined after the field lists, as a
  * function, since ORDER_MAKING_EDITABLE is.
  */
-export function orderMakingRequired(mode: "po" | "so"): OrderField[] {
-  return ORDER_MAKING_EDITABLE.filter((f) =>
+export function orderMakingRequired(mode: "po" | "so", read?: (column: string) => string): OrderField[] {
+  const own = ORDER_MAKING_EDITABLE.filter((f) =>
     mode === "so"
       ? SO_DETAIL_COLUMNS.includes(f.column)
       : f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && !/remarks/i.test(f.column)
+  );
+  // Once the Sales Order details are all in, the day the SO went to Operation
+  // is owed too — unless Order Making holds it (it has not gone).
+  const sent = ORDER_MAKING_EDITABLE.find((f) => f.column === "ec_sent_operation_date");
+  if (read && sent && String(read("om_status") ?? "") !== "Hold" && salesOrderFilled(read)) own.push(sent);
+  return own;
+}
+
+/** Every Sales Order detail that applies is in (an SO No. at its prefix alone is not). */
+function salesOrderFilled(read: (column: string) => string): boolean {
+  return ORDER_MAKING_EDITABLE.filter((f) => SO_DETAIL_COLUMNS.includes(f.column)).every(
+    (f) => !dependsOnSatisfied(f, read) || withoutBarePrefix(f.column, read(f.column)).trim() !== ""
   );
 }
 
 /** The first of them that applies and is still blank (an SO No. at its prefix alone is blank), or null. */
 export function firstOrderMakingMissing(mode: "po" | "so", read: (column: string) => string): OrderField | null {
   return (
-    orderMakingRequired(mode).find(
+    orderMakingRequired(mode, read).find(
       (f) => dependsOnSatisfied(f, read) && withoutBarePrefix(f.column, read(f.column)).trim() === ""
     ) ?? null
   );
