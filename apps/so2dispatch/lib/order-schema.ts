@@ -196,6 +196,7 @@ export const BOI_ITEM_OPTIONS = opts([
   "Pulley",
   "Dosing Pump",
   "Stator",
+  "PRV",
   "Others",
 ]);
 // Planning records status on one of three columns (pump, spare, or the free
