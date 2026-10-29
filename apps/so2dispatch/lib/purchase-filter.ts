@@ -8,7 +8,7 @@ import { boiInHand, boiPartSql, boiReceivedSql, boiStatus, spareEcSql } from "@/
 import { inListNotHeld, soHoldSql } from "@/lib/dept-status";
 
 export const PURCHASE_STATES = ["Open", "Closed"];
-export const BOI_STATUSES = ["Pending", "Partially received", "Fully received"];
+export const BOI_STATUSES = ["Pending", "Order placed", "Partially received", "Fully received"];
 /** The bought-out items an EC can list (Others included). */
 export const BOI_ITEMS = BOI_ITEM_OPTIONS.map((o) => o.value);
 
@@ -81,6 +81,7 @@ const inList = (expr: string, values: string[]) => `${expr} IN (${values.map(lit
 export function boiStatusSql(b: string): string {
   return `(CASE WHEN ${boiReceivedSql(b)} THEN 'Fully received'
                 WHEN ${boiPartSql(b)} THEN 'Partially received'
+                WHEN ${b}.vendor_order = 'Yes' AND ${b}.expected_receipt_date IS NOT NULL THEN 'Order placed'
                 ELSE 'Pending' END)`;
 }
 
@@ -106,7 +107,7 @@ export function soPurchaseStateSql(o: string): string {
 function itemCond(f: PurchaseFilter, it: string): string | null {
   const c: string[] = [];
   if (f.item.length) c.push(inList("TRIM(COALESCE(fb.boi_item, ''))", f.item));
-  if (f.boi.length) c.push(inListNotHeld(boiStatusSql("fb"), f.boi, ["Pending"], "o", "purchase"));
+  if (f.boi.length) c.push(inListNotHeld(boiStatusSql("fb"), f.boi, ["Pending", "Order placed"], "o", "purchase"));
   if (f.vendor.length) c.push(`fb.vendor_order = 'Yes' AND ${inList("TRIM(COALESCE(fb.vendor_name, ''))", f.vendor)}`);
   return c.length ? `EXISTS (SELECT 1 FROM order_boi_items fb WHERE fb.item_id = ${it}.id AND ${c.join(" AND ")})` : null;
 }
@@ -137,7 +138,7 @@ export function ecCountSql(o: string, state?: string): string {
 export function boiCountSql(o: string, status: string | null, vendors: string[] = [], items: string[] = []): string {
   const c: string[] = [];
   if (items.length) c.push(inList("TRIM(COALESCE(cb.boi_item, ''))", items));
-  if (status) c.push(`${boiStatusSql("cb")} = ${lit(status)}${status === "Pending" ? ` AND NOT ${soHoldSql(o, "purchase")}` : ""}`);
+  if (status) c.push(`${boiStatusSql("cb")} = ${lit(status)}${status === "Pending" || status === "Order placed" ? ` AND NOT ${soHoldSql(o, "purchase")}` : ""}`);
   if (vendors.length) c.push(`cb.vendor_order = 'Yes' AND ${inList("TRIM(COALESCE(cb.vendor_name, ''))", vendors)}`);
   return `(SELECT count(*) FROM order_boi_items cb JOIN order_items s ON s.id = cb.item_id
             WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})${c.length ? ` AND ${c.join(" AND ")}` : ""})`;

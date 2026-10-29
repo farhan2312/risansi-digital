@@ -354,13 +354,20 @@ export function boiInHand(b: Record<string, unknown>): boolean {
 /**
  * Where a bought-out item stands: Fully received once RIL stock and the
  * vendor together cover its qty, Partially received while some of it is in
- * hand, else Pending.
+ * hand, Order placed once the vendor's expected date is in (nothing in hand
+ * yet), else Pending.
  */
 export function boiStatus(b: Record<string, unknown>): { label: string; tone: "done" | "part" | "pending" } {
   if (boiInHand(b)) return { label: "Fully received", tone: "done" };
   const part = n(b.boi_qty) > 0 ? inHandQty(b) > 0 : b.vendor_order === "Yes" && b.vendor_status === "Partially received";
-  return part ? { label: "Partially received", tone: "part" } : { label: "Pending", tone: "pending" };
+  if (part) return { label: "Partially received", tone: "part" };
+  if (orderPlaced(b)) return { label: "Order placed", tone: "part" };
+  return { label: "Pending", tone: "pending" };
 }
+
+/** Ordered from the vendor, with the date it is expected. */
+const orderPlaced = (b: Record<string, unknown>) =>
+  b.vendor_order === "Yes" && !!String(b.expected_receipt_date ?? "").trim();
 
 /**
  * A drawing version as it reads: the first is V0, then V1, V2… — from its
