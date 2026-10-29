@@ -174,7 +174,12 @@ export type GapSheet = {
  * not applying (N/A). The Details-not-filled pop-up shows it and downloads it
  * as Excel to fill in.
  */
-export async function listOrderGapSheet(opts: { search: string; type?: string | null }): Promise<GapSheet> {
+export async function listOrderGapSheet(opts: {
+  search: string;
+  type?: string | null;
+  /** Every SO that has its SO No., dispatched or closed too — not only the open ones still going out. */
+  everySo?: boolean;
+}): Promise<GapSheet> {
   const term = opts.search.trim();
   const like = term === "" ? null : `%${term}%`;
   const type = opts.type?.trim() || null;
@@ -198,9 +203,12 @@ export async function listOrderGapSheet(opts: { search: string; type?: string | 
               cardinality(${MISSING_SQL}) AS missing,
               ${cols}
          FROM orders o
-        WHERE ${orderOpenSql("o")}
-          -- Gone out in full: nothing is left to fill on it (lot dispatched still counts).
-          AND lower(${orderStatusSql("o")}) <> 'fully dispatch'
+        WHERE ${
+          opts.everySo
+            ? `NULLIF(btrim(o.so_no), '') IS NOT NULL`
+            : // Gone out in full: nothing is left to fill on it (lot dispatched still counts).
+              `${orderOpenSql("o")} AND lower(${orderStatusSql("o")}) <> 'fully dispatch'`
+        }
           AND ($1::text IS NULL
                OR o.so_no ILIKE $1 OR o.client_name ILIKE $1 OR o.client_code ILIKE $1
                OR o.po_no ILIKE $1 OR o.sl_no::text ILIKE $1)

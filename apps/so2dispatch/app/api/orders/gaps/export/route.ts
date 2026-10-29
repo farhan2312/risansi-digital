@@ -18,9 +18,11 @@ export async function GET(req: NextRequest) {
   const typeRaw = params.get("type");
   const type = typeRaw === "Pump" || typeRaw === "Spare" ? typeRaw : null;
   const search = (params.get("q") ?? "").slice(0, 120);
-  const sheet = await listOrderGapSheet({ search, type });
+  // ?scope=so: every SO with its SO No., not only the open ones.
+  const everySo = params.get("scope") === "so";
+  const sheet = await listOrderGapSheet({ search, type, everySo });
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  const scope = `${type ?? "All"} SOs${search ? ` matching "${search}"` : ""} · ${today}`;
+  const scope = `${everySo ? "Every SO with an SO No." : `${type ?? "All"} SOs`}${search ? ` matching "${search}"` : ""} · ${today}`;
   const buffer = await buildGapWorkbook(sheet, scope).xlsx.writeBuffer();
   return new Response(buffer, {
     headers: {
