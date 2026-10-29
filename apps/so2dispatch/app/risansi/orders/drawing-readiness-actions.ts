@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
-import { emitNotification } from "@/lib/notifications";
 import { canEditChild, canViewDepartment } from "@/lib/roles";
 import { spareEcSql } from "@/lib/dept-view";
 import { addOrderChildAction, updateOrderChildAction } from "./actions";
@@ -83,14 +82,6 @@ export async function setDrawingReadinessAction(
       details: `${what}${why ? ` — reason: ${why}` : ""}`,
       subject: { orderId, soNo: label },
     }),
-    user.role === "central_visibility"
-      ? null
-      : emitNotification({
-          roles: ["central_visibility"],
-          orderId,
-          type: "dept_update",
-          message: `${what}${why ? ` · ${why}` : ""}`,
-        }),
   ]);
   revalidatePath("/risansi/departments/drawing");
   return { ok: true };

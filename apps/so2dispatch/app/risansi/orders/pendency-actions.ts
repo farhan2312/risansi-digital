@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
+import { emitNotification } from "@/lib/notifications";
 import { subjectForOrder } from "@/lib/audit-subject";
 import { getOrderLabel } from "@/lib/orders";
 import { canEditChild } from "@/lib/roles";
@@ -68,11 +69,23 @@ export async function savePendencyAction(
     console.error("savePendencyAction failed:", error);
     return { ok: false, error: "Could not save the reason." };
   }
+  const label = (await getOrderLabel(orderId)) ?? orderId;
+  // Central Visibility hears why it is pending, and when the reason is cleared.
+  if (user.role !== "central_visibility") {
+    await emitNotification({
+      roles: ["central_visibility"],
+      orderId,
+      type: "dept_update",
+      message: why
+        ? `${NAME[dept]} pendency — ${label}: ${why}${note ? ` · ${note}` : ""}`
+        : `${NAME[dept]} pendency cleared — ${label}`,
+    });
+  }
   await logAudit({
     actor: { id: user.id, email: user.email, role: user.role },
     action: "order.update",
     category: "activity",
-    target: (await getOrderLabel(orderId)) ?? orderId,
+    target: label,
     details: why ? `${NAME[dept]} pendency — ${why}${note ? ` · ${note}` : ""}` : `${NAME[dept]} pendency cleared`,
     subject: await subjectForOrder(orderId),
   });

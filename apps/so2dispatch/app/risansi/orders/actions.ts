@@ -2374,7 +2374,6 @@ export async function saveEcBoiItemsAction(
     removed.length ? `removed ${removed.map(nameOf).join(", ")}` : "",
   ].filter(Boolean);
   const roles = ["purchase"];
-  if (user.role !== "central_visibility") roles.push("central_visibility");
   await Promise.all([
     logAudit({
       actor: { id: user.id, email: user.email, role: user.role },
@@ -2751,8 +2750,9 @@ export async function setDeptCompleteAction(
     });
 
     // Central Visibility tracks the pipeline, so a department finishing is
-    // exactly the kind of event they should not have to go looking for.
-    if (user.role !== "central_visibility") {
+    // exactly the kind of event they should not have to go looking for —
+    // save the departments whose own notices already say where they stand.
+    if (user.role !== "central_visibility" && !["billing", "accounts", "drawing", "purchase", "quality"].includes(key)) {
       await emitNotification({
         roles: ["central_visibility"],
         orderId: completion.order_id,

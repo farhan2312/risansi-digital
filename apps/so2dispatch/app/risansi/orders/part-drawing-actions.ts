@@ -174,7 +174,7 @@ export async function savePartProgressAction(
     if (after?.label === "Fully complete" && before?.label !== "Fully complete") {
       const so = (await getOrderLabel(ec.order_id)) ?? ec.order_id;
       await emitNotification({
-        roles: ["planning", "central_visibility"],
+        roles: ["planning"],
         orderId: ec.order_id,
         itemId,
         type: "dept_update",

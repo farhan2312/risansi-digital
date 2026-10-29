@@ -337,6 +337,9 @@ const TARGET_DATE_RECIPIENTS: Partial<
   ],
 };
 
+/** The sections whose saves tell Central Visibility in their own words, not "<Department> updated SO". */
+const CV_OWN_NOTICE_TABLES = new Set<string>(["order_billing", "order_accounts", "order_drawing", "order_purchase", "order_qc"]);
+
 /**
  * Emit any notifications triggered by a section being saved:
  *  - payment terms filled → Billing & Operations + Accounts
@@ -429,7 +432,9 @@ export async function notifySectionSaved(params: {
     // Any department edit → Central Visibility, reported uniformly as an
     // update. Only Mitali (central_visibility) herself is self-muted; admin
     // saves still notify central_visibility so admin's bell picks it up.
-    if (actorRole !== "central_visibility" && sectionChanged(table, before, after)) {
+    // Not Proforma Invoice, Accounts, Drawing, Purchase or Quality: their own
+    // notices say what moved (PI, payment, drawing, BOI, QC status).
+    if (actorRole !== "central_visibility" && !CV_OWN_NOTICE_TABLES.has(table) && sectionChanged(table, before, after)) {
       const dept = SECTION_BY_TABLE.get(table)?.title ?? "A department";
       await emit(["central_visibility"], {
         orderId,
