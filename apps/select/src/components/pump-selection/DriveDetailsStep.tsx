@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import MotorRpmPicker from "./MotorRpmPicker";
 import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import StepApprovalBadge from "./approval/StepApprovalBadge";
@@ -819,7 +820,7 @@ const DriveDetailsStep = ({
   const driveErrors: Record<string, string> = {
     driveSystem: required(formData.driveSystem, "Select a drive system."),
     ...(formData.driveSystem && !isGeared
-      ? { motorRPM: required(formData.motorRPM, "Select the motor RPM.") }
+      ? { motorRPM: required(formData.motorRPM, "Select the motor RPM, or enter it under Others.") }
       : {}),
     ...(isGeared
       ? {
@@ -1026,11 +1027,16 @@ const DriveDetailsStep = ({
     });
 
   // "Drive Motor Speed" is the motor's nameplate RPM — default it from the
-  // selected Motor RPM (960/1440), but leave it editable afterwards. Applies
-  // to every drive system, not just V-Belt.
+  // selected Motor RPM (960 / 1440 / typed under Others), but leave it
+  // editable afterwards. It follows the Motor RPM (also while one is being
+  // typed) until it is changed by hand. Applies to every drive system.
+  const autoSpeedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (formData.driveSystem && motorRpm && !formData.driveMotorSpeed) {
-      setFormData((f: typeof formData) => ({ ...f, driveMotorSpeed: motorRpm }));
+    if (!formData.driveSystem || !motorRpm) return;
+    const cur = formData.driveMotorSpeed;
+    if (!cur || cur === autoSpeedRef.current) {
+      autoSpeedRef.current = motorRpm;
+      if (cur !== motorRpm) setFormData((f: typeof formData) => ({ ...f, driveMotorSpeed: motorRpm }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.driveSystem, motorRpm]);
@@ -1374,17 +1380,10 @@ const DriveDetailsStep = ({
                   value="1440"
                 />
               ) : (
-                <select
-                  className={control}
-                  value={formData.motorRPM}
-                  onChange={(e) =>
-                    setFormData({ ...formData, motorRPM: e.target.value })
-                  }
-                >
-                  <option value="">Select Motor RPM</option>
-                  <option value="960">960</option>
-                  <option value="1440">1440</option>
-                </select>
+                <MotorRpmPicker
+                  value={formData.motorRPM ?? ""}
+                  onChange={(v) => setFormData({ ...formData, motorRPM: v })}
+                />
               )}
               <Err show={showErrors} msg={driveErrors.motorRPM} />
             </div>
