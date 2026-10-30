@@ -12,6 +12,23 @@ const TONE: Record<KpiTone, { dot: string; ring: string; bar: string; on: string
   danger: { dot: "bg-rose-500", ring: "ring-rose-400/60", bar: "bg-rose-500", on: "bg-rose-50 dark:bg-rose-500/10" },
 };
 
+/** The card's count — and, when it has one, its second figure (the pumps those SOs hold). */
+function Count({ c, className }: { c: KpiCard; className: string }) {
+  if (!c.also) return <span className={className}>{c.count}</span>;
+  return (
+    <span className={`${className} flex flex-wrap items-baseline gap-x-1.5`}>
+      <span>
+        {c.count}
+        <span className="ml-0.5 text-[10px] font-semibold text-muted">SO{c.count === 1 ? "" : "s"}</span>
+      </span>
+      <span className="text-[0.8em]">
+        {c.also.count}
+        <span className="ml-0.5 text-[10px] font-semibold text-muted">{c.also.label}</span>
+      </span>
+    </span>
+  );
+}
+
 /** A sum (e.g. ECs) with no params to set: shown, not clickable. A sum that sets params (EC Open) is a filter like any card. */
 const readOnly = (c: KpiCard) => !!c.measure && Object.keys(c.params).length === 0;
 
@@ -69,7 +86,7 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
                   <>
                     <span className={`absolute inset-y-2 left-0 w-[3px] rounded-r-full ${tone.bar} ${ro ? "opacity-40" : ""}`} aria-hidden />
                     <span className="line-clamp-2 min-h-[2.1em] text-[11px] font-medium leading-tight text-muted">{c.label}</span>
-                    <span className="mt-1 font-display text-[1.35rem] font-bold leading-none tabular-nums text-foreground">{c.count}</span>
+                    <Count c={c} className="mt-1 font-display text-[1.35rem] font-bold leading-none tabular-nums text-foreground" />
                   </>
                 );
                 const cell = "relative flex min-w-0 flex-col justify-between rounded-xl px-3 py-2 text-left";
@@ -148,7 +165,7 @@ function KpiStripRow({
                 <span className={`mt-[0.3em] h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden />
                 {c.label}
               </span>
-              <span className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`}>{c.count}</span>
+              <Count c={c} className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`} />
             </div>
           );
         }
@@ -170,7 +187,7 @@ function KpiStripRow({
               <span className={`mt-[0.3em] h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden />
               {c.label}
             </span>
-            <span className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`}>{c.count}</span>
+            <Count c={c} className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`} />
           </button>
         );
       })}

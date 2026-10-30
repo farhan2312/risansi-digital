@@ -173,6 +173,7 @@ export function PlanningPumpTable({
           const soLabel = str(head.so_no) || `#${str(head.sl_no)}`;
           const unread = unreadThreads[orderId] ?? 0;
           const span = ecs.length;
+          const pumpQty = ecs.reduce((t, e) => t + (Number(((e.ec ?? {}) as Row).quantity ?? 0) || 0), 0);
           const lots = pumpLotsFromEcs(ecs);
           // The SO's cells, once, down the left of all its EC rows.
           const soCell = "px-3 py-2 align-top border-b border-card-border";
@@ -190,8 +191,9 @@ export function PlanningPumpTable({
                         <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
                         <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>
                           {soLabel}
+                          {/* Its ECs, and the pumps they hold (their quantities summed). */}
                           <span className="block text-[11px] font-normal text-muted">
-                            {span} pump EC{span === 1 ? "" : "s"}
+                            {span} EC{span === 1 ? "" : "s"} · {pumpQty} pump{pumpQty === 1 ? "" : "s"}
                           </span>
                           <HoldBadge order={head} />
                         </td>

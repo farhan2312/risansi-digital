@@ -4266,17 +4266,28 @@ async function countKpis(
   const where = `WHERE ${req.restrict} AND NOT ${TEST_SO_SQL("o")}
         ${base.clauses.map((c) => `AND ${c}`).join("\n        ")}
         AND (${own}::text IS NULL OR ${searchable(own)})`;
-  const cols = req.cards.map((c, i) =>
+  const cols = req.cards.flatMap((c, i) => [
     c.measure
       ? `COALESCE(sum(${c.measure}), 0)::int AS k${i}`
       : c.sql
         ? `count(*) FILTER (WHERE ${c.sql})::int AS k${i}`
-        : `count(*)::int AS k${i}`
-  );
+        : `count(*)::int AS k${i}`,
+    // The card's second figure, summed over the same SOs.
+    ...(c.also ? [`COALESCE(sum(${c.also.measure})${c.sql ? ` FILTER (WHERE ${c.sql})` : ""}, 0)::int AS a${i}`] : []),
+  ]);
   try {
     const r = await query<Record<string, number>>(`SELECT ${cols.join(", ")} FROM orders o ${where}`, [...base.params, search]);
     const row = r.rows[0] ?? {};
-    return req.cards.map((c, i) => ({ key: c.key, label: c.label, params: c.params, tone: c.tone, group: c.group, measure: c.measure ? "sum" : undefined, count: Number(row[`k${i}`] ?? 0) }));
+    return req.cards.map((c, i) => ({
+      key: c.key,
+      label: c.label,
+      params: c.params,
+      tone: c.tone,
+      group: c.group,
+      measure: c.measure ? "sum" : undefined,
+      count: Number(row[`k${i}`] ?? 0),
+      ...(c.also ? { also: { label: c.also.label, count: Number(row[`a${i}`] ?? 0) } } : {}),
+    }));
   } catch (error) {
     console.error("countKpis failed:", error);
     return [];
@@ -4475,7 +4486,10 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
   const spare = types.some((t) => t.toLowerCase() === "spare");
   const pump = types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
   const ecKind = spare && !pump ? spareEcSql("s", "o") : pump && !spare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
-  return [
+  // Planning's Pump view: the pumps (its ECs' quantity) — a card, and beside every card's SOs.
+  const pumpPlanning = planning && pump && !spare;
+  const pumpQty = `(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND ${ecKind})`;
+  const cards: KpiCardDef[] = [
     { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
     ...(planning || dept === "assembly"
       ? [{
@@ -4487,6 +4501,7 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
           measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${ecKind})`,
         }]
       : []),
+    ...(pumpPlanning ? [{ key: "pumps", label: "Pumps", sql: null, params: {}, tone: "neutral" as const, measure: pumpQty }] : []),
     ...statuses.flatMap((st) =>
       // Planning's Fully ready on a Pump: ready but not assembled yet, and
       // ready and assembled but not packed yet — what waits on Assembly & Packing.
@@ -4546,6 +4561,7 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
     // Every department: its SOs on any hold.
     totalHoldCard(dept, clear),
   ];
+  return pumpPlanning ? cards.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } })) : cards;
 }
 
 // Matches the SO's own identity columns or any of its ECs.
