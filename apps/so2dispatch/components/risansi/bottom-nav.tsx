@@ -20,6 +20,7 @@ import {
   canAccessOrderMaking,
   canSeeEscalations,
   getsNotifications,
+  canSeeDispatchPlan,
   isCentral,
   reminderDeptForRole,
   reminderDeptForTable,
@@ -27,6 +28,7 @@ import {
 import {
   ADMIN_NAV,
   DEPARTMENT_NAV,
+  DISPATCH_PLAN_NAV,
   PRIMARY_NAV,
   activeNavHref,
   type NavItem,
@@ -198,6 +200,12 @@ export function BottomNav({
                       />
                     ))}
                   </div>
+                </div>
+              )}
+
+              {canSeeDispatchPlan(user.role) && (
+                <div className="mb-4 space-y-1">
+                  <SheetLink item={DISPATCH_PLAN_NAV} />
                 </div>
               )}
 

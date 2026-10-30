@@ -31,6 +31,7 @@ const ROUTE_LABELS: Record<string, Crumb> = {
   "/risansi/messages": { label: "Messages" },
   "/risansi/escalations": { label: "Payment Holds" },
   "/risansi/dispatched": { label: "Dispatched" },
+  "/risansi/dispatch-plan": { label: "Dispatch Plan" },
   "/risansi/departments/billing": { label: "Proforma Invoice", parent: "Departments" },
   "/risansi/departments/accounts": { label: "Accounts", parent: "Departments" },
   "/risansi/departments/drawing": { label: "Drawing", parent: "Departments" },

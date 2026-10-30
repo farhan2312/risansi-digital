@@ -18,6 +18,7 @@ import {
   canViewAll,
   canViewDepartment,
   canAccessOrderMaking,
+  canSeeDispatchPlan,
   canSeeEscalations,
   getsNotifications,
   isCentral,
@@ -27,6 +28,7 @@ import {
 import {
   ADMIN_NAV,
   DEPARTMENT_NAV,
+  DISPATCH_PLAN_NAV,
   PRIMARY_NAV,
   activeNavHref,
   type NavItem,
@@ -136,6 +138,8 @@ export function Sidebar({
             {visiblePrimaryNav.map((item) => (
               <NavLink key={item.href} item={item} />
             ))}
+            {/* After Orders: the pump SOs that can go out in the next two weeks. */}
+            {canSeeDispatchPlan(user.role) && <NavLink item={DISPATCH_PLAN_NAV} />}
             {getsNotifications(user.role) && (
               <NavLink
                 item={{

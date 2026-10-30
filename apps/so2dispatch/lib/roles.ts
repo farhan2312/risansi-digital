@@ -201,6 +201,11 @@ export function canSeeDispatched(role: string): boolean {
   return role === "admin" || role === "central_visibility" || role === "dispatch";
 }
 
+/** The Dispatch Plan — the pump SOs that can go out in the next two weeks: Central Visibility (and Admin). */
+export function canSeeDispatchPlan(role: string): boolean {
+  return isCentral(role);
+}
+
 /**
  * Who may edit each 1:many list. PIs (`order_billing_docs`) are Billing-only
  * now — Accounts views them read-only.
