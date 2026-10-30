@@ -1,6 +1,6 @@
 import "server-only";
 import { query } from "@/lib/db";
-import { PUMP_LIKE } from "@/lib/order-schema";
+import { PUMP_LIKE, paymentTermsText } from "@/lib/order-schema";
 import { soStageStatusSql } from "@/lib/assembly";
 import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
@@ -20,7 +20,7 @@ import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSq
 /** How far ahead the plan looks, in days. */
 export const DISPATCH_PLAN_DAYS = 14;
 
-export type DispatchPlanEc = { id: string; ec_no: string | null; quantity: number; status: string | null };
+export type DispatchPlanEc = { id: string; ec_no: string | null; model_no: string | null; quantity: number; status: string | null };
 
 /** A bought-out item as order_boi_items keeps it: lib/dept-view boiStatus reads it. */
 export type DispatchPlanBoi = Record<string, unknown> & {
@@ -43,6 +43,14 @@ export type DispatchPlanRow = {
   client_name: string | null;
   reps: string | null;
   zone: string | null;
+  po_no: string | null;
+  po_date: string | null;
+  /** SO Sent to PPC Date (Central's SO Hand Over Date). */
+  ppc_date: string | null;
+  payment_terms: string | null;
+  payment_terms_remarks: string | null;
+  /** Billing's PIs, oldest first. */
+  pis: { no: string; date: string | null }[];
   ecs: DispatchPlanEc[];
   pumps: number;
   /** Every pump EC Fully ready. */
@@ -73,7 +81,7 @@ const LOTS = `FROM order_ready_lots rl JOIN order_items ri ON ri.id = rl.item_id
                WHERE ri.order_id = so.id AND ri.item_type = ANY($1::text[]) AND COALESCE(rl.qty, 0) > 0`;
 
 export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
-  const result = await query<DispatchPlanRow>(
+  const result = await query<DispatchPlanRow & { term_lines: Record<string, unknown>[] }>(
     `WITH so AS (
        SELECT o.*
          FROM orders o
@@ -87,7 +95,7 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
      ),
      ready AS (
        SELECT it.order_id,
-              jsonb_agg(jsonb_build_object('id', it.id, 'ec_no', it.ec_no, 'quantity', COALESCE(it.quantity, 0),
+              jsonb_agg(jsonb_build_object('id', it.id, 'ec_no', it.ec_no, 'model_no', it.model_no, 'quantity', COALESCE(it.quantity, 0),
                                            'status', pl.actual_spare_status) ORDER BY it.seq) AS ecs,
               COALESCE(sum(it.quantity), 0)::int AS pumps,
               bool_and(pl.actual_spare_status IS NOT DISTINCT FROM 'Fully ready') AS fully_ready,
@@ -130,6 +138,13 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
      )
      SELECT so.id, so.sl_no::int AS sl_no, so.so_no, to_char(so.so_date, 'YYYY-MM-DD') AS so_date,
             so.client_name, so.reps, so.zone,
+            so.po_no, to_char(so.customer_po_date, 'YYYY-MM-DD') AS po_date,
+            to_char(so.so_handover_date, 'YYYY-MM-DD') AS ppc_date,
+            so.payment_terms,
+            COALESCE((SELECT jsonb_agg(to_jsonb(pt) ORDER BY pt.seq) FROM order_payment_terms pt WHERE pt.order_id = so.id), '[]'::jsonb) AS term_lines,
+            NULLIF(btrim(so.payment_terms_remarks), '') AS payment_terms_remarks,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('no', d.pi_no, 'date', to_char(d.pi_date, 'YYYY-MM-DD')) ORDER BY d.seq)
+                        FROM order_billing_docs d WHERE d.order_id = so.id AND NULLIF(btrim(d.pi_no), '') IS NOT NULL), '[]'::jsonb) AS pis,
             r.ecs, r.pumps, r.fully_ready,
             to_char(r.ready_date, 'YYYY-MM-DD') AS ready_date,
             CASE WHEN r.fully_ready THEN NULL ELSE to_char(r.plan_date, 'YYYY-MM-DD') END AS plan_date,
@@ -158,5 +173,6 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
       ORDER BY r.fully_ready DESC, r.plan_date NULLS FIRST, so.sl_no`,
     [PUMP_LIKE, DISPATCH_PLAN_DAYS]
   );
-  return result.rows;
+  // The terms in one line, from the SO's term lines (else as written).
+  return result.rows.map(({ term_lines, ...r }) => ({ ...r, payment_terms: paymentTermsText(term_lines, r.payment_terms) || null }));
 }

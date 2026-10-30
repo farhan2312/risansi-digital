@@ -33,7 +33,7 @@ type Show = keyof typeof SHOWS;
 
 /** What the search reads: the SO, client, rep, zone, its ECs and its BOI items. */
 const haystack = (r: DispatchPlanRow) =>
-  [r.so_no, r.client_name, r.reps, r.zone, ...r.ecs.map((e) => e.ec_no), ...r.boi_items.map((b) => b.name)]
+  [r.so_no, r.client_name, r.reps, r.zone, r.po_no, ...r.pis.map((p) => p.no), ...r.ecs.flatMap((e) => [e.ec_no, e.model_no]), ...r.boi_items.map((b) => b.name)]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -109,7 +109,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
       </div>
 
       <div className="mb-3">
-        <UrlSearchInput placeholder="Search SO, client, rep, EC, BOI item…" />
+        <UrlSearchInput placeholder="Search SO, client, PO, PI, EC, model, BOI item…" />
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -151,14 +151,18 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className="w-full min-w-[1400px] text-sm">
+          <table className="w-full min-w-[2000px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
                 <th className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3">Sl.</th>
                 <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">SO</th>
                 <th className="px-4 py-3">Client</th>
-                <th className="px-4 py-3">ECs</th>
+                <th className="px-4 py-3">PO</th>
+                <th className="whitespace-nowrap px-4 py-3">SO Sent to PPC</th>
+                <th className="px-4 py-3">Payment Terms</th>
+                <th className="px-4 py-3">PI</th>
+                <th className="px-4 py-3">ECs · Model</th>
                 <th className="px-4 py-3 text-right">Pumps</th>
                 <th className="px-4 py-3">Readiness</th>
                 <th className="px-4 py-3">BOI</th>
@@ -186,12 +190,36 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                       <div>{r.client_name ?? "—"}</div>
                       {(r.reps || r.zone) && <div className="text-xs text-muted">{[r.reps, r.zone].filter(Boolean).join(" · ")}</div>}
                     </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <div>{r.po_no ?? "—"}</div>
+                      {r.po_date && <div className="text-xs text-muted">{formatDate(r.po_date)}</div>}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatDate(r.ppc_date)}</td>
+                    <td className="px-4 py-3 text-xs">
+                      <div className="min-w-[12rem] max-w-[18rem]">{r.payment_terms ?? <span className="text-muted">—</span>}</div>
+                      {r.payment_terms_remarks && <div className="mt-1 max-w-[18rem] text-muted">{r.payment_terms_remarks}</div>}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs">
+                      {r.pis.length === 0 ? (
+                        <span className="text-muted">No PI</span>
+                      ) : (
+                        <ul className="space-y-0.5">
+                          {r.pis.map((p, i) => (
+                            <li key={i}>
+                              <span className="font-medium text-foreground">{p.no}</span>
+                              {p.date && <span className="text-muted"> · {formatDate(p.date)}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
-                      <ul className="space-y-0.5 text-xs">
+                      <ul className="space-y-1 text-xs">
                         {r.ecs.map((e) => (
                           <li key={e.id} className="whitespace-nowrap">
                             <span className="font-medium text-foreground">{e.ec_no ?? "EC"}</span>
                             <span className="text-muted"> ×{e.quantity}{e.status ? ` · ${e.status}` : ""}</span>
+                            {e.model_no && <div className="text-muted">{e.model_no}</div>}
                           </li>
                         ))}
                       </ul>
