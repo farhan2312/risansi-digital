@@ -72,10 +72,10 @@ export interface PaInputs {
   vertical: boolean;
   /** Negative suction depth in metres (null when none / not entered). */
   negativeDepthM: number | null;
-  /** Sealing = Mechanical Seal, type MSA - the standard seal, priced inside
+  /** Sealing = Mechanical Seal, ACME, type MSA - the standard seal, priced inside
    *  P&A rather than as a BOI line. `price` = its BOI Master price with the
    *  default markup (what the BOI line would have charged); null when the
-   *  BOI Master has no matching seal. Absent / null = not an MSA seal. */
+   *  BOI Master has no matching seal. Absent / null = not the standard seal. */
   standardSeal?: { price: number | null; label: string | null } | null;
   /** "product code" (built or parsed) or "pump selection". */
   source: Partial<Record<"model" | "moc" | "rubber" | "subCategory", string>>;
@@ -270,19 +270,20 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
       defaultOn: false,
     });
   adj.push(...verticalAdjustments(i, notes));
-  // MSA = the standard mechanical seal: it goes in the P&A price, not as a
-  // separate BOI line (user, 2026-10-13). Added last, as an amount.
+  // ACME MSA = the standard mechanical seal: it goes in the P&A price, not as
+  // a separate BOI line (user, 2026-10-13; ACME only, 2026-10-31). Added
+  // last, as an amount.
   if (i.standardSeal) {
     if (i.standardSeal.price !== null)
       adj.push({
         key: "msa_seal",
-        label: `Standard mechanical seal (MSA) + ₹${i.standardSeal.price.toLocaleString("en-IN")}`,
+        label: `Standard mechanical seal (ACME MSA) + ₹${i.standardSeal.price.toLocaleString("en-IN")}`,
         short: `MSA seal +${i.standardSeal.price}`,
         add: i.standardSeal.price,
         defaultOn: true,
         note: `${i.standardSeal.label ?? "BOI Master"} + ${DEFAULT_MARKUP_PCT}%`,
       });
-    else notes.push("Standard mechanical seal (MSA): no BOI Master price for it - add the seal into the P&A price by hand");
+    else notes.push("Standard mechanical seal (ACME MSA): no BOI Master price for it - add the seal into the P&A price by hand");
   }
   return { problem: null, row: found.row, col, notes, adjustments: adj };
 }
@@ -385,6 +386,9 @@ export function paInputsFor(t: CommercialTag): PaInputs {
   };
 }
 
-/** Mechanical Seal of type MSA - the standard seal, priced in P&A (not a BOI line). */
+/** Mechanical Seal, make ACME, type MSA - the standard seal, priced in P&A
+ *  (not a BOI line). Any other make of MSA is an ordinary BOI seal line. */
 export const isStandardMechSeal = (t: Pick<CommercialTag, "codeHints">): boolean =>
-  t.codeHints.sealingType === "Mechanical Seal" && t.codeHints.sealingSubType === "MSA";
+  t.codeHints.sealingType === "Mechanical Seal" &&
+  t.codeHints.sealingSubType === "MSA" &&
+  (t.codeHints.mechSealMake ?? "").trim().toUpperCase() === "ACME";

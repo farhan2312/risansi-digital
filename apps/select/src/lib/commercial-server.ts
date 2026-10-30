@@ -269,6 +269,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
         statorRubber: r.statorRubber || null,
         sealingType: r.sealingType || null,
         sealingSubType: r.sealingSubType || null,
+        mechSealMake: r.mechSealMake || null,
       },
       motorRef,
       gearboxRef,

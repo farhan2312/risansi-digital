@@ -1181,7 +1181,7 @@ function TagCard({
               {BOI_ITEMS.map((item) => {
                 const key = item.key;
                 // Mechanical seal on a non-mechanical sealing - or the standard
-                // MSA seal, which is priced in P&A - is one muted line until
+                // ACME MSA seal, which is priced in P&A - is one muted line until
                 // "Price anyway" (or a price is already there).
                 const sealing = tag.codeHints.sealingType;
                 const msa = isStandardMechSeal(tag);
@@ -1202,7 +1202,7 @@ function TagCard({
                       <span className="text-[12px] sm:col-span-4">
                         <span className="mr-2 rounded bg-paper px-1.5 py-px text-[11px] font-semibold text-fg-3">N/A</span>
                         {msa
-                          ? "MSA is the standard mechanical seal - priced in Pump & Accessories (P&A suggestion), not here"
+                          ? "ACME MSA is the standard mechanical seal - priced in Pump & Accessories (P&A suggestion), not here"
                           : (tag.mechSealNote ?? `${sealing} — no mechanical seal`)}
                         <button
                           type="button"
