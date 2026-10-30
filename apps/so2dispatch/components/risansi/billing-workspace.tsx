@@ -6,6 +6,7 @@ import { Fragment, useEffect, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import type { BillingQueueRow } from "@/lib/orders";
 import { TermPis } from "./term-pis";
+import { OrderValueDetails } from "./order-value-details";
 import { PendencyCell } from "./pendency-cell";
 import { MultiSelectFilter } from "./multi-select-filter";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
@@ -386,32 +387,6 @@ export function BillingWorkspace({
           onClose={() => setThreadFor(null)}
         />
       )}
-    </div>
-  );
-}
-
-/** How the SO's order value comes to its gross: the value, discount, packing & forwarding, GST, and the gross. */
-function OrderValueDetails({ row }: { row: BillingQueueRow }) {
-  const cur = row.order_currency ? ` ${row.order_currency}` : "";
-  const pct = (v: string | null) => (v && v.trim() !== "" ? `${numberFmt.format(Number(v))}%` : "—");
-  const lines: [string, string][] = [
-    ["Order value", row.order_value ? `${formatValue(row.order_value)}${cur}` : "—"],
-    ["Discount", pct(row.discount_percent)],
-    ["Packing", pct(row.packing_forwarding_percent)],
-    ["GST", pct(row.gst_percent)],
-  ];
-  return (
-    <div className="grid grid-cols-[auto_auto] gap-x-3 text-xs whitespace-nowrap">
-      {lines.map(([k, v]) => (
-        <Fragment key={k}>
-          <span className="text-muted">{k}</span>
-          <span className="text-right tabular-nums text-foreground">{v}</span>
-        </Fragment>
-      ))}
-      <span className="mt-0.5 border-t border-card-border pt-0.5 font-semibold text-foreground">Gross value</span>
-      <span className="mt-0.5 border-t border-card-border pt-0.5 text-right font-semibold tabular-nums text-foreground">
-        {row.taxable_value ? `${formatValue(row.taxable_value)}${cur}` : "—"}
-      </span>
     </div>
   );
 }

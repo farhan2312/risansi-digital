@@ -723,9 +723,7 @@ export const ORDER_SECTIONS: OrderSection[] = [
         options: PAYMENT_STATUS_OPTIONS,
       },
       { column: "payment_confirmed_date", label: "Payment Confirmed Date", type: "date" },
-      // The GST Accounts applies to the order value: 18% unless changed.
-      { column: "gst_rate", label: "GST %", type: "number", min: 0, defaultValue: "18", listHidden: true },
-      // With GST. It may run past the order value — what came in is recorded.
+      // Against the order's gross value (with its GST). It may run past it — what came in is recorded.
       { column: "amount_received", label: "Amount Received", type: "number", min: 0 },
       {
         column: "balance_of_payment",
@@ -1760,10 +1758,8 @@ export const PAYMENT_TERMS_CONTEXT_FIELDS: OrderField[] = [
   { column: "client_code", label: "Client Code", type: "text" },
   ...SO_CONTEXT_FIELDS,
   { column: "payment_terms", label: "Payment Terms", type: "text" },
-  // What the payments are counted against: the value, and with GST at the
-  // rate Accounts set (18% unless changed).
-  { column: "order_value", label: "Order Value", type: "number" },
-  { column: "order_value_gst", label: "Order Value (+GST)", type: "number" },
+  // What the payments are counted against: the order value to its gross, as Dispatch shows it.
+  { column: "order_value_details", label: "Order Value Details", type: "text" },
 ];
 
 

@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Package,
   PenTool,
+  CalendarRange,
   Receipt,
   ScrollText,
   ChartPie,
@@ -30,6 +31,9 @@ export const PRIMARY_NAV: NavItem[] = [
   { label: "Dashboard", href: "/risansi/dashboard", icon: LayoutDashboard },
   { label: "Orders", href: "/risansi/orders", icon: ClipboardList },
 ];
+
+/** Right after Orders, for Central Visibility (and Admin) only: lib/roles canSeeDispatchPlan. */
+export const DISPATCH_PLAN_NAV: NavItem = { label: "Dispatch Plan", href: "/risansi/dispatch-plan", icon: CalendarRange };
 
 export const DEPARTMENT_NAV: DeptNavItem[] = [
   {
@@ -112,6 +116,7 @@ export const NAV_HREFS: string[] = [
   "/risansi/messages",
   "/risansi/escalations",
   "/risansi/dispatched",
+  DISPATCH_PLAN_NAV.href,
   "/risansi/settings",
   ...ADMIN_NAV.map((i) => i.href),
 ];
