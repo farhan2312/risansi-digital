@@ -12,13 +12,14 @@ import {
   techDocExtrasFor,
   techDocGroups,
   techDocSheet,
+  techDocGroupOf,
   type TechDocConfig,
   type TechDocData,
   type TechDocGroup,
   type TechDocVersion,
   type ScopeLines,
 } from "../../lib/tech-doc";
-import TechDocEditor, { DocHeaderEditor, DocScopeEditor } from "./TechDocEditor";
+import TechDocEditor, { DocHeaderEditor, DocScopeEditor, DocTagPicker } from "./TechDocEditor";
 import { saveOfferScopeText } from "../../services/commercialOfferService";
 import { downloadTechDocExcel } from "../../lib/tech-doc-excel";
 import { printHtml } from "../../lib/enquiry-print";
@@ -152,7 +153,10 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
     config.hidden.length + Object.keys(config.labels).length + Object.keys(config.values).length + config.custom.length > 0 ||
     !!config.quotationText ||
     !!config.erpText ||
-    (config.headerHidden?.length ?? 0) > 0;
+    (config.headerHidden?.length ?? 0) > 0 ||
+    (config.hiddenTags?.length ?? 0) > 0;
+  // Every tag of the open sheet's group, for choosing which ones it prints.
+  const groupTags = useMemo(() => (data && group ? data.tags.filter((t) => techDocGroupOf(t) === group) : []), [data, group]);
   const resetAll = () => updateConfig({ ...EMPTY_TECH_DOC_CONFIG, extras: config.extras });
 
   const doc = useMemo(() => {
@@ -375,6 +379,14 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                           : "Add optional rows, or switch to Edit rows to change the sheet."}
                 </span>
               </div>
+
+              {!viewing && (
+                <DocTagPicker
+                  tags={groupTags}
+                  hidden={config.hiddenTags ?? []}
+                  onChange={(next) => updateConfig({ ...config, hiddenTags: next })}
+                />
+              )}
 
               {showPicker && !viewing && (
                 <div className="grid grid-cols-1 gap-4 rounded-lg border border-line bg-sunk p-3 sm:grid-cols-2 lg:grid-cols-3">

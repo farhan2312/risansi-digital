@@ -156,7 +156,11 @@ export function techDocSheet(data: TechDocData, group: TechDocGroup): TechDocShe
       quotation: cfg?.erpText || data.erpNumbers?.[group] || "",
       hidden: cfg?.headerHidden ?? [],
     },
-    tags: data.tags.filter((t) => techDocGroupOf(t) === group),
+    // Tags deselected on this sheet are left off.
+    tags: visibleTags(
+      data.tags.filter((t) => techDocGroupOf(t) === group),
+      cfg,
+    ),
     config: data.configs[group] ?? EMPTY_TECH_DOC_CONFIG,
     group: data.mixed && group !== "NONE" ? group : undefined,
     scope: data.scopes?.[group],
@@ -455,6 +459,8 @@ export interface TechDocConfig {
   erpText?: string;
   /** Header lines removed from this sheet. */
   headerHidden?: HeaderKey[];
+  /** Tags left off this sheet (tagIds). */
+  hiddenTags?: string[];
 }
 
 export const EMPTY_TECH_DOC_CONFIG: TechDocConfig = { extras: [], hidden: [], labels: {}, values: {}, custom: [] };
@@ -464,6 +470,16 @@ const MAX_CUSTOM = 50;
 const text = (v: unknown): string => String(v ?? "").trim().slice(0, MAX_TEXT);
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 export const customKey = (id: string) => `c_${id}`;
+
+/** A saved list of tag ids left off a sheet (TechDocConfig / OfferConfig). */
+export const hiddenTagList = (v: unknown): string[] =>
+  [...new Set((Array.isArray(v) ? v : []).map((x) => String(x).slice(0, 60)).filter(Boolean))].slice(0, 500);
+
+/** The tags a sheet prints: all but the ones deselected on it. */
+export const visibleTags = <T extends { tagId: string }>(tags: T[], config: { hiddenTags?: string[] } | undefined): T[] => {
+  const off = new Set(config?.hiddenTags ?? []);
+  return off.size ? tags.filter((t) => !off.has(t.tagId)) : tags;
+};
 
 /** Cleans whatever is stored / sent into a valid config: unknown keys,
  *  sections and over-long text are dropped. Used by the API and the screen. */
@@ -504,6 +520,7 @@ export function normalizeTechDocConfig(raw: unknown): TechDocConfig {
     quotationText: text(r.quotationText),
     erpText: text(r.erpText),
     headerHidden: headerHiddenList(r.headerHidden),
+    hiddenTags: hiddenTagList(r.hiddenTags),
   };
 }
 
