@@ -34,7 +34,8 @@ const fmtDays = (d: number) => (d < 1 ? '<1d' : `${Math.round(d)}d`);
 type ColId =
   | 'no' | 'client' | 'status' | 'sev' | 'severe' | 'category' | 'subcat' | 'industry'
   | 'ctype' | 'model' | 'qty' | 'action' | 'freeRepl'
-  | 'item' | 'frEc' | 'frEcDate' | 'frDispatch' | 'challan' | 'capa' | 'linked' | 'holder' | 'since' | 'age'
+  | 'item' | 'frEc' | 'frEcDate' | 'frDispatch' | 'challanNo' | 'challan'
+  | 'capa' | 'linked' | 'holder' | 'since' | 'age'
   | 'late' | 'target' | 'rep' | 'raised' | 'docs' | 'open';
 
 interface Col {
@@ -155,7 +156,10 @@ const COLUMNS: Col[] = [
   { id: 'frDispatch', head: 'FR dispatch', kind: 'date', value: r => r.target_dispatch_date },
   // Next to FR dispatch on purpose: that one is the date the replacement was
   // MEANT to leave, this is the date it did. Read together they say whether
-  // the promise was kept, which neither of them says alone.
+  // the promise was kept, which neither of them says alone. The number comes
+  // first because that is the reference somebody quotes to a customer, and it
+  // reads as one fact with the date rather than two columns apart.
+  { id: 'challanNo',  head: 'Challan no.', pick: 'Challan no.', kind: 'text', value: r => r.challan_no },
   { id: 'challan',    head: 'Challan date', pick: 'Challan date', kind: 'date', value: r => r.challan_date },
   // Pending before under review before closed before nothing asked for.
   { id: 'capa',       head: 'CAPA', kind: 'status', order: ['open', 'review', 'closed', 'none'], value: r => r.capa_state },
@@ -191,8 +195,8 @@ const ALL_IDS = COLUMNS.map(c => c.id);
 //
 // The key carries the set, so adding more columns later means a new key
 // rather than a second reveal of these.
-const PROMOTED = ['challan'] as const;
-const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v3';
+const PROMOTED = ['challanNo', 'challan'] as const;
+const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v4';
 const PROMOTED_SEEN = () => {
   try { return localStorage.getItem(PROMOTED_KEY) === '1'; } catch { return true; }
 };
