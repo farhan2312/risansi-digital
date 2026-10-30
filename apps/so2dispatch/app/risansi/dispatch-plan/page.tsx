@@ -7,6 +7,7 @@ import { canSeeDispatchPlan } from "@/lib/roles";
 import { DISPATCH_PLAN_DAYS, listDispatchPlan, type DispatchPlanRow, type DispatchPlanStage } from "@/lib/dispatch-plan";
 import { boiStatus } from "@/lib/dept-view";
 import { UrlSearchInput } from "@/components/risansi/url-table";
+import { TermPis } from "@/components/risansi/term-pis";
 
 export const metadata: Metadata = {
   title: "Dispatch Plan | Risansi",
@@ -33,7 +34,7 @@ type Show = keyof typeof SHOWS;
 
 /** What the search reads: the SO, client, rep, zone, its ECs and its BOI items. */
 const haystack = (r: DispatchPlanRow) =>
-  [r.so_no, r.client_name, r.reps, r.zone, r.po_no, ...r.pis.map((p) => p.no), ...r.ecs.flatMap((e) => [e.ec_no, e.model_no]), ...r.boi_items.map((b) => b.name)]
+  [r.so_no, r.client_name, r.reps, r.zone, r.po_no, ...r.pi_docs.map((p) => (p.pi_no == null ? null : String(p.pi_no))), ...r.ecs.flatMap((e) => [e.ec_no, e.model_no]), ...r.boi_items.map((b) => b.name)]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -160,8 +161,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">PO</th>
                 <th className="whitespace-nowrap px-4 py-3">SO Sent to PPC</th>
-                <th className="px-4 py-3">Payment Terms</th>
-                <th className="px-4 py-3">PI</th>
+                <th className="px-4 py-3">Payment terms, PIs &amp; payment</th>
                 <th className="px-4 py-3">ECs · Model</th>
                 <th className="px-4 py-3 text-right">Pumps</th>
                 <th className="px-4 py-3">Readiness</th>
@@ -195,22 +195,19 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                       {r.po_date && <div className="text-xs text-muted">{formatDate(r.po_date)}</div>}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{formatDate(r.ppc_date)}</td>
-                    <td className="px-4 py-3 text-xs">
-                      <div className="min-w-[12rem] max-w-[18rem]">{r.payment_terms ?? <span className="text-muted">—</span>}</div>
-                      {r.payment_terms_remarks && <div className="mt-1 max-w-[18rem] text-muted">{r.payment_terms_remarks}</div>}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs">
-                      {r.pis.length === 0 ? (
-                        <span className="text-muted">No PI</span>
+                    {/* Each term with its PI and what came in — as on the Orders page. */}
+                    <td className="px-4 py-3 align-top">
+                      {r.bill_mode === "FR" ? (
+                        <span className="text-xs font-medium text-muted">Replacement · no payment terms</span>
                       ) : (
-                        <ul className="space-y-0.5">
-                          {r.pis.map((p, i) => (
-                            <li key={i}>
-                              <span className="font-medium text-foreground">{p.no}</span>
-                              {p.date && <span className="text-muted"> · {formatDate(p.date)}</span>}
-                            </li>
-                          ))}
-                        </ul>
+                        <TermPis
+                          orderId={r.id}
+                          soLabel={r.so_no ?? `#${r.sl_no}`}
+                          terms={r.term_lines}
+                          pis={r.pi_docs}
+                          canEdit={false}
+                          payments={{ canEdit: false }}
+                        />
                       )}
                     </td>
                     <td className="px-4 py-3">
