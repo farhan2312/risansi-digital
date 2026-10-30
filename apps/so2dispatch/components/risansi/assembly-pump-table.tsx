@@ -38,10 +38,11 @@ function shortDate(v: unknown): string {
 const todayIso = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 
 /** A pump EC as assembly and packing read it. */
-type Ec = { id: string; label: string; quantity: number; ready: number };
+type Ec = { id: string; label: string; model: string; quantity: number; ready: number };
 const ecOf = (r: Row): Ec => ({
   id: str(r.id),
   label: str(r.ec_no) || "EC",
+  model: str(((r.ec ?? {}) as Row).model_no),
   quantity: num(((r.ec ?? {}) as Row).quantity),
   ready: num(r.ready_qty),
 });
@@ -167,7 +168,7 @@ export function AssemblyPumpTable({
             <th className={th} />
             <th className={`${th} border-l border-card-border`}>Packing Slips</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={`${th} border-l border-card-border`}>EC No.</th>
+            <th className={`${th} border-l border-card-border`}>EC No. / Model</th>
             <th className={th}>EC Date</th>
             <th className={th}>Qty</th>
             <th className={th}>Ready</th>
@@ -293,7 +294,10 @@ export function AssemblyPumpTable({
                           </td>
                         </>
                       )}
-                      <td className={`${ecCell} whitespace-nowrap border-l border-card-border font-semibold`}>{e.label}</td>
+                      <td className={`${ecCell} whitespace-nowrap border-l border-card-border font-semibold`}>
+                        {e.label}
+                        {e.model && <div className="text-xs font-normal text-muted">{e.model}</div>}
+                      </td>
                       <td className={`${ecCell} whitespace-nowrap text-muted`}>{shortDate(((r.ec ?? {}) as Row).ec_date)}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.quantity || "—"}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.ready}</td>
@@ -379,7 +383,11 @@ function LotStagesModal({
   const dirty = JSON.stringify([lots, entries]) !== JSON.stringify([initialLots, initialEntries]);
   const set = (i: number, patch: Partial<PumpLot>) => setLots((ls) => ls.map((l, k) => (k === i ? { ...l, ...patch } : l)));
   const setEntry = (key: string, patch: Partial<Entry>) => setEntries((es) => es.map((e) => (e.key === key ? { ...e, ...patch } : e)));
-  const label = (id: string) => ecs.find((e) => e.id === id)?.label ?? "EC";
+  // The EC with its model no., so the pump is plain.
+  const label = (id: string) => {
+    const e = ecs.find((x) => x.id === id);
+    return e ? [e.label, e.model].filter(Boolean).join(" · ") : "EC";
+  };
   const inLot = (l: PumpLot) => (e: Entry) => l.ecs.some((x) => x.row_id === e.lot_row_id);
   // The lots as the entries now stand: how many of each EC are assembled, and whether all of the lot is.
   const shown = lots.map((l) => {
