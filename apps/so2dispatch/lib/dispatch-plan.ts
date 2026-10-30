@@ -78,6 +78,8 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
        SELECT o.*
          FROM orders o
         WHERE ${releasedSql("o")} AND ${clearedSql("o")} AND ${orderOpenSql("o")} AND NOT ${onlyBillingSql("o")}
+          -- A test SO (its SO No. says TEST) is not to be dispatched.
+          AND COALESCE(o.so_no, '') !~* 'test'
           AND COALESCE(o.status_override, '') <> 'Hold'
           AND ${orderStatusSql("o")} <> 'Fully dispatch'
           AND COALESCE(o.accounts_hold_status, '') <> 'Hold'
