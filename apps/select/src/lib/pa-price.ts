@@ -72,10 +72,10 @@ export interface PaInputs {
   vertical: boolean;
   /** Negative suction depth in metres (null when none / not entered). */
   negativeDepthM: number | null;
-  /** Sealing = Mechanical Seal, type MSA - the standard seal, priced inside
+  /** Sealing = Mechanical Seal, ACME, type MSA - the standard seal, priced inside
    *  P&A rather than as a BOI line. `price` = its BOI Master price with the
    *  default markup (what the BOI line would have charged); null when the
-   *  BOI Master has no matching seal. Absent / null = not an MSA seal. */
+   *  BOI Master has no matching seal. Absent / null = not the standard seal. */
   standardSeal?: { price: number | null; label: string | null } | null;
   /** "product code" (built or parsed) or "pump selection". */
   source: Partial<Record<"model" | "moc" | "rubber" | "subCategory", string>>;
@@ -95,7 +95,27 @@ export interface PaAdjustment {
   /** Only one of a group can be on (size up / size down). */
   group?: string;
   note?: string;
+  /** The amount (`add`) can be typed over in the P&A panel (ACME MSA seal). */
+  editable?: boolean;
 }
+
+/** Typed-over amounts of editable adjustments, by key. */
+export type PaAmounts = Record<string, number>;
+
+const amountOf = (a: PaAdjustment, amounts?: PaAmounts): number => amounts?.[a.key] ?? a.add ?? 0;
+
+/** "MSA seal +4500" in a saved basis; "(manual)" when the amount was typed. */
+const shortOf = (a: PaAdjustment, amounts?: PaAmounts): string => {
+  if (!a.editable) return a.short;
+  const v = amountOf(a, amounts);
+  return `MSA seal +${v}${v !== (a.add ?? 0) || !a.add ? " (manual)" : ""}`;
+};
+
+/** The typed seal amount found in a saved basis ("MSA seal +4500"), else null. */
+export const sealAmountFromBasis = (basis: string | null | undefined): number | null => {
+  const m = /MSA seal \+(\d+)/.exec(basis ?? "");
+  return m ? Number(m[1]) : null;
+};
 
 // --- Model matching ---------------------------------------------------------------
 
@@ -270,19 +290,25 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
       defaultOn: false,
     });
   adj.push(...verticalAdjustments(i, notes));
-  // MSA = the standard mechanical seal: it goes in the P&A price, not as a
-  // separate BOI line (user, 2026-10-13). Added last, as an amount.
+  // ACME MSA = the standard mechanical seal: it goes in the P&A price, not as
+  // a separate BOI line (user, 2026-10-13; ACME only, 2026-10-31). Added
+  // last, as an amount.
+  // The amount can be typed over in the P&A panel (user, 2026-10-31); with no
+  // BOI Master price it starts unticked at 0 for the seal price to be typed.
   if (i.standardSeal) {
-    if (i.standardSeal.price !== null)
-      adj.push({
-        key: "msa_seal",
-        label: `Standard mechanical seal (MSA) + ₹${i.standardSeal.price.toLocaleString("en-IN")}`,
-        short: `MSA seal +${i.standardSeal.price}`,
-        add: i.standardSeal.price,
-        defaultOn: true,
-        note: `${i.standardSeal.label ?? "BOI Master"} + ${DEFAULT_MARKUP_PCT}%`,
-      });
-    else notes.push("Standard mechanical seal (MSA): no BOI Master price for it - add the seal into the P&A price by hand");
+    const price = i.standardSeal.price;
+    adj.push({
+      key: "msa_seal",
+      label: "Standard mechanical seal (ACME MSA) + ₹",
+      short: `MSA seal +${price ?? 0}`,
+      add: price ?? 0,
+      defaultOn: price !== null,
+      editable: true,
+      note:
+        price !== null
+          ? `${i.standardSeal.label ?? "BOI Master"} + ${DEFAULT_MARKUP_PCT}%`
+          : "no BOI Master price - type the seal price",
+    });
   }
   return { problem: null, row: found.row, col, notes, adjustments: adj };
 }
@@ -291,22 +317,27 @@ const round = (n: number) => Math.round(n);
 
 /** One list's suggested price with the ticked adjustments (null when that
  *  list has no price for the column). */
-export function paPrice(s: PaSuggestion, level: PaLevelKey, on: Set<string>): { base: number | null; price: number | null } {
+export function paPrice(
+  s: PaSuggestion,
+  level: PaLevelKey,
+  on: Set<string>,
+  amounts?: PaAmounts,
+): { base: number | null; price: number | null } {
   if (!s.row || !s.col) return { base: null, price: null };
   const ticked = s.adjustments.filter((a) => on.has(a.key));
   const col = ticked.some((a) => a.fromBbbn) ? "bbbn" : s.col;
   const base = s.row.prices[`${level.toLowerCase()}_${col}`] ?? null;
   if (base === null) return { base: null, price: null };
   const factor = ticked.reduce((f, a) => f * (1 + (a.pct ?? 0) / 100), 1);
-  const add = ticked.reduce((t, a) => t + (a.add ?? 0), 0);
+  const add = ticked.reduce((t, a) => t + amountOf(a, amounts), 0);
   return { base, price: round(base * factor) + add };
 }
 
 /** Saved with the price: "L3 · H-48/50/52 · ABBN · BAG +15% · EPDM +10%". */
-export function paBasisText(s: PaSuggestion, level: PaLevelKey, on: Set<string>): string {
+export function paBasisText(s: PaSuggestion, level: PaLevelKey, on: Set<string>, amounts?: PaAmounts): string {
   const ticked = s.adjustments.filter((a) => on.has(a.key));
   const col = ticked.some((a) => a.fromBbbn) ? "bbbn" : s.col;
-  return [level, s.row?.pumpModelNo, col?.toUpperCase(), ...ticked.map((a) => a.short)]
+  return [level, s.row?.pumpModelNo, col?.toUpperCase(), ...ticked.map((a) => shortOf(a, amounts))]
     .filter(Boolean)
     .join(" · ")
     .slice(0, 300);
@@ -385,6 +416,9 @@ export function paInputsFor(t: CommercialTag): PaInputs {
   };
 }
 
-/** Mechanical Seal of type MSA - the standard seal, priced in P&A (not a BOI line). */
+/** Mechanical Seal, make ACME, type MSA - the standard seal, priced in P&A
+ *  (not a BOI line). Any other make of MSA is an ordinary BOI seal line. */
 export const isStandardMechSeal = (t: Pick<CommercialTag, "codeHints">): boolean =>
-  t.codeHints.sealingType === "Mechanical Seal" && t.codeHints.sealingSubType === "MSA";
+  t.codeHints.sealingType === "Mechanical Seal" &&
+  t.codeHints.sealingSubType === "MSA" &&
+  (t.codeHints.mechSealMake ?? "").trim().toUpperCase() === "ACME";

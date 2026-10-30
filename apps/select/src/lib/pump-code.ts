@@ -106,6 +106,8 @@ export interface CodeHints {
   sealingType: string | null;
   /** Mechanical Seal sub-type, e.g. "MSA". */
   sealingSubType: string | null;
+  /** Mechanical Seal make, e.g. "ACME". */
+  mechSealMake: string | null;
 }
 
 const RUBBER_CODE: [RegExp, string][] = [
