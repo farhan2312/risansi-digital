@@ -96,22 +96,27 @@ export const NOT_APPLICABLE = "N/A";
 
 const values = (list: { value: string }[]) => list.map((o) => o.value);
 
+/** Assembly & Packing's words for a Pump SO: assembly until its packing starts, then packing. */
+export const PUMP_ASSEMBLY_WORDS = ["Assembly pending", "Partial assembled", "Fully assembled", "Partially packed", "Fully packed"];
+/** …and for a Spare SO: its lots being packed, then partly or fully packed. */
+export const SPARE_ASSEMBLY_WORDS = ["Packing on", "Partially packed", "Fully packed"];
+
 const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
-  // The furthest hand-off wins: a drawing that came back approved reads as
-  // Approved even though it was issued to Operations and the client first.
-  drawing: ["Approved", "Issued to Client", "Issued to Operations", PENDING, NOT_APPLICABLE],
-  // Bought out and every line receipted.
-  purchase: ["Received", PENDING, NOT_APPLICABLE],
-  quality: ["Submitted", PENDING, NOT_APPLICABLE],
+  // The words each department's tag on the Orders list shows. Drawing: the
+  // GAD's status until the EC's drawings are all done (Closed); once the GAD
+  // is issued to Planning, its curve or parts still to come.
+  drawing: [PENDING, "Sent to client – approval pending", "Resubmit", "Approved by client", "Curve / parts pending", "Closed", NOT_APPLICABLE],
+  // Open until every bought-out item is in hand, as Purchase's page says.
+  purchase: ["Open", "Closed", NOT_APPLICABLE],
+  // The EC's QC documents, as Quality's page reads them.
+  quality: [PENDING, "Partially submitted", "Submitted", "Docs not specified", NOT_APPLICABLE],
   // Whichever of pump/spare/free-text status the EC carries.
   // No Pending: a Spare starts at Date awaited, a Pump at its first status.
   // The SO's own Planning status (an SO is planned as one).
   planning: [...PUMP_PLANNING_STATUSES],
-  // A Spare stands where its latest readiness lot does: ready, then packed.
-  // A Pump is Fully packed once its packing date is in.
-  // No Pending: what reaches Assembly & Packing is ready or packed already.
-  // A Spare lot ready but not packed yet is In Progress.
-  assembly: ["In Progress", "Partially packed", "Fully packed"],
+  // A Pump: its assembly, then its packing, as Assembly & Packing's page.
+  // A Spare: its lots being packed (Packing on), then partly or fully packed.
+  assembly: [...PUMP_ASSEMBLY_WORDS, ...SPARE_ASSEMBLY_WORDS.filter((w) => !PUMP_ASSEMBLY_WORDS.includes(w))],
   // Which one depends on the SO's Bill Type — a Challan order never gets a PI.
   // N/A is the paid-after-receipt case: no PI is due at all.
   // PIs raised against the SO's payment terms — After Receipt lines are not
@@ -145,6 +150,13 @@ export function statusesFor(dept: DeptFilterKey, types: string[] = []): string[]
     const t = types[0].trim().toLowerCase();
     if (t === "spare") return [...SPARE_PLANNING_STATUSES, HOLD];
     if (t === "pump" || t === "rolb") return [...PUMP_PLANNING_STATUSES, HOLD];
+  }
+  // Assembly & Packing: a Pump's words or a Spare's, when only one kind is shown.
+  if (dept === "assembly" && types.length > 0) {
+    const spare = types.some((t) => t.trim().toLowerCase() === "spare");
+    const pump = types.some((t) => /^(pump|rolb)$/i.test(t.trim()));
+    if (spare && !pump) return [...SPARE_ASSEMBLY_WORDS, HOLD];
+    if (pump && !spare) return [...PUMP_ASSEMBLY_WORDS, HOLD];
   }
   const list = DEPT_STATUSES[dept];
   return list.includes(HOLD) ? list : [...list, HOLD];
