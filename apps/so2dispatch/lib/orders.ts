@@ -3633,7 +3633,9 @@ function orderListClauses(
     clauses.push(`(${any.join(" OR ")})`);
   }
   // The SO's dispatch status, as Dispatch sets it.
-  if (f.dispatchStatuses.length) clauses.push(`${orderStatusSql("o")} = ANY(${p(f.dispatchStatuses)}::text[])`);
+  // Where Dispatch has got to, as Dispatch reads it: Pending only once the SO is
+  // at Dispatch (a numbered packing slip); Not at Dispatch yet before that.
+  if (f.dispatchStatuses.length) clauses.push(`(${f.dispatchStatuses.map((st) => soState("dispatch", st)).join(" OR ")})`);
   // Dispatch: the SO's stage in Invoice → Dispatch → Docket & LR.
   if (f.dispatchStages.length) clauses.push(`${dispatchStageSql("o")} = ANY(${p(f.dispatchStages)}::text[])`);
   if (f.billModes.length) {
