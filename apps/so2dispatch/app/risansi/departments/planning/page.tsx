@@ -111,12 +111,14 @@ export default async function PlanningWorkspacePage({
 
   // The PDF report carries the queue's filter, search and sort — not which
   // page is open, nor a row being edited.
-  const reportQuery = new URLSearchParams(
-    Object.entries(params).filter(
+  // Spare or Pump as shown, said outright: each has its own report.
+  const reportQuery = new URLSearchParams([
+    ...Object.entries(params).filter(
       (e): e is [string, string] =>
-        !!e[1] && !["page", "edit", "thread", "focus"].includes(e[0])
-    )
-  ).toString();
+        !!e[1] && !["page", "edit", "thread", "focus", "type"].includes(e[0])
+    ),
+    ["type", ecKind],
+  ]).toString();
   const reportHref = `/risansi/departments/planning/report${reportQuery ? `?${reportQuery}` : ""}`;
 
   return (
@@ -136,7 +138,7 @@ export default async function PlanningWorkspacePage({
         </div>
         {/* Every SO in the queue as filtered: a pop-up to view, then PDF or Excel. */}
         <div className="ml-auto flex items-center gap-2">
-          <ReportDialogButton title="Planning report" href={reportHref} />
+          <ReportDialogButton title={ecKind === "pump" ? "Pump planning report" : "Spare planning report"} href={reportHref} />
         </div>
       </div>
 

@@ -15,7 +15,7 @@ const TABLE = "order_planning" as const;
 
 /**
  * Planning's queue as one PDF — every SO the queue's filter, search and sort
- * select, not just the page on screen. Opens in the browser, or saves with
+ * select, not just the page on screen — Spare or Pump, as the page's switch. Opens in the browser, or saves with
  * ?download=1; ?format=xlsx saves it as Excel.
  */
 export async function GET(request: Request) {
@@ -25,7 +25,12 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const get = (key: string) => url.searchParams.get(key) ?? undefined;
-  const filter = scopeToRep(parseDeptFilter(get, "planning"), user);
+  // Spare or Pump, as the page has it: each its own report.
+  const kind: "spare" | "pump" = /pump/i.test(get("type") ?? "") ? "pump" : "spare";
+  const filter = scopeToRep(
+    { ...parseDeptFilter(get, "planning"), types: kind === "pump" ? ["Pump", "ROLB"] : ["Spare"] },
+    user
+  );
   const search = parseQuery(get("q"));
 
   const queue = await listItemsForSectionPage(
@@ -45,22 +50,22 @@ export async function GET(request: Request) {
   const histories = await listReadyLotHistories([...new Set(queue.rows.map((r) => String(r.order_id)))]);
   const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   if (get("format") === "xlsx") {
-    const xlsx = await buildPlanningReportXlsx(queue.rows, filterLine, histories);
+    const xlsx = await buildPlanningReportXlsx(queue.rows, filterLine, histories, kind);
     return new NextResponse(xlsx as unknown as ArrayBuffer, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="planning-report-${stamp}.xlsx"`,
+        "Content-Disposition": `attachment; filename="${kind}-planning-report-${stamp}.xlsx"`,
         "Cache-Control": "no-store",
       },
     });
   }
-  const bytes = await buildPlanningReportPdf(queue.rows, filterLine, histories);
+  const bytes = await buildPlanningReportPdf(queue.rows, filterLine, histories, kind);
 
   const download = get("download") === "1";
   return new NextResponse(bytes as unknown as ArrayBuffer, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="planning-report-${stamp}.pdf"`,
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${kind}-planning-report-${stamp}.pdf"`,
       "Cache-Control": "no-store",
     },
   });
