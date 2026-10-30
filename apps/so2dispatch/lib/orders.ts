@@ -210,6 +210,7 @@ export type NewOrderInput = {
   quotation_no?: string;
   po_no?: string;
   customer_po_date?: string;
+  so_category?: string;
   freight_terms?: string;
   packing_requirement?: string;
   delivery_date_as_per_so?: string;
@@ -339,13 +340,13 @@ export async function createOrder(
           clearance_status, clearance_hold_reason, clearance_remarks,
           complaint_ec_no, file_no, discount_percent, gst_percent, taxable_value,
           po_received_date, ec_sent_operation_date, packing_forwarding_percent,
-          performance_curve_required, qc_documents
+          performance_curve_required, qc_documents, so_category
        ) VALUES (
           -- The next free number, under the lock above.
           (SELECT COALESCE(max(sl_no), 0) + 1 FROM orders),
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
           $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
-          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51
+          $37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52
        )
        RETURNING id, sl_no::int AS sl_no`,
       [
@@ -410,6 +411,8 @@ export async function createOrder(
         input.order_type === "Spare" ? null : nullify(input.performance_curve_required),
         // The QC documents, only when Quality is needed.
         input.qc_required === "Yes" ? nullify(input.qc_documents) : null,
+        // Project or Regular order — not asked of an FR or an Only Billing SO.
+        input.bill_mode === "FR" || input.bill_mode === ONLY_BILLING ? null : nullify(input.so_category),
       ]
     );
     // Only Billing: the switch the departments read follows the Bill Mode,

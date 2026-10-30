@@ -3031,3 +3031,7 @@ CREATE TABLE IF NOT EXISTS order_pendency (
 -- Idempotent and additive.
 ALTER TABLE order_pendency ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMPTZ;
 ALTER TABLE order_pendency ADD COLUMN IF NOT EXISTS cleared_by TEXT;
+
+-- 0040  SO Category: a project or a regular order, with the Purchase Order
+-- details on the Order Making form. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS so_category TEXT;

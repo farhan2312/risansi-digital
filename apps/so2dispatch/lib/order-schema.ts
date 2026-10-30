@@ -158,6 +158,8 @@ export function billModeLabel(billMode: unknown, billType?: unknown): string {
 
 // Clearance: Central Visibility releases an SO to the departments (Clear) or
 // holds it, with the reason kept for regular review.
+/** What kind of SO it is: a project, or a regular order. */
+export const SO_CATEGORY_OPTIONS = opts(["Project", "Regular order"]);
 export const CLEARANCE_OPTIONS = opts(["Clear", "Hold"]);
 /** Why Order Making holds an SO: the reasons it picks from. */
 export const OM_HOLD_REASONS = opts([
@@ -432,6 +434,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "quotation_no", label: "Quotation No.", type: "text", dependsOn: [{ column: "bill_mode", value: ["FR", ONLY_BILLING], not: true }], group: "Purchase Order" },
       { column: "po_no", label: "Purchase Order Number", type: "text", dependsOn: [{ column: "bill_mode", value: ["FR", ONLY_BILLING], not: true }], group: "Purchase Order" },
       { column: "customer_po_date", label: "Purchase Order Date", type: "date", dependsOn: [{ column: "bill_mode", value: ["FR", ONLY_BILLING], not: true }], group: "Purchase Order" },
+      // A project or a regular order: how the SO is classed.
+      { column: "so_category", label: "SO Category", type: "select", options: SO_CATEGORY_OPTIONS, dependsOn: [{ column: "bill_mode", value: ["FR", ONLY_BILLING], not: true }], group: "Purchase Order" },
       {
         column: "order_value",
         label: "Purchase/Sales Order Value (without GST)",
