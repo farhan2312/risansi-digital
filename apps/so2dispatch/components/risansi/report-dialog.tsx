@@ -28,7 +28,9 @@ export function ReportDialogButton({ title, href }: { title: string; href: strin
 }
 
 function ReportDialog({ title, href, onClose }: { title: string; href: string; onClose: () => void }) {
-  const [view, setView] = useState<"pdf" | "excel">("pdf");
+  // Opens on the Excel; the PDF is read only once asked for, then kept.
+  const [view, setView] = useState<"pdf" | "excel">("excel");
+  const [pdfAsked, setPdfAsked] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -52,7 +54,10 @@ function ReportDialog({ title, href, onClose }: { title: string; href: string; o
   const tab = (k: "pdf" | "excel", label: string, Icon: typeof FileText) => (
     <button
       type="button"
-      onClick={() => setView(k)}
+      onClick={() => {
+        setView(k);
+        if (k === "pdf") setPdfAsked(true);
+      }}
       aria-pressed={view === k}
       className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-colors ${
         view === k ? "bg-white text-[#1F3864] shadow-sm" : "text-white/80 hover:text-white"
@@ -86,8 +91,8 @@ function ReportDialog({ title, href, onClose }: { title: string; href: string; o
           </div>
           {/* PDF or Excel: what to look at, and so what to download. */}
           <div role="group" aria-label="View" className="inline-flex rounded-lg bg-white/15 p-0.5">
-            {tab("pdf", "PDF", FileText)}
             {tab("excel", "Excel", FileSpreadsheet)}
+            {tab("pdf", "PDF", FileText)}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {view === "pdf" ? (
@@ -113,7 +118,8 @@ function ReportDialog({ title, href, onClose }: { title: string; href: string; o
           </div>
         </div>
         <div className="relative min-h-0 flex-1 bg-slate-100">
-          {/* The PDF stays loaded behind the Excel view, so switching back is instant. */}
+          {/* The PDF, once opened, stays loaded behind the Excel view, so switching back is instant. */}
+          {pdfAsked && (
           <div className={view === "pdf" ? "h-full" : "hidden"}>
             {!ready && (
               <p className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted">
@@ -122,6 +128,7 @@ function ReportDialog({ title, href, onClose }: { title: string; href: string; o
             )}
             <iframe ref={frameRef} src={`${href}#view=FitH`} title={title} onLoad={() => setReady(true)} className="h-full w-full" />
           </div>
+          )}
           {view === "excel" && <ExcelView src={`${href}${join}format=json`} />}
         </div>
       </div>
