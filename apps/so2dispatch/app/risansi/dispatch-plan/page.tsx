@@ -154,8 +154,9 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
           <table className="w-full min-w-[1400px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th className="px-4 py-3">Sl.</th>
-                <th className="px-4 py-3">SO</th>
+                {/* Sl. and SO stay put while the rest scrolls sideways. */}
+                <th className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3">Sl.</th>
+                <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">SO</th>
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">ECs</th>
                 <th className="px-4 py-3 text-right">Pumps</th>
@@ -176,8 +177,8 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 const targetLate = !!r.dispatch_target && r.dispatch_target < now;
                 return (
                   <tr key={r.id} className="align-top text-foreground">
-                    <td className="px-4 py-3 font-medium tabular-nums">{r.sl_no}</td>
-                    <td className="whitespace-nowrap px-4 py-3">
+                    <td className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3 font-medium tabular-nums">{r.sl_no}</td>
+                    <td className="sticky left-16 z-10 whitespace-nowrap bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">
                       <div className="font-medium">{r.so_no ?? "—"}</div>
                       <div className="text-xs text-muted">{formatDate(r.so_date)}</div>
                     </td>
