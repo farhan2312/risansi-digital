@@ -23,6 +23,7 @@ import { PackingSlipsInline } from "./packing-slips-inline";
 import { AlignmentForm, AlignmentValue } from "./alignment-cell";
 import { Chip, LotCell } from "./lot-cell";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -145,6 +146,7 @@ export function AssemblyPumpTable({
             <th colSpan={2} className={group}>Assembly</th>
             <th colSpan={3} className={group}>Packing</th>
             <th colSpan={1} className={group} />
+            <th colSpan={1} className={group}>Dispatch</th>
             <th colSpan={8} className={group}>EC</th>
           </tr>
           <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -164,6 +166,7 @@ export function AssemblyPumpTable({
             <th className={th}>Planned Date</th>
             <th className={th} />
             <th className={`${th} border-l border-card-border`}>Packing Slips</th>
+            <th className={`${th} border-l border-card-border`}>Status</th>
             <th className={`${th} border-l border-card-border`}>EC No.</th>
             <th className={th}>EC Date</th>
             <th className={th}>Qty</th>
@@ -177,7 +180,7 @@ export function AssemblyPumpTable({
         <tbody>
           {sos.length === 0 && (
             <tr>
-              <td colSpan={21 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
+              <td colSpan={22 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
                 No pump SO is ready to assemble.
               </td>
             </tr>
@@ -277,6 +280,16 @@ export function AssemblyPumpTable({
                               lotCount={lots.length}
                               packedLots={lots.filter((l) => l.packed_date).map((l) => l.n)}
                             />
+                          </td>
+                          {/* Where Dispatch has got to: — until it has the SO (a numbered packing slip). */}
+                          <td rowSpan={span} className={`${soCell} whitespace-nowrap border-l border-card-border`}>
+                            {cvHeld(head) ? (
+                              <HoldChip />
+                            ) : ((head.so_child_rows ?? []) as Row[]).some((sl) => str(sl.packing_slip_no).trim() !== "") ? (
+                              <DispatchStatusPill status={str(head.so_dispatch_status) || "Pending"} />
+                            ) : (
+                              <NotAtDispatch />
+                            )}
                           </td>
                         </>
                       )}

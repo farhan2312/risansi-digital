@@ -278,7 +278,7 @@ export function PumpAfterPlanningCells({
             {s.dispatch}
           </span>
         ) : (
-          none
+          <span className="text-xs text-muted">Not at Dispatch yet</span>
         )}
       </td>
     </>

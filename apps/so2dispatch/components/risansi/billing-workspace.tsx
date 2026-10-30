@@ -14,7 +14,7 @@ import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchInline } from "./dispatch-inline";
 import { SortHeader } from "./sort-header";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
-import { DispatchStatusPill } from "./dispatch-status-pill";
+import { DispatchStatusPill, NotAtDispatch, atDispatch } from "./dispatch-status-pill";
 import { DispatchStatusControl } from "./order-status-panel";
 import { isCentral } from "@/lib/roles";
 import { dispatchRowTone } from "@/lib/dept-view";
@@ -344,8 +344,10 @@ export function BillingWorkspace({
                             canSet={role === "dispatch" || isCentral(role)}
                           />
                           </>
-                        ) : (
+                        ) : atDispatch(row as unknown as Record<string, unknown>) ? (
                           <DispatchStatusPill status={row.dispatch_status} />
+                        ) : (
+                          <NotAtDispatch />
                         )}
                       </td>
                       {mode === "dispatch" && (

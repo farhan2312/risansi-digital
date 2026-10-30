@@ -62,7 +62,7 @@ import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import type { OrderListOptions } from "@/lib/orders";
 import { DEPT_VIEWS, dispatchRowTone } from "@/lib/dept-view";
-import { DispatchStatusPill } from "./dispatch-status-pill";
+import { DispatchStatusPill, NotAtDispatch, atDispatch } from "./dispatch-status-pill";
 import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { lockReason } from "@/lib/order-lock";
 import type { PageResult } from "@/lib/pagination";
@@ -1104,7 +1104,7 @@ export function DepartmentWorkspace({
                                       ) : sentToDispatch(g.head) ? (
                                         <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
                                       ) : (
-                                        <span className="text-muted">—</span>
+                                        <NotAtDispatch />
                                       )}
                                     </td>
                                   </>
@@ -1141,7 +1141,13 @@ export function DepartmentWorkspace({
                               })()}
                               {table === "order_assembly_dispatch" && (
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  {cvHeld(g.head) ? <HoldChip /> : <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />}
+                                  {cvHeld(g.head) ? (
+                                    <HoldChip />
+                                  ) : atDispatch(g.head, g.ecs) ? (
+                                    <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
+                                  ) : (
+                                    <NotAtDispatch />
+                                  )}
                                 </td>
                               )}
                               {canEdit && (

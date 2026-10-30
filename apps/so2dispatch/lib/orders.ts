@@ -33,6 +33,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
   isPerEcDept,
   soHoldSql,
   NOT_APPLICABLE,
+  NOT_AT_DISPATCH,
   PENDING,
   statusesFor,
   type DeptFilterKey,
@@ -3123,15 +3124,6 @@ function lit(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-const DRG_APPROVED = `EXISTS (SELECT 1 FROM order_drawing_revisions rv
-                              WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'
-                                AND lower(coalesce(rv.approved, '')) = 'yes')`;
-const DRG_ISSUED = `EXISTS (SELECT 1 FROM order_drawing_revisions rv
-                            WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'
-                              AND lower(coalesce(rv.issued_to_client, '')) = 'yes')`;
-const DRG_TO_OPS = `EXISTS (SELECT 1 FROM order_drawing_revisions rv
-                            WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'
-                              AND lower(coalesce(rv.issued_to_operations, '')) = 'yes')`;
 const BOI_RECEIVED = `EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id)
                       AND NOT EXISTS (SELECT 1 FROM order_boi_items bi
                                        WHERE bi.item_id = it.id
@@ -3292,26 +3284,25 @@ export async function deptInvolvedInOrder(dept: DeptKey, orderId: string): Promi
 function ecState(dept: DeptFilterKey, status: string): string {
   switch (dept) {
     case "drawing": {
+      // As the EC's tag reads: Closed once its drawings are all done; else the
+      // GAD's status — once issued to Planning, its curve or parts to come.
       if (status === NOT_APPLICABLE) return NO_DRG;
-      // Approval outranks issue, matching the popup's precedence.
       const applies = `NOT (${NO_DRG})`;
-      if (status === "Approved") return `${applies} AND ${DRG_APPROVED}`;
-      if (status === "Issued to Client") {
-        return `${applies} AND ${DRG_ISSUED} AND NOT ${DRG_APPROVED}`;
-      }
-      if (status === "Issued to Operations") {
-        return `${applies} AND ${DRG_TO_OPS} AND NOT ${DRG_ISSUED} AND NOT ${DRG_APPROVED}`;
-      }
-      return `${applies} AND NOT ${DRG_APPROVED} AND NOT ${DRG_ISSUED} AND NOT ${DRG_TO_OPS}`;
+      const done = ecDrawingDoneSql("it", "o");
+      if (status === "Closed") return `${applies} AND ${done}`;
+      const gad = status === "Curve / parts pending" ? "Issued to planning" : status;
+      return `${applies} AND NOT ${done} AND ${ecGadStatusSql("it")} = ${lit(gad)}`;
     }
-    case "purchase":
+    case "purchase": {
+      // Open while a bought-out item of the EC is still to come in.
       if (status === NOT_APPLICABLE) return NO_BOI;
-      if (status === "Received") return `NOT (${NO_BOI}) AND (${BOI_RECEIVED})`;
-      return `NOT (${NO_BOI}) AND NOT (${BOI_RECEIVED})`;
+      const open = `EXISTS (SELECT 1 FROM order_boi_items bi WHERE bi.item_id = it.id AND NOT ${boiReceivedSql("bi")})`;
+      return `NOT (${NO_BOI}) AND ${status === "Closed" ? `NOT ${open}` : open}`;
+    }
     case "quality":
+      // The EC's QC documents, as Quality reads them.
       if (status === NOT_APPLICABLE) return NO_QC;
-      if (status === "Submitted") return `NOT (${NO_QC}) AND ${QC_SUBMITTED}`;
-      return `NOT (${NO_QC}) AND NOT ${QC_SUBMITTED}`;
+      return `NOT (${NO_QC}) AND ${ecQcStatusSql("it", "o")} = ${lit(status)}`;
     case "planning":
       return status === PENDING ? `NOT ${PLANNING_ANY}` : planningIs(status);
     default:
@@ -3408,6 +3399,8 @@ function soState(dept: DeptFilterKey, status: string): string {
                          WHERE a.order_id = o.id
                            AND a.payment_status = ${lit(status)})`;
   }
+  // Not at Dispatch yet: an open SO with no numbered packing slip.
+  if (status === NOT_AT_DISPATCH) return `${orderOpenSql("o")} AND NOT ${SO_REACHED_DISPATCH}`;
   // Dispatch: "Pending" is itself a stored value, so it also covers a blank —
   // every status once the SO has reached Dispatch; before that it has none there.
   return status === PENDING
@@ -3508,7 +3501,18 @@ function ownDeptStatusPredicate(dept: DeptFilterKey, status: string): string {
   if (!isPerEcDept(dept)) return `(${soState(dept, status)})`;
   // Planning and Assembly & Packing go by the SO's own status, not any one EC's.
   if (dept === "planning") return `${HAS_EC_SQL} AND ${SO_PLANNING_STATUS} = ${lit(status)}`;
-  if (dept === "assembly") return `${SO_ASSEMBLY_STATUS} = ${lit(status === "Packed" ? "Fully packed" : status)}`;
+  if (dept === "assembly") {
+    // As the SO's tag reads, once it has reached Assembly & Packing: a Pump its
+    // assembly until its packing starts, then its packing; a Spare its lots
+    // (Packing on while being packed).
+    const pumpSo = `EXISTS (SELECT 1 FROM order_items ps WHERE ps.order_id = o.id AND NOT (${spareEcSql("ps", "o")}))`;
+    const pump = `(CASE WHEN ${soStageStatusSql("packing", "o")} <> 'Packing pending' THEN ${soStageStatusSql("packing", "o")}
+                        ELSE ${soStageStatusSql("assembly", "o")} END)`;
+    const word = status === "Packed" ? "Fully packed" : status;
+    const spareWord = word === "Packing on" ? "In Progress" : word;
+    return `${SO_REACHED_ASSEMBLY} AND ((${pumpSo} AND ${pump} = ${lit(word)})
+             OR (NOT ${pumpSo} AND ${SO_ASSEMBLY_STATUS} = ${lit(spareWord)}))`;
+  }
   return `EXISTS (SELECT 1 FROM order_items it
                    WHERE it.order_id = o.id AND (${ecState(dept, status)}))`;
 }
@@ -3629,7 +3633,9 @@ function orderListClauses(
     clauses.push(`(${any.join(" OR ")})`);
   }
   // The SO's dispatch status, as Dispatch sets it.
-  if (f.dispatchStatuses.length) clauses.push(`${orderStatusSql("o")} = ANY(${p(f.dispatchStatuses)}::text[])`);
+  // Where Dispatch has got to, as Dispatch reads it: Pending only once the SO is
+  // at Dispatch (a numbered packing slip); Not at Dispatch yet before that.
+  if (f.dispatchStatuses.length) clauses.push(`(${f.dispatchStatuses.map((st) => soState("dispatch", st)).join(" OR ")})`);
   // Dispatch: the SO's stage in Invoice → Dispatch → Docket & LR.
   if (f.dispatchStages.length) clauses.push(`${dispatchStageSql("o")} = ANY(${p(f.dispatchStages)}::text[])`);
   if (f.billModes.length) {
@@ -4393,7 +4399,8 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
 
 export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
   // Hold is no status card: the SO hold card counts it (Dispatch keeps its own).
-  const statuses = statusesFor(dept, types).filter((st) => st !== HOLD || dept === "dispatch");
+  // Not at Dispatch yet is the Orders list's filter, never a Dispatch card.
+  const statuses = statusesFor(dept, types).filter((st) => (st !== HOLD || dept === "dispatch") && st !== NOT_AT_DISPATCH);
   const planning = dept === "planning";
   const clear = {
     dstatus: null,
@@ -5166,7 +5173,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
         ? done(r.assembly_state || "Fully packed")
         : r.spare && (!r.assembly_state || r.assembly_state === "Pending")
           ? { state: "na", label: "—" }
-          : pending(r.assembly_state && r.assembly_state !== "Pending" ? r.assembly_state : "Pending"),
+          : pending(r.assembly_state === "In Progress" ? "Packing on" : r.assembly_state && r.assembly_state !== "Pending" ? r.assembly_state : "Pending"),
     });
   }
 

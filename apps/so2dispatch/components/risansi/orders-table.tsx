@@ -812,11 +812,21 @@ export function OrdersTable({
                         <StatusText
                           hold={held || dispatch === "Hold"}
                           text={
-                            !closed && (order.only_billing === "Yes" || !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order) : reachedDispatch(order)))
-                              ? null
-                              : dispatch
+                            closed
+                              ? dispatch
+                              : order.only_billing === "Yes"
+                                ? null
+                                : !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order) : reachedDispatch(order))
+                                  ? "Not at Dispatch yet"
+                                  : dispatch
                           }
-                          tone={closed || order.only_billing === "Yes" ? "na" : dispatch.toLowerCase() === "pending" ? "pending" : "done"}
+                          tone={
+                            closed || order.only_billing === "Yes" || !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order) : reachedDispatch(order))
+                              ? "na"
+                              : dispatch.toLowerCase() === "pending"
+                                ? "pending"
+                                : "done"
+                          }
                           onClick={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
                         />
                       </td>
