@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { CalendarClock, Download, FileText } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { listPumpSummaries } from "@/lib/pump-summary";
 import {
@@ -27,6 +27,7 @@ import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards } from "@/lib/orders";
+import { ReportDialogButton } from "@/components/risansi/report-dialog";
 
 export const metadata: Metadata = {
   title: "Planning | Risansi",
@@ -117,8 +118,6 @@ export default async function PlanningWorkspacePage({
     )
   ).toString();
   const reportHref = `/risansi/departments/planning/report${reportQuery ? `?${reportQuery}` : ""}`;
-  const reportLink =
-    "inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background";
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
@@ -135,19 +134,9 @@ export default async function PlanningWorkspacePage({
             update readiness dates and planning status.
           </p>
         </div>
-        {/* Every SO in the queue as filtered, on one PDF. */}
+        {/* Every SO in the queue as filtered: a pop-up to view, then PDF or Excel. */}
         <div className="ml-auto flex items-center gap-2">
-          <a href={reportHref} target="_blank" rel="noopener" className={reportLink}>
-            <FileText className="h-4 w-4" />
-            View PDF
-          </a>
-          <a
-            href={`${reportHref}${reportQuery ? "&" : "?"}download=1`}
-            className={reportLink}
-          >
-            <Download className="h-4 w-4" />
-            Download PDF
-          </a>
+          <ReportDialogButton title="Planning report" href={reportHref} />
         </div>
       </div>
 

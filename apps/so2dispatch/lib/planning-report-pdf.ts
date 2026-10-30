@@ -53,7 +53,7 @@ function overdueDays(ecs: Row[]): number {
   return days > 0 ? days : 0;
 }
 
-type SoLine = {
+export type SoLine = {
   sl: string;
   so: string;
   soDate: string;
@@ -79,7 +79,8 @@ type SoLine = {
   ready: boolean;
 };
 
-function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): SoLine[] {
+/** One line per SO, as the report reads it — the PDF's and the Excel's alike. */
+export function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): SoLine[] {
   const groups = new Map<string, Row[]>();
   for (const r of rows) {
     const k = str(r.order_id);
@@ -164,7 +165,7 @@ function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): SoLine[]
 const PAGE = { w: 842, h: 595 };
 const MARGIN = 36;
 const WIDTH = PAGE.w - MARGIN * 2;
-const COLUMNS: { label: string; width: number; key: keyof SoLine }[] = [
+export const COLUMNS: { label: string; width: number; key: keyof SoLine }[] = [
   { label: "Sl.", width: 24, key: "sl" },
   { label: "SO No.", width: 70, key: "so" },
   { label: "SO date", width: 46, key: "soDate" },

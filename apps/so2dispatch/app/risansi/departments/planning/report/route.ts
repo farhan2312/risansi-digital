@@ -6,6 +6,7 @@ import { parseQuery } from "@/lib/pagination";
 import { describeOrderListFilter, parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { PLANNING_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { buildPlanningReportPdf } from "@/lib/planning-report-pdf";
+import { buildPlanningReportXlsx } from "@/lib/planning-report-xlsx";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,7 +16,7 @@ const TABLE = "order_planning" as const;
 /**
  * Planning's queue as one PDF — every SO the queue's filter, search and sort
  * select, not just the page on screen. Opens in the browser, or saves with
- * ?download=1.
+ * ?download=1; ?format=xlsx saves it as Excel.
  */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -42,9 +43,19 @@ export async function GET(request: Request) {
     .join("  ·  ");
   // How each SO's readiness date moved, for the Date moved column.
   const histories = await listReadyLotHistories([...new Set(queue.rows.map((r) => String(r.order_id)))]);
+  const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  if (get("format") === "xlsx") {
+    const xlsx = await buildPlanningReportXlsx(queue.rows, filterLine, histories);
+    return new NextResponse(xlsx as unknown as ArrayBuffer, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="planning-report-${stamp}.xlsx"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
   const bytes = await buildPlanningReportPdf(queue.rows, filterLine, histories);
 
-  const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const download = get("download") === "1";
   return new NextResponse(bytes as unknown as ArrayBuffer, {
     headers: {
