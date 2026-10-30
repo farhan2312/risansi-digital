@@ -7,6 +7,8 @@ import { describeOrderListFilter, parseDeptFilter, scopeToRep } from "@/lib/orde
 import { PLANNING_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { buildPlanningReportPdf } from "@/lib/planning-report-pdf";
 import { buildPlanningReportXlsx } from "@/lib/planning-report-xlsx";
+import { pumpSheet, spareSheet } from "@/lib/planning-report-sheet";
+import { listPumpSummaries } from "@/lib/pump-summary";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,9 +16,10 @@ export const runtime = "nodejs";
 const TABLE = "order_planning" as const;
 
 /**
- * Planning's queue as one PDF — every SO the queue's filter, search and sort
- * select, not just the page on screen — Spare or Pump, as the page's switch. Opens in the browser, or saves with
- * ?download=1; ?format=xlsx saves it as Excel.
+ * Planning's report — every SO the queue's filter, search and sort select,
+ * not just the page on screen; Spare or Pump, as the page's switch. A PDF to
+ * open (?download=1 saves it); ?format=xlsx the Excel, ?format=json the same
+ * sheet for the pop-up's Excel view.
  */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -49,8 +52,15 @@ export async function GET(request: Request) {
   // How each SO's readiness date moved, for the Date moved column.
   const histories = await listReadyLotHistories([...new Set(queue.rows.map((r) => String(r.order_id)))]);
   const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  if (get("format") === "xlsx") {
-    const xlsx = await buildPlanningReportXlsx(queue.rows, filterLine, histories, kind);
+  const format = get("format");
+  if (format === "xlsx" || format === "json") {
+    const orderIds = [...new Set(queue.rows.map((r) => String(r.order_id)))];
+    const sheet =
+      kind === "pump"
+        ? pumpSheet(queue.rows, filterLine, histories, await listPumpSummaries(orderIds))
+        : spareSheet(queue.rows, filterLine, histories);
+    if (format === "json") return NextResponse.json(sheet, { headers: { "Cache-Control": "no-store" } });
+    const xlsx = await buildPlanningReportXlsx(sheet);
     return new NextResponse(xlsx as unknown as ArrayBuffer, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
