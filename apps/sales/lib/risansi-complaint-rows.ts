@@ -102,6 +102,8 @@ export interface ComplaintListRow {
   /** A free replacement was promised, and the paperwork behind it. */
   free_replacement: boolean; fr_ec_no: string | null; fr_ec_date: string | null;
   target_dispatch_date: string | null;
+  /** When the replacement actually left, as opposed to when it was meant to. */
+  challan_date: string | null;
   /** Customer communication files (letters, emails, confirmations), for a link straight from the list. */
   customer_files: { id: number; file_name: string }[];
 }
@@ -408,6 +410,7 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
              COALESCE(c.action_category = 'Free Replacement', FALSE) AS free_replacement,
              c.fr_ec_no, c.fr_ec_date::text AS fr_ec_date,
              c.target_dispatch_date::text AS target_dispatch_date,
+             c.challan_date::text AS challan_date,
              c.responsible_department, c.channel,
              c.complaint_date::text AS complaint_date, c.created_at::text AS created_at,
              c.resolved_at::text AS resolved_at, c.closed_at::text AS closed_at,

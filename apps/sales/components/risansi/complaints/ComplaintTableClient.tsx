@@ -34,7 +34,7 @@ const fmtDays = (d: number) => (d < 1 ? '<1d' : `${Math.round(d)}d`);
 type ColId =
   | 'no' | 'client' | 'status' | 'sev' | 'severe' | 'category' | 'subcat' | 'industry'
   | 'ctype' | 'model' | 'qty' | 'action' | 'freeRepl'
-  | 'item' | 'frEc' | 'frEcDate' | 'frDispatch' | 'capa' | 'linked' | 'holder' | 'since' | 'age'
+  | 'item' | 'frEc' | 'frEcDate' | 'frDispatch' | 'challan' | 'capa' | 'linked' | 'holder' | 'since' | 'age'
   | 'late' | 'target' | 'rep' | 'raised' | 'docs' | 'open';
 
 interface Col {
@@ -153,6 +153,10 @@ const COLUMNS: Col[] = [
   { id: 'frEc',       head: 'FR EC no.', kind: 'text', value: r => r.fr_ec_no },
   { id: 'frEcDate',   head: 'FR EC date', pick: 'FR EC date', kind: 'date', value: r => r.fr_ec_date },
   { id: 'frDispatch', head: 'FR dispatch', kind: 'date', value: r => r.target_dispatch_date },
+  // Next to FR dispatch on purpose: that one is the date the replacement was
+  // MEANT to leave, this is the date it did. Read together they say whether
+  // the promise was kept, which neither of them says alone.
+  { id: 'challan',    head: 'Challan date', pick: 'Challan date', kind: 'date', value: r => r.challan_date },
   // Pending before under review before closed before nothing asked for.
   { id: 'capa',       head: 'CAPA', kind: 'status', order: ['open', 'review', 'closed', 'none'], value: r => r.capa_state },
   { id: 'linked',     head: 'Repeat of', pick: 'Repeat / linked', kind: 'text', value: r => r.linked_complaint_no ?? (r.repeat_complaint ? 'Repeat' : null) },
@@ -187,8 +191,8 @@ const ALL_IDS = COLUMNS.map(c => c.id);
 //
 // The key carries the set, so adding more columns later means a new key
 // rather than a second reveal of these.
-const PROMOTED = ['raised', 'item', 'frEcDate'] as const;
-const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v2';
+const PROMOTED = ['challan'] as const;
+const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v3';
 const PROMOTED_SEEN = () => {
   try { return localStorage.getItem(PROMOTED_KEY) === '1'; } catch { return true; }
 };
