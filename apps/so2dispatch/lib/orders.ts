@@ -4675,6 +4675,13 @@ export async function listOrdersForOrderMaking(opts: {
       if (ff.billTypes.includes(NOT_SET)) any.push(`NULLIF(TRIM(o.bill_type), '') IS NULL`);
       clauses.push(`(${any.join(" OR ")})`);
     }
+    if (ff.categories.length) {
+      const cats = ff.categories.filter((t) => t !== NOT_SET);
+      const any: string[] = [];
+      if (cats.length) any.push(`TRIM(COALESCE(o.so_category, '')) IN (${cats.map(lit).join(", ")})`);
+      if (ff.categories.includes(NOT_SET)) any.push(`NULLIF(TRIM(o.so_category), '') IS NULL`);
+      clauses.push(`(${any.join(" OR ")})`);
+    }
     // Purchase order date: the date on the customer's PO.
     if (ff.dateField === "cpo_date") {
       if (ff.from) clauses.push(`o.customer_po_date >= ${lit(ff.from)}::date`);

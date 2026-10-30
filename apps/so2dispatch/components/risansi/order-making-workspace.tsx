@@ -19,6 +19,7 @@ import { OmReportPanel } from "./om-report-panel";
 import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
   BILL_MODE_FILTER_OPTIONS,
+  SO_CATEGORY_FILTER_OPTIONS,
   OM_DATE_FIELDS,
   OM_FILTER_KEYS,
   isOrderMakingFiltered,
@@ -409,6 +410,13 @@ export function OrderMakingWorkspace({
           options={BILL_MODE_FILTER_OPTIONS}
           selected={filter.billModes}
           onChange={(next) => setParams({ bmode: next })}
+        />
+        <MultiSelectFilter
+          label="SO category"
+          allLabel="Any category"
+          options={SO_CATEGORY_FILTER_OPTIONS}
+          selected={filter.categories}
+          onChange={(next) => setParams({ socat: next })}
         />
         {canAssign && (
           <SingleSelectFilter

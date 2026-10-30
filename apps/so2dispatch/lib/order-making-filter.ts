@@ -14,6 +14,8 @@ import {
 
 export const BILL_TYPE_FILTER_OPTIONS = [...BILL_TYPE_OPTIONS.map((o) => o.value), NOT_SET];
 export { BILL_MODE_FILTER_OPTIONS };
+/** Project, Regular order (as SO_CATEGORY_OPTIONS — named here, since order-schema is not yet loaded when this module is), or not chosen yet. */
+export const SO_CATEGORY_FILTER_OPTIONS = ["Project", "Regular order", NOT_SET];
 
 // PO receiving date first: the default.
 export const OM_DATE_FIELDS = [
@@ -37,6 +39,8 @@ export type OrderMakingFilter = {
   types: string[];
   billModes: string[];
   billTypes: string[];
+  /** SO Category: Project / Regular order (NOT_SET: none chosen). */
+  categories: string[];
   dateField: OmDateField;
   from: string | null;
   to: string | null;
@@ -57,7 +61,7 @@ export const UNASSIGNED = "none";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Every parameter the filter owns — what "Clear all" empties. */
-export const OM_FILTER_KEYS = ["zone", "rep", "market", "type", "bmode", "btype", "datefield", "from", "to", "missing", "asg", "sos", "omhold", "sops"];
+export const OM_FILTER_KEYS = ["zone", "rep", "market", "type", "bmode", "btype", "socat", "datefield", "from", "to", "missing", "asg", "sos", "omhold", "sops"];
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const list = (v: string | undefined) => [...new Set((v ?? "").split(",").map((x) => x.trim()).filter(Boolean))];
@@ -75,6 +79,7 @@ export function parseOrderMakingFilter(get: (key: string) => string | undefined)
     types: list(get("type")),
     billModes: list(get("bmode")).filter((v) => BILL_MODE_FILTER_OPTIONS.includes(v)),
     billTypes: list(get("btype")).filter((v) => BILL_TYPE_FILTER_OPTIONS.includes(v)),
+    categories: list(get("socat")).filter((v) => SO_CATEGORY_FILTER_OPTIONS.includes(v)),
     dateField: OM_DATE_FIELDS.find((d) => d.value === get("datefield"))?.value ?? "po_date",
     from,
     to,
@@ -95,6 +100,7 @@ export function isOrderMakingFiltered(f: OrderMakingFilter): boolean {
     f.types.length ||
     f.billModes.length ||
     f.billTypes.length ||
+    f.categories.length ||
     f.from ||
     f.to ||
     f.missingOnly ||
