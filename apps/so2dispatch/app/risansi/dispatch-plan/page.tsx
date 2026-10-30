@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { CalendarRange } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { canSeeDispatchPlan } from "@/lib/roles";
-import { DISPATCH_PLAN_DAYS, listDispatchPlan, type DispatchPlanRow } from "@/lib/dispatch-plan";
+import { DISPATCH_PLAN_DAYS, listDispatchPlan, type DispatchPlanRow, type DispatchPlanStage } from "@/lib/dispatch-plan";
+import { boiStatus } from "@/lib/dept-view";
+import { UrlSearchInput } from "@/components/risansi/url-table";
 
 export const metadata: Metadata = {
   title: "Dispatch Plan | Risansi",
@@ -29,6 +31,33 @@ const SHOWS = {
 } as const;
 type Show = keyof typeof SHOWS;
 
+/** What the search reads: the SO, client, rep, zone, its ECs and its BOI items. */
+const haystack = (r: DispatchPlanRow) =>
+  [r.so_no, r.client_name, r.reps, r.zone, ...r.ecs.map((e) => e.ec_no), ...r.boi_items.map((b) => b.name)]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+const TONE_TEXT = {
+  done: "text-emerald-700 dark:text-emerald-300",
+  part: "text-sky-700 dark:text-sky-300",
+  pending: "text-amber-700 dark:text-amber-300",
+} as const;
+
+/** Assembly's or Packing's word on the SO: its status, then the next plan (or when it was done). */
+function Stage({ st, now }: { st: DispatchPlanStage; now: string }) {
+  const full = /^fully/i.test(st.status);
+  const tone = full ? "done" : /^partial/i.test(st.status) ? "part" : "pending";
+  const late = !full && !!st.next && st.next < now;
+  const line = !full && st.next ? `Plan ${formatDate(st.next)}${late ? " · overdue" : ""}` : st.last ? `Done ${formatDate(st.last)}` : null;
+  return (
+    <>
+      <Chip tone={tone}>{st.status}</Chip>
+      {line && <div className={`mt-1 text-xs ${late ? "font-medium text-rose-700 dark:text-rose-300" : "text-muted"}`}>{line}</div>}
+    </>
+  );
+}
+
 function Chip({ tone, children }: { tone: "done" | "part" | "pending" | "danger"; children: React.ReactNode }) {
   const cls = {
     done: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
@@ -39,15 +68,23 @@ function Chip({ tone, children }: { tone: "done" | "part" | "pending" | "danger"
   return <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{children}</span>;
 }
 
-export default async function DispatchPlanPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
+export default async function DispatchPlanPage({ searchParams }: { searchParams: Promise<{ show?: string; q?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canSeeDispatchPlan(user.role)) redirect("/risansi/dashboard");
 
-  const { show: asked } = await searchParams;
+  const { show: asked, q: rawQ } = await searchParams;
   const show = asked && asked in SHOWS ? (asked as Show) : null;
-  const all = await listDispatchPlan();
+  const q = (rawQ ?? "").trim().toLowerCase();
+  // The tiles count what the search leaves; a tile then narrows it further.
+  const all = (await listDispatchPlan()).filter((r) => !q || haystack(r).includes(q));
   const rows = show ? all.filter(SHOWS[show].test) : all;
+  const href = (k: Show | null) => {
+    const p = new URLSearchParams();
+    if (rawQ?.trim()) p.set("q", rawQ.trim());
+    if (k) p.set("show", k);
+    return `?${p.toString()}`;
+  };
   const now = today();
   const pumps = (list: DispatchPlanRow[]) => list.reduce((n, r) => n + r.pumps, 0);
 
@@ -71,13 +108,17 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       </div>
 
+      <div className="mb-3">
+        <UrlSearchInput placeholder="Search SO, client, rep, EC, BOI item…" />
+      </div>
+
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {tiles.map((t) => {
           const on = show === t.key;
           return (
             <Link
               key={t.label}
-              href={t.key && !on ? `?show=${t.key}` : "?"}
+              href={href(t.key && !on ? t.key : null)}
               aria-pressed={on}
               className={`rounded-xl border bg-surface px-3.5 py-2.5 shadow-sm transition-colors ${
                 on ? "border-transparent ring-2 ring-primary/40" : "border-card-border hover:bg-background"
@@ -101,14 +142,16 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-card-border bg-surface px-6 py-16 text-center shadow-sm">
-          <p className="text-sm font-medium text-foreground">No pump SO is due to go out in the next {DISPATCH_PLAN_DAYS} days</p>
+          <p className="text-sm font-medium text-foreground">
+            {q ? "Nothing on the plan matches the search" : `No pump SO is due to go out in the next ${DISPATCH_PLAN_DAYS} days`}
+          </p>
           <p className="mt-1 text-sm text-muted">
             An SO comes on here by itself once Planning has it Fully ready or In plan, and its BOI is in hand or expected.
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className="w-full min-w-[1100px] text-sm">
+          <table className="w-full min-w-[1400px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th className="px-4 py-3">Sl.</th>
@@ -118,16 +161,18 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3 text-right">Pumps</th>
                 <th className="px-4 py-3">Readiness</th>
                 <th className="px-4 py-3">BOI</th>
-                <th className="px-4 py-3">Payment</th>
+                <th className="px-4 py-3">Assembly</th>
+                <th className="px-4 py-3">Packing</th>
+                <th className="px-4 py-3">Account</th>
                 <th className="px-4 py-3">Dispatch Target</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border">
               {rows.map((r) => {
                 const overdue = !r.fully_ready && !!r.plan_date && r.plan_date < now;
                 const boiPending = r.boi_total - r.boi_in_hand;
+                const manyEcs = r.ecs.length > 1;
                 const targetLate = !!r.dispatch_target && r.dispatch_target < now;
                 return (
                   <tr key={r.id} className="align-top text-foreground">
@@ -164,31 +209,63 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                         </>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3">
+                    <td className="px-4 py-3">
                       {r.boi_total === 0 ? (
                         <span className="text-xs text-muted">No BOI</span>
-                      ) : boiPending === 0 ? (
-                        <Chip tone="done">All {r.boi_total} in hand</Chip>
                       ) : (
                         <>
-                          <Chip tone="pending">
-                            {boiPending} of {r.boi_total} to arrive
+                          <Chip tone={boiPending === 0 ? "done" : "pending"}>
+                            {boiPending === 0 ? `All ${r.boi_total} in hand` : `${boiPending} of ${r.boi_total} to arrive`}
                           </Chip>
-                          <div className="mt-1 text-xs text-muted">by {formatDate(r.boi_expected)}</div>
+                          {/* Each item: what it is, how many, where it stands and its date. */}
+                          <ul className="mt-1.5 space-y-1 text-xs">
+                            {r.boi_items.map((b) => {
+                              const st = boiStatus(b);
+                              const got = st.tone === "done";
+                              const date = got ? b.receipt_date : b.expected_receipt_date;
+                              const late = !got && !!date && date < now;
+                              return (
+                                <li key={b.id} className="min-w-[13rem]">
+                                  <span className="font-medium text-foreground">{b.name || "BOI item"}</span>
+                                  {b.boi_qty ? <span className="text-muted"> ×{b.boi_qty}</span> : null}
+                                  {manyEcs && b.ec_no && <span className="text-muted"> · {b.ec_no}</span>}
+                                  <div className="whitespace-nowrap">
+                                    <span className={TONE_TEXT[st.tone]}>{st.label}</span>
+                                    {date && (
+                                      <span className={late ? "font-medium text-rose-700 dark:text-rose-300" : "text-muted"}>
+                                        {" "}· {got ? "" : "exp. "}
+                                        {formatDate(date)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
                         </>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs">{r.payment_status ?? <span className="text-muted">—</span>}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <Stage st={r.assembly} now={now} />
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <Stage st={r.packing} now={now} />
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.accounts_status === "Clear" ? (
+                        <>
+                          <Chip tone="done">Clear</Chip>
+                          {r.accounts_remarks && <div className="mt-1 max-w-[14rem] text-xs text-muted">{r.accounts_remarks}</div>}
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted">Not set</span>
+                      )}
+                    </td>
                     <td className={`whitespace-nowrap px-4 py-3 ${targetLate ? "font-medium text-rose-700 dark:text-rose-300" : ""}`}>
                       {formatDate(r.dispatch_target)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <Chip tone={r.status === "LOT dispatch" ? "part" : "pending"}>{r.status === "LOT dispatch" ? "Lot dispatch" : r.status}</Chip>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <Link href={`/risansi/orders/${r.id}`} className="text-sm font-medium text-primary hover:text-primary-hover">
-                        Open
-                      </Link>
                     </td>
                   </tr>
                 );
