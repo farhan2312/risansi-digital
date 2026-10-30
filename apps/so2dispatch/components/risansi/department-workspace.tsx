@@ -768,7 +768,7 @@ export function DepartmentWorkspace({
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {groupBySo && <th className="w-8 px-2 py-3" />}
                 <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="px-4 py-3">SO No.</th>
+                <th className="sticky-so px-4 py-3">SO No.</th>
                 <th className="px-4 py-3">Chat</th>
                 {!groupBySo && showEcNo && <th className="px-4 py-3">EC No.</th>}
                 {showParty && <th className="px-4 py-3">Client Name</th>}
@@ -883,7 +883,7 @@ export function DepartmentWorkspace({
                     <td className="px-4 py-3 font-medium tabular-nums">
                       {String(order.sl_no ?? "—")}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="sticky-so px-4 py-3 whitespace-nowrap">
                       {toInput(order.so_no) || "—"}
                       <HoldBadge order={order} />
                       {/* Accounts can hold the SO for a payment reason. */}
@@ -1014,7 +1014,7 @@ export function DepartmentWorkspace({
                         <td className="px-4 py-3 font-medium tabular-nums">
                           {String(g.head.sl_no ?? "—")}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="sticky-so px-4 py-3 whitespace-nowrap">
                           {toInput(g.head.so_no) || "—"}
                           <HoldBadge order={g.head} />
                         </td>

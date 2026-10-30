@@ -533,7 +533,7 @@ export function OrderMakingWorkspace({
                 </th>
                 {cols.map((c) => (
                   <Fragment key={c.column}>
-                    <th className={`px-4 py-3 ${c.column === "order_value" ? "text-right" : ""}`}>
+                    <th className={`px-4 py-3 ${c.column === "order_value" ? "text-right" : c.column === "so_no" ? "sticky-so" : ""}`}>
                       {c.column === "so_date" ? <SortHeader label={c.label} sortKey="so_date" /> : c.label}
                     </th>
                     {c.column === "so_no" && <th className="px-4 py-3">Chat</th>}
@@ -582,7 +582,7 @@ export function OrderMakingWorkspace({
                       <td
                         className={`px-4 py-3 ${
                           c.column === "order_value" ? "text-right tabular-nums" : c.column === "client_name" ? "" : "whitespace-nowrap"
-                        }`}
+                        } ${c.column === "so_no" ? "sticky-so" : ""}`}
                       >
                         {formatDisplay(field(c.column), row[c.column])}
                         {c.column === "order_value" && str(row.order_currency) ? ` ${str(row.order_currency)}` : ""}

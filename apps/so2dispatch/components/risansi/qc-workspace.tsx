@@ -171,7 +171,7 @@ export function QcWorkspace({
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="px-3 py-2"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
+                <th className="sticky-so px-3 py-2"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2">Chat</th>
                 <th className="px-3 py-2 whitespace-nowrap">Quality Target</th>
                 <th className="px-3 py-2 whitespace-nowrap">Docs Needed</th>
@@ -215,7 +215,7 @@ export function QcWorkspace({
                               <td rowSpan={span} data-focus-row={g.key} className={`${soCell} font-medium tabular-nums ${focusClass(g.key)}`}>
                                 {str(g.head.sl_no)}
                               </td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                              <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap`}>
                                 <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
                                 <HoldBadge order={g.head} />
                                 <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>

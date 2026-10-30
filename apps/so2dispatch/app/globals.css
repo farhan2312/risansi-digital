@@ -3,6 +3,20 @@
 /* Enable class-based dark mode: `<html class="dark">`. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * The SO No. column of a wide table: it stays at the left edge while the
+ * rest scrolls sideways. Opaque, so what scrolls under it is hidden; a row's
+ * colour (a dispatch tone sets --row-tint, lib/dept-view) is laid over it.
+ */
+.sticky-so {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background-color: var(--color-surface);
+  background-image: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent));
+  box-shadow: inset -1px 0 0 var(--color-card-border);
+}
+
 :root {
   --background: #eef1f5;
   --foreground: #0f1b2d;

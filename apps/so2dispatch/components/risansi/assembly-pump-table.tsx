@@ -151,7 +151,7 @@ export function AssemblyPumpTable({
           </tr>
           <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
             <th className={th}>Sl.</th>
-            <th className={th}>SO No.</th>
+            <th className={`${th} sticky-so`}>SO No.</th>
             <th className={th}>SO Date</th>
             <th className={th}>Chat</th>
             <th className={th}>PPC Status</th>
@@ -206,7 +206,7 @@ export function AssemblyPumpTable({
                       {k === 0 && (
                         <>
                           <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
-                          <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>
+                          <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap font-semibold`}>
                             {soLabel}
                             <HoldBadge order={head} />
                           </td>

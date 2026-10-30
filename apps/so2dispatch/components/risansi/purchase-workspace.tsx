@@ -258,7 +258,7 @@ export function PurchaseWorkspace({
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="px-3 py-2">SO No.</th>
+                <th className="sticky-so px-3 py-2">SO No.</th>
                 <th className="px-3 py-2">Chat</th>
                 <th className="px-3 py-2"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2">BOI</th>
@@ -307,7 +307,7 @@ export function PurchaseWorkspace({
                               <td rowSpan={span} data-focus-row={String(g.head.order_id)} className={`${soCell} font-medium tabular-nums ${focusClass(String(g.head.order_id))}`}>
                                 {g.head.sl_no}
                               </td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap font-semibold`}>
+                              <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap font-semibold`}>
                                 {g.head.so_no ?? "—"}
                                 <HoldBadge order={g.head} />
                               </td>

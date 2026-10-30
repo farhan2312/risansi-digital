@@ -164,7 +164,7 @@ export function BillingWorkspace({
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="px-4 py-3">SO No.</th>
+                <th className="sticky-so px-4 py-3">SO No.</th>
                 <th className="px-4 py-3">Chat</th>
                 <th className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 {mode === "billing" && (
@@ -215,7 +215,7 @@ export function BillingWorkspace({
                       } ${focusClass(String(row.id))}`}
                     >
                       <td className="px-4 py-3 font-medium tabular-nums">{row.sl_no}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{row.so_no ?? "—"}
+                      <td className="sticky-so px-4 py-3 whitespace-nowrap">{row.so_no ?? "—"}
                         <HoldBadge order={row} />
                       </td>
                       <td className="px-4 py-3">

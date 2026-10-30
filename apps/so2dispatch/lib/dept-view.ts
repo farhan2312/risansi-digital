@@ -498,10 +498,13 @@ export function dispatchRowTone(row: Record<string, unknown>): string | null {
         : null;
 }
 /** Held by Dispatch: the whole row in orange. */
-export const DISPATCH_HOLD_ROW = "bg-orange-50 hover:bg-orange-100/70 dark:bg-orange-500/10 dark:hover:bg-orange-500/15";
-export const LOT_DISPATCHED_ROW = "bg-sky-50 hover:bg-sky-100/70 dark:bg-sky-500/10 dark:hover:bg-sky-500/15";
+// Each also sets --row-tint, the colour the fixed SO No. cell (.sticky-so) wears.
+export const DISPATCH_HOLD_ROW =
+  "bg-orange-50 hover:bg-orange-100/70 dark:bg-orange-500/10 dark:hover:bg-orange-500/15 [--row-tint:var(--color-orange-50)] dark:[--row-tint:color-mix(in_oklab,var(--color-orange-500)_10%,transparent)]";
+export const LOT_DISPATCHED_ROW =
+  "bg-sky-50 hover:bg-sky-100/70 dark:bg-sky-500/10 dark:hover:bg-sky-500/15 [--row-tint:var(--color-sky-50)] dark:[--row-tint:color-mix(in_oklab,var(--color-sky-500)_10%,transparent)]";
 export const FULLY_DISPATCHED_ROW =
-  "bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15";
+  "bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/15 [--row-tint:var(--color-emerald-50)] dark:[--row-tint:color-mix(in_oklab,var(--color-emerald-500)_10%,transparent)]";
 
 /**
  * Whether an SO's Rep is one of this Rep's names (trimmed, case-insensitive):

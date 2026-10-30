@@ -460,7 +460,7 @@ export function OrdersTable({
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th rowSpan={2} className="w-8 px-2 py-3" />
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
-                <th rowSpan={2} className="px-4 py-3">SO No.</th>
+                <th rowSpan={2} className="sticky-so px-4 py-3">SO No.</th>
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 <th rowSpan={2} className="px-3 py-3">Chat</th>
                 {!pump && <th rowSpan={2} className="px-4 py-3">Type</th>}
@@ -577,7 +577,7 @@ export function OrdersTable({
                       </td>
                       <td className="px-4 py-3 font-medium tabular-nums">{order.sl_no}</td>
                       {/* The SO and its holds; Clear / Hold is changed from the badge. */}
-                      <td className="px-4 py-3 whitespace-nowrap align-top">
+                      <td className="sticky-so px-4 py-3 whitespace-nowrap align-top">
                         <div className="font-medium">{cell(order.so_no)}</div>
                         <span onClick={(e) => e.stopPropagation()}>
                           <ClearanceBadge order={order as unknown as Record<string, unknown>} readOnly={readOnly} />
