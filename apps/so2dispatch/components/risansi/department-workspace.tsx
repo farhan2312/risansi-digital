@@ -39,6 +39,7 @@ import { SortHeader } from "./sort-header";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { AccountsClearBadge, AccountsHoldButton } from "./accounts-hold";
 import { TermPis } from "./term-pis";
+import { OrderValueDetails } from "./order-value-details";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
@@ -905,7 +906,12 @@ export function DepartmentWorkspace({
                       <td className="px-4 py-3">{toInput(order.client_name) || "—"}</td>
                     )}
                     {soContext.map((f) =>
-                      // Accounts: each payment term with the PI raised against it.
+                      // The order value to its gross, as Dispatch shows it.
+                      f.column === "order_value_details" ? (
+                        <td key={f.column} className="px-3 py-3 align-top">
+                          <OrderValueDetails row={order} />
+                        </td>
+                      ) : // Accounts: each payment term with the PI raised against it.
                       table === "order_accounts" && f.column === "payment_terms" ? (
                         <td key={f.column} className="px-3 py-3 align-top">
                           <TermPis
@@ -1578,25 +1584,14 @@ function EditSectionModal({
   const inputClass =
     "h-10 w-full rounded-[10px] border border-input-border bg-surface px-3 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50";
 
-  // Accounts: Order Value (+GST) follows the GST % being typed — the stored
-  // figure re-based from the saved rate onto the new one (blank = 18%).
-  // …and the balance follows both it and the amount received being typed.
+  // Accounts: the balance follows the amount received being typed, against
+  // the order's gross value (order_value_gst, in INR).
   const liveBalance = (): unknown => {
-    const total = Number(liveValueWithGst());
+    const total = Number(data.order_value_gst);
     if (!Number.isFinite(total) || toInput(data.order_value_gst) === "") return data.balance_of_payment;
     const received = Number(toInput(values.amount_received) || "0");
     if (!Number.isFinite(received)) return data.balance_of_payment;
     return (Math.round((total - received) * 100) / 100).toFixed(2);
-  };
-  const liveValueWithGst = (): unknown => {
-    const stored = Number(data.order_value_gst);
-    if (!Number.isFinite(stored) || toInput(data.order_value_gst) === "") return data.order_value_gst;
-    const rate = (v: unknown) => {
-      const n = Number(toInput(v) || "18");
-      return Number.isFinite(n) ? n : 18;
-    };
-    const base = stored / (1 + rate(data.gst_rate) / 100);
-    return (Math.round(base * (1 + rate(values.gst_rate) / 100) * 100) / 100).toFixed(2);
   };
 
   return (
@@ -1668,7 +1663,7 @@ function EditSectionModal({
                   {f.label}
                 </div>
                 <div className="text-sm text-muted">
-                  {contextValue(f, data, f.column === "order_value_gst" ? liveValueWithGst() : data[f.column])}
+                  {f.column === "order_value_details" ? <OrderValueDetails row={data} /> : contextValue(f, data, data[f.column])}
                 </div>
               </div>
             ))}
