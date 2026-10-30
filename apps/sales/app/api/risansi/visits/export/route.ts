@@ -3,6 +3,7 @@ import { join } from 'path';
 import ExcelJS from 'exceljs';
 import risansiPool from '@/lib/db-risansi';
 import { getCurrentUser, clientScopeSql , OWN_OPEN } from '@/lib/risansi-auth';
+import { parseVisitFilters } from '@/lib/risansi-visit-filters';
 
 export const runtime = 'nodejs';
 
@@ -73,6 +74,25 @@ export async function GET(req: Request) {
   const search  = (sp.get('search') ?? '').trim();
   const status  = (sp.get('status') ?? '').trim();
 
+  // The Field Activity filter bar, applied to the export the same way the page
+  // applies it. Without this the workbook answered a different question from the
+  // screen that produced it: the page filters by rep NAME (?rep=Amit+Srivastava,
+  // possibly several), this route only ever understood a numeric id, and zone,
+  // route, manager, client status, visit status and industry were not read at
+  // all. Everything was silently dropped and the file came back titled
+  // "All reps" over every visit in the range.
+  //
+  // parseVisitFilters returns a self-contained predicate on the `v` alias,
+  // already prefixed with ' AND ', so it appends to the WHERE as-is. `rep` is
+  // handed over only when it is a name: a numeric rep is the export dialog's own
+  // single-rep override and stays on the id path below.
+  const filterParams: Record<string, string> = {};
+  for (const k of ['zone', 'tour', 'manager', 'cstatus', 'vstatus', 'industry']) {
+    const v = sp.get(k); if (v) filterParams[k] = v;
+  }
+  if (repRaw && repId == null) filterParams.rep = repRaw;
+  const filters = parseVisitFilters(filterParams);
+
   const where: string[] = ['v.visit_date BETWEEN $1 AND $2'];
   const vals: unknown[] = [from, to];
   const add = (sql: string, v: unknown) => { vals.push(v); where.push(sql.replace('?', `$${vals.length}`)); };
@@ -109,7 +129,7 @@ export async function GET(req: Request) {
        JOIN clients c ON c.id = v.client_id
        LEFT JOIN users u ON u.id = v.rep_id
        LEFT JOIN tour_routes tr ON tr.id = c.tour_id
-      WHERE ${where.join(' AND ')}
+      WHERE ${where.join(' AND ')}${filters.visitAnd}
       ORDER BY v.visit_date, u.name NULLS LAST, c.legal_name`,
     vals as never[],
   );
@@ -275,9 +295,24 @@ export async function GET(req: Request) {
     }
   };
 
-  const scopeLabel = repId != null
-    ? (rows.find(r => r.rep_id === repId)?.rep_name ?? `Rep #${repId}`)
-    : 'All reps';
+  // The line under the title is how somebody reading the file knows what it
+  // covers, so it names every filter that shaped it rather than only the rep.
+  // It said "All reps" over a filtered page once; a wrong caption on a
+  // spreadsheet outlives the export it came from.
+  const scopeBits = [
+    repId != null ? (rows.find(r => r.rep_id === repId)?.rep_name ?? `Rep #${repId}`) : null,
+    filters.reps.length       ? filters.reps.join(', ') : null,
+    filters.managers.length   ? `under ${filters.managers.join(', ')}` : null,
+    filters.zones.length      ? `${filters.zones.join(', ')} zone` : null,
+    filters.tours.length      ? filters.tours.join(', ') : null,
+    filters.industries.length ? filters.industries.join(', ') : null,
+    filters.statuses.length   ? filters.statuses.join(', ') : null,
+    filters.vstatus.length    ? filters.vstatus.join(', ') : null,
+    status || null,
+    purpose || null,
+    search ? `“${search}”` : null,
+  ].filter(Boolean);
+  const scopeLabel = scopeBits.length ? scopeBits.join(' · ') : 'All reps';
   const sub = `${from} to ${to} · ${scopeLabel} · ${rows.length.toLocaleString('en-IN')} visit${rows.length === 1 ? '' : 's'} · exported ${stamp}`;
 
   rollupSheet('By Rep',  ROLLUP('Rep', 26),                 [...byRep.values()],  sub, true);

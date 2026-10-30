@@ -25,6 +25,22 @@ export function PlannedVisitsExport({ reps }: { reps: ExportRep[] }) {
   const pagePurpose = sp.get('rpurpose') || '';
   const pageSearch  = sp.get('rsearch')  || '';
 
+  // The filter bar's own params, carried through untouched. They were not read
+  // here at all, so a page narrowed to one rep, zone or route exported every
+  // visit in the range and titled it "All reps".
+  const pageRep = sp.get('rep') || '';
+  const BAR = ['zone', 'tour', 'manager', 'cstatus', 'vstatus', 'industry'] as const;
+  const barFilters = BAR.map(k => [k, sp.get(k) || ''] as const).filter(([, v]) => v);
+
+  // The page names reps; this dropdown holds ids. One name that matches becomes
+  // the pre-selected rep, so the control shows what is actually being exported.
+  // Several names cannot fit in one select, so they are passed through as names
+  // and named in the note below instead.
+  const pageRepNames = pageRep.split(',').map(s => s.trim()).filter(Boolean);
+  const soleRepId = pageRepNames.length === 1
+    ? (reps.find(r => r.name === pageRepNames[0])?.id ?? '')
+    : '';
+
   useEffect(() => {
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -35,6 +51,9 @@ export function PlannedVisitsExport({ reps }: { reps: ExportRep[] }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFrom(pageFrom || iso(first)); setTo(pageTo || iso(last));
   }, [pageFrom, pageTo]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setRep(soleRepId); }, [soleRepId]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,12 +86,27 @@ export function PlannedVisitsExport({ reps }: { reps: ExportRep[] }) {
   function generateExcel() {
     if (invalid) return;
     const qs = new URLSearchParams({ from, to });
-    if (rep)         qs.set('rep', rep);
+    // A chosen rep is an id and wins. With none chosen, the page's own rep
+    // names go through — which is the case the export used to drop.
+    if (rep)                                 qs.set('rep', rep);
+    else if (pageRep && !soleRepId)          qs.set('rep', pageRep);
+    for (const [k, v] of barFilters)         qs.set(k, v);
     if (pagePurpose) qs.set('purpose', pagePurpose);
     if (pageSearch)  qs.set('search', pageSearch);
-    window.location.href = `/api/risansi/visits/export?${qs.toString()}`;
+    // assign() rather than setting location.href: same navigation, but a call
+    // instead of a mutation, which the react-hooks immutability rule allows.
+    window.location.assign(`/api/risansi/visits/export?${qs.toString()}`);
     setOpen(false);
   }
+
+  // Said in the dialog, because the workbook is opened somewhere else and
+  // nobody checks a filter they cannot see.
+  const carried = [
+    ...(pageRepNames.length > 1 ? [`reps ${pageRepNames.join(', ')}`] : []),
+    ...barFilters.map(([k, v]) => `${k === 'cstatus' ? 'client status' : k === 'vstatus' ? 'visit status' : k} “${v}”`),
+    pagePurpose && `purpose “${pagePurpose}”`,
+    pageSearch && `search “${pageSearch}”`,
+  ].filter(Boolean) as string[];
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
@@ -101,14 +135,13 @@ export function PlannedVisitsExport({ reps }: { reps: ExportRep[] }) {
           <label style={{ display: 'block', marginBottom: 12 }}>
             <span style={LBL}>Rep</span>
             <select value={rep} onChange={e => setRep(e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
-              <option value="">All reps</option>
+              <option value="">{pageRepNames.length > 1 ? 'As filtered on this page' : 'All reps'}</option>
               {reps.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </label>
-          {(pagePurpose || pageSearch) && (
+          {carried.length > 0 && (
             <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginBottom: 10, lineHeight: 1.5 }}>
-              Also applying this page&apos;s filters:{' '}
-              {[pagePurpose && `purpose “${pagePurpose}”`, pageSearch && `search “${pageSearch}”`].filter(Boolean).join(', ')}.
+              Also applying this page&apos;s filters: {carried.join(', ')}.
               <br />Excel only — the PDF route plan cannot express them.
             </div>
           )}
