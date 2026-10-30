@@ -254,7 +254,9 @@ export function OrderListFilterBar({
           }}
         />
         )}
-        {!dept && (
+        {/* The Orders list picks departments in the Departments filter below; this
+            single pick shows there only when a card has set it, to see and clear. */}
+        {!dept && (!noDispatchTarget || !!filter.dept) && (
         <SingleSelectFilter
           label="Department"
           allLabel="All departments"
@@ -691,16 +693,21 @@ function DeptStatusMultiFilter({
 
   const depts = DEPT_FILTER_KEYS.filter((k) => !spareOnly || !["drawing", "purchase", "quality"].includes(k));
   const picked = Object.entries(value).filter(([, v]) => v?.length) as [DeptFilterKey, string[]][];
+  // The departments opened to show their statuses: those with a status ticked, to start.
+  const [opened, setOpened] = useState<DeptFilterKey[]>(() => picked.map(([d]) => d));
   const summary =
     picked.length === 0
       ? "Any"
       : picked.length === 1
         ? `${DEPT_FILTER_LABELS[picked[0][0]]}: ${picked[0][1].join(", ")}`
-        : `${picked.length} departments`;
+        : picked.map(([d, v]) => `${DEPT_FILTER_LABELS[d]} (${v.length})`).join(" · ");
   function toggle(dept: DeptFilterKey, status: string) {
     const cur = value[dept] ?? [];
     const next = cur.includes(status) ? cur.filter((s) => s !== status) : [...cur, status];
     onChange({ ...value, [dept]: next });
+  }
+  function toggleOpen(dept: DeptFilterKey) {
+    setOpened((o) => (o.includes(dept) ? o.filter((d) => d !== dept) : [...o, dept]));
   }
 
   return (
@@ -709,55 +716,75 @@ function DeptStatusMultiFilter({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label="Department statuses filter"
+        aria-label="Departments filter"
         className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${
           picked.length ? "border-primary/40 bg-primary/[0.06] text-foreground" : "border-input-border bg-surface text-foreground hover:bg-background"
         }`}
       >
-        <span className="text-muted">Dept statuses:</span>
-        <span className="max-w-[16rem] truncate font-medium">{summary}</span>
+        <span className="text-muted">Departments:</span>
+        <span className="max-w-[20rem] truncate font-medium">{summary}</span>
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </button>
       {open && (
-        <div className="absolute left-0 z-30 mt-1.5 max-h-96 w-64 overflow-y-auto rounded-lg border border-card-border bg-surface py-1 shadow-lg">
-          {picked.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onChange({})}
-              className="mb-1 flex w-full items-center gap-1.5 border-b border-card-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-              Clear selection
-            </button>
-          )}
-          <p className="px-3 pb-1 pt-1 text-[11px] text-muted">Any status within a department · every department ticked</p>
-          {depts.map((dept) => (
-            <div key={dept}>
-              <p className="mt-1 border-t border-card-border px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                {DEPT_FILTER_LABELS[dept]}
-              </p>
-              {statusesFor(dept, types).map((status) => {
-                const checked = (value[dept] ?? []).includes(status);
-                return (
+        <div className="absolute left-0 z-30 mt-1.5 max-h-[28rem] w-[26rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-card-border bg-surface p-2 shadow-lg">
+          <div className="mb-1 flex items-center justify-between gap-2 px-1.5 pb-1.5">
+            <p className="text-[11px] text-muted">Pick departments and their statuses · an SO must match every department picked</p>
+            {picked.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onChange({})}
+                className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="space-y-1">
+            {depts.map((dept) => {
+              const sel = value[dept] ?? [];
+              const isOpen = opened.includes(dept) || sel.length > 0;
+              return (
+                <div key={dept} className={`rounded-lg border ${sel.length ? "border-primary/40 bg-primary/[0.04]" : "border-card-border"}`}>
                   <button
-                    key={status}
                     type="button"
-                    onClick={() => toggle(dept, status)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-background"
+                    onClick={() => toggleOpen(dept)}
+                    aria-expanded={isOpen}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-foreground"
                   >
-                    <span
-                      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        checked ? "border-primary bg-primary text-primary-foreground" : "border-input-border"
-                      }`}
-                    >
-                      {checked && <Check className="h-3 w-3" />}
-                    </span>
-                    {status}
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                    <span className="flex-1">{DEPT_FILTER_LABELS[dept]}</span>
+                    {sel.length > 0 && (
+                      <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">{sel.length}</span>
+                    )}
                   </button>
-                );
-              })}
-            </div>
-          ))}
+                  {isOpen && (
+                    <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
+                      {statusesFor(dept, types).map((status) => {
+                        const on = sel.includes(status);
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => toggle(dept, status)}
+                            aria-pressed={on}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                              on
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-input-border text-foreground hover:bg-background"
+                            }`}
+                          >
+                            {on && <Check className="h-3 w-3" />}
+                            {status}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
