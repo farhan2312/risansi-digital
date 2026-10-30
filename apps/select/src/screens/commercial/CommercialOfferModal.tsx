@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import TechDocEditor, { DocHeaderEditor, DocScopeEditor } from "../../components/reports/TechDocEditor";
+import TechDocEditor, { DocHeaderEditor, DocScopeEditor, DocTagPicker } from "../../components/reports/TechDocEditor";
+import { visibleTags } from "../../lib/tech-doc";
 import { DRIVE_GROUP_LABEL, type DriveGroup, type QuoteFx } from "../../lib/commercial";
 import {
   EMPTY_OFFER_CONFIG,
@@ -122,7 +123,10 @@ export default function CommercialOfferModal({
     !!config.erpText ||
     !!config.scopeText ||
     !!config.outOfScopeText ||
-    (config.headerHidden?.length ?? 0) > 0;
+    (config.headerHidden?.length ?? 0) > 0 ||
+    (config.hiddenTags?.length ?? 0) > 0;
+  // The tags this sheet prints (deselected ones left off; totals follow).
+  const shownTags = useMemo(() => visibleTags(tags, config), [tags, config]);
 
   const geared = isGearedGroup(group);
   const sheet: OfferSheet | null = useMemo(() => {
@@ -137,7 +141,7 @@ export default function CommercialOfferModal({
         quotation: config.erpText || data.erpNumbers?.[group] || "",
         hidden: config.headerHidden ?? [],
       },
-      tags,
+      tags: shownTags,
       config,
       geared,
       driveGroup: group,
@@ -145,7 +149,7 @@ export default function CommercialOfferModal({
       versionLabel: version?.label,
       fx,
     };
-  }, [data, group, tags, config, geared, version, fx]);
+  }, [data, group, shownTags, config, geared, version, fx]);
   const html = useMemo(
     () => (sheet ? buildOfferHtml(sheet, typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png") : ""),
     [sheet],
@@ -241,6 +245,14 @@ export default function CommercialOfferModal({
                 </div>
               )}
 
+              {editable && (
+                <DocTagPicker
+                  tags={tags}
+                  hidden={config.hiddenTags ?? []}
+                  onChange={(next) => update({ ...config, hiddenTags: next })}
+                />
+              )}
+
               {editable && showPicker && (
                 <div className="flex flex-wrap gap-x-5 gap-y-1.5 rounded-lg border border-line bg-sunk p-3">
                   {OFFER_EXTRAS.map((f) => (
@@ -285,8 +297,8 @@ export default function CommercialOfferModal({
                     onChange={(l) => update({ ...config, scopeText: l.scope, outOfScopeText: l.out })}
                   />
                   <TechDocEditor
-                    tags={tags}
-                    blocks={buildOffer(tags, config, geared, { includeHidden: true, fx })}
+                    tags={shownTags}
+                    blocks={buildOffer(shownTags, config, geared, { includeHidden: true, fx })}
                     config={config}
                     onChange={update}
                     valueHint="Saved price"
@@ -301,14 +313,14 @@ export default function CommercialOfferModal({
 
         <footer className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">
           <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
-          <button type="button" className={btnPrimary} onClick={handlePrint} disabled={!sheet || printing || tags.length === 0}>
+          <button type="button" className={btnPrimary} onClick={handlePrint} disabled={!sheet || printing || shownTags.length === 0}>
             {printing ? "Preparing…" : "Print / Save as PDF"}
           </button>
           <button
             type="button"
             className={btn}
             onClick={() => sheet && downloadOfferExcel(sheet)}
-            disabled={!sheet || tags.length === 0}
+            disabled={!sheet || shownTags.length === 0}
           >
             Download Excel
           </button>

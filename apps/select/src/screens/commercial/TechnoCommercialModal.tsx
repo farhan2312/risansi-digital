@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import PrintPageSizeSelect, { usePrintPageSize } from "../../components/reports/PrintPageSize";
-import TechDocEditor, { DocHeaderEditor, DocScopeEditor } from "../../components/reports/TechDocEditor";
+import TechDocEditor, { DocHeaderEditor, DocScopeEditor, DocTagPicker } from "../../components/reports/TechDocEditor";
 import { DRIVE_GROUP_LABEL, type DriveGroup, type QuoteFx } from "../../lib/commercial";
 import {
   EMPTY_OFFER_CONFIG,
@@ -24,6 +24,8 @@ import {
   buildTechDoc,
   techDocExtrasFor,
   techDocSheet,
+  techDocGroupOf,
+  visibleTags,
   type TechDocConfig,
   type TechDocData,
 } from "../../lib/tech-doc";
@@ -146,7 +148,7 @@ export default function TechnoCommercialModal({
         quotation: offerConfig.erpText || offer.erpNumbers?.[group] || "",
         hidden: offerConfig.headerHidden ?? [],
       },
-      tags,
+      tags: visibleTags(tags, offerConfig),
       config: offerConfig,
       geared,
       driveGroup: group,
@@ -163,6 +165,18 @@ export default function TechnoCommercialModal({
         : "",
     [sheets],
   );
+  // Every tag of the group (technical, then any only the offer has), to
+  // choose which ones the sheet prints. A tag left off goes from both parts.
+  const allTags = useMemo(() => {
+    const list = (tech?.tags ?? []).filter((t) => techDocGroupOf(t) === group).map((t) => ({ tagId: t.tagId, tagName: t.tagName }));
+    for (const t of tags) if (!list.some((x) => x.tagId === t.tagId)) list.push({ tagId: t.tagId, tagName: t.tagName });
+    return list;
+  }, [tech, tags, group]);
+  const hiddenTags = [...new Set([...(techConfig.hiddenTags ?? []), ...(offerConfig.hiddenTags ?? [])])];
+  const setHiddenTags = (next: string[]) => {
+    updateTech({ ...techConfig, hiddenTags: next });
+    updateOffer({ ...offerConfig, hiddenTags: next });
+  };
   const empty = !sheets || (sheets.tech.tags.length === 0 && sheets.offer.tags.length === 0);
 
   const customised =
@@ -178,6 +192,7 @@ export default function TechnoCommercialModal({
     !!offerConfig.erpText ||
     !!offerConfig.scopeText ||
     !!offerConfig.outOfScopeText ||
+    hiddenTags.length > 0 ||
     (offerConfig.headerHidden?.length ?? 0) > 0;
   const resetAll = () => {
     updateTech({ ...EMPTY_TECH_DOC_CONFIG, extras: techConfig.extras });
@@ -192,6 +207,7 @@ export default function TechnoCommercialModal({
       headerHidden: [],
       scopeText: "",
       outOfScopeText: "",
+      hiddenTags: [],
     });
   };
 
@@ -284,6 +300,8 @@ export default function TechnoCommercialModal({
                 </span>
               </div>
 
+              <DocTagPicker tags={allTags} hidden={hiddenTags} onChange={setHiddenTags} />
+
               {showPicker && (
                 <div className="grid max-h-[40vh] grid-cols-1 gap-4 overflow-y-auto rounded-lg border border-line bg-sunk p-3 sm:grid-cols-2 lg:grid-cols-3">
                   {TECH_DOC_SECTIONS.map((section) => {
@@ -363,8 +381,8 @@ export default function TechnoCommercialModal({
                   />
                   <p className={partTitle}>Commercial part (Commercial Offer)</p>
                   <TechDocEditor
-                    tags={tags}
-                    blocks={buildOffer(tags, offerConfig, geared, { includeHidden: true, fx }).map((b) => ({
+                    tags={sheets.offer.tags}
+                    blocks={buildOffer(sheets.offer.tags, offerConfig, geared, { includeHidden: true, fx }).map((b) => ({
                       ...b,
                       rows: b.rows.filter((r) => !IN_TECHNICAL.has(r.key)),
                     }))}

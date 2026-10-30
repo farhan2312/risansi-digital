@@ -399,3 +399,49 @@ function ScopeLineBox({
     </div>
   );
 }
+
+/** Which tags the sheet prints: a chip per tag, click to leave it off / put it
+ *  back. At least one stays on. Saved with the sheet's edits. */
+export function DocTagPicker({
+  tags,
+  hidden,
+  onChange,
+}: {
+  tags: { tagId: string; tagName: string }[];
+  hidden: string[];
+  onChange: (nextHidden: string[]) => void;
+}) {
+  if (tags.length < 2 && hidden.length === 0) return null;
+  const off = new Set(hidden);
+  const onCount = tags.filter((t) => !off.has(t.tagId)).length;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+      <span className="font-semibold text-fg-2">Tags on the sheet:</span>
+      {tags.map((t) => {
+        const on = !off.has(t.tagId);
+        const last = on && onCount <= 1;
+        return (
+          <button
+            key={t.tagId}
+            type="button"
+            aria-pressed={on}
+            disabled={last}
+            onClick={() => onChange(on ? [...hidden, t.tagId] : hidden.filter((id) => id !== t.tagId))}
+            title={last ? "At least one tag stays on the sheet" : on ? "Click to leave this tag off the sheet" : "Click to put this tag back"}
+            className={`rounded-full border px-2.5 py-0.5 font-semibold disabled:cursor-not-allowed ${
+              on ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-4 line-through"
+            }`}
+          >
+            {on ? "✓ " : ""}
+            {t.tagName}
+          </button>
+        );
+      })}
+      {hidden.length > 0 && (
+        <button type="button" className={`${linkBtn} ml-1 text-accent`} onClick={() => onChange([])}>
+          Show all
+        </button>
+      )}
+    </div>
+  );
+}

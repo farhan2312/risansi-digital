@@ -23,7 +23,7 @@
  * Client-safe (no DB / DOM): the modal, print and Excel all build from here.
  */
 import { boiNet, boiTotal, otherNet, scalePrices, subTotal, unitTotal, type CommercialPrices, type DriveGroup, type QuoteFx, type TagTech } from "./commercial";
-import { SCOPE_CSS, esc, headerHiddenList, scopeRowsHtml, sheetHtml, type HeaderKey, type TechDocHeader, type TechDocRow } from "./tech-doc";
+import { SCOPE_CSS, esc, headerHiddenList, hiddenTagList, scopeRowsHtml, sheetHtml, type HeaderKey, type TechDocHeader, type TechDocRow } from "./tech-doc";
 
 export const OFFER_TITLE = "Commercial Offer";
 
@@ -231,6 +231,8 @@ export interface OfferConfig {
   erpText?: string;
   /** Header lines removed from this sheet. */
   headerHidden?: HeaderKey[];
+  /** Tags left off this sheet (tagIds). */
+  hiddenTags?: string[];
 }
 
 export const EMPTY_OFFER_CONFIG: OfferConfig = {
@@ -299,6 +301,7 @@ export function normalizeOfferConfig(raw: unknown): OfferConfig {
     quotationText: text(r.quotationText),
     erpText: text(r.erpText),
     headerHidden: headerHiddenList(r.headerHidden),
+    hiddenTags: hiddenTagList(r.hiddenTags),
   };
 }
 
