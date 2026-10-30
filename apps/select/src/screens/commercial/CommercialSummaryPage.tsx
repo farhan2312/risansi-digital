@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -18,6 +18,8 @@ import {
   paInputsFor,
   paPrice,
   paSuggestion,
+  sealAmountFromBasis,
+  type PaAmounts,
   type PaLevel,
   type PaPriceData,
 } from "../../lib/pa-price";
@@ -1560,9 +1562,25 @@ function PaSuggestionPanel({
 }) {
   const inputs = useMemo(() => paInputsFor(tag), [tag]);
   const sug = useMemo(() => (data && data !== "error" ? paSuggestion(data, inputs) : null), [data, inputs]);
-  const defaults = useMemo(
-    () => new Set((sug?.adjustments ?? []).filter((a) => a.defaultOn).map((a) => a.key)),
-    [sug],
+  // The ACME MSA seal amount can be typed over; it starts from the amount in
+  // the saved basis ("MSA seal +4500"), else the BOI Master price.
+  const usedRef = useRef(used);
+  usedRef.current = used;
+  const defaults = useMemo(() => {
+    const keys = new Set((sug?.adjustments ?? []).filter((a) => a.defaultOn).map((a) => a.key));
+    const seal = sug?.adjustments.find((a) => a.editable);
+    if (seal && sealAmountFromBasis(usedRef.current) !== null) keys.add(seal.key);
+    return keys;
+  }, [sug]);
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const saved = sealAmountFromBasis(usedRef.current);
+    const seal = sug?.adjustments.find((a) => a.editable);
+    setTyped(seal && saved !== null ? { [seal.key]: String(saved) } : {});
+  }, [sug]);
+  const amounts = useMemo<PaAmounts>(
+    () => Object.fromEntries(Object.entries(typed).map(([k, v]) => [k, Number(v) || 0])),
+    [typed],
   );
   const [on, setOn] = useState<Set<string>>(defaults);
   useEffect(() => setOn(defaults), [defaults]);
@@ -1611,24 +1629,71 @@ function PaSuggestionPanel({
           {sug.notes.length > 0 && <p className="text-fg-3">{sug.notes.join(" · ")}</p>}
 
           <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {sug.adjustments.map((a) => (
-              <label key={a.key} className="flex cursor-pointer items-center gap-1.5" title={a.note}>
-                <input
-                  type="checkbox"
-                  checked={on.has(a.key)}
-                  onChange={() => toggle(a.key, a.group)}
-                  className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
-                />
-                <span className={on.has(a.key) ? "text-fg" : ""}>{a.label}</span>
-                {a.note && <span className="text-[11px] text-fg-4">({a.note})</span>}
-              </label>
-            ))}
+            {sug.adjustments.map((a) =>
+              a.editable ? (
+                <span key={a.key} className="flex flex-wrap items-center gap-1.5" title={a.note}>
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={on.has(a.key)}
+                      onChange={() => toggle(a.key, a.group)}
+                      className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                    />
+                    <span className={on.has(a.key) ? "text-fg" : ""}>{a.label}</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    aria-label="Mechanical seal price in P&A"
+                    value={typed[a.key] ?? String(a.add ?? 0)}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^\d]/g, "").slice(0, 9);
+                      setTyped((t) => ({ ...t, [a.key]: v }));
+                      // Typing a price means the seal is in.
+                      setOn((cur) => (cur.has(a.key) ? cur : new Set(cur).add(a.key)));
+                    }}
+                    className="w-[92px] rounded-md border border-line-strong bg-paper px-1.5 py-0.5 text-right font-mono text-[12px] text-fg focus:border-accent focus:outline-none"
+                  />
+                  {typed[a.key] !== undefined && Number(typed[a.key]) !== (a.add ?? 0) && a.add ? (
+                    <>
+                      <span className="text-[11px] text-warn">edited</span>
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-accent hover:underline"
+                        onClick={() =>
+                          setTyped((t) => {
+                            const next = { ...t };
+                            delete next[a.key];
+                            return next;
+                          })
+                        }
+                      >
+                        Reset to ₹{(a.add ?? 0).toLocaleString("en-IN")}
+                      </button>
+                    </>
+                  ) : (
+                    a.note && <span className="text-[11px] text-fg-4">({a.note})</span>
+                  )}
+                </span>
+              ) : (
+                <label key={a.key} className="flex cursor-pointer items-center gap-1.5" title={a.note}>
+                  <input
+                    type="checkbox"
+                    checked={on.has(a.key)}
+                    onChange={() => toggle(a.key, a.group)}
+                    className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                  />
+                  <span className={on.has(a.key) ? "text-fg" : ""}>{a.label}</span>
+                  {a.note && <span className="text-[11px] text-fg-4">({a.note})</span>}
+                </label>
+              ),
+            )}
           </div>
 
           <div className="flex flex-col divide-y divide-line rounded-md border border-line bg-paper">
             {data.levels.map((l) => {
-              const { base, price } = paPrice(sug, l.level, on);
-              const basis = paBasisText(sug, l.level, on);
+              const { base, price } = paPrice(sug, l.level, on, amounts);
+              const basis = paBasisText(sug, l.level, on, amounts);
               const active = used === basis;
               return (
                 <div key={l.level} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 ${active ? "bg-accent-soft" : ""}`}>
