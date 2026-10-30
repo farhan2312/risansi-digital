@@ -91,6 +91,8 @@ export function planningPackingOptions(types: string[]): string[] {
   const pump = types.length > 0 && types.every((t) => /^(pump|rolb)$/i.test(t));
   return pump ? [...PLANNING_PUMP_ASSEMBLY_OPTIONS, ...PLANNING_PUMP_PACKING_OPTIONS] : PLANNING_PACKING_OPTIONS;
 }
+/** An SO Dispatch does not have yet: no numbered packing slip. The Orders list's, not Dispatch's own. */
+export const NOT_AT_DISPATCH = "Not at Dispatch yet";
 /** The department has nothing to do on this order at all. */
 export const NOT_APPLICABLE = "N/A";
 
@@ -126,7 +128,9 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   // "Pending" is itself a stored dispatch status, so it covers both a blank
   // column and an explicit Pending rather than appearing twice.
   // Dispatch's own words only: a cancelled or diverted SO is out of its queue.
-  dispatch: ["Fully dispatch", "LOT dispatch", HOLD, PENDING],
+  // …and, on the Orders list, an SO Dispatch does not have yet (no numbered
+  // packing slip) — to see what is assembled or packed but not handed over.
+  dispatch: ["Fully dispatch", "LOT dispatch", HOLD, PENDING, NOT_AT_DISPATCH],
 };
 
 /**

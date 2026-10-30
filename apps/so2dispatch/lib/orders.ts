@@ -33,6 +33,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
   isPerEcDept,
   soHoldSql,
   NOT_APPLICABLE,
+  NOT_AT_DISPATCH,
   PENDING,
   statusesFor,
   type DeptFilterKey,
@@ -3398,6 +3399,8 @@ function soState(dept: DeptFilterKey, status: string): string {
                          WHERE a.order_id = o.id
                            AND a.payment_status = ${lit(status)})`;
   }
+  // Not at Dispatch yet: an open SO with no numbered packing slip.
+  if (status === NOT_AT_DISPATCH) return `${orderOpenSql("o")} AND NOT ${SO_REACHED_DISPATCH}`;
   // Dispatch: "Pending" is itself a stored value, so it also covers a blank —
   // every status once the SO has reached Dispatch; before that it has none there.
   return status === PENDING
@@ -4394,7 +4397,8 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
 
 export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
   // Hold is no status card: the SO hold card counts it (Dispatch keeps its own).
-  const statuses = statusesFor(dept, types).filter((st) => st !== HOLD || dept === "dispatch");
+  // Not at Dispatch yet is the Orders list's filter, never a Dispatch card.
+  const statuses = statusesFor(dept, types).filter((st) => (st !== HOLD || dept === "dispatch") && st !== NOT_AT_DISPATCH);
   const planning = dept === "planning";
   const clear = {
     dstatus: null,
