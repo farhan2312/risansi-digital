@@ -390,16 +390,17 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ dsm: serializeDeptStatusMulti(next) })}
           />
         )}
-        {/* Accounts: its own Hold / Clear on the SO, and why it holds them. */}
+        {/* Accounts' Hold / Clear on the SO: every department and the Orders list. */}
+        <MultiSelectFilter
+          label="Accounts hold"
+          allLabel="Hold or clear"
+          options={["Hold", "Clear"]}
+          selected={filter.accountsHold}
+          onChange={(next) => setParams({ ahold: next })}
+        />
+        {/* …and in Accounts, why it holds them. */}
         {dept === "accounts" && (
           <>
-            <MultiSelectFilter
-              label="Accounts hold"
-              allLabel="Hold or clear"
-              options={["Hold", "Clear"]}
-              selected={filter.accountsHold}
-              onChange={(next) => setParams({ ahold: next })}
-            />
             <MultiSelectFilter
               label="Hold reason"
               allLabel="Any reason"
