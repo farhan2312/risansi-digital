@@ -80,6 +80,8 @@ export const BILL_MODE_FILTER_OPTIONS = [...BILL_MODE_OPTIONS.map((o) => o.value
 export const DEPT_BILL_MODE_FILTER_OPTIONS = BILL_MODE_OPTIONS.map((o) => o.value).filter((v) => v !== ONLY_BILLING);
 /** Accounts' payment status on the SO (the roll-up of its PIs), for the Orders list. */
 export const PAYMENT_STATUS_FILTER_OPTIONS = [...PAYMENT_STATUS_OPTIONS.map((o) => o.value), NOT_SET];
+/** The SO's own Order Status, worked out (lib/order-row-view's orderStatusOf). */
+export const ORDER_STATUS_OPTIONS = ["Active", "Active-Hold", "Canceled", "Diverted", "Closed"];
 /** Clearance: Clear or Hold; and why an SO is held. */
 export const CLEARANCE_FILTER_OPTIONS = CLEARANCE_OPTIONS.map((o) => o.value);
 export const HOLD_REASON_FILTER_OPTIONS = CLEARANCE_HOLD_REASONS.map((o) => o.value);
@@ -194,6 +196,8 @@ export type OrderListFilter = {
   paymentTerms: string[];
   /** Billing / Accounts: the SO's Bill Mode ("Not set": blank). */
   billModes: string[];
+  /** The Orders list: the SO's own Order Status (Active, Active-Hold, Canceled, Diverted, Closed). URL `ost`. */
+  orderStatuses: string[];
   /** Payment status (the Orders list). */
   paymentStatuses: string[];
   /** Billing's queue: the SO's dispatch status. */
@@ -327,6 +331,7 @@ export function parseOrderListFilter(
         ? list(get("bmode")).filter((v) => (queue ? DEPT_BILL_MODE_FILTER_OPTIONS : BILL_MODE_FILTER_OPTIONS).includes(v))
         : [],
     paymentStatuses: !queue ? list(get("pstat")).filter((v) => PAYMENT_STATUS_FILTER_OPTIONS.includes(v)) : [],
+    orderStatuses: opts.noDispatchTarget ? list(get("ost")).filter((v) => ORDER_STATUS_OPTIONS.includes(v)) : [],
     dispatchStatuses:
       queue && DISPATCH_STATUS_FILTER_DEPTS.includes(queue)
         ? list(get("dispst")).filter((v) => statusesFor("dispatch").includes(v))
@@ -398,6 +403,7 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.accountsHoldReasons.length ||
     f.paymentTerms.length ||
     f.billModes.length ||
+    f.orderStatuses.length ||
     f.paymentStatuses.length ||
     f.dispatchStatuses.length ||
     f.dispatchStages.length ||
@@ -442,6 +448,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.accountsHoldReasons.length) p.set("areason", f.accountsHoldReasons.join("|"));
   if (f.paymentTerms.length) p.set("pterm", f.paymentTerms.join(","));
   if (f.billModes.length) p.set("bmode", f.billModes.join(","));
+  if (f.orderStatuses.length) p.set("ost", f.orderStatuses.join(","));
   if (f.paymentStatuses.length) p.set("pstat", f.paymentStatuses.join(","));
   if (f.dispatchStatuses.length) p.set("dispst", f.dispatchStatuses.join(","));
   if (f.dispatchStages.length) p.set("dstage", f.dispatchStages.join(","));
@@ -481,6 +488,7 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.accountsHoldReasons.length) parts.push(`Accounts hold reason: ${f.accountsHoldReasons.join(", ")}`);
   if (f.paymentTerms.length) parts.push(`Payment terms: ${f.paymentTerms.join(", ")}`);
   if (f.billModes.length) parts.push(`Bill mode: ${f.billModes.join(", ")}`);
+  if (f.orderStatuses.length) parts.push(`Order status: ${f.orderStatuses.join(", ")}`);
   if (f.paymentStatuses.length) parts.push(`Payment status: ${f.paymentStatuses.join(", ")}`);
   if (f.dispatchStatuses.length) parts.push(`Dispatch status: ${f.dispatchStatuses.join(", ")}`);
   if (f.dispatchStages.length) parts.push(`Stage: ${f.dispatchStages.join(", ")}`);

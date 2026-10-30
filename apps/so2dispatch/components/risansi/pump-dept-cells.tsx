@@ -67,15 +67,23 @@ function stageTone(s: PumpStage, doneLabel: string): Tone {
 const td = (first = false) => `px-4 py-3 align-top ${first ? "border-l border-card-border" : ""}`;
 
 /** The Pump view's department heads: the group row (Drawing … Planning) — Assembly & Packing comes after the lots. */
-export function PumpLeadGroupHeads({ lotCount }: { lotCount: number }) {
+export function PumpLeadGroupHeads({
+  lotCount,
+  head,
+}: {
+  lotCount: number;
+  /** Each department's heading, as the caller draws it (the Orders list's filter it). */
+  head?: (dept: "drawing" | "purchase" | "quality" | "planning" | "assembly", label: string) => React.ReactNode;
+}) {
   const g = "border-l border-card-border px-4 pt-3 pb-1 text-center";
+  const h = (dept: Parameters<NonNullable<typeof head>>[0], label: string) => (head ? head(dept, label) : label);
   return (
     <>
-      <th colSpan={4} className={g}>Drawing</th>
-      <th colSpan={1} className={g}>Purchase</th>
-      <th colSpan={1} className={g}>Quality</th>
-      <th colSpan={2 + lotCount} className={g}>Planning</th>
-      <th colSpan={3} className={g}>Assembly &amp; Packing</th>
+      <th colSpan={4} className={g}>{h("drawing", "Drawing")}</th>
+      <th colSpan={1} className={g}>{h("purchase", "Purchase")}</th>
+      <th colSpan={1} className={g}>{h("quality", "Quality")}</th>
+      <th colSpan={2 + lotCount} className={g}>{h("planning", "Planning")}</th>
+      <th colSpan={3} className={g}>{h("assembly", "Assembly & Packing")}</th>
     </>
   );
 }

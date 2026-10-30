@@ -18,6 +18,7 @@ import {
   CLEARANCE_FILTER_OPTIONS,
   HOLD_REASON_FILTER_OPTIONS,
   BILL_MODE_FILTER_OPTIONS,
+  ORDER_STATUS_OPTIONS,
   DEPT_BILL_MODE_FILTER_OPTIONS,
   PAYMENT_STATUS_FILTER_OPTIONS,
   DATE_PRESETS,
@@ -63,6 +64,7 @@ const FILTER_KEYS = [
   "fstate",
   "pterm",
   "bmode",
+  "ost",
   "pstat",
   "dsm",
   "dispst",
@@ -367,6 +369,16 @@ export function OrderListFilterBar({
             options={PAYMENT_STATUS_FILTER_OPTIONS}
             selected={filter.paymentStatuses}
             onChange={(next) => setParams({ pstat: next })}
+          />
+        )}
+        {/* The orders list: the SO's own Order Status (its column filters it too). */}
+        {noDispatchTarget && (
+          <MultiSelectFilter
+            label="Order status"
+            allLabel="Any"
+            options={ORDER_STATUS_OPTIONS}
+            selected={filter.orderStatuses}
+            onChange={(next) => setParams({ ost: next })}
           />
         )}
         {/* The orders list: statuses in several departments at once. */}

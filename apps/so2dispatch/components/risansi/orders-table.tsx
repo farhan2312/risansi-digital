@@ -18,6 +18,7 @@ import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { CLOSED, READY, assemblyView, planningText, reachedAssembly, reachedDepts, orderStatusOf, reachedDispatch, type ReachedDept } from "@/lib/order-row-view";
 import { OrderStatusPill } from "./order-status-pill";
+import { ColumnFilter } from "./column-filter";
 import type { DeptCell, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
 import { deleteItemAction, deleteOrderAction, getOrderEcsAction } from "@/app/risansi/orders/actions";
 import { OmEcsModal } from "./om-ecs-modal";
@@ -467,29 +468,39 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3">Client Code</th>
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="Rep" sortKey="rep" /></th>
                 <th rowSpan={2} className="px-4 py-3">Zone</th>
-                <th rowSpan={2} className="px-4 py-3">Bill Mode</th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Status</th>
+                {/* Headers that filter, Excel-like: the values the column holds, each with its count. */}
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label="Order Status" /></th>
                 <th rowSpan={2} className="px-4 py-3 text-right">Order Value</th>
                 <th rowSpan={2} className="px-4 py-3">Departments</th>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
                 {pump ? (
                   // A pump SO: each department's own columns.
-                  <PumpLeadGroupHeads lotCount={LOT_COLUMNS.length} />
+                  <PumpLeadGroupHeads
+                    lotCount={LOT_COLUMNS.length}
+                    head={(dept, label) => <ColumnFilter column={`dept:${dept}`} label={label} align="center" />}
+                  />
                 ) : (
                   <>
                     <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Readiness Date" sortKey="readiness" /></th>
                     {/* Assembly & Packing's planned packing date: the SO's next among its unpacked lots. */}
                     <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Date" sortKey="packing" /></th>
                     {/* A Spare's readiness lots, one column each, under each department. */}
-                    <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Planning</th>
-                    <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">Assembly &amp; Packing</th>
+                    <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">
+                      <ColumnFilter column="dept:planning" label="Planning" align="center" />
+                    </th>
+                    <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">
+                      <ColumnFilter column="dept:assembly" label="Assembly & Packing" align="center" />
+                    </th>
                   </>
                 )}
                 <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">Packing Slips</th>
                 <th rowSpan={2} className="px-4 py-3">Invoice</th>
                 <th rowSpan={2} className="px-4 py-3">Dispatch</th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Docket &amp; LR</th>
-                <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">Dispatch Status</th>
+                <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">
+                  <ColumnFilter column="dept:dispatch" label="Dispatch Status" />
+                </th>
                 <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
                 {canDelete && <th rowSpan={2} className="px-4 py-3" />}
               </tr>

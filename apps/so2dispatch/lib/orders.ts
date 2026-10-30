@@ -29,6 +29,7 @@ import { PLANNING_DATE_MET_SQL } from "@/lib/reminders";
 import type { LockFacts } from "@/lib/order-lock";
 import type { SoLot } from "@/lib/ready-lots";
 import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING_PUMP_STAGE_STATUS,
+  DEPT_FILTER_KEYS,
   HOLD,
   isPerEcDept,
   soHoldSql,
@@ -38,7 +39,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
   statusesFor,
   type DeptFilterKey,
 } from "@/lib/dept-status";
-import { FIELD_FILTER_FIELDS, NOT_SET, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
+import { BILL_MODE_FILTER_OPTIONS, FIELD_FILTER_FIELDS, NOT_SET, ORDER_STATUS_OPTIONS, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
 import { sharedFacets, UNASSIGNED, type OrderMakingFilter } from "@/lib/order-making-filter";
 import { appliesSql, filledSql, SO_DETAILS_FILLED_SQL, SO_DETAILS_MISSING_SQL } from "@/lib/order-gaps";
 import {
@@ -3638,6 +3639,8 @@ function orderListClauses(
   if (f.dispatchStatuses.length) clauses.push(`(${f.dispatchStatuses.map((st) => soState("dispatch", st)).join(" OR ")})`);
   // Dispatch: the SO's stage in Invoice → Dispatch → Docket & LR.
   if (f.dispatchStages.length) clauses.push(`${dispatchStageSql("o")} = ANY(${p(f.dispatchStages)}::text[])`);
+  // The Orders list: the SO's own Order Status, as its column reads it.
+  if (f.orderStatuses?.length) clauses.push(`${ORDER_STATUS_SQL} = ANY(${p(f.orderStatuses)}::text[])`);
   if (f.billModes.length) {
     const modes = f.billModes.filter((m) => m !== NOT_SET);
     const any: string[] = [];
@@ -3801,6 +3804,65 @@ export async function orderEcKind(orderId: string | null | undefined): Promise<"
  * One still without is Order Making's, not yet an order to follow.
  */
 const HAS_SO_NO = `NULLIF(btrim(o.so_no), '') IS NOT NULL`;
+
+/**
+ * The SO's (alias o) own Order Status, as the Orders list's column works it
+ * out (orderStatusOf): Canceled or Diverted as closed, Closed once fully
+ * dispatched, Active-Hold under any hold, else Active.
+ */
+export const ORDER_STATUS_SQL = `(CASE
+    WHEN ${orderStatusSql("o")} = 'Cancelled by client' THEN 'Canceled'
+    WHEN ${orderStatusSql("o")} = 'Diverted' THEN 'Diverted'
+    WHEN ${orderStatusSql("o")} = 'Fully dispatch' THEN 'Closed'
+    WHEN ${soHoldSql("o")} THEN 'Active-Hold'
+    ELSE 'Active' END)`;
+
+/** A column of the Orders list that filters from its header. */
+export type OrderColumnKey = "bill_mode" | "order_status" | `dept:${DeptFilterKey}`;
+
+/**
+ * What a column of the Orders list holds, for its header's filter: each value
+ * it can take, and how many SOs of the list as filtered (less the column's
+ * own pick) have it.
+ */
+export async function orderListColumnFacets(
+  filter: OrderListFilter,
+  column: OrderColumnKey,
+  extraRestrict?: string | null
+): Promise<{ value: string; count: number }[]> {
+  let f: OrderListFilter = { ...filter };
+  let options: { value: string; sql: string }[];
+  if (column === "bill_mode") {
+    f = { ...f, billModes: [] };
+    options = BILL_MODE_FILTER_OPTIONS.map((v) => ({
+      value: v,
+      sql: v === NOT_SET ? `NULLIF(TRIM(o.bill_mode), '') IS NULL` : `TRIM(COALESCE(o.bill_mode, '')) = ${lit(v)}`,
+    }));
+  } else if (column === "order_status") {
+    f = { ...f, orderStatuses: [] };
+    options = ORDER_STATUS_OPTIONS.map((v) => ({ value: v, sql: `${ORDER_STATUS_SQL} = ${lit(v)}` }));
+  } else {
+    const dept = column.slice(5) as DeptFilterKey;
+    if (!DEPT_FILTER_KEYS.includes(dept)) return [];
+    const rest = { ...f.deptStatusMulti };
+    delete rest[dept];
+    f = { ...f, deptStatusMulti: rest };
+    // As the Departments filter reads them: an open SO at that status.
+    options = statusesFor(dept, f.types).map((v) => ({ value: v, sql: `(${deptStatusPredicate(dept, v)}) AND ${orderOpenSql("o")}` }));
+  }
+  const listed = orderListWhere(await withRepTeams(f));
+  const where = extraRestrict
+    ? listed.where
+      ? `${listed.where}\n        AND (${extraRestrict})`
+      : `WHERE ${extraRestrict}`
+    : listed.where;
+  const r = await query<Record<string, string>>(
+    `SELECT ${options.map((o, i) => `count(*) FILTER (WHERE ${o.sql}) AS c${i}`).join(", ")} FROM orders o ${where}`,
+    listed.params
+  );
+  const row = r.rows[0] ?? {};
+  return options.map((o, i) => ({ value: o.value, count: Number(row[`c${i}`] ?? 0) }));
+}
 
 function orderListWhere(f: OrderListFilter): { where: string; params: unknown[] } {
   const { clauses, params } = orderListClauses(f);
