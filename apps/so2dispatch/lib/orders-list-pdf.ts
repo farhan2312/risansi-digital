@@ -515,7 +515,7 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
               { text: assembly.text, bold: true, color: assembly.cell?.state === "done" ? C.green : C.ink },
               ...(assembly.line ? [{ text: assembly.line, color: C.muted, size: 6.5 }] : []),
             ],
-      dispatch: held || dispatch === "Hold" ? HOLD : !atDispatch ? NOT_YET : [
+      dispatch: held || dispatch === "Hold" ? HOLD : !atDispatch ? [{ text: "Not at Dispatch yet", color: C.muted, size: 6.5 }] : [
         {
           text: dispatch,
           bold: true,

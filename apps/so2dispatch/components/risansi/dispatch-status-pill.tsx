@@ -1,3 +1,26 @@
+type Row = Record<string, unknown>;
+const numbered = (rows: unknown) =>
+  Array.isArray(rows) && (rows as Row[]).some((r) => String(r?.packing_slip_no ?? "").trim() !== "");
+
+/**
+ * Dispatch has the SO: it has a numbered packing slip — on the SO's slips
+ * (so_slips, so_child_rows, packing_slips) or any of its ECs' (child_rows).
+ */
+export function atDispatch(head: Row, ecs: Row[] = []): boolean {
+  return (
+    numbered(head.so_slips) ||
+    numbered(head.so_child_rows) ||
+    numbered(head.packing_slips) ||
+    !!head.in_dispatch ||
+    ecs.some((e) => numbered(e.child_rows))
+  );
+}
+
+/** Before Dispatch has the SO: no status there yet. */
+export function NotAtDispatch() {
+  return <span className="whitespace-nowrap text-xs text-muted-foreground">Not at Dispatch yet</span>;
+}
+
 /** The SO's dispatch status as a coloured pill: Fully dispatch green, LOT dispatch blue, Pending amber. */
 export function DispatchStatusPill({ status }: { status: unknown }) {
   const s = String(status ?? "").trim();

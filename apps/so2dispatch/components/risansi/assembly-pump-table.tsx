@@ -23,7 +23,7 @@ import { PackingSlipsInline } from "./packing-slips-inline";
 import { AlignmentForm, AlignmentValue } from "./alignment-cell";
 import { Chip, LotCell } from "./lot-cell";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
-import { DispatchStatusPill } from "./dispatch-status-pill";
+import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -288,7 +288,7 @@ export function AssemblyPumpTable({
                             ) : ((head.so_child_rows ?? []) as Row[]).some((sl) => str(sl.packing_slip_no).trim() !== "") ? (
                               <DispatchStatusPill status={str(head.so_dispatch_status) || "Pending"} />
                             ) : (
-                              <span className="text-xs text-muted">Not at Dispatch yet</span>
+                              <NotAtDispatch />
                             )}
                           </td>
                         </>
