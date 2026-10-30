@@ -913,7 +913,9 @@ function OrderMakingEdit({
   const saved = row ? (c: string) => str(row[c as keyof OrderMakingRow]) : undefined;
   const set = (c: string, v: string) => setValues((prev) => withValueRules(prev, c, v));
   // Order Making PO filling an SO assigned to themself: its Sales Order details too.
-  const selfAssigned = mode === "po" && !!viewerId && assignee === viewerId;
+  // Assigning is part of the PO details: picking yourself here asks for no
+  // Sales Order details. Once the SO is saved as yours (and stays yours), they are owed.
+  const selfAssigned = mode === "po" && !!viewerId && row?.so_assignee_id === viewerId && assignee === viewerId;
   // The fields this form will not save without (marked *).
   const requiredHere = new Set(
     [...orderMakingRequired(mode, read, saved), ...(selfAssigned ? orderMakingRequired("so", read) : [])].map((f) => f.column)
