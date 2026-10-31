@@ -2,7 +2,7 @@ import "server-only";
 import { C, assemblyReport, type Cell } from "@/lib/dept-report-pdf";
 import { alignmentText, asmLotText, day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
 import { PUMP_LIKE, READY_LOT_LIMIT } from "@/lib/order-schema";
-import { ecDone, ecStageStatus, pumpLotsFromEcs, soStatuses, type PumpLot } from "@/lib/assembly";
+import { ecDone, ecReadyLots, ecStageStatus, pumpLotsFromEcs, soStatuses, type PumpLot } from "@/lib/assembly";
 import { lotNosLabel } from "@/lib/ready-lots";
 import type { PumpSummary } from "@/lib/pump-summary";
 
@@ -176,7 +176,14 @@ export function assemblyPumpSheet(rows: Row[], filterLine: string): ReportSheet 
         [str(r.ec_no) || str(ec.ec_no) || null, null],
         [str(ec.internal_model) || null, null],
         [day(ec.ec_date) || null, null],
-        [day(r.planning_readiness_date) || null, null],
+        // Lot by lot: the lots this EC has a share in (its own date when it has no lots).
+        [
+          (() => {
+            const mine = ecReadyLots(lots, str(r.id));
+            return mine.length ? mine.map((l) => `L${l.n} ${day(l.date)} ×${l.qty}`).join("\n") : day(r.planning_readiness_date);
+          })() || null,
+          null,
+        ],
         [quantity || null, null],
         [num(r.ready_qty), null],
         [d.assembled, null],

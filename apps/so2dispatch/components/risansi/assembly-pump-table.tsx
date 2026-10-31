@@ -8,6 +8,7 @@ import {
   ASSEMBLY_SHIFTS,
   PDI_CHOICES,
   ecDone,
+  ecReadyLots,
   ecStageStatus,
   lotAssembly,
   lotStagesError,
@@ -301,8 +302,20 @@ export function AssemblyPumpTable({
                         {e.model && <div className="text-xs font-normal text-muted">{e.model}</div>}
                       </td>
                       <td className={`${ecCell} whitespace-nowrap text-muted`}>{shortDate(((r.ec ?? {}) as Row).ec_date)}</td>
-                      {/* Planning's readiness date for this EC. */}
-                      <td className={`${ecCell} whitespace-nowrap`}>{shortDate(r.planning_readiness_date)}</td>
+                      {/* Planning's readiness for this EC, lot by lot: the lots it has a
+                          share in (its own date when it has no lots). */}
+                      <td className={`${ecCell} whitespace-nowrap`}>
+                        {(() => {
+                          const mine = ecReadyLots(lots, e.id);
+                          if (mine.length === 0) return shortDate(r.planning_readiness_date);
+                          return mine.map((l) => (
+                            <div key={l.n} className="text-xs">
+                              <span className="font-semibold">L{l.n}</span> {shortDate(l.date)}
+                              <span className="text-muted"> ×{l.qty}</span>
+                            </div>
+                          ));
+                        })()}
+                      </td>
                       <td className={`${ecCell} tabular-nums`}>{e.quantity || "—"}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.ready}</td>
                       <td className={`${ecCell} tabular-nums`}>{d.assembled}</td>

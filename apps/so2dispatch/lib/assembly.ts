@@ -309,3 +309,14 @@ export function pumpViewRestrict(assembly: string[], packing: string[]): string 
     packing.length ? `${soStageStatusSql("packing", "o")} IN (${inList(packing)})` : "TRUE",
   ].join(" AND ");
 }
+
+/**
+ * An EC's assembly readiness, lot by lot: each lot it has a share in, with
+ * that lot's ready date and the share — not a later lot it has none of.
+ */
+export function ecReadyLots(lots: PumpLot[], ecId: string): { n: number; date: string; qty: number }[] {
+  return lots.flatMap((l) => {
+    const e = l.ecs.find((x) => x.id === ecId);
+    return e && e.qty > 0 ? [{ n: l.n, date: l.ready_date, qty: e.qty }] : [];
+  });
+}
