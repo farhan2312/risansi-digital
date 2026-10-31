@@ -78,7 +78,9 @@ export default async function AssemblyDispatchWorkspacePage({
   // The Pump view's cards: the SOs' assembly, then their packing.
   const assemblyPumpCards = (): KpiCardDef[] => {
     const clear = { asm: null, pkg: null, dstatus: null, overdue: null, hold: null } as Record<string, string | null>;
-    return [
+    const pumpQty =
+      "(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB'))";
+    const cards: KpiCardDef[] = [
       { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
       // How many pump ECs those SOs hold: a figure, not a filter.
       {
@@ -96,8 +98,7 @@ export default async function AssemblyDispatchWorkspacePage({
         sql: null,
         params: {},
         tone: "neutral",
-        measure:
-          "(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB'))",
+        measure: pumpQty,
       },
       ...SO_ASSEMBLY_STATUSES.map((st) => ({
         key: `a:${st}`,
@@ -116,6 +117,8 @@ export default async function AssemblyDispatchWorkspacePage({
       // Its SOs on any hold.
       totalHoldCard("assembly", clear),
     ];
+    // Each SO card also counts the pumps on its SOs — as Planning's.
+    return cards.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } }));
   };
   // The Pump view's SOs: those Planning has Partial or Fully ready.
   const pumpRestrict = ecKind === "pump" ? pumpViewRestrict(assemblyStatuses, packingStatuses) : undefined;
