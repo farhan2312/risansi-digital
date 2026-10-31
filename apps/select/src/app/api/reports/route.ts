@@ -1,10 +1,8 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { desc, eq, isNotNull } from "drizzle-orm";
 
-import { error, json } from "@/lib/api";
-import { AuthError, decodeToken } from "@/lib/auth";
+import { json } from "@/lib/api";
 import { db } from "@/lib/db";
 import { enquiryTags, projects, users } from "@/lib/db/schema";
-import { enquiryScope } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -16,16 +14,7 @@ export const dynamic = "force-dynamic";
 // there's nowhere else for a second one to live. No auth gate here - same
 // convention as the other routes; the /selection-summary page itself is
 // already gated by middleware.
-// A worker sees only the reports of the enquiries assigned to them.
-export async function GET(req: Request) {
-  let claims;
-  try {
-    claims = await decodeToken(req);
-  } catch (e) {
-    if (e instanceof AuthError) return error(e.message, e.statusCode);
-    throw e;
-  }
-  const scope = enquiryScope(claims);
+export async function GET() {
   const rows = await db
     .select({
       tagId: enquiryTags.id,
@@ -45,7 +34,7 @@ export async function GET(req: Request) {
     .from(enquiryTags)
     .innerJoin(projects, eq(enquiryTags.projectId, projects.id))
     .leftJoin(users, eq(projects.createdBy, users.id))
-    .where(scope ? and(isNotNull(enquiryTags.reportDocument), scope) : isNotNull(enquiryTags.reportDocument))
+    .where(isNotNull(enquiryTags.reportDocument))
     .orderBy(desc(enquiryTags.reportGeneratedAt));
 
   return json(

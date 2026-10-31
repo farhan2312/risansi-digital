@@ -5,6 +5,7 @@ import { DRIVE_GROUPS, isDriveGroup } from "@/lib/commercial";
 import { MAX_SCOPE_LINE, normalizeOfferConfigs } from "@/lib/commercial-offer";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ export async function PUT(req: Request) {
   const projectId = String(body.projectId ?? "");
   const group = String(body.group ?? "");
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
   const scopeText = line(body.scopeText);
   const outOfScopeText = line(body.outOfScopeText);

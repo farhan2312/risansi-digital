@@ -5,7 +5,6 @@ import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
-import { canSeeProject } from "@/lib/enquiry-access";
 import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 
 const assignee = alias(users, "assignee");
@@ -14,8 +13,7 @@ export const dynamic = "force-dynamic";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Reading an enquiry: any signed-in user who may see it (a worker only the
-// ones assigned to them). Editing and deleting: the User-Master and system
+// Reading an enquiry: any signed-in user. Editing and deleting: the User-Master and system
 // admins only (lib/roles.ts) - a worker cannot change an enquiry's details.
 async function guard(
   req: Request,
@@ -39,13 +37,11 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { claims, denied } = await guard(req, decodeToken);
+  const { denied } = await guard(req, decodeToken);
   if (denied) return denied;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
-  // Not assigned to this worker reads as not found, like a deleted one.
-  if (!(await canSeeProject(claims, id))) return error("Project not found", 404);
 
   const [project] = await db
     .select({ project: projects, createdByName: users.name, assignedToName: assignee.name })

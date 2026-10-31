@@ -1,6 +1,5 @@
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
-import { seesAllEnquiries } from "@/lib/roles";
 import { getDashboardList } from "@/lib/dashboard-list";
 
 export const dynamic = "force-dynamic";
@@ -45,8 +44,7 @@ export async function GET(req: Request) {
       limit: parseInt(p.get("limit") ?? "20", 10) || 20,
       since: parseInstant(p.get("from")),
       until: parseInstant(p.get("to")),
-      // A worker only ever sees the enquiries assigned to them.
-      mineUserId: p.get("mine") === "1" || !seesAllEnquiries(claims.role) ? claims.sub : null,
+      mineUserId: p.get("mine") === "1" ? claims.sub : null,
     }),
   );
 }

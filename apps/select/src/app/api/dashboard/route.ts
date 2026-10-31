@@ -1,13 +1,12 @@
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
-import { seesAllEnquiries } from "@/lib/roles";
 import { getDashboardData } from "@/lib/dashboard-data";
 
 export const dynamic = "force-dynamic";
 
 // Dashboard figures for any signed-in user.
 //   from / to : ISO instants bounding created_at; either may be absent
-//   mine=1    : only enquiries assigned to the caller (always so for a worker)
+//   mine=1    : only enquiries assigned to the caller
 
 const parseInstant = (v: string | null): Date | null => {
   if (!v) return null;
@@ -29,8 +28,7 @@ export async function GET(req: Request) {
     await getDashboardData({
       since: parseInstant(params.get("from")),
       until: parseInstant(params.get("to")),
-      // A worker only ever sees the enquiries assigned to them.
-      mineUserId: params.get("mine") === "1" || !seesAllEnquiries(claims.role) ? claims.sub : null,
+      mineUserId: params.get("mine") === "1" ? claims.sub : null,
     }),
   );
 }

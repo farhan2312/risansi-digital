@@ -7,6 +7,7 @@ import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
 import { projects, quotation } from "@/lib/db/schema";
 import { dotDate } from "@/lib/tech-doc";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,8 @@ export async function PUT(req: Request) {
   const projectId = String(body.projectId ?? "");
   const group = String(body.group ?? "");
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
   const config = normalizeOfferConfig(body.config);
   const saved = await db.transaction(async (tx) => {

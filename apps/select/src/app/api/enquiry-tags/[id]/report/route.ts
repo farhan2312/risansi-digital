@@ -4,6 +4,7 @@ import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
 import { describeTag, logAudit } from "@/lib/audit";
 import { enquiryTags } from "@/lib/db/schema";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const noWork = await workDenied(req, { tagId: id });
+  if (noWork) return noWork;
   if (!UUID_RE.test(id)) return error("Invalid tag id", 400);
 
   const filename = new URL(req.url).searchParams.get("filename") || "Selection-Summary.pdf";

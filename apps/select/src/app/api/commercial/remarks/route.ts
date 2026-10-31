@@ -4,6 +4,7 @@ import { error, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export async function PUT(req: Request) {
   }
   const projectId = String(body.projectId ?? "");
   if (!/^[0-9a-f-]{36}$/i.test(projectId)) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   const remarks = typeof body.remarks === "string" ? body.remarks.trim().slice(0, 2000) : "";
 
   const [p] = await db

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ export async function POST(
 ) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
+  const noWork = await workDenied(req, { projectId: id });
+  if (noWork) return noWork;
 
   const filename = new URL(req.url).searchParams.get("filename") || "Selection-Summary.pdf";
 

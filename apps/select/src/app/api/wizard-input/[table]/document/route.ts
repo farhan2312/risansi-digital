@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
 import { enquiryTags, mocSealingInput } from "@/lib/db/schema";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,8 @@ export async function POST(
     url.searchParams.get("tagId"),
     url.searchParams.get("projectId"),
   );
+  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }) : null;
+  if (noWork) return noWork;
   if (!ctx) return error("'tagId' (or 'projectId' as fallback) is required", 400);
 
   const filename = url.searchParams.get("filename") || "MOC-Report.pdf";

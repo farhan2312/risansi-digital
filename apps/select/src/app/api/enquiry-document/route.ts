@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { normalizeTechDocConfig, normalizeTechDocConfigs } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,8 @@ export async function PUT(req: Request) {
   const group = String(body.group ?? "");
   const sheetKeys = [...DRIVE_GROUPS, "NONE"];
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   if (!sheetKeys.includes(group)) return error("'group' must be GM, GB, VB, DD or NONE", 400);
   const config = normalizeTechDocConfig(body.config);
   const saved = await db.transaction(async (tx) => {

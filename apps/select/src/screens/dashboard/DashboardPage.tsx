@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { DonutChart, fmtDay, fmtNum, TrendChart, type TrendSeries } from "../../components/charts/charts";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { canApprove } from "../../lib/approval";
-import { seesAllEnquiries } from "../../lib/roles";
+import { worksOnAnyEnquiry } from "../../lib/roles";
 import { getDashboard, type DashboardData, type DashboardEnquiry, type DashboardTag } from "../../services/dashboardService";
 import { Avatar, Card, Icons, Segmented } from "../admin/audit/auditUi";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
@@ -203,6 +203,13 @@ const DashboardPage = () => {
   const { user } = useCurrentUser();
   const dates = useDateRange("all");
   const [scope, setScope] = useState<"all" | "mine">("all");
+  // A worker opens on "Assigned to me" (they can still switch to All).
+  const scopeDefaulted = useRef(false);
+  useEffect(() => {
+    if (scopeDefaulted.current || !user) return;
+    scopeDefaulted.current = true;
+    if (!worksOnAnyEnquiry(user.role)) setScope("mine");
+  }, [user]);
   const [trendView, setTrendView] = useState<"created" | "completed">("created");
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -245,9 +252,7 @@ const DashboardPage = () => {
 
   // The KPI list open in the modal (null = closed).
   const [listTarget, setListTarget] = useState<DashboardListTarget | null>(null);
-  // A worker's figures are always just the enquiries assigned to them.
-  const seesAll = seesAllEnquiries(user?.role);
-  const scopeText = scope === "mine" || !seesAll ? "Assigned to me" : "All enquiries";
+  const scopeText = scope === "mine" ? "Assigned to me" : "All enquiries";
   const openList = (kind: DashboardListTarget["kind"], status: DashboardListTarget["status"], title: string) => () =>
     setListTarget({ kind, status, title });
 
@@ -299,17 +304,15 @@ const DashboardPage = () => {
 
         {/* Filters */}
         <div className="relative flex flex-wrap items-center gap-2.5 border-t border-line px-5 py-3">
-          {seesAll && (
-            <Segmented
-              value={scope}
-              onChange={setScope}
-              loading={isLoading}
-              options={[
-                { key: "all", label: "All enquiries" },
-                { key: "mine", label: "Assigned to me" },
-              ]}
-            />
-          )}
+          <Segmented
+            value={scope}
+            onChange={setScope}
+            loading={isLoading}
+            options={[
+              { key: "all", label: "All enquiries" },
+              { key: "mine", label: "Assigned to me" },
+            ]}
+          />
           <DateRangeFilter state={dates} />
         </div>
       </div>
@@ -465,7 +468,7 @@ const DashboardPage = () => {
             >
               {data.recent.length === 0 ? (
                 <p className="py-12 text-center text-[12.5px] text-fg-3">
-                  {scope === "mine" ? "You haven't created any enquiries in this period." : "No enquiries in this period."}
+                  {scope === "mine" ? "No enquiries assigned to you in this period." : "No enquiries in this period."}
                 </p>
               ) : (
                 <ul className="divide-y divide-line">

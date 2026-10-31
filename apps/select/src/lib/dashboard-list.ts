@@ -7,7 +7,7 @@ import type { DashboardListPage, DashboardListQuery } from "@/lib/dashboard-shar
 // The lists behind the Dashboard's KPI cards (GET /api/dashboard/list). Same
 // filters as getDashboardData, so a list always adds up to its card:
 //   since / until : bound the enquiry's (or tag's) created_at
-//   mineUserId    : only enquiries assigned to that user (always for a worker)
+//   mineUserId    : only enquiries assigned to that user
 // Enquiry status is the same tag rollup as the dashboard and Enquiries list.
 
 const LIMIT_MAX = 50;

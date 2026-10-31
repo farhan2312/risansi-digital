@@ -25,6 +25,7 @@ import { db } from "@/lib/db";
 import { enquiryTags, stepApproval, users } from "@/lib/db/schema";
 import { requestEmail } from "@/lib/email/approval-emails";
 import { describeEmailResult, sendEmail } from "@/lib/email/resend";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,8 @@ export async function PUT(req: Request) {
 
   const tagId = String(body.tagId ?? "");
   if (!UUID_RE.test(tagId)) return error("'tagId' is required and must be a uuid", 400);
+  const noWork = await workDenied(req, { tagId });
+  if (noWork) return noWork;
 
   const step = Number(body.step);
   if (!Number.isInteger(step) || !isApprovableStep(step)) {
@@ -187,6 +190,8 @@ export async function POST(req: Request) {
 
   const tagId = String(body.tagId ?? "");
   if (!UUID_RE.test(tagId)) return error("'tagId' is required and must be a uuid", 400);
+  const noWork = await workDenied(req, { tagId });
+  if (noWork) return noWork;
 
   const tag = await loadTag(tagId);
   if (!tag) return error("Tag not found", 404);

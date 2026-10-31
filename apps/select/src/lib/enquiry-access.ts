@@ -1,29 +1,51 @@
-// Which enquiries a caller may see (lib/roles.ts): a worker only the ones
-// assigned to them, the master / system admins / admins / selection heads all
-// of them. Server-only.
-import { and, eq, inArray, type SQL } from "drizzle-orm";
+// Who may work on an enquiry (lib/roles.ts): everyone sees every enquiry, but
+// a worker works only on the ones assigned to them. Server-only.
+import { and, eq, inArray } from "drizzle-orm";
 
-import type { TokenClaims } from "./auth";
+import { error } from "./api";
+import { tryDecodeToken } from "./auth";
 import { db } from "./db";
-import { projects, users } from "./db/schema";
-import { ASSIGNABLE_ROLES, seesAllEnquiries } from "./roles";
+import { enquiryTags, projects, quotation, users } from "./db/schema";
+import { ASSIGNABLE_ROLES, worksOnAnyEnquiry } from "./roles";
 
-type Caller = Pick<TokenClaims, "sub" | "role">;
+/**
+ * A 403 when the caller is a worker and the enquiry is not assigned to them,
+ * else null. Called at the top of every route that changes an enquiry or its
+ * tags (wizard inputs, tags, approvals sent, prices, quotations, documents).
+ * The enquiry is found from whichever id the route has; an id that resolves
+ * to nothing returns null so the route answers its own 404.
+ */
+export async function workDenied(
+  req: Request,
+  ref: { projectId?: string | null; tagId?: string | null; quotationId?: string | null },
+): Promise<Response | null> {
+  const claims = await tryDecodeToken(req);
+  if (!claims) return null; // the route's own auth check answers this
+  if (worksOnAnyEnquiry(claims.role)) return null;
 
-/** Filter on `projects` for this caller; undefined = every enquiry. */
-export function enquiryScope(caller: Caller): SQL | undefined {
-  return seesAllEnquiries(caller.role) ? undefined : eq(projects.assignedTo, caller.sub);
-}
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let projectId = ref.projectId && UUID.test(ref.projectId) ? ref.projectId : null;
+  if (!projectId && ref.tagId && UUID.test(ref.tagId)) {
+    const [t] = await db.select({ p: enquiryTags.projectId }).from(enquiryTags).where(eq(enquiryTags.id, ref.tagId)).limit(1);
+    projectId = t?.p ?? null;
+  }
+  if (!projectId && ref.quotationId && UUID.test(ref.quotationId)) {
+    const [q] = await db.select({ p: quotation.projectId }).from(quotation).where(eq(quotation.id, ref.quotationId)).limit(1);
+    projectId = q?.p ?? null;
+  }
+  if (!projectId) return null;
 
-/** False when the enquiry does not exist or the caller may not see it. */
-export async function canSeeProject(caller: Caller, projectId: string): Promise<boolean> {
-  const scope = enquiryScope(caller);
-  const [row] = await db
-    .select({ id: projects.id })
+  const [p] = await db
+    .select({ assignedTo: projects.assignedTo, assigneeName: users.name })
     .from(projects)
-    .where(scope ? and(eq(projects.id, projectId), scope) : eq(projects.id, projectId))
+    .leftJoin(users, eq(users.id, projects.assignedTo))
+    .where(eq(projects.id, projectId))
     .limit(1);
-  return Boolean(row);
+  if (!p || p.assignedTo === claims.sub) return null;
+  return error(
+    `This enquiry is assigned to ${p.assigneeName || "someone else"} - you can view it and copy its tags, but only they can work on it.`,
+    403,
+  );
 }
 
 export type Assignee = { id: string; name: string | null; email: string; role: string | null };

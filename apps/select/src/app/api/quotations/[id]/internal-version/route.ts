@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { quotation, quotationVersion } from "@/lib/db/schema";
 import { formatInr, quotationNumber } from "@/lib/commercial";
 import { buildSnapshot, freezeLiveInternal, loadQuotation } from "@/lib/quotation-server";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,8 @@ const REQUESTERS = ["TSM"] as const;
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) return error("Invalid quotation id", 400);
+  const noWork = await workDenied(req, { quotationId: id });
+  if (noWork) return noWork;
   let body: Record<string, unknown>;
   try {
     body = await req.json();

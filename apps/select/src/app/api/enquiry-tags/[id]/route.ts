@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
 import { enquiryTags } from "@/lib/db/schema";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const noWork = await workDenied(req, { tagId: id });
+  if (noWork) return noWork;
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -40,10 +43,12 @@ export async function PATCH(
 // Guard: refuse to delete the last tag on an enquiry - a project must always
 // have at least one tag, otherwise the wizard has nothing to key on.
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const noWork = await workDenied(req, { tagId: id });
+  if (noWork) return noWork;
 
   const [existing] = await db
     .select({ projectId: enquiryTags.projectId })

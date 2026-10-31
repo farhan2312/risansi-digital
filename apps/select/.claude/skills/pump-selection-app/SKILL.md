@@ -882,12 +882,20 @@ never auto-filled from the AI result.
   returns the session's role.
 - Rules in `src/lib/roles.ts`: `canManageEnquiries` = user_master + system_admin
   (create, edit, delete, assign, reassign — `requireEnquiryManager` in lib/auth);
-  `seesAllEnquiries` = those + admin + selection_head; everyone else (workers,
-  pulley_owner) sees ONLY enquiries assigned to them (`enquiryScope` /
-  `canSeeProject` in lib/enquiry-access.ts — applied to GET /api/projects,
-  /api/projects/[id], dashboard + dashboard list, /api/reports). "Mine" /
-  "Assigned to me" = assigned_to, not created_by. Deeper per-enquiry APIs
-  (wizard-input, commercial, …) are NOT yet scoped.
+  `worksOnAnyEnquiry` = those + admin + selection_head. EVERYONE SEES EVERY
+  enquiry (user correction, same day), but a worker (user_worker / legacy user /
+  pulley_owner) WORKS only on the ones assigned to them (`canWorkOn`); copying a
+  tag OUT of any enquiry is allowed, INTO only one of theirs. Server side:
+  `workDenied(req, {projectId|tagId|quotationId})` (lib/enquiry-access.ts) at the
+  top of every enquiry write route — tags (create/rename/delete/copy target/
+  report), wizard-input PUT/DELETE + client-requirements + document,
+  step-approvals, commercial/*, commercial-offer(+scope), enquiry-document(+
+  versions), quotations (create/PATCH/internal-version/send), projects/[id]/
+  report(+summary). UI: Enquiries rows not yours = view only (no Open / Add /
+  rename / delete tag, Quotation / Technical / Commercial disabled; Copy opens
+  the copy dialog with only your enquiries as targets); the wizard shows an
+  "assigned to X" notice. Lists open on "Assigned to me" for workers (Enquiries
+  + Dashboard; `mine=1` = assigned_to, not created_by).
 - `projects.order_type` ('pump'|'spare', CHECK; spare only recorded — its own
   process comes later), `assigned_to` / `assigned_by` / `assigned_at` (backfilled
   to created_by), `client_primary_rep`, `client_secondary_reps`,
@@ -895,9 +903,10 @@ never auto-filled from the AI result.
   is picked: primary rep + active secondary reps from client_secondary_reps,
   market_type, tour_routes.zone — read-only queries, deleted_at IS NULL).
 - POST /api/projects/[id]/assign {assignedTo} (audited enquiry.assign /
-  enquiry.reassign, assignee e-mailed via `assignmentEmail`); GET
+  enquiry.reassign; NO e-mail — user); GET
   /api/projects/assignees (active workers + master + the caller).
 - UI: Create Enquiry has Order type buttons, Assign to (required), read-only
-  client details; Edit Enquiry has Order type + details; Enquiries list shows
-  Assigned To (with "by <creator>"), a Spare badge, and Assign/Edit/Delete only
-  for managers; workers get no New Enquiry and no copy-to-new-enquiry.
+  client details; Edit Enquiry has Order type + details; Enquiries list has an
+  Order Type column and Assigned To (with "by <creator>"), Assign/Edit/Delete
+  only for managers; workers get no New Enquiry and no copy-to-new-enquiry.
+  Every enquiry before 2026-10-31 is a pump order (order_type default).

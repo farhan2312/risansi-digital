@@ -30,6 +30,9 @@ type Props = {
   error?: string | null;
   /** Offer "A new enquiry" - false for a worker, who cannot create one. */
   allowNew?: boolean;
+  /** Offer "This enquiry" - false when the source enquiry is not one the
+   *  worker may work on (they copy it into one of theirs instead). */
+  allowSame?: boolean;
   onCancel: () => void;
   onConfirm: (tagId: string, destination: CopyDestination) => void;
 };
@@ -48,11 +51,12 @@ const CopyTagModal = ({
   busy = false,
   error,
   allowNew = true,
+  allowSame = true,
   onCancel,
   onConfirm,
 }: Props) => {
   const [tagId, setTagId] = useState(initialTagId ?? tags[0]?.id ?? "");
-  const [dest, setDest] = useState<CopyDestination["kind"]>("same");
+  const [dest, setDest] = useState<CopyDestination["kind"]>(allowSame ? "same" : "existing");
   const [targetProjectId, setTargetProjectId] = useState("");
 
   // Opened from the enquiry's Copy button, the tags are still loading, so the
@@ -111,18 +115,20 @@ const CopyTagModal = ({
           <div className="form-group">
             <label>Copy into</label>
             <div className="copy-choices">
-              <label className={`copy-choice${dest === "same" ? " is-on" : ""}`}>
-                <input
-                  type="radio"
-                  name="copy-dest"
-                  checked={dest === "same"}
-                  onChange={() => setDest("same")}
-                />
-                <span>
-                  <b>This enquiry</b>
-                  <em>{sourceProject.project_code}</em>
-                </span>
-              </label>
+              {allowSame && (
+                <label className={`copy-choice${dest === "same" ? " is-on" : ""}`}>
+                  <input
+                    type="radio"
+                    name="copy-dest"
+                    checked={dest === "same"}
+                    onChange={() => setDest("same")}
+                  />
+                  <span>
+                    <b>This enquiry</b>
+                    <em>{sourceProject.project_code}</em>
+                  </span>
+                </label>
+              )}
 
               <label className={`copy-choice${dest === "existing" ? " is-on" : ""}`}>
                 <input
@@ -136,7 +142,9 @@ const CopyTagModal = ({
                   <b>An existing enquiry</b>
                   <em>
                     {projects.length === 0
-                      ? "No other enquiries yet"
+                      ? allowSame
+                        ? "No other enquiries yet"
+                        : "No enquiries assigned to you yet"
                       : "Add the copy as a new tag there"}
                   </em>
                 </span>

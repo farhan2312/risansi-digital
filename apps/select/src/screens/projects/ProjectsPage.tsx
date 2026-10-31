@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
@@ -10,7 +10,7 @@ import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { canManageEnquiries, seesAllEnquiries } from "../../lib/roles";
+import { canManageEnquiries, canWorkOn, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Pagination from "../../components/ui/Pagination";
@@ -49,17 +49,18 @@ const PAGE_SIZE = 20;
 // is written out: the User-Master's Actions column is wider (Assign, Edit and
 // Delete as well).
 const ROW_GRID_MANAGER =
-  "grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_262px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_566px]";
+  "grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(64px,0.5fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_262px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(64px,0.5fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_566px]";
 const ROW_GRID_WORKER =
-  "grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_190px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_400px]";
+  "grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(64px,0.5fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_190px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(64px,0.5fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_400px]";
 
 const ProjectsPage = () => {
   const router = useRouter();
-  // User-Master / system admins create, edit, delete and (re)assign; a worker
-  // sees only the enquiries assigned to them and works them (lib/roles.ts).
+  // User-Master / system admins create, edit, delete and (re)assign. Everyone
+  // sees every enquiry, but a worker works only on the ones assigned to them;
+  // copying a tag out of any enquiry is fine (lib/roles.ts).
   const { user } = useCurrentUser();
   const manager = canManageEnquiries(user?.role);
-  const seesAll = seesAllEnquiries(user?.role);
+  const workable = (p: ProjectRecord) => canWorkOn(user, p);
   const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
   const ROW_GRID = manager ? ROW_GRID_MANAGER : ROW_GRID_WORKER;
 
@@ -128,6 +129,16 @@ const ProjectsPage = () => {
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 });
   // "All enquiries" / "Assigned to me" — filtered on the server.
   const [scope, setScope] = useState<"all" | "mine">("all");
+  // A worker opens on "Assigned to me" (they can still switch to All).
+  const scopeDefaulted = useRef(false);
+  useEffect(() => {
+    if (scopeDefaulted.current || !user) return;
+    scopeDefaulted.current = true;
+    if (!worksOnAnyEnquiry(user.role)) {
+      setScope("mine");
+      setPage(1);
+    }
+  }, [user]);
   // Typing is debounced so a filter keystroke doesn't fire a request each.
   const [debouncedFilters, setDebouncedFilters] = useState({ clientName: "", enquiryCode: "" });
 
@@ -498,21 +509,18 @@ const ProjectsPage = () => {
         }
       >
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* A worker only has the enquiries assigned to them anyway. */}
-          {seesAll && (
-            <Segmented
-              value={scope}
-              onChange={(v) => {
-                setScope(v);
-                setPage(1);
-              }}
-              loading={isLoading}
-              options={[
-                { key: "all", label: "All enquiries" },
-                { key: "mine", label: "Assigned to me" },
-              ]}
-            />
-          )}
+          <Segmented
+            value={scope}
+            onChange={(v) => {
+              setScope(v);
+              setPage(1);
+            }}
+            loading={isLoading}
+            options={[
+              { key: "all", label: "All enquiries" },
+              { key: "mine", label: "Assigned to me" },
+            ]}
+          />
           <label className="relative w-full sm:w-[240px] xl:w-[220px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <SearchGlyph />
@@ -593,13 +601,11 @@ const ProjectsPage = () => {
         <div className="mt-6">
           <EmptyState
             icon="folder"
-            title={!seesAll || scope === "mine" ? "No enquiries assigned to you yet" : "No enquiries yet"}
+            title={scope === "mine" ? "No enquiries assigned to you yet" : "No enquiries yet"}
             description={
-              !seesAll
-                ? "Enquiries the User-Master assigns to you show here."
-                : scope === "mine"
-                  ? "Enquiries assigned to you show here. Switch to All enquiries to see everyone's."
-                  : "Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
+              scope === "mine"
+                ? "Enquiries assigned to you show here. Switch to All enquiries to see everyone's."
+                : "Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
             }
             action={
               manager ? (
@@ -625,10 +631,11 @@ const ProjectsPage = () => {
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
           <div className="overflow-x-auto">
-          <div className={manager ? "min-w-[1020px] 2xl:min-w-[1260px]" : "min-w-[950px] 2xl:min-w-[1100px]"}>
+          <div className={manager ? "min-w-[1090px] 2xl:min-w-[1330px]" : "min-w-[1020px] 2xl:min-w-[1170px]"}>
           <div className={`border-b border-line bg-elev px-4 py-2.5 ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
             <span />
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Order Type</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Assigned To</span>
@@ -669,11 +676,6 @@ const ProjectsPage = () => {
                     >
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="font-mono text-[12.5px] font-bold text-title">{project.project_code}</span>
-                        {project.order_type === "spare" && (
-                          <span className="rounded-md bg-[var(--warn-soft)] px-1.5 py-px text-[10.5px] font-semibold text-warn" title="Order type">
-                            Spare
-                          </span>
-                        )}
                         {project.enquiry_date && (
                           <span
                             className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-px text-[10.5px] font-semibold whitespace-nowrap text-accent"
@@ -695,6 +697,16 @@ const ProjectsPage = () => {
                         {project.name || "—"}
                       </span>
                     </button>
+
+                    <span className="min-w-0">
+                      <span
+                        className={`inline-block rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold ${
+                          project.order_type === "spare" ? "bg-[var(--warn-soft)] text-warn" : "bg-accent-soft text-accent"
+                        }`}
+                      >
+                        {orderTypeLabel(project.order_type)}
+                      </span>
+                    </span>
 
                     <span className="min-w-0">
                       {project.client_code ? (
@@ -757,8 +769,11 @@ const ProjectsPage = () => {
                         type="button"
                         className={`${btn} relative`}
                         onClick={() => setQuotationFor(project)}
+                        disabled={!workable(project)}
                         title={
-                          project.quotation_count
+                          !workable(project)
+                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
+                            : project.quotation_count
                             ? "Quotation generated — view it or change the quotation no. (ERP)"
                             : "Generate the quotation (opens Technical and Commercial)"
                         }
@@ -774,9 +789,11 @@ const ProjectsPage = () => {
                         type="button"
                         className={btn}
                         onClick={() => openDocument(project)}
-                        disabled={!project.quotation_count}
+                        disabled={!project.quotation_count || !workable(project)}
                         title={
-                          project.quotation_count
+                          !workable(project)
+                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
+                            : project.quotation_count
                             ? "View this enquiry's Technical Data Sheet"
                             : "Generate the quotation first (Quotation button)"
                         }
@@ -789,9 +806,11 @@ const ProjectsPage = () => {
                         type="button"
                         className={btnCommercial}
                         onClick={() => router.push(`/commercial?projectId=${project.id}`)}
-                        disabled={!project.quotation_count}
+                        disabled={!project.quotation_count || !workable(project)}
                         title={
-                          project.quotation_count
+                          !workable(project)
+                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
+                            : project.quotation_count
                             ? "Commercial Summary: P&A and BOI prices for every tag"
                             : "Generate the quotation first (Quotation button)"
                         }
@@ -863,10 +882,12 @@ const ProjectsPage = () => {
                           <div>
                             <div className="text-[12.5px] font-semibold text-fg">Tags on this enquiry</div>
                             <div className="text-[11px] text-fg-3">
-                              Each tag is its own pump-selection run · click a tag name to rename it
+                              {workable(project)
+                                ? "Each tag is its own pump-selection run · click a tag name to rename it"
+                                : `View only - assigned to ${project.assigned_to_name || "someone else"}. Copy a tag into an enquiry assigned to you.`}
                             </div>
                           </div>
-                          {addingTagFor !== project.id && (
+                          {addingTagFor !== project.id && workable(project) && (
                             <button type="button" className={btn} onClick={() => startAddTag(project.id)}>
                               <PlusIcon /> Add tag
                             </button>
@@ -915,8 +936,8 @@ const ProjectsPage = () => {
                                         <button
                                           type="button"
                                           className="rounded px-0.5 text-[13px] font-semibold text-fg underline decoration-dotted decoration-fg-4 underline-offset-4 hover:text-accent hover:decoration-accent"
-                                          onClick={() => startRenameTag(tag)}
-                                          title="Click to rename"
+                                          onClick={() => workable(project) && startRenameTag(tag)}
+                                          title={workable(project) ? "Click to rename" : undefined}
                                         >
                                           {tag.name}
                                         </button>
@@ -933,30 +954,45 @@ const ProjectsPage = () => {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-0.5">
-                                    <button type="button" className={btnPrimary} onClick={() => openProject(project, tag)}>
-                                      <OpenIcon /> Open
-                                    </button>
+                                    {workable(project) && (
+                                      <button type="button" className={btnPrimary} onClick={() => openProject(project, tag)}>
+                                        <OpenIcon /> Open
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       className={btn}
-                                      onClick={() => handleCopyTagHere(tag)}
+                                      onClick={() => {
+                                        // Not yours: copy it into one of your enquiries instead.
+                                        if (workable(project)) handleCopyTagHere(tag);
+                                        else {
+                                          setCopyError(null);
+                                          setCopyingFrom({ project, tagId: tag.id });
+                                        }
+                                      }}
                                       disabled={copyingTagId === tag.id}
-                                      title="Duplicate this tag with all its pump-selection details"
+                                      title={
+                                        workable(project)
+                                          ? "Duplicate this tag with all its pump-selection details"
+                                          : "Copy this tag into an enquiry assigned to you"
+                                      }
                                       aria-label={`Copy tag ${tag.name}`}
                                     >
                                       <CopyIcon />
                                       {copyingTagId === tag.id ? "Copying…" : "Copy"}
                                     </button>
-                                    <button
-                                      type="button"
-                                      className={btnDanger}
-                                      onClick={() => setConfirmingDeleteTag(tag)}
-                                      disabled={deletingTagId === tag.id || (tags?.length ?? 0) <= 1}
-                                      title={(tags?.length ?? 0) <= 1 ? "Can't delete the last tag on an enquiry" : "Delete tag"}
-                                      aria-label={`Delete tag ${tag.name}`}
-                                    >
-                                      <TrashIcon />
-                                    </button>
+                                    {workable(project) && (
+                                      <button
+                                        type="button"
+                                        className={btnDanger}
+                                        onClick={() => setConfirmingDeleteTag(tag)}
+                                        disabled={deletingTagId === tag.id || (tags?.length ?? 0) <= 1}
+                                        title={(tags?.length ?? 0) <= 1 ? "Can't delete the last tag on an enquiry" : "Delete tag"}
+                                        aria-label={`Delete tag ${tag.name}`}
+                                      >
+                                        <TrashIcon />
+                                      </button>
+                                    )}
                                   </div>
                                 </li>
                               );
@@ -1057,8 +1093,9 @@ const ProjectsPage = () => {
           tags={tagsByProject[copyingFrom.project.id] ?? []}
           initialTagId={copyingFrom.tagId}
           projects={(allProjects ?? projects).filter(
-            (p) => p.id !== copyingFrom.project.id,
+            (p) => p.id !== copyingFrom.project.id && workable(p),
           )}
+          allowSame={workable(copyingFrom.project)}
           busy={copyBusy}
           error={copyError}
           allowNew={manager}

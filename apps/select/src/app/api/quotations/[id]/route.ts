@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { projects, quotation } from "@/lib/db/schema";
 import { parseErpSerial, quotationNumber } from "@/lib/commercial";
 import { loadQuotation, suggestedTsm, tsmById } from "@/lib/quotation-server";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ const UUID = /^[0-9a-f-]{36}$/i;
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) return error("Invalid quotation id", 400);
+  const noWork = await workDenied(req, { quotationId: id });
+  if (noWork) return noWork;
   let body: Record<string, unknown>;
   try {
     body = await req.json();

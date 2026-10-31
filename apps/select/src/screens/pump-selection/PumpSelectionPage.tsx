@@ -17,7 +17,9 @@ import RecommendationStep from "../../components/pump-selection/RecommendationSt
 import ProjectHeader from "../../components/projects/ProjectHeader";
 import LivePumpRecommendation from "../../components/pump-selection/LivePumpRecommendation";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
-import { getProject } from "../../services/projectService";
+import { getProject, type ProjectRecord } from "../../services/projectService";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
+import { canWorkOn } from "../../lib/roles";
 import {
   getWizardInput,
   saveWizardInput,
@@ -186,6 +188,10 @@ const PumpSelectionPage = () => {
   const [project, setProject] = useState<SelectedProject | undefined>(undefined);
   const [projectChecked, setProjectChecked] = useState(false);
   const [wasDeleted, setWasDeleted] = useState(false);
+  // The enquiry as it is now - a worker may only work on the ones assigned to
+  // them (lib/roles.ts); any other opens as a notice, not the wizard.
+  const [liveProject, setLiveProject] = useState<ProjectRecord | null>(null);
+  const { user: currentUser } = useCurrentUser();
 
   useEffect(() => {
     const raw = sessionStorage.getItem(SELECTED_PROJECT_KEY);
@@ -208,6 +214,7 @@ const PumpSelectionPage = () => {
       .then((live) => {
         if (cancelled) return;
         if (live) {
+          setLiveProject(live);
           setProject(stashed);
         } else {
           // Deleted since it was picked — drop the stale cache so a future
@@ -673,6 +680,24 @@ const PumpSelectionPage = () => {
         );
     }
   };
+
+  if (liveProject && currentUser && !canWorkOn(currentUser, liveProject)) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-6 py-24 text-center">
+        <h2 className="text-[18px] font-semibold text-fg">This enquiry is assigned to {liveProject.assigned_to_name || "someone else"}</h2>
+        <p className="text-[13px] text-fg-3">
+          You can see it on the Enquiries page and copy its tags into an enquiry assigned to you, but only the person it is
+          assigned to can work on it.
+        </p>
+        <Link
+          href="/projects"
+          className="mt-2 rounded-lg bg-title px-6 py-2.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          Go to Enquiries
+        </Link>
+      </div>
+    );
+  }
 
   // Wait for the client-only sessionStorage check before deciding whether to
   // show the wizard or the "no project" screen — avoids a flash.

@@ -15,8 +15,7 @@ import type { DashboardData, DashboardEnquiry } from "@/lib/dashboard-shared";
 // Everything the Dashboard shows, in one call (GET /api/dashboard).
 //
 //   since / until : bound the enquiry's (or tag's) created_at; either may be null
-//   mineUserId    : only enquiries assigned to that user ("Assigned to me",
-//                   and always for a worker - lib/roles.ts)
+//   mineUserId    : only enquiries assigned to that user ("Assigned to me")
 //
 // Days are IST. Enquiry status is rolled up from its tags with the same rule
 // as GET /api/projects (all Completed -> Completed, all Pending -> Pending,

@@ -8,6 +8,7 @@ import { projects, quotation, quotationVersion } from "@/lib/db/schema";
 import { finYearOf, isDriveGroup, parseErpSerial, quotationNumber } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, loadQuotation, suggestedTsm, tsmById } from "@/lib/quotation-server";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,8 @@ export async function POST(req: Request) {
   const projectId = String(body.projectId ?? "");
   const group = String(body.group ?? "");
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
   const erpSerial = parseErpSerial(body.erpSerial);
   if (erpSerial === undefined) return error("ERP serial: letters, digits, - or / only (max 30).", 400);

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { quotation, quotationVersion } from "@/lib/db/schema";
 import { formatInr, quotationNumber } from "@/lib/commercial";
 import { buildSnapshot, freezeLiveInternal, loadQuotation } from "@/lib/quotation-server";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ const UUID = /^[0-9a-f-]{36}$/i;
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) return error("Invalid quotation id", 400);
+  const noWork = await workDenied(req, { quotationId: id });
+  if (noWork) return noWork;
   const [current] = await db.select().from(quotation).where(eq(quotation.id, id)).limit(1);
   if (!current) return error("Quotation not found", 404);
 

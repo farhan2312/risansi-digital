@@ -80,7 +80,7 @@ export default function AssignEnquiryModal({
           </option>
         ))}
       </select>
-      <p className="mt-1.5 text-[12px] text-fg-3">The new person is e-mailed; the old one no longer sees it (unless they are the User-Master).</p>
+      <p className="mt-1.5 text-[12px] text-fg-3">Only the person it is assigned to can work on it; everyone can still view it and copy its tags.</p>
       {err && <p className="mt-2 text-[12.5px] font-medium text-neg">{err}</p>}
     </ConfirmModal>
   );

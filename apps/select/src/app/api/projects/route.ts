@@ -6,10 +6,7 @@ import { AuthError, requireEnquiryManager, tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
-import { appBaseUrl } from "@/lib/approval-server";
-import { enquiryScope, findAssignee } from "@/lib/enquiry-access";
-import { assignmentEmail } from "@/lib/email/approval-emails";
-import { describeEmailResult, sendEmail } from "@/lib/email/resend";
+import { findAssignee } from "@/lib/enquiry-access";
 import { orderTypeLabel } from "@/lib/roles";
 import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 
@@ -79,11 +76,9 @@ export async function GET(req: Request) {
   const createdTo = instant(params.get("to"));
   if (createdFrom) conditions.push(sql`${projects.createdAt} >= ${createdFrom}`);
   if (createdTo) conditions.push(sql`${projects.createdAt} <= ${createdTo}`);
-  // A worker sees only the enquiries assigned to them (lib/roles.ts).
+  // "Assigned to me" toggle (the default for a worker - everyone sees every
+  // enquiry, lib/roles.ts).
   const caller = await tryDecodeToken(req);
-  const scope = caller ? enquiryScope(caller) : sql`false`;
-  if (scope) conditions.push(scope);
-  // "Assigned to me" toggle.
   if (params.get("mine") === "1") {
     conditions.push(caller ? eq(projects.assignedTo, caller.sub) : sql`false`);
   }
@@ -232,26 +227,11 @@ export async function POST(req: Request) {
   const createdByName = creator?.name ?? null;
   const assignedName = assignedTo.name || assignedTo.email;
 
-  // The assignee hears about it, unless the creator kept it.
-  let emailNote = "";
-  if (assignedTo.id !== createdBy) {
-    const mail = assignmentEmail({
-      enquiryCode: project.projectCode,
-      clientName: project.name,
-      orderType: orderTypeLabel(orderType),
-      assignedByName: createdByName || claims.email,
-      reassigned: false,
-      openUrl: `${appBaseUrl(req)}/projects`,
-      assignedAt: project.assignedAt ?? new Date(),
-    });
-    emailNote = `; ${describeEmailResult(await sendEmail({ to: [assignedTo.email], ...mail }), assignedName)}`;
-  }
-
   await logAudit(req, {
     action: "enquiry.create",
     entity: "projects",
     entityId: project.id,
-    detail: `Created enquiry ${project.projectCode} (${orderTypeLabel(orderType)}), assigned to ${assignedName}${emailNote}`,
+    detail: `Created enquiry ${project.projectCode} (${orderTypeLabel(orderType)}), assigned to ${assignedName}`,
   });
 
   return json(projectToDict(project, createdByName, assignedTo.name), 201);

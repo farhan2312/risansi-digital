@@ -182,7 +182,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
                 </option>
               ))}
             </select>
-            <p className="modal-hint">Only the person it is assigned to (and the User-Master) sees it. You can reassign it later.</p>
+            <p className="modal-hint">Only the person it is assigned to (and the User-Master) can work on it. You can reassign it later.</p>
           </div>
 
           <ClientLookup active={isOpen} onSelect={handleSelect} />
