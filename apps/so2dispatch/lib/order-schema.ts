@@ -91,11 +91,11 @@ export const QC_DOC_FIELDS: OrderField[] = [
 
 export const INDUSTRY_TYPE_OPTIONS = opts(["Sugar", "Non Sugar"]);
 export const CURRENCY_OPTIONS = opts(["INR", "USD"]);
-export const ITEM_OPTIONS = opts(["Pump", "Spare", "ROLB"]);
+export const ITEM_OPTIONS = opts(["Pump", "Spare"]);
 // SO-level Order Type; each EC/Add-On inherits it as its item_type.
-export const ORDER_TYPE_OPTIONS = opts(["Pump", "Spare", "ROLB"]);
-// ROLB is handled exactly like a Pump (same Add-On form, same per-EC fields);
-// only the name differs. Pump-only gates accept either.
+export const ORDER_TYPE_OPTIONS = opts(["Pump", "Spare"]);
+// ROLB is no longer offered; one already entered is handled exactly like a
+// Pump (same Add-On form, same per-EC fields). Pump-only gates accept either.
 export const PUMP_LIKE = ["Pump", "ROLB"];
 
 // A pump's name plate: what is stamped on it, captured on the Pump Add-On.

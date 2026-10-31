@@ -73,6 +73,9 @@ const FILTER_KEYS = [
   "dispst",
   "dstage",
   "pack",
+  "ptype",
+  "model",
+  "imodel",
   "clear",
   "hreason",
   "ahold",
@@ -524,6 +527,34 @@ export function OrderListFilterBar({
             <Receipt className="h-3.5 w-3.5" />
             Only billing
           </button>
+        )}
+        {/* Planning's Pump view: the pump's type and model. */}
+        {dept === "planning" && /pump/i.test(filter.types.join(",")) && (
+          <>
+            <MultiSelectFilter
+              label="Pump type"
+              allLabel="Any pump type"
+              options={options.pumpTypes}
+              selected={filter.pumpTypes}
+              onChange={(next) => setParams({ ptype: next.length ? next.join("|") : null })}
+            />
+            <MultiSelectFilter
+              label="Model"
+              allLabel="Any model"
+              options={options.models}
+              selected={filter.models}
+              searchable
+              onChange={(next) => setParams({ model: next.length ? next.join("|") : null })}
+            />
+            <MultiSelectFilter
+              label="Internal model"
+              allLabel="Any internal model"
+              options={options.internalModels}
+              selected={filter.internalModels}
+              searchable
+              onChange={(next) => setParams({ imodel: next.length ? next.join("|") : null })}
+            />
+          </>
         )}
         {/* Planning, Assembly & Packing, the Orders list: a lot packed but on no packing slip. */}
         {(!dept || dept === "planning" || dept === "assembly") && (

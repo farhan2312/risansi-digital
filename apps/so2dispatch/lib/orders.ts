@@ -3657,6 +3657,15 @@ function orderListClauses(
   if (f.dispatchStages.length) clauses.push(`${dispatchStageSql("o")} = ANY(${p(f.dispatchStages)}::text[])`);
   // The Orders list: the SO's own Order Status, as its column reads it.
   if (f.orderStatuses?.length) clauses.push(`${ORDER_STATUS_SQL} = ANY(${p(f.orderStatuses)}::text[])`);
+  // Planning's Pump view: a pump EC that is all of what is picked.
+  if (f.pumpTypes?.length || f.models?.length || f.internalModels?.length) {
+    const on = [
+      f.pumpTypes?.length ? `TRIM(COALESCE(s.pump_type, '')) = ANY(${p(f.pumpTypes)}::text[])` : "",
+      f.models?.length ? `TRIM(COALESCE(s.model_no, '')) = ANY(${p(f.models)}::text[])` : "",
+      f.internalModels?.length ? `TRIM(COALESCE(s.internal_model, '')) = ANY(${p(f.internalModels)}::text[])` : "",
+    ].filter(Boolean);
+    clauses.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB') AND ${on.join(" AND ")})`);
+  }
   if (f.categories?.length) {
     const cats = f.categories.filter((m) => m !== NOT_SET);
     const any: string[] = [];
@@ -3917,6 +3926,10 @@ export type OrderListOptions = {
   types: string[];
   /** Client names. */
   clients: string[];
+  /** Planning's Pump view: the pump ECs' Pump Types, Model Nos. and Internal Models. */
+  pumpTypes: string[];
+  models: string[];
+  internalModels: string[];
   /** A Rep's names (their own, a Rep Manager's team): the only reps offered. One name is shown fixed. */
   repScope?: string[];
 };
@@ -3937,10 +3950,16 @@ async function allOrderListOptions(): Promise<OrderListOptions> {
      UNION SELECT DISTINCT 'client', TRIM(client_name) FROM orders WHERE TRIM(COALESCE(client_name, '')) <> ''
      UNION SELECT DISTINCT 'type', TRIM(order_type) FROM orders WHERE TRIM(COALESCE(order_type, '')) <> ''
      UNION SELECT DISTINCT 'type', TRIM(item_type) FROM order_items WHERE TRIM(COALESCE(item_type, '')) <> ''
+     UNION SELECT DISTINCT 'ptype', TRIM(pump_type) FROM order_items WHERE item_type IN ('Pump', 'ROLB') AND TRIM(COALESCE(pump_type, '')) <> ''
+     UNION SELECT DISTINCT 'model', TRIM(model_no) FROM order_items WHERE item_type IN ('Pump', 'ROLB') AND TRIM(COALESCE(model_no, '')) <> ''
+     UNION SELECT DISTINCT 'imodel', TRIM(internal_model) FROM order_items WHERE item_type IN ('Pump', 'ROLB') AND TRIM(COALESCE(internal_model, '')) <> ''
      ORDER BY 1, 2`
   );
   const of = (facet: string) => r.rows.filter((x) => x.facet === facet).map((x) => x.value);
-  return { zones: of("zone"), reps: of("rep"), markets: of("market"), types: of("type"), clients: of("client") };
+  return {
+    zones: of("zone"), reps: of("rep"), markets: of("market"), types: of("type"), clients: of("client"),
+    pumpTypes: of("ptype"), models: of("model"), internalModels: of("imodel"),
+  };
 }
 
 /** The most SOs one PDF carries. */

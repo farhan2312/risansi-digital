@@ -210,6 +210,10 @@ export type OrderListFilter = {
   dispatchStages: string[];
   /** Planning: Assembly & Packing's status on the same EC. */
   packingStatuses: string[];
+  /** Planning's Pump view: a pump EC's Pump Type, Model No. and Internal Model (URL ptype, model, imodel; "|"-separated). */
+  pumpTypes: string[];
+  models: string[];
+  internalModels: string[];
   /** The orders list: Clear or Hold. */
   clearance: string[];
   /** The orders list: why the held SOs are held. */
@@ -221,6 +225,9 @@ export type OrderListFilter = {
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A "|"-separated list — for values that may carry a comma (a model no.). */
+const pipeList = (v: string | undefined) => [...new Set((v ?? "").split("|").map((x) => x.trim()).filter(Boolean))];
 
 function list(value: string | undefined): string[] {
   return [
@@ -346,6 +353,9 @@ export function parseOrderListFilter(
       dept === "planning"
         ? list(get("pack")).filter((v) => PLANNING_PACKING_OPTIONS.includes(v) || PLANNING_PUMP_ASSEMBLY_OPTIONS.includes(v) || PLANNING_PUMP_PACKING_OPTIONS.includes(v))
         : [],
+    pumpTypes: dept === "planning" ? pipeList(get("ptype")) : [],
+    models: dept === "planning" ? pipeList(get("model")) : [],
+    internalModels: dept === "planning" ? pipeList(get("imodel")) : [],
     clearance: list(get("clear")).filter((v) => CLEARANCE_FILTER_OPTIONS.includes(v)),
     holdReasons: list(get("hreason")).filter((v) => HOLD_REASON_FILTER_OPTIONS.includes(v)),
     // Accounts' Hold / Clear: every department and the Orders list. Its reasons
@@ -416,6 +426,9 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.dispatchStages.length ||
     Object.keys(f.deptStatusMulti).length ||
     f.packingStatuses.length ||
+    f.pumpTypes.length ||
+    f.models.length ||
+    f.internalModels.length ||
     f.field ||
     f.ready ||
     f.noSlip ||
@@ -461,6 +474,9 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.dispatchStatuses.length) p.set("dispst", f.dispatchStatuses.join(","));
   if (f.dispatchStages.length) p.set("dstage", f.dispatchStages.join(","));
   if (f.packingStatuses.length) p.set("pack", f.packingStatuses.join(","));
+  if (f.pumpTypes.length) p.set("ptype", f.pumpTypes.join("|"));
+  if (f.models.length) p.set("model", f.models.join("|"));
+  if (f.internalModels.length) p.set("imodel", f.internalModels.join("|"));
   if (f.field) {
     p.set("field", f.field.column);
     p.set("fstate", f.field.state);
@@ -502,6 +518,9 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.dispatchStatuses.length) parts.push(`Dispatch status: ${f.dispatchStatuses.join(", ")}`);
   if (f.dispatchStages.length) parts.push(`Stage: ${f.dispatchStages.join(", ")}`);
   if (f.packingStatuses.length) parts.push(`Packing: ${f.packingStatuses.join(", ")}`);
+  if (f.pumpTypes.length) parts.push(`Pump type: ${f.pumpTypes.join(", ")}`);
+  if (f.models.length) parts.push(`Model: ${f.models.join(", ")}`);
+  if (f.internalModels.length) parts.push(`Internal model: ${f.internalModels.join(", ")}`);
   if (f.zones.length) parts.push(`Zone: ${f.zones.join(", ")}`);
   if (f.reps.length) parts.push(`Rep: ${f.reps.join(", ")}`);
   if (f.markets.length) parts.push(`Market: ${f.markets.join(", ")}`);
