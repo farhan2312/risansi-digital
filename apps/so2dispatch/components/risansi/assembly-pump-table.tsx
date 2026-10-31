@@ -38,11 +38,12 @@ function shortDate(v: unknown): string {
 const todayIso = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 
 /** A pump EC as assembly and packing read it. */
+/** model: its Internal Model. */
 type Ec = { id: string; label: string; model: string; quantity: number; ready: number };
 const ecOf = (r: Row): Ec => ({
   id: str(r.id),
   label: str(r.ec_no) || "EC",
-  model: str(((r.ec ?? {}) as Row).model_no),
+  model: str(((r.ec ?? {}) as Row).internal_model),
   quantity: num(((r.ec ?? {}) as Row).quantity),
   ready: num(r.ready_qty),
 });
@@ -168,7 +169,7 @@ export function AssemblyPumpTable({
             <th className={th} />
             <th className={`${th} border-l border-card-border`}>Packing Slips</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={`${th} border-l border-card-border`}>EC No. / Model</th>
+            <th className={`${th} border-l border-card-border`}>EC No. / Internal Model</th>
             <th className={th}>EC Date</th>
             <th className={th}>Qty</th>
             <th className={th}>Ready</th>
@@ -383,7 +384,7 @@ function LotStagesModal({
   const dirty = JSON.stringify([lots, entries]) !== JSON.stringify([initialLots, initialEntries]);
   const set = (i: number, patch: Partial<PumpLot>) => setLots((ls) => ls.map((l, k) => (k === i ? { ...l, ...patch } : l)));
   const setEntry = (key: string, patch: Partial<Entry>) => setEntries((es) => es.map((e) => (e.key === key ? { ...e, ...patch } : e)));
-  // The EC with its model no., so the pump is plain.
+  // The EC with its internal model, so the pump is plain.
   const label = (id: string) => {
     const e = ecs.find((x) => x.id === id);
     return e ? [e.label, e.model].filter(Boolean).join(" · ") : "EC";

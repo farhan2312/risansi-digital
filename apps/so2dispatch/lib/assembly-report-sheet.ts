@@ -100,7 +100,7 @@ export function assemblyPumpSheet(rows: Row[], filterLine: string): ReportSheet 
     Col("Packing Slips", 30, "Packing"),
     Col("Dispatch Status", 18, "Dispatch"),
     Col("EC No.", 20, "EC"),
-    Col("Model No.", 24, "EC"),
+    Col("Internal Model", 24, "EC"),
     Col("EC Date", 12, "EC"),
     Col("Qty", 8, "EC", true),
     Col("Ready", 8, "EC", true),
@@ -173,7 +173,7 @@ export function assemblyPumpSheet(rows: Row[], filterLine: string): ReportSheet 
       pumps += quantity;
       const ecCells: [SheetCell, Tone | null][] = [
         [str(r.ec_no) || str(ec.ec_no) || null, null],
-        [str(ec.model_no) || null, null],
+        [str(ec.internal_model) || null, null],
         [day(ec.ec_date) || null, null],
         [quantity || null, null],
         [num(r.ready_qty), null],
