@@ -95,6 +95,9 @@ export const projects = pgTable("projects", {
   assignedTo: uuid("assigned_to").references(() => users.id, { onDelete: "set null" }),
   assignedBy: uuid("assigned_by").references(() => users.id, { onDelete: "set null" }),
   assignedAt: timestamp("assigned_at", { withTimezone: true }),
+  /** The assignee has not seen this assignment yet - their top-bar bell shows
+   *  it until they open the bell. Set when someone else assigns it to them. */
+  assigneeUnread: boolean("assignee_unread").notNull().default(false),
   /** The client's reps, market type and zone in Market Intell, copied when
    *  the client is picked so the enquiry keeps what was true at the time. */
   clientPrimaryRep: varchar("client_primary_rep", { length: 255 }),

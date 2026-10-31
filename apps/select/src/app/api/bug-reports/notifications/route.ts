@@ -1,13 +1,17 @@
 import { and, desc, eq, gt, ne, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { bugReportSelection, users } from "@/lib/db/schema";
+import { bugReportSelection, projects, users } from "@/lib/db/schema";
+
+const assigner = alias(users, "assigner");
 
 export const dynamic = "force-dynamic";
 
-// Top-bar bell. Two independent feeds, merged into one list:
+// Top-bar bell. Independent feeds, merged into one list (the third, enquiries
+// assigned to the caller, is at the bottom of GET):
 //
 //   "status"  every report the CALLER filed whose status has changed since
 //             they last looked (bugReportSelection.reporterUnread). Any
@@ -88,5 +92,32 @@ export async function GET(req: Request) {
     reportedByName: r.isMine ? null : r.reportedByName,
   }));
 
-  return json({ count: items.length, items });
+  // Third feed: enquiries someone else assigned to the caller that they have
+  // not seen yet (projects.assignee_unread, cleared by .../read).
+  const assigned = await db
+    .select({
+      id: projects.id,
+      code: projects.projectCode,
+      client: projects.name,
+      orderType: projects.orderType,
+      assignedAt: projects.assignedAt,
+      byName: assigner.name,
+    })
+    .from(projects)
+    .leftJoin(assigner, eq(assigner.id, projects.assignedBy))
+    .where(and(eq(projects.assignedTo, claims.sub), eq(projects.assigneeUnread, true)))
+    .orderBy(desc(projects.assignedAt));
+  const assignedItems = assigned.map((a) => ({
+    id: a.id,
+    title: [a.code, a.client].filter(Boolean).join(" · "),
+    status: "Assigned",
+    updatedAt: a.assignedAt,
+    kind: "assigned" as const,
+    reportedByName: a.byName,
+  }));
+
+  const all = [...assignedItems, ...items].sort(
+    (x, y) => new Date(y.updatedAt ?? 0).getTime() - new Date(x.updatedAt ?? 0).getTime(),
+  );
+  return json({ count: all.length, items: all });
 }

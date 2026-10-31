@@ -13,7 +13,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** POST {assignedTo} - assign or reassign an enquiry to a worker or to the
  *  caller. User-Master and system admins only. Audited (old -> new); no
- *  e-mail (user, 2026-10-31). */
+ *  e-mail (user, 2026-10-31) - the assignee is told by the portal's bell. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   let claims;
   try {
@@ -50,7 +50,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const now = new Date();
   await db
     .update(projects)
-    .set({ assignedTo: target.id, assignedBy: claims.sub, assignedAt: now, updatedAt: now })
+    // The new assignee's bell tells them (not when you take it yourself).
+    .set({ assignedTo: target.id, assignedBy: claims.sub, assignedAt: now, updatedAt: now, assigneeUnread: target.id !== claims.sub })
     .where(eq(projects.id, id));
 
   const fromName = before ? before.name || before.email : "nobody";

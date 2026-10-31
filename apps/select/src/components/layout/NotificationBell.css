@@ -97,6 +97,8 @@
 .notif-status-dot.status-in-progress { background: var(--warn, #d97706); }
 .notif-status-dot.status-resolved,
 .notif-status-dot.status-closed { background: var(--pos, #059669); }
+/* An enquiry assigned to me. */
+.notif-status-dot.status-assigned { background: var(--brand-blue, #1a5cb8); }
 
 .notif-item-title {
   font-size: 13px;

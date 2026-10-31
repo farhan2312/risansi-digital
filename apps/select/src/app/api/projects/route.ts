@@ -218,6 +218,8 @@ export async function POST(req: Request) {
         assignedTo: assignedTo.id,
         assignedBy: createdBy,
         assignedAt: new Date(),
+        // Their bell tells them, unless the creator kept it.
+        assigneeUnread: assignedTo.id !== createdBy,
         ...clientDetailsFrom(body),
       })
       .returning();
