@@ -74,6 +74,7 @@ import {
   SECTION_BY_TABLE,
   type ChildTable,
   type OrderTable,
+  PUMP_TYPE_OPTIONS,
 } from "@/lib/order-schema";
 
 const UUID_RE =
@@ -3958,7 +3959,8 @@ async function allOrderListOptions(): Promise<OrderListOptions> {
   const of = (facet: string) => r.rows.filter((x) => x.facet === facet).map((x) => x.value);
   return {
     zones: of("zone"), reps: of("rep"), markets: of("market"), types: of("type"), clients: of("client"),
-    pumpTypes: of("ptype"), models: of("model"), internalModels: of("imodel"),
+    // Every Pump Type the form offers, and any other on an EC.
+    pumpTypes: [...new Set([...PUMP_TYPE_OPTIONS.map((o) => o.value), ...of("ptype")])], models: of("model"), internalModels: of("imodel"),
   };
 }
 
