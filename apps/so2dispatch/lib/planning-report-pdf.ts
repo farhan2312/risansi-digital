@@ -261,7 +261,8 @@ export function pumpLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>):
       return {
         ...so,
         ec: str(r.ec_no) || str(ec.ec_no),
-        pump: [str(ec.pump_type), str(ec.model_no)].filter(Boolean).join(" · "),
+        // The pump, its Model No., then its Internal Model after a slash.
+        pump: [[str(ec.pump_type), str(ec.model_no)].filter(Boolean).join(" · "), str(ec.internal_model)].filter(Boolean).join(" / "),
         qty: quantity || null,
         ready: `${str(r.ready_qty) || "0"} / ${quantity || "—"}`,
         ecStatus: held ? "HOLD" : stage,
@@ -312,7 +313,7 @@ export const PUMP_COLUMNS: Column<PumpLine>[] = [
   { label: "Lots", width: 82, key: "lots" },
   { label: "Remarks", width: 56, key: "remarks" },
   { label: "EC No.", width: 50, key: "ec" },
-  { label: "Pump · Model", width: 60, key: "pump" },
+  { label: "Pump · Model / Internal", width: 60, key: "pump" },
   { label: "Qty", width: 22, key: "qty" },
   { label: "Ready", width: 28, key: "ready" },
   { label: "EC status", width: 50, key: "ecStatus" },
