@@ -3758,8 +3758,12 @@ function orderListClauses(
     else if (f.dateField === "readiness") {
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_planning rpl ON rpl.item_id = s.id
                              WHERE s.order_id = o.id AND ${range("rpl.planning_readiness_date")})`);
+    } else if (f.dateField === "assembly_plan") {
+      // Assembly & Packing's planned assembly date on any of the SO's pump lots.
+      clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_lot_assembly pla ON pla.item_id = s.id
+                             WHERE s.order_id = o.id AND ${range("pla.plan_date")})`);
     } else if (f.dateField === "packing") {
-      // Assembly & Packing's planned packing date on any of the SO's Spare lots.
+      // Assembly & Packing's planned packing date on any of the SO's lots.
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_ready_lots prl ON prl.item_id = s.id
                              WHERE s.order_id = o.id AND ${range("prl.packing_plan_date")})`);
     } else if (f.dateField === "drg_readiness") clauses.push(range("o.drg_readiness_date"));
@@ -5994,6 +5998,10 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
     else if (f.dateField === "readiness") {
       clauses.push(`EXISTS (SELECT 1 FROM order_planning rpl
                              WHERE rpl.item_id = it.id AND ${range("rpl.planning_readiness_date")})`);
+    }
+    else if (f.dateField === "assembly_plan") {
+      clauses.push(`EXISTS (SELECT 1 FROM order_lot_assembly pla
+                             WHERE pla.item_id = it.id AND ${range("pla.plan_date")})`);
     }
     else if (f.dateField === "packing") {
       clauses.push(`EXISTS (SELECT 1 FROM order_ready_lots prl

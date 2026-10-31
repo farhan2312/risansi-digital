@@ -613,7 +613,9 @@ export function OrderListFilterBar({
             // Assembly & Packing, Billing and Dispatch work from Planning's readiness date too.
             if (f.value === "readiness")
               return !dept || ["planning", "assembly", "billing", "dispatch"].includes(activeDept ?? "");
-            // Assembly & Packing's planned packing date (Spare lots).
+            // Assembly & Packing's planned assembly date (pump lots).
+            if (f.value === "assembly_plan") return !dept || activeDept === "assembly";
+            // Assembly & Packing's planned packing date.
             if (f.value === "packing") return !dept || ["planning", "assembly", "dispatch"].includes(activeDept ?? "");
             // Drawing's own readiness date.
             if (f.value === "drg_readiness") return !dept || activeDept === "drawing";
