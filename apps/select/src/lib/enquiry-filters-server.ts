@@ -42,6 +42,7 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
     const like = `%${esc(w)}%`;
     out.push(sql`(${projects.name} ILIKE ${like} OR ${projects.clientCode} ILIKE ${like})`);
   }
+  push(anyOf(projects.orderType, f.orderType ?? []));
   push(anyOf(projects.clientPrimaryRep, f.primaryRep ?? []));
   // Secondary reps are stored as "A, B, C": any one of them matching counts.
   const sec = [...new Set((f.secondaryRep ?? []).map(filterKey).filter(Boolean))];

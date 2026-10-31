@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import apiClient from "../../services/apiClient";
+import { ORDER_TYPES } from "../../lib/roles";
 import {
   ENQUIRY_STATUSES,
   filterKey,
@@ -16,6 +17,8 @@ import {
 // search, then multi-select primary rep, secondary rep, zone, market, industry
 // and status. The dropdown values come from the enquiries themselves, one per
 // value whatever its spelling (lib/enquiry-filters filterKey).
+
+const ORDER_TYPE_LABELS = ORDER_TYPES.map((o) => o.label);
 
 let optionsCache: Promise<EnquiryFilterOptions> | null = null;
 const loadOptions = () =>
@@ -202,6 +205,7 @@ export default function EnquiryFilterBar({
           />
         </label>
       )}
+      {multi("orderType", "Order type", ORDER_TYPE_LABELS)}
       {multi("primaryRep", "Primary rep", opts?.primaryReps)}
       {multi("secondaryRep", "Secondary rep", opts?.secondaryReps)}
       {multi("zone", "Zone", opts?.zones)}

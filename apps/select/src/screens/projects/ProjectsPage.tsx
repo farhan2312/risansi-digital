@@ -10,6 +10,7 @@ import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
+import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { canManageEnquiries, canWorkOn, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
@@ -595,6 +596,9 @@ const ProjectsPage = () => {
           />
         </div>
       </PageHeader>
+
+      {/* User-Master / system admins: who has what (one card per person). */}
+      {manager && <AssigneeKpis />}
 
       {error && (
         <div
