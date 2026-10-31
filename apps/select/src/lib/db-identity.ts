@@ -52,7 +52,10 @@ function create(): Pool {
     password,
     port: Number(process.env.IDENTITY_DB_PORT) || 5432,
     max: 4,
-    idleTimeoutMillis: 30_000,
+    // Reconnecting costs most of a second; keep idle connections 3 min with
+    // keep-alive (same as ./db) so the 10 s access cache refills cheaply.
+    idleTimeoutMillis: 180_000,
+    keepAlive: true,
     connectionTimeoutMillis: 10_000,
     ssl: { rejectUnauthorized: process.env.IDENTITY_DB_SSL_INSECURE !== "1" },
   });

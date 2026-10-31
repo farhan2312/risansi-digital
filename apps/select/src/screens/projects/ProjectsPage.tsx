@@ -541,7 +541,7 @@ const ProjectsPage = () => {
               { key: "mine", label: "Assigned to me" },
             ]}
           />
-          <label className="relative w-full sm:w-[240px] xl:w-[220px]">
+          <label className="relative w-full sm:w-[200px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <SearchGlyph />
             </span>
@@ -555,7 +555,7 @@ const ProjectsPage = () => {
               onChange={(e) => setClientNameFilter(e.target.value)}
             />
           </label>
-          <label className="relative w-full sm:w-[210px] xl:w-[190px]">
+          <label className="relative w-full sm:w-[180px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <HashGlyph />
             </span>
@@ -587,6 +587,7 @@ const ProjectsPage = () => {
             fromLabel={dateField === "assigned" ? "Assigned from" : "Enquiry date from"}
             toLabel={dateField === "assigned" ? "Assigned to" : "Enquiry date to"}
             showClear={false}
+            compact
           />
           {hasFilter && (
             <button

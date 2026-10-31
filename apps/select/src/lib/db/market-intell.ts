@@ -30,7 +30,11 @@ function createPool(): Pool {
     // Azure Postgres presents a chain Node ships no root for (same as ./index).
     ssl: { rejectUnauthorized: false },
     max: 4,
-    idleTimeoutMillis: 30_000,
+    // A new connection to Market Intell (TCP + TLS + auth) costs ~0.9 s, and
+    // with a 30 s idle timeout nearly every Quotation open paid it for the
+    // client's rep. Keep idle ones 3 min, with keep-alive (same as ./index).
+    idleTimeoutMillis: 180_000,
+    keepAlive: true,
     // Belt and braces: ask the SERVER to refuse writes on every connection from
     // this pool, so even a mistaken query in future code cannot mutate Market
     // Intell. Sent in the startup packet, so it is in force before the first
