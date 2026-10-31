@@ -11,6 +11,7 @@ import {
   type ReportSummaryField,
 } from "../../services/reportsService";
 import EmptyState from "../../components/ui/EmptyState";
+import Pagination from "../../components/ui/Pagination";
 import PageHeader from "../../components/ui/PageHeader";
 import StatusPill, { lifecycleStyle } from "../../components/ui/StatusPill";
 import DateRangeFilter, { inDateWindow, useDateRange } from "../../components/ui/DateRangeFilter";
@@ -110,6 +111,9 @@ const GRID =
 
 type DocKind = "technical" | "commercial" | "techno";
 
+// Enquiries per page (grouped client-side: one row per enquiry).
+const PAGE_SIZE = 20;
+
 const SelectionSummaryPage = () => {
   // A worker edits the documents of the enquiries assigned to them and only
   // views the rest (lib/roles.ts; the API refuses their saves too).
@@ -193,6 +197,13 @@ const SelectionSummaryPage = () => {
       (b.latest_generated_at ?? "").localeCompare(a.latest_generated_at ?? ""),
     );
   }, [filtered]);
+
+  // Paged by enquiry; a new search or date range starts again at page 1.
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [search, dates.window]);
+  const lastPage = Math.max(1, Math.ceil(grouped.length / PAGE_SIZE));
+  const curPage = Math.min(page, lastPage);
+  const pageGroups = grouped.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
 
   const toggleExpanded = (projectId: string) =>
     setExpanded((prev) => {
@@ -289,7 +300,7 @@ const SelectionSummaryPage = () => {
               <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Techno-Commercial</span>
             </div>
             <ul className="divide-y divide-line">
-              {grouped.map((g) => {
+              {pageGroups.map((g) => {
                 const isOpen = expanded.has(g.project_id);
                 const enquiryStatus = rollupTagStatuses(g.tags.map((t) => t.status ?? ""));
                 return (
@@ -390,6 +401,11 @@ const SelectionSummaryPage = () => {
               })}
             </ul>
             </div>
+            </div>
+          )}
+          {grouped.length > 0 && (
+            <div className="border-t border-line bg-[color-mix(in_srgb,var(--bg-elev)_45%,var(--bg-paper))]">
+              <Pagination page={curPage} totalItems={grouped.length} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="enquiries" />
             </div>
           )}
         </div>
