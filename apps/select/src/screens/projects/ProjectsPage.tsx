@@ -62,7 +62,7 @@ const ProjectsPage = () => {
   // User-Master / system admins create, edit, delete and (re)assign. Everyone
   // sees every enquiry, but a worker works only on the ones assigned to them;
   // copying a tag out of any enquiry is fine (lib/roles.ts).
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
   const manager = canManageEnquiries(user?.role);
   const workable = (p: ProjectRecord) => canWorkOn(user, p);
   const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
@@ -135,16 +135,21 @@ const ProjectsPage = () => {
   const [scope, setScope] = useState<"all" | "mine">("all");
   // Reps / zone / market / industry / status (the same filters as the Dashboard).
   const [adv, setAdv] = useState<EnquiryFilters>({});
-  // A worker opens on "Assigned to me" (they can still switch to All).
+  // A worker opens on "Assigned to me" (they can still switch to All). Nothing
+  // loads until the role is known - otherwise an "All" request fired first
+  // could land after the "mine" one and show every enquiry under "Assigned to me".
   const scopeDefaulted = useRef(false);
+  const [scopeReady, setScopeReady] = useState(false);
   useEffect(() => {
-    if (scopeDefaulted.current || !user) return;
+    if (scopeDefaulted.current) return;
+    if (!user && userLoading) return;
     scopeDefaulted.current = true;
-    if (!worksOnAnyEnquiry(user.role)) {
+    if (user && !worksOnAnyEnquiry(user.role)) {
       setScope("mine");
       setPage(1);
     }
-  }, [user]);
+    setScopeReady(true);
+  }, [user, userLoading]);
   // Typing is debounced so a filter keystroke doesn't fire a request each.
   const [debouncedFilters, setDebouncedFilters] = useState({ clientName: "", enquiryCode: "" });
 
@@ -168,7 +173,11 @@ const ProjectsPage = () => {
     return () => clearTimeout(timer);
   }, [clientNameFilter, enquiryCodeFilter]);
 
+  // Only the newest request may fill the table (a slow older one is dropped).
+  const loadSeq = useRef(0);
   const loadProjects = useCallback(() => {
+    if (!scopeReady) return;
+    const seq = ++loadSeq.current;
     setIsLoading(true);
     setError(null);
     listProjectsPage({
@@ -182,6 +191,7 @@ const ProjectsPage = () => {
       filters: adv,
     })
       .then((res) => {
+        if (seq !== loadSeq.current) return;
         setProjects(res.items);
         setPageInfo({ total: res.total, totalPages: res.totalPages });
         // Deleting the last row on the last page can strand us past the end;
@@ -190,9 +200,9 @@ const ProjectsPage = () => {
           setPage(res.totalPages);
         }
       })
-      .catch(() => setError("Couldn't load enquiries."))
-      .finally(() => setIsLoading(false));
-  }, [page, debouncedFilters, dateWindow, scope, adv]);
+      .catch(() => seq === loadSeq.current && setError("Couldn't load enquiries."))
+      .finally(() => seq === loadSeq.current && setIsLoading(false));
+  }, [page, debouncedFilters, dateWindow, scope, adv, scopeReady]);
 
   useEffect(() => {
     loadProjects();

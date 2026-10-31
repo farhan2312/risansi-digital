@@ -202,16 +202,23 @@ function EnquiryItem({ enquiry, onOpenTag }: { enquiry: DashboardEnquiry; onOpen
 
 const DashboardPage = () => {
   const router = useRouter();
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
   const dates = useDateRange("all");
   const [scope, setScope] = useState<"all" | "mine">("all");
-  // A worker opens on "Assigned to me" (they can still switch to All).
+  // A worker opens on "Assigned to me" (they can still switch to All). Nothing
+  // loads until the role is known - otherwise an "All" request fired first
+  // could land after the "mine" one and show every enquiry under "Assigned to me".
   const scopeDefaulted = useRef(false);
+  const [scopeReady, setScopeReady] = useState(false);
   useEffect(() => {
-    if (scopeDefaulted.current || !user) return;
+    if (scopeDefaulted.current) return;
+    if (!user && userLoading) return;
     scopeDefaulted.current = true;
-    if (!worksOnAnyEnquiry(user.role)) setScope("mine");
-  }, [user]);
+    if (user && !worksOnAnyEnquiry(user.role)) {
+      setScope("mine");
+    }
+    setScopeReady(true);
+  }, [user, userLoading]);
   // Client / reps / zone / market / industry / status (same as the Enquiries page).
   const [filters, setFilters] = useState<EnquiryFilters>({});
   const [trendView, setTrendView] = useState<"created" | "completed">("created");
@@ -223,6 +230,7 @@ const DashboardPage = () => {
   const query = dates.window;
 
   useEffect(() => {
+    if (!scopeReady) return;
     let cancelled = false;
     setIsLoading(true);
     setError(null);
@@ -233,7 +241,7 @@ const DashboardPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [query, scope, filters]);
+  }, [query, scope, filters, scopeReady]);
 
   const openTag = (
     enquiry: Pick<DashboardEnquiry, "id" | "code" | "client" | "customer" | "status">,
