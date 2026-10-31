@@ -10,6 +10,8 @@ import {
   users,
 } from "@/lib/db/schema";
 import { IST_OFFSET_MS } from "@/lib/ist";
+import type { EnquiryFilters } from "@/lib/enquiry-filters";
+import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
 import type { DashboardData, DashboardEnquiry } from "@/lib/dashboard-shared";
 
 // Everything the Dashboard shows, in one call (GET /api/dashboard).
@@ -30,10 +32,13 @@ export async function getDashboardData({
   since,
   until,
   mineUserId,
+  filters = {},
 }: {
   since: Date | null;
   until: Date | null;
   mineUserId: string | null;
+  /** Client / reps / zone / market / industry / status (lib/enquiry-filters). */
+  filters?: EnquiryFilters;
 }): Promise<DashboardData> {
   const mine = Boolean(mineUserId);
 
@@ -41,7 +46,7 @@ export async function getDashboardData({
     ...(since ? [sql`${col} >= ${since}`] : []),
     ...(until ? [sql`${col} <= ${until}`] : []),
   ];
-  const scope: SQL[] = mine && mineUserId ? [eq(projects.assignedTo, mineUserId)] : [];
+  const scope: SQL[] = [...(mine && mineUserId ? [eq(projects.assignedTo, mineUserId)] : []), ...enquiryFilterSql(filters)];
   const projectWhere = and(...created(projects.createdAt), ...scope);
   const tagWhere = and(...created(enquiryTags.createdAt), ...scope);
 

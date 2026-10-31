@@ -9,6 +9,8 @@ import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal"
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
+import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
+import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { canManageEnquiries, canWorkOn, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import EmptyState from "../../components/ui/EmptyState";
@@ -130,6 +132,8 @@ const ProjectsPage = () => {
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 });
   // "All enquiries" / "Assigned to me" — filtered on the server.
   const [scope, setScope] = useState<"all" | "mine">("all");
+  // Reps / zone / market / industry / status (the same filters as the Dashboard).
+  const [adv, setAdv] = useState<EnquiryFilters>({});
   // A worker opens on "Assigned to me" (they can still switch to All).
   const scopeDefaulted = useRef(false);
   useEffect(() => {
@@ -174,6 +178,7 @@ const ProjectsPage = () => {
       from: dateWindow.from,
       to: dateWindow.to,
       mine: scope === "mine",
+      filters: adv,
     })
       .then((res) => {
         setProjects(res.items);
@@ -186,7 +191,7 @@ const ProjectsPage = () => {
       })
       .catch(() => setError("Couldn't load enquiries."))
       .finally(() => setIsLoading(false));
-  }, [page, debouncedFilters, dateWindow, scope]);
+  }, [page, debouncedFilters, dateWindow, scope, adv]);
 
   useEffect(() => {
     loadProjects();
@@ -461,7 +466,7 @@ const ProjectsPage = () => {
   // unchanged.
   const filteredProjects = projects;
 
-  const hasFilter = clientNameFilter !== "" || enquiryCodeFilter !== "" || dates.active;
+  const hasFilter = clientNameFilter !== "" || enquiryCodeFilter !== "" || dates.active || hasEnquiryFilters(adv);
 
   const handleDelete = async () => {
     if (!confirmingDelete) return;
@@ -565,6 +570,7 @@ const ProjectsPage = () => {
                 setClientNameFilter("");
                 setEnquiryCodeFilter("");
                 dates.reset();
+                setAdv({});
                 setPage(1);
               }}
             >
@@ -577,6 +583,16 @@ const ProjectsPage = () => {
               {hasFilter ? " match" : ""}
             </span>
           )}
+        </div>
+        <div className="mt-2.5 border-t border-line pt-2.5">
+          <EnquiryFilterBar
+            value={adv}
+            showClient={false}
+            onChange={(next) => {
+              setAdv(next);
+              setPage(1);
+            }}
+          />
         </div>
       </PageHeader>
 

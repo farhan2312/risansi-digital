@@ -1,5 +1,6 @@
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
+import { filtersFromParams } from "@/lib/enquiry-filters";
 import { getDashboardList } from "@/lib/dashboard-list";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,7 @@ export async function GET(req: Request) {
       since: parseInstant(p.get("from")),
       until: parseInstant(p.get("to")),
       mineUserId: p.get("mine") === "1" ? claims.sub : null,
+      filters: filtersFromParams(p),
     }),
   );
 }

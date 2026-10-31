@@ -1,5 +1,6 @@
 import apiClient from "./apiClient";
 import type { OrderType } from "../lib/roles";
+import { filterParams, type EnquiryFilters } from "../lib/enquiry-filters";
 
 // Matches projectToDict() in lib/api.ts — raw snake_case columns plus the
 // joined creator display name.
@@ -62,6 +63,8 @@ export const listProjectsPage = async (query: {
   to?: string;
   /** Only enquiries assigned to the signed-in user. */
   mine?: boolean;
+  /** Reps / zone / market / industry / status (shared with the Dashboard). */
+  filters?: EnquiryFilters;
 }): Promise<ProjectPage> => {
   const { data } = await apiClient.get<ProjectPage>("/projects", {
     params: {
@@ -72,6 +75,7 @@ export const listProjectsPage = async (query: {
       from: query.from || undefined,
       to: query.to || undefined,
       mine: query.mine ? "1" : undefined,
+      ...filterParams(query.filters),
     },
   });
   return data;

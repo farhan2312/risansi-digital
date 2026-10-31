@@ -13,6 +13,8 @@ import { Avatar, Card, Icons, Segmented } from "../admin/audit/auditUi";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
 import DashboardListModal, { type DashboardListTarget } from "./DashboardListModal";
+import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
+import type { EnquiryFilters } from "../../lib/enquiry-filters";
 
 const STATUS_STYLE: Record<string, { pill: string; dot: string; color: string }> = {
   Pending: { pill: "bg-[var(--warn-soft)] text-warn", dot: "bg-warn", color: "var(--warn)" },
@@ -210,6 +212,8 @@ const DashboardPage = () => {
     scopeDefaulted.current = true;
     if (!worksOnAnyEnquiry(user.role)) setScope("mine");
   }, [user]);
+  // Client / reps / zone / market / industry / status (same as the Enquiries page).
+  const [filters, setFilters] = useState<EnquiryFilters>({});
   const [trendView, setTrendView] = useState<"created" | "completed">("created");
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -222,14 +226,14 @@ const DashboardPage = () => {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-    getDashboard({ ...query, mine: scope === "mine" })
+    getDashboard({ ...query, mine: scope === "mine", filters })
       .then((d) => !cancelled && setData(d))
       .catch(() => !cancelled && setError("Couldn't load dashboard data."))
       .finally(() => !cancelled && setIsLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [query, scope]);
+  }, [query, scope, filters]);
 
   const openTag = (
     enquiry: Pick<DashboardEnquiry, "id" | "code" | "client" | "customer" | "status">,
@@ -314,6 +318,9 @@ const DashboardPage = () => {
             ]}
           />
           <DateRangeFilter state={dates} />
+        </div>
+        <div className="relative border-t border-line px-5 py-3">
+          <EnquiryFilterBar value={filters} onChange={setFilters} />
         </div>
       </div>
 
@@ -539,6 +546,7 @@ const DashboardPage = () => {
           target={listTarget}
           period={query}
           mine={scope === "mine"}
+          filters={filters}
           scopeLabel={`${scopeText} · ${windowLabel}`}
           onClose={() => setListTarget(null)}
           onOpenEnquiry={(r) => openTag(r)}

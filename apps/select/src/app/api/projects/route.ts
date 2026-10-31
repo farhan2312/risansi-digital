@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 import { findAssignee } from "@/lib/enquiry-access";
+import { filtersFromParams } from "@/lib/enquiry-filters";
+import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
 import { orderTypeLabel } from "@/lib/roles";
 import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 
@@ -76,6 +78,8 @@ export async function GET(req: Request) {
   const createdTo = instant(params.get("to"));
   if (createdFrom) conditions.push(sql`${projects.createdAt} >= ${createdFrom}`);
   if (createdTo) conditions.push(sql`${projects.createdAt} <= ${createdTo}`);
+  // Client / reps / zone / market / industry / status (shared with the Dashboard).
+  conditions.push(...enquiryFilterSql(filtersFromParams(params)));
   // "Assigned to me" toggle (the default for a worker - everyone sees every
   // enquiry, lib/roles.ts).
   const caller = await tryDecodeToken(req);

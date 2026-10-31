@@ -3,6 +3,8 @@ import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { enquiryTags, generalInfoInput, projects, stepApproval, users } from "@/lib/db/schema";
 import type { DashboardListPage, DashboardListQuery } from "@/lib/dashboard-shared";
+import type { EnquiryFilters } from "@/lib/enquiry-filters";
+import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
 
 // The lists behind the Dashboard's KPI cards (GET /api/dashboard/list). Same
 // filters as getDashboardData, so a list always adds up to its card:
@@ -21,14 +23,20 @@ export async function getDashboardList({
   since,
   until,
   mineUserId,
-}: DashboardListQuery & { since: Date | null; until: Date | null; mineUserId: string | null }): Promise<DashboardListPage> {
+  filters = {},
+}: DashboardListQuery & {
+  since: Date | null;
+  until: Date | null;
+  mineUserId: string | null;
+  filters?: EnquiryFilters;
+}): Promise<DashboardListPage> {
   const lim = Math.min(LIMIT_MAX, Math.max(1, limit || 20));
   const off = Math.max(0, offset || 0);
   const created = (col: typeof projects.createdAt | typeof enquiryTags.createdAt): SQL[] => [
     ...(since ? [sql`${col} >= ${since}`] : []),
     ...(until ? [sql`${col} <= ${until}`] : []),
   ];
-  const scope: SQL[] = mineUserId ? [eq(projects.assignedTo, mineUserId)] : [];
+  const scope: SQL[] = [...(mineUserId ? [eq(projects.assignedTo, mineUserId)] : []), ...enquiryFilterSql(filters)];
   // Every word must match somewhere (LIKE wildcards escaped).
   const words = (q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 6);
   const like = (w: string) => `%${w.replace(/[\\%_]/g, (c) => "\\" + c)}%`;
