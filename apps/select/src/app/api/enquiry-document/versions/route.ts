@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { projects, techDocVersion, users } from "@/lib/db/schema";
 import { techDocGroups, techDocSheet, type TechDocGroup, type TechDocSheet, type TechDocVersion } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,8 @@ async function listVersions(projectId: string): Promise<TechDocVersion[]> {
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
   return json(await listVersions(projectId));
 }
 
@@ -51,6 +54,8 @@ export async function POST(req: Request) {
   const projectId = String(body.projectId ?? "");
   const group = String(body.group ?? "") as TechDocGroup;
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   const note = typeof body.note === "string" ? body.note.trim().slice(0, 1000) : "";
 
   const data = await loadTechDocData(projectId);

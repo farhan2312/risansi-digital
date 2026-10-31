@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
 import { enquiryTags } from "@/lib/db/schema";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // or re-deriving live (possibly since-edited) wizard state. Per-tag now that
 // reports are per-tag.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid tag id", 400);
+  const notYours = await viewDenied(req, { tagId: id });
+  if (notYours) return notYours;
 
   const [row] = await db
     .select({ reportSummary: enquiryTags.reportSummary })
@@ -39,6 +42,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const noWork = await workDenied(req, { tagId: id });
+  if (noWork) return noWork;
   if (!UUID_RE.test(id)) return error("Invalid tag id", 400);
 
   let body: unknown;

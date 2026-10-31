@@ -127,6 +127,7 @@ export default function DateRangeFilter({
   fromLabel = "From",
   toLabel = "To",
   showClear = true,
+  compact = false,
 }: {
   state: DateRangeState;
   /** Called after any change, e.g. to go back to page 1. */
@@ -135,12 +136,15 @@ export default function DateRangeFilter({
   toLabel?: string;
   /** Show a Clear button inside the date box while dates are set. */
   showClear?: boolean;
+  /** Tighter, for a filter row that has to fit on one line: no 90-day button,
+   *  narrower buttons, nothing wraps. */
+  compact?: boolean;
 }) {
   const changed = () => onChange?.();
   return (
     <>
-      <div className="inline-flex flex-wrap rounded-lg border border-line bg-paper p-0.5">
-        {DATE_RANGES.map((r) => {
+      <div className={`inline-flex rounded-lg border border-line bg-paper p-0.5 ${compact ? "flex-nowrap" : "flex-wrap"}`}>
+        {DATE_RANGES.filter((r) => !compact || r.key !== "90d").map((r) => {
           const on = !state.customDates && state.range === r.key;
           return (
             <button
@@ -151,7 +155,7 @@ export default function DateRangeFilter({
                 state.setRange(r.key);
                 changed();
               }}
-              className={`rounded-md px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
+              className={`rounded-md py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${compact ? "px-2.5" : "px-3"} ${
                 on ? "bg-accent text-white" : "text-fg-3 hover:bg-elev hover:text-fg"
               }`}
             >
@@ -161,7 +165,7 @@ export default function DateRangeFilter({
         })}
       </div>
       <div
-        className={`inline-flex flex-wrap items-center gap-2 rounded-lg border bg-paper px-2.5 py-1 ${
+        className={`inline-flex shrink-0 flex-nowrap items-center gap-1.5 rounded-lg border bg-paper px-2 ${compact ? "h-9" : "py-1"} ${
           state.customDates ? "border-accent ring-2 ring-accent-soft" : "border-line"
         }`}
       >

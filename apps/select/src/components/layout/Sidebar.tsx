@@ -10,7 +10,7 @@ import {
   ADMIN_LINKS,
   APPROVER_LINKS,
   PULLEY_OWNER_LINKS,
-  MAIN_LINKS,
+  mainLinksFor,
   MY_BUG_LINKS,
   SYSTEM_ADMIN_LINKS,
   navIcons,
@@ -37,7 +37,7 @@ const Sidebar = () => {
 
       <nav className="flex-1">
         <p className="sidebar-group-label">Main</p>
-        {MAIN_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
+        {mainLinksFor(user?.role).map((l) => navLink(l.href, l.label, navIcons[l.icon]))}
 
         {canApprove(user?.role) && (
           <>

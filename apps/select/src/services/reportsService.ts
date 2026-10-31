@@ -13,12 +13,17 @@ export interface ReportRecord {
    *  is generated. */
   status: string | null;
   created_by_name: string | null;
+  /** The enquiry's assignee - a worker views the documents of others only. */
+  assigned_to: string | null;
+  /** Quotations on the enquiry; the documents open once there is one. */
+  quotation_count: number;
   document_filename: string | null;
   document_generated_at: string | null;
 }
 
-export const listReports = async (): Promise<ReportRecord[]> => {
-  const { data } = await apiClient.get<ReportRecord[]>("/reports");
+/** `rep` narrows a Rep Manager to one of their reps (a sales user id). */
+export const listReports = async (rep?: string): Promise<ReportRecord[]> => {
+  const { data } = await apiClient.get<ReportRecord[]>("/reports", { params: { rep: rep || undefined } });
   return data;
 };
 

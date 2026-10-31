@@ -80,43 +80,70 @@ export default function ClientLookup({
     !searching && !searchError && !picked && debouncedQuery.trim().length >= MIN_QUERY && results.length === 0;
 
   return (
-    <div className="form-group">
-      <label>Find client</label>
+    <div className="flex flex-col">
+      <span className="mb-1.5 text-[12px] font-semibold text-fg-2">Find client</span>
       {picked ? (
-        <div className="client-picked">
-          <div className="client-picked-main">
-            <span className="client-picked-code">{picked.code}</span>
-            <span className="client-picked-name">{picked.legal_name}</span>
-            <span className="client-picked-industry">{picked.industry || "-"}</span>
+        <div className="flex items-center gap-3 rounded-lg border border-[color-mix(in_srgb,var(--pos)_35%,transparent)] bg-[var(--pos-soft)] px-3 py-2.5">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-pos text-white" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13.5px] font-semibold text-fg">{picked.legal_name}</div>
+            <div className="truncate text-[11.5px] text-fg-3">
+              <span className="font-mono">{picked.code}</span>
+              {picked.industry ? ` · ${picked.industry}` : ""}
+            </div>
           </div>
-          <button type="button" className="client-change-btn" onClick={handleClearPick}>
+          <button
+            type="button"
+            className="rounded-md px-2.5 py-1 text-[12.5px] font-semibold text-accent transition hover:bg-paper"
+            onClick={handleClearPick}
+          >
             Change
           </button>
         </div>
       ) : (
         <>
-          <input value={query} placeholder="Type client code or client name..." onChange={(e) => setQuery(e.target.value)} />
-          <p className="modal-hint">{hint}</p>
+          <div className="relative">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-fg-3" aria-hidden>
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="m20 20-4-4" />
+            </svg>
+            <input
+              value={query}
+              placeholder="Search by client code or name…"
+              onChange={(e) => setQuery(e.target.value)}
+              className="h-10 w-full rounded-lg border border-line-strong bg-paper pr-3 pl-9 text-[14px] text-fg outline-none transition placeholder:text-fg-4 hover:border-fg-3 focus:border-accent focus:ring-4 focus:ring-accent-soft"
+            />
+          </div>
+          <span className="mt-1.5 text-[11.5px] leading-snug text-fg-3">{hint}</span>
         </>
       )}
 
       {!picked && (searching || searchError || showNoMatch || results.length > 0) && (
-        <div className="client-results">
-          {searching && <div className="client-results-msg">Searching...</div>}
-          {searchError && <div className="client-results-msg client-results-error">{searchError}</div>}
-          {showNoMatch && <div className="client-results-msg">No client matches that code or name.</div>}
+        <div className="mt-2 max-h-[240px] overflow-y-auto rounded-lg border border-line bg-paper shadow-[0_8px_24px_rgba(10,22,40,0.08)]">
+          {searching && <div className="px-3 py-2.5 text-[12.5px] text-fg-3">Searching…</div>}
+          {searchError && <div className="px-3 py-2.5 text-[12.5px] text-neg">{searchError}</div>}
+          {showNoMatch && <div className="px-3 py-2.5 text-[12.5px] text-fg-3">No client matches that code or name.</div>}
           {!searching &&
             results.map((row) => (
-              <div className="client-result" key={row.code}>
-                <div className="client-result-main">
-                  <span className="client-result-code">{row.code}</span>
-                  <span className="client-result-name">{row.legal_name}</span>
-                  <span className="client-result-industry">{row.industry || "-"}</span>
-                </div>
-                <button type="button" className="client-select-btn" onClick={() => handleSelect(row)}>
-                  Select
-                </button>
-              </div>
+              <button
+                type="button"
+                key={row.code}
+                onClick={() => handleSelect(row)}
+                className="flex w-full items-center gap-3 border-b border-line px-3 py-2.5 text-left transition last:border-b-0 hover:bg-accent-soft"
+              >
+                <span className="shrink-0 rounded-md bg-elev px-1.5 py-0.5 font-mono text-[11px] text-fg-2">{row.code}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-semibold text-fg">{row.legal_name}</span>
+                  <span className="block truncate text-[11.5px] text-fg-3">
+                    {[row.industry, row.market_type, row.zone].filter(Boolean).join(" · ") || "—"}
+                  </span>
+                </span>
+                <span className="text-[12px] font-semibold text-accent">Select</span>
+              </button>
             ))}
         </div>
       )}

@@ -7,6 +7,13 @@ export interface ClientLookupRow {
   code: string;
   legal_name: string;
   industry: string | null;
+  /** "Domestic" | "Export". */
+  market_type: string | null;
+  /** The client's tour-route zone, e.g. "West". */
+  zone: string | null;
+  primary_rep: string | null;
+  /** Comma-separated names. */
+  secondary_reps: string | null;
 }
 
 /** Typeahead over client code / legal name. Returns [] for queries shorter

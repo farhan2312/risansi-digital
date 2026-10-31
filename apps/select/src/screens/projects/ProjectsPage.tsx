@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
@@ -8,6 +8,13 @@ import CopyTagModal, { type CopyDestination } from "../../components/projects/Co
 import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
+import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
+import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
+import AssigneeKpis from "../../components/projects/AssigneeKpis";
+import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
+import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Pagination from "../../components/ui/Pagination";
@@ -21,7 +28,9 @@ import {
   listProjects,
   listProjectsPage,
   updateProject,
+  type CreateProjectInput,
   type ProjectRecord,
+  type UpdateProjectInput,
 } from "../../services/projectService";
 import {
   copyTag,
@@ -40,8 +49,29 @@ export const SELECTED_PROJECT_KEY = "selectedProject";
 // Enquiries table asks for.
 const PAGE_SIZE = 20;
 
+// Enquiry row columns: chevron | enquiry no. / date | order type | client /
+// code | reps / zone | industry / market | status | assigned to | actions.
+// Tailwind only sees whole class strings, so each variant is written out: the
+// User-Master's Actions column is wider (Edit and Delete as well).
+const ROW_GRID_MANAGER =
+  "grid grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_222px] 2xl:grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_478px]";
+const ROW_GRID_WORKER =
+  "grid grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_190px] 2xl:grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_400px]";
+
 const ProjectsPage = () => {
   const router = useRouter();
+  // User-Master / system admins create, edit, delete and (re)assign. Everyone
+  // sees every enquiry, but a worker works only on the ones assigned to them;
+  // copying a tag out of any enquiry is fine (lib/roles.ts).
+  const { user, loading: userLoading } = useCurrentUser();
+  const manager = canManageEnquiries(user?.role);
+  const workable = (p: ProjectRecord) => canWorkOn(user, p);
+  // Rep / Rep Manager: read-only, their own enquiries only (the API scopes the
+  // list); a manager can narrow it to one rep.
+  const isRep = isRepRole(user?.role);
+  const [rep, setRep] = useState("");
+  const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
+  const ROW_GRID = manager ? ROW_GRID_MANAGER : ROW_GRID_WORKER;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -102,12 +132,32 @@ const ProjectsPage = () => {
   // the client only ever holds one page, so filtering here would search 20
   // rows rather than the whole table.
   const [page, setPage] = useState(1);
-  // Created-date filter: a quick range, or explicit From/To days (which win).
+  // Date filter: a quick range, or explicit From/To days (which win), on the
+  // enquiry date (default) or the date the enquiry was assigned.
   const dates = useDateRange("all");
+  const [dateField, setDateField] = useState<"enquiry" | "assigned">("enquiry");
   const dateWindow = dates.window;
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 });
-  // "All enquiries" / "Created by me" — filtered on the server.
+  // "All enquiries" / "Assigned to me" — filtered on the server.
   const [scope, setScope] = useState<"all" | "mine">("all");
+  // Reps / zone / market / industry / status (the same filters as the Dashboard).
+  const [adv, setAdv] = useState<EnquiryFilters>({});
+  // A worker opens on "Assigned to me" (they can still switch to All). Nothing
+  // loads until the role is known - otherwise an "All" request fired first
+  // could land after the "mine" one and show every enquiry under "Assigned to me".
+  const scopeDefaulted = useRef(false);
+  const [scopeReady, setScopeReady] = useState(false);
+  useEffect(() => {
+    if (scopeDefaulted.current) return;
+    if (!user && userLoading) return;
+    scopeDefaulted.current = true;
+    // (A rep's list is already just their own; "Assigned to me" means nothing to them.)
+    if (user && !worksOnAnyEnquiry(user.role) && !isRepRole(user.role)) {
+      setScope("mine");
+      setPage(1);
+    }
+    setScopeReady(true);
+  }, [user, userLoading]);
   // Typing is debounced so a filter keystroke doesn't fire a request each.
   const [debouncedFilters, setDebouncedFilters] = useState({ clientName: "", enquiryCode: "" });
 
@@ -131,7 +181,11 @@ const ProjectsPage = () => {
     return () => clearTimeout(timer);
   }, [clientNameFilter, enquiryCodeFilter]);
 
+  // Only the newest request may fill the table (a slow older one is dropped).
+  const loadSeq = useRef(0);
   const loadProjects = useCallback(() => {
+    if (!scopeReady) return;
+    const seq = ++loadSeq.current;
     setIsLoading(true);
     setError(null);
     listProjectsPage({
@@ -141,9 +195,13 @@ const ProjectsPage = () => {
       enquiryCode: debouncedFilters.enquiryCode,
       from: dateWindow.from,
       to: dateWindow.to,
+      dateField,
       mine: scope === "mine",
+      filters: adv,
+      rep,
     })
       .then((res) => {
+        if (seq !== loadSeq.current) return;
         setProjects(res.items);
         setPageInfo({ total: res.total, totalPages: res.totalPages });
         // Deleting the last row on the last page can strand us past the end;
@@ -152,9 +210,9 @@ const ProjectsPage = () => {
           setPage(res.totalPages);
         }
       })
-      .catch(() => setError("Couldn't load enquiries."))
-      .finally(() => setIsLoading(false));
-  }, [page, debouncedFilters, dateWindow, scope]);
+      .catch(() => seq === loadSeq.current && setError("Couldn't load enquiries."))
+      .finally(() => seq === loadSeq.current && setIsLoading(false));
+  }, [page, debouncedFilters, dateWindow, dateField, scope, adv, scopeReady, rep]);
 
   useEffect(() => {
     loadProjects();
@@ -175,13 +233,7 @@ const ProjectsPage = () => {
     };
   }, [copyingFrom, allProjects]);
 
-  const handleCreateProject = async (input: {
-    projectCode: string;
-    name: string;
-    clientCode: string;
-    industry: string;
-    enquiryDate: string;
-  }): Promise<string | null> => {
+  const handleCreateProject = async (input: CreateProjectInput): Promise<string | null> => {
     setIsCreating(true);
     try {
       // createdBy is derived server-side from the session cookie, not sent
@@ -415,13 +467,7 @@ const ProjectsPage = () => {
     }
   };
 
-  const handleEditSave = async (input: {
-    name: string;
-    clientCode: string;
-    industry: string;
-    enquiryDate: string;
-    status: string;
-  }) => {
+  const handleEditSave = async (input: UpdateProjectInput) => {
     if (!editing) return;
     setIsSaving(true);
     setError(null);
@@ -441,7 +487,7 @@ const ProjectsPage = () => {
   // unchanged.
   const filteredProjects = projects;
 
-  const hasFilter = clientNameFilter !== "" || enquiryCodeFilter !== "" || dates.active;
+  const hasFilter = clientNameFilter !== "" || enquiryCodeFilter !== "" || dates.active || hasEnquiryFilters(adv);
 
   const handleDelete = async () => {
     if (!confirmingDelete) return;
@@ -482,25 +528,37 @@ const ProjectsPage = () => {
         title="Enquiries"
         subtitle="Create, open and manage PCP pump-selection enquiries · expand an enquiry to work on its tags"
         actions={
-          <button type="button" className={`${btnPrimary} px-4 py-2 text-[13px]`} onClick={() => setIsModalOpen(true)}>
-            <PlusIcon /> New Enquiry
-          </button>
+          manager ? (
+            <button type="button" className={`${btnPrimary} px-4 py-2 text-[13px]`} onClick={() => setIsModalOpen(true)}>
+              <PlusIcon /> New Enquiry
+            </button>
+          ) : undefined
         }
       >
         <div className="flex flex-wrap items-center gap-2.5">
-          <Segmented
-            value={scope}
-            onChange={(v) => {
-              setScope(v);
-              setPage(1);
-            }}
-            loading={isLoading}
-            options={[
-              { key: "all", label: "All enquiries" },
-              { key: "mine", label: "Created by me" },
-            ]}
-          />
-          <label className="relative w-full sm:w-[240px] xl:w-[220px]">
+          {isRep ? (
+            <RepPicker
+              value={rep}
+              onChange={(v) => {
+                setRep(v);
+                setPage(1);
+              }}
+            />
+          ) : (
+            <Segmented
+              value={scope}
+              onChange={(v) => {
+                setScope(v);
+                setPage(1);
+              }}
+              loading={isLoading}
+              options={[
+                { key: "all", label: "All enquiries" },
+                { key: "mine", label: "Assigned to me" },
+              ]}
+            />
+          )}
+          <label className="relative w-full sm:w-[170px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <SearchGlyph />
             </span>
@@ -514,7 +572,7 @@ const ProjectsPage = () => {
               onChange={(e) => setClientNameFilter(e.target.value)}
             />
           </label>
-          <label className="relative w-full sm:w-[210px] xl:w-[190px]">
+          <label className="relative w-full sm:w-[150px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <HashGlyph />
             </span>
@@ -528,12 +586,25 @@ const ProjectsPage = () => {
               onChange={(e) => setEnquiryCodeFilter(e.target.value)}
             />
           </label>
+          <select
+            aria-label="Date to filter on"
+            value={dateField}
+            onChange={(e) => {
+              setDateField(e.target.value === "assigned" ? "assigned" : "enquiry");
+              setPage(1);
+            }}
+            className="h-9 rounded-lg border border-line bg-paper px-2.5 text-[12.5px] font-semibold text-fg-2 outline-none transition hover:border-fg-3 focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          >
+            <option value="enquiry">Enquiry date</option>
+            <option value="assigned">Assigned date</option>
+          </select>
           <DateRangeFilter
             state={dates}
             onChange={() => setPage(1)}
-            fromLabel="Created from"
-            toLabel="Created to"
+            fromLabel={dateField === "assigned" ? "Assigned from" : "Enquiry date from"}
+            toLabel={dateField === "assigned" ? "Assigned to" : "Enquiry date to"}
             showClear={false}
+            compact
           />
           {hasFilter && (
             <button
@@ -543,6 +614,7 @@ const ProjectsPage = () => {
                 setClientNameFilter("");
                 setEnquiryCodeFilter("");
                 dates.reset();
+                setAdv({});
                 setPage(1);
               }}
             >
@@ -556,7 +628,25 @@ const ProjectsPage = () => {
             </span>
           )}
         </div>
+        <div className="mt-2.5 border-t border-line pt-2.5">
+          <EnquiryFilterBar
+            value={adv}
+            showClient={false}
+            onChange={(next) => {
+              setAdv(next);
+              setPage(1);
+            }}
+          />
+        </div>
       </PageHeader>
+
+      {/* User-Master / system admins: who has what (one card per person);
+          a worker sees their own card. */}
+      {manager ? (
+        <AssigneeKpis />
+      ) : (
+        (ASSIGNABLE_ROLES as readonly string[]).includes(user?.role ?? "") && <AssigneeKpis own />
+      )}
 
       {error && (
         <div
@@ -580,16 +670,18 @@ const ProjectsPage = () => {
         <div className="mt-6">
           <EmptyState
             icon="folder"
-            title={scope === "mine" ? "You haven't created any enquiries yet" : "No enquiries yet"}
+            title={scope === "mine" ? "No enquiries assigned to you yet" : "No enquiries yet"}
             description={
               scope === "mine"
-                ? "Enquiries you create show here. Switch to All enquiries to see everyone's."
+                ? "Enquiries assigned to you show here. Switch to All enquiries to see everyone's."
                 : "Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
             }
             action={
-              <button type="button" className={btnPrimary} onClick={() => setIsModalOpen(true)}>
-                <PlusIcon /> Create your first enquiry
-              </button>
+              manager ? (
+                <button type="button" className={btnPrimary} onClick={() => setIsModalOpen(true)}>
+                  <PlusIcon /> Create your first enquiry
+                </button>
+              ) : undefined
             }
           />
         </div>
@@ -608,15 +700,16 @@ const ProjectsPage = () => {
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
           <div className="overflow-x-auto">
-          <div className="min-w-[980px] 2xl:min-w-[1170px]">
-          <div className={`border-b border-line bg-elev px-4 py-2.5 grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_222px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_478px] items-center gap-x-3 [&>*]:min-w-0`}>
+          <div className={manager ? "min-w-[1120px] 2xl:min-w-[1360px]" : "min-w-[1080px] 2xl:min-w-[1260px]"}>
+          <div className={`border-b border-line bg-elev px-4 py-2.5 ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
             <span />
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created By</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry No. / Date</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Order Type</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client / Code</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Reps / Zone</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry / Market</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Assigned To</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Actions</span>
           </div>
           <ul className="divide-y divide-line">
@@ -626,10 +719,11 @@ const ProjectsPage = () => {
               const isLoadingTags = tagsLoadingFor.has(project.id);
               const tagError = tagsErrorFor[project.id];
               const doneCount = tags?.filter((t) => (t.status ?? "").toLowerCase() === "completed").length ?? 0;
+              const reps = [project.client_primary_rep, project.client_secondary_reps].filter(Boolean).join(", ");
               return (
                 <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                   {/* Enquiry row: columns on wide screens, stacked below lg */}
-                  <div className={`group px-4 py-3 transition-colors hover:bg-elev grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_222px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_478px] items-center gap-x-3 [&>*]:min-w-0`}>
+                  <div className={`group px-4 py-3 transition-colors hover:bg-elev ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
                     <button
                         type="button"
                         onClick={() => toggleExpanded(project.id)}
@@ -644,73 +738,67 @@ const ProjectsPage = () => {
                         <ChevronIcon />
                       </button>
 
+                    {/* Enquiry no. over the enquiry date */}
                     <button
                       type="button"
                       onClick={() => toggleExpanded(project.id)}
-                      className="min-w-0 flex-1 text-left"
+                      className="min-w-0 text-left"
                       title={isOpen ? "Hide tags" : "Show tags"}
                     >
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="font-mono text-[12.5px] font-bold text-title">{project.project_code}</span>
-                        {project.enquiry_date && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-px text-[10.5px] font-semibold whitespace-nowrap text-accent"
-                            title="Enquiry date"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px]">
-                              <rect x="3.5" y="5" width="17" height="15" rx="2" />
-                              <path d="M3.5 10h17M8 3v4M16 3v4" />
-                            </svg>
-                            {new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </span>
-                        )}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[13.5px] font-semibold text-fg group-hover:text-accent">
-                        {project.name || "—"}
+                      <span className="block truncate font-mono text-[12.5px] font-bold text-title group-hover:text-accent">{project.project_code}</span>
+                      <span className="mt-0.5 flex items-center gap-1 text-[11.5px] whitespace-nowrap text-fg-3" title="Enquiry date">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">
+                          <rect x="3.5" y="5" width="17" height="15" rx="2" />
+                          <path d="M3.5 10h17M8 3v4M16 3v4" />
+                        </svg>
+                        {project.enquiry_date ? new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                       </span>
                     </button>
 
                     <span className="min-w-0">
+                      <span
+                        className={`inline-block rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold ${
+                          project.order_type === "spare" ? "bg-[var(--warn-soft)] text-warn" : "bg-accent-soft text-accent"
+                        }`}
+                      >
+                        {orderTypeLabel(project.order_type)}
+                      </span>
+                    </span>
+
+                    {/* Client name over the client code */}
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13px] font-semibold text-fg" title={project.name || undefined}>
+                        {project.name || "—"}
+                      </span>
                       {project.client_code ? (
-                        <span className="inline-block max-w-full truncate rounded-md bg-elev px-1.5 py-0.5 font-mono text-[11.5px] text-fg-2">
+                        <span className="mt-0.5 inline-block max-w-full truncate rounded-md bg-elev px-1.5 py-px font-mono text-[11px] text-fg-2">
                           {project.client_code}
                         </span>
                       ) : (
-                        <span className="text-fg-4">—</span>
+                        <span className="mt-0.5 block text-[11px] text-fg-4">No client code</span>
                       )}
                     </span>
 
-                    <span className="min-w-0 truncate text-[12.5px] text-fg-2">{project.industry || <span className="text-fg-4">—</span>}</span>
-
-                    <span className="flex min-w-0 items-center gap-2">
-                      {project.created_by_name ? (
-                        <>
-                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[9.5px] font-bold text-white">
-                            {project.created_by_name
-                              .split(/\s+/)
-                              .slice(0, 2)
-                              .map((p) => p[0]?.toUpperCase())
-                              .join("")}
-                          </span>
-                          <span className="truncate text-[12.5px] text-fg-2">{project.created_by_name}</span>
-                        </>
-                      ) : (
-                        <span className="text-fg-4">—</span>
-                      )}
+                    {/* Reps (primary first, then secondary) over the zone */}
+                    <span className="min-w-0">
+                      <span className={`block truncate text-[12.5px] ${reps ? "text-fg-2" : "text-fg-4"}`} title={reps || undefined}>
+                        {reps || "—"}
+                      </span>
+                      <span className="mt-0.5 flex items-center gap-1 truncate text-[11.5px] text-fg-3">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">
+                          <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+                          <circle cx="12" cy="10" r="2.3" />
+                        </svg>
+                        {project.client_zone || "—"}
+                      </span>
                     </span>
 
-                    <span className="truncate text-[12.5px] whitespace-nowrap text-fg-2" title="Date the enquiry was created in the portal">
-                      {project.created_at
-                        ? new Date(project.created_at).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"}
+                    {/* Industry over the market type */}
+                    <span className="min-w-0">
+                      <span className={`block truncate text-[12.5px] ${project.industry ? "text-fg-2" : "text-fg-4"}`} title={project.industry || undefined}>
+                        {project.industry || "—"}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11.5px] text-fg-3">{project.client_market_type || "—"}</span>
                     </span>
 
                     <span className="flex flex-col items-start gap-1">
@@ -722,13 +810,53 @@ const ProjectsPage = () => {
                       )}
                     </span>
 
+                    {/* Who works it and since when; the User-Master assigns / reassigns here. */}
+                    <span className="min-w-0" title={project.created_by_name ? `Created by ${project.created_by_name}` : undefined}>
+                      {project.assigned_to_name ? (
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[9.5px] font-bold text-white">
+                            {project.assigned_to_name
+                              .split(/\s+/)
+                              .slice(0, 2)
+                              .map((p) => p[0]?.toUpperCase())
+                              .join("")}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-[12.5px] font-medium text-fg-2">{project.assigned_to_name}</span>
+                            <span className="block truncate text-[10.5px] text-fg-4">
+                              {project.assigned_at ? `Assigned ${new Date(project.assigned_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}` : "Assigned"}
+                            </span>
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="block text-[12px] text-fg-4">Not assigned</span>
+                      )}
+                      {manager && (
+                        <button
+                          type="button"
+                          onClick={() => setAssigning(project)}
+                          className={
+                            project.assigned_to
+                              ? "mt-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold text-accent transition hover:bg-accent-soft"
+                              : "mt-1 inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11.5px] font-semibold text-white transition hover:opacity-90"
+                          }
+                          aria-label={`${project.assigned_to ? "Reassign" : "Assign"} enquiry ${project.project_code}`}
+                        >
+                          {project.assigned_to ? "Reassign" : "Assign"}
+                        </button>
+                      )}
+                    </span>
+
                     <div className="flex flex-nowrap items-center justify-start gap-0.5">
                       <button
                         type="button"
                         className={`${btn} relative`}
                         onClick={() => setQuotationFor(project)}
+                        disabled={!workable(project)}
                         title={
-                          project.quotation_count
+                          !workable(project)
+                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
+                            : project.quotation_count
                             ? "Quotation generated — view it or change the quotation no. (ERP)"
                             : "Generate the quotation (opens Technical and Commercial)"
                         }
@@ -744,9 +872,11 @@ const ProjectsPage = () => {
                         type="button"
                         className={btn}
                         onClick={() => openDocument(project)}
-                        disabled={!project.quotation_count}
+                        disabled={!project.quotation_count || !workable(project)}
                         title={
-                          project.quotation_count
+                          !workable(project)
+                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
+                            : project.quotation_count
                             ? "View this enquiry's Technical Data Sheet"
                             : "Generate the quotation first (Quotation button)"
                         }
@@ -759,9 +889,11 @@ const ProjectsPage = () => {
                         type="button"
                         className={btnCommercial}
                         onClick={() => router.push(`/commercial?projectId=${project.id}`)}
-                        disabled={!project.quotation_count}
+                        disabled={!project.quotation_count || !workable(project)}
                         title={
-                          project.quotation_count
+                          !workable(project)
+                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
+                            : project.quotation_count
                             ? "Commercial Summary: P&A and BOI prices for every tag"
                             : "Generate the quotation first (Quotation button)"
                         }
@@ -770,6 +902,7 @@ const ProjectsPage = () => {
                         <RupeeIcon />
                         <span className="hidden 2xl:inline">Commercial</span>
                       </button>
+                      {!isRep && (
                       <button
                         type="button"
                         className={btn}
@@ -788,26 +921,31 @@ const ProjectsPage = () => {
                         <CopyIcon />
                         <span className="hidden 2xl:inline">Copy</span>
                       </button>
-                      <button
-                        type="button"
-                        className={btn}
-                        onClick={() => setEditing(project)}
-                        aria-label={`Edit enquiry ${project.project_code}`}
-                        title="Edit enquiry"
-                      >
-                        <EditIcon />
-                        <span className="hidden 2xl:inline">Edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={btnDanger}
-                        disabled={deletingId === project.id}
-                        onClick={() => setConfirmingDelete(project)}
-                        aria-label={`Delete enquiry ${project.project_code}`}
-                        title="Delete enquiry"
-                      >
-                        <TrashIcon />
-                      </button>
+                      )}
+                      {manager && (
+                        <>
+                          <button
+                            type="button"
+                            className={btn}
+                            onClick={() => setEditing(project)}
+                            aria-label={`Edit enquiry ${project.project_code}`}
+                            title="Edit enquiry"
+                          >
+                            <EditIcon />
+                            <span className="hidden 2xl:inline">Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={btnDanger}
+                            disabled={deletingId === project.id}
+                            onClick={() => setConfirmingDelete(project)}
+                            aria-label={`Delete enquiry ${project.project_code}`}
+                            title="Delete enquiry"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -819,10 +957,12 @@ const ProjectsPage = () => {
                           <div>
                             <div className="text-[12.5px] font-semibold text-fg">Tags on this enquiry</div>
                             <div className="text-[11px] text-fg-3">
-                              Each tag is its own pump-selection run · click a tag name to rename it
+                              {workable(project)
+                                ? "Each tag is its own pump-selection run · click a tag name to rename it"
+                                : `View only - assigned to ${project.assigned_to_name || "someone else"}. Copy a tag into an enquiry assigned to you.`}
                             </div>
                           </div>
-                          {addingTagFor !== project.id && (
+                          {addingTagFor !== project.id && workable(project) && (
                             <button type="button" className={btn} onClick={() => startAddTag(project.id)}>
                               <PlusIcon /> Add tag
                             </button>
@@ -871,8 +1011,8 @@ const ProjectsPage = () => {
                                         <button
                                           type="button"
                                           className="rounded px-0.5 text-[13px] font-semibold text-fg underline decoration-dotted decoration-fg-4 underline-offset-4 hover:text-accent hover:decoration-accent"
-                                          onClick={() => startRenameTag(tag)}
-                                          title="Click to rename"
+                                          onClick={() => workable(project) && startRenameTag(tag)}
+                                          title={workable(project) ? "Click to rename" : undefined}
                                         >
                                           {tag.name}
                                         </button>
@@ -889,30 +1029,57 @@ const ProjectsPage = () => {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-0.5">
-                                    <button type="button" className={btnPrimary} onClick={() => openProject(project, tag)}>
-                                      <OpenIcon /> Open
-                                    </button>
+                                    {workable(project) && (
+                                      <button type="button" className={btnPrimary} onClick={() => openProject(project, tag)}>
+                                        <OpenIcon /> Open
+                                      </button>
+                                    )}
+                                    {isRep && (
+                                      <button
+                                        type="button"
+                                        className={btnPrimary}
+                                        onClick={() => openProject(project, tag)}
+                                        title="View this tag's pump selection (read-only)"
+                                      >
+                                        <OpenIcon /> View
+                                      </button>
+                                    )}
+                                    {!isRep && (
                                     <button
                                       type="button"
                                       className={btn}
-                                      onClick={() => handleCopyTagHere(tag)}
+                                      onClick={() => {
+                                        // Not yours: copy it into one of your enquiries instead.
+                                        if (workable(project)) handleCopyTagHere(tag);
+                                        else {
+                                          setCopyError(null);
+                                          setCopyingFrom({ project, tagId: tag.id });
+                                        }
+                                      }}
                                       disabled={copyingTagId === tag.id}
-                                      title="Duplicate this tag with all its pump-selection details"
+                                      title={
+                                        workable(project)
+                                          ? "Duplicate this tag with all its pump-selection details"
+                                          : "Copy this tag into an enquiry assigned to you"
+                                      }
                                       aria-label={`Copy tag ${tag.name}`}
                                     >
                                       <CopyIcon />
                                       {copyingTagId === tag.id ? "Copying…" : "Copy"}
                                     </button>
-                                    <button
-                                      type="button"
-                                      className={btnDanger}
-                                      onClick={() => setConfirmingDeleteTag(tag)}
-                                      disabled={deletingTagId === tag.id || (tags?.length ?? 0) <= 1}
-                                      title={(tags?.length ?? 0) <= 1 ? "Can't delete the last tag on an enquiry" : "Delete tag"}
-                                      aria-label={`Delete tag ${tag.name}`}
-                                    >
-                                      <TrashIcon />
-                                    </button>
+                                    )}
+                                    {workable(project) && (
+                                      <button
+                                        type="button"
+                                        className={btnDanger}
+                                        onClick={() => setConfirmingDeleteTag(tag)}
+                                        disabled={deletingTagId === tag.id || (tags?.length ?? 0) <= 1}
+                                        title={(tags?.length ?? 0) <= 1 ? "Can't delete the last tag on an enquiry" : "Delete tag"}
+                                        aria-label={`Delete tag ${tag.name}`}
+                                      >
+                                        <TrashIcon />
+                                      </button>
+                                    )}
                                   </div>
                                 </li>
                               );
@@ -1013,10 +1180,12 @@ const ProjectsPage = () => {
           tags={tagsByProject[copyingFrom.project.id] ?? []}
           initialTagId={copyingFrom.tagId}
           projects={(allProjects ?? projects).filter(
-            (p) => p.id !== copyingFrom.project.id,
+            (p) => p.id !== copyingFrom.project.id && workable(p),
           )}
+          allowSame={workable(copyingFrom.project)}
           busy={copyBusy}
           error={copyError}
+          allowNew={manager}
           onCancel={() => {
             if (copyBusy) return;
             setCopyingFrom(null);
@@ -1025,6 +1194,19 @@ const ProjectsPage = () => {
           onConfirm={handleCopyConfirm}
         />
       )}
+
+      <AssignEnquiryModal
+        project={assigning}
+        onClose={() => setAssigning(null)}
+        onAssigned={(id, assignedTo, assignedToName) => {
+          setAssigning(null);
+          setProjects((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, assigned_to: assignedTo, assigned_to_name: assignedToName, assigned_at: new Date().toISOString() } : p)),
+          );
+          // "Assigned to me" no longer holds it once it went to someone else.
+          if (scope === "mine") loadProjects();
+        }}
+      />
 
       <EditProjectModal
         isOpen={editing !== null}

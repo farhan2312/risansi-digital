@@ -8,6 +8,7 @@ import { projects, quotation, quotationVersion } from "@/lib/db/schema";
 import { finYearOf, isDriveGroup, parseErpSerial, quotationNumber } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, loadQuotation, suggestedTsm, tsmById } from "@/lib/quotation-server";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ export async function GET(req: Request) {
   const projectId = params.get("projectId") ?? "";
   const group = params.get("group") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
   if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
   // The quotation loads alongside the enquiry → client rep lookup.
   const [p, q] = await Promise.all([
@@ -56,6 +59,8 @@ export async function POST(req: Request) {
   const projectId = String(body.projectId ?? "");
   const group = String(body.group ?? "");
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
   const erpSerial = parseErpSerial(body.erpSerial);
   if (erpSerial === undefined) return error("ERP serial: letters, digits, - or / only (max 30).", 400);

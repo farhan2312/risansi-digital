@@ -18,6 +18,7 @@ import {
   formatInr,
   parsePrice,
 } from "@/lib/commercial";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,8 @@ const numOrNull = (v: string | null | undefined): number | null =>
 export async function PUT(req: Request, { params }: { params: Promise<{ tagId: string }> }) {
   const { tagId } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(tagId)) return error("Invalid tag id", 400);
+  const noWork = await workDenied(req, { tagId });
+  if (noWork) return noWork;
 
   let body: Record<string, unknown>;
   try {

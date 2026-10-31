@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import "./BottomNav.css";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import SidebarUserMenu from "./SidebarUserMenu";
-import { MAIN_LINKS, MY_BUG_LINKS, adminLinksFor, navIcons } from "./navLinks";
+import { MY_BUG_LINKS, adminLinksFor, mainLinksFor, navIcons } from "./navLinks";
 
 const MoreIcon = () => (
   <svg
@@ -130,7 +130,7 @@ const BottomNav = () => {
       )}
 
       <nav className="bottom-nav" aria-label="Primary">
-        {MAIN_LINKS.map((l) => item(l.href, l.shortLabel ?? l.label, navIcons[l.icon]))}
+        {mainLinksFor(user?.role).map((l) => item(l.href, l.shortLabel ?? l.label, navIcons[l.icon]))}
 
         <button
           type="button"

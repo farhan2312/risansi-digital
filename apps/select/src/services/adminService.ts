@@ -1,11 +1,12 @@
 import apiClient from "./apiClient";
+import type { AppRole } from "../lib/roles";
 
 // Matches the raw snake_case shape returned by userToDict() in the /users route
 // handlers — /users and /users/{id} keep the generic snake_case convention
 // (like /projects), not the hand-built camelCase shape /auth/login uses.
 // Admin-only enforcement is via requireSystemAdmin() server-side, using the
 // httpOnly session cookie sent automatically on these same-origin requests.
-export type UserRole = "user" | "selection_head" | "pulley_owner" | "admin" | "system_admin";
+export type UserRole = AppRole;
 export type UserStatus = "pending" | "active" | "rejected" | "deactivated";
 
 export interface PendingUser {

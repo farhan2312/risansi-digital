@@ -1,5 +1,6 @@
 import { error, json } from "@/lib/api";
 import { loadCommercialSummary } from "@/lib/commercial-server";
+import { viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,8 @@ export async function GET(req: Request) {
   if (!projectId || !/^[0-9a-f-]{36}$/i.test(projectId)) {
     return error("'projectId' query param is required", 400);
   }
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
   const summary = await loadCommercialSummary(projectId);
   if (!summary) return error("Enquiry not found", 404);
   return json(summary);

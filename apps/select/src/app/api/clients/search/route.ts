@@ -18,6 +18,10 @@ type ClientRow = {
   code: string;
   legal_name: string;
   industry: string | null;
+  market_type: string | null;
+  zone: string | null;
+  primary_rep: string | null;
+  secondary_reps: string | null;
 };
 
 export async function GET(req: Request) {
@@ -32,18 +36,27 @@ export async function GET(req: Request) {
 
   try {
     const rows = await miQuery<ClientRow>(
-      `SELECT code, legal_name, industry
-         FROM clients
-        WHERE deleted_at IS NULL
-          AND (code ILIKE $1 OR legal_name ILIKE $1)
+      // Reps, market type and zone as the sales portal reads them: the
+      // primary rep and the secondary reps (active users only), and the zone
+      // of the client's tour route.
+      `SELECT c.code, c.legal_name, c.industry, c.market_type, tr.zone,
+              (SELECT u.name FROM users u WHERE u.id = c.primary_rep_id AND u.is_active) AS primary_rep,
+              (SELECT string_agg(u.name, ', ' ORDER BY u.name)
+                 FROM client_secondary_reps s
+                 JOIN users u ON u.id = s.rep_id AND u.is_active
+                WHERE s.client_id = c.id) AS secondary_reps
+         FROM clients c
+         LEFT JOIN tour_routes tr ON tr.id = c.tour_id
+        WHERE c.deleted_at IS NULL
+          AND (c.code ILIKE $1 OR c.legal_name ILIKE $1)
         ORDER BY
           CASE
-            WHEN code ILIKE $3 THEN 0
-            WHEN code ILIKE $2 THEN 1
-            WHEN legal_name ILIKE $2 THEN 2
+            WHEN c.code ILIKE $3 THEN 0
+            WHEN c.code ILIKE $2 THEN 1
+            WHEN c.legal_name ILIKE $2 THEN 2
             ELSE 3
           END,
-          legal_name
+          c.legal_name
         LIMIT ${MAX_RESULTS}`,
       [like, prefix, q],
     );

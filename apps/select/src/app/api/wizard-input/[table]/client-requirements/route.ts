@@ -5,6 +5,7 @@ import { resetApprovals } from "@/lib/approval-server";
 import { describeTag, logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { enquiryTags, mocSealingInput } from "@/lib/db/schema";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,8 @@ export async function GET(
     url.searchParams.get("tagId"),
     url.searchParams.get("projectId"),
   );
+  const notYours = ctx ? await viewDenied(req, { projectId: ctx.projectId }) : null;
+  if (notYours) return notYours;
   if (!ctx) return error("'tagId' (or 'projectId' as fallback) is required", 400);
 
   const [row] = await db
@@ -111,6 +114,8 @@ export async function POST(
     url.searchParams.get("tagId"),
     url.searchParams.get("projectId"),
   );
+  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }) : null;
+  if (noWork) return noWork;
   if (!ctx) return error("'tagId' (or 'projectId' as fallback) is required", 400);
 
   const filename = url.searchParams.get("filename");
@@ -191,6 +196,8 @@ export async function DELETE(
     url.searchParams.get("tagId"),
     url.searchParams.get("projectId"),
   );
+  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }) : null;
+  if (noWork) return noWork;
   if (!ctx) return error("'tagId' (or 'projectId' as fallback) is required", 400);
 
   await db

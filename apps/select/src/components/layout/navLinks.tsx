@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { REP_PAGES, isRepRole } from "../../lib/roles";
 
 /**
  * Single source of truth for the app's navigation, shared by the desktop
@@ -99,6 +100,11 @@ export const MAIN_LINKS: NavLink[] = [
 ];
 
 /** Master-data pages — admin and system_admin alike. */
+/** The main links this role sees: a Rep / Rep Manager only gets their
+ *  read-only Dashboard, Enquiries, Pump Selection and Reports. */
+export const mainLinksFor = (role: string | undefined): NavLink[] =>
+  isRepRole(role) ? MAIN_LINKS.filter((l) => (REP_PAGES as readonly string[]).includes(l.href)) : MAIN_LINKS;
+
 export const ADMIN_LINKS: NavLink[] = [
   { href: "/admin/pump-model-master", label: "Pump Model Master", icon: "database" },
   { href: "/admin/pulley-master", label: "Pulley Master", icon: "database" },

@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { DonutChart, fmtDay, fmtNum, TrendChart, type TrendSeries } from "../../components/charts/charts";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { canApprove } from "../../lib/approval";
+import { isRepRole, worksOnAnyEnquiry } from "../../lib/roles";
+import RepPicker from "../../components/projects/RepPicker";
 import { getDashboard, type DashboardData, type DashboardEnquiry, type DashboardTag } from "../../services/dashboardService";
-import { Avatar, Card, Icons, Segmented } from "../admin/audit/auditUi";
+import { Card, Icons, Segmented } from "../admin/audit/auditUi";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
 import DashboardListModal, { type DashboardListTarget } from "./DashboardListModal";
+import ClientMix from "./ClientMix";
+import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
+import type { EnquiryFilters } from "../../lib/enquiry-filters";
 
 const STATUS_STYLE: Record<string, { pill: string; dot: string; color: string }> = {
   Pending: { pill: "bg-[var(--warn-soft)] text-warn", dot: "bg-warn", color: "var(--warn)" },
@@ -199,9 +204,29 @@ function EnquiryItem({ enquiry, onOpenTag }: { enquiry: DashboardEnquiry; onOpen
 
 const DashboardPage = () => {
   const router = useRouter();
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
   const dates = useDateRange("all");
   const [scope, setScope] = useState<"all" | "mine">("all");
+  // A worker opens on "Assigned to me" (they can still switch to All). Nothing
+  // loads until the role is known - otherwise an "All" request fired first
+  // could land after the "mine" one and show every enquiry under "Assigned to me".
+  const scopeDefaulted = useRef(false);
+  const [scopeReady, setScopeReady] = useState(false);
+  useEffect(() => {
+    if (scopeDefaulted.current) return;
+    if (!user && userLoading) return;
+    scopeDefaulted.current = true;
+    if (user && !worksOnAnyEnquiry(user.role) && !isRepRole(user.role)) {
+      setScope("mine");
+    }
+    setScopeReady(true);
+  }, [user, userLoading]);
+  // Client / reps / zone / market / industry / status (same as the Enquiries page).
+  const [filters, setFilters] = useState<EnquiryFilters>({});
+  // Rep / Rep Manager: only their own enquiries (scoped by the API); a manager
+  // can narrow to one rep.
+  const isRep = isRepRole(user?.role);
+  const [rep, setRep] = useState("");
   const [trendView, setTrendView] = useState<"created" | "completed">("created");
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -211,17 +236,18 @@ const DashboardPage = () => {
   const query = dates.window;
 
   useEffect(() => {
+    if (!scopeReady) return;
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-    getDashboard({ ...query, mine: scope === "mine" })
+    getDashboard({ ...query, mine: scope === "mine", filters, rep })
       .then((d) => !cancelled && setData(d))
       .catch(() => !cancelled && setError("Couldn't load dashboard data."))
       .finally(() => !cancelled && setIsLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [query, scope]);
+  }, [query, scope, filters, scopeReady, rep]);
 
   const openTag = (
     enquiry: Pick<DashboardEnquiry, "id" | "code" | "client" | "customer" | "status">,
@@ -244,7 +270,7 @@ const DashboardPage = () => {
 
   // The KPI list open in the modal (null = closed).
   const [listTarget, setListTarget] = useState<DashboardListTarget | null>(null);
-  const scopeText = scope === "mine" ? "Created by me" : "All enquiries";
+  const scopeText = scope === "mine" ? "Assigned to me" : "All enquiries";
   const openList = (kind: DashboardListTarget["kind"], status: DashboardListTarget["status"], title: string) => () =>
     setListTarget({ kind, status, title });
 
@@ -296,16 +322,23 @@ const DashboardPage = () => {
 
         {/* Filters */}
         <div className="relative flex flex-wrap items-center gap-2.5 border-t border-line px-5 py-3">
-          <Segmented
-            value={scope}
-            onChange={setScope}
-            loading={isLoading}
-            options={[
-              { key: "all", label: "All enquiries" },
-              { key: "mine", label: "Created by me" },
-            ]}
-          />
+          {isRep ? (
+            <RepPicker value={rep} onChange={setRep} />
+          ) : (
+            <Segmented
+              value={scope}
+              onChange={setScope}
+              loading={isLoading}
+              options={[
+                { key: "all", label: "All enquiries" },
+                { key: "mine", label: "Assigned to me" },
+              ]}
+            />
+          )}
           <DateRangeFilter state={dates} />
+        </div>
+        <div className="relative border-t border-line px-5 py-3">
+          <EnquiryFilterBar value={filters} onChange={setFilters} />
         </div>
       </div>
 
@@ -444,6 +477,9 @@ const DashboardPage = () => {
             </Card>
           </div>
 
+          {/* Client mix: order type, market, zone, primary reps, rep x zone */}
+          <ClientMix mix={data.mix} />
+
           {/* Recent enquiries with tags + side panels */}
           <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
             <Card
@@ -460,7 +496,7 @@ const DashboardPage = () => {
             >
               {data.recent.length === 0 ? (
                 <p className="py-12 text-center text-[12.5px] text-fg-3">
-                  {scope === "mine" ? "You haven't created any enquiries in this period." : "No enquiries in this period."}
+                  {scope === "mine" ? "No enquiries assigned to you in this period." : "No enquiries in this period."}
                 </p>
               ) : (
                 <ul className="divide-y divide-line">
@@ -496,24 +532,6 @@ const DashboardPage = () => {
                 <Bars color="var(--brand-blue)" items={data.industries.map((i) => ({ key: i.label, label: i.label, value: i.count }))} />
               </Card>
 
-              {scope === "all" && (
-                <Card icon={Icons.users} title="Enquiries by engineer">
-                  <Bars
-                    color="var(--brand-cyan)"
-                    items={data.engineers.map((e) => ({
-                      key: e.label,
-                      label: (
-                        <span className="inline-flex items-center gap-2">
-                          <Avatar email={e.label} size={18} />
-                          {e.label}
-                        </span>
-                      ),
-                      value: e.enquiries,
-                      hint: `${e.tags} tag${e.tags === 1 ? "" : "s"}`,
-                    }))}
-                  />
-                </Card>
-              )}
             </div>
           </div>
 
@@ -531,6 +549,8 @@ const DashboardPage = () => {
           target={listTarget}
           period={query}
           mine={scope === "mine"}
+          filters={filters}
+          rep={rep}
           scopeLabel={`${scopeText} · ${windowLabel}`}
           onClose={() => setListTarget(null)}
           onOpenEnquiry={(r) => openTag(r)}

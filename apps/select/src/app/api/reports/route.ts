@@ -1,8 +1,10 @@
-import { desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
-import { json } from "@/lib/api";
+import { error, json } from "@/lib/api";
+import { AuthError, decodeToken } from "@/lib/auth";
+import { repScope } from "@/lib/rep-scope";
 import { db } from "@/lib/db";
-import { enquiryTags, projects, users } from "@/lib/db/schema";
+import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +16,17 @@ export const dynamic = "force-dynamic";
 // there's nowhere else for a second one to live. No auth gate here - same
 // convention as the other routes; the /selection-summary page itself is
 // already gated by middleware.
-export async function GET() {
+// A Rep / Rep Manager sees only their own enquiries' reports (`rep` narrows a
+// manager to one of their reps).
+export async function GET(req: Request) {
+  let claims;
+  try {
+    claims = await decodeToken(req);
+  } catch (e) {
+    if (e instanceof AuthError) return error(e.message, e.statusCode);
+    throw e;
+  }
+  const rep = await repScope(claims, new URL(req.url).searchParams.get("rep"));
   const rows = await db
     .select({
       tagId: enquiryTags.id,
@@ -28,13 +40,17 @@ export async function GET() {
       // almost always empty. clientCode is what's actually filled in.
       clientCode: projects.clientCode,
       createdByName: users.name,
+      // Who may work on it (a worker only views the documents of others), and
+      // whether a quotation exists (the documents open once one does).
+      assignedTo: projects.assignedTo,
+      quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
       documentFilename: enquiryTags.reportFilename,
       documentGeneratedAt: enquiryTags.reportGeneratedAt,
     })
     .from(enquiryTags)
     .innerJoin(projects, eq(enquiryTags.projectId, projects.id))
     .leftJoin(users, eq(projects.createdBy, users.id))
-    .where(isNotNull(enquiryTags.reportDocument))
+    .where(rep ? and(isNotNull(enquiryTags.reportDocument), rep) : isNotNull(enquiryTags.reportDocument))
     .orderBy(desc(enquiryTags.reportGeneratedAt));
 
   return json(
@@ -49,6 +65,8 @@ export async function GET() {
       // page's nested tag row for the same tag.
       status: r.tagStatus,
       created_by_name: r.createdByName,
+      assigned_to: r.assignedTo,
+      quotation_count: r.quotationCount,
       document_filename: r.documentFilename,
       document_generated_at: r.documentGeneratedAt,
     })),

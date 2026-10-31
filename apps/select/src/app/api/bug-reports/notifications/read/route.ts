@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { bugReportSelection, users } from "@/lib/db/schema";
+import { bugReportSelection, projects, users } from "@/lib/db/schema";
 
 const ADMIN_ROLES = new Set(["admin", "system_admin"]);
 
@@ -41,6 +41,12 @@ export async function POST(req: Request) {
         ...(ids && ids.length > 0 ? [inArray(bugReportSelection.id, ids)] : []),
       ),
     );
+
+  // Enquiries assigned to the caller are seen once the bell is opened.
+  await db
+    .update(projects)
+    .set({ assigneeUnread: false })
+    .where(and(eq(projects.assignedTo, claims.sub), eq(projects.assigneeUnread, true)));
 
   // Admins also have the "new bug filed" feed, which is a watermark rather
   // than a per-report flag — opening the bell moves it to now(), so anything

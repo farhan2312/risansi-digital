@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import "./NotificationBell.css";
 import {
   getBugNotifications,
@@ -15,6 +16,7 @@ import {
 const POLL_MS = 60_000;
 
 const NotificationBell = () => {
+  const router = useRouter();
   const [items, setItems] = useState<BugNotification[]>([]);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -67,11 +69,11 @@ const NotificationBell = () => {
     <div className="notif-bell-root" ref={rootRef}>
       <button
         type="button"
-        className="notif-bell-btn"
+        className={`notif-bell-btn${items.length > 0 ? " has-alert" : ""}`}
         onClick={handleToggle}
         aria-label={items.length > 0 ? `${items.length} unread notifications` : "Notifications"}
       >
-        🔔
+        <span className="notif-bell-icon" aria-hidden>🔔</span>
         {items.length > 0 && <span className="notif-bell-badge">{items.length}</span>}
       </button>
 
@@ -79,16 +81,33 @@ const NotificationBell = () => {
         <div className="notif-bell-dropdown">
           <div className="notif-bell-dropdown-header">Notifications</div>
           {items.length === 0 ? (
-            <p className="notif-bell-empty">No new bug reports or updates.</p>
+            <p className="notif-bell-empty">No new assignments, bug reports or updates.</p>
           ) : (
             <ul>
               {items.map((n) => (
-                <li key={n.id}>
+                <li
+                  key={`${n.kind}-${n.id}`}
+                  onClick={
+                    n.kind === "assigned"
+                      ? () => {
+                          setOpen(false);
+                          router.push("/projects");
+                        }
+                      : undefined
+                  }
+                  style={n.kind === "assigned" ? { cursor: "pointer" } : undefined}
+                  title={n.kind === "assigned" ? "Open Enquiries" : undefined}
+                >
                   <span className={`notif-status-dot status-${n.status.replace(/\s+/g, "-").toLowerCase()}`} />
                   <div>
                     <div className="notif-item-title">{n.title}</div>
                     <div className="notif-item-status">
-                      {n.kind === "new" ? (
+                      {n.kind === "assigned" ? (
+                        <>
+                          Enquiry assigned to you
+                          {n.reportedByName ? <> by <b>{n.reportedByName}</b></> : null}
+                        </>
+                      ) : n.kind === "new" ? (
                         <>
                           New bug report
                           {n.reportedByName ? <> from <b>{n.reportedByName}</b></> : null}

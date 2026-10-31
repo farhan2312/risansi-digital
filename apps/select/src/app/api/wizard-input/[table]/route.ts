@@ -24,6 +24,7 @@ import {
   driveGearedInput,
   pumpModelQtyInput,
 } from "@/lib/db/schema";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -236,6 +237,8 @@ export async function GET(
     url.searchParams.get("tagId"),
     url.searchParams.get("projectId"),
   );
+  const notYours = ctx ? await viewDenied(req, { projectId: ctx.projectId }) : null;
+  if (notYours) return notYours;
   if (!ctx) {
     return error(
       "'tagId' (or 'projectId' as fallback) is required and must resolve to a tag",
@@ -285,6 +288,8 @@ export async function PUT(
   const tagIdIn = typeof body.tagId === "string" ? body.tagId : null;
   const projectIdIn = typeof body.projectId === "string" ? body.projectId : null;
   const ctx = await resolveTagContext(tagIdIn, projectIdIn);
+  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }) : null;
+  if (noWork) return noWork;
   if (!ctx) {
     return error(
       "'tagId' (or 'projectId' as fallback) is required and must resolve to a tag",
@@ -419,6 +424,8 @@ export async function DELETE(
     url.searchParams.get("tagId"),
     url.searchParams.get("projectId"),
   );
+  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }) : null;
+  if (noWork) return noWork;
   if (!ctx) {
     return error(
       "'tagId' (or 'projectId' as fallback) is required and must resolve to a tag",

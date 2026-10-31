@@ -33,6 +33,8 @@ export async function GET(req: Request) {
     id: String(user.id),
     name: user.name,
     email: user.email,
-    role: user.role,
+    // The session's role (from the Risansi Digital grant), which is what the
+    // API routes check - not the local copy, which can lag a grant change.
+    role: claims.role || user.role,
   });
 }

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export async function GET(
 ) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
+  const notYours = await viewDenied(req, { projectId: id });
+  if (notYours) return notYours;
 
   const [row] = await db
     .select({ reportSummary: projects.reportSummary })
@@ -40,6 +43,8 @@ export async function PUT(
 ) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
+  const noWork = await workDenied(req, { projectId: id });
+  if (noWork) return noWork;
 
   let body: unknown;
   try {

@@ -871,3 +871,62 @@ never auto-filled from the AI result.
   from the Pump Model / Pulley / Gearbox / Motor master POST, PATCH and DELETE
   routes. Actions `master.create|update|delete`, entity = table, detail names
   the row and lists only changed fields (old → new); no-op saves are skipped.
+
+## Roles & enquiry assignment (user, 2026-10-31)
+- `user` split into **user_master** (Rachna Chauhan) and **user_worker** (every
+  other plain User). Roles come from the Risansi Digital grant
+  (`identity.app_grants.app_role`); `migrations/identity/0011_select_master_worker.sql`
+  added both to `identity.app_roles`, moved the grants and relabelled `user` as
+  legacy (a leftover `user` reads as a worker). `users_pump.role` is now kept in
+  step with the grant by `resolveAccess` (lib/effective-role.ts); /api/auth/me
+  returns the session's role.
+- Rules in `src/lib/roles.ts`: `canManageEnquiries` = user_master + system_admin
+  (create, edit, delete, assign, reassign — `requireEnquiryManager` in lib/auth);
+  `worksOnAnyEnquiry` = those + admin + selection_head. EVERYONE SEES EVERY
+  enquiry (user correction, same day), but a worker (user_worker / legacy user /
+  pulley_owner) WORKS only on the ones assigned to them (`canWorkOn`); copying a
+  tag OUT of any enquiry is allowed, INTO only one of theirs. Server side:
+  `workDenied(req, {projectId|tagId|quotationId})` (lib/enquiry-access.ts) at the
+  top of every enquiry write route — tags (create/rename/delete/copy target/
+  report), wizard-input PUT/DELETE + client-requirements + document,
+  step-approvals, commercial/*, commercial-offer(+scope), enquiry-document(+
+  versions), quotations (create/PATCH/internal-version/send), projects/[id]/
+  report(+summary). UI: Enquiries rows not yours = view only (no Open / Add /
+  rename / delete tag, Quotation / Technical / Commercial disabled; Copy opens
+  the copy dialog with only your enquiries as targets); the wizard shows an
+  "assigned to X" notice. Lists open on "Assigned to me" for workers (Enquiries
+  + Dashboard; `mine=1` = assigned_to, not created_by).
+- `projects.order_type` ('pump'|'spare', CHECK; spare only recorded — its own
+  process comes later), `assigned_to` / `assigned_by` / `assigned_at` (backfilled
+  to created_by), `client_primary_rep`, `client_secondary_reps`,
+  `client_market_type`, `client_zone` (copied from Market Intell when the client
+  is picked: primary rep + active secondary reps from client_secondary_reps,
+  market_type, tour_routes.zone — read-only queries, deleted_at IS NULL).
+- POST /api/projects/[id]/assign {assignedTo} (audited enquiry.assign /
+  enquiry.reassign; NO e-mail — user); GET
+  /api/projects/assignees (active workers + master + the caller).
+- UI: Create Enquiry has Order type buttons, Assign to (required), read-only
+  client details; Edit Enquiry has Order type + details; Enquiries list has an
+  Order Type column and Assigned To (with "by <creator>"), Assign/Edit/Delete
+  only for managers; workers get no New Enquiry and no copy-to-new-enquiry.
+  Every enquiry before 2026-10-31 is a pump order (order_type default).
+
+## Rep / Rep Manager (read-only, user 2026-11-01)
+- Roles `rep`, `rep_manager` (migrations/identity/0012, applied). Read-only
+  Dashboard, Enquiries, Pump Selection, Reports (`REP_PAGES`; middleware sends
+  every other page to /dashboard; /api/client-quotes + /api/client-price-refs
+  403). Nav via `mainLinksFor(role)`.
+- "Own" enquiries (lib/rep-scope.ts, live from Market Intell, cached 60 s):
+  the sales user linked by identity_user_id (else e-mail); clients where they
+  are primary OR secondary rep -> those client codes; enquiries whose client
+  code is not in the client master fall back to the saved rep names. Rep
+  Manager adds their sales manager_reps team; `rep` query param (sales user id)
+  narrows to one person (RepPicker, GET /api/rep-scope).
+- Enforced server-side: `repScope()` on GET /api/projects, /api/dashboard(+list),
+  /api/reports; `viewDenied()` on every GET that reads one enquiry (project,
+  tags, wizard-input + client-requirements + document, step-approvals,
+  commercial, commercial-offer, enquiry-document(+versions), quotations(+enquiry),
+  reports/summaries). Writes already refused by workDenied (never assigned).
+- UI: Enquiries/Dashboard/Reports show RepPicker (managers) instead of the
+  scope toggle; no copy/create/edit; tag "View" opens the wizard view-only
+  (fieldset disabled, saveStep off, "View only" bar with step picker).

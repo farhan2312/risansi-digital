@@ -43,6 +43,7 @@ export default function CommercialOfferModal({
   version,
   unsavedPrices,
   fx,
+  readOnly = false,
   onClose,
 }: {
   projectId: string;
@@ -54,9 +55,11 @@ export default function CommercialOfferModal({
   unsavedPrices?: boolean;
   /** Quote in USD: the sheet's prices converted at this fixed rate. */
   fx?: QuoteFx;
+  /** View only - for someone who may not work on this enquiry. */
+  readOnly?: boolean;
   onClose: () => void;
 }) {
-  const editable = !version;
+  const editable = !version && !readOnly;
   const [data, setData] = useState<CommercialOfferData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [config, setConfig] = useState<OfferConfig>(version?.config ?? EMPTY_OFFER_CONFIG);
@@ -73,13 +76,13 @@ export default function CommercialOfferModal({
       .then((d) => {
         if (cancelled) return;
         setData(d);
-        if (editable) setConfig(d.configs[group] ?? EMPTY_OFFER_CONFIG);
+        if (!version) setConfig(d.configs[group] ?? EMPTY_OFFER_CONFIG);
       })
       .catch(() => !cancelled && setLoadError("Couldn't load the Commercial Offer."));
     return () => {
       cancelled = true;
     };
-  }, [projectId, group, editable]);
+  }, [projectId, group, version]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -182,7 +185,11 @@ export default function CommercialOfferModal({
             </h3>
             <p className="text-[12.5px] text-fg-3">
               {data ? `${data.projectCode} · ${data.clientName}` : "Loading…"} · {tags.length} tag{tags.length === 1 ? "" : "s"}
-              {version ? " · as saved in this version (read-only)" : " · saved prices from the Commercial Summary"}
+              {version
+                ? " · as saved in this version (read-only)"
+                : readOnly
+                  ? " · saved prices · view only (assigned to someone else)"
+                  : " · saved prices from the Commercial Summary"}
             </p>
             {unsavedPrices && editable && (
               <p className="mt-0.5 text-[12px] text-warn">Some prices on the page aren&apos;t saved yet — save them to see them here.</p>

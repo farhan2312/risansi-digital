@@ -52,7 +52,17 @@ const frameBtn =
 const framePrimary =
   "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
 
-const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSource; onClose: () => void }) => {
+const EnquiryDocumentModal = ({
+  source,
+  readOnly = false,
+  onClose,
+}: {
+  source: EnquiryDocumentSource;
+  /** View only - for someone who may not work on this enquiry (a worker it is
+   *  not assigned to): no edits, no Send to client. */
+  readOnly?: boolean;
+  onClose: () => void;
+}) => {
   const [data, setData] = useState<TechDocData | null>(null);
   const [error, setError] = useState<string | null>(null);
   // One sheet per drive group, each with its own edits.
@@ -171,6 +181,8 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
   }, [data, configs, group, typedScopes]);
   // What is shown / printed / exported: the open sent version, else the live sheet.
   const shown = viewing ? viewing.sheet : doc;
+  // No editing while a sent version is shown, or at all when read-only.
+  const locked = readOnly || Boolean(viewing);
   const html = useMemo(
     () => (shown ? buildTechDocHtml(shown, typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png") : ""),
     [shown],
@@ -293,7 +305,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                     </button>
                   ))
                 )}
-                <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                <span className={`ml-auto flex flex-wrap items-center gap-1.5 ${readOnly ? "hidden" : ""}`}>
                   <input
                     className="w-[200px] rounded-md border border-line bg-paper px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
                     placeholder="Note (optional)"
@@ -329,7 +341,13 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                 </div>
               )}
 
-              <div className={`flex flex-wrap items-center gap-2 ${viewing ? "hidden" : ""}`}>
+              {readOnly && !viewing && (
+                <div className="rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px] text-fg-3">
+                  View only - this enquiry is assigned to someone else. You can print or download it.
+                </div>
+              )}
+
+              <div className={`flex flex-wrap items-center gap-2 ${locked ? "hidden" : ""}`}>
                 <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
                   {(["preview", "edit"] as const).map((m) => (
                     <button
@@ -380,7 +398,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                 </span>
               </div>
 
-              {!viewing && (
+              {!locked && (
                 <DocTagPicker
                   tags={groupTags}
                   hidden={config.hiddenTags ?? []}
@@ -388,7 +406,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                 />
               )}
 
-              {showPicker && !viewing && (
+              {showPicker && !locked && (
                 <div className="grid grid-cols-1 gap-4 rounded-lg border border-line bg-sunk p-3 sm:grid-cols-2 lg:grid-cols-3">
                   {TECH_DOC_SECTIONS.map((section) => {
                     const fields = techDocExtrasFor(doc?.tags ?? []).filter((f) => f.section === section);
@@ -417,7 +435,7 @@ const EnquiryDocumentModal = ({ source, onClose }: { source: EnquiryDocumentSour
                 </div>
               )}
 
-              {mode === "edit" && doc && !viewing ? (
+              {mode === "edit" && doc && !locked ? (
                 <div className="flex max-h-[68vh] flex-col gap-4 overflow-y-auto pr-1">
                   <DocHeaderEditor
                     hidden={config.headerHidden ?? []}

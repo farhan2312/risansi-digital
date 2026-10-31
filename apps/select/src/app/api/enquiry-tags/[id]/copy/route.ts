@@ -4,6 +4,7 @@ import { error, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { enquiryTags } from "@/lib/db/schema";
+import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,8 @@ export async function POST(
     typeof body.targetProjectId === "string" && body.targetProjectId.trim()
       ? body.targetProjectId.trim()
       : source.projectId;
+  const noWork = await workDenied(req, { projectId: targetProjectId });
+  if (noWork) return noWork;
 
   const requestedName =
     typeof body.name === "string" && body.name.trim() ? body.name.trim() : null;

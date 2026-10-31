@@ -7,6 +7,7 @@ import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
 import { projects, quotation } from "@/lib/db/schema";
 import { dotDate } from "@/lib/tech-doc";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ const UUID = /^[0-9a-f-]{36}$/i;
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
   const [[p], groups, quotes] = await Promise.all([
     db
       .select({
@@ -61,6 +64,8 @@ export async function PUT(req: Request) {
   const projectId = String(body.projectId ?? "");
   const group = String(body.group ?? "");
   if (!UUID.test(projectId)) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   if (!isDriveGroup(group)) return error("'group' must be GM, GB, VB or DD", 400);
   const config = normalizeOfferConfig(body.config);
   const saved = await db.transaction(async (tx) => {

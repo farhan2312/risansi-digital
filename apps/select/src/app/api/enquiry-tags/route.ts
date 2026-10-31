@@ -8,6 +8,7 @@ import {
   generalInfoInput,
   operatingConditionsInput,
 } from "@/lib/db/schema";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,8 @@ interface TagRow {
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId");
   if (!projectId) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
 
   const rows = await db
     .select({
@@ -75,6 +78,8 @@ export async function POST(req: Request) {
   const projectId = typeof body.projectId === "string" ? body.projectId.trim() : "";
   const nameRaw = typeof body.name === "string" ? body.name.trim() : "";
   if (!projectId) return error("'projectId' is required", 400);
+  const noWork = await workDenied(req, { projectId });
+  if (noWork) return noWork;
   if (!nameRaw) return error("'name' is required", 400);
   if (nameRaw.length > 100) return error("'name' must be 100 characters or fewer", 400);
 

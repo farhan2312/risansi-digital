@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import StatusPill from "../../components/ui/StatusPill";
 import { fmtNum } from "../../components/charts/charts";
+import type { EnquiryFilters } from "../../lib/enquiry-filters";
 import {
   getDashboardList,
   type DashboardListEnquiry,
@@ -28,13 +29,15 @@ const fmtDate = (iso: string | null) =>
 /**
  * The list behind a Dashboard KPI card. Loaded BATCH rows at a time as it is
  * scrolled, and searched on the server, with
- * the dashboard's own period and "Created by me" scope, so its total always
+ * the dashboard's own period, "Assigned to me" scope and filters, so its total always
  * matches the number on the card. Clicking a row opens that enquiry / tag.
  */
 export default function DashboardListModal({
   target,
   period,
   mine,
+  filters,
+  rep,
   scopeLabel,
   onClose,
   onOpenEnquiry,
@@ -43,6 +46,10 @@ export default function DashboardListModal({
   target: DashboardListTarget;
   period: { from?: string; to?: string };
   mine: boolean;
+  /** The Dashboard's enquiry filters (client, reps, zone, …). */
+  filters?: EnquiryFilters;
+  /** Rep Manager: one of their reps. */
+  rep?: string;
   /** "All enquiries" / "Created by me" and the period, shown under the title. */
   scopeLabel: string;
   onClose: () => void;
@@ -81,6 +88,8 @@ export default function DashboardListModal({
         from: period.from,
         to: period.to,
         mine,
+        filters,
+        rep,
       })
         .then((res) => {
           if (id !== reqId.current) return;
@@ -98,7 +107,7 @@ export default function DashboardListModal({
           if (id === reqId.current) setLoading(false);
         });
     },
-    [target.kind, target.status, q, period.from, period.to, mine],
+    [target.kind, target.status, q, period.from, period.to, mine, filters, rep],
   );
 
   // First batch - again whenever the search (or list) changes, from the top.

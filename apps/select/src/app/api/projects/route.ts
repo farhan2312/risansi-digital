@@ -1,10 +1,19 @@
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
-import { tryDecodeToken } from "@/lib/auth";
+import { AuthError, requireEnquiryManager, tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
+import { findAssignee } from "@/lib/enquiry-access";
+import { filtersFromParams } from "@/lib/enquiry-filters";
+import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
+import { repScope } from "@/lib/rep-scope";
+import { orderTypeLabel } from "@/lib/roles";
+import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
+
+const assignee = alias(users, "assignee");
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +61,7 @@ export async function GET(req: Request) {
     `%${value.trim().replace(/([\\%_])/g, "\\$1")}%`;
 
   const conditions: SQL[] = [];
+  const caller = await tryDecodeToken(req);
   const clientName = params.get("clientName");
   if (clientName && clientName.trim()) {
     conditions.push(sql`${projects.name} ILIKE ${like(clientName)}`);
@@ -60,20 +70,36 @@ export async function GET(req: Request) {
   if (enquiryCode && enquiryCode.trim()) {
     conditions.push(sql`${projects.projectCode} ILIKE ${like(enquiryCode)}`);
   }
-  // Created-date window: ISO instants (the client converts picked calendar
-  // days to its own time zone). Unparseable values are ignored.
+  // Date window: ISO instants (the client converts picked calendar days to
+  // its own time zone). Unparseable values are ignored. dateField picks the
+  // date: "enquiry" (default - the date the enquiry was received, a calendar
+  // day, compared as the instant's IST day), "assigned" or "created".
   const instant = (v: string | null) => {
     const d = v ? new Date(v) : null;
     return d && !Number.isNaN(d.getTime()) ? d : null;
   };
-  const createdFrom = instant(params.get("from"));
-  const createdTo = instant(params.get("to"));
-  if (createdFrom) conditions.push(sql`${projects.createdAt} >= ${createdFrom}`);
-  if (createdTo) conditions.push(sql`${projects.createdAt} <= ${createdTo}`);
-  // "Created by me" toggle: only enquiries the signed-in user created.
+  const windowFrom = instant(params.get("from"));
+  const windowTo = instant(params.get("to"));
+  const dateField = params.get("dateField");
+  if (dateField === "assigned" || dateField === "created") {
+    const col = dateField === "assigned" ? projects.assignedAt : projects.createdAt;
+    if (windowFrom) conditions.push(sql`${col} >= ${windowFrom}`);
+    if (windowTo) conditions.push(sql`${col} <= ${windowTo}`);
+  } else {
+    const istDay = (d: Date) => sql`(${d.toISOString()}::timestamptz at time zone 'Asia/Kolkata')::date`;
+    if (windowFrom) conditions.push(sql`${projects.enquiryDate} >= ${istDay(windowFrom)}`);
+    if (windowTo) conditions.push(sql`${projects.enquiryDate} <= ${istDay(windowTo)}`);
+  }
+  // Client / reps / zone / market / industry / status (shared with the Dashboard).
+  conditions.push(...enquiryFilterSql(filtersFromParams(params)));
+  // A Rep / Rep Manager sees only their own enquiries (`rep` = one of a
+  // manager's reps, or themselves).
+  const repCond = caller ? await repScope(caller, params.get("rep")) : null;
+  if (repCond) conditions.push(repCond);
+  // "Assigned to me" toggle (the default for a worker - everyone sees every
+  // enquiry, lib/roles.ts).
   if (params.get("mine") === "1") {
-    const me = (await tryDecodeToken(req))?.sub ?? null;
-    conditions.push(me ? eq(projects.createdBy, me) : sql`false`);
+    conditions.push(caller ? eq(projects.assignedTo, caller.sub) : sql`false`);
   }
   const where = conditions.length ? and(...conditions) : undefined;
 
@@ -90,11 +116,13 @@ export async function GET(req: Request) {
       project: projects,
       derivedStatus: rollup,
       createdByName: users.name,
+      assignedToName: assignee.name,
       // Commercial opens only once the Quotation step has generated one.
       quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
     })
     .from(projects)
     .leftJoin(users, eq(projects.createdBy, users.id))
+    .leftJoin(assignee, eq(projects.assignedTo, assignee.id))
     .where(where)
     .orderBy(desc(projects.createdAt));
 
@@ -103,7 +131,7 @@ export async function GET(req: Request) {
     : await base;
 
   const items = rows.map((r) => ({
-    ...projectToDict(r.project, r.createdByName),
+    ...projectToDict(r.project, r.createdByName, r.assignedToName),
     // Overwrite status with the rollup so the Dashboard's status column and
     // stat cards read the tag-aware value automatically.
     status: r.derivedStatus,
@@ -127,6 +155,15 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // Only the User-Master (and system admins) create enquiries.
+  let claims;
+  try {
+    claims = await requireEnquiryManager(req);
+  } catch (e) {
+    if (e instanceof AuthError) return error(e.message, e.statusCode);
+    throw e;
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -156,7 +193,15 @@ export async function POST(req: Request) {
 
   // Derived from the verified session cookie, not client input — a client
   // could otherwise attribute a project to any arbitrary user id.
-  const createdBy = (await tryDecodeToken(req))?.sub ?? null;
+  const createdBy = claims.sub;
+
+  const orderType = orderTypeFrom(body.orderType);
+  if (!orderType) return error("'orderType' must be pump or spare", 400);
+
+  // Assigned to a worker or the master; the creator when none is picked.
+  const assignedToId = String(body.assignedTo ?? "").trim() || createdBy;
+  const assignedTo = await findAssignee(createdBy, assignedToId);
+  if (!assignedTo) return error("Pick a worker (or yourself) to assign the enquiry to", 400);
 
   let project: typeof projects.$inferSelect;
   try {
@@ -174,6 +219,13 @@ export async function POST(req: Request) {
         // Information is saved, "Completed" once the final report is generated.
         status: (body.status as string) ?? "Pending",
         createdBy,
+        orderType,
+        assignedTo: assignedTo.id,
+        assignedBy: createdBy,
+        assignedAt: new Date(),
+        // Their bell tells them, unless the creator kept it.
+        assigneeUnread: assignedTo.id !== createdBy,
+        ...clientDetailsFrom(body),
       })
       .returning();
   } catch (e) {
@@ -192,18 +244,16 @@ export async function POST(req: Request) {
   // no tag exists yet.
   await db.insert(enquiryTags).values({ projectId: project.id, name: "Default" });
 
-  let createdByName: string | null = null;
-  if (createdBy) {
-    const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, createdBy)).limit(1);
-    createdByName = creator?.name ?? null;
-  }
+  const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, createdBy)).limit(1);
+  const createdByName = creator?.name ?? null;
+  const assignedName = assignedTo.name || assignedTo.email;
 
   await logAudit(req, {
     action: "enquiry.create",
     entity: "projects",
     entityId: project.id,
-    detail: `Created enquiry ${project.projectCode}`,
+    detail: `Created enquiry ${project.projectCode} (${orderTypeLabel(orderType)}), assigned to ${assignedName}`,
   });
 
-  return json(projectToDict(project, createdByName), 201);
+  return json(projectToDict(project, createdByName, assignedTo.name), 201);
 }

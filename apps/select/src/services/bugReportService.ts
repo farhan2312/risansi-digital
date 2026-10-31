@@ -98,12 +98,13 @@ export const getBugReportScreenshotUrl = (id: string): string => `/api/bug-repor
 export interface BugNotification {
   id: string;
   title: string;
-  status: BugReportStatus;
+  status: BugReportStatus | "Assigned";
   updatedAt: string;
   /** "status" - a report I filed changed status. "new" - somebody else filed
-   *  a report and I am an admin (the triage feed). */
-  kind: "status" | "new";
-  /** Who filed it. Only set on "new" items; null on my own reports. */
+   *  a report and I am an admin (the triage feed). "assigned" - an enquiry was
+   *  assigned to me (id = the enquiry, title = its no. and client). */
+  kind: "status" | "new" | "assigned";
+  /** Who filed it ("new"), or who assigned the enquiry ("assigned"). */
   reportedByName: string | null;
 }
 

@@ -6,6 +6,7 @@ import { enquiryTags, projects, quotation } from "@/lib/db/schema";
 import { DRIVE_GROUPS, erpQuotationNumber, quotationNumber, type EnquiryQuotations } from "@/lib/commercial";
 import { tagDriveGroups } from "@/lib/commercial-server";
 import { suggestedTsm } from "@/lib/quotation-server";
+import { viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,15 @@ const UUID = /^[0-9a-f-]{36}$/i;
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
 
-  const [[p], tags, groupOf, quotes] = await Promise.all([
-    db.select({ clientCode: projects.clientCode }).from(projects).where(eq(projects.id, projectId)).limit(1),
+  // The client's rep (Market Intell) is looked up as soon as the client code
+  // is known, alongside the other queries rather than after them.
+  const projectRow = db.select({ clientCode: projects.clientCode }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  const tsmLookup = projectRow.then(([row]) => (row ? suggestedTsm(row.clientCode).catch(() => null) : null));
+  const [[p], tags, groupOf, quotes, clientTsm] = await Promise.all([
+    projectRow,
     db
       .select({ id: enquiryTags.id, name: enquiryTags.name })
       .from(enquiryTags)
@@ -28,9 +35,9 @@ export async function GET(req: Request) {
       .orderBy(asc(enquiryTags.createdAt)),
     tagDriveGroups(projectId),
     db.select().from(quotation).where(eq(quotation.projectId, projectId)),
+    tsmLookup,
   ]);
   if (!p) return error("Enquiry not found", 404);
-  const clientTsm = await suggestedTsm(p.clientCode).catch(() => null);
 
   const used = DRIVE_GROUPS.filter((g) => tags.some((t) => groupOf.get(t.id) === g));
   const mixed = used.length > 1;
