@@ -2,15 +2,16 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import apiClient from "../services/apiClient";
+import type { AppRole } from "../lib/roles";
 
 export interface CurrentUser {
   id: string;
   name: string | null;
   email: string;
-  // "user": main app only. "admin": also gets the admin master pages, but
-  // not access requests. "system_admin": full control, including access
-  // requests. Assigned directly in the DB — no self-service promotion UI.
-  role: "user" | "selection_head" | "pulley_owner" | "admin" | "system_admin";
+  // lib/roles.ts: user_master / user_worker (the old "user" reads as a
+  // worker), selection_head, pulley_owner, admin, system_admin. Set by the
+  // Risansi Digital grant.
+  role: AppRole;
 }
 
 interface CurrentUserContextValue {

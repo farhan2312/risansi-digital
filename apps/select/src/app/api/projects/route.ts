@@ -1,10 +1,19 @@
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
-import { tryDecodeToken } from "@/lib/auth";
+import { AuthError, requireEnquiryManager, tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
+import { appBaseUrl } from "@/lib/approval-server";
+import { enquiryScope, findAssignee } from "@/lib/enquiry-access";
+import { assignmentEmail } from "@/lib/email/approval-emails";
+import { describeEmailResult, sendEmail } from "@/lib/email/resend";
+import { orderTypeLabel } from "@/lib/roles";
+import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
+
+const assignee = alias(users, "assignee");
 
 export const dynamic = "force-dynamic";
 
@@ -70,10 +79,13 @@ export async function GET(req: Request) {
   const createdTo = instant(params.get("to"));
   if (createdFrom) conditions.push(sql`${projects.createdAt} >= ${createdFrom}`);
   if (createdTo) conditions.push(sql`${projects.createdAt} <= ${createdTo}`);
-  // "Created by me" toggle: only enquiries the signed-in user created.
+  // A worker sees only the enquiries assigned to them (lib/roles.ts).
+  const caller = await tryDecodeToken(req);
+  const scope = caller ? enquiryScope(caller) : sql`false`;
+  if (scope) conditions.push(scope);
+  // "Assigned to me" toggle.
   if (params.get("mine") === "1") {
-    const me = (await tryDecodeToken(req))?.sub ?? null;
-    conditions.push(me ? eq(projects.createdBy, me) : sql`false`);
+    conditions.push(caller ? eq(projects.assignedTo, caller.sub) : sql`false`);
   }
   const where = conditions.length ? and(...conditions) : undefined;
 
@@ -90,11 +102,13 @@ export async function GET(req: Request) {
       project: projects,
       derivedStatus: rollup,
       createdByName: users.name,
+      assignedToName: assignee.name,
       // Commercial opens only once the Quotation step has generated one.
       quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
     })
     .from(projects)
     .leftJoin(users, eq(projects.createdBy, users.id))
+    .leftJoin(assignee, eq(projects.assignedTo, assignee.id))
     .where(where)
     .orderBy(desc(projects.createdAt));
 
@@ -103,7 +117,7 @@ export async function GET(req: Request) {
     : await base;
 
   const items = rows.map((r) => ({
-    ...projectToDict(r.project, r.createdByName),
+    ...projectToDict(r.project, r.createdByName, r.assignedToName),
     // Overwrite status with the rollup so the Dashboard's status column and
     // stat cards read the tag-aware value automatically.
     status: r.derivedStatus,
@@ -127,6 +141,15 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // Only the User-Master (and system admins) create enquiries.
+  let claims;
+  try {
+    claims = await requireEnquiryManager(req);
+  } catch (e) {
+    if (e instanceof AuthError) return error(e.message, e.statusCode);
+    throw e;
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -156,7 +179,15 @@ export async function POST(req: Request) {
 
   // Derived from the verified session cookie, not client input — a client
   // could otherwise attribute a project to any arbitrary user id.
-  const createdBy = (await tryDecodeToken(req))?.sub ?? null;
+  const createdBy = claims.sub;
+
+  const orderType = orderTypeFrom(body.orderType);
+  if (!orderType) return error("'orderType' must be pump or spare", 400);
+
+  // Assigned to a worker or the master; the creator when none is picked.
+  const assignedToId = String(body.assignedTo ?? "").trim() || createdBy;
+  const assignedTo = await findAssignee(createdBy, assignedToId);
+  if (!assignedTo) return error("Pick a worker (or yourself) to assign the enquiry to", 400);
 
   let project: typeof projects.$inferSelect;
   try {
@@ -174,6 +205,11 @@ export async function POST(req: Request) {
         // Information is saved, "Completed" once the final report is generated.
         status: (body.status as string) ?? "Pending",
         createdBy,
+        orderType,
+        assignedTo: assignedTo.id,
+        assignedBy: createdBy,
+        assignedAt: new Date(),
+        ...clientDetailsFrom(body),
       })
       .returning();
   } catch (e) {
@@ -192,18 +228,31 @@ export async function POST(req: Request) {
   // no tag exists yet.
   await db.insert(enquiryTags).values({ projectId: project.id, name: "Default" });
 
-  let createdByName: string | null = null;
-  if (createdBy) {
-    const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, createdBy)).limit(1);
-    createdByName = creator?.name ?? null;
+  const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, createdBy)).limit(1);
+  const createdByName = creator?.name ?? null;
+  const assignedName = assignedTo.name || assignedTo.email;
+
+  // The assignee hears about it, unless the creator kept it.
+  let emailNote = "";
+  if (assignedTo.id !== createdBy) {
+    const mail = assignmentEmail({
+      enquiryCode: project.projectCode,
+      clientName: project.name,
+      orderType: orderTypeLabel(orderType),
+      assignedByName: createdByName || claims.email,
+      reassigned: false,
+      openUrl: `${appBaseUrl(req)}/projects`,
+      assignedAt: project.assignedAt ?? new Date(),
+    });
+    emailNote = `; ${describeEmailResult(await sendEmail({ to: [assignedTo.email], ...mail }), assignedName)}`;
   }
 
   await logAudit(req, {
     action: "enquiry.create",
     entity: "projects",
     entityId: project.id,
-    detail: `Created enquiry ${project.projectCode}`,
+    detail: `Created enquiry ${project.projectCode} (${orderTypeLabel(orderType)}), assigned to ${assignedName}${emailNote}`,
   });
 
-  return json(projectToDict(project, createdByName), 201);
+  return json(projectToDict(project, createdByName, assignedTo.name), 201);
 }

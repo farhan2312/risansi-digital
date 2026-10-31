@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
+import { roleLabel as appRoleLabel } from "../../lib/roles";
 import { useTheme } from "../../contexts/ThemeContext";
 import EditPasswordModal from "../ui/EditPasswordModal";
 
@@ -30,20 +31,8 @@ const LogOutIcon = () => (
 // Admin" (there was no third role yet) — anything else, including the new
 // "system_admin" value itself, silently fell through to "User". That's why
 // a promoted system_admin account showed up as "User" in the sidebar.
-const roleLabel = (role: string | undefined) => {
-  switch (role) {
-    case "system_admin":
-      return "System Admin";
-    case "selection_head":
-      return "Selection Head";
-    case "pulley_owner":
-      return "Pulley Owner";
-    case "admin":
-      return "Admin";
-    default:
-      return "User";
-  }
-};
+// Labels now come from lib/roles.ts, with the old "User" fallback.
+const roleLabel = (role: string | undefined) => (role ? appRoleLabel(role) : "User");
 
 /** User profile block pinned to the bottom of the sidebar — avatar, name,
  * role, and an expand chevron that opens an upward popup (theme toggle,

@@ -83,6 +83,15 @@ export async function resolveAccess(userId: string): Promise<Access | null> {
   }
 
   const verdict = await mayOpen(identityDb, row.identityUserId, APP_SLUG);
+  // Keep the local copy of the role in step with the grant: the enquiry
+  // assignee list and the approval e-mails read users_pump.role.
+  if (verdict.allowed && verdict.appRole && verdict.appRole !== row.role) {
+    try {
+      await db.update(users).set({ role: verdict.appRole }).where(eq(users.id, userId));
+    } catch {
+      // A stale local copy is not worth refusing the request over.
+    }
+  }
   return verdict.allowed
     ? {
         status: "active",
@@ -144,7 +153,7 @@ async function provisionFromIdentity(
       email,
       name,
       passwordHash: await bcrypt.hash(randomUUID(), 10),
-      role: verdict.appRole ?? "user",
+      role: verdict.appRole ?? "user_worker",
       status: "active",
       mustChangePassword: false,
       identityUserId,

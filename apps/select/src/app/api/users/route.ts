@@ -10,7 +10,7 @@ import { users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
-const VALID_ROLES = new Set(["user", "selection_head", "pulley_owner", "admin", "system_admin"]);
+const VALID_ROLES = new Set(["user_master", "user_worker", "user", "selection_head", "pulley_owner", "admin", "system_admin"]);
 
 // System-admin only — managing the full user list (not just pending
 // requests) is explicitly excluded from the plain "admin" role, per the

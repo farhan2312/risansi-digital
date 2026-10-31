@@ -1,4 +1,5 @@
 import apiClient from "./apiClient";
+import type { OrderType } from "../lib/roles";
 
 // Matches projectToDict() in lib/api.ts — raw snake_case columns plus the
 // joined creator display name.
@@ -19,6 +20,17 @@ export interface ProjectRecord {
   updated_at: string | null;
   /** Quotations generated (list endpoint only); Commercial is locked at 0. */
   quotation_count?: number;
+  /** "pump" | "spare". */
+  order_type: string;
+  /** Who works the enquiry (a worker sees only theirs - lib/roles.ts). */
+  assigned_to: string | null;
+  assigned_to_name: string | null;
+  assigned_at: string | null;
+  /** The client's reps, market type and zone from Market Intell. */
+  client_primary_rep: string | null;
+  client_secondary_reps: string | null;
+  client_market_type: string | null;
+  client_zone: string | null;
 }
 
 /** Every enquiry, unpaginated. Used where the whole set is genuinely needed:
@@ -48,7 +60,7 @@ export const listProjectsPage = async (query: {
   /** Created-date window, ISO instants. */
   from?: string;
   to?: string;
-  /** Only enquiries the signed-in user created. */
+  /** Only enquiries assigned to the signed-in user. */
   mine?: boolean;
 }): Promise<ProjectPage> => {
   const { data } = await apiClient.get<ProjectPage>("/projects", {
@@ -88,6 +100,13 @@ export interface CreateProjectInput {
   industry: string;
   /** YYYY-MM-DD */
   enquiryDate: string;
+  orderType: OrderType;
+  /** User id; the creator when empty. */
+  assignedTo: string;
+  clientPrimaryRep: string;
+  clientSecondaryReps: string;
+  clientMarketType: string;
+  clientZone: string;
 }
 
 export const createProject = async (
@@ -113,6 +132,11 @@ export interface UpdateProjectInput {
   enquiryDate?: string;
   status?: string;
   remarks?: string;
+  orderType?: OrderType;
+  clientPrimaryRep?: string;
+  clientSecondaryReps?: string;
+  clientMarketType?: string;
+  clientZone?: string;
 }
 
 export const updateProject = async (
@@ -125,4 +149,28 @@ export const updateProject = async (
 
 export const deleteProject = async (id: string): Promise<void> => {
   await apiClient.delete(`/projects/${id}`);
+};
+
+/** Someone an enquiry can be assigned to (GET /projects/assignees). */
+export interface Assignee {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string | null;
+  is_me: boolean;
+}
+
+/** Workers and the master (plus the caller) - User-Master / system admins only. */
+export const listAssignees = async (): Promise<Assignee[]> => {
+  const { data } = await apiClient.get<Assignee[]>("/projects/assignees");
+  return data;
+};
+
+/** Assign or reassign an enquiry (User-Master / system admins only). */
+export const assignProject = async (
+  id: string,
+  assignedTo: string,
+): Promise<{ assigned_to: string; assigned_to_name: string | null }> => {
+  const { data } = await apiClient.post(`/projects/${id}/assign`, { assignedTo });
+  return data;
 };

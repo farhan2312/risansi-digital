@@ -86,6 +86,21 @@ export const projects = pgTable("projects", {
   createdBy: uuid("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
+  /** "pump" | "spare" (CHECK). Spare is only recorded for now - its own
+   *  process comes later (user, 2026-10-31). */
+  orderType: varchar("order_type", { length: 10 }).notNull().default("pump"),
+  /** The worker (or the master herself) who works this enquiry - a worker
+   *  sees only the enquiries assigned to them (lib/roles.ts). Backfilled to
+   *  created_by for the enquiries made before assignment existed. */
+  assignedTo: uuid("assigned_to").references(() => users.id, { onDelete: "set null" }),
+  assignedBy: uuid("assigned_by").references(() => users.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }),
+  /** The client's reps, market type and zone in Market Intell, copied when
+   *  the client is picked so the enquiry keeps what was true at the time. */
+  clientPrimaryRep: varchar("client_primary_rep", { length: 255 }),
+  clientSecondaryReps: text("client_secondary_reps"),
+  clientMarketType: varchar("client_market_type", { length: 50 }),
+  clientZone: varchar("client_zone", { length: 50 }),
   // The final, comprehensive Selection Summary PDF (Pump Selection + every
   // configured step, one box each) — generated and saved when the user
   // clicks "Confirm Pump Selection" on the last wizard step. One per

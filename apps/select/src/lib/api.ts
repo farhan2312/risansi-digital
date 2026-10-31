@@ -46,8 +46,16 @@ export function userToDict(u: UserRow) {
 
 /** Mirrors _row_to_dict(Project): raw snake_case columns, plus the creator's
  * display name (joined separately — projects.created_by is just a user id). */
-export function projectToDict(p: ProjectRow, createdByName?: string | null) {
+export function projectToDict(p: ProjectRow, createdByName?: string | null, assignedToName?: string | null) {
   return {
+    order_type: p.orderType,
+    assigned_to: p.assignedTo,
+    assigned_to_name: assignedToName ?? null,
+    assigned_at: p.assignedAt,
+    client_primary_rep: p.clientPrimaryRep,
+    client_secondary_reps: p.clientSecondaryReps,
+    client_market_type: p.clientMarketType,
+    client_zone: p.clientZone,
     id: p.id,
     project_code: p.projectCode,
     name: p.name,

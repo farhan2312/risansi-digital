@@ -15,7 +15,8 @@ import type { DashboardData, DashboardEnquiry } from "@/lib/dashboard-shared";
 // Everything the Dashboard shows, in one call (GET /api/dashboard).
 //
 //   since / until : bound the enquiry's (or tag's) created_at; either may be null
-//   mineUserId    : only enquiries that user created
+//   mineUserId    : only enquiries assigned to that user ("Assigned to me",
+//                   and always for a worker - lib/roles.ts)
 //
 // Days are IST. Enquiry status is rolled up from its tags with the same rule
 // as GET /api/projects (all Completed -> Completed, all Pending -> Pending,
@@ -41,7 +42,7 @@ export async function getDashboardData({
     ...(since ? [sql`${col} >= ${since}`] : []),
     ...(until ? [sql`${col} <= ${until}`] : []),
   ];
-  const scope: SQL[] = mine && mineUserId ? [eq(projects.createdBy, mineUserId)] : [];
+  const scope: SQL[] = mine && mineUserId ? [eq(projects.assignedTo, mineUserId)] : [];
   const projectWhere = and(...created(projects.createdAt), ...scope);
   const tagWhere = and(...created(enquiryTags.createdAt), ...scope);
 

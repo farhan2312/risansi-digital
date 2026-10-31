@@ -871,3 +871,33 @@ never auto-filled from the AI result.
   from the Pump Model / Pulley / Gearbox / Motor master POST, PATCH and DELETE
   routes. Actions `master.create|update|delete`, entity = table, detail names
   the row and lists only changed fields (old → new); no-op saves are skipped.
+
+## Roles & enquiry assignment (user, 2026-10-31)
+- `user` split into **user_master** (Rachna Chauhan) and **user_worker** (every
+  other plain User). Roles come from the Risansi Digital grant
+  (`identity.app_grants.app_role`); `migrations/identity/0011_select_master_worker.sql`
+  added both to `identity.app_roles`, moved the grants and relabelled `user` as
+  legacy (a leftover `user` reads as a worker). `users_pump.role` is now kept in
+  step with the grant by `resolveAccess` (lib/effective-role.ts); /api/auth/me
+  returns the session's role.
+- Rules in `src/lib/roles.ts`: `canManageEnquiries` = user_master + system_admin
+  (create, edit, delete, assign, reassign — `requireEnquiryManager` in lib/auth);
+  `seesAllEnquiries` = those + admin + selection_head; everyone else (workers,
+  pulley_owner) sees ONLY enquiries assigned to them (`enquiryScope` /
+  `canSeeProject` in lib/enquiry-access.ts — applied to GET /api/projects,
+  /api/projects/[id], dashboard + dashboard list, /api/reports). "Mine" /
+  "Assigned to me" = assigned_to, not created_by. Deeper per-enquiry APIs
+  (wizard-input, commercial, …) are NOT yet scoped.
+- `projects.order_type` ('pump'|'spare', CHECK; spare only recorded — its own
+  process comes later), `assigned_to` / `assigned_by` / `assigned_at` (backfilled
+  to created_by), `client_primary_rep`, `client_secondary_reps`,
+  `client_market_type`, `client_zone` (copied from Market Intell when the client
+  is picked: primary rep + active secondary reps from client_secondary_reps,
+  market_type, tour_routes.zone — read-only queries, deleted_at IS NULL).
+- POST /api/projects/[id]/assign {assignedTo} (audited enquiry.assign /
+  enquiry.reassign, assignee e-mailed via `assignmentEmail`); GET
+  /api/projects/assignees (active workers + master + the caller).
+- UI: Create Enquiry has Order type buttons, Assign to (required), read-only
+  client details; Edit Enquiry has Order type + details; Enquiries list shows
+  Assigned To (with "by <creator>"), a Spare badge, and Assign/Edit/Delete only
+  for managers; workers get no New Enquiry and no copy-to-new-enquiry.

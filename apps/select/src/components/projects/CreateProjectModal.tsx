@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import "./CreateProjectModal.css";
 import ClientLookup from "./ClientLookup";
+import {
+  ClientDetailsFields,
+  EMPTY_CLIENT_DETAILS,
+  OrderTypePicker,
+  clientDetailsOf,
+  type ClientDetails,
+} from "./EnquiryFields";
 import type { ClientLookupRow } from "../../services/clientsService";
+import { listAssignees, type Assignee } from "../../services/projectService";
+import { roleLabel, type OrderType } from "../../lib/roles";
 
 type Props = {
   isOpen: boolean;
@@ -15,7 +24,9 @@ type Props = {
     clientCode: string;
     industry: string;
     enquiryDate: string;
-  }) => Promise<string | null>;
+    orderType: OrderType;
+    assignedTo: string;
+  } & ClientDetails) => Promise<string | null>;
 };
 
 // House prefix for enquiry numbers: RIL/EN/<indian-fiscal-year>/<suffix>.
@@ -37,6 +48,11 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   const [clientCode, setClientCode] = useState("");
   const [industry, setIndustry] = useState("");
   const [enquiryDate, setEnquiryDate] = useState(() => todayYmd());
+  const [orderType, setOrderType] = useState<OrderType>("pump");
+  const [details, setDetails] = useState<ClientDetails>(EMPTY_CLIENT_DETAILS);
+  // Who works the enquiry: a worker, or the master herself.
+  const [assignees, setAssignees] = useState<Assignee[] | null>(null);
+  const [assignedTo, setAssignedTo] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -49,6 +65,9 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
     setEnquiryNo((v) => (v && v.startsWith(fresh) ? v : fresh));
     setEnquiryDate((v) => v || todayYmd());
     setError("");
+    listAssignees()
+      .then(setAssignees)
+      .catch(() => setAssignees([]));
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -59,6 +78,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
     setClientCode(row.code);
     setClientName(row.legal_name);
     setIndustry(row.industry ?? "");
+    setDetails(clientDetailsOf(row));
     setError("");
   };
 
@@ -78,6 +98,10 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
       setError("Enquiry date is required.");
       return;
     }
+    if (!assignedTo) {
+      setError("Pick who the enquiry is assigned to.");
+      return;
+    }
     setError("");
     setSaving(true);
     const msg = await onCreate({
@@ -86,6 +110,9 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
       clientCode,
       industry,
       enquiryDate,
+      orderType,
+      assignedTo,
+      ...details,
     });
     setSaving(false);
     // A message means it failed (e.g. duplicate Enquiry no.); keep the modal
@@ -98,7 +125,12 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
       <div className="modal">
         <h2>Create New Enquiry</h2>
 
-        <div className="modal-form">
+        <div className="modal-form max-h-[calc(100vh-180px)] overflow-y-auto pb-4">
+          <div className="form-group">
+            <label>Order type *</label>
+            <OrderTypePicker value={orderType} onChange={setOrderType} />
+          </div>
+
           <div className="form-group">
             <label>Enquiry no. *</label>
             <input
@@ -140,6 +172,19 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
             <p className="modal-hint">The date the enquiry was received. Defaults to today.</p>
           </div>
 
+          <div className="form-group">
+            <label>Assign to *</label>
+            <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} disabled={assignees === null}>
+              <option value="">{assignees === null ? "Loading…" : "Select who works this enquiry"}</option>
+              {(assignees ?? []).map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.is_me ? `Me (${a.name || a.email})` : `${a.name || a.email} · ${roleLabel(a.role)}`}
+                </option>
+              ))}
+            </select>
+            <p className="modal-hint">Only the person it is assigned to (and the User-Master) sees it. You can reassign it later.</p>
+          </div>
+
           <ClientLookup active={isOpen} onSelect={handleSelect} />
 
           <div className="form-group">
@@ -165,6 +210,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
               onChange={(e) => setIndustry(e.target.value)}
             />
           </div>
+
+          <ClientDetailsFields value={details} />
         </div>
 
         {error && <p className="modal-error">{error}</p>}
@@ -175,7 +222,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
           </button>
 
           <button className="create-btn" onClick={handleCreate} disabled={saving}>
-            {saving ? "Creating…" : "Create Project"}
+            {saving ? "Creating…" : "Create Enquiry"}
           </button>
         </div>
       </div>

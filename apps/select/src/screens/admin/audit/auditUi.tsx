@@ -3,15 +3,10 @@
 /** Shared building blocks for the Audit Log page (Tailwind). */
 import type { ReactNode } from "react";
 
+import { ROLE_LABELS } from "../../../lib/roles";
 import { parseUserAgent } from "../../../lib/user-agent";
 
-export const ROLE_LABELS: Record<string, string> = {
-  system_admin: "System Admin",
-  admin: "Admin",
-  selection_head: "Selection Head",
-  pulley_owner: "Pulley Owner",
-  user: "User",
-};
+export { ROLE_LABELS };
 export const prettyRole = (role: string | null | undefined): string =>
   role ? ROLE_LABELS[role] ?? role : "—";
 
@@ -190,6 +185,8 @@ const ROLE_STYLES: Record<string, string> = {
   admin: "bg-accent-soft text-accent",
   selection_head: "bg-[var(--warn-soft)] text-warn",
   pulley_owner: "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[var(--brand-cyan)]",
+  user_master: "bg-[var(--pos-soft)] text-pos",
+  user_worker: "bg-sunk text-fg-2",
   user: "bg-sunk text-fg-2",
 };
 

@@ -1,24 +1,30 @@
 import { eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
-import { AuthError, decodeToken } from "@/lib/auth";
+import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
+import { canSeeProject } from "@/lib/enquiry-access";
+import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
+
+const assignee = alias(users, "assignee");
 
 export const dynamic = "force-dynamic";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Any authenticated user may edit/delete a project — this is a small shared
-// internal tool and created_by is often null on legacy rows, so ownership
-// isn't enforced. (The /api/* routes aren't covered by the page middleware,
-// so the guard has to live here.)
-async function guardAuth(req: Request): Promise<Response | null> {
+// Reading an enquiry: any signed-in user who may see it (a worker only the
+// ones assigned to them). Editing and deleting: the User-Master and system
+// admins only (lib/roles.ts) - a worker cannot change an enquiry's details.
+async function guard(
+  req: Request,
+  check: (req: Request) => Promise<TokenClaims>,
+): Promise<{ claims: TokenClaims; denied: null } | { claims: null; denied: Response }> {
   try {
-    await decodeToken(req);
-    return null;
+    return { claims: await check(req), denied: null };
   } catch (e) {
-    if (e instanceof AuthError) return error(e.message, e.statusCode);
+    if (e instanceof AuthError) return { claims: null, denied: error(e.message, e.statusCode) };
     throw e;
   }
 }
@@ -33,28 +39,31 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const denied = await guardAuth(req);
+  const { claims, denied } = await guard(req, decodeToken);
   if (denied) return denied;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
+  // Not assigned to this worker reads as not found, like a deleted one.
+  if (!(await canSeeProject(claims, id))) return error("Project not found", 404);
 
   const [project] = await db
-    .select({ project: projects, createdByName: users.name })
+    .select({ project: projects, createdByName: users.name, assignedToName: assignee.name })
     .from(projects)
     .leftJoin(users, eq(projects.createdBy, users.id))
+    .leftJoin(assignee, eq(projects.assignedTo, assignee.id))
     .where(eq(projects.id, id))
     .limit(1);
   if (!project) return error("Project not found", 404);
 
-  return json(projectToDict(project.project, project.createdByName));
+  return json(projectToDict(project.project, project.createdByName, project.assignedToName));
 }
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const denied = await guardAuth(req);
+  const { denied } = await guard(req, requireEnquiryManager);
   if (denied) return denied;
 
   const { id } = await params;
@@ -101,6 +110,12 @@ export async function PATCH(
     if (s === null) return error("'status' can't be empty", 400);
     patch.status = s;
   }
+  if ("orderType" in body) {
+    const t = orderTypeFrom(body.orderType);
+    if (!t) return error("'orderType' must be pump or spare", 400);
+    patch.orderType = t;
+  }
+  Object.assign(patch, clientDetailsFrom(body));
 
   if (Object.keys(patch).length === 0) {
     return error("No editable fields provided", 400);
@@ -122,24 +137,20 @@ export async function PATCH(
   }
   if (!updated) return error("Project not found", 404);
 
-  let createdByName: string | null = null;
-  if (updated.createdBy) {
-    const [creator] = await db
-      .select({ name: users.name })
-      .from(users)
-      .where(eq(users.id, updated.createdBy))
-      .limit(1);
-    createdByName = creator?.name ?? null;
-  }
+  const nameOf = async (userId: string | null) => {
+    if (!userId) return null;
+    const [u] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
+    return u?.name ?? null;
+  };
 
-  return json(projectToDict(updated, createdByName));
+  return json(projectToDict(updated, await nameOf(updated.createdBy), await nameOf(updated.assignedTo)));
 }
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const denied = await guardAuth(req);
+  const { denied } = await guard(req, requireEnquiryManager);
   if (denied) return denied;
 
   const { id } = await params;

@@ -9,6 +9,7 @@
  * wrong cookie.
  */
 import { SHARED_COOKIE, sharedSessionPayload } from "@/lib/effective-role";
+import { canManageEnquiries } from "@/lib/roles";
 
 /** How long the claims below say they are good for. The real lifetime is the
  *  shared session's own; this only fills iat/exp for code that reads them. */
@@ -122,6 +123,16 @@ export async function requireSystemAdmin(req: Request): Promise<TokenClaims> {
   const claims = await decodeToken(req);
   if (claims.role !== "system_admin") {
     throw new AuthError("System admin access required", 403);
+  }
+  return claims;
+}
+
+/** User-Master and system admins: create, edit, delete, assign and reassign
+ * enquiries (lib/roles.ts ENQUIRY_MANAGER_ROLES). */
+export async function requireEnquiryManager(req: Request): Promise<TokenClaims> {
+  const claims = await decodeToken(req);
+  if (!canManageEnquiries(claims.role)) {
+    throw new AuthError("Only the User-Master or a system admin can do this", 403);
   }
   return claims;
 }

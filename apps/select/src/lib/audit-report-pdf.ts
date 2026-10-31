@@ -22,6 +22,7 @@ import jsPDF from "jspdf";
 import autoTable, { type RowInput } from "jspdf-autotable";
 
 import { formatDuration } from "./duration";
+import { ROLE_LABELS } from "./roles";
 import { loadImageAsDataUrl } from "./selection-summary-pdf";
 import type { AuditReport, AuditReportSection } from "../services/auditService";
 
@@ -44,14 +45,6 @@ const RANGE_LABELS: Record<string, string> = {
   "30d": "Last 30 days",
   all: "All recorded activity",
   custom: "Custom range",
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  system_admin: "System Admin",
-  admin: "Admin",
-  selection_head: "Selection Head",
-  pulley_owner: "Pulley Owner",
-  user: "User",
 };
 
 const prettyRole = (role: string | null | undefined) =>

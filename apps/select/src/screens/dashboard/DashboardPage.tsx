@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { DonutChart, fmtDay, fmtNum, TrendChart, type TrendSeries } from "../../components/charts/charts";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { canApprove } from "../../lib/approval";
+import { seesAllEnquiries } from "../../lib/roles";
 import { getDashboard, type DashboardData, type DashboardEnquiry, type DashboardTag } from "../../services/dashboardService";
 import { Avatar, Card, Icons, Segmented } from "../admin/audit/auditUi";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
@@ -244,7 +245,9 @@ const DashboardPage = () => {
 
   // The KPI list open in the modal (null = closed).
   const [listTarget, setListTarget] = useState<DashboardListTarget | null>(null);
-  const scopeText = scope === "mine" ? "Created by me" : "All enquiries";
+  // A worker's figures are always just the enquiries assigned to them.
+  const seesAll = seesAllEnquiries(user?.role);
+  const scopeText = scope === "mine" || !seesAll ? "Assigned to me" : "All enquiries";
   const openList = (kind: DashboardListTarget["kind"], status: DashboardListTarget["status"], title: string) => () =>
     setListTarget({ kind, status, title });
 
@@ -296,15 +299,17 @@ const DashboardPage = () => {
 
         {/* Filters */}
         <div className="relative flex flex-wrap items-center gap-2.5 border-t border-line px-5 py-3">
-          <Segmented
-            value={scope}
-            onChange={setScope}
-            loading={isLoading}
-            options={[
-              { key: "all", label: "All enquiries" },
-              { key: "mine", label: "Created by me" },
-            ]}
-          />
+          {seesAll && (
+            <Segmented
+              value={scope}
+              onChange={setScope}
+              loading={isLoading}
+              options={[
+                { key: "all", label: "All enquiries" },
+                { key: "mine", label: "Assigned to me" },
+              ]}
+            />
+          )}
           <DateRangeFilter state={dates} />
         </div>
       </div>

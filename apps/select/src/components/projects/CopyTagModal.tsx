@@ -28,6 +28,8 @@ type Props = {
   projects: ProjectOption[];
   busy?: boolean;
   error?: string | null;
+  /** Offer "A new enquiry" - false for a worker, who cannot create one. */
+  allowNew?: boolean;
   onCancel: () => void;
   onConfirm: (tagId: string, destination: CopyDestination) => void;
 };
@@ -45,6 +47,7 @@ const CopyTagModal = ({
   projects,
   busy = false,
   error,
+  allowNew = true,
   onCancel,
   onConfirm,
 }: Props) => {
@@ -139,18 +142,20 @@ const CopyTagModal = ({
                 </span>
               </label>
 
-              <label className={`copy-choice${dest === "new" ? " is-on" : ""}`}>
-                <input
-                  type="radio"
-                  name="copy-dest"
-                  checked={dest === "new"}
-                  onChange={() => setDest("new")}
-                />
-                <span>
-                  <b>A new enquiry</b>
-                  <em>Enter the enquiry details next</em>
-                </span>
-              </label>
+              {allowNew && (
+                <label className={`copy-choice${dest === "new" ? " is-on" : ""}`}>
+                  <input
+                    type="radio"
+                    name="copy-dest"
+                    checked={dest === "new"}
+                    onChange={() => setDest("new")}
+                  />
+                  <span>
+                    <b>A new enquiry</b>
+                    <em>Enter the enquiry details next</em>
+                  </span>
+                </label>
+              )}
             </div>
           </div>
 

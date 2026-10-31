@@ -8,6 +8,9 @@ import CopyTagModal, { type CopyDestination } from "../../components/projects/Co
 import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
+import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
+import { canManageEnquiries, seesAllEnquiries } from "../../lib/roles";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Pagination from "../../components/ui/Pagination";
@@ -21,7 +24,9 @@ import {
   listProjects,
   listProjectsPage,
   updateProject,
+  type CreateProjectInput,
   type ProjectRecord,
+  type UpdateProjectInput,
 } from "../../services/projectService";
 import {
   copyTag,
@@ -40,8 +45,23 @@ export const SELECTED_PROJECT_KEY = "selectedProject";
 // Enquiries table asks for.
 const PAGE_SIZE = 20;
 
+// Enquiry row columns. Tailwind only sees whole class strings, so each variant
+// is written out: the User-Master's Actions column is wider (Assign, Edit and
+// Delete as well).
+const ROW_GRID_MANAGER =
+  "grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_262px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_566px]";
+const ROW_GRID_WORKER =
+  "grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_190px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_400px]";
+
 const ProjectsPage = () => {
   const router = useRouter();
+  // User-Master / system admins create, edit, delete and (re)assign; a worker
+  // sees only the enquiries assigned to them and works them (lib/roles.ts).
+  const { user } = useCurrentUser();
+  const manager = canManageEnquiries(user?.role);
+  const seesAll = seesAllEnquiries(user?.role);
+  const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
+  const ROW_GRID = manager ? ROW_GRID_MANAGER : ROW_GRID_WORKER;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -106,7 +126,7 @@ const ProjectsPage = () => {
   const dates = useDateRange("all");
   const dateWindow = dates.window;
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 });
-  // "All enquiries" / "Created by me" — filtered on the server.
+  // "All enquiries" / "Assigned to me" — filtered on the server.
   const [scope, setScope] = useState<"all" | "mine">("all");
   // Typing is debounced so a filter keystroke doesn't fire a request each.
   const [debouncedFilters, setDebouncedFilters] = useState({ clientName: "", enquiryCode: "" });
@@ -175,13 +195,7 @@ const ProjectsPage = () => {
     };
   }, [copyingFrom, allProjects]);
 
-  const handleCreateProject = async (input: {
-    projectCode: string;
-    name: string;
-    clientCode: string;
-    industry: string;
-    enquiryDate: string;
-  }): Promise<string | null> => {
+  const handleCreateProject = async (input: CreateProjectInput): Promise<string | null> => {
     setIsCreating(true);
     try {
       // createdBy is derived server-side from the session cookie, not sent
@@ -415,13 +429,7 @@ const ProjectsPage = () => {
     }
   };
 
-  const handleEditSave = async (input: {
-    name: string;
-    clientCode: string;
-    industry: string;
-    enquiryDate: string;
-    status: string;
-  }) => {
+  const handleEditSave = async (input: UpdateProjectInput) => {
     if (!editing) return;
     setIsSaving(true);
     setError(null);
@@ -482,24 +490,29 @@ const ProjectsPage = () => {
         title="Enquiries"
         subtitle="Create, open and manage PCP pump-selection enquiries · expand an enquiry to work on its tags"
         actions={
-          <button type="button" className={`${btnPrimary} px-4 py-2 text-[13px]`} onClick={() => setIsModalOpen(true)}>
-            <PlusIcon /> New Enquiry
-          </button>
+          manager ? (
+            <button type="button" className={`${btnPrimary} px-4 py-2 text-[13px]`} onClick={() => setIsModalOpen(true)}>
+              <PlusIcon /> New Enquiry
+            </button>
+          ) : undefined
         }
       >
         <div className="flex flex-wrap items-center gap-2.5">
-          <Segmented
-            value={scope}
-            onChange={(v) => {
-              setScope(v);
-              setPage(1);
-            }}
-            loading={isLoading}
-            options={[
-              { key: "all", label: "All enquiries" },
-              { key: "mine", label: "Created by me" },
-            ]}
-          />
+          {/* A worker only has the enquiries assigned to them anyway. */}
+          {seesAll && (
+            <Segmented
+              value={scope}
+              onChange={(v) => {
+                setScope(v);
+                setPage(1);
+              }}
+              loading={isLoading}
+              options={[
+                { key: "all", label: "All enquiries" },
+                { key: "mine", label: "Assigned to me" },
+              ]}
+            />
+          )}
           <label className="relative w-full sm:w-[240px] xl:w-[220px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <SearchGlyph />
@@ -580,16 +593,20 @@ const ProjectsPage = () => {
         <div className="mt-6">
           <EmptyState
             icon="folder"
-            title={scope === "mine" ? "You haven't created any enquiries yet" : "No enquiries yet"}
+            title={!seesAll || scope === "mine" ? "No enquiries assigned to you yet" : "No enquiries yet"}
             description={
-              scope === "mine"
-                ? "Enquiries you create show here. Switch to All enquiries to see everyone's."
-                : "Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
+              !seesAll
+                ? "Enquiries the User-Master assigns to you show here."
+                : scope === "mine"
+                  ? "Enquiries assigned to you show here. Switch to All enquiries to see everyone's."
+                  : "Create your first enquiry to start scoping a PCP pump selection — capacity, head, media, and drive details all get saved per enquiry."
             }
             action={
-              <button type="button" className={btnPrimary} onClick={() => setIsModalOpen(true)}>
-                <PlusIcon /> Create your first enquiry
-              </button>
+              manager ? (
+                <button type="button" className={btnPrimary} onClick={() => setIsModalOpen(true)}>
+                  <PlusIcon /> Create your first enquiry
+                </button>
+              ) : undefined
             }
           />
         </div>
@@ -608,13 +625,13 @@ const ProjectsPage = () => {
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
           <div className="overflow-x-auto">
-          <div className="min-w-[980px] 2xl:min-w-[1170px]">
-          <div className={`border-b border-line bg-elev px-4 py-2.5 grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_222px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_478px] items-center gap-x-3 [&>*]:min-w-0`}>
+          <div className={manager ? "min-w-[1020px] 2xl:min-w-[1260px]" : "min-w-[950px] 2xl:min-w-[1100px]"}>
+          <div className={`border-b border-line bg-elev px-4 py-2.5 ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
             <span />
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created By</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Assigned To</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Actions</span>
@@ -629,7 +646,7 @@ const ProjectsPage = () => {
               return (
                 <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                   {/* Enquiry row: columns on wide screens, stacked below lg */}
-                  <div className={`group px-4 py-3 transition-colors hover:bg-elev grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_222px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_478px] items-center gap-x-3 [&>*]:min-w-0`}>
+                  <div className={`group px-4 py-3 transition-colors hover:bg-elev ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
                     <button
                         type="button"
                         onClick={() => toggleExpanded(project.id)}
@@ -652,6 +669,11 @@ const ProjectsPage = () => {
                     >
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="font-mono text-[12.5px] font-bold text-title">{project.project_code}</span>
+                        {project.order_type === "spare" && (
+                          <span className="rounded-md bg-[var(--warn-soft)] px-1.5 py-px text-[10.5px] font-semibold text-warn" title="Order type">
+                            Spare
+                          </span>
+                        )}
                         {project.enquiry_date && (
                           <span
                             className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-px text-[10.5px] font-semibold whitespace-nowrap text-accent"
@@ -686,20 +708,28 @@ const ProjectsPage = () => {
 
                     <span className="min-w-0 truncate text-[12.5px] text-fg-2">{project.industry || <span className="text-fg-4">—</span>}</span>
 
-                    <span className="flex min-w-0 items-center gap-2">
-                      {project.created_by_name ? (
+                    <span
+                      className="flex min-w-0 items-center gap-2"
+                      title={project.created_by_name ? `Created by ${project.created_by_name}` : undefined}
+                    >
+                      {project.assigned_to_name ? (
                         <>
                           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[9.5px] font-bold text-white">
-                            {project.created_by_name
+                            {project.assigned_to_name
                               .split(/\s+/)
                               .slice(0, 2)
                               .map((p) => p[0]?.toUpperCase())
                               .join("")}
                           </span>
-                          <span className="truncate text-[12.5px] text-fg-2">{project.created_by_name}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-[12.5px] text-fg-2">{project.assigned_to_name}</span>
+                            {project.created_by_name && project.created_by_name !== project.assigned_to_name && (
+                              <span className="block truncate text-[10.5px] text-fg-4">by {project.created_by_name}</span>
+                            )}
+                          </span>
                         </>
                       ) : (
-                        <span className="text-fg-4">—</span>
+                        <span className="text-fg-4">Unassigned</span>
                       )}
                     </span>
 
@@ -788,26 +818,40 @@ const ProjectsPage = () => {
                         <CopyIcon />
                         <span className="hidden 2xl:inline">Copy</span>
                       </button>
-                      <button
-                        type="button"
-                        className={btn}
-                        onClick={() => setEditing(project)}
-                        aria-label={`Edit enquiry ${project.project_code}`}
-                        title="Edit enquiry"
-                      >
-                        <EditIcon />
-                        <span className="hidden 2xl:inline">Edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={btnDanger}
-                        disabled={deletingId === project.id}
-                        onClick={() => setConfirmingDelete(project)}
-                        aria-label={`Delete enquiry ${project.project_code}`}
-                        title="Delete enquiry"
-                      >
-                        <TrashIcon />
-                      </button>
+                      {manager && (
+                        <>
+                          <button
+                            type="button"
+                            className={btn}
+                            onClick={() => setAssigning(project)}
+                            aria-label={`Assign enquiry ${project.project_code}`}
+                            title={`Assign or reassign (now: ${project.assigned_to_name || "nobody"})`}
+                          >
+                            <AssignIcon />
+                            <span className="hidden 2xl:inline">Assign</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={btn}
+                            onClick={() => setEditing(project)}
+                            aria-label={`Edit enquiry ${project.project_code}`}
+                            title="Edit enquiry"
+                          >
+                            <EditIcon />
+                            <span className="hidden 2xl:inline">Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={btnDanger}
+                            disabled={deletingId === project.id}
+                            onClick={() => setConfirmingDelete(project)}
+                            aria-label={`Delete enquiry ${project.project_code}`}
+                            title="Delete enquiry"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -1017,6 +1061,7 @@ const ProjectsPage = () => {
           )}
           busy={copyBusy}
           error={copyError}
+          allowNew={manager}
           onCancel={() => {
             if (copyBusy) return;
             setCopyingFrom(null);
@@ -1025,6 +1070,19 @@ const ProjectsPage = () => {
           onConfirm={handleCopyConfirm}
         />
       )}
+
+      <AssignEnquiryModal
+        project={assigning}
+        onClose={() => setAssigning(null)}
+        onAssigned={(id, assignedTo, assignedToName) => {
+          setAssigning(null);
+          setProjects((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, assigned_to: assignedTo, assigned_to_name: assignedToName } : p)),
+          );
+          // "Assigned to me" no longer holds it once it went to someone else.
+          if (scope === "mine") loadProjects();
+        }}
+      />
 
       <EditProjectModal
         isOpen={editing !== null}
@@ -1119,6 +1177,14 @@ const OpenIcon = () => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+  </svg>
+);
+
+const AssignIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+    <path d="M17 8h5M19.5 5.5 22 8l-2.5 2.5" />
   </svg>
 );
 
