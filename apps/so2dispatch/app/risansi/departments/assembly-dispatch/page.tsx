@@ -89,6 +89,16 @@ export default async function AssemblyDispatchWorkspacePage({
         tone: "neutral",
         measure: "(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB'))",
       },
+      // The pumps themselves: every pump EC's quantity, added up — as on Planning.
+      {
+        key: "pumps",
+        label: "Pumps",
+        sql: null,
+        params: {},
+        tone: "neutral",
+        measure:
+          "(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB'))",
+      },
       ...SO_ASSEMBLY_STATUSES.map((st) => ({
         key: `a:${st}`,
         label: st,

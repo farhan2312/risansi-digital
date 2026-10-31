@@ -196,6 +196,7 @@ export function AssemblyPumpTable({
             const ecList = ecs.map(ecOf);
             const so = soStatuses(ecList, lots);
             const span = ecs.length;
+            const pumpQty = ecList.reduce((t, e) => t + e.quantity, 0);
             const soCell = "px-3 py-2 align-top border-b border-card-border";
             const unread = unreadThreads[orderId] ?? 0;
             return (
@@ -212,6 +213,10 @@ export function AssemblyPumpTable({
                           <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
                           <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap font-semibold`}>
                             {soLabel}
+                            {/* Its ECs, and the pumps they hold (their quantities summed), as on Planning. */}
+                            <span className="block text-[11px] font-normal text-muted">
+                              {span} EC{span === 1 ? "" : "s"} · {pumpQty} pump{pumpQty === 1 ? "" : "s"}
+                            </span>
                             <HoldBadge order={head} />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{shortDate(head.so_date)}</td>
