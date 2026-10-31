@@ -1,32 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import "./CreateProjectModal.css";
-import ClientLookup from "./ClientLookup";
 import {
-  ClientDetailsFields,
-  EMPTY_CLIENT_DETAILS,
+  ClientFields,
+  EMPTY_CLIENT,
+  Field,
+  ModalShell,
   OrderTypePicker,
-  clientDetailsOf,
-  type ClientDetails,
+  Section,
+  btnPrimary,
+  btnSecondary,
+  inputCls,
+  type ClientForm,
 } from "./EnquiryFields";
-import type { ClientLookupRow } from "../../services/clientsService";
-import { listAssignees, type Assignee } from "../../services/projectService";
+import { listAssignees, type Assignee, type CreateProjectInput } from "../../services/projectService";
 import { roleLabel, type OrderType } from "../../lib/roles";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   /** Resolves to an error message to show inline, or null on success. */
-  onCreate: (project: {
-    projectCode: string;
-    name: string;
-    clientCode: string;
-    industry: string;
-    enquiryDate: string;
-    orderType: OrderType;
-    assignedTo: string;
-  } & ClientDetails) => Promise<string | null>;
+  onCreate: (project: CreateProjectInput) => Promise<string | null>;
 };
 
 // House prefix for enquiry numbers: RIL/EN/<indian-fiscal-year>/<suffix>.
@@ -44,12 +38,9 @@ export const todayYmd = (d: Date = new Date()): string =>
 
 const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   const [enquiryNo, setEnquiryNo] = useState<string>(() => enquiryPrefix());
-  const [clientName, setClientName] = useState("");
-  const [clientCode, setClientCode] = useState("");
-  const [industry, setIndustry] = useState("");
   const [enquiryDate, setEnquiryDate] = useState(() => todayYmd());
   const [orderType, setOrderType] = useState<OrderType>("pump");
-  const [details, setDetails] = useState<ClientDetails>(EMPTY_CLIENT_DETAILS);
+  const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   // Who works the enquiry: a worker, or the master herself.
   const [assignees, setAssignees] = useState<Assignee[] | null>(null);
   const [assignedTo, setAssignedTo] = useState("");
@@ -73,14 +64,6 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   if (!isOpen) return null;
 
   const currentPrefix = enquiryPrefix();
-
-  const handleSelect = (row: ClientLookupRow) => {
-    setClientCode(row.code);
-    setClientName(row.legal_name);
-    setIndustry(row.industry ?? "");
-    setDetails(clientDetailsOf(row));
-    setError("");
-  };
 
   const handleCreate = async () => {
     if (saving) return;
@@ -106,13 +89,10 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
     setSaving(true);
     const msg = await onCreate({
       projectCode: trimmed,
-      name: clientName,
-      clientCode,
-      industry,
       enquiryDate,
       orderType,
       assignedTo,
-      ...details,
+      ...client,
     });
     setSaving(false);
     // A message means it failed (e.g. duplicate Enquiry no.); keep the modal
@@ -121,112 +101,83 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal">
-        <h2>Create New Enquiry</h2>
-
-        <div className="modal-form max-h-[calc(100vh-180px)] overflow-y-auto pb-4">
-          <div className="form-group">
-            <label>Order type *</label>
-            <OrderTypePicker value={orderType} onChange={setOrderType} />
-          </div>
-
-          <div className="form-group">
-            <label>Enquiry no. *</label>
-            <input
-              value={enquiryNo}
-              autoFocus
-              placeholder={`${currentPrefix}001`}
-              onFocus={(e) => {
-                // Drop the caret at the end so the user types the suffix
-                // without having to click past the prefix themselves.
-                const el = e.currentTarget;
-                requestAnimationFrame(() => {
-                  try {
-                    el.setSelectionRange(el.value.length, el.value.length);
-                  } catch {
-                    // setSelectionRange is unsupported on some input types;
-                    // the field still accepts input, so ignore silently.
-                  }
-                });
-              }}
-              onChange={(e) => setEnquiryNo(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreate();
-              }}
-            />
-            <p className="modal-hint">
-              Prefilled with the current fiscal-year prefix. Type the suffix
-              after the trailing slash - the full string is what gets saved.
+    <ModalShell
+      title="Create New Enquiry"
+      subtitle="Enquiry details, the client, and who works on it"
+      busy={saving}
+      onClose={onClose}
+      footer={
+        <>
+          {error && (
+            <p className="mr-auto text-[12.5px] font-medium text-neg" role="alert">
+              {error}
             </p>
-          </div>
-
-          <div className="form-group">
-            <label>Enquiry date *</label>
-            <input
-              type="date"
-              value={enquiryDate}
-              max={todayYmd()}
-              onChange={(e) => setEnquiryDate(e.target.value)}
-            />
-            <p className="modal-hint">The date the enquiry was received. Defaults to today.</p>
-          </div>
-
-          <div className="form-group">
-            <label>Assign to *</label>
-            <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} disabled={assignees === null}>
-              <option value="">{assignees === null ? "Loading…" : "Select who works this enquiry"}</option>
-              {(assignees ?? []).map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.is_me ? `Me (${a.name || a.email})` : `${a.name || a.email} · ${roleLabel(a.role)}`}
-                </option>
-              ))}
-            </select>
-            <p className="modal-hint">Only the person it is assigned to (and the User-Master) can work on it. You can reassign it later.</p>
-          </div>
-
-          <ClientLookup active={isOpen} onSelect={handleSelect} />
-
-          <div className="form-group">
-            <label>Client Name</label>
-            <input
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Client code</label>
-            <input
-              value={clientCode}
-              onChange={(e) => setClientCode(e.target.value)}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Industry</label>
-            <input
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-            />
-          </div>
-
-          <ClientDetailsFields value={details} />
-        </div>
-
-        {error && <p className="modal-error">{error}</p>}
-
-        <div className="modal-actions">
-          <button className="cancel-btn" onClick={onClose} disabled={saving}>
+          )}
+          <button type="button" className={btnSecondary} onClick={onClose} disabled={saving}>
             Cancel
           </button>
-
-          <button className="create-btn" onClick={handleCreate} disabled={saving}>
+          <button type="button" className={btnPrimary} onClick={handleCreate} disabled={saving}>
             {saving ? "Creating…" : "Create Enquiry"}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <Section step={1} title="Enquiry" subtitle="Order type, number and date received">
+        <Field label="Order type" required wide group>
+          <OrderTypePicker value={orderType} onChange={setOrderType} />
+        </Field>
+        <Field label="Enquiry no." required hint="Prefilled with this fiscal year's prefix - type the suffix after the last slash.">
+          <input
+            className={`${inputCls} font-mono`}
+            value={enquiryNo}
+            autoFocus
+            placeholder={`${currentPrefix}001`}
+            onFocus={(e) => {
+              // Drop the caret at the end so the user types the suffix
+              // without having to click past the prefix themselves.
+              const el = e.currentTarget;
+              requestAnimationFrame(() => {
+                try {
+                  el.setSelectionRange(el.value.length, el.value.length);
+                } catch {
+                  // setSelectionRange is unsupported on some input types;
+                  // the field still accepts input, so ignore silently.
+                }
+              });
+            }}
+            onChange={(e) => setEnquiryNo(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreate();
+            }}
+          />
+        </Field>
+        <Field label="Enquiry date" required hint="The date the enquiry was received.">
+          <input type="date" className={inputCls} value={enquiryDate} max={todayYmd()} onChange={(e) => setEnquiryDate(e.target.value)} />
+        </Field>
+      </Section>
+
+      <Section step={2} title="Client" subtitle="Pick from the client master to fill everything, or type it in">
+        <ClientFields value={client} onChange={setClient} active={isOpen} />
+      </Section>
+
+      <Section step={3} title="Assignment" subtitle="Who works on this enquiry">
+        <Field
+          label="Assign to"
+          required
+          wide
+          hint="Only the person it is assigned to (and the User-Master) can work on it. Everyone can still view it. You can reassign it later."
+        >
+          <select className={inputCls} value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} disabled={assignees === null}>
+            <option value="">{assignees === null ? "Loading…" : "Select who works on this enquiry"}</option>
+            {(assignees ?? []).map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.is_me ? `Me (${a.name || a.email})` : `${a.name || a.email} · ${roleLabel(a.role)}`}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </Section>
+    </ModalShell>
   );
 };
 
