@@ -69,11 +69,11 @@ const NotificationBell = () => {
     <div className="notif-bell-root" ref={rootRef}>
       <button
         type="button"
-        className="notif-bell-btn"
+        className={`notif-bell-btn${items.length > 0 ? " has-alert" : ""}`}
         onClick={handleToggle}
         aria-label={items.length > 0 ? `${items.length} unread notifications` : "Notifications"}
       >
-        🔔
+        <span className="notif-bell-icon" aria-hidden>🔔</span>
         {items.length > 0 && <span className="notif-bell-badge">{items.length}</span>}
       </button>
 

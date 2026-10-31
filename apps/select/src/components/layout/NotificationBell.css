@@ -114,3 +114,42 @@
   color: var(--fg-3);
   margin-top: 1px;
 }
+
+
+/* Unread notifications: the bell keeps ringing in red until it is opened, so
+   an assignment (or a bug update) is not missed. */
+.notif-bell-btn.has-alert {
+  border-color: var(--neg, #dc2626);
+  background: color-mix(in srgb, var(--neg, #dc2626) 12%, var(--bg-paper));
+  animation: notif-pulse 1.6s ease-out infinite;
+}
+.notif-bell-btn.has-alert .notif-bell-icon {
+  display: inline-block;
+  transform-origin: 50% 10%;
+  animation: notif-ring 1.6s ease-in-out infinite;
+}
+.notif-bell-btn.has-alert .notif-bell-badge {
+  animation: notif-badge 1.6s ease-in-out infinite;
+}
+@keyframes notif-ring {
+  0%, 55%, 100% { transform: rotate(0); }
+  5% { transform: rotate(18deg); }
+  15% { transform: rotate(-16deg); }
+  25% { transform: rotate(12deg); }
+  35% { transform: rotate(-8deg); }
+  45% { transform: rotate(4deg); }
+}
+@keyframes notif-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--neg, #dc2626) 55%, transparent); }
+  70% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--neg, #dc2626) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--neg, #dc2626) 0%, transparent); }
+}
+@keyframes notif-badge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notif-bell-btn.has-alert,
+  .notif-bell-btn.has-alert .notif-bell-icon,
+  .notif-bell-btn.has-alert .notif-bell-badge { animation: none; }
+}
