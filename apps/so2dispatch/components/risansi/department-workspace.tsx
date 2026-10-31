@@ -95,6 +95,9 @@ type DocumentsConfig = {
 };
 
 type Row = Record<string, unknown>;
+/** Accounts: the SO No. column's set width, and so where the fixed client column starts. */
+const ACCT_SO_W = "w-44 min-w-44 max-w-44";
+const ACCT_SO_LEFT = "11rem";
 
 /** Planning's Lot columns: one per readiness lot a Spare can have. */
 const LOT_COLUMNS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
@@ -356,6 +359,17 @@ export function DepartmentWorkspace({
   // Party is customer-identifying info; only Billing & Operations and
   // Accounts need it for their day-to-day work.
   const showParty = table === "order_billing" || table === "order_accounts";
+  // Accounts: the client sits beside the SO No., the two fixed together while
+  // the table scrolls sideways (the SO No. a set width, the client after it).
+  const acctPinned = table === "order_accounts";
+  const chatCellFor = (order: Row) => (
+    <td className="px-4 py-3">
+      <ChatButton
+        orderId={String(order.order_id ?? order.id)}
+        soLabel={toInput(order.so_no) || String(order.sl_no ?? "")}
+      />
+    </td>
+  );
 
   // SO-scope sections (Billing/Accounts) have no per-EC breakdown, so EC No.
   // would always be blank — hide the column entirely.
@@ -768,10 +782,15 @@ export function DepartmentWorkspace({
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {groupBySo && <th className="w-8 px-2 py-3" />}
                 <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="sticky-so px-4 py-3">SO No.</th>
-                <th className="px-4 py-3">Chat</th>
+                <th className={`sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : ""}`} style={acctPinned ? { boxShadow: "none" } : undefined}>SO No.</th>
+                {!acctPinned && <th className="px-4 py-3">Chat</th>}
                 {!groupBySo && showEcNo && <th className="px-4 py-3">EC No.</th>}
-                {showParty && <th className="px-4 py-3">Client Name</th>}
+                {showParty && (
+                  <th className={acctPinned ? "sticky-so px-4 py-3" : "px-4 py-3"} style={acctPinned ? { left: ACCT_SO_LEFT } : undefined}>
+                    Client Name
+                  </th>
+                )}
+                {acctPinned && <th className="px-4 py-3">Chat</th>}
                 {soContext.map((f) => (
                   <th
                     key={f.column}
@@ -883,7 +902,10 @@ export function DepartmentWorkspace({
                     <td className="px-4 py-3 font-medium tabular-nums">
                       {String(order.sl_no ?? "—")}
                     </td>
-                    <td className="sticky-so px-4 py-3 whitespace-nowrap">
+                    <td
+                      className={`sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : "whitespace-nowrap"}`}
+                      style={acctPinned ? { boxShadow: "none" } : undefined}
+                    >
                       {toInput(order.so_no) || "—"}
                       <HoldBadge order={order} />
                       {/* Accounts can hold the SO for a payment reason. */}
@@ -891,20 +913,21 @@ export function DepartmentWorkspace({
                       {table === "order_accounts" && <AccountsClearBadge order={order} />}
                       {table === "order_accounts" && canEdit && <AccountsHoldButton order={order} />}
                     </td>
-                    <td className="px-4 py-3">
-                      <ChatButton
-                        orderId={String(order.order_id ?? order.id)}
-                        soLabel={toInput(order.so_no) || String(order.sl_no ?? "")}
-                      />
-                    </td>
+                    {!acctPinned && chatCellFor(order)}
                     {showEcNo && (
                       <td className="px-4 py-3 whitespace-nowrap">
                         {toInput(order.ec_no) || "—"}
                       </td>
                     )}
                     {showParty && (
-                      <td className="px-4 py-3">{toInput(order.client_name) || "—"}</td>
+                      <td
+                        className={acctPinned ? "sticky-so min-w-[12rem] max-w-[16rem] px-4 py-3" : "px-4 py-3"}
+                        style={acctPinned ? { left: ACCT_SO_LEFT } : undefined}
+                      >
+                        {toInput(order.client_name) || "—"}
+                      </td>
                     )}
+                    {acctPinned && chatCellFor(order)}
                     {soContext.map((f) =>
                       // The order value to its gross, as Dispatch shows it.
                       f.column === "order_value_details" ? (

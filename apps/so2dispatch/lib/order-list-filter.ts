@@ -351,7 +351,7 @@ export function parseOrderListFilter(
     // Accounts' Hold / Clear: every department and the Orders list. Its reasons
     // (Accounts' queue only) are a list Accounts adds to, so any is taken (it
     // reaches SQL as a parameter).
-    accountsHold: list(get("ahold")).filter((v) => v === "Hold" || v === "Clear"),
+    accountsHold: list(get("ahold")).filter((v) => v === "Hold" || v === "Clear" || v === NOT_SET),
     accountsHoldReasons:
       queue === "accounts" ? [...new Set((get("areason") ?? "").split("|").map((v) => v.trim()).filter(Boolean))] : [],
   };

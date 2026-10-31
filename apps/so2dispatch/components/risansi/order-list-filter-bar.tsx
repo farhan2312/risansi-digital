@@ -22,6 +22,7 @@ import {
   DEPT_BILL_MODE_FILTER_OPTIONS,
   PAYMENT_STATUS_FILTER_OPTIONS,
   SO_CATEGORY_FILTER_OPTIONS,
+  NOT_SET,
   DATE_PRESETS,
   FIELD_FILTER_FIELDS,
   PAYMENT_FILTER_DEPTS,
@@ -406,7 +407,7 @@ export function OrderListFilterBar({
         <MultiSelectFilter
           label="Accounts hold"
           allLabel="Hold or clear"
-          options={["Hold", "Clear"]}
+          options={["Hold", "Clear", NOT_SET]}
           selected={filter.accountsHold}
           onChange={(next) => setParams({ ahold: next })}
         />

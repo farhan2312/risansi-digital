@@ -3634,7 +3634,8 @@ function orderListClauses(
   }
   // Accounts' own Hold / Clear (blank counts as Clear), and its reasons for a Hold.
   if (f.accountsHold.length) {
-    clauses.push(`COALESCE(NULLIF(TRIM(o.accounts_hold_status), ''), 'Clear') = ANY(${p(f.accountsHold)}::text[])`);
+    // Blank is Not set: Accounts has said neither Clear nor Hold.
+    clauses.push(`COALESCE(NULLIF(TRIM(o.accounts_hold_status), ''), ${lit(NOT_SET)}) = ANY(${p(f.accountsHold)}::text[])`);
   }
   if (f.accountsHoldReasons.length) {
     clauses.push(`(COALESCE(o.accounts_hold_status, '') = 'Hold' AND ${facet("o.accounts_hold_reason", f.accountsHoldReasons)})`);
@@ -4493,6 +4494,24 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
 }
 
 export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
+  // Accounts: its SOs, and where its own Clear / Hold stands on them — nothing else.
+  if (dept === "accounts") {
+    const clear = { dstatus: null, overdue: null, hold: null, ahold: null };
+    const acct = `COALESCE(NULLIF(TRIM(o.accounts_hold_status), ''), ${lit(NOT_SET)})`;
+    const by = (value: string, label: string, tone: KpiCardDef["tone"]): KpiCardDef => ({
+      key: `ahold:${value}`,
+      label,
+      sql: `${acct} = ${lit(value)}`,
+      params: { ...clear, ahold: value },
+      tone,
+    });
+    return [
+      { key: "all", label: "SOs", sql: null, params: { ...clear }, tone: "neutral" },
+      by("Clear", "Clear", "done"),
+      by("Hold", "Hold", "danger"),
+      by(NOT_SET, "Not set", "pending"),
+    ];
+  }
   // Hold is no status card: the SO hold card counts it (Dispatch keeps its own).
   // Not at Dispatch yet is the Orders list's filter, never a Dispatch card.
   const statuses = statusesFor(dept, types).filter((st) => (st !== HOLD || dept === "dispatch") && st !== NOT_AT_DISPATCH);
@@ -4502,7 +4521,6 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
     overdue: null,
     hold: null,
     ...(planning ? { pack: null } : {}),
-    ...(dept === "accounts" ? { ahold: null } : {}),
   } as Record<string, string | null>;
   // Planning, Assembly & Packing: how many ECs the SOs hold (of the kind shown), beside the SOs.
   const spare = types.some((t) => t.toLowerCase() === "spare");
@@ -4569,16 +4587,6 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
     ),
     ...(withOverdue
       ? [{ key: "overdue", label: "Overdue", sql: `(${deptOverduePredicate(dept)}) AND ${orderOpenSql("o")}`, params: { ...clear, overdue: "1" }, tone: "danger" as const }]
-      : []),
-    // Accounts: the SOs it has put on hold itself.
-    ...(dept === "accounts"
-      ? [{
-          key: "ahold",
-          label: "Accounts hold",
-          sql: `COALESCE(o.accounts_hold_status, '') = 'Hold' AND ${orderOpenSql("o")}`,
-          params: { ...clear, ahold: "Hold" },
-          tone: "danger" as const,
-        }]
       : []),
     // Every department: its SOs on any hold.
     totalHoldCard(dept, clear),
