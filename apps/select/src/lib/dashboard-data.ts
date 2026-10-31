@@ -12,6 +12,7 @@ import {
 import { IST_OFFSET_MS } from "@/lib/ist";
 import type { EnquiryFilters } from "@/lib/enquiry-filters";
 import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
+import { filterKey } from "@/lib/enquiry-filters";
 import type { DashboardData, DashboardEnquiry } from "@/lib/dashboard-shared";
 
 // Everything the Dashboard shows, in one call (GET /api/dashboard).
@@ -69,7 +70,7 @@ export async function getDashboardData({
     [approvalCounts],
     statusRows,
     industryRows,
-    engineerRows,
+    mixRows,
     enquiryDays,
     tagDays,
     recentRows,
@@ -115,19 +116,18 @@ export async function getDashboardData({
       .orderBy(sql`2 desc`)
       .limit(8),
 
+    // One row per enquiry for the client-mix charts (aggregated below, so a
+    // value spelt two ways counts once).
     db
       .select({
-        label: sql<string>`coalesce(${users.name}, ${users.email}, 'Unknown')`,
-        enquiries: sql<number>`count(distinct ${projects.id})::int`,
-        tags: sql<number>`count(${enquiryTags.id})::int`,
+        orderType: projects.orderType,
+        market: projects.clientMarketType,
+        zone: projects.clientZone,
+        rep: projects.clientPrimaryRep,
+        status: rollup,
       })
       .from(projects)
-      .leftJoin(users, eq(users.id, projects.createdBy))
-      .leftJoin(enquiryTags, eq(enquiryTags.projectId, projects.id))
-      .where(projectWhere)
-      .groupBy(sql`1`)
-      .orderBy(sql`2 desc`, sql`3 desc`)
-      .limit(8),
+      .where(projectWhere),
 
     db
       .select({
@@ -264,7 +264,7 @@ export async function getDashboardData({
       .map((label) => ({ label, count: statusRows.filter((r) => r.status === label).length }))
       .filter((s) => s.count > 0),
     industries: industryRows,
-    engineers: engineerRows,
+    mix: clientMix(mixRows),
     approvals: {
       awaiting: approvalCounts?.awaiting ?? 0,
       approved: approvalCounts?.approved ?? 0,
@@ -273,4 +273,72 @@ export async function getDashboardData({
     recent,
   };
   return data;
+}
+
+
+// --- Client mix ---------------------------------------------------------------
+
+type MixRow = { orderType: string | null; market: string | null; zone: string | null; rep: string | null; status: string | null };
+
+const NOT_SET = "Not set";
+const MAX_REPS = 10;
+
+/** Groups values by filterKey, labelled with each group's most used spelling. */
+function grouper() {
+  const groups = new Map<string, { spellings: Map<string, number>; count: number }>();
+  return {
+    add(raw: string | null | undefined): string {
+      const v = (raw ?? "").trim();
+      const k = filterKey(v) || "\u0000";
+      const g = groups.get(k) ?? { spellings: new Map(), count: 0 };
+      g.count += 1;
+      const label = v || NOT_SET;
+      g.spellings.set(label, (g.spellings.get(label) ?? 0) + 1);
+      groups.set(k, g);
+      return k;
+    },
+    label(k: string): string {
+      const g = groups.get(k);
+      if (!g) return NOT_SET;
+      return [...g.spellings.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+    },
+    counts(): { key: string; label: string; count: number }[] {
+      return [...groups.entries()]
+        .map(([key, g]) => ({ key, label: this.label(key), count: g.count }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    },
+  };
+}
+
+function clientMix(rows: MixRow[]): DashboardData["mix"] {
+  const order = grouper();
+  const market = grouper();
+  const zone = grouper();
+  const rep = grouper();
+  const repStatus = new Map<string, { pending: number; inProgress: number; completed: number }>();
+  const cell = new Map<string, number>();
+  for (const r of rows) {
+    order.add(r.orderType === "spare" ? "Spare" : "Pump");
+    market.add(r.market);
+    const z = zone.add(r.zone);
+    const p = rep.add(r.rep);
+    const st = repStatus.get(p) ?? { pending: 0, inProgress: 0, completed: 0 };
+    if (r.status === "Completed") st.completed += 1;
+    else if (r.status === "In Progress") st.inProgress += 1;
+    else st.pending += 1;
+    repStatus.set(p, st);
+    cell.set(`${p}|${z}`, (cell.get(`${p}|${z}`) ?? 0) + 1);
+  }
+  const plain = (g: ReturnType<typeof grouper>) => g.counts().map(({ label, count }) => ({ label, count }));
+  const topReps = rep.counts().slice(0, MAX_REPS);
+  const zones = zone.counts();
+  return {
+    orderTypes: plain(order),
+    markets: plain(market),
+    zones: zones.map(({ label, count }) => ({ label, count })),
+    reps: topReps.map((r) => ({ label: r.label, total: r.count, ...repStatus.get(r.key)! })),
+    repZone: topReps.flatMap((r) =>
+      zones.map((z) => ({ rep: r.label, zone: z.label, count: cell.get(`${r.key}|${z.key}`) ?? 0 })),
+    ),
+  };
 }

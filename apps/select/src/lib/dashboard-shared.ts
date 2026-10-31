@@ -48,7 +48,18 @@ export interface DashboardData {
   trend: { day: string; enquiries: number; tags: number; completed: number }[];
   enquiryStatus: { label: string; count: number }[];
   industries: { label: string; count: number }[];
-  engineers: { label: string; enquiries: number; tags: number }[];
+  /** Client mix of the enquiries in scope (same filters / period). Values
+   *  that differ only in case, spaces or punctuation count as one, shown in
+   *  their most used spelling; blanks are "Not set". */
+  mix: {
+    orderTypes: { label: string; count: number }[];
+    markets: { label: string; count: number }[];
+    zones: { label: string; count: number }[];
+    /** Primary reps, busiest first, with their enquiries' rolled-up status. */
+    reps: { label: string; total: number; pending: number; inProgress: number; completed: number }[];
+    /** Primary rep x zone counts (the reps above, the zones above). */
+    repZone: { rep: string; zone: string; count: number }[];
+  };
   approvals: { awaiting: number; approved: number; rejected: number };
   recent: DashboardEnquiry[];
 }

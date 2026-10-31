@@ -9,10 +9,11 @@ import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { canApprove } from "../../lib/approval";
 import { worksOnAnyEnquiry } from "../../lib/roles";
 import { getDashboard, type DashboardData, type DashboardEnquiry, type DashboardTag } from "../../services/dashboardService";
-import { Avatar, Card, Icons, Segmented } from "../admin/audit/auditUi";
+import { Card, Icons, Segmented } from "../admin/audit/auditUi";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
 import DashboardListModal, { type DashboardListTarget } from "./DashboardListModal";
+import ClientMix from "./ClientMix";
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import type { EnquiryFilters } from "../../lib/enquiry-filters";
 
@@ -467,6 +468,9 @@ const DashboardPage = () => {
             </Card>
           </div>
 
+          {/* Client mix: order type, market, zone, primary reps, rep x zone */}
+          <ClientMix mix={data.mix} />
+
           {/* Recent enquiries with tags + side panels */}
           <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
             <Card
@@ -519,24 +523,6 @@ const DashboardPage = () => {
                 <Bars color="var(--brand-blue)" items={data.industries.map((i) => ({ key: i.label, label: i.label, value: i.count }))} />
               </Card>
 
-              {scope === "all" && (
-                <Card icon={Icons.users} title="Enquiries by engineer">
-                  <Bars
-                    color="var(--brand-cyan)"
-                    items={data.engineers.map((e) => ({
-                      key: e.label,
-                      label: (
-                        <span className="inline-flex items-center gap-2">
-                          <Avatar email={e.label} size={18} />
-                          {e.label}
-                        </span>
-                      ),
-                      value: e.enquiries,
-                      hint: `${e.tags} tag${e.tags === 1 ? "" : "s"}`,
-                    }))}
-                  />
-                </Card>
-              )}
             </div>
           </div>
 
