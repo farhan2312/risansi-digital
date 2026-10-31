@@ -654,7 +654,8 @@ ALTER TABLE orders DROP COLUMN IF EXISTS ec_no;
 ALTER TABLE orders DROP COLUMN IF EXISTS ec_generated_date;
 ALTER TABLE orders DROP COLUMN IF EXISTS ec_rcvd_operations_date;
 ALTER TABLE orders DROP COLUMN IF EXISTS ec_sent_production_date;
-ALTER TABLE orders DROP COLUMN IF EXISTS file_no;
+-- (file_no is NOT dropped here: it comes back below and holds live data —
+-- dropping it on every run wiped every File No. Order Making had entered.)
 ALTER TABLE orders DROP COLUMN IF EXISTS item;
 ALTER TABLE orders DROP COLUMN IF EXISTS model_no;
 ALTER TABLE orders DROP COLUMN IF EXISTS pump_qty;
