@@ -26,6 +26,12 @@ export const ENQUIRY_STATUSES = ["Pending", "In Progress", "Completed"] as const
 /** Picked values travel as one param joined by this (no value contains it). */
 const SEP = "|";
 
+/** Every filter's query param is prefixed, so none can collide with a route's
+ *  own params - /api/dashboard/list has its own `status` (all | Pending | ... ,
+ *  the KPI card), and an unprefixed filter read it as "enquiry status = all"
+ *  and matched nothing. */
+const param = (k: string) => `f_${k}`;
+
 /**
  * How two spellings of one value are told apart from two values: case,
  * spaces and punctuation are ignored ("Sugar" = "SUGAR", "Biogas" = "BIO GAS").
@@ -37,10 +43,10 @@ export const filterKey = (v: string): string => v.toLowerCase().replace(/[^a-z0-
 export function filterParams(f: EnquiryFilters | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   const client = f?.client?.trim();
-  if (client) out.client = client;
+  if (client) out[param("client")] = client;
   for (const k of MULTI_FILTER_KEYS) {
     const v = (f?.[k] ?? []).map((x) => x.trim()).filter(Boolean);
-    if (v.length) out[k] = v.join(SEP);
+    if (v.length) out[param(k)] = v.join(SEP);
   }
   return out;
 }
@@ -48,10 +54,10 @@ export function filterParams(f: EnquiryFilters | undefined): Record<string, stri
 /** Read back from a request's query string. */
 export function filtersFromParams(p: URLSearchParams): EnquiryFilters {
   const out: EnquiryFilters = {};
-  const client = p.get("client")?.trim();
+  const client = p.get(param("client"))?.trim();
   if (client) out.client = client.slice(0, 200);
   for (const k of MULTI_FILTER_KEYS) {
-    const v = (p.get(k) ?? "")
+    const v = (p.get(param(k)) ?? "")
       .split(SEP)
       .map((x) => x.trim().slice(0, 200))
       .filter(Boolean)
