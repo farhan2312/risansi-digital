@@ -7,7 +7,8 @@ import { billModeLabel } from "@/lib/order-schema";
 
 // Assembly & Packing's and Dispatch's queues on paper, the way Planning's
 // report is: summary tiles, then one line per SO — built from the same rows
-// and the same filter as the queue on screen.
+// and the same filter as the queue on screen. Assembly & Packing's Spare
+// Excel reads the same lines (assemblyReport).
 
 type Row = Record<string, unknown>;
 
@@ -36,7 +37,7 @@ function daysLate(date: string): number {
   return d > 0 ? d : 0;
 }
 
-const C = {
+export const C = {
   ink: rgb(0.09, 0.11, 0.15),
   muted: rgb(0.42, 0.45, 0.5),
   rule: rgb(0.85, 0.87, 0.9),
@@ -48,11 +49,11 @@ const C = {
 };
 
 /** One line of a stacked cell: its own colour and weight, smaller when muted detail. */
-type Line = { text: string; color?: RGB; bold?: boolean; small?: boolean };
+export type Line = { text: string; color?: RGB; bold?: boolean; small?: boolean };
 /** A cell: one text, or several lines stacked (each lot on its own line, say). */
-type Cell = { text: string; color?: RGB; bold?: boolean; lines?: Line[] };
+export type Cell = { text: string; color?: RGB; bold?: boolean; lines?: Line[] };
 type Column = { label: string; width: number };
-type Report = {
+export type Report = {
   title: string;
   filterLine: string;
   tiles: { label: string; value: number | string; color?: RGB }[];
@@ -173,7 +174,12 @@ const dispatchColor = (s: string) =>
 // ── Assembly & Packing ───────────────────────────────────────────────────
 
 /** Assembly & Packing's queue as one PDF: its lots' packing plan, the slips, where Dispatch is. */
-export async function buildAssemblyReportPdf(rows: Row[], filterLine: string): Promise<Uint8Array> {
+export async function buildAssemblyReportPdf(rows: Row[], filterLine: string, title?: string): Promise<Uint8Array> {
+  return buildReport(assemblyReport(rows, filterLine, title));
+}
+
+/** Assembly & Packing's report, one line per SO: the PDF's, and the Spare Excel's. */
+export function assemblyReport(rows: Row[], filterLine: string, title = "Assembly & Packing report"): Report {
   const groups = new Map<string, Row[]>();
   for (const r of rows) {
     const k = str(r.order_id);
@@ -268,8 +274,8 @@ export async function buildAssemblyReportPdf(rows: Row[], filterLine: string): P
     ];
   });
 
-  return buildReport({
-    title: "Assembly & Packing report",
+  return {
+    title,
     filterLine,
     tiles: [
       { label: "SOs", value: groups.size },
@@ -298,7 +304,7 @@ export async function buildAssemblyReportPdf(rows: Row[], filterLine: string): P
     ],
     rows: lines,
     empty: "No SO matches this filter.",
-  });
+  };
 }
 
 // ── Dispatch ─────────────────────────────────────────────────────────────

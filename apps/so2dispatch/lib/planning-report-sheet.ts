@@ -20,7 +20,8 @@ import type { ReadyLotEvent } from "@/lib/orders";
 // Planning's report as a sheet — what the Excel holds and what the pop-up's
 // Excel view shows, cell for cell. Spare: the PDF's lines, one per SO. Pump:
 // every column of the Pump view but Chat, one row per pump EC (its SO's
-// columns repeated on each, so the sheet filters cleanly).
+// columns repeated on each, so the sheet filters cleanly). Assembly &
+// Packing's sheet (lib/assembly-report-sheet) shares its cell helpers.
 
 type Row = Record<string, unknown>;
 
@@ -39,7 +40,7 @@ export type ReportSheet = {
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 
-function day(v: unknown, year = true): string {
+export function day(v: unknown, year = true): string {
   const s = str(v).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
   return new Date(`${s}T00:00:00Z`).toLocaleDateString("en-GB", {
@@ -50,7 +51,7 @@ function day(v: unknown, year = true): string {
   });
 }
 
-const statusTone = (s: string): Tone | null =>
+export const statusTone = (s: string): Tone | null =>
   /hold/i.test(s)
     ? "red"
     : /^(fully|assembled|packed|received|manufactured|issued)/i.test(s)
@@ -90,7 +91,7 @@ const fieldText = (f: OrderField, v: unknown) => (f.type === "date" ? day(v) : s
 const LOTS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
 
 /** An A&P lot, as its cell reads: where it stands, the counts, the days. */
-function asmLotText(lot: PumpLot | undefined, slips: Row[]): string {
+export function asmLotText(lot: PumpLot | undefined, slips: Row[]): string {
   if (!lot) return "";
   const qty = lot.ecs.reduce((t, e) => t + e.qty, 0);
   const assembled = lot.ecs.reduce((t, e) => t + e.assembled, 0);
@@ -110,7 +111,7 @@ function asmLotText(lot: PumpLot | undefined, slips: Row[]): string {
 }
 
 /** Base plate or wooden box, as the Alignment cell reads. */
-function alignmentText(a: PumpSummary["alignment"] | undefined, which: "base_plate" | "wooden_box"): string {
+export function alignmentText(a: PumpSummary["alignment"] | undefined, which: "base_plate" | "wooden_box"): string {
   if (!a) return "";
   const yes = str(a[which]);
   if (yes === "No") return "No";

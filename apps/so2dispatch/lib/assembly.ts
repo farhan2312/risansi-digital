@@ -285,3 +285,27 @@ export function soStageStatusSql(stage: Stage, o = "o"): string {
              WHEN NOT EXISTS (SELECT 1 ${pumps} AND ${done("s")} < COALESCE(NULLIF(s.quantity, 0), 1)) THEN '${full}'
              ELSE '${partial}' END)`;
 }
+
+/** The Pump view's SOs: those Planning has Partial or Fully ready. */
+export const PUMP_VIEW_READY_SQL = `EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
+                 WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')
+                   AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`;
+
+/** The SO status filters' values under `key`, those that are statuses. */
+export function pickStageStatuses(get: (key: string) => string | undefined, stage: Stage): string[] {
+  const allowed = stage === "assembly" ? SO_ASSEMBLY_STATUSES : SO_PACKING_STATUSES;
+  return (get(stage === "assembly" ? ASSEMBLY_STATUS_KEY : PACKING_STATUS_KEY) ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => allowed.includes(v));
+}
+
+/** The Pump view's queue: its ready SOs, at the assembly and packing statuses picked. */
+export function pumpViewRestrict(assembly: string[], packing: string[]): string {
+  const inList = (vals: string[]) => vals.map((s) => `'${s}'`).join(", ");
+  return [
+    PUMP_VIEW_READY_SQL,
+    assembly.length ? `${soStageStatusSql("assembly", "o")} IN (${inList(assembly)})` : "TRUE",
+    packing.length ? `${soStageStatusSql("packing", "o")} IN (${inList(packing)})` : "TRUE",
+  ].join(" AND ");
+}

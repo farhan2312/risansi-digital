@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Boxes, Download, FileText } from "lucide-react";
+import { Boxes } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   canEditSection,
@@ -21,15 +21,16 @@ import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { listRemindersForDepartment } from "@/lib/reminders";
 import { ASSEMBLY_CONTEXT_FIELDS, SECTION_BY_TABLE } from "@/lib/order-schema";
 import {
-  ASSEMBLY_STATUS_KEY,
-  PACKING_STATUS_KEY,
   SO_ASSEMBLY_STATUSES,
   SO_PACKING_STATUSES,
+  pickStageStatuses,
+  pumpViewRestrict,
   soStageStatusSql,
 } from "@/lib/assembly";
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
+import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
 
@@ -68,24 +69,12 @@ export default async function AssemblyDispatchWorkspacePage({
   // The cards count over the filter bar as set, less the card clicked.
   const cardGet = cardBaseGet((key) => params[key]);
   filter.kpiFilter = parseDeptFilter(cardGet, "assembly");
-  const pick = (key: string, allowed: string[], get: (key: string) => string | undefined = (k) => params[k]) =>
-    (get(key) ?? "")
-      .split(",")
-      .map((v) => v.trim())
-      .filter((v) => allowed.includes(v));
-  const assemblyStatuses = pick(ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES);
-  const packingStatuses = pick(PACKING_STATUS_KEY, SO_PACKING_STATUSES);
+  const get = (k: string) => params[k];
+  const assemblyStatuses = pickStageStatuses(get, "assembly");
+  const packingStatuses = pickStageStatuses(get, "packing");
   // …and as the cards count them: the bar's, less the card clicked.
-  const cardAssembly = pick(ASSEMBLY_STATUS_KEY, SO_ASSEMBLY_STATUSES, cardGet);
-  const cardPacking = pick(PACKING_STATUS_KEY, SO_PACKING_STATUSES, cardGet);
-  const inList = (vals: string[]) => vals.map((s) => `'${s}'`).join(", ");
-  // The Pump view's SOs: those Planning has Partial or Fully ready.
-  const pumpReady =
-    ecKind === "pump"
-      ? `EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
-                 WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')
-                   AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`
-      : undefined;
+  const cardAssembly = pickStageStatuses(cardGet, "assembly");
+  const cardPacking = pickStageStatuses(cardGet, "packing");
   // The Pump view's cards: the SOs' assembly, then their packing.
   const assemblyPumpCards = (): KpiCardDef[] => {
     const clear = { asm: null, pkg: null, dstatus: null, overdue: null, hold: null } as Record<string, string | null>;
@@ -118,14 +107,8 @@ export default async function AssemblyDispatchWorkspacePage({
       totalHoldCard("assembly", clear),
     ];
   };
-  const pumpRestrict =
-    ecKind === "pump"
-      ? [
-          pumpReady,
-          assemblyStatuses.length ? `${soStageStatusSql("assembly", "o")} IN (${inList(assemblyStatuses)})` : "TRUE",
-          packingStatuses.length ? `${soStageStatusSql("packing", "o")} IN (${inList(packingStatuses)})` : "TRUE",
-        ].join(" AND ")
-      : undefined;
+  // The Pump view's SOs: those Planning has Partial or Fully ready.
+  const pumpRestrict = ecKind === "pump" ? pumpViewRestrict(assemblyStatuses, packingStatuses) : undefined;
   // A notification links to an EC (item id) or an SO; either way the queue
   // must open on the page that holds it.
   // Which SO a notification link should open on. Without a link this is
@@ -145,14 +128,7 @@ export default async function AssemblyDispatchWorkspacePage({
     ,
       {
         kpis: ecKind === "pump" ? assemblyPumpCards() : deptKpiCards("assembly", ["Spare"]),
-        kpiRestrict:
-          ecKind === "pump"
-            ? [
-                pumpReady,
-                cardAssembly.length ? `${soStageStatusSql("assembly", "o")} IN (${inList(cardAssembly)})` : "TRUE",
-                cardPacking.length ? `${soStageStatusSql("packing", "o")} IN (${inList(cardPacking)})` : "TRUE",
-              ].join(" AND ")
-            : undefined,
+        kpiRestrict: ecKind === "pump" ? pumpViewRestrict(cardAssembly, cardPacking) : undefined,
         page: parsePage(page),
         search: parseQuery(q),
         focusOrderId,
@@ -179,17 +155,17 @@ export default async function AssemblyDispatchWorkspacePage({
     unreadByOrder(orderIds, user),
   ]);
 
-  // The PDF report carries the queue's filter, search and sort — not which
-  // page is open, nor a row being edited.
-  const reportQuery = new URLSearchParams(
-    Object.entries(params).filter(
+  // The report carries the queue's filter, search and sort — not which
+  // page is open, nor a row being edited. Spare or Pump as shown, said
+  // outright: each has its own report.
+  const reportQuery = new URLSearchParams([
+    ...Object.entries(params).filter(
       (e): e is [string, string] =>
-        !!e[1] && !["page", "edit", "thread", "focus"].includes(e[0])
-    )
-  ).toString();
-  const reportHref = `/risansi/departments/assembly-dispatch/report${reportQuery ? `?${reportQuery}` : ""}`;
-  const reportLink =
-    "inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background";
+        !!e[1] && !["page", "edit", "thread", "focus", "type"].includes(e[0])
+    ),
+    ["type", ecKind],
+  ]).toString();
+  const reportHref = `/risansi/departments/assembly-dispatch/report?${reportQuery}`;
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
@@ -205,16 +181,12 @@ export default async function AssemblyDispatchWorkspacePage({
             Record assembly and packing for each EC. Dispatch takes it from there.
           </p>
         </div>
-        {/* Every SO in the queue as filtered, on one PDF. */}
+        {/* Every SO in the queue as filtered: the PDF or the Excel. */}
         <div className="ml-auto flex items-center gap-2">
-          <a href={reportHref} target="_blank" rel="noopener" className={reportLink}>
-            <FileText className="h-4 w-4" />
-            View PDF
-          </a>
-          <a href={`${reportHref}${reportQuery ? "&" : "?"}download=1`} className={reportLink}>
-            <Download className="h-4 w-4" />
-            Download PDF
-          </a>
+          <ReportDialogButton
+            title={ecKind === "pump" ? "Pump assembly & packing report" : "Spare assembly & packing report"}
+            href={reportHref}
+          />
         </div>
       </div>
 
