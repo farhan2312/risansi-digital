@@ -13,6 +13,7 @@ import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
 import { PumpAfterPlanningCells } from "./pump-dept-cells";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { SortHeader } from "./sort-header";
 import type { PumpSummary } from "@/lib/pump-summary";
 
 type Row = Record<string, unknown>;
@@ -34,6 +35,8 @@ const WITH_UNIT: Record<string, string> = {
 const UNIT_COLUMNS = new Set(Object.values(WITH_UNIT));
 
 /** The EC on the front: who it is and how many; the whole form opens from the row. */
+/** The SO's date columns the queue can sort by (lib/orders queueOrderBy). */
+const SORTABLE_SO_DATES = ["dispatch_target_date", "ld_date", "so_handover_date"];
 const EC_FRONT = ["ec_no", "ec_date", "pump_type", "model_no", "internal_model", "quantity", "boi"];
 const EC_COLUMNS: OrderField[] = EC_FRONT.map((c) => ADD_ON_PUMP_FIELDS.find((f) => f.column === c)!).filter(
   (f) => f && !UNIT_COLUMNS.has(f.column)
@@ -128,15 +131,18 @@ export function PlanningPumpTable({
           <th colSpan={ecPlanCols.length + 1 + (canEdit ? 1 : 0)} className={group}>Planning (EC)</th>
         </tr>
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-          <th className={th}>Sl.</th>
+          <th className={th}><SortHeader label="Sl." sortKey="sl" /></th>
           <th className={`${th} sticky-so`}>SO No.</th>
           <th className={th}>Chat</th>
-          <th className={th}>SO Date</th>
+          <th className={th}><SortHeader label="SO Date" sortKey="so_date" /></th>
           {soColumns.map((f) => (
-            <th key={f.column} className={th}>{f.label}</th>
+            <th key={f.column} className={th}>
+              {/* The SO's own dates sort the queue. */}
+              {f.type === "date" && SORTABLE_SO_DATES.includes(f.column) ? <SortHeader label={f.label} sortKey={f.column} /> : f.label}
+            </th>
           ))}
           <th className={th}>Status</th>
-          <th className={th}>Assembly Readiness Date</th>
+          <th className={th}><SortHeader label="Assembly Readiness Date" sortKey="readiness" /></th>
           {LOT_COLUMNS.map((n) => (
             <th key={n} className={th}>Lot {n}</th>
           ))}
@@ -147,7 +153,7 @@ export function PlanningPumpTable({
           {canEdit && <th className={th} />}
           {EC_COLUMNS.map((f, i) => (
             <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>
-              {f.column === "boi" ? "BOI" : f.label}
+              {f.column === "boi" ? "BOI" : f.column === "ec_date" ? <SortHeader label={f.label} sortKey="ec_date" /> : f.label}
             </th>
           ))}
           <th className={th}>BOI Items</th>

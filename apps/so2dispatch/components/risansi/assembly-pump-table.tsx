@@ -25,6 +25,7 @@ import { AlignmentForm, AlignmentValue } from "./alignment-cell";
 import { Chip, LotCell } from "./lot-cell";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
+import { SortHeader } from "./sort-header";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -153,9 +154,9 @@ export function AssemblyPumpTable({
             <th colSpan={9} className={group}>EC</th>
           </tr>
           <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-            <th className={th}>Sl.</th>
+            <th className={th}><SortHeader label="Sl." sortKey="sl" /></th>
             <th className={`${th} sticky-so`}>SO No.</th>
-            <th className={th}>SO Date</th>
+            <th className={th}><SortHeader label="SO Date" sortKey="so_date" /></th>
             <th className={th}>Chat</th>
             <th className={th}>PPC Status</th>
             {lotCols.map((n, i) => (
@@ -164,15 +165,15 @@ export function AssemblyPumpTable({
             <th className={`${th} border-l border-card-border`}>Base Plate</th>
             <th className={th}>Wooden Box</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={th}>Planned Date</th>
+            <th className={th}><SortHeader label="Planned Date" sortKey="asm_plan" /></th>
             <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={th}>Planned Date</th>
+            <th className={th}><SortHeader label="Planned Date" sortKey="packing" /></th>
             <th className={th} />
             <th className={`${th} border-l border-card-border`}>Packing Slips</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
             <th className={`${th} border-l border-card-border`}>EC No. / Internal Model</th>
-            <th className={th}>EC Date</th>
-            <th className={th}>Assembly Readiness Date</th>
+            <th className={th}><SortHeader label="EC Date" sortKey="ec_date" /></th>
+            <th className={th}><SortHeader label="Assembly Readiness Date" sortKey="readiness" /></th>
             <th className={th}>Qty</th>
             <th className={th}>Ready</th>
             <th className={th}>Assembled</th>

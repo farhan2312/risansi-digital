@@ -4865,11 +4865,18 @@ const REPORT_LIMIT = 2000;
  * none chosen it runs newest Sl. No. first.
  */
 export type QueueSort =
-  | "sl" | "-sl" | "readiness" | "-readiness" | "packing" | "-packing" | "so_date" | "-so_date" | "ecs" | "-ecs" | "rep" | "-rep";
+  | "sl" | "-sl" | "readiness" | "-readiness" | "packing" | "-packing" | "so_date" | "-so_date" | "ecs" | "-ecs" | "rep" | "-rep"
+  | "asm_plan" | "-asm_plan" | "ec_date" | "-ec_date"
+  | "dispatch_target_date" | "-dispatch_target_date" | "ld_date" | "-ld_date" | "so_handover_date" | "-so_handover_date";
 
 const QUEUE_SORTS: QueueSort[] = [
   "sl", "-sl", "readiness", "-readiness", "packing", "-packing", "so_date", "-so_date", "ecs", "-ecs", "rep", "-rep",
+  "asm_plan", "-asm_plan", "ec_date", "-ec_date",
+  "dispatch_target_date", "-dispatch_target_date", "ld_date", "-ld_date", "so_handover_date", "-so_handover_date",
 ];
+
+/** The SO's own date columns a queue sorts by, as they are named on orders. */
+const SO_DATE_SORTS = new Set(["so_date", "dispatch_target_date", "ld_date", "so_handover_date"]);
 
 export function parseQueueSort(value: string | undefined): QueueSort | null {
   return QUEUE_SORTS.includes(value as QueueSort) ? (value as QueueSort) : null;
@@ -4894,11 +4901,23 @@ function queueOrderBy(sort: QueueSort | null | undefined): string | undefined {
     return `(SELECT min(prl.packing_plan_date) FROM order_items s
                JOIN order_ready_lots prl ON prl.item_id = s.id WHERE s.order_id = o.id) ${dir} NULLS LAST, o.sl_no DESC`;
   }
+  // Assembly & Packing's planned assembly date: the SO's earliest among its pump lots.
+  if (sort.replace("-", "") === "asm_plan") {
+    return `(SELECT min(pla.plan_date) FROM order_items s
+               JOIN order_lot_assembly pla ON pla.item_id = s.id WHERE s.order_id = o.id) ${dir} NULLS LAST, o.sl_no DESC`;
+  }
+  // The EC date: the SO's earliest EC.
+  if (sort.replace("-", "") === "ec_date") {
+    return `(SELECT min(s.ec_date) FROM order_items s WHERE s.order_id = o.id) ${dir} NULLS LAST, o.sl_no DESC`;
+  }
+  const bare = sort.replace("-", "");
   const key =
-    sort.replace("-", "") === "readiness"
+    bare === "readiness"
       ? `(SELECT max(rpl.planning_readiness_date) FROM order_items s
            JOIN order_planning rpl ON rpl.item_id = s.id WHERE s.order_id = o.id)`
-      : "o.so_date";
+      : SO_DATE_SORTS.has(bare)
+        ? `o.${bare}`
+        : "o.so_date";
   return `${key} ${dir} NULLS LAST, o.sl_no DESC`;
 }
 
