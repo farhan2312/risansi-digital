@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Download, FileText, PackageCheck } from "lucide-react";
+import { PackageCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   canEditChild,
@@ -18,6 +18,7 @@ import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { cardBaseGet } from "@/lib/kpis";
 import { unreadByOrder } from "@/lib/order-messages";
 import { BillingWorkspace } from "@/components/risansi/billing-workspace";
+import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { deptKpiCards } from "@/lib/orders";
 
 export const metadata: Metadata = {
@@ -70,7 +71,7 @@ export default async function DispatchWorkspacePage({
     unreadByOrder(ids, user),
   ]);
 
-  // The PDF report carries the queue's filter, search and sort — not which
+  // The report carries the queue's filter, search and sort — not which
   // page is open, nor a row being edited.
   const reportQuery = new URLSearchParams(
     Object.entries(params).filter(
@@ -79,8 +80,6 @@ export default async function DispatchWorkspacePage({
     )
   ).toString();
   const reportHref = `/risansi/departments/dispatch/report${reportQuery ? `?${reportQuery}` : ""}`;
-  const reportLink =
-    "inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background";
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
@@ -99,16 +98,9 @@ export default async function DispatchWorkspacePage({
             follows from these.
           </p>
         </div>
-        {/* Every SO in the queue as filtered, on one PDF. */}
+        {/* Every SO in the queue as filtered: the PDF or the Excel. */}
         <div className="ml-auto flex items-center gap-2">
-          <a href={reportHref} target="_blank" rel="noopener" className={reportLink}>
-            <FileText className="h-4 w-4" />
-            View PDF
-          </a>
-          <a href={`${reportHref}${reportQuery ? "&" : "?"}download=1`} className={reportLink}>
-            <Download className="h-4 w-4" />
-            Download PDF
-          </a>
+          <ReportDialogButton title="Dispatch report" href={reportHref} />
         </div>
       </div>
 

@@ -309,8 +309,46 @@ export function assemblyReport(rows: Row[], filterLine: string, title = "Assembl
 
 // ── Dispatch ─────────────────────────────────────────────────────────────
 
+const money = (v: unknown) => {
+  const s = str(v);
+  if (!s) return "";
+  const n = Number(s);
+  return Number.isFinite(n) ? n.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : s;
+};
+const pct = (v: unknown) => (str(v) ? `${money(v)}%` : "—");
+
+/**
+ * What is still to invoice of the SO: its gross value less what is invoiced
+ * (under a rupee either way is all of it), as the Dispatch page reads it. A
+ * Challan / FR SO is a replacement, at no value; null when no gross is set.
+ */
+export function orderInHand(o: Row): { replacement: true } | { left: number; invoiced: number } | null {
+  if (str(o.bill_type) === "Challan") return { replacement: true };
+  if (!str(o.taxable_value)) return null;
+  const invoiced = Number(o.invoiced_value ?? 0) || 0;
+  const diff = Number(o.taxable_value) - invoiced;
+  return { left: Math.abs(diff) < 1 ? 0 : diff, invoiced };
+}
+
+/** The SO's order value to its gross, as the Order Value Details cell lists it. */
+export function orderValueLines(o: Row): [string, string][] {
+  const cur = str(o.order_currency) ? ` ${str(o.order_currency)}` : "";
+  return [
+    ["Order value", money(o.order_value) ? `${money(o.order_value)}${cur}` : "—"],
+    ["Discount", pct(o.discount_percent)],
+    ["Packing", pct(o.packing_forwarding_percent)],
+    ["GST", pct(o.gst_percent)],
+    ["Gross value", money(o.taxable_value) ? `${money(o.taxable_value)}${cur}` : "—"],
+  ];
+}
+
 /** Dispatch's queue as one PDF: slips waiting, each dispatch's three steps, the SO's stage and status. */
 export async function buildDispatchReportPdf(rows: Row[], filterLine: string): Promise<Uint8Array> {
+  return buildReport(dispatchReport(rows, filterLine));
+}
+
+/** Dispatch's report, one line per SO: the PDF's, and what the Excel reads. */
+export function dispatchReport(rows: Row[], filterLine: string): Report {
   const stageCount = new Map<string, number>();
   let waitingSlips = 0;
   let full = 0;
@@ -352,9 +390,17 @@ export async function buildDispatchReportPdf(rows: Row[], filterLine: string): P
     const status = str(o.dispatch_status) || "Pending";
     if (status === "Fully dispatch") full++;
     if (status === "LOT dispatch") lot++;
-    const value = str(o.order_value)
-      ? `${Number(o.order_value).toLocaleString("en-IN", { maximumFractionDigits: 2 })} ${str(o.order_currency) || "INR"}`
-      : "";
+    const cur = str(o.order_currency) ? ` ${str(o.order_currency)}` : "";
+    const details: Line[] = orderValueLines(o).map(([k, v], i, all) => ({ text: `${k}: ${v}`, bold: i === all.length - 1, small: i < all.length - 1 }));
+    const hand = orderInHand(o);
+    const inHand: Line[] = !hand
+      ? []
+      : "replacement" in hand
+        ? [{ text: "Replacement", color: C.muted }]
+        : [
+            { text: `${money(hand.left)}${cur}`, bold: true, color: hand.left > 0 ? undefined : C.green },
+            { text: `Invoiced ${money(hand.invoiced)}`, small: true },
+          ];
     return [
       { text: str(o.sl_no) },
       { text: str(o.so_no) || `#${str(o.sl_no)}`, bold: true },
@@ -365,11 +411,12 @@ export async function buildDispatchReportPdf(rows: Row[], filterLine: string): P
       { text: dispatches.length ? "dispatches" : "", lines: dispatches.flat() },
       { text: stage, color: stage === "Docket & LR done" ? C.green : stage ? C.amber : undefined },
       { text: status, color: dispatchColor(status), bold: status === "Fully dispatch" },
-      { text: value },
+      { text: "details", lines: details },
+      { text: inHand.length ? "in hand" : "", lines: inHand },
     ];
   });
 
-  return buildReport({
+  return {
     title: "Dispatch report",
     filterLine,
     tiles: [
@@ -387,15 +434,16 @@ export async function buildDispatchReportPdf(rows: Row[], filterLine: string): P
       { label: "Sl.", width: 26 },
       { label: "SO No.", width: 72 },
       { label: "SO date", width: 46 },
-      { label: "Client", width: 100 },
-      { label: "Bill mode", width: 56 },
-      { label: "Slips waiting", width: 80 },
-      { label: "Dispatches", width: 196 },
-      { label: "Stage", width: 66 },
-      { label: "Dispatch", width: 58 },
-      { label: "Order value", width: 70 },
+      { label: "Client", width: 80 },
+      { label: "Bill mode", width: 52 },
+      { label: "Slips waiting", width: 72 },
+      { label: "Dispatches", width: 150 },
+      { label: "Stage", width: 62 },
+      { label: "Dispatch", width: 54 },
+      { label: "Order details", width: 92 },
+      { label: "Order in hand", width: 64 },
     ],
     rows: lines,
     empty: "No SO matches this filter.",
-  });
+  };
 }

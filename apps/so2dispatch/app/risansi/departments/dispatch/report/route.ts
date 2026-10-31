@@ -5,6 +5,8 @@ import { listOrdersForBillingPage, parseQueueSort } from "@/lib/orders";
 import { parseQuery } from "@/lib/pagination";
 import { describeOrderListFilter, parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { buildDispatchReportPdf } from "@/lib/dept-report-pdf";
+import { buildPlanningReportXlsx } from "@/lib/planning-report-xlsx";
+import { dispatchSheet } from "@/lib/dispatch-report-sheet";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,9 +14,9 @@ export const runtime = "nodejs";
 const TABLE = "order_dispatch" as const;
 
 /**
- * Dispatch's queue as one PDF — every SO the queue's filter, search and sort
- * select, not just the page on screen. Opens in the browser, or saves with
- * ?download=1.
+ * Dispatch's report — every SO the queue's filter, search and sort select,
+ * not just the page on screen. A PDF to open (?download=1 saves it);
+ * ?format=xlsx the Excel, ?format=json the same sheet for the pop-up's Excel view.
  */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -34,9 +36,23 @@ export async function GET(request: Request) {
     all: true,
   });
   const filterLine = [describeOrderListFilter(filter), search && `Search: ${search}`].filter(Boolean).join("  ·  ");
-  const bytes = await buildDispatchReportPdf(queue.rows as unknown as Record<string, unknown>[], filterLine);
-
+  const rows = queue.rows as unknown as Record<string, unknown>[];
   const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const format = get("format");
+  if (format === "xlsx" || format === "json") {
+    const sheet = dispatchSheet(rows, filterLine);
+    if (format === "json") return NextResponse.json(sheet, { headers: { "Cache-Control": "no-store" } });
+    const xlsx = await buildPlanningReportXlsx(sheet);
+    return new NextResponse(xlsx as unknown as ArrayBuffer, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="dispatch-report-${stamp}.xlsx"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+  const bytes = await buildDispatchReportPdf(rows, filterLine);
+
   return new NextResponse(bytes as unknown as ArrayBuffer, {
     headers: {
       "Content-Type": "application/pdf",
