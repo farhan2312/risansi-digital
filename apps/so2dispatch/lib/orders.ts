@@ -1613,24 +1613,6 @@ export async function addAccountsHoldReason(label: string, by: string): Promise<
   return clean;
 }
 
-/**
- * A Fully dispatched SO is Clear with Accounts: nothing is left to hold back.
- * Any Accounts hold is lifted (its reason with it; remarks stay). Run when the
- * dispatch status or Central's status moves; with no id, over every SO.
- */
-export async function clearAccountsWhenDispatched(orderId?: string): Promise<number> {
-  if (orderId !== undefined && !UUID_RE.test(orderId)) return 0;
-  const r = await query(
-    `UPDATE orders o
-        SET accounts_hold_status = 'Clear', accounts_hold_reason = NULL, accounts_hold_at = NULL
-      WHERE ${DISPATCH_STATUS} = 'Fully dispatch'
-        AND o.accounts_hold_status IS DISTINCT FROM 'Clear'
-        ${orderId ? "AND o.id = $1" : ""}`,
-    orderId ? [orderId] : []
-  );
-  return r.rowCount ?? 0;
-}
-
 /** Put an SO on Accounts hold, or lift it. Returns the status it had before. */
 export async function setAccountsHold(
   orderId: string,
@@ -1861,7 +1843,6 @@ export async function recomputeDispatchStatus(orderId: string): Promise<void> {
                             OR i.invoice_value IS NOT NULL OR i.challan_value IS NOT NULL))`,
     [orderId]
   );
-  await clearAccountsWhenDispatched(orderId);
 }
 
 /**
@@ -1959,7 +1940,6 @@ export async function setOrderStatus(input: {
       WHERE id = $1`,
     [input.orderId, input.status, input.reason, input.divertedTo, input.actorId]
   );
-  await clearAccountsWhenDispatched(input.orderId);
 }
 
 /**
