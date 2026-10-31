@@ -7,7 +7,7 @@
  * admin carries on with their old access until the token expires. This
  * re-reads the account so any of those ends the session on the next request.
  */
-import { type Access, resolveAccess } from "@/lib/effective-role";
+import { cachedAccess } from "@/lib/effective-role";
 
 /** The token fields the check compares against the account. */
 export interface SessionClaims {
@@ -17,38 +17,16 @@ export interface SessionClaims {
   iat?: unknown;
 }
 
-/** How long a looked-up account is reused before the database is asked
- * again. Bounds how late a deactivation can take effect: short enough not to
- * matter, long enough that the burst of API calls one screen makes costs a
- * single lookup. */
-const ACCOUNT_CACHE_MS = 10_000;
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// On globalThis so dev hot-reload keeps one cache rather than one per reload
-// (same reason the DB pool lives there).
-const globalForSession = globalThis as unknown as {
-  __pumpSessionAccounts?: Map<string, { account: Access | null; at: number }>;
-};
-const accounts = (globalForSession.__pumpSessionAccounts ??= new Map());
-
-async function loadAccount(userId: string, issuedAtMs: number): Promise<Access | null> {
-  const cached = accounts.get(userId);
-  // A cached read from before this token was issued can't be trusted for it:
-  // someone reactivated or promoted a moment ago and then signing in must not
-  // be judged against the account as it was before the change.
-  if (cached && cached.at >= issuedAtMs && Date.now() - cached.at < ACCOUNT_CACHE_MS) {
-    return cached.account;
-  }
-  // Phase 4b: the role now comes from identity.app_grants, not from
-  // users_pump.role. resolveAccess() is shared with the login route for a
-  // reason — see the note at the top of effective-role.ts. If these two ever
-  // read the role from different places, the mismatch test below can never
-  // be satisfied and everybody is signed out on their next request.
-  const account = await resolveAccess(userId);
-  accounts.set(userId, { account, at: Date.now() });
-  return account;
-}
+// The account comes from cachedAccess (lib/effective-role): reused for up to
+// 10 seconds - which bounds how late a deactivation or role change takes
+// effect - and the same answer sharedSessionPayload read for this request, so
+// the role compared below always comes from the same place as the token's.
+// (This file used to keep its own cache, keyed on the token's iat; a shared
+// session's iat is always "now", so it never hit and every request asked the
+// databases again.)
+const loadAccount = (userId: string) => cachedAccess(userId);
 
 /**
  * "ended" when the account behind a valid token has since been deleted, is no
@@ -60,9 +38,7 @@ async function loadAccount(userId: string, issuedAtMs: number): Promise<Access |
 export async function sessionVerdict(claims: SessionClaims): Promise<"active" | "ended"> {
   const userId = typeof claims.sub === "string" ? claims.sub : "";
   if (!UUID_RE.test(userId)) return "ended";
-  const issuedAtMs = typeof claims.iat === "number" ? claims.iat * 1000 : 0;
-
-  const account = await loadAccount(userId, issuedAtMs);
+  const account = await loadAccount(userId);
   if (!account || account.status !== "active") return "ended";
   // decodeToken (lib/auth) reads a missing role as "user", so compare the same way.
   if ((account.role ?? "user") !== claims.role) return "ended";

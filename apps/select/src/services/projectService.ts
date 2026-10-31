@@ -58,9 +58,11 @@ export const listProjectsPage = async (query: {
   pageSize?: number;
   clientName?: string;
   enquiryCode?: string;
-  /** Created-date window, ISO instants. */
+  /** Date window, ISO instants, on `dateField`. */
   from?: string;
   to?: string;
+  /** Which date the window is on: the enquiry date (default) or the date it was assigned. */
+  dateField?: "enquiry" | "assigned";
   /** Only enquiries assigned to the signed-in user. */
   mine?: boolean;
   /** Reps / zone / market / industry / status (shared with the Dashboard). */
@@ -73,6 +75,7 @@ export const listProjectsPage = async (query: {
       clientName: query.clientName?.trim() || undefined,
       enquiryCode: query.enquiryCode?.trim() || undefined,
       from: query.from || undefined,
+      dateField: query.dateField || undefined,
       to: query.to || undefined,
       mine: query.mine ? "1" : undefined,
       ...filterParams(query.filters),

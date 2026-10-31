@@ -68,16 +68,26 @@ export async function GET(req: Request) {
   if (enquiryCode && enquiryCode.trim()) {
     conditions.push(sql`${projects.projectCode} ILIKE ${like(enquiryCode)}`);
   }
-  // Created-date window: ISO instants (the client converts picked calendar
-  // days to its own time zone). Unparseable values are ignored.
+  // Date window: ISO instants (the client converts picked calendar days to
+  // its own time zone). Unparseable values are ignored. dateField picks the
+  // date: "enquiry" (default - the date the enquiry was received, a calendar
+  // day, compared as the instant's IST day), "assigned" or "created".
   const instant = (v: string | null) => {
     const d = v ? new Date(v) : null;
     return d && !Number.isNaN(d.getTime()) ? d : null;
   };
-  const createdFrom = instant(params.get("from"));
-  const createdTo = instant(params.get("to"));
-  if (createdFrom) conditions.push(sql`${projects.createdAt} >= ${createdFrom}`);
-  if (createdTo) conditions.push(sql`${projects.createdAt} <= ${createdTo}`);
+  const windowFrom = instant(params.get("from"));
+  const windowTo = instant(params.get("to"));
+  const dateField = params.get("dateField");
+  if (dateField === "assigned" || dateField === "created") {
+    const col = dateField === "assigned" ? projects.assignedAt : projects.createdAt;
+    if (windowFrom) conditions.push(sql`${col} >= ${windowFrom}`);
+    if (windowTo) conditions.push(sql`${col} <= ${windowTo}`);
+  } else {
+    const istDay = (d: Date) => sql`(${d.toISOString()}::timestamptz at time zone 'Asia/Kolkata')::date`;
+    if (windowFrom) conditions.push(sql`${projects.enquiryDate} >= ${istDay(windowFrom)}`);
+    if (windowTo) conditions.push(sql`${projects.enquiryDate} <= ${istDay(windowTo)}`);
+  }
   // Client / reps / zone / market / industry / status (shared with the Dashboard).
   conditions.push(...enquiryFilterSql(filtersFromParams(params)));
   // "Assigned to me" toggle (the default for a worker - everyone sees every

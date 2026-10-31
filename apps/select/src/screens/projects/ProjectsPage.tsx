@@ -127,8 +127,10 @@ const ProjectsPage = () => {
   // the client only ever holds one page, so filtering here would search 20
   // rows rather than the whole table.
   const [page, setPage] = useState(1);
-  // Created-date filter: a quick range, or explicit From/To days (which win).
+  // Date filter: a quick range, or explicit From/To days (which win), on the
+  // enquiry date (default) or the date the enquiry was assigned.
   const dates = useDateRange("all");
+  const [dateField, setDateField] = useState<"enquiry" | "assigned">("enquiry");
   const dateWindow = dates.window;
   const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 });
   // "All enquiries" / "Assigned to me" — filtered on the server.
@@ -187,6 +189,7 @@ const ProjectsPage = () => {
       enquiryCode: debouncedFilters.enquiryCode,
       from: dateWindow.from,
       to: dateWindow.to,
+      dateField,
       mine: scope === "mine",
       filters: adv,
     })
@@ -202,7 +205,7 @@ const ProjectsPage = () => {
       })
       .catch(() => seq === loadSeq.current && setError("Couldn't load enquiries."))
       .finally(() => seq === loadSeq.current && setIsLoading(false));
-  }, [page, debouncedFilters, dateWindow, scope, adv, scopeReady]);
+  }, [page, debouncedFilters, dateWindow, dateField, scope, adv, scopeReady]);
 
   useEffect(() => {
     loadProjects();
@@ -566,11 +569,23 @@ const ProjectsPage = () => {
               onChange={(e) => setEnquiryCodeFilter(e.target.value)}
             />
           </label>
+          <select
+            aria-label="Date to filter on"
+            value={dateField}
+            onChange={(e) => {
+              setDateField(e.target.value === "assigned" ? "assigned" : "enquiry");
+              setPage(1);
+            }}
+            className="h-9 rounded-lg border border-line bg-paper px-2.5 text-[12.5px] font-semibold text-fg-2 outline-none transition hover:border-fg-3 focus:border-accent focus:ring-2 focus:ring-accent-soft"
+          >
+            <option value="enquiry">Enquiry date</option>
+            <option value="assigned">Assigned date</option>
+          </select>
           <DateRangeFilter
             state={dates}
             onChange={() => setPage(1)}
-            fromLabel="Created from"
-            toLabel="Created to"
+            fromLabel={dateField === "assigned" ? "Assigned from" : "Enquiry date from"}
+            toLabel={dateField === "assigned" ? "Assigned to" : "Enquiry date to"}
             showClear={false}
           />
           {hasFilter && (

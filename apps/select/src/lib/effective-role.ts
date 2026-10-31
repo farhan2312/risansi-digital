@@ -110,8 +110,49 @@ export async function resolveAccess(userId: string): Promise<Access | null> {
       };
 }
 
+// ── Short caches ────────────────────────────────────────────────
+//
+// Every API call used to pay for five database round trips before its own
+// query: the local-id lookup and resolveAccess (main + identity database) in
+// sharedSessionPayload, then resolveAccess again in sessionVerdict - whose
+// own 10 s cache never hit, because the payload's iat is always "now". On a
+// remote database that is most of the wait behind every click (expanding an
+// enquiry's tags took visibly long for a 1 ms query).
+//
+// Now one 10 s cache of the access answer serves the middleware, the verdict
+// and the route handlers alike - the same bound session-guard already set for
+// how late a deactivation or role change may take effect - and the identity ->
+// local id link, which does not change, is kept for 5 minutes.
+
+const ACCESS_CACHE_MS = 10_000;
+const LOCAL_ID_CACHE_MS = 5 * 60_000;
+
+const globalForAccess = globalThis as unknown as {
+  __pumpAccessCache?: Map<string, { access: Access | null; at: number }>;
+  __pumpLocalIdCache?: Map<string, { id: string; at: number }>;
+};
+const accessCache = (globalForAccess.__pumpAccessCache ??= new Map());
+const localIdCache = (globalForAccess.__pumpLocalIdCache ??= new Map());
+
+/** resolveAccess, reused for up to 10 seconds per account. */
+export async function cachedAccess(userId: string): Promise<Access | null> {
+  const hit = accessCache.get(userId);
+  if (hit && Date.now() - hit.at < ACCESS_CACHE_MS) return hit.access;
+  const access = await resolveAccess(userId);
+  accessCache.set(userId, { access, at: Date.now() });
+  return access;
+}
+
 /** The local `users_pump.id` behind a Risansi Digital identity, or null. */
 export async function localUserIdFor(identityUserId: string): Promise<string | null> {
+  const hit = localIdCache.get(identityUserId);
+  if (hit && Date.now() - hit.at < LOCAL_ID_CACHE_MS) return hit.id;
+  const id = await lookupLocalUserId(identityUserId);
+  if (id) localIdCache.set(identityUserId, { id, at: Date.now() });
+  return id;
+}
+
+async function lookupLocalUserId(identityUserId: string): Promise<string | null> {
   const [row] = await db
     .select({ id: users.id })
     .from(users)
@@ -205,7 +246,7 @@ export async function sharedSessionPayload(
     (await provisionFromIdentity(session.userId, session.email, session.name));
   if (!localId) return null;
 
-  const access = await resolveAccess(localId);
+  const access = await cachedAccess(localId);
   if (!access || access.status !== "active") return null;
 
   return {
