@@ -9,13 +9,13 @@ import { BILL_TYPE_OPTIONS } from "@/lib/order-schema";
 import {
   BILL_MODE_FILTER_OPTIONS,
   NOT_SET,
+  SO_CATEGORY_FILTER_OPTIONS,
   type OrderListFilter,
 } from "@/lib/order-list-filter";
 
 export const BILL_TYPE_FILTER_OPTIONS = [...BILL_TYPE_OPTIONS.map((o) => o.value), NOT_SET];
 export { BILL_MODE_FILTER_OPTIONS };
-/** Project, Regular order (as SO_CATEGORY_OPTIONS — named here, since order-schema is not yet loaded when this module is), or not chosen yet. */
-export const SO_CATEGORY_FILTER_OPTIONS = ["Project", "Regular order", NOT_SET];
+export { SO_CATEGORY_FILTER_OPTIONS };
 
 // PO receiving date first: the default.
 export const OM_DATE_FIELDS = [
@@ -140,6 +140,7 @@ export function sharedFacets(f: OrderMakingFilter): OrderListFilter {
     billModes: f.billModes,
     orderStatuses: [],
     paymentStatuses: [],
+    categories: [],
     dispatchStatuses: [],
     dispatchStages: [],
     packingStatuses: [],

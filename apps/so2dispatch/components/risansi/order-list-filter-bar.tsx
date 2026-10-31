@@ -21,6 +21,7 @@ import {
   ORDER_STATUS_OPTIONS,
   DEPT_BILL_MODE_FILTER_OPTIONS,
   PAYMENT_STATUS_FILTER_OPTIONS,
+  SO_CATEGORY_FILTER_OPTIONS,
   DATE_PRESETS,
   FIELD_FILTER_FIELDS,
   PAYMENT_FILTER_DEPTS,
@@ -66,6 +67,7 @@ const FILTER_KEYS = [
   "bmode",
   "ost",
   "pstat",
+  "socat",
   "dsm",
   "dispst",
   "dstage",
@@ -359,6 +361,16 @@ export function OrderListFilterBar({
             options={dept ? DEPT_BILL_MODE_FILTER_OPTIONS : BILL_MODE_FILTER_OPTIONS}
             selected={filter.billModes}
             onChange={(next) => setParams({ bmode: next })}
+          />
+        )}
+        {/* The Dashboard and the Orders list: Project or Regular order. */}
+        {!dept && (
+          <MultiSelectFilter
+            label="SO category"
+            allLabel="Any category"
+            options={SO_CATEGORY_FILTER_OPTIONS}
+            selected={filter.categories}
+            onChange={(next) => setParams({ socat: next })}
           />
         )}
         {/* The orders list: Accounts' payment status. */}
