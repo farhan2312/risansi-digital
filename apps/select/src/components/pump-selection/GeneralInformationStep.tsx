@@ -52,7 +52,18 @@ const GeneralInformationStep = ({
 
   // Required before the pump can be screened at all: without capacity, head,
   // their units, an RPM band and a media there is nothing to select against.
-  // Specific Gravity stays optional - it defaults to 1.0 in the conversions.
+  // Specific Gravity is required when a unit depends on it - capacity in TPH
+  // (m3/hr = TPH / SG) or head in MLC (MWC = MLC x SG); otherwise it stays
+  // optional and the conversions use 1.0.
+  const sgNeeded = formData.capacityUnit === "TPH" || formData.headUnit === "MLC";
+  const sgValue = Number(formData.sg);
+  const sgError = !sgNeeded
+    ? ""
+    : !String(formData.sg ?? "").trim()
+      ? `Specific Gravity is required for ${[formData.capacityUnit === "TPH" && "TPH", formData.headUnit === "MLC" && "MLC"].filter(Boolean).join(" and ")}.`
+      : !Number.isFinite(sgValue) || sgValue <= 0
+        ? "Enter a Specific Gravity above 0."
+        : "";
   const [showErrors, setShowErrors] = useState(false);
   // Head Calculator pop-up; its inputs are saved with the tag (headCalc).
   const [showHeadCalc, setShowHeadCalc] = useState(false);
@@ -65,6 +76,7 @@ const GeneralInformationStep = ({
     headUnit: formData.headUnit ? "" : "Select a head unit.",
     rpmRange: formData.rpmRange ? "" : "Select an RPM range.",
     media: formData.media ? "" : "Media / application is required.",
+    sg: sgError,
   };
   const errorCount = Object.values(errors).filter(Boolean).length;
 
@@ -194,15 +206,17 @@ const GeneralInformationStep = ({
           </div>
 
           <div className={fieldWrap}>
-            <label className={label}>Specific Gravity</label>
+            <label className={label}>Specific Gravity{sgNeeded && <Req />}</label>
             <input
               type="number"
               step="0.01"
+              min="0"
               placeholder="e.g. 1.0 water, 1.4 molasses"
               className={control}
               value={formData.sg}
               onChange={(e) => setFormData({ ...formData, sg: e.target.value })}
             />
+            <Err show={showErrors} msg={errors.sg} />
           </div>
 
           <div className={fieldWrap}>
