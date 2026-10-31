@@ -149,7 +149,7 @@ export function AssemblyPumpTable({
             <th colSpan={3} className={group}>Packing</th>
             <th colSpan={1} className={group} />
             <th colSpan={1} className={group}>Dispatch</th>
-            <th colSpan={8} className={group}>EC</th>
+            <th colSpan={9} className={group}>EC</th>
           </tr>
           <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
             <th className={th}>Sl.</th>
@@ -171,6 +171,7 @@ export function AssemblyPumpTable({
             <th className={`${th} border-l border-card-border`}>Status</th>
             <th className={`${th} border-l border-card-border`}>EC No. / Internal Model</th>
             <th className={th}>EC Date</th>
+            <th className={th}>Assembly Readiness Date</th>
             <th className={th}>Qty</th>
             <th className={th}>Ready</th>
             <th className={th}>Assembled</th>
@@ -182,7 +183,7 @@ export function AssemblyPumpTable({
         <tbody>
           {sos.length === 0 && (
             <tr>
-              <td colSpan={22 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
+              <td colSpan={23 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
                 No pump SO is ready to assemble.
               </td>
             </tr>
@@ -300,6 +301,8 @@ export function AssemblyPumpTable({
                         {e.model && <div className="text-xs font-normal text-muted">{e.model}</div>}
                       </td>
                       <td className={`${ecCell} whitespace-nowrap text-muted`}>{shortDate(((r.ec ?? {}) as Row).ec_date)}</td>
+                      {/* Planning's readiness date for this EC. */}
+                      <td className={`${ecCell} whitespace-nowrap`}>{shortDate(r.planning_readiness_date)}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.quantity || "—"}</td>
                       <td className={`${ecCell} tabular-nums`}>{e.ready}</td>
                       <td className={`${ecCell} tabular-nums`}>{d.assembled}</td>
