@@ -136,36 +136,15 @@ export default function DateRangeFilter({
   toLabel?: string;
   /** Show a Clear button inside the date box while dates are set. */
   showClear?: boolean;
-  /** Quick ranges as a dropdown instead of a button row - for a filter row
-   *  that has to fit on one line. */
+  /** Tighter, for a filter row that has to fit on one line: no 90-day button,
+   *  narrower buttons, nothing wraps. */
   compact?: boolean;
 }) {
   const changed = () => onChange?.();
   return (
     <>
-      {compact ? (
-        <select
-          aria-label="Date range"
-          value={state.customDates ? "custom" : state.range}
-          onChange={(e) => {
-            if (e.target.value === "custom") return;
-            state.setRange(e.target.value as DateRangeKey);
-            changed();
-          }}
-          className={`h-9 rounded-lg border px-2.5 text-[12.5px] font-semibold outline-none transition focus:ring-2 focus:ring-accent-soft ${
-            state.active ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-fg-3"
-          }`}
-        >
-          {DATE_RANGES.map((r) => (
-            <option key={r.key} value={r.key}>
-              {r.label}
-            </option>
-          ))}
-          {state.customDates && <option value="custom">Custom dates</option>}
-        </select>
-      ) : (
-      <div className="inline-flex flex-wrap rounded-lg border border-line bg-paper p-0.5">
-        {DATE_RANGES.map((r) => {
+      <div className={`inline-flex rounded-lg border border-line bg-paper p-0.5 ${compact ? "flex-nowrap" : "flex-wrap"}`}>
+        {DATE_RANGES.filter((r) => !compact || r.key !== "90d").map((r) => {
           const on = !state.customDates && state.range === r.key;
           return (
             <button
@@ -176,7 +155,7 @@ export default function DateRangeFilter({
                 state.setRange(r.key);
                 changed();
               }}
-              className={`rounded-md px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
+              className={`rounded-md py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${compact ? "px-2.5" : "px-3"} ${
                 on ? "bg-accent text-white" : "text-fg-3 hover:bg-elev hover:text-fg"
               }`}
             >
@@ -185,7 +164,6 @@ export default function DateRangeFilter({
           );
         })}
       </div>
-      )}
       <div
         className={`inline-flex shrink-0 flex-nowrap items-center gap-1.5 rounded-lg border bg-paper px-2 ${compact ? "h-9" : "py-1"} ${
           state.customDates ? "border-accent ring-2 ring-accent-soft" : "border-line"

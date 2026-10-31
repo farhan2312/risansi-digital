@@ -541,7 +541,7 @@ const ProjectsPage = () => {
               { key: "mine", label: "Assigned to me" },
             ]}
           />
-          <label className="relative w-full sm:w-[200px]">
+          <label className="relative w-full sm:w-[170px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <SearchGlyph />
             </span>
@@ -555,7 +555,7 @@ const ProjectsPage = () => {
               onChange={(e) => setClientNameFilter(e.target.value)}
             />
           </label>
-          <label className="relative w-full sm:w-[180px]">
+          <label className="relative w-full sm:w-[150px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <HashGlyph />
             </span>
