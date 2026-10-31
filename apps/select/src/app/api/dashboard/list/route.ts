@@ -1,6 +1,7 @@
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { filtersFromParams } from "@/lib/enquiry-filters";
+import { repScope } from "@/lib/rep-scope";
 import { getDashboardList } from "@/lib/dashboard-list";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,8 @@ export async function GET(req: Request) {
       until: parseInstant(p.get("to")),
       mineUserId: p.get("mine") === "1" ? claims.sub : null,
       filters: filtersFromParams(p),
+      // A Rep / Rep Manager: only their own enquiries (`rep` narrows a manager).
+      extraScope: await repScope(claims, p.get("rep")),
     }),
   );
 }

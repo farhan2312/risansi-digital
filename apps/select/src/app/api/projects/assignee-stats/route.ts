@@ -7,7 +7,7 @@ import { enquiryTags, projects, users } from "@/lib/db/schema";
 import { listAssignees } from "@/lib/enquiry-access";
 import { enquiryStatusSql } from "@/lib/enquiry-filters-server";
 import type { AssigneeStats } from "@/lib/assignee-stats";
-import { ASSIGNABLE_ROLES, canManageEnquiries } from "@/lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries, isRepRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,7 @@ export async function GET(req: Request) {
   let claims;
   try {
     claims = await decodeToken(req);
+    if (isRepRole(claims.role)) return json([]);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;

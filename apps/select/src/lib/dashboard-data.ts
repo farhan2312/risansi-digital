@@ -34,12 +34,15 @@ export async function getDashboardData({
   until,
   mineUserId,
   filters = {},
+  extraScope = null,
 }: {
   since: Date | null;
   until: Date | null;
   mineUserId: string | null;
   /** Client / reps / zone / market / industry / status (lib/enquiry-filters). */
   filters?: EnquiryFilters;
+  /** A further condition on projects (a rep's own enquiries). */
+  extraScope?: SQL | null;
 }): Promise<DashboardData> {
   const mine = Boolean(mineUserId);
 
@@ -47,7 +50,7 @@ export async function getDashboardData({
     ...(since ? [sql`${col} >= ${since}`] : []),
     ...(until ? [sql`${col} <= ${until}`] : []),
   ];
-  const scope: SQL[] = [...(mine && mineUserId ? [eq(projects.assignedTo, mineUserId)] : []), ...enquiryFilterSql(filters)];
+  const scope: SQL[] = [...(mine && mineUserId ? [eq(projects.assignedTo, mineUserId)] : []), ...enquiryFilterSql(filters), ...(extraScope ? [extraScope] : [])];
   const projectWhere = and(...created(projects.createdAt), ...scope);
   const tagWhere = and(...created(enquiryTags.createdAt), ...scope);
 

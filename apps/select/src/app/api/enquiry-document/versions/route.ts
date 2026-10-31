@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { projects, techDocVersion, users } from "@/lib/db/schema";
 import { techDocGroups, techDocSheet, type TechDocGroup, type TechDocSheet, type TechDocVersion } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
-import { workDenied } from "@/lib/enquiry-access";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +36,8 @@ async function listVersions(projectId: string): Promise<TechDocVersion[]> {
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
   return json(await listVersions(projectId));
 }
 

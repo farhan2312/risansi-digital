@@ -20,6 +20,8 @@ export const getDashboard = async (params: {
   to?: string;
   mine?: boolean;
   filters?: EnquiryFilters;
+  /** Rep Manager: one of their reps (a sales user id). */
+  rep?: string;
 }): Promise<DashboardData> => {
   const { data } = await apiClient.get<DashboardData>("/dashboard", {
     params: {
@@ -27,6 +29,7 @@ export const getDashboard = async (params: {
       to: params.to || undefined,
       mine: params.mine ? 1 : undefined,
       ...filterParams(params.filters),
+      rep: params.rep || undefined,
     },
   });
   return data;
@@ -34,7 +37,7 @@ export const getDashboard = async (params: {
 
 /** One page of the list behind a KPI card, with the same period / "mine" scope. */
 export const getDashboardList = async (
-  query: DashboardListQuery & { from?: string; to?: string; mine?: boolean; filters?: EnquiryFilters },
+  query: DashboardListQuery & { from?: string; to?: string; mine?: boolean; filters?: EnquiryFilters; rep?: string },
   signal?: AbortSignal,
 ): Promise<DashboardListPage> => {
   const { data } = await apiClient.get<DashboardListPage>("/dashboard/list", {
@@ -48,6 +51,7 @@ export const getDashboardList = async (
       to: query.to || undefined,
       mine: query.mine ? 1 : undefined,
       ...filterParams(query.filters),
+      rep: query.rep || undefined,
     },
     signal,
   });

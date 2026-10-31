@@ -13,7 +13,8 @@ import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Pagination from "../../components/ui/Pagination";
@@ -65,6 +66,10 @@ const ProjectsPage = () => {
   const { user, loading: userLoading } = useCurrentUser();
   const manager = canManageEnquiries(user?.role);
   const workable = (p: ProjectRecord) => canWorkOn(user, p);
+  // Rep / Rep Manager: read-only, their own enquiries only (the API scopes the
+  // list); a manager can narrow it to one rep.
+  const isRep = isRepRole(user?.role);
+  const [rep, setRep] = useState("");
   const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
   const ROW_GRID = manager ? ROW_GRID_MANAGER : ROW_GRID_WORKER;
 
@@ -146,7 +151,8 @@ const ProjectsPage = () => {
     if (scopeDefaulted.current) return;
     if (!user && userLoading) return;
     scopeDefaulted.current = true;
-    if (user && !worksOnAnyEnquiry(user.role)) {
+    // (A rep's list is already just their own; "Assigned to me" means nothing to them.)
+    if (user && !worksOnAnyEnquiry(user.role) && !isRepRole(user.role)) {
       setScope("mine");
       setPage(1);
     }
@@ -192,6 +198,7 @@ const ProjectsPage = () => {
       dateField,
       mine: scope === "mine",
       filters: adv,
+      rep,
     })
       .then((res) => {
         if (seq !== loadSeq.current) return;
@@ -205,7 +212,7 @@ const ProjectsPage = () => {
       })
       .catch(() => seq === loadSeq.current && setError("Couldn't load enquiries."))
       .finally(() => seq === loadSeq.current && setIsLoading(false));
-  }, [page, debouncedFilters, dateWindow, dateField, scope, adv, scopeReady]);
+  }, [page, debouncedFilters, dateWindow, dateField, scope, adv, scopeReady, rep]);
 
   useEffect(() => {
     loadProjects();
@@ -529,18 +536,28 @@ const ProjectsPage = () => {
         }
       >
         <div className="flex flex-wrap items-center gap-2.5">
-          <Segmented
-            value={scope}
-            onChange={(v) => {
-              setScope(v);
-              setPage(1);
-            }}
-            loading={isLoading}
-            options={[
-              { key: "all", label: "All enquiries" },
-              { key: "mine", label: "Assigned to me" },
-            ]}
-          />
+          {isRep ? (
+            <RepPicker
+              value={rep}
+              onChange={(v) => {
+                setRep(v);
+                setPage(1);
+              }}
+            />
+          ) : (
+            <Segmented
+              value={scope}
+              onChange={(v) => {
+                setScope(v);
+                setPage(1);
+              }}
+              loading={isLoading}
+              options={[
+                { key: "all", label: "All enquiries" },
+                { key: "mine", label: "Assigned to me" },
+              ]}
+            />
+          )}
           <label className="relative w-full sm:w-[170px]">
             <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
               <SearchGlyph />
@@ -885,6 +902,7 @@ const ProjectsPage = () => {
                         <RupeeIcon />
                         <span className="hidden 2xl:inline">Commercial</span>
                       </button>
+                      {!isRep && (
                       <button
                         type="button"
                         className={btn}
@@ -903,6 +921,7 @@ const ProjectsPage = () => {
                         <CopyIcon />
                         <span className="hidden 2xl:inline">Copy</span>
                       </button>
+                      )}
                       {manager && (
                         <>
                           <button
@@ -1015,6 +1034,17 @@ const ProjectsPage = () => {
                                         <OpenIcon /> Open
                                       </button>
                                     )}
+                                    {isRep && (
+                                      <button
+                                        type="button"
+                                        className={btnPrimary}
+                                        onClick={() => openProject(project, tag)}
+                                        title="View this tag's pump selection (read-only)"
+                                      >
+                                        <OpenIcon /> View
+                                      </button>
+                                    )}
+                                    {!isRep && (
                                     <button
                                       type="button"
                                       className={btn}
@@ -1037,6 +1067,7 @@ const ProjectsPage = () => {
                                       <CopyIcon />
                                       {copyingTagId === tag.id ? "Copying…" : "Copy"}
                                     </button>
+                                    )}
                                     {workable(project) && (
                                       <button
                                         type="button"

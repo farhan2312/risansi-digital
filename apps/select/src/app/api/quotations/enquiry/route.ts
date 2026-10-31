@@ -6,6 +6,7 @@ import { enquiryTags, projects, quotation } from "@/lib/db/schema";
 import { DRIVE_GROUPS, erpQuotationNumber, quotationNumber, type EnquiryQuotations } from "@/lib/commercial";
 import { tagDriveGroups } from "@/lib/commercial-server";
 import { suggestedTsm } from "@/lib/quotation-server";
+import { viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ const UUID = /^[0-9a-f-]{36}$/i;
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
 
   // The client's rep (Market Intell) is looked up as soon as the client code
   // is known, alongside the other queries rather than after them.

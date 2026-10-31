@@ -9,11 +9,18 @@
 //                 create an enquiry or edit its details.
 // system_admin can do everything the master does. A leftover "user" (the
 // role before the split) reads as a worker.
+//
+// rep / rep_manager (user, 2026-11-01; migrations/identity/0012) are
+// read-only: Dashboard, Enquiries, Pump Selection and Reports for their own
+// enquiries only - the clients they cover in the sales portal, live (see
+// lib/rep-scope.ts); a Rep Manager also sees the reps under them.
 
 export type AppRole =
   | "user_master"
   | "user_worker"
   | "user"
+  | "rep"
+  | "rep_manager"
   | "selection_head"
   | "pulley_owner"
   | "admin"
@@ -26,6 +33,8 @@ export const ROLE_LABELS: Record<string, string> = {
   pulley_owner: "Pulley Owner",
   user_master: "User-Master",
   user_worker: "User-Worker",
+  rep: "Rep",
+  rep_manager: "Rep Manager",
   user: "User",
 };
 
@@ -53,6 +62,13 @@ export const canWorkOn = (
   enquiry: { assigned_to?: string | null; assignedTo?: string | null },
 ): boolean =>
   Boolean(user) && (worksOnAnyEnquiry(user!.role) || (enquiry.assigned_to ?? enquiry.assignedTo ?? null) === user!.id);
+
+/** Rep / Rep Manager: read-only, and only their own enquiries. */
+export const REP_ROLES = ["rep", "rep_manager"] as const;
+export const isRepRole = (role: string | null | undefined): boolean => (REP_ROLES as readonly string[]).includes(role ?? "");
+
+/** The only pages a rep can open. */
+export const REP_PAGES = ["/dashboard", "/projects", "/pump-selection", "/selection-summary", "/my-bug-reports"] as const;
 
 /** Who an enquiry can be assigned to: the workers and the master. */
 export const ASSIGNABLE_ROLES = ["user_worker", "user_master", "user"] as const;

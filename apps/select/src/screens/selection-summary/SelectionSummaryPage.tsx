@@ -23,7 +23,8 @@ import {
 import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
 import ReportOfferModal from "./ReportOfferModal";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { canWorkOn } from "../../lib/roles";
+import { canWorkOn, isRepRole } from "../../lib/roles";
+import RepPicker from "../../components/projects/RepPicker";
 import FormatChoiceModal, { type DownloadFormat } from "../../components/ui/FormatChoiceModal";
 import { downloadSelectionSummaryExcel } from "../../lib/selection-summary-excel";
 
@@ -119,6 +120,8 @@ const SelectionSummaryPage = () => {
   // views the rest (lib/roles.ts; the API refuses their saves too).
   const { user } = useCurrentUser();
   const [openDoc, setOpenDoc] = useState<{ group: EnquiryGroup; kind: DocKind } | null>(null);
+  // Rep Manager: whose reports (the API already limits a rep to their own).
+  const [rep, setRep] = useState("");
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +137,8 @@ const SelectionSummaryPage = () => {
 
   useEffect(() => {
     let cancelled = false;
-    listReports()
+    setIsLoading(true);
+    listReports(rep)
       .then((rows) => {
         if (!cancelled) setReports(rows);
       })
@@ -147,7 +151,7 @@ const SelectionSummaryPage = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [rep]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -240,6 +244,7 @@ const SelectionSummaryPage = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </label>
+          {isRepRole(user?.role) && <RepPicker value={rep} onChange={setRep} />}
           <DateRangeFilter state={dates} fromLabel="Generated from" toLabel="Generated to" />
           {!isLoading && !error && (
             <div className="ml-auto flex flex-wrap gap-2 text-[12px] text-fg-3">

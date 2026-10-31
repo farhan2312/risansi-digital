@@ -4,7 +4,7 @@ import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
 import { describeTag, logAudit } from "@/lib/audit";
 import { enquiryTags } from "@/lib/db/schema";
-import { workDenied } from "@/lib/enquiry-access";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +15,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // its own final report), so this replaces the old /api/projects/[id]/report
 // route for anything the current client writes.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid tag id", 400);
+  const notYours = await viewDenied(req, { tagId: id });
+  if (notYours) return notYours;
 
   const [row] = await db
     .select({

@@ -13,7 +13,8 @@ type StepperProps = {
   finalCompleted?: boolean;
 };
 
-const steps = [
+/** The wizard's step names, in order (step n = STEP_NAMES[n - 1]). */
+export const STEP_NAMES = [
   "General",
   "Fluid",
   "Specifications",
@@ -30,6 +31,7 @@ const Stepper = ({ currentStep, maxStep, onStepClick, finalCompleted }: StepperP
   // Progress reaches as far as the user has ever been, not just where the
   // cursor is now — jumping back to step 1 shouldn't visually undo the work.
   const reached = Math.max(currentStep, maxStep ?? currentStep);
+  const steps = STEP_NAMES;
 
   // Fill the connecting progress line proportionally to how far we are:
   // 0% before step 1, 100% at the last step. `--step-progress` is consumed

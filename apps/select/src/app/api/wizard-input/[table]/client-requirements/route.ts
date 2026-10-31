@@ -5,7 +5,7 @@ import { resetApprovals } from "@/lib/approval-server";
 import { describeTag, logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { enquiryTags, mocSealingInput } from "@/lib/db/schema";
-import { workDenied } from "@/lib/enquiry-access";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +69,8 @@ export async function GET(
     url.searchParams.get("tagId"),
     url.searchParams.get("projectId"),
   );
+  const notYours = ctx ? await viewDenied(req, { projectId: ctx.projectId }) : null;
+  if (notYours) return notYours;
   if (!ctx) return error("'tagId' (or 'projectId' as fallback) is required", 400);
 
   const [row] = await db

@@ -8,7 +8,7 @@ import {
   generalInfoInput,
   operatingConditionsInput,
 } from "@/lib/db/schema";
-import { workDenied } from "@/lib/enquiry-access";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +35,8 @@ interface TagRow {
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId");
   if (!projectId) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
 
   const rows = await db
     .select({

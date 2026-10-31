@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { DonutChart, fmtDay, fmtNum, TrendChart, type TrendSeries } from "../../components/charts/charts";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { canApprove } from "../../lib/approval";
-import { worksOnAnyEnquiry } from "../../lib/roles";
+import { isRepRole, worksOnAnyEnquiry } from "../../lib/roles";
+import RepPicker from "../../components/projects/RepPicker";
 import { getDashboard, type DashboardData, type DashboardEnquiry, type DashboardTag } from "../../services/dashboardService";
 import { Card, Icons, Segmented } from "../admin/audit/auditUi";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
@@ -215,13 +216,17 @@ const DashboardPage = () => {
     if (scopeDefaulted.current) return;
     if (!user && userLoading) return;
     scopeDefaulted.current = true;
-    if (user && !worksOnAnyEnquiry(user.role)) {
+    if (user && !worksOnAnyEnquiry(user.role) && !isRepRole(user.role)) {
       setScope("mine");
     }
     setScopeReady(true);
   }, [user, userLoading]);
   // Client / reps / zone / market / industry / status (same as the Enquiries page).
   const [filters, setFilters] = useState<EnquiryFilters>({});
+  // Rep / Rep Manager: only their own enquiries (scoped by the API); a manager
+  // can narrow to one rep.
+  const isRep = isRepRole(user?.role);
+  const [rep, setRep] = useState("");
   const [trendView, setTrendView] = useState<"created" | "completed">("created");
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -235,14 +240,14 @@ const DashboardPage = () => {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-    getDashboard({ ...query, mine: scope === "mine", filters })
+    getDashboard({ ...query, mine: scope === "mine", filters, rep })
       .then((d) => !cancelled && setData(d))
       .catch(() => !cancelled && setError("Couldn't load dashboard data."))
       .finally(() => !cancelled && setIsLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [query, scope, filters, scopeReady]);
+  }, [query, scope, filters, scopeReady, rep]);
 
   const openTag = (
     enquiry: Pick<DashboardEnquiry, "id" | "code" | "client" | "customer" | "status">,
@@ -317,15 +322,19 @@ const DashboardPage = () => {
 
         {/* Filters */}
         <div className="relative flex flex-wrap items-center gap-2.5 border-t border-line px-5 py-3">
-          <Segmented
-            value={scope}
-            onChange={setScope}
-            loading={isLoading}
-            options={[
-              { key: "all", label: "All enquiries" },
-              { key: "mine", label: "Assigned to me" },
-            ]}
-          />
+          {isRep ? (
+            <RepPicker value={rep} onChange={setRep} />
+          ) : (
+            <Segmented
+              value={scope}
+              onChange={setScope}
+              loading={isLoading}
+              options={[
+                { key: "all", label: "All enquiries" },
+                { key: "mine", label: "Assigned to me" },
+              ]}
+            />
+          )}
           <DateRangeFilter state={dates} />
         </div>
         <div className="relative border-t border-line px-5 py-3">
@@ -541,6 +550,7 @@ const DashboardPage = () => {
           period={query}
           mine={scope === "mine"}
           filters={filters}
+          rep={rep}
           scopeLabel={`${scopeText} · ${windowLabel}`}
           onClose={() => setListTarget(null)}
           onOpenEnquiry={(r) => openTag(r)}

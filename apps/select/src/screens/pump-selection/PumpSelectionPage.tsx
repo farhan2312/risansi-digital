@@ -19,7 +19,8 @@ import LivePumpRecommendation from "../../components/pump-selection/LivePumpReco
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 import { getProject, type ProjectRecord } from "../../services/projectService";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { canWorkOn } from "../../lib/roles";
+import { canWorkOn, isRepRole } from "../../lib/roles";
+import { STEP_NAMES } from "../../components/pump-selection/Stepper";
 import {
   getWizardInput,
   saveWizardInput,
@@ -192,6 +193,10 @@ const PumpSelectionPage = () => {
   // them (lib/roles.ts); any other opens as a notice, not the wizard.
   const [liveProject, setLiveProject] = useState<ProjectRecord | null>(null);
   const { user: currentUser } = useCurrentUser();
+  // Rep / Rep Manager: the wizard is view-only - every field locked, nothing
+  // saved (the API refuses their changes too), stepped through with the View
+  // only bar instead of each step's own Next / Previous.
+  const readOnly = isRepRole(currentUser?.role);
 
   useEffect(() => {
     const raw = sessionStorage.getItem(SELECTED_PROJECT_KEY);
@@ -494,7 +499,7 @@ const PumpSelectionPage = () => {
   // progress-updated copy so the new wizardStep lands in the same write
   // (React state updates aren't visible synchronously).
   const saveStep = (fromStep: number, data: typeof formData = formData) => {
-    if (!project?.id || !restored) return;
+    if (!project?.id || !restored || readOnly) return;
     const saves = stepTablesToSave(fromStep).map((table) =>
       saveWizardInput(table, project.id, pickTableFields(table, data), project.tagId).catch(() => {
         // Best-effort — the wizard still works from in-memory state if a save fails.
@@ -527,7 +532,7 @@ const PumpSelectionPage = () => {
     saveStep(step, progressed);
     // The step being left isn't always general-info, so make sure the progress
     // itself is persisted too (no-op duplicate when it *is* general-info).
-    if (project?.id && restored) {
+    if (project?.id && restored && !readOnly) {
       saveWizardInput("general-info", project.id, {
         tagId: project.tagId,
         wizardStep: clamped,
@@ -681,7 +686,7 @@ const PumpSelectionPage = () => {
     }
   };
 
-  if (liveProject && currentUser && !canWorkOn(currentUser, liveProject)) {
+  if (liveProject && currentUser && !readOnly && !canWorkOn(currentUser, liveProject)) {
     return (
       <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-6 py-24 text-center">
         <h2 className="text-[18px] font-semibold text-fg">This enquiry is assigned to {liveProject.assigned_to_name || "someone else"}</h2>
@@ -745,6 +750,46 @@ const PumpSelectionPage = () => {
     // badge, and the Approval step lists them all, so it is fetched once here.
     <ApprovalProvider tagId={project?.tagId} refreshKey={approvalRefresh}>
       <ProjectHeader project={project} />
+      {readOnly && (
+        <div className="mx-auto mt-3 max-w-[1400px] px-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3.5 py-2.5 text-[12.5px]">
+            <span className="rounded-md bg-accent px-2 py-0.5 text-[11.5px] font-bold text-white">View only</span>
+            <span className="text-fg-2">Look through every step - nothing here can be changed.</span>
+            <span className="ml-auto flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={step <= 1}
+                onClick={() => setStep(clampStep(step - 1))}
+                className="h-8 rounded-lg border border-line bg-paper px-3 font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:opacity-40"
+              >
+                ← Previous
+              </button>
+              <select
+                aria-label="Step"
+                value={step}
+                onChange={(e) => setStep(clampStep(Number(e.target.value)))}
+                className="h-8 rounded-lg border border-line bg-paper px-2 font-semibold text-fg outline-none focus:border-accent"
+              >
+                {STEP_NAMES.map((name, i) => (
+                  <option key={name} value={i + 1}>
+                    {i + 1}. {name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={step >= TOTAL_STEPS}
+                onClick={() => setStep(clampStep(step + 1))}
+                className="h-8 rounded-lg border border-line bg-paper px-3 font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </span>
+          </div>
+        </div>
+      )}
+      {/* View only: a disabled fieldset locks every input and button inside. */}
+      <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
       {renderStep()}
       {/* Live recommendation that refines as the user fills each step. Sits at
           the bottom of the page. A model is picked and confirmed on the Fluid
@@ -757,9 +802,10 @@ const PumpSelectionPage = () => {
         setFormData={setFormData}
         projectId={project?.id}
         tagId={project?.tagId}
-        locked={step > 2}
-        canPick={step === 2}
+        locked={step > 2 || readOnly}
+        canPick={step === 2 && !readOnly}
       />
+      </fieldset>
     </ApprovalProvider>
   );
 };

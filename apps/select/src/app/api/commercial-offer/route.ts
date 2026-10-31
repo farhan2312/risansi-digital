@@ -7,7 +7,7 @@ import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
 import { projects, quotation } from "@/lib/db/schema";
 import { dotDate } from "@/lib/tech-doc";
-import { workDenied } from "@/lib/enquiry-access";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,8 @@ const UUID = /^[0-9a-f-]{36}$/i;
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
+  const notYours = await viewDenied(req, { projectId });
+  if (notYours) return notYours;
   const [[p], groups, quotes] = await Promise.all([
     db
       .select({

@@ -910,3 +910,23 @@ never auto-filled from the AI result.
   Order Type column and Assigned To (with "by <creator>"), Assign/Edit/Delete
   only for managers; workers get no New Enquiry and no copy-to-new-enquiry.
   Every enquiry before 2026-10-31 is a pump order (order_type default).
+
+## Rep / Rep Manager (read-only, user 2026-11-01)
+- Roles `rep`, `rep_manager` (migrations/identity/0012, applied). Read-only
+  Dashboard, Enquiries, Pump Selection, Reports (`REP_PAGES`; middleware sends
+  every other page to /dashboard; /api/client-quotes + /api/client-price-refs
+  403). Nav via `mainLinksFor(role)`.
+- "Own" enquiries (lib/rep-scope.ts, live from Market Intell, cached 60 s):
+  the sales user linked by identity_user_id (else e-mail); clients where they
+  are primary OR secondary rep -> those client codes; enquiries whose client
+  code is not in the client master fall back to the saved rep names. Rep
+  Manager adds their sales manager_reps team; `rep` query param (sales user id)
+  narrows to one person (RepPicker, GET /api/rep-scope).
+- Enforced server-side: `repScope()` on GET /api/projects, /api/dashboard(+list),
+  /api/reports; `viewDenied()` on every GET that reads one enquiry (project,
+  tags, wizard-input + client-requirements + document, step-approvals,
+  commercial, commercial-offer, enquiry-document(+versions), quotations(+enquiry),
+  reports/summaries). Writes already refused by workDenied (never assigned).
+- UI: Enquiries/Dashboard/Reports show RepPicker (managers) instead of the
+  scope toggle; no copy/create/edit; tag "View" opens the wizard view-only
+  (fieldset disabled, saveStep off, "View only" bar with step picker).

@@ -9,6 +9,7 @@ import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 import { findAssignee } from "@/lib/enquiry-access";
 import { filtersFromParams } from "@/lib/enquiry-filters";
 import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
+import { repScope } from "@/lib/rep-scope";
 import { orderTypeLabel } from "@/lib/roles";
 import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
     `%${value.trim().replace(/([\\%_])/g, "\\$1")}%`;
 
   const conditions: SQL[] = [];
+  const caller = await tryDecodeToken(req);
   const clientName = params.get("clientName");
   if (clientName && clientName.trim()) {
     conditions.push(sql`${projects.name} ILIKE ${like(clientName)}`);
@@ -90,9 +92,12 @@ export async function GET(req: Request) {
   }
   // Client / reps / zone / market / industry / status (shared with the Dashboard).
   conditions.push(...enquiryFilterSql(filtersFromParams(params)));
+  // A Rep / Rep Manager sees only their own enquiries (`rep` = one of a
+  // manager's reps, or themselves).
+  const repCond = caller ? await repScope(caller, params.get("rep")) : null;
+  if (repCond) conditions.push(repCond);
   // "Assigned to me" toggle (the default for a worker - everyone sees every
   // enquiry, lib/roles.ts).
-  const caller = await tryDecodeToken(req);
   if (params.get("mine") === "1") {
     conditions.push(caller ? eq(projects.assignedTo, caller.sub) : sql`false`);
   }

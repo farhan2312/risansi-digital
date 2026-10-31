@@ -6,6 +6,7 @@ import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from 
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
 import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
+import { viewDenied } from "@/lib/enquiry-access";
 
 const assignee = alias(users, "assignee");
 
@@ -42,6 +43,8 @@ export async function GET(
 
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
+  const notYours = await viewDenied(req, { projectId: id });
+  if (notYours) return notYours;
 
   const [project] = await db
     .select({ project: projects, createdByName: users.name, assignedToName: assignee.name })

@@ -3,6 +3,11 @@ import type { JWTPayload } from "jose";
 
 import { SHARED_COOKIE, sharedSessionPayload } from "@/lib/effective-role";
 import { sessionVerdict } from "@/lib/session-guard";
+import { REP_PAGES, isRepRole } from "@/lib/roles";
+
+/** APIs a Rep / Rep Manager has no business with (outside their read-only
+ *  Dashboard / Enquiries / Pump Selection / Reports): the client price pages. */
+const REP_BLOCKED_API = ["/api/client-quotes", "/api/client-price-refs"];
 
 /** Server-side gate for pages AND the API. Runs before any protected page is
  * served, so direct URL entry, client-side navigation, and the back button are
@@ -123,6 +128,10 @@ async function guardApi(req: NextRequest, pathname: string) {
     return apiError("Your session has ended. Please sign in again.", 401);
   }
 
+  if (isRepRole(payload.role as string | undefined) && REP_BLOCKED_API.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return apiError("Not available for your role.", 403);
+  }
+
   if (payload.mustChangePassword === true && !MUST_CHANGE_PASSWORD_API_PATHS.has(pathname)) {
     return apiError("Change your password before continuing.", 403);
   }
@@ -189,6 +198,12 @@ export async function middleware(req: NextRequest) {
   // system_admin only; the other /admin/* pages (the master-data tables)
   // are open to admin and system_admin alike.
   const role = payload.role;
+  // Rep / Rep Manager: read-only Dashboard, Enquiries, Pump Selection and
+  // Reports only (lib/roles.ts REP_PAGES); everything else goes to the dashboard.
+  if (isRepRole(role as string | undefined)) {
+    const allowed = REP_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    return allowed ? NextResponse.next() : NextResponse.redirect(new URL("/dashboard", req.url));
+  }
   const isAdminLevel = role === "admin" || role === "system_admin";
   // Approvals: selection heads and system admins (APPROVER_ROLES).
   if (pathname === "/approvals" || pathname.startsWith("/approvals/")) {

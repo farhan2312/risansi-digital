@@ -25,7 +25,7 @@ import { db } from "@/lib/db";
 import { enquiryTags, stepApproval, users } from "@/lib/db/schema";
 import { requestEmail } from "@/lib/email/approval-emails";
 import { describeEmailResult, sendEmail } from "@/lib/email/resend";
-import { workDenied } from "@/lib/enquiry-access";
+import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +87,8 @@ export async function GET(req: Request) {
   if (!tagId || !UUID_RE.test(tagId)) {
     return error("'tagId' query param is required and must be a uuid", 400);
   }
+  const notYours = await viewDenied(req, { tagId });
+  if (notYours) return notYours;
 
   return json(await listForTag(tagId));
 }

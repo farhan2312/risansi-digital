@@ -6,7 +6,46 @@ import { error } from "./api";
 import { tryDecodeToken } from "./auth";
 import { db } from "./db";
 import { enquiryTags, projects, quotation, users } from "./db/schema";
-import { ASSIGNABLE_ROLES, worksOnAnyEnquiry } from "./roles";
+import { repScope } from "./rep-scope";
+import { ASSIGNABLE_ROLES, isRepRole, worksOnAnyEnquiry } from "./roles";
+
+type EnquiryRef = { projectId?: string | null; tagId?: string | null; quotationId?: string | null };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The enquiry behind whichever id a route has (null when none resolves). */
+async function projectIdOf(ref: EnquiryRef): Promise<string | null> {
+  if (ref.projectId && UUID.test(ref.projectId)) return ref.projectId;
+  if (ref.tagId && UUID.test(ref.tagId)) {
+    const [t] = await db.select({ p: enquiryTags.projectId }).from(enquiryTags).where(eq(enquiryTags.id, ref.tagId)).limit(1);
+    if (t) return t.p;
+  }
+  if (ref.quotationId && UUID.test(ref.quotationId)) {
+    const [q] = await db.select({ p: quotation.projectId }).from(quotation).where(eq(quotation.id, ref.quotationId)).limit(1);
+    if (q) return q.p;
+  }
+  return null;
+}
+
+/**
+ * A 403 when the caller is a Rep / Rep Manager and the enquiry is not one of
+ * their own (lib/rep-scope), else null. Called at the top of every route that
+ * reads one enquiry (its tags, wizard inputs, documents, prices, quotation,
+ * reports); every other role sees every enquiry.
+ */
+export async function viewDenied(req: Request, ref: EnquiryRef): Promise<Response | null> {
+  const claims = await tryDecodeToken(req);
+  if (!claims || !isRepRole(claims.role)) return null;
+  const projectId = await projectIdOf(ref);
+  if (!projectId) return null;
+  const scope = await repScope(claims);
+  const [p] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(scope ? and(eq(projects.id, projectId), scope) : eq(projects.id, projectId))
+    .limit(1);
+  return p ? null : error("This enquiry is not one of your clients'.", 403);
+}
 
 /**
  * A 403 when the caller is a worker and the enquiry is not assigned to them,
@@ -17,22 +56,13 @@ import { ASSIGNABLE_ROLES, worksOnAnyEnquiry } from "./roles";
  */
 export async function workDenied(
   req: Request,
-  ref: { projectId?: string | null; tagId?: string | null; quotationId?: string | null },
+  ref: EnquiryRef,
 ): Promise<Response | null> {
   const claims = await tryDecodeToken(req);
   if (!claims) return null; // the route's own auth check answers this
   if (worksOnAnyEnquiry(claims.role)) return null;
 
-  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  let projectId = ref.projectId && UUID.test(ref.projectId) ? ref.projectId : null;
-  if (!projectId && ref.tagId && UUID.test(ref.tagId)) {
-    const [t] = await db.select({ p: enquiryTags.projectId }).from(enquiryTags).where(eq(enquiryTags.id, ref.tagId)).limit(1);
-    projectId = t?.p ?? null;
-  }
-  if (!projectId && ref.quotationId && UUID.test(ref.quotationId)) {
-    const [q] = await db.select({ p: quotation.projectId }).from(quotation).where(eq(quotation.id, ref.quotationId)).limit(1);
-    projectId = q?.p ?? null;
-  }
+  const projectId = await projectIdOf(ref);
   if (!projectId) return null;
 
   const [p] = await db

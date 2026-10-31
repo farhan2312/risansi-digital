@@ -21,8 +21,9 @@ export interface ReportRecord {
   document_generated_at: string | null;
 }
 
-export const listReports = async (): Promise<ReportRecord[]> => {
-  const { data } = await apiClient.get<ReportRecord[]>("/reports");
+/** `rep` narrows a Rep Manager to one of their reps (a sales user id). */
+export const listReports = async (rep?: string): Promise<ReportRecord[]> => {
+  const { data } = await apiClient.get<ReportRecord[]>("/reports", { params: { rep: rep || undefined } });
   return data;
 };
 

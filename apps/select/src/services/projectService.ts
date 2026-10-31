@@ -67,6 +67,8 @@ export const listProjectsPage = async (query: {
   mine?: boolean;
   /** Reps / zone / market / industry / status (shared with the Dashboard). */
   filters?: EnquiryFilters;
+  /** Rep Manager: one of their reps (a sales user id); empty = the team. */
+  rep?: string;
 }): Promise<ProjectPage> => {
   const { data } = await apiClient.get<ProjectPage>("/projects", {
     params: {
@@ -79,6 +81,7 @@ export const listProjectsPage = async (query: {
       to: query.to || undefined,
       mine: query.mine ? "1" : undefined,
       ...filterParams(query.filters),
+      rep: query.rep || undefined,
     },
   });
   return data;

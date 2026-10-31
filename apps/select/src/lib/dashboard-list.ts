@@ -24,11 +24,14 @@ export async function getDashboardList({
   until,
   mineUserId,
   filters = {},
+  extraScope = null,
 }: DashboardListQuery & {
   since: Date | null;
   until: Date | null;
   mineUserId: string | null;
   filters?: EnquiryFilters;
+  /** A further condition on projects (a rep's own enquiries). */
+  extraScope?: SQL | null;
 }): Promise<DashboardListPage> {
   const lim = Math.min(LIMIT_MAX, Math.max(1, limit || 20));
   const off = Math.max(0, offset || 0);
@@ -36,7 +39,7 @@ export async function getDashboardList({
     ...(since ? [sql`${col} >= ${since}`] : []),
     ...(until ? [sql`${col} <= ${until}`] : []),
   ];
-  const scope: SQL[] = [...(mineUserId ? [eq(projects.assignedTo, mineUserId)] : []), ...enquiryFilterSql(filters)];
+  const scope: SQL[] = [...(mineUserId ? [eq(projects.assignedTo, mineUserId)] : []), ...enquiryFilterSql(filters), ...(extraScope ? [extraScope] : [])];
   // Every word must match somewhere (LIKE wildcards escaped).
   const words = (q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 6);
   const like = (w: string) => `%${w.replace(/[\\%_]/g, (c) => "\\" + c)}%`;

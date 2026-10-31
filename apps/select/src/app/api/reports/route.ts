@@ -1,6 +1,8 @@
-import { desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
-import { json } from "@/lib/api";
+import { error, json } from "@/lib/api";
+import { AuthError, decodeToken } from "@/lib/auth";
+import { repScope } from "@/lib/rep-scope";
 import { db } from "@/lib/db";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 
@@ -14,7 +16,17 @@ export const dynamic = "force-dynamic";
 // there's nowhere else for a second one to live. No auth gate here - same
 // convention as the other routes; the /selection-summary page itself is
 // already gated by middleware.
-export async function GET() {
+// A Rep / Rep Manager sees only their own enquiries' reports (`rep` narrows a
+// manager to one of their reps).
+export async function GET(req: Request) {
+  let claims;
+  try {
+    claims = await decodeToken(req);
+  } catch (e) {
+    if (e instanceof AuthError) return error(e.message, e.statusCode);
+    throw e;
+  }
+  const rep = await repScope(claims, new URL(req.url).searchParams.get("rep"));
   const rows = await db
     .select({
       tagId: enquiryTags.id,
@@ -38,7 +50,7 @@ export async function GET() {
     .from(enquiryTags)
     .innerJoin(projects, eq(enquiryTags.projectId, projects.id))
     .leftJoin(users, eq(projects.createdBy, users.id))
-    .where(isNotNull(enquiryTags.reportDocument))
+    .where(rep ? and(isNotNull(enquiryTags.reportDocument), rep) : isNotNull(enquiryTags.reportDocument))
     .orderBy(desc(enquiryTags.reportGeneratedAt));
 
   return json(
