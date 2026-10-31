@@ -90,7 +90,7 @@ function AssigneeCard({ s }: { s: AssigneeStats }) {
   );
 }
 
-export default function AssigneeKpis() {
+export default function AssigneeKpis({ own = false }: { /** A worker: just their own card. */ own?: boolean }) {
   const [period, setPeriod] = useState<Period>("daily");
   const [fromDate, setFromDate] = useState(() => ymd(new Date()));
   const [toDate, setToDate] = useState(() => ymd(new Date()));
@@ -133,7 +133,7 @@ export default function AssigneeKpis() {
               <circle cx="9" cy="8" r="3.5" />
               <path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20c0-3-1.9-5.5-4.5-6.3" />
             </svg>
-            Team workload
+            {own ? "My workload" : "Team workload"}
           </h2>
           <p className="mt-0.5 text-[12px] text-fg-3">
             {rows ? (
@@ -204,15 +204,15 @@ export default function AssigneeKpis() {
         <div className="mt-3">
           {failed && <p className="text-[12.5px] text-neg">Couldn&apos;t load the team workload.</p>}
           {!failed && rows === null && (
-            <div className="flex gap-2.5 overflow-x-auto pb-1">
+            <div className={`flex gap-2.5 overflow-x-auto pb-1 ${own ? "max-w-[380px]" : ""}`}>
               {[0, 1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-[96px] min-w-[180px] flex-1 animate-pulse rounded-xl border border-line bg-paper" />
               ))}
             </div>
           )}
-          {!failed && rows && rows.length === 0 && <p className="text-[12.5px] text-fg-3">Nobody to assign enquiries to yet.</p>}
+          {!failed && rows && rows.length === 0 && <p className="text-[12.5px] text-fg-3">{own ? "Nothing assigned to you yet." : "Nobody to assign enquiries to yet."}</p>}
           {!failed && rows && rows.length > 0 && (
-            <div className="flex gap-2.5 overflow-x-auto pb-1">
+            <div className={`flex gap-2.5 overflow-x-auto pb-1 ${own ? "max-w-[380px]" : ""}`}>
               {rows.map((s) => (
                 <AssigneeCard key={s.userId} s={s} />
               ))}

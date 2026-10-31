@@ -1,13 +1,13 @@
 import { and, eq, gte, inArray, isNotNull, lte, sql, type SQL } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
-import { AuthError, requireEnquiryManager } from "@/lib/auth";
+import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enquiryTags, projects, users } from "@/lib/db/schema";
 import { listAssignees } from "@/lib/enquiry-access";
 import { enquiryStatusSql } from "@/lib/enquiry-filters-server";
 import type { AssigneeStats } from "@/lib/assignee-stats";
-import { ASSIGNABLE_ROLES } from "@/lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,8 @@ const instant = (v: string | null) => {
 
 /**
  * GET ?from&to - one card per person enquiries go to (the KPI strip on the
- * Enquiries page, User-Master / system admins only): the enquiries assigned to
+ * Enquiries page): the User-Master and system admins get everyone's card, a
+ * worker only their own (user, 2026-11-01). The enquiries assigned to
  * them in the window (by assigned_at; open-ended = all time) with their status
  * rolled up from the tags, and those enquiries' tags by status. Only the
  * User-Workers and the User-Master get a card (user, 2026-11-01) - with zeros
@@ -28,7 +29,7 @@ const instant = (v: string | null) => {
 export async function GET(req: Request) {
   let claims;
   try {
-    claims = await requireEnquiryManager(req);
+    claims = await decodeToken(req);
   } catch (e) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
@@ -91,7 +92,10 @@ export async function GET(req: Request) {
   // Workers and the master only (a leftover "user" reads as a worker);
   // busiest first, then by name.
   const assignable = new Set<string>(ASSIGNABLE_ROLES);
-  const list = [...cards.values()].filter((c) => assignable.has(c.role ?? "")).sort(
+  const manager = canManageEnquiries(claims.role);
+  const list = [...cards.values()]
+    .filter((c) => assignable.has(c.role ?? "") && (manager || c.userId === claims.sub))
+    .sort(
     (a, b) => b.enquiries.total - a.enquiries.total || (a.name || a.email).localeCompare(b.name || b.email),
   );
   return json(list);

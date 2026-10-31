@@ -13,7 +13,7 @@ import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { canManageEnquiries, canWorkOn, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import Pagination from "../../components/ui/Pagination";
@@ -623,8 +623,13 @@ const ProjectsPage = () => {
         </div>
       </PageHeader>
 
-      {/* User-Master / system admins: who has what (one card per person). */}
-      {manager && <AssigneeKpis />}
+      {/* User-Master / system admins: who has what (one card per person);
+          a worker sees their own card. */}
+      {manager ? (
+        <AssigneeKpis />
+      ) : (
+        (ASSIGNABLE_ROLES as readonly string[]).includes(user?.role ?? "") && <AssigneeKpis own />
+      )}
 
       {error && (
         <div
