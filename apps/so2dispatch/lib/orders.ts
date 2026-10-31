@@ -3656,6 +3656,13 @@ function orderListClauses(
   if (f.dispatchStages.length) clauses.push(`${dispatchStageSql("o")} = ANY(${p(f.dispatchStages)}::text[])`);
   // The Orders list: the SO's own Order Status, as its column reads it.
   if (f.orderStatuses?.length) clauses.push(`${ORDER_STATUS_SQL} = ANY(${p(f.orderStatuses)}::text[])`);
+  if (f.categories?.length) {
+    const cats = f.categories.filter((m) => m !== NOT_SET);
+    const any: string[] = [];
+    if (cats.length) any.push(facet("o.so_category", cats));
+    if (f.categories.includes(NOT_SET)) any.push(`NULLIF(TRIM(o.so_category), '') IS NULL`);
+    clauses.push(`(${any.join(" OR ")})`);
+  }
   if (f.billModes.length) {
     const modes = f.billModes.filter((m) => m !== NOT_SET);
     const any: string[] = [];

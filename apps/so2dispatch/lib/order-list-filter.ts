@@ -80,6 +80,8 @@ export const BILL_MODE_FILTER_OPTIONS = [...BILL_MODE_OPTIONS.map((o) => o.value
 export const DEPT_BILL_MODE_FILTER_OPTIONS = BILL_MODE_OPTIONS.map((o) => o.value).filter((v) => v !== ONLY_BILLING);
 /** Accounts' payment status on the SO (the roll-up of its PIs), for the Orders list. */
 export const PAYMENT_STATUS_FILTER_OPTIONS = [...PAYMENT_STATUS_OPTIONS.map((o) => o.value), NOT_SET];
+/** SO Category (as order-schema's SO_CATEGORY_OPTIONS), or not chosen yet. */
+export const SO_CATEGORY_FILTER_OPTIONS = ["Project", "Regular order", NOT_SET];
 /** The SO's own Order Status, worked out (lib/order-row-view's orderStatusOf). */
 export const ORDER_STATUS_OPTIONS = ["Active", "Active-Hold", "Canceled", "Diverted", "Closed"];
 /** Clearance: Clear or Hold; and why an SO is held. */
@@ -200,6 +202,8 @@ export type OrderListFilter = {
   orderStatuses: string[];
   /** Payment status (the Orders list). */
   paymentStatuses: string[];
+  /** The Dashboard and the Orders list: the SO Category ("Not set": none chosen). URL `socat`. */
+  categories: string[];
   /** Billing's queue: the SO's dispatch status. */
   dispatchStatuses: string[];
   /** Dispatch's queue: the SO's stage in Invoice → Dispatch → Docket & LR. */
@@ -331,6 +335,7 @@ export function parseOrderListFilter(
         ? list(get("bmode")).filter((v) => (queue ? DEPT_BILL_MODE_FILTER_OPTIONS : BILL_MODE_FILTER_OPTIONS).includes(v))
         : [],
     paymentStatuses: !queue ? list(get("pstat")).filter((v) => PAYMENT_STATUS_FILTER_OPTIONS.includes(v)) : [],
+    categories: !queue ? list(get("socat")).filter((v) => SO_CATEGORY_FILTER_OPTIONS.includes(v)) : [],
     orderStatuses: opts.noDispatchTarget ? list(get("ost")).filter((v) => ORDER_STATUS_OPTIONS.includes(v)) : [],
     dispatchStatuses:
       queue && DISPATCH_STATUS_FILTER_DEPTS.includes(queue)
@@ -406,6 +411,7 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.billModes.length ||
     f.orderStatuses.length ||
     f.paymentStatuses.length ||
+    f.categories.length ||
     f.dispatchStatuses.length ||
     f.dispatchStages.length ||
     Object.keys(f.deptStatusMulti).length ||
@@ -451,6 +457,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.billModes.length) p.set("bmode", f.billModes.join(","));
   if (f.orderStatuses.length) p.set("ost", f.orderStatuses.join(","));
   if (f.paymentStatuses.length) p.set("pstat", f.paymentStatuses.join(","));
+  if (f.categories.length) p.set("socat", f.categories.join(","));
   if (f.dispatchStatuses.length) p.set("dispst", f.dispatchStatuses.join(","));
   if (f.dispatchStages.length) p.set("dstage", f.dispatchStages.join(","));
   if (f.packingStatuses.length) p.set("pack", f.packingStatuses.join(","));
@@ -491,6 +498,7 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.billModes.length) parts.push(`Bill mode: ${f.billModes.join(", ")}`);
   if (f.orderStatuses.length) parts.push(`Order status: ${f.orderStatuses.join(", ")}`);
   if (f.paymentStatuses.length) parts.push(`Payment status: ${f.paymentStatuses.join(", ")}`);
+  if (f.categories.length) parts.push(`SO category: ${f.categories.join(", ")}`);
   if (f.dispatchStatuses.length) parts.push(`Dispatch status: ${f.dispatchStatuses.join(", ")}`);
   if (f.dispatchStages.length) parts.push(`Stage: ${f.dispatchStages.join(", ")}`);
   if (f.packingStatuses.length) parts.push(`Packing: ${f.packingStatuses.join(", ")}`);
