@@ -32,7 +32,7 @@ export const PRIMARY_NAV: NavItem[] = [
   { label: "Orders", href: "/risansi/orders", icon: ClipboardList },
 ];
 
-/** Right after Orders, for Central Visibility (and Admin) and Accounts: lib/roles canSeeDispatchPlan. */
+/** Right after Orders (a department, after its own page): everyone but a Rep or CRM — lib/roles canSeeDispatchPlan. */
 export const DISPATCH_PLAN_NAV: NavItem = { label: "Dispatch Plan", href: "/risansi/dispatch-plan", icon: CalendarRange };
 
 export const DEPARTMENT_NAV: DeptNavItem[] = [

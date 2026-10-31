@@ -40,7 +40,6 @@ export type DispatchPlanRow = {
   sl_no: number;
   so_no: string | null;
   so_date: string | null;
-  client_name: string | null;
   reps: string | null;
   zone: string | null;
   po_no: string | null;
@@ -138,7 +137,7 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
         GROUP BY it.order_id
      )
      SELECT so.id, so.sl_no::int AS sl_no, so.so_no, to_char(so.so_date, 'YYYY-MM-DD') AS so_date,
-            so.client_name, so.reps, so.zone,
+            so.reps, so.zone,
             so.po_no, to_char(so.customer_po_date, 'YYYY-MM-DD') AS po_date,
             to_char(so.so_handover_date, 'YYYY-MM-DD') AS ppc_date,
             so.bill_mode,

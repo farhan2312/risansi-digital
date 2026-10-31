@@ -32,9 +32,9 @@ const SHOWS = {
 } as const;
 type Show = keyof typeof SHOWS;
 
-/** What the search reads: the SO, client, rep, zone, its ECs and its BOI items. */
+/** What the search reads: the SO, rep, zone, PO, PIs, its ECs and models, and its BOI items. */
 const haystack = (r: DispatchPlanRow) =>
-  [r.so_no, r.client_name, r.reps, r.zone, r.po_no, ...r.pi_docs.map((p) => (p.pi_no == null ? null : String(p.pi_no))), ...r.ecs.flatMap((e) => [e.ec_no, e.model_no]), ...r.boi_items.map((b) => b.name)]
+  [r.so_no, r.reps, r.zone, r.po_no, ...r.pi_docs.map((p) => (p.pi_no == null ? null : String(p.pi_no))), ...r.ecs.flatMap((e) => [e.ec_no, e.model_no]), ...r.boi_items.map((b) => b.name)]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -110,7 +110,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
       </div>
 
       <div className="mb-3">
-        <UrlSearchInput placeholder="Search SO, client, PO, PI, EC, model, BOI item…" />
+        <UrlSearchInput placeholder="Search SO, rep, zone, PO, PI, EC, model, BOI item…" />
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -158,7 +158,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
                 <th className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3">Sl.</th>
                 <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">SO</th>
-                <th className="px-4 py-3">Client</th>
+                <th className="px-4 py-3">Rep · Zone</th>
                 <th className="px-4 py-3">PO</th>
                 <th className="whitespace-nowrap px-4 py-3">SO Sent to PPC</th>
                 <th className="px-4 py-3">Payment terms, PIs &amp; payment</th>
@@ -187,8 +187,8 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                       <div className="text-xs text-muted">{formatDate(r.so_date)}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div>{r.client_name ?? "—"}</div>
-                      {(r.reps || r.zone) && <div className="text-xs text-muted">{[r.reps, r.zone].filter(Boolean).join(" · ")}</div>}
+                      <div>{r.reps ?? "—"}</div>
+                      {r.zone && <div className="text-xs text-muted">{r.zone}</div>}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <div>{r.po_no ?? "—"}</div>
