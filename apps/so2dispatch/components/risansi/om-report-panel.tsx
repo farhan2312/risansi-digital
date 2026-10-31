@@ -234,6 +234,8 @@ function Sheet({ scope, blocks, ecCount, hideSentToOps }: { scope: string; block
                 <Td>
                   {b.sentToOps === "HOLD" ? (
                     <Pill tone="rose">HOLD</Pill>
+                  ) : b.sentToOps === "N/A" ? (
+                    <span className="text-slate-400">N/A</span>
                   ) : b.sentToOps ? (
                     <span className="text-emerald-700">{b.sentToOps}</span>
                   ) : (

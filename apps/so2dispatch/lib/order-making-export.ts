@@ -6,6 +6,7 @@ import { listOrdersForOrderMaking, type OrderMakingRow } from "@/lib/orders";
 import { parseQuery } from "@/lib/pagination";
 import { isOrderMakingFiltered, parseOrderMakingFilter } from "@/lib/order-making-filter";
 import { isOrderMakingSo } from "@/lib/roles";
+import { ONLY_BILLING } from "@/lib/order-schema";
 
 const HEAD_BG = "FF1F3864";
 const RULE = "FFBFC9D9";
@@ -75,8 +76,9 @@ export function orderMakingReportLines(rows: OrderMakingRow[]): { cells: Cell[];
       text(o.complaint_no),
     ];
     const tail: Cell[] = [
-      // On Order Making's hold it has not gone to Operation: HOLD, not a date.
-      o.om_status === "Hold" ? "HOLD" : date(o.ec_sent_operation_date),
+      // An Only Billing SO never goes to Operation: N/A. On Order Making's
+      // hold it has not gone yet: HOLD, not a date.
+      o.bill_mode === ONLY_BILLING ? "N/A" : o.om_status === "Hold" ? "HOLD" : date(o.ec_sent_operation_date),
       text(o.so_assignee_name) ?? (o.so_migrated ? "Migrated" : null),
       // Every reason of delay and every remark the SO has had, oldest first.
       historyText(o, "reason") ?? text(o.om_hold_reason),

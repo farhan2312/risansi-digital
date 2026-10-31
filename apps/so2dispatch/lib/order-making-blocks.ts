@@ -66,7 +66,7 @@ export function blocksOf(report: ReportShape): SoBlock[] {
       soNo: s(l, ix.so),
       soDate: reportDay(raw(l, ix.soDate)),
       // Blank when the report leaves the column out (an SO member's).
-      sentToOps: ix.ops < 0 ? "" : ops === "HOLD" ? "HOLD" : reportDay(ops),
+      sentToOps: ix.ops < 0 ? "" : ops === "HOLD" || ops === "N/A" ? ops : reportDay(ops),
       assigned: s(l, ix.who),
       reason: s(l, ix.reason),
       remarks: s(l, ix.remarks),

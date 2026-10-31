@@ -105,7 +105,7 @@ export async function buildOrderMakingReportPdf(report: ReportShape & { scope: s
           ? b.ecs.flatMap((e) => [[e.no, font, INK] as Ln, ...(e.date ? ([[e.date, font, FAINT]] as Ln[]) : [])])
           : [["No EC yet", font, FAINT]];
       case "SENT TO OPERATION":
-        return b.sentToOps === "HOLD" ? [["HOLD", bold, ROSE]] : b.sentToOps ? [[b.sentToOps, font, GREEN]] : [["Not yet", font, FAINT]];
+        return b.sentToOps === "HOLD" ? [["HOLD", bold, ROSE]] : b.sentToOps === "N/A" ? [["N/A", font, FAINT]] : b.sentToOps ? [[b.sentToOps, font, GREEN]] : [["Not yet", font, FAINT]];
       case "ASSIGNED TO":
         return b.assigned ? fit(b.assigned, font, b.assigned === "Migrated" ? FAINT : INK) : [["—", font, FAINT]];
       case "REASON FOR DELAY":
