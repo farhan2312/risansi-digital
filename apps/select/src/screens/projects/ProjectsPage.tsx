@@ -45,13 +45,14 @@ export const SELECTED_PROJECT_KEY = "selectedProject";
 // Enquiries table asks for.
 const PAGE_SIZE = 20;
 
-// Enquiry row columns. Tailwind only sees whole class strings, so each variant
-// is written out: the User-Master's Actions column is wider (Assign, Edit and
-// Delete as well).
+// Enquiry row columns: chevron | enquiry no. / date | order type | client /
+// code | reps / zone | industry / market | status | assigned to | actions.
+// Tailwind only sees whole class strings, so each variant is written out: the
+// User-Master's Actions column is wider (Edit and Delete as well).
 const ROW_GRID_MANAGER =
-  "grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(64px,0.5fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_262px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(64px,0.5fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_566px]";
+  "grid grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_222px] 2xl:grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_478px]";
 const ROW_GRID_WORKER =
-  "grid grid-cols-[28px_minmax(170px,2.2fr)_minmax(64px,0.5fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_190px] 2xl:grid-cols-[28px_minmax(170px,2.2fr)_minmax(64px,0.5fr)_minmax(90px,0.8fr)_minmax(72px,0.7fr)_minmax(110px,1fr)_minmax(86px,0.7fr)_minmax(96px,0.8fr)_400px]";
+  "grid grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_190px] 2xl:grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_400px]";
 
 const ProjectsPage = () => {
   const router = useRouter();
@@ -631,16 +632,16 @@ const ProjectsPage = () => {
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
           <div className="overflow-x-auto">
-          <div className={manager ? "min-w-[1090px] 2xl:min-w-[1330px]" : "min-w-[1020px] 2xl:min-w-[1170px]"}>
+          <div className={manager ? "min-w-[1120px] 2xl:min-w-[1360px]" : "min-w-[1080px] 2xl:min-w-[1260px]"}>
           <div className={`border-b border-line bg-elev px-4 py-2.5 ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
             <span />
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry No. / Date</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Order Type</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client Code</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Assigned To</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Created</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client / Code</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Reps / Zone</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry / Market</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Assigned To</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Actions</span>
           </div>
           <ul className="divide-y divide-line">
@@ -650,6 +651,7 @@ const ProjectsPage = () => {
               const isLoadingTags = tagsLoadingFor.has(project.id);
               const tagError = tagsErrorFor[project.id];
               const doneCount = tags?.filter((t) => (t.status ?? "").toLowerCase() === "completed").length ?? 0;
+              const reps = [project.client_primary_rep, project.client_secondary_reps].filter(Boolean).join(", ");
               return (
                 <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                   {/* Enquiry row: columns on wide screens, stacked below lg */}
@@ -668,33 +670,20 @@ const ProjectsPage = () => {
                         <ChevronIcon />
                       </button>
 
+                    {/* Enquiry no. over the enquiry date */}
                     <button
                       type="button"
                       onClick={() => toggleExpanded(project.id)}
-                      className="min-w-0 flex-1 text-left"
+                      className="min-w-0 text-left"
                       title={isOpen ? "Hide tags" : "Show tags"}
                     >
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="font-mono text-[12.5px] font-bold text-title">{project.project_code}</span>
-                        {project.enquiry_date && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-px text-[10.5px] font-semibold whitespace-nowrap text-accent"
-                            title="Enquiry date"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px]">
-                              <rect x="3.5" y="5" width="17" height="15" rx="2" />
-                              <path d="M3.5 10h17M8 3v4M16 3v4" />
-                            </svg>
-                            {new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </span>
-                        )}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[13.5px] font-semibold text-fg group-hover:text-accent">
-                        {project.name || "—"}
+                      <span className="block truncate font-mono text-[12.5px] font-bold text-title group-hover:text-accent">{project.project_code}</span>
+                      <span className="mt-0.5 flex items-center gap-1 text-[11.5px] whitespace-nowrap text-fg-3" title="Enquiry date">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">
+                          <rect x="3.5" y="5" width="17" height="15" rx="2" />
+                          <path d="M3.5 10h17M8 3v4M16 3v4" />
+                        </svg>
+                        {project.enquiry_date ? new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                       </span>
                     </button>
 
@@ -708,51 +697,40 @@ const ProjectsPage = () => {
                       </span>
                     </span>
 
+                    {/* Client name over the client code */}
                     <span className="min-w-0">
+                      <span className="block truncate text-[13px] font-semibold text-fg" title={project.name || undefined}>
+                        {project.name || "—"}
+                      </span>
                       {project.client_code ? (
-                        <span className="inline-block max-w-full truncate rounded-md bg-elev px-1.5 py-0.5 font-mono text-[11.5px] text-fg-2">
+                        <span className="mt-0.5 inline-block max-w-full truncate rounded-md bg-elev px-1.5 py-px font-mono text-[11px] text-fg-2">
                           {project.client_code}
                         </span>
                       ) : (
-                        <span className="text-fg-4">—</span>
+                        <span className="mt-0.5 block text-[11px] text-fg-4">No client code</span>
                       )}
                     </span>
 
-                    <span className="min-w-0 truncate text-[12.5px] text-fg-2">{project.industry || <span className="text-fg-4">—</span>}</span>
-
-                    <span
-                      className="flex min-w-0 items-center gap-2"
-                      title={project.created_by_name ? `Created by ${project.created_by_name}` : undefined}
-                    >
-                      {project.assigned_to_name ? (
-                        <>
-                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[9.5px] font-bold text-white">
-                            {project.assigned_to_name
-                              .split(/\s+/)
-                              .slice(0, 2)
-                              .map((p) => p[0]?.toUpperCase())
-                              .join("")}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block truncate text-[12.5px] text-fg-2">{project.assigned_to_name}</span>
-                            {project.created_by_name && project.created_by_name !== project.assigned_to_name && (
-                              <span className="block truncate text-[10.5px] text-fg-4">by {project.created_by_name}</span>
-                            )}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-fg-4">Unassigned</span>
-                      )}
+                    {/* Reps (primary first, then secondary) over the zone */}
+                    <span className="min-w-0">
+                      <span className={`block truncate text-[12.5px] ${reps ? "text-fg-2" : "text-fg-4"}`} title={reps || undefined}>
+                        {reps || "—"}
+                      </span>
+                      <span className="mt-0.5 flex items-center gap-1 truncate text-[11.5px] text-fg-3">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">
+                          <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+                          <circle cx="12" cy="10" r="2.3" />
+                        </svg>
+                        {project.client_zone || "—"}
+                      </span>
                     </span>
 
-                    <span className="truncate text-[12.5px] whitespace-nowrap text-fg-2" title="Date the enquiry was created in the portal">
-                      {project.created_at
-                        ? new Date(project.created_at).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"}
+                    {/* Industry over the market type */}
+                    <span className="min-w-0">
+                      <span className={`block truncate text-[12.5px] ${project.industry ? "text-fg-2" : "text-fg-4"}`} title={project.industry || undefined}>
+                        {project.industry || "—"}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11.5px] text-fg-3">{project.client_market_type || "—"}</span>
                     </span>
 
                     <span className="flex flex-col items-start gap-1">
@@ -761,6 +739,43 @@ const ProjectsPage = () => {
                         <span className="text-[11px] text-fg-3">
                           {doneCount}/{tags.length} tag{tags.length === 1 ? "" : "s"} done
                         </span>
+                      )}
+                    </span>
+
+                    {/* Who works it and since when; the User-Master assigns / reassigns here. */}
+                    <span className="min-w-0" title={project.created_by_name ? `Created by ${project.created_by_name}` : undefined}>
+                      {project.assigned_to_name ? (
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[9.5px] font-bold text-white">
+                            {project.assigned_to_name
+                              .split(/\s+/)
+                              .slice(0, 2)
+                              .map((p) => p[0]?.toUpperCase())
+                              .join("")}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-[12.5px] font-medium text-fg-2">{project.assigned_to_name}</span>
+                            <span className="block truncate text-[10.5px] text-fg-4">
+                              {project.assigned_at ? `Assigned ${new Date(project.assigned_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}` : "Assigned"}
+                            </span>
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="block text-[12px] text-fg-4">Not assigned</span>
+                      )}
+                      {manager && (
+                        <button
+                          type="button"
+                          onClick={() => setAssigning(project)}
+                          className={
+                            project.assigned_to
+                              ? "mt-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold text-accent transition hover:bg-accent-soft"
+                              : "mt-1 inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11.5px] font-semibold text-white transition hover:opacity-90"
+                          }
+                          aria-label={`${project.assigned_to ? "Reassign" : "Assign"} enquiry ${project.project_code}`}
+                        >
+                          {project.assigned_to ? "Reassign" : "Assign"}
+                        </button>
                       )}
                     </span>
 
@@ -839,16 +854,6 @@ const ProjectsPage = () => {
                       </button>
                       {manager && (
                         <>
-                          <button
-                            type="button"
-                            className={btn}
-                            onClick={() => setAssigning(project)}
-                            aria-label={`Assign enquiry ${project.project_code}`}
-                            title={`Assign or reassign (now: ${project.assigned_to_name || "nobody"})`}
-                          >
-                            <AssignIcon />
-                            <span className="hidden 2xl:inline">Assign</span>
-                          </button>
                           <button
                             type="button"
                             className={btn}
@@ -1114,7 +1119,7 @@ const ProjectsPage = () => {
         onAssigned={(id, assignedTo, assignedToName) => {
           setAssigning(null);
           setProjects((prev) =>
-            prev.map((p) => (p.id === id ? { ...p, assigned_to: assignedTo, assigned_to_name: assignedToName } : p)),
+            prev.map((p) => (p.id === id ? { ...p, assigned_to: assignedTo, assigned_to_name: assignedToName, assigned_at: new Date().toISOString() } : p)),
           );
           // "Assigned to me" no longer holds it once it went to someone else.
           if (scope === "mine") loadProjects();
@@ -1214,14 +1219,6 @@ const OpenIcon = () => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-  </svg>
-);
-
-const AssignIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="9" cy="8" r="3.5" />
-    <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-    <path d="M17 8h5M19.5 5.5 22 8l-2.5 2.5" />
   </svg>
 );
 
