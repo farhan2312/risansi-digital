@@ -76,6 +76,7 @@ import {
   ORDER_MAKING_FIELDS,
   ORDER_MAKING_SO_EDITABLE,
   firstOrderMakingMissing,
+  afterOperationRequired,
   firstAfterOperationMissing,
   ADD_ON_PUMP_FIELDS,
   ADD_ON_SPARE_FIELDS,
@@ -817,8 +818,11 @@ export async function updateOrderSectionAction(
   }
 
   // Gone to Operation: Central's Order details carry its terms, documents,
-  // target dates and the day it went to PPC — as they stand once saved.
-  if (table === "orders" && !orderMaker) {
+  // target dates and the day it went to PPC — as they stand once saved. Only
+  // on a save from that form (it sends them): the Order Making form, which
+  // Central also saves, has none of them to fill.
+  const afterOperationCols = new Set(afterOperationRequired().map((f) => f.column));
+  if (table === "orders" && !orderMaker && Object.keys(allowedValues).some((k) => afterOperationCols.has(k))) {
     const detail = await getOrderDetail(id);
     const now = detail?.order ?? {};
     const after = (c: string) => String((c in allowedValues ? allowedValues[c] : now[c]) ?? "");
