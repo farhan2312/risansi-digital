@@ -59,6 +59,7 @@ export default function TechnoCommercialModal({
   tags,
   fx,
   unsavedPrices,
+  readOnly = false,
   onClose,
 }: {
   projectId: string;
@@ -67,6 +68,8 @@ export default function TechnoCommercialModal({
   tags: OfferTag[];
   fx?: QuoteFx;
   unsavedPrices?: boolean;
+  /** View only - for someone who may not work on this enquiry. */
+  readOnly?: boolean;
   onClose: () => void;
 }) {
   const [tech, setTech] = useState<TechDocData | null>(null);
@@ -254,7 +257,13 @@ export default function TechnoCommercialModal({
 
           {sheets && tech && offer && (
             <>
-              <div className="flex flex-wrap items-center gap-2">
+              {readOnly && (
+                <div className="rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px] text-fg-3">
+                  View only - this enquiry is assigned to someone else. You can print or download it.
+                </div>
+              )}
+
+              <div className={`flex flex-wrap items-center gap-2 ${readOnly ? "hidden" : ""}`}>
                 <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
                   {(["preview", "edit"] as const).map((m) => (
                     <button
@@ -300,9 +309,9 @@ export default function TechnoCommercialModal({
                 </span>
               </div>
 
-              <DocTagPicker tags={allTags} hidden={hiddenTags} onChange={setHiddenTags} />
+              {!readOnly && <DocTagPicker tags={allTags} hidden={hiddenTags} onChange={setHiddenTags} />}
 
-              {showPicker && (
+              {showPicker && !readOnly && (
                 <div className="grid max-h-[40vh] grid-cols-1 gap-4 overflow-y-auto rounded-lg border border-line bg-sunk p-3 sm:grid-cols-2 lg:grid-cols-3">
                   {TECH_DOC_SECTIONS.map((section) => {
                     const fields = techExtras.filter((f) => f.section === section);
@@ -348,7 +357,7 @@ export default function TechnoCommercialModal({
                 </div>
               )}
 
-              {mode === "edit" ? (
+              {mode === "edit" && !readOnly ? (
                 <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
                   <DocHeaderEditor
                     hidden={offerConfig.headerHidden ?? []}

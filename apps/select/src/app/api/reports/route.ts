@@ -1,8 +1,8 @@
-import { desc, eq, isNotNull } from "drizzle-orm";
+import { desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { json } from "@/lib/api";
 import { db } from "@/lib/db";
-import { enquiryTags, projects, users } from "@/lib/db/schema";
+import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,10 @@ export async function GET() {
       // almost always empty. clientCode is what's actually filled in.
       clientCode: projects.clientCode,
       createdByName: users.name,
+      // Who may work on it (a worker only views the documents of others), and
+      // whether a quotation exists (the documents open once one does).
+      assignedTo: projects.assignedTo,
+      quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
       documentFilename: enquiryTags.reportFilename,
       documentGeneratedAt: enquiryTags.reportGeneratedAt,
     })
@@ -49,6 +53,8 @@ export async function GET() {
       // page's nested tag row for the same tag.
       status: r.tagStatus,
       created_by_name: r.createdByName,
+      assigned_to: r.assignedTo,
+      quotation_count: r.quotationCount,
       document_filename: r.documentFilename,
       document_generated_at: r.documentGeneratedAt,
     })),

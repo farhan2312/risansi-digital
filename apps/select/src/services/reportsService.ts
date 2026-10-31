@@ -13,6 +13,10 @@ export interface ReportRecord {
    *  is generated. */
   status: string | null;
   created_by_name: string | null;
+  /** The enquiry's assignee - a worker views the documents of others only. */
+  assigned_to: string | null;
+  /** Quotations on the enquiry; the documents open once there is one. */
+  quotation_count: number;
   document_filename: string | null;
   document_generated_at: string | null;
 }
