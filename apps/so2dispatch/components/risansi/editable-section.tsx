@@ -425,12 +425,11 @@ export function EditableSection({
                               step={field.type === "number" ? "any" : undefined}
                               min={field.min}
                               value={values[field.column] ?? ""}
-                              onChange={(e) =>
-                                setValues((prev) => ({
-                                  ...prev,
-                                  [field.column]: e.target.value,
-                                }))
-                              }
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                // Gross Order Value works itself out as its figures are typed.
+                                setValues((prev) => withValueRules(prev, field.column, next));
+                              }}
                               className="h-10 w-full rounded-[10px] border border-input-border bg-surface px-3 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
                             />
                           )
