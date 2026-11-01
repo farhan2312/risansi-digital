@@ -1306,6 +1306,16 @@ async function guardChild(
   return { ok: true, user };
 }
 
+/**
+ * A row save that failed, with the reason the server met — the database's
+ * own message, a dropped connection — so whoever sees it can say what went
+ * wrong. Trimmed to a line.
+ */
+function rowSaveFailed(error: unknown): string {
+  const why = (error instanceof Error ? error.message : String(error ?? "")).split("\n")[0].trim().slice(0, 200);
+  return why ? `Could not save the row: ${why}` : "Could not save the row.";
+}
+
 /** One audit line for a list row, on the SO / EC it belongs to. */
 async function auditChild(
   user: CurrentUser,
@@ -1439,7 +1449,7 @@ export async function updateOrderChildAction(
     ]);
   } catch (error) {
     console.error("updateOrderChild failed:", error);
-    return { ok: false, error: "Could not save the row." };
+    return { ok: false, error: rowSaveFailed(error) };
   }
   const [lockFacts, piBefore, slipMeta, drgBefore, rowBefore, subject, soOrderId] = reads;
 
@@ -1670,7 +1680,7 @@ export async function updateOrderChildAction(
     console.error("updateOrderChild failed:", error);
     // The row may already be saved: its audit line still goes in.
     await audited;
-    return { ok: false, error: "Could not save the row." };
+    return { ok: false, error: rowSaveFailed(error) };
   }
 }
 
