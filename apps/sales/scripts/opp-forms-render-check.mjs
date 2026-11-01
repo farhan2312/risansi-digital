@@ -61,6 +61,7 @@ function compile(rel) {
 const load = async (rel) => import('file:///' + compile(rel).split(path.sep).join('/'));
 
 const { OppStageMoveModal } = await load('components/risansi/OppStageMoveModal.tsx');
+const { OppReopenModal } = await load('components/risansi/OppReopenModal.tsx');
 const { ALL_STAGES } = await load('lib/risansi-opportunity-fields.ts');
 
 const opp = {
@@ -70,12 +71,17 @@ const opp = {
 };
 
 let bad = 0;
-for (const from of ['Prospect', 'Suspect', 'Quoted']) {
+// 'Lost' is in the list because leaving Lost renders this same form with a
+// justification banner on it — a path no other `from` exercises.
+for (const from of ['Prospect', 'Suspect', 'Quoted', 'Lost']) {
   for (const target of ALL_STAGES) {
     if (target === from) continue;
     try {
       const html = renderToStaticMarkup(React.createElement(OppStageMoveModal, {
-        opp: { ...opp, stage: from }, target, usdRate: 86, onCancel() {}, onDone() {},
+        opp: { ...opp, stage: from, quote_ref: from === 'Lost' ? 'RIL/QT/TEST/001' : opp.quote_ref },
+        target, usdRate: 86,
+        reopenReason: from === 'Lost' ? 'The customer came back and asked us to re-quote.' : undefined,
+        onCancel() {}, onDone() {},
       }));
       const ok = html.includes(`${from} → ${target}`);
       if (!ok) bad++;
@@ -86,6 +92,29 @@ for (const from of ['Prospect', 'Suspect', 'Quoted']) {
     }
   }
 }
+// The way out of Lost — step one, which collects the justification. Its own
+// form rather than a stage of the move form, so it needs its own first render.
+try {
+  const html = renderToStaticMarkup(React.createElement(OppReopenModal, {
+    opp: { ...opp, stage: 'Lost', quote_ref: 'RIL/QT/TEST/001', lost_to_competitor: 'Netzsch', lost_reason: 'Price — Too expensive' },
+    onCancel() {}, onConfirm() {},
+  }));
+  // Every stage but Lost must be offered as a destination, and the loss being
+  // cleared has to be on screen before anyone agrees to clear it.
+  const missing = ALL_STAGES.filter(s => s !== 'Lost' && !html.includes(`>${s}<`));
+  const showsLoss = html.includes('Netzsch');
+  const offersLost = html.includes('>Lost<');
+  if (missing.length) { bad++; console.log(`  FAIL reopen form offers no ${missing.join(', ')}`); }
+  if (offersLost)     { bad++; console.log('  FAIL reopen form offers Lost as a destination'); }
+  if (!showsLoss)     { bad++; console.log('  FAIL reopen form does not show the loss it is about to clear'); }
+  if (!missing.length && !offersLost && showsLoss) {
+    console.log(`  ok   reopen form (${html.length} chars) — ${ALL_STAGES.length - 1} destinations, loss shown`);
+  }
+} catch (e) {
+  bad++;
+  console.log(`  FAIL reopen form: ${e instanceof Error ? e.message : e}`);
+}
+
 fs.rmSync(tmp, { recursive: true, force: true });
 
 // Every field the forms ask for must be one updateOpportunity reads. From 26 Aug

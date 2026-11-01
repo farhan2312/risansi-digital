@@ -48,6 +48,19 @@ export async function PATCH(
       { status: 422 },
     );
   }
+  // Out of Lost only through the form that asks why.
+  //
+  // A drag carries no justification, and undoing a loss without one leaves
+  // win-rate and the competitor analysis unanswerable afterwards. The board
+  // already refuses to drag a Lost card, so this is the server saying the same
+  // thing to anything that bypasses it — see the Lost-exit rule in
+  // updateOpportunity, which is where the reason is collected and recorded.
+  if (oppRes.rows[0].stage === 'Lost' && stage !== 'Lost') {
+    return NextResponse.json(
+      { error: 'Open this deal and use “Move it out of Lost” — taking a loss back needs a reason.' },
+      { status: 422 },
+    );
+  }
   const oppRepId  = oppRes.rows[0].rep_id;
   const clientId  = oppRes.rows[0].client_id;
   const role      = session.user.role;

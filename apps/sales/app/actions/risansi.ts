@@ -1425,6 +1425,23 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
       + 'Add or change Purchase Orders and Sales Orders from their own panels, '
       + `or move it out of ${currentStage} first.`);
   }
+
+  // Leaving Lost costs a reason in words.
+  //
+  // A loss is a fact other numbers are built on — win-rate, the competitor
+  // analysis on /risansi/compete, the per-stage dashboards. Undoing one quietly
+  // makes all of them unanswerable after the event, so the way out asks why and
+  // keeps the answer: a stage-log row and a remark, both under the mover's name
+  // and the time, written below. Enforced here rather than only in the form, so
+  // a hand-built request cannot slip a Lost deal back into the pipeline with
+  // nothing on record. The board's PATCH route refuses the move outright and
+  // sends people to the form, which is the only thing that collects this.
+  const isLostExit = currentStage === 'Lost' && !!newStage && newStage !== 'Lost';
+  const reopenReason = ((formData.get('reopen_reason') as string | null) ?? '').trim();
+  if (isLostExit && reopenReason.length < 20) {
+    return fail('Taking a deal out of Lost needs a reason — a line saying what changed. '
+      + 'Open the deal and use “Move it out of Lost”, which asks for it.');
+  }
   // Gate: Quoted is a mandatory gateway. A deal that's been Quoted can be put
   // On Hold and still advance to Won/Lost, so On Hold counts as "past Quoted".
   if (['Negotiating', 'Won', 'Lost'].includes(newStage ?? '')
@@ -1636,6 +1653,17 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
                    'invoice_no','invoice_date','invoice_value_inr']) {
     if (formData.get(k) === null) delete candidates[k];
   }
+  // …except on the way out of Lost, where the stored loss is exactly what has
+  // to go. The destination stage does not render these fields, so the form
+  // submits none of them and the guard above would preserve all three — leaving
+  // a live deal still "lost to" a competitor. /risansi/compete counts every
+  // opportunity carrying lost_to_competitor WITHOUT filtering on stage, so a
+  // stale value there keeps scoring against that competitor for good.
+  if (isLostExit) {
+    candidates.lost_to_competitor = null;
+    candidates.lost_to_competitor_other = null;
+    candidates.lost_reason = null;
+  }
   // A Total Offer is required at every quote stage, so a blank one is never a
   // request to clear it: only a typed amount or a line-item sum writes it.
   if (!(offerForValue > 0)) delete candidates.offer_value_inr;
@@ -1742,7 +1770,56 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
     }
   }
 
-  await logActivity('opportunity', String(oppId), `updated opportunity · ${candidates.stage}`, user.email!);
+  // Who moved it, from where to where, and when.
+  //
+  // The same row the board's drag-and-drop writes — which until now was the
+  // ONLY move that wrote one. Every stage change made through a form (the move
+  // modal, the edit drawer) left no trace at all, so the stage dashboards fell
+  // back to created_at when asked how long a deal had sat where it is, and the
+  // per-person stage_moves count in risansi-person-metrics missed it entirely.
+  if (newStage && newStage !== currentStage) {
+    try {
+      await risansiPool.query(
+        `INSERT INTO opportunity_stage_log (opportunity_id, from_stage, to_stage, notes, changed_by)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [oppId, currentStage, newStage,
+          isLostExit ? `Taken out of Lost: ${reopenReason}`.slice(0, 2000) : 'Moved on the opportunity form',
+          user.email ?? null],
+      );
+    } catch (e) { console.error('opportunity_stage_log insert failed:', e); }
+  }
+
+  // And the justification where people actually read history: the remarks log
+  // in the drawer. The stage-log row above is what the dashboards count; this
+  // is what a manager opening the deal in six months will see, next to the
+  // remark left when it was lost in the first place.
+  if (isLostExit) {
+    try {
+      await risansiPool.query(
+        // The name is tried three ways before it falls back to the email: a
+        // sysadmin signs in with an address the sales users table has never
+        // heard of, and "—" against the one remark that explains why a loss
+        // was undone is the wrong thing to show.
+        `INSERT INTO opportunity_remarks (opportunity_id, stage, remark, created_by, created_by_name)
+         VALUES ($1, $2, $3, $4,
+                 COALESCE((SELECT name FROM users WHERE id = $4),
+                          (SELECT name FROM users WHERE lower(email) = lower($5)),
+                          NULLIF($6, ''), $5))`,
+        [oppId, newStage, `Taken out of Lost → ${newStage}. ${reopenReason}`.slice(0, 4000),
+          user.repId ?? null, user.email ?? '', user.name ?? ''],
+      );
+    } catch (e) {
+      // Logged rather than returned: the move is already committed, and the
+      // reason is on the stage-log row above either way, so a failure here must
+      // not report a move that happened as having failed.
+      console.error('[opp] could not record the reason for leaving Lost', e);
+    }
+  }
+
+  await logActivity('opportunity', String(oppId),
+    isLostExit ? `took opportunity out of Lost → ${newStage}: ${reopenReason}`
+               : `updated opportunity · ${candidates.stage}`,
+    user.email!);
   revalidatePath('/risansi/pipeline');
   revalidatePath('/risansi');
 

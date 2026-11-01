@@ -162,6 +162,11 @@ export function ActiveOppsTable({ opps, usdRate }: { opps: EditableOpp[]; usdRat
       {selectedOpp && (
         <EditOppDrawer
           opp={selectedOpp}
+          // The board passes this; this table did not, so the drawer fell back
+          // to "editable" for everyone and offered actions the server then
+          // refused — the way out of Lost among them.
+          canEdit={selectedOpp.can_edit !== false}
+          usdRate={usdRate}
           onClose={() => { setSelectedOpp(null); router.refresh(); }}
         />
       )}

@@ -40,10 +40,17 @@ export interface MoveOpp {
 const inrOf = (cr: unknown) =>
   cr != null && cr !== '' ? String(Math.round(parseFloat(String(cr)) * 10_000_000)) : '';
 
-export function OppStageMoveModal({ opp, target, usdRate = 86, onCancel, onDone }: {
+export function OppStageMoveModal({ opp, target, usdRate = 86, reopenReason, onCancel, onDone }: {
   opp: MoveOpp;
   target: OppStage;
   usdRate?: number;
+  /**
+   * The justification for taking this deal back out of Lost, collected by
+   * OppReopenModal before this form opened. Carried through to the server,
+   * which refuses a Lost exit without one — so the only way out of Lost is one
+   * that leaves a reason behind.
+   */
+  reopenReason?: string;
   onCancel: () => void;
   onDone: () => void;
 }) {
@@ -242,6 +249,7 @@ export function OppStageMoveModal({ opp, target, usdRate = 86, onCancel, onDone 
     try {
       const fd = new FormData();
       fd.set('stage', target);
+      if (reopenReason?.trim()) fd.set('reopen_reason', reopenReason.trim());
       for (const f of OPP_FIELDS) {
         if (isFieldVisible(f, target, values)) fd.set(f.name, values[f.name] ?? '');
         else if (f.showWhen) fd.set(f.name, '');
@@ -334,6 +342,19 @@ export function OppStageMoveModal({ opp, target, usdRate = 86, onCancel, onDone 
               onDiscard={draft.discard}
             />
           )}
+          {/* Shown back rather than taken on trust: the reason was typed on a
+              form that has already closed, and it is about to be written to the
+              record under this person's name. */}
+          {reopenReason?.trim() && (
+            <div style={REOPEN}>
+              <div style={{ fontWeight: 700, marginBottom: 3 }}>Coming out of Lost</div>
+              <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{reopenReason.trim()}</div>
+              <div style={{ marginTop: 4, opacity: 0.85 }}>
+                Saved with the move, along with who made it and when. The competitor
+                and lost reason on the record are cleared.
+              </div>
+            </div>
+          )}
           <OppStageSections
             stage={target} values={values} onChange={onChange}
             usdRate={usdRate} optionsFor={optionsFor}
@@ -424,6 +445,12 @@ const GHOST: CSSProperties = {
 const PRIMARY: CSSProperties = {
   border: 'none', background: 'var(--accent-fill)', color: 'var(--on-accent)', borderRadius: 6,
   fontSize: 13, fontWeight: 600, padding: '9px 18px', cursor: 'pointer', fontFamily: 'inherit',
+};
+const REOPEN: CSSProperties = {
+  marginBottom: 14, padding: '10px 12px', borderRadius: 7,
+  background: 'var(--warn-soft)', border: '1px solid var(--warn)',
+  borderLeft: '3px solid var(--warn)', color: 'var(--warn-strong)',
+  fontSize: 11.5, lineHeight: 1.55,
 };
 const ERR: CSSProperties = {
   marginTop: 14, padding: '9px 12px', background: 'var(--neg-soft)',

@@ -19,6 +19,7 @@ import type { FieldValues } from './OppFields';
 
 import { MonthYearSelect } from './MonthYearSelect';
 import { OppStageMoveModal } from './OppStageMoveModal';
+import { OppReopenModal } from './OppReopenModal';
 import { SalesOrderManager } from './SalesOrderManager';
 import { PurchaseOrderManager } from './PurchaseOrderManager';
 import { QuotationPdfManager } from './QuotationPdfManager';
@@ -80,6 +81,8 @@ export interface EditableOpp {
   offer_value_inr?: number | string | null;
   tour_name?: string | null;
   tour_people?: string | null;   // all reps + manager on the client's tour
+  /** Whether this viewer may edit it, as the board's query decides (see `canEdit`). */
+  can_edit?: boolean;
 }
 
 interface QItem { id: number; pump_model: string | null; pump_qty: number | null; pump_speed: string | null; geared_motor_detail: string | null; motor_price: number | null; gearbox_vbelt_price: number | null; offer_value_inr: number | null; detailed_specifications: string | null; }
@@ -105,6 +108,12 @@ export function EditOppDrawer({ opp, onClose, canEdit = true, usdRate = 86 }: {
   // board with no lines under it.
   const stage = opp.stage;
   const [moveTo, setMoveTo] = useState<OppStage | null>(null);
+  // Lost is the only stage with no way out: the board will not drag the card and
+  // this drawer opens read-only. The way out is deliberately two steps — a reason
+  // in words first, then the ordinary move form for the stage chosen — and the
+  // reason rides along with the move so the server can refuse one without it.
+  const [reopening, setReopening] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
   const [quoteItems, setQuoteItems] = useState<QItem[]>([]);
   const [quoteMeta, setQuoteMeta]   = useState<QMeta | null>(null);
   const [revisions, setRevisions]   = useState<OfferRevision[]>([]);
@@ -198,7 +207,7 @@ export function EditOppDrawer({ opp, onClose, canEdit = true, usdRate = 86 }: {
   const guard = useCloseGuard({
     dirty: draft.dirty,
     onClose,
-    enabled: !loading && moveTo === null,
+    enabled: !loading && moveTo === null && !reopening,
   });
 
   const probLabel = probabilityCodeDisplay(opp.probability_code);
@@ -343,9 +352,27 @@ export function EditOppDrawer({ opp, onClose, canEdit = true, usdRate = 86 }: {
             background: opp.stage === 'Won' ? 'var(--pos-soft)' : 'var(--neg-soft)',
             borderBottom: '1px solid var(--line)', fontSize: 12,
             color: opp.stage === 'Won' ? 'var(--pos-strong)' : 'var(--neg-strong)',
-            display: 'flex', alignItems: 'center', gap: 8,
+            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
           }}>
-            🔒 This opportunity is {opp.stage} and locked.{opp.stage === 'Won' ? ' The deal is frozen, but you can still record Sales Orders below until they cover the final value.' : ' No further changes can be made.'}
+            <span style={{ flex: 1, minWidth: 220 }}>
+              🔒 This opportunity is {opp.stage} and locked.
+              {opp.stage === 'Won'
+                ? ' The deal is frozen, but you can still record Sales Orders below until they cover the final value.'
+                : ' Its details cannot be edited — but it can be taken back out of Lost with a reason.'}
+            </span>
+            {/* The one door out of Lost. Same edit rights as any other move on
+                this deal: the control here is the reason it insists on, which
+                is kept under the mover's name, not who is allowed to knock. */}
+            {opp.stage === 'Lost' && canEdit && (
+              <button
+                type="button"
+                onClick={() => setReopening(true)}
+                title="Clear the loss and move this quotation to another stage"
+                style={REOPEN_BTN}
+              >
+                ↩ Move it out of Lost
+              </button>
+            )}
           </div>
         )}
 
@@ -539,8 +566,22 @@ export function EditOppDrawer({ opp, onClose, canEdit = true, usdRate = 86 }: {
           opp={{ ...(opp as unknown as Record<string, unknown>), id: opp.id, stage: opp.stage, client_name: opp.client_name, client_code: opp.client_code }}
           target={moveTo}
           usdRate={usdRate}
-          onCancel={() => setMoveTo(null)}
-          onDone={() => { draft.clear(); setMoveTo(null); onClose(); router.refresh(); }}
+          reopenReason={opp.stage === 'Lost' ? reopenReason : undefined}
+          // Abandoning the move abandons the reason with it. Keeping it would
+          // mean the next move made from this drawer quietly carried a
+          // justification written for a different destination.
+          onCancel={() => { setMoveTo(null); setReopenReason(''); }}
+          onDone={() => { draft.clear(); setMoveTo(null); setReopenReason(''); onClose(); router.refresh(); }}
+        />
+      )}
+
+      {/* Step one of leaving Lost: the reason and where it is going. The move
+          itself is the ordinary form, opened as soon as this one is answered. */}
+      {reopening && (
+        <OppReopenModal
+          opp={opp}
+          onCancel={() => setReopening(false)}
+          onConfirm={({ to, reason }) => { setReopenReason(reason); setReopening(false); setMoveTo(to); }}
         />
       )}
     </>
@@ -741,6 +782,15 @@ function DeleteOppButton({ oppId, onDeleted }: { oppId: number; onDeleted: () =>
     </button>
   );
 }
+
+// Reads as an action inside the red lock strip without competing with it:
+// paper ground, the strip's own colour for the text and the border.
+const REOPEN_BTN: CSSProperties = {
+  padding: '5px 11px', fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit',
+  color: 'var(--neg-strong)', background: 'var(--bg-paper)',
+  border: '1px solid var(--neg)', borderRadius: 5, cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
 
 const LABEL_STYLE: CSSProperties = {
   fontSize: 11, fontWeight: 600, color: 'var(--fg-3)',
