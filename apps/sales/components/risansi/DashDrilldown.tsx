@@ -64,10 +64,20 @@ export function DashDrilldownProvider({ children }: { children: ReactNode }) {
 
   const open = (p: DashDrillParams) => {
     setShowing(true); setResult(null); setFailed(false); setQ('');
+    // Caught, because an uncaught rejection inside a transition is not a failed
+    // fetch — it reaches the /risansi error boundary and replaces the whole page
+    // with "Something went wrong", losing the dashboard the reader was on
+    // because one breakdown of one figure could not be built. The panel already
+    // has somewhere to say so.
     start(async () => {
-      const r = await dashDrilldown(p);
-      if (!r) { setFailed(true); return; }
-      setResult(r);
+      try {
+        const r = await dashDrilldown(p);
+        if (!r) { setFailed(true); return; }
+        setResult(r);
+      } catch (e) {
+        console.error('[dash drilldown] failed', p, e);
+        setFailed(true);
+      }
     });
   };
 

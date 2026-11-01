@@ -57,10 +57,17 @@ export function ExecDrilldownProvider({ tsm, scope, fy, children }: {
 
   const open = (p: DrillParams) => {
     setShowing(true); setResult(null); setFailed(false); setQ('');
+    // See DashDrilldown: an uncaught rejection here takes the whole review page
+    // down through the error boundary instead of failing the one panel.
     start(async () => {
-      const r = await execDrilldown({ ...p, tsm, scope, fy });
-      if (!r) { setFailed(true); return; }
-      setResult(r);
+      try {
+        const r = await execDrilldown({ ...p, tsm, scope, fy });
+        if (!r) { setFailed(true); return; }
+        setResult(r);
+      } catch (e) {
+        console.error('[exec drilldown] failed', p, e);
+        setFailed(true);
+      }
     });
   };
 

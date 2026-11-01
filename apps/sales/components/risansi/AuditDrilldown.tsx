@@ -26,10 +26,17 @@ export function AuditDrilldownProvider({ filters, children }: {
 
   const open = (kind: DrillKind) => {
     setShowing(true); setResult(null); setFailed(false); setQ('');
+    // See DashDrilldown: an uncaught rejection here takes the whole audit page
+    // down through the error boundary instead of failing the one panel.
     start(async () => {
-      const r = await auditDrilldown(kind, filters);
-      if (!r) { setFailed(true); return; }
-      setResult(r);
+      try {
+        const r = await auditDrilldown(kind, filters);
+        if (!r) { setFailed(true); return; }
+        setResult(r);
+      } catch (e) {
+        console.error('[audit drilldown] failed', kind, e);
+        setFailed(true);
+      }
     });
   };
 
