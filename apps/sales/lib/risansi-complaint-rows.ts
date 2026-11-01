@@ -105,6 +105,11 @@ export interface ComplaintListRow {
   /** The delivery challan the replacement actually left on, as opposed to
    *  target_dispatch_date, which is when it was meant to. */
   challan_no: string | null; challan_date: string | null;
+  /** What a free replacement cost us, kept as two figures rather than one.
+   *  Transport and material were being added together into a single challan
+   *  value, which left no way to answer what free replacements cost in freight
+   *  alone. Rupees. Null where that half was not charged. */
+  fr_transport_value: string | null; fr_material_value: string | null;
   /** Customer communication files (letters, emails, confirmations), for a link straight from the list. */
   customer_files: { id: number; file_name: string }[];
 }
@@ -412,6 +417,8 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
              c.fr_ec_no, c.fr_ec_date::text AS fr_ec_date,
              c.target_dispatch_date::text AS target_dispatch_date,
              c.challan_no, c.challan_date::text AS challan_date,
+             c.fr_transport_value::text AS fr_transport_value,
+             c.fr_material_value::text AS fr_material_value,
              c.responsible_department, c.channel,
              c.complaint_date::text AS complaint_date, c.created_at::text AS created_at,
              c.resolved_at::text AS resolved_at, c.closed_at::text AS closed_at,

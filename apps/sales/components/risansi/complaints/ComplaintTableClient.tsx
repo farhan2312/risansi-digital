@@ -30,11 +30,25 @@ import type { SortKind, SortableColumn } from '@/lib/risansi-table-sort';
 
 const day = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—');
 const fmtDays = (d: number) => (d < 1 ? '<1d' : `${Math.round(d)}d`);
+// Money arrives as text, because numeric(14,2) through the driver is a string
+// and parsing it to a float in SQL would lose paise on the way.
+//
+// Zero is not nothing: a free replacement charged at ₹0 for transport is an
+// answer somebody gave, and it sorts and prints as 0 rather than as a dash.
+// Only an absent figure is a dash.
+const money = (v: string | null | undefined): number | null => {
+  if (v == null || String(v).trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const fmtInr = (n: number) =>
+  '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: n % 1 === 0 ? 0 : 2 });
 
 type ColId =
   | 'no' | 'oldNo' | 'client' | 'status' | 'sev' | 'severe' | 'category' | 'subcat' | 'industry'
   | 'ctype' | 'model' | 'qty' | 'action' | 'freeRepl'
   | 'item' | 'frEc' | 'frEcDate' | 'frDispatch' | 'challanNo' | 'challan'
+  | 'frTransport' | 'frMaterial'
   | 'capa' | 'linked' | 'holder' | 'since' | 'age'
   | 'late' | 'target' | 'rep' | 'raised' | 'docs' | 'open';
 
@@ -170,6 +184,17 @@ const COLUMNS: Col[] = [
   // reads as one fact with the date rather than two columns apart.
   { id: 'challanNo',  head: 'Challan no.', pick: 'Challan no.', kind: 'text', value: r => r.challan_no },
   { id: 'challan',    head: 'Challan date', pick: 'Challan date', kind: 'date', value: r => r.challan_date },
+  // What the free replacement cost us, in two figures rather than one.
+  //
+  // Separate columns because they answer different questions: freight on a
+  // replacement is a logistics cost somebody can act on, the material is the
+  // pump we gave away. Added together they stop being either. Both read in
+  // red, since every rupee here is money out of the door on an order already
+  // paid for.
+  { id: 'frTransport', head: 'FR transport ₹', pick: 'FR transport value', right: true,
+    kind: 'number', value: r => money(r.fr_transport_value) },
+  { id: 'frMaterial',  head: 'FR material ₹', pick: 'FR material value', right: true,
+    kind: 'number', value: r => money(r.fr_material_value) },
   // Pending before under review before closed before nothing asked for.
   { id: 'capa',       head: 'CAPA', kind: 'status', order: ['open', 'review', 'closed', 'none'], value: r => r.capa_state },
   { id: 'linked',     head: 'Repeat of', pick: 'Repeat / linked', kind: 'text', value: r => r.linked_complaint_no ?? (r.repeat_complaint ? 'Repeat' : null) },
@@ -204,8 +229,8 @@ const ALL_IDS = COLUMNS.map(c => c.id);
 //
 // The key carries the set, so adding more columns later means a new key
 // rather than a second reveal of these.
-const PROMOTED = ['oldNo'] as const;
-const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v5';
+const PROMOTED = ['frTransport', 'frMaterial'] as const;
+const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v6';
 const PROMOTED_SEEN = () => {
   try { return localStorage.getItem(PROMOTED_KEY) === '1'; } catch { return true; }
 };
@@ -535,6 +560,16 @@ function renderCell(col: Col, r: ComplaintListRow, clientFrozen: boolean): React
           {r.part_name ? <div style={{ fontSize: 10.5, color: 'var(--fg-3)', fontFamily: 'inherit' }}>{r.part_name}</div> : null}
         </td>
       );
+    case 'frTransport':
+    case 'frMaterial': {
+      const v = money(col.id === 'frTransport' ? r.fr_transport_value : r.fr_material_value);
+      return (
+        <td key={col.id} style={{ ...TD, textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--neg)', fontWeight: 600 }}
+          title={v == null ? 'Not charged on this complaint' : undefined}>
+          {v == null ? <span style={{ color: 'var(--fg-4)', fontWeight: 400 }}>—</span> : fmtInr(v)}
+        </td>
+      );
+    }
     case 'qty': {
       const q = qtyOf(r);
       return <td key={col.id} style={{ ...TD, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{q ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}</td>;

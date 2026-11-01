@@ -132,6 +132,12 @@ const HEAD_COLS: Col[] = [
   // value, so what free replacements cost in freight alone could not be asked.
   { key: 'cost_impact', label: 'Cost impact', width: 11, group: 'Cost', get: (_r, full) => yesNo(full.cost_impact) },
   { key: 'is_fr', label: 'Free replacement', width: 11, group: 'Cost', get: (_r, full) => ((FR_ACTIONS as readonly string[]).includes(String(full.action_category)) ? 'Yes' : null) },
+  // …and then added them back together here, which is the same column under a
+  // new name. Both halves now stand on their own beside the total: freight on
+  // a replacement is a logistics cost somebody can act on, the material is the
+  // pump we gave away, and the sum is neither.
+  { key: 'fr_transport', label: 'FR transport (₹)', width: 14, group: 'Cost', get: (_r, full) => num(full.fr_transport_value) },
+  { key: 'fr_material', label: 'FR material (₹)', width: 14, group: 'Cost', get: (_r, full) => num(full.fr_material_value) },
   { key: 'fr_total', label: 'FR total (₹)', width: 14, group: 'Cost', get: (_r, full) => { const t = (num(full.fr_transport_value) ?? 0) + (num(full.fr_material_value) ?? 0); return t > 0 ? t : null; } },
 
   { key: 'parts_count', label: 'Parts', width: 7, group: 'Parts', get: (r, _f, ctx) => (ctx.parts.get(r.id)?.length ?? 0) || null },
