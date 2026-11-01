@@ -5,8 +5,9 @@ import {
   type CSSProperties, type ReactNode,
 } from 'react';
 import {
-  dashDrilldown, type DashDrillParams, type DashDrillResult, type DashUnit, type DrillRow,
+  dashDrilldown, type DashDrillParams, type DashDrillResult, type DashUnit,
 } from '@/app/actions/risansi-dashboard-drilldown';
+import type { DrillRow } from '@/lib/risansi-drill-row';
 import { fmtCr, fmtL, formatRev } from '@/lib/risansi-utils';
 import { useTableSort, SortTH } from './SortTH';
 import type { SortableColumn } from '@/lib/risansi-table-sort';

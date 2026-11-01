@@ -2,6 +2,7 @@
 
 import risansiPool from '@/lib/db-risansi';
 import { visitExpectedSql, waivedGapSql, VISIT_WAIVER_REASONS } from '@/lib/risansi-visit-waiver';
+import type { DrillRow } from '@/lib/risansi-drill-row';
 import {
   getCurrentUser, getReviewableRepIds, clientVisibilitySql, clientScopeSql, OWN_OPEN,
 } from '@/lib/risansi-auth';
@@ -32,22 +33,6 @@ const WAIVER_LABEL_CASE =
 // open, not what may be seen: getReviewableRepIds decides the first, and the
 // viewer's clientVisibilitySql still bounds the second.
 
-export interface DrillRow {
-  clientId: number;
-  code: string;
-  name: string;
-  value: number | null;   // rupees, or null for a count-only list
-  detail?: string | null; // a second line — stage, date, purpose
-  // ── Added for every client list, whichever number was clicked ──
-  /** The last visit, as 'DD Mon YYYY'. Null when there has never been one. */
-  lastVisit?: string | null;
-  /** What the rep wrote on that visit. */
-  lastRemark?: string | null;
-  /** Rupees still live: quoted, negotiating or on hold. */
-  openPipelineInr?: number | null;
-  /** Where this client's quotations stand — '2 Active · 1 Lost'. */
-  quoteStatus?: string | null;
-}
 
 export interface DrillResult {
   title: string;

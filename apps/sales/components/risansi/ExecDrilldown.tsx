@@ -1,7 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, useTransition, useMemo, type ReactNode, type CSSProperties } from 'react';
-import { execDrilldown, type DrillParams, type DrillResult, type DrillRow } from '@/app/actions/risansi-exec-drilldown';
+import { execDrilldown, type DrillParams, type DrillResult } from '@/app/actions/risansi-exec-drilldown';
+import type { DrillRow } from '@/lib/risansi-drill-row';
 import { useTableSort, SortTH } from './SortTH';
 import type { SortableColumn } from '@/lib/risansi-table-sort';
 

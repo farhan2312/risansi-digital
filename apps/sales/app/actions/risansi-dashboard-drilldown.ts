@@ -2,7 +2,7 @@
 
 import risansiPool from '@/lib/db-risansi';
 import { getCurrentUser, hasRole } from '@/lib/risansi-auth';
-import type { DrillRow } from '@/app/actions/risansi-exec-drilldown';
+import type { DrillRow } from '@/lib/risansi-drill-row';
 import {
   BOOKED_VALUE, CR, INR_TO_L, OPEN_STAGES, PIPELINE_STAGES, PCP_COLUMNS, OTHERS_PCP,
   SO_SUM_JOIN, IN_HAND_CR, BOOKED_CR,
@@ -25,7 +25,6 @@ import { targetHolders, teamsByManager } from '@/lib/risansi-rep-targets';
 // call. The browser says which figure to itemise; it never says whose rows to
 // include.
 
-export type { DrillRow };
 
 /**
  * How to print the total and each row, picked so the modal's headline reads
@@ -161,39 +160,6 @@ async function targetAudience(
 }
 
 export async function dashDrilldown(p: DashDrillParams): Promise<DashDrillResult | null> {
-  // TEMPORARY — a probe, to be removed once the dashboard's 500 is understood.
-  //
-  // Every tile here answers 500. The response is a flight payload whose action
-  // result is an error, so the action's promise is rejecting — but this
-  // function catches everything it can reach, and audit_log has no record of
-  // any of it. Either the framework is failing around the call, or something
-  // about the VALUE that comes back cannot survive the trip.
-  //
-  // This separates the two. It returns a constant, built from nothing: no
-  // session, no database, no scope. Two rows, because an empty list would not
-  // exercise the row encoding.
-  //
-  //   the panel opens  → the call and the encoding are fine, and the fault is
-  //                      in what the real branches do or return
-  //   still 500        → the fault is in Next's handling of this action and
-  //                      has nothing to do with this file's contents
-  // Compared as a string so the switch below keeps its own 'rev_fy' case:
-  // narrowing p.kind here would make that case unreachable and fail the build,
-  // and this probe is meant to come out again without leaving a hole behind.
-  if ((p.kind as string) === 'rev_fy') {
-    return {
-      title: 'Probe — not the real breakdown',
-      subtitle: 'A constant, to tell a framework failure from a data one. Being removed.',
-      unit: 'inr',
-      rows: [
-        { clientId: 0, code: 'PROBE-1', name: 'First probe row', value: 1234567, detail: 'a constant' },
-        { clientId: 0, code: 'PROBE-2', name: 'Second probe row', value: 7654321, detail: 'also a constant' },
-      ],
-      total: 8888888,
-      secondary: 'nothing was read from the database',
-    };
-  }
-
   // The preamble is inside the guard too.
   //
   // It used to sit outside it, which is how every tile on this dashboard came
