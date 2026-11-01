@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import apiClient from "../../services/apiClient";
-import { ORDER_TYPES } from "../../lib/roles";
+import { ORDER_SUBTYPES, ORDER_TYPES } from "../../lib/roles";
 import {
   ENQUIRY_STATUSES,
   filterKey,
@@ -19,6 +19,8 @@ import {
 // value whatever its spelling (lib/enquiry-filters filterKey).
 
 const ORDER_TYPE_LABELS = ORDER_TYPES.map((o) => o.label);
+const PUMP_TYPE_LABELS = ORDER_SUBTYPES.pump.map((o) => o.label);
+const SPARE_TYPE_LABELS = ORDER_SUBTYPES.spare.map((o) => o.label);
 
 let optionsCache: Promise<EnquiryFilterOptions> | null = null;
 const loadOptions = () =>
@@ -206,6 +208,8 @@ export default function EnquiryFilterBar({
         </label>
       )}
       {multi("orderType", "Order type", ORDER_TYPE_LABELS)}
+      {multi("pumpType", "Pump type", PUMP_TYPE_LABELS)}
+      {multi("spareType", "Spare type", SPARE_TYPE_LABELS)}
       {multi("primaryRep", "Primary rep", opts?.primaryReps)}
       {multi("secondaryRep", "Secondary rep", opts?.secondaryReps)}
       {multi("zone", "Zone", opts?.zones)}

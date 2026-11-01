@@ -43,6 +43,9 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
     out.push(sql`(${projects.name} ILIKE ${like} OR ${projects.clientCode} ILIKE ${like})`);
   }
   push(anyOf(projects.orderType, f.orderType ?? []));
+  // Pump type and spare type both pick from order_subtype; picking some of
+  // each means either (PCP pumps or retrofit spares), not both at once.
+  push(anyOf(projects.orderSubtype, [...(f.pumpType ?? []), ...(f.spareType ?? [])]));
   push(anyOf(projects.clientPrimaryRep, f.primaryRep ?? []));
   // Secondary reps are stored as "A, B, C": any one of them matching counts.
   const sec = [...new Set((f.secondaryRep ?? []).map(filterKey).filter(Boolean))];

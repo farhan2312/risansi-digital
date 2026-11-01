@@ -8,6 +8,10 @@ export type EnquiryFilters = {
   client?: string;
   /** "Pump" / "Spare". */
   orderType?: string[];
+  /** PCP / MMP / Barrel / Online blind (lib/roles ORDER_SUBTYPES). */
+  pumpType?: string[];
+  /** Spare / Retrofit spare. */
+  spareType?: string[];
   primaryRep?: string[];
   /** Any one of the enquiry's secondary reps. */
   secondaryRep?: string[];
@@ -18,7 +22,7 @@ export type EnquiryFilters = {
   status?: string[];
 };
 
-export const MULTI_FILTER_KEYS = ["orderType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status"] as const;
+export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status"] as const;
 export type MultiFilterKey = (typeof MULTI_FILTER_KEYS)[number];
 
 export const ENQUIRY_STATUSES = ["Pending", "In Progress", "Completed"] as const;
