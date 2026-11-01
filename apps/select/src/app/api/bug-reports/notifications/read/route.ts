@@ -45,7 +45,8 @@ export async function POST(req: Request) {
   // Enquiries assigned to the caller are seen once the bell is opened.
   await db
     .update(projects)
-    .set({ assigneeUnread: false })
+    // Read now, kept in the bell for a day from now.
+    .set({ assigneeUnread: false, assigneeSeenAt: new Date() })
     .where(and(eq(projects.assignedTo, claims.sub), eq(projects.assigneeUnread, true)));
 
   // Admins also have the "new bug filed" feed, which is a watermark rather

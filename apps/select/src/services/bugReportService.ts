@@ -106,6 +106,8 @@ export interface BugNotification {
   kind: "status" | "new" | "assigned";
   /** Who filed it ("new"), or who assigned the enquiry ("assigned"). */
   reportedByName: string | null;
+  /** Not seen yet. Seen ones stay listed for a day after being seen. */
+  unread: boolean;
 }
 
 /** The caller's own unread status-change notifications, for the top-bar bell. */
