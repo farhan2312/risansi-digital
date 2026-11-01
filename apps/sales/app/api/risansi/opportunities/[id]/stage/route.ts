@@ -7,7 +7,7 @@ import risansiPool from '@/lib/db-risansi';
 // Every column the board renders. 'On Hold' was missing here while the board
 // showed the column, so every drag into On Hold came back 400 "Invalid stage"
 // and the card snapped straight back — for everyone, admins included.
-const VALID = ['Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'];
+const VALID = ['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'];
 
 export async function PATCH(
   req: Request,

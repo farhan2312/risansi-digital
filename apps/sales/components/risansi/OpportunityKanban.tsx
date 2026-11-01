@@ -23,11 +23,11 @@ export interface KanbanOpp extends EditableOpp {
   so_sum_cr?: number | null;    // Σ of this opp's Sales Order values (Cr) — drives Won Open/Closed
 }
 
-const STAGES = ['Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'] as const;
+const STAGES = ['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'] as const;
 
 const STAGE_COLOR: Record<string, string> = {
-  Suspect:     'var(--info)',
-  Prospect:    '#5a86c2',
+  Prospect:     'var(--info)',
+  'Budgetary Quotation':    '#5a86c2',
   Quoted:      '#c69347',
   Negotiating: 'var(--accent)',
   'On Hold':   'var(--purple)',
@@ -38,8 +38,8 @@ const STAGE_COLOR: Record<string, string> = {
 
 // Friendlier column headers (timeframe hints / clarifications).
 const STAGE_LABEL: Record<string, string> = {
-  Suspect:  'Suspect (1-2 years +)',
-  Prospect: 'Prospect (6 months +)',
+  Prospect:              'Prospect (lead / discussion)',
+  'Budgetary Quotation': 'Budgetary (indicative price)',
 };
 
 // Remembers which stage columns the user chose to show, so the choice survives
@@ -148,7 +148,7 @@ export function OpportunityKanban({ initialOpps, stageTotals, usdRate = 86, filt
     // repeat order is priced already, which is the whole reason for that jump.
     const quoted = ['Quoted', 'Negotiating', 'On Hold'].includes(current.stage);
     const directWin = newStage === 'Won'
-      && current.stage === 'Prospect'
+      && current.stage === 'Budgetary Quotation'
       && DIRECT_WIN_CATEGORIES.includes(String(current.opportunity_category ?? ''));
 
     if (['Negotiating', 'On Hold', 'Lost'].includes(newStage) && !quoted) {
@@ -164,7 +164,7 @@ export function OpportunityKanban({ initialOpps, stageTotals, usdRate = 86, filt
 
     // Every destination that asks for something opens the one move form. The
     // card moves optimistically so the board does not appear to ignore the drag.
-    if (['Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped', 'Suspect'].includes(newStage)) {
+    if (['Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped', 'Prospect'].includes(newStage)) {
       const previousStage = current.stage;
       setOpps(p => p.map(o => (o.id === oppId ? { ...o, stage: newStage } : o)));
       setMoving({ opp: { ...current, stage: newStage }, to: newStage as OppStage, previousStage });

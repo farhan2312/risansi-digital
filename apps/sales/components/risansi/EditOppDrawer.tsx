@@ -463,7 +463,7 @@ export function EditOppDrawer({ opp, onClose, canEdit = true, usdRate = 86 }: {
             <div>
               <label style={LABEL_STYLE}>Stage *</label>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {['Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'].map(s => (
+                {['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'].map(s => (
                   <button
                     key={s} type="button"
                     onClick={() => { if (s !== stage) setMoveTo(s as OppStage); }}

@@ -18,7 +18,7 @@ export const runtime = 'nodejs';
 // columns carry strict dropdown validation from a hidden Lists sheet, and each
 // opportunity gets four Sales Order slots (No / Date / Value) to fill in.
 
-const STAGES        = ['Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'];
+const STAGES        = ['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'];
 // Imported, not re-listed: this drives the Excel dropdown, and a stale copy
 // here offers a value the database now refuses on re-ingest.
 const PRODUCT_TYPES = [...OPP_PRODUCT_TYPES];

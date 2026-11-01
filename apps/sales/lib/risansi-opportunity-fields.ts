@@ -1,19 +1,26 @@
 // One definition of what an opportunity asks for, and when. The forms render
 // from it and the server validates against it, so the two can never disagree.
 //
-// THE MODEL, after the Aug 2026 redesign:
+// THE MODEL, after the Nov 2026 rename:
 //
-//   An opportunity starts as a PROSPECT — an enquiry has arrived. That is the
-//   only way in. From there it goes one of four ways:
+//   An opportunity starts as a PROSPECT — any lead, or any discussion with a
+//   client worth keeping. That is the only way in, and it asks for two things:
+//   when it is expected, and what was actually said. From there:
 //
-//     Prospect ──quotation issued──────────────────────────────► Quoted
+//     Prospect ──an indicative price goes out──────────────────► Budgetary Quotation
+//              ──a real quotation is issued────────────────────► Quoted
 //              ──enquiry regretted──────────────────────────────► Dropped
 //              ──Against Rate Contract / Repeat Order───────────► Won
-//              ──not live yet, park it──────────────────────────► Suspect
 //
-//   SUSPECT is no longer the first rung of a ladder; it is a siding. Something
-//   parked there is budgetary, or an expansion a year or more out, and it says
-//   which. It rejoins the line when the enquiry becomes real.
+//   BUDGETARY QUOTATION is a price given to help somebody size a project, not
+//   an offer against a live requirement. It is OUT of the open pipeline and
+//   out of the forecast — see lib/risansi-dashboard. It was the Prospect stage
+//   until Nov 2026, which held nothing; the 195 enquiries still parked in
+//   Suspect and marked "Budgetary" were moved into it.
+//
+//   The stage before it was called SUSPECT. The rename is not cosmetic: a
+//   siding for parked enquiries became the front of the line for every lead,
+//   and 82% of what sat there was budgetary and now has a stage of its own.
 //
 //   The direct Prospect → Won jump exists because a rate-contract or repeat
 //   order needs no quotation — the price is already agreed. Forcing those
@@ -40,10 +47,26 @@ export const OPPORTUNITY_CATEGORIES = [
   'Against Rate Contract', 'New Enquiry', 'Repeat Order',
 ] as const;
 
-/** Why an enquiry is parked rather than live. Budgetary lives here now, not on category. */
+/**
+ * How far out a prospect is, when it is not live yet.
+ *
+ * 'Budgetary' is gone from the list and is a STAGE now — it was 211 of the 213
+ * answers ever given, which is what prompted the change. The column keeps its
+ * name (suspect_reason) and its CHECK still allows the old value, so the rows
+ * that hold it are readable; nothing offers it again.
+ */
 export const SUSPECT_REASONS = [
-  'Budgetary', 'Expansion within 1 year', 'Expansion more than 1 year',
+  'Expansion within 1 year', 'Expansion more than 1 year',
 ] as const;
+
+/**
+ * Whether a quotation is a real offer or a price to size a project by.
+ *
+ * Asked on the quotation itself as well as being a stage, because a deal can
+ * reach Quoted and only then turn out to have been indicative. Budgetary, by
+ * either route, is excluded from the open pipeline and the forecast.
+ */
+export const QUOTATION_TYPES = ['Non-budgetary', 'Budgetary'] as const;
 
 export const HOLD_REASONS = [
   'Awaiting client budget', 'Awaiting technical clearance', 'Project deferred',
@@ -53,7 +76,7 @@ export const HOLD_REASONS = [
 /** Categories that may close without a quotation ever being issued. */
 export const DIRECT_WIN_CATEGORIES: readonly string[] = ['Against Rate Contract', 'Repeat Order'];
 
-export const CREATE_STAGES = ['Prospect', 'Suspect', 'Quoted', 'Negotiating', 'Won', 'Lost'] as const;
+export const CREATE_STAGES = ['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'Won', 'Lost'] as const;
 export type CreateStage = typeof CREATE_STAGES[number];
 
 /**
@@ -66,7 +89,7 @@ export type CreateStage = typeof CREATE_STAGES[number];
  * indexes this list, so the sequence is free to say something true.
  */
 export const ALL_STAGES = [
-  'Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped',
+  'Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped',
 ] as const;
 export type OppStage = typeof ALL_STAGES[number];
 
@@ -79,7 +102,7 @@ export type OppStage = typeof ALL_STAGES[number];
  * would have hidden exactly the fields Source was added to capture.
  */
 export const STAGE_RANK: Record<OppStage, number> = {
-  Suspect: 1, Prospect: 1, Quoted: 2, Negotiating: 3, 'On Hold': 3,
+  Prospect: 1, 'Budgetary Quotation': 2, Quoted: 2, Negotiating: 3, 'On Hold': 3,
   Won: 4, Lost: 4, Dropped: 4,
 };
 
@@ -88,8 +111,8 @@ export const STAGE_RANK: Record<OppStage, number> = {
 // else. See lib/risansi-probability-codes.ts.
 
 export const STAGE_HINT: Record<OppStage, string> = {
-  Prospect:    'An enquiry has arrived. Capture where it came from and what it is for.',
-  Suspect:     'Parked — budgetary, or an expansion some way off. Say which.',
+  Prospect:    'A lead, or a discussion worth keeping. Say when it is expected and what was said.',
+  'Budgetary Quotation': 'An indicative price, to help them size a project. Out of the pipeline and the forecast.',
   Quoted:      'A quotation has gone out. Capture the quote, the offer and its line items.',
   Negotiating: 'The quote is on the table and terms are moving.',
   'On Hold':   'Paused for a reason outside the deal itself.',
@@ -102,7 +125,7 @@ export const STAGE_HINT: Record<OppStage, string> = {
 export const PROSPECT_EXITS = [
   { to: 'Quoted' as const,      label: 'Quotation issued',   hint: 'Capture the quote and its line items.' },
   { to: 'Won' as const,         label: 'Order received',     hint: 'Rate contract or repeat order — no quotation needed.', onlyCategories: DIRECT_WIN_CATEGORIES },
-  { to: 'Suspect' as const,     label: 'Park it',            hint: 'Budgetary, or an expansion further out.' },
+  { to: 'Budgetary Quotation' as const, label: 'Budgetary price given', hint: 'Indicative only — stays out of the pipeline and the forecast.' },
   { to: 'Dropped' as const,     label: 'Enquiry regretted',  hint: 'The enquiry will not proceed.' },
 ];
 
@@ -168,10 +191,28 @@ export const OPP_FIELDS: OppFieldDef[] = [
   { name: 'enquiry_no',           label: 'Enquiry No.',       kind: 'text',   asked: 'Prospect', placeholder: 'RIL/EN/…' },
   { name: 'enquiry_date',         label: 'Enquiry Date',      kind: 'date',   asked: 'Prospect' },
   { name: 'unit_project',         label: 'Project Name / Unit', kind: 'text', asked: 'Prospect', full: true, placeholder: 'e.g. Balrampur Chini — Unit 2, Spent Wash' },
-  { name: 'notes',                label: 'Notes',             kind: 'textarea', asked: 'Prospect', full: true },
+  // Required, because a Prospect IS the discussion. "Any lead or discussion
+  // with client to be captured" — an opportunity raised with nothing written
+  // against it records that somebody spoke to someone, and nothing else.
+  { name: 'notes', label: 'Lead / discussion', kind: 'textarea', asked: 'Prospect', full: true,
+    requiredAt: ['Prospect'],
+    placeholder: 'What was asked for, what was said, what happens next.',
+    help: 'Any lead or discussion worth keeping. Carried through every later stage.' },
 
-  // ── Suspect · the siding ────────────────────────────────────
-  { name: 'suspect_reason', label: 'Why parked', kind: 'select', asked: 'Suspect', onlyStages: ['Suspect'], requiredAt: ['Suspect'], options: SUSPECT_REASONS },
+  // ── Prospect · how far out it is ────────────────────────────
+  // Optional now. It was required of every Suspect and 211 of its 213 answers
+  // were 'Budgetary', which is a stage of its own since Nov 2026 — so the one
+  // thing it reliably captured no longer belongs to it.
+  { name: 'suspect_reason', label: 'Expansion horizon', kind: 'select', asked: 'Prospect',
+    onlyStages: ['Prospect'], options: SUSPECT_REASONS,
+    help: 'Only when the requirement is a year or more out.' },
+
+  // ── Budgetary Quotation · is this a real offer? ─────────────
+  // Asked here and still answerable at Quoted, because a deal can reach a
+  // formal quotation and only then turn out to have been indicative all along.
+  { name: 'quotation_type', label: 'Quotation type', kind: 'select', asked: 'Budgetary Quotation',
+    requiredAt: ['Budgetary Quotation', 'Quoted'], options: QUOTATION_TYPES,
+    help: 'Budgetary is a price to size a project by. It stays out of the open pipeline and the forecast.' },
 
   // ── Quoted · the quotation ──────────────────────────────────
   { name: 'product_type',    label: 'Product Type',   kind: 'select', asked: 'Quoted', requiredAt: [...QUOTE_STAGES, 'Won', 'Lost'], options: PRODUCT_TYPES },
@@ -183,7 +224,11 @@ export const OPP_FIELDS: OppFieldDef[] = [
   // Asked again while negotiating: the closure month is what moves when a deal
   // is being argued over, and Best-case and Probability-weighted are built from
   // Quoted plus Negotiating, so both halves need a date somebody stands behind.
-  { name: 'eta_text',        label: 'Expected Close', kind: 'month',  asked: 'Quoted', reaskedAt: ['Negotiating'] },
+  // Asked at Prospect, not at Quoted: "Prospect must have a expected date".
+  // A lead with no date on it is the one that sits for a year without anybody
+  // noticing. Asked again while negotiating, which is when it actually moves.
+  { name: 'eta_text',        label: 'Expected Close', kind: 'month',  asked: 'Prospect',
+    requiredAt: ['Prospect'], reaskedAt: ['Negotiating'] },
 
   // ── On Hold ─────────────────────────────────────────────────
   { name: 'hold_reason', label: 'Hold Reason', kind: 'select', asked: 'On Hold', onlyStages: ['On Hold'], requiredAt: ['On Hold'], options: HOLD_REASONS },
@@ -304,10 +349,10 @@ export const isDropReason = (v: unknown): v is DropReason =>
   typeof v === 'string' && (DROP_REASONS as readonly string[]).includes(v);
 
 /** Stages that keep a free-text remark each time they are entered. */
-export const REMARK_STAGES: OppStage[] = ['Suspect', 'Negotiating', 'On Hold', 'Lost', 'Dropped'];
+export const REMARK_STAGES: OppStage[] = ['Budgetary Quotation', 'Negotiating', 'On Hold', 'Lost', 'Dropped'];
 export const REMARK_LABEL: Partial<Record<OppStage, string>> = {
   Negotiating: 'Follow-up Remarks',
-  Suspect: 'Remarks', 'On Hold': 'Remarks', Lost: 'Remarks', Dropped: 'Remarks',
+  'Budgetary Quotation': 'Remarks', 'On Hold': 'Remarks', Lost: 'Remarks', Dropped: 'Remarks',
 };
 
 // ── Queries over the catalogue ────────────────────────────────
@@ -375,7 +420,9 @@ export function labelsFor(names: string[]): string[] {
 
 /** Does this stage carry a quotation block (line items, revisions, documents)? */
 export function stageHasQuote(stage: OppStage): boolean {
-  return STAGE_RANK[stage] >= STAGE_RANK.Quoted && stage !== 'Suspect';
+  // Budgetary Quotation carries one too: it IS a quotation, just not an offer.
+  // Prospect sits below the rank and so does not.
+  return STAGE_RANK[stage] >= STAGE_RANK.Quoted;
 }
 
 /** The moves available from a Prospect, given its category. */

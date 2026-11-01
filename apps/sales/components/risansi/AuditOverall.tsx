@@ -463,10 +463,10 @@ function Actions({ rows }: { rows: OverallData['actions'] }) {
 function Funnel({ rows }: { rows: OverallData['funnel'] }) {
   // The line an opportunity travels, so the bars read as a journey rather than
   // as an alphabetical list of stages.
-  const ORDER = ['Prospect', 'Suspect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'];
+  const ORDER = ['Budgetary Quotation', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'];
   const TONE: Record<string, string> = {
     Won: GREEN, Lost: RED, Dropped: MUTED, 'On Hold': AMBER,
-    Quoted: NAVY, Negotiating: NAVY, Prospect: 'var(--fg-3)', Suspect: MUTED,
+    Quoted: NAVY, Negotiating: NAVY, 'Budgetary Quotation': 'var(--fg-3)', Prospect: MUTED,
   };
   const sorted = ORDER.map(s => rows.find(r => r.stage === s)).filter(Boolean) as OverallData['funnel'];
   const max = Math.max(...sorted.map(r => r.n), 1);

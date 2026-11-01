@@ -513,7 +513,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
         WHERE ${tourF} AND ${inMonths(OPP_WINDOW_DATE)} GROUP BY 1`)).rows, []),
 
     // 4. Offer Status — mapped from stage. Every stage, including Prospect and
-    //    Suspect: STAGE_TO_OFFER has wording for them now, so their value lands
+    //    Budgetary Quotation: STAGE_TO_OFFER has wording for them now, so their value lands
     //    in a row instead of nowhere.
     q(async () => (await risansiPool.query<{ stage: string; val: string }>(
       `SELECT o.stage, round(sum(${OPP_VALUE_INR}))::text val
@@ -849,7 +849,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
     ...OFFER_PART_1.filter(l => l in offerAgg).map(offerRow),
     { label: 'Total — Active, Hold, Lost, Won', vals: [sumOf(OFFER_PART_1)], strong: true },
     ...OFFER_PART_2.filter(l => l in offerAgg).map(offerRow),
-    { label: 'Total — Suspect, Dropped', vals: [sumOf(OFFER_PART_2)], strong: true },
+    { label: 'Total — Budgetary Quotation, Dropped', vals: [sumOf(OFFER_PART_2)], strong: true },
   ];
   if (offerUnmapped) offerRows.push({ label: 'Other stage', vals: [offerUnmapped] });
   offerRows.push({ label: 'Grand Total', vals: [Object.values(offerAgg).reduce((a, b) => a + b, 0) + offerUnmapped], strong: true });

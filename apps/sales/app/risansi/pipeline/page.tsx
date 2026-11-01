@@ -583,7 +583,7 @@ export default async function PipelinePage({
     // 6. Filter options. Stage is the full pipeline, every column on the board —
     //    not just the open stages that happen to have data — so a rep can filter
     //    to Won / Lost / Dropped too.
-    Promise.resolve(['Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped']),
+    Promise.resolve(['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped']),
 
     q<string[]>(async () => {
       const { rows } = await risansiPool.query<{ product_type: string }>(
@@ -778,7 +778,7 @@ export default async function PipelinePage({
   const oppWeight = (o: OppRow) =>
     /spare/i.test(o.product_type ?? '') ? SPARES_WIN_PROBABILITY : probabilityWeight(o.probability_code);
   // The forecast set is the quoted pipe: Quoted and Negotiating only. A
-  // Suspect or Prospect carries no offer, so it has no place in a best case,
+  // A Prospect or a Budgetary Quotation carries no offer, so neither has a place in a best case,
   // and On Hold is parked by definition. Won is realised, not forecast, and
   // is not added to either figure (19 Sep) — the target bar still shows it
   // beside the weighted pipe, because reaching the target is won plus pipe.
@@ -996,7 +996,7 @@ export default async function PipelinePage({
             {/* Row 2 — forecast, unchanged. */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr', gap: 16, alignItems: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
               <ForecastBlock label="Best-case · Quoted + Negotiating" value={bestCase}
-                sub={`${forecastQuoted.length} quoted ${fmtCr(forecastQuoted.reduce((a, o) => a + o.value_cr, 0))} + ${forecastNegotiating.length} negotiating ${fmtCr(forecastNegotiating.reduce((a, o) => a + o.value_cr, 0))} · at 100% · no Suspect, Prospect, On Hold or Won`}
+                sub={`${forecastQuoted.length} quoted ${fmtCr(forecastQuoted.reduce((a, o) => a + o.value_cr, 0))} + ${forecastNegotiating.length} negotiating ${fmtCr(forecastNegotiating.reduce((a, o) => a + o.value_cr, 0))} · at 100% · no Prospect, Budgetary, On Hold or Won`}
                 color="var(--fg)" rate={usdRate} />
               <ForecastBlock label="Probability-weighted · same set" value={probabilityWeighted}
                 sub={`each quote × its own probability (spares at ${SPARES_WIN_PROBABILITY}%, no probability entered counts as 0%) · ${ratedPct}% of best-case value is rated${unratedCount ? `, ${unratedCount} quote${unratedCount === 1 ? '' : 's'} unrated` : ''} · ${bestCase > 0 ? Math.round((probabilityWeighted / bestCase) * 100) : 0}% of best case · Won not included`}

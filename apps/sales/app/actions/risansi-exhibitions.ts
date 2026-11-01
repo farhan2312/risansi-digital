@@ -1150,7 +1150,7 @@ export async function setMeetingFollowUp(exhibitionId: number, meetingId: number
       );
       taskId = rows[0].id;
     } else if (opts.type === 'Opportunity') {
-      // Created at Suspect on purpose. The pipeline's Quoted gateway forbids
+      // Created at Prospect on purpose. The pipeline's Quoted gateway forbids
       // jumping ahead, and a booth conversation is a lead, not a quotation.
       // value_cr is CRORES — the rupee figure is divided in SQL rather than in
       // JS, the way syncOfferRevisions already does it.
@@ -1158,7 +1158,7 @@ export async function setMeetingFollowUp(exhibitionId: number, meetingId: number
         `INSERT INTO opportunities
            (client_id, rep_id, product, product_type, stage, value_cr, offer_value_inr,
             notes, auto_created, auto_source, created_by, created_at, updated_at)
-         VALUES ($1,$2,$3,'PCP','Suspect',$4::numeric / 10000000,$4,$5,TRUE,'exhibition',$6,NOW(),NOW())
+         VALUES ($1,$2,$3,'PCP','Prospect',$4::numeric / 10000000,$4,$5,TRUE,'exhibition',$6,NOW(),NOW())
          RETURNING id`,
         [
           m.client_id, ownerId,
@@ -1273,7 +1273,7 @@ export async function meetingLeadPrefill(exhibitionId: number, meetingId: number
 }
 
 /**
- * Create the lead: a Prospective-Lead client, its first contact, and a Suspect
+ * Create the lead: a Prospective-Lead client, its first contact, and a Prospect
  * opportunity carrying the potential value, all linked back to the meeting.
  *
  * The form is the Client Master's own, so everything it enforces about a client
@@ -1405,7 +1405,7 @@ export async function convertMeetingToLead(
     ).catch(() => {});
   }
 
-  // The requirement discussed, as a Suspect: nothing has been quoted, and the
+  // The requirement discussed, as a Prospect: nothing has been quoted, and the
   // potential value is the rep's estimate from the stand.
   const potential = meeting.potential_value_inr == null ? null : Number(meeting.potential_value_inr);
   const { rows: oRows } = await risansiPool.query<{ id: number }>(
@@ -1413,7 +1413,7 @@ export async function convertMeetingToLead(
     // notes say where it came from instead.
     `INSERT INTO opportunities (client_id, rep_id, stage, product, product_type, value_cr,
                                 notes, created_by, created_at, updated_at)
-     VALUES ($1,$2,'Suspect',$3,'PCP',$4,$5,$6,NOW(),NOW())
+     VALUES ($1,$2,'Prospect',$3,'PCP',$4,$5,$6,NOW(),NOW())
      RETURNING id`,
     [clientId, repId, meeting.requirement?.slice(0, 120) || 'Exhibition enquiry',
      potential && potential > 0 ? potential / 10000000 : null,

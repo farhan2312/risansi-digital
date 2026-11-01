@@ -8,13 +8,13 @@
 // stage rather than being one generic list rendered eight times.
 
 export const DASH_STAGES = [
-  'Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped',
+  'Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped',
 ] as const;
 export type DashStage = typeof DASH_STAGES[number];
 
 /** URL slug ⇄ stage name. 'On Hold' is the only one that isn't just lowercase. */
 export const STAGE_SLUG: Record<DashStage, string> = {
-  Suspect: 'suspect', Prospect: 'prospect', Quoted: 'quoted', Negotiating: 'negotiating',
+  Prospect: 'suspect', 'Budgetary Quotation': 'prospect', Quoted: 'quoted', Negotiating: 'negotiating',
   'On Hold': 'on-hold', Won: 'won', Lost: 'lost', Dropped: 'dropped',
 };
 
@@ -33,8 +33,8 @@ export const stageHref = (stage: string, query?: URLSearchParams): string => {
 
 /** Column hue, matching the kanban board so the pages feel like the same object. */
 export const STAGE_COLOR: Record<DashStage, string> = {
-  Suspect:     'var(--info)',
-  Prospect:    '#5a86c2',
+  Prospect:     'var(--info)',
+  'Budgetary Quotation':    '#5a86c2',
   Quoted:      '#c69347',
   Negotiating: 'var(--accent)',
   'On Hold':   '#7C3AED',
@@ -45,8 +45,8 @@ export const STAGE_COLOR: Record<DashStage, string> = {
 
 /** One line under the page title saying what this stage means. */
 export const STAGE_BLURB: Record<DashStage, string> = {
-  Suspect:     'Early leads, roughly 1–2 years out. The question here is who owns them and whether they have gone cold.',
-  Prospect:    'Active interest with a value estimate, roughly 6 months out.',
+  Prospect:     'Early leads, roughly 1–2 years out. The question here is who owns them and whether they have gone cold.',
+  'Budgetary Quotation':    'Active interest with a value estimate, roughly 6 months out.',
   Quoted:      'A quotation is out and the outcome is undecided. The question is which of these are going stale.',
   Negotiating: 'The quote is on the table and the price is moving. Every re-price is recorded against its date.',
   'On Hold':   'Parked, not lost. Worth a periodic sweep so nothing sits here by accident.',
@@ -82,7 +82,7 @@ export const AGE_BUCKETS = [
  * than showing nothing.
  */
 export const AGE_BASIS: Record<DashStage, 'quote' | 'entered'> = {
-  Suspect: 'entered', Prospect: 'entered', Quoted: 'quote', Negotiating: 'quote',
+  Prospect: 'entered', 'Budgetary Quotation': 'entered', Quoted: 'quote', Negotiating: 'quote',
   'On Hold': 'quote', Won: 'entered', Lost: 'entered', Dropped: 'entered',
 };
 
@@ -114,7 +114,7 @@ const COMMON_TAIL: StageColumn[] = [
 ];
 
 export const STAGE_COLUMNS: Record<DashStage, StageColumn[]> = {
-  Suspect: [
+  Prospect: [
     // The date a stage with no quote has: when the enquiry came in.
     { key: 'enquiry_date', label: 'Enquiry date', width: 100 },
     ...COMMON_HEAD,
@@ -123,7 +123,7 @@ export const STAGE_COLUMNS: Record<DashStage, StageColumn[]> = {
     ...COMMON_TAIL,
     { key: 'age_days',  label: 'Days in stage', num: true, width: 100 },
   ],
-  Prospect: [
+  'Budgetary Quotation': [
     { key: 'enquiry_date', label: 'Enquiry date', width: 100 },
     ...COMMON_HEAD,
     { key: 'value_cr',    label: 'Value', num: true, width: 90 },

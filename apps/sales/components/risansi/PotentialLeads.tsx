@@ -11,7 +11,7 @@ import { ClientFormDrawer } from './ClientFormDrawer';
 // The mark is made at the stand and nobody is told; this is where it is read.
 // Only the person running the review acts on it — they either open the client
 // form, pre-filled from the meeting, and create a Prospective-Lead with a
-// Suspect opportunity for the potential value, or set it aside with a reason.
+// Prospect opportunity for the potential value, or set it aside with a reason.
 // The exhibition cannot close while one is neither (closeReadiness).
 
 export interface PotentialMeeting {
@@ -112,7 +112,7 @@ export function PotentialLeads({ exhibitionId, meetings, editable }: {
                 ) : made ? (
                   <div style={{ fontSize: 11.5, color: 'var(--pos)' }}>
                     ✓ Lead created — <a href={`/risansi/clients/${m.lead_client_id}`} style={LINK}>{m.lead_client_code ?? 'open client'}</a>
-                    {m.lead_opportunity_id && <div style={{ color: 'var(--fg-3)', marginTop: 2 }}>with a Suspect opportunity</div>}
+                    {m.lead_opportunity_id && <div style={{ color: 'var(--fg-3)', marginTop: 2 }}>with a Prospect opportunity</div>}
                   </div>
                 ) : setAside ? (
                   <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>

@@ -614,7 +614,7 @@ export default async function ClientProfilePage({
   const openWonCount = wonOpps.filter(o => oihPerWon(o) > 0).length;   // Wons still to be fulfilled
 
   // ── Quotation pipeline summary (stage funnel + conversion metrics) ──
-  const PIPE_STAGES = ['Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'];
+  const PIPE_STAGES = ['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'];
   const stageAgg: Record<string, { count: number; val: number }> = {};
   for (const o of allOpps) {
     const a = (stageAgg[o.stage] ??= { count: 0, val: 0 });
@@ -640,7 +640,7 @@ export default async function ClientProfilePage({
   const quotesAttached = allOpps.filter(o => (o.doc_count ?? 0) > 0).length;
   const quotesLegacy   = allOpps.filter(o => (o.doc_count ?? 0) === 0 && isLegacyQuotation(o.quotation_link)).length;
   const STAGE_HUE: Record<string, string> = {
-    Suspect: '#6B7FA3', Prospect: '#1A5CB8', Quoted: '#D97706', Negotiating: '#F97316',
+    Prospect: '#6B7FA3', 'Budgetary Quotation': '#1A5CB8', Quoted: '#D97706', Negotiating: '#F97316',
     'On Hold': '#7C3AED', Won: '#0E9F6E', Lost: '#E02424', Dropped: '#64748B',
   };
 

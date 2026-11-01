@@ -1887,7 +1887,7 @@ function ExpansionOpportunityForm({ visitId, clientId, clientName, repId, isClos
   const [tsmExternalEmail, setTsmExternalEmail] = useState(existingOpp?.tsm_external_email ?? '');
   const [product, setProduct]           = useState(existingOpp?.product ?? '');
   const [productType, setProductType]   = useState(existingOpp?.product_type ?? 'PCP');
-  const [stage, setStage]               = useState(existingOpp?.stage ?? 'Suspect');
+  const [stage, setStage]               = useState(existingOpp?.stage ?? 'Prospect');
   const [valueInr, setValueInr]         = useState(
     existingOpp?.value_cr ? String(Math.round(parseFloat(String(existingOpp.value_cr)) * 10_000_000)) : '',
   );
@@ -1991,7 +1991,7 @@ function ExpansionOpportunityForm({ visitId, clientId, clientName, repId, isClos
             <div>
               <label style={LBL}>Stage</label>
               <select value={stage} onChange={e => setStage(e.target.value)} disabled={isClosed} style={INP}>
-                {['Suspect', 'Prospect', 'Quoted', 'Negotiating'].map(s => <option key={s}>{s}</option>)}
+                {['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating'].map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
           </div>

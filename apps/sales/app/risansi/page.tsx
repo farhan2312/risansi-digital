@@ -61,8 +61,8 @@ function compColor(name: string): string {
 // ── Funnel stage colours ───────────────────────────────────────
 
 const FUNNEL_COLORS: Record<string, string> = {
-  Suspect:     '#93C5FD',
-  Prospect:    '#3B82F6',
+  Prospect:     '#93C5FD',
+  'Budgetary Quotation':    '#3B82F6',
   Quoted:      '#1D4ED8',
   Negotiating: 'var(--warn)',
   'On Hold':   'var(--purple)',
@@ -737,7 +737,8 @@ export default async function ExecDashboardPage({ searchParams }: {
   const funnelOpen       = funnel.filter(r => (OPEN_STAGES as readonly string[]).includes(r.stage));
   const wonRow           = funnel.find(r => r.stage === 'Won') ?? { stage: 'Won', count: 0, value: 0 };
   // Open Pipeline is the quoted pipe: Quoted and Negotiating only (19 Sep).
-  // A Suspect or Prospect carries no offer and On Hold is parked, so none of
+  // A Prospect or a Budgetary Quotation carries no offer worth forecasting and
+  // On Hold is parked, so none of
   // them is money in play; the funnel below still shows every stage.
   const quotedPipe       = funnelOpen.filter(r => (PIPELINE_STAGES as readonly string[]).includes(r.stage));
   const pipelineTotal    = quotedPipe.reduce((s, r) => s + r.value, 0);
@@ -918,7 +919,7 @@ export default async function ExecDashboardPage({ searchParams }: {
             value={pipelineTotal > 0 ? fmtCr(pipelineTotal) : '—'}
             delta={pipelineTotal > 0 ? `${quotedCount} quoted · ${negotiatingCount} in negotiation` : 'No quoted opportunities'}
             deltaPos={pipelineTotal > 0}
-            sub={pipelineTotal > 0 ? 'Quoted value at 100% · no Suspect, Prospect or On Hold' : 'Add via Opportunities →'}
+            sub={pipelineTotal > 0 ? 'Quoted value at 100% · no Prospect, Budgetary or On Hold' : 'Add via Opportunities →'}
             subHref={pipelineTotal === 0 ? '/risansi/pipeline' : undefined}
             spark={[]}
             drill={pipelineTotal > 0 ? { kind: 'pipeline' } : undefined}

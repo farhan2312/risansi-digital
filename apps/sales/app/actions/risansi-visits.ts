@@ -97,7 +97,7 @@ export async function saveExpansionOpportunity(input: {
   const existingId = existing.rows[0]?.id ?? null;
 
   // Toggled "No" → drop the draft expansion opp if one exists — but only while
-  // it is still a pristine draft. Once it has moved past Suspect, or picked up a
+  // it is still a pristine draft. Once it has moved past Prospect, or picked up a
   // Sales Order, deleting it would hard-remove a real deal (SOs cascade). In that
   // case DETACH it from the visit instead and keep it standing on the board.
   if (!input.hasExpansion) {
@@ -108,7 +108,7 @@ export async function saveExpansionOpportunity(input: {
            FROM opportunities o WHERE id = $1`, [existingId],
       )).rows[0];
       const prod = info?.product ?? 'Expansion';
-      const advanced = info && (info.stage !== 'Suspect' || info.so > 0);
+      const advanced = info && (info.stage !== 'Prospect' || info.so > 0);
       if (advanced) {
         await risansiPool.query(
           `UPDATE opportunities SET visit_id = NULL, auto_source = NULL, updated_at = NOW() WHERE id = $1`,
@@ -880,7 +880,7 @@ export async function submitVisit(visitId: string): Promise<SaveResult> {
       visit_id:     visitId,
       product:      `${equip.supplier} ${equip.model ?? ''} replacement`.trim(),
       product_type: oppProductType(equip.pump_type),
-      stage:        'Suspect',
+      stage:        'Prospect',
       notes:        `Auto-created: EOL ${equip.supplier} pump (${equip.application ?? 'n/a'}) observed.`,
       auto_source:  'displacement',
       created_by:   session.user.email,

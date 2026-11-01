@@ -8,8 +8,8 @@
 // Plain hex rather than CSS variables: these are stage identities rather than
 // theme colours, and they read the same in light and dark.
 export const STAGE_TONE: Record<string, string> = {
-  Prospect:    '#1A5CB8',
-  Suspect:     '#6B7FA3',
+  Prospect:              '#6B7FA3',
+  'Budgetary Quotation': '#1A5CB8',
   Quoted:      '#D97706',
   Negotiating: '#F97316',
   'On Hold':   '#7C3AED',

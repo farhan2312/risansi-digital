@@ -100,7 +100,7 @@ export async function setPrimaryRep(clientId: number, repId: number | null): Pro
         `UPDATE opportunities o SET rep_id = $2, updated_at = NOW()
            FROM clients c
           WHERE c.id = $1 AND o.client_id = c.id
-            AND o.stage IN ('Suspect', 'Prospect', 'Quoted', 'Negotiating', 'On Hold')
+            AND o.stage IN ('Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold')
             AND ${stray('o.rep_id')}
           RETURNING o.id, COALESCE(o.quote_ref, o.product) AS label, o.rep_id AS from_rep`,
         [clientId, repId]);

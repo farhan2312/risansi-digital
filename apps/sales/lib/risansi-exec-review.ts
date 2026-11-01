@@ -54,14 +54,14 @@ export const TURN_ORDER = [
 /**
  * Stage → the offer-status wording the review uses.
  *
- * Prospect and Suspect are in here. They used to be left out, and because the
+ * Prospect and Budgetary Quotation are in here. They used to be left out, and because the
  * panel aggregates by label and then totals the labels, their value appeared in
- * neither a row nor the Grand Total — ₹26.22 Cr of parked Suspect enquiries
+ * neither a row nor the Grand Total — ₹26.22 Cr of unquoted enquiries
  * missing from a table whose heading promises every offer. A status with no
  * wording is still a status.
  */
 export const STAGE_TO_OFFER: Record<string, string> = {
-  Prospect: 'Enquiry — not yet quoted', Suspect: 'Parked — budgetary or future',
+  Prospect: 'A lead — nothing quoted yet', 'Budgetary Quotation': 'Indicative price, not an offer',
   Quoted: 'Active', Negotiating: 'Active', 'On Hold': 'Hold-Active',
   Won: 'Order Received', Lost: 'Order Lost by RIL', Dropped: 'Requirement Closed',
 };
@@ -78,7 +78,7 @@ export const OFFER_STATUS_ORDER = (() => {
   ];
   const all = [...new Set(Object.values(STAGE_TO_OFFER))];
   // A label the preferred order does not know about still gets a row, at the
-  // end. Dropping it is how the panel lost Prospect and Suspect in the first place.
+  // end. Dropping it is how the panel lost the two unquoted stages in the first place.
   return [...preferred.filter(l => all.includes(l)), ...all.filter(l => !preferred.includes(l))];
 })();
 
@@ -115,7 +115,7 @@ export const OPP_VALUE_INR = 'COALESCE(o.value_cr * 10000000, o.offer_value_inr,
  * FY window excludes is still live, because an old Won is history and an old
  * Quoted is work somebody is still waiting on.
  */
-export const OPEN_STAGES = ['Prospect', 'Suspect', 'Quoted', 'Negotiating', 'On Hold'] as const;
+export const OPEN_STAGES = ['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold'] as const;
 
 /** Which of a TSM's accounts a figure is counted over. */
 export type AccountScope = 'own' | 'all' | 'covered';
@@ -316,5 +316,5 @@ export const conversionWhereSql = (
 export const CONVERSION_INCLUDES =
   'Quoted, Negotiating, Lost and Won — every enquiry a quotation actually went out on.';
 export const CONVERSION_EXCLUDES =
-  'Suspect and Prospect (no quotation yet), Dropped (the requirement went away), On Hold (paused, moving neither way), '
+  'Prospect and Budgetary Quotation (no firm quotation), Dropped (the requirement went away), On Hold (paused, moving neither way), '
   + 'and any opportunity marked budgetary by its suspect or drop reason, whatever stage it now sits at.';

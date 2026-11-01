@@ -57,11 +57,11 @@ const DISPOSITIONS: { value: Disposition; label: string; needsClient: boolean; h
   { value: 'None',        label: 'No follow-up needed', needsClient: false, hint: 'Closes this meeting off with no further work.' },
   { value: 'Visit',       label: 'Schedule a visit',    needsClient: true,  hint: 'Creates a planned visit in the Field calendar.' },
   { value: 'Action',      label: 'Assign an action',    needsClient: false, hint: 'Creates a task in their Action Registry.' },
-  { value: 'Opportunity', label: 'Raise an opportunity', needsClient: true, hint: 'Creates a Suspect-stage opportunity in the pipeline.' },
+  { value: 'Opportunity', label: 'Raise an opportunity', needsClient: true, hint: 'Creates a Prospect-stage opportunity in the pipeline.' },
   // needsClient is false on purpose: the whole point is that there is no client
   // yet. It is the one disposition that refuses a company already on the books.
   { value: 'Lead',        label: 'Convert to Prospective Lead', needsClient: false,
-    hint: 'Creates a Prospective-Lead client with an auto LEAD_ code, every contact met, and a Suspect opportunity for the potential value.' },
+    hint: 'Creates a Prospective-Lead client with an auto LEAD_ code, every contact met, and a Prospect opportunity for the potential value.' },
 ];
 
 /**
@@ -371,7 +371,7 @@ function MeetingReviewRow({ exhibitionId, meeting: m, users, editable }: {
                   <div>
                     <label style={LABEL}>Estimated value (₹)</label>
                     <input value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" style={INPUT} />
-                    <p style={HINT}>Starts at Suspect — a stand conversation is a lead, not a quotation.</p>
+                    <p style={HINT}>Starts at Prospect — a stand conversation is a lead, not a quotation.</p>
                   </div>
                 </div>
               )}
@@ -834,7 +834,7 @@ function ClosedBanner({ closedAt, closedByName, exhibitionId, isSysadmin }: {
 //
 // The company met at the stand is not on the books. Converting creates a
 // Prospective-Lead client with an auto-generated LEAD_ code, carries every
-// person met across as a contact (the first primary), and opens a Suspect
+// person met across as a contact (the first primary), and opens a Prospect
 // opportunity for the potential value the rep wrote down. convertMeetingToLead
 // does all of that; what follows is the form it reads.
 //
@@ -1165,7 +1165,7 @@ export function MeetingLeadDialog({ exhibitionId, meeting, users, onDone }: {
                 {meeting.company_name} → Prospective Lead
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--fg-2)', marginTop: 3 }}>
-                Creates the client, its contacts and a Suspect opportunity.
+                Creates the client, its contacts and a Prospect opportunity.
               </div>
             </div>
             <CloseX onClick={guard.requestClose} title="Close this form" />

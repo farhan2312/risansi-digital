@@ -14,25 +14,26 @@ import { useCloseGuard, CloseX, CloseConfirm, KeepOpenHint } from './FormCloseGu
 import type { FieldValues } from './OppFields';
 
 /** The only stages an opportunity may be raised at. */
-const START_STAGES = ['Prospect', 'Suspect', 'Quoted'] as const;
+const START_STAGES = ['Prospect', 'Budgetary Quotation', 'Quoted'] as const;
 type StartStage = typeof START_STAGES[number];
 
 const START_BLURB: Record<StartStage, string> = {
-  Prospect: 'An enquiry has come in.',
-  Suspect:  'Parked — budgetary or an expansion further out.',
+  Prospect: 'A lead, or a discussion worth keeping.',
+  'Budgetary Quotation': 'An indicative price has gone out, not an offer.',
   Quoted:   'A quotation has already gone out.',
 };
 
 // Raising an opportunity.
 //
-// It may start at Prospect, Suspect or Quoted — the three states something can
-// genuinely be in the moment you first hear about it. Not Won or Lost: those are
-// outcomes, and a record that claims to have been born Won leaves no trail of
-// how it got there.
+// It may start at Prospect, Budgetary Quotation or Quoted — the three states
+// something can genuinely be in the moment you first hear about it. Not Won or
+// Lost: those are outcomes, and a record that claims to have been born Won
+// leaves no trail of how it got there.
 //
 // Picking a stage decides how much is asked. The catalogue knows which fields
-// each stage carries, so Prospect asks the enquiry block, Suspect adds why it is
-// parked, and Quoted adds the quote header, its line items and the document.
+// each stage carries, so Prospect asks the enquiry block with the expected date
+// and what was discussed, Budgetary Quotation adds the quotation type, and
+// Quoted adds the quote header, its line items and the document.
 // That is the "fill everything up to that stage" rule, read from one place
 // rather than re-encoded in the form.
 
