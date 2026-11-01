@@ -47,17 +47,20 @@ const NotificationBell = () => {
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
+  // Badge and ringing: unread only. Read ones stay in the list for a day.
+  const unreadCount = items.filter((n) => n.unread).length;
+
   const handleToggle = () => {
     const next = !open;
     setOpen(next);
-    // Mark read on open, not on every poll — so the badge count is stable
-    // while the user is looking at it, then clears once they've seen it.
-    if (next && items.length > 0) {
+    // Mark read on open, not on every poll - the items stay listed (as read)
+    // for at least a day; only the badge and the ringing stop.
+    if (next && unreadCount > 0) {
       // No ids: clears BOTH feeds - the reporter flags and the admin watermark.
       // Passing ids would only clear reports the caller filed, leaving the
       // "new bug" badge stuck on.
       markBugNotificationsRead()
-        .then(() => setItems([]))
+        .then(() => setItems((cur) => cur.map((n) => ({ ...n, unread: false }))))
         .catch(() => {
           // Leave the badge as-is if the clear failed — better to re-show a
           // notification than silently drop it.
@@ -69,19 +72,19 @@ const NotificationBell = () => {
     <div className="notif-bell-root" ref={rootRef}>
       <button
         type="button"
-        className={`notif-bell-btn${items.length > 0 ? " has-alert" : ""}`}
+        className={`notif-bell-btn${unreadCount > 0 ? " has-alert" : ""}`}
         onClick={handleToggle}
-        aria-label={items.length > 0 ? `${items.length} unread notifications` : "Notifications"}
+        aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
       >
         <span className="notif-bell-icon" aria-hidden>🔔</span>
-        {items.length > 0 && <span className="notif-bell-badge">{items.length}</span>}
+        {unreadCount > 0 && <span className="notif-bell-badge">{unreadCount}</span>}
       </button>
 
       {open && (
         <div className="notif-bell-dropdown">
           <div className="notif-bell-dropdown-header">Notifications</div>
           {items.length === 0 ? (
-            <p className="notif-bell-empty">No new assignments, bug reports or updates.</p>
+            <p className="notif-bell-empty">No assignments, bug reports or updates in the last day.</p>
           ) : (
             <ul>
               {items.map((n) => (
@@ -95,12 +98,15 @@ const NotificationBell = () => {
                         }
                       : undefined
                   }
-                  style={n.kind === "assigned" ? { cursor: "pointer" } : undefined}
+                  style={{ ...(n.kind === "assigned" ? { cursor: "pointer" } : {}), ...(n.unread ? {} : { opacity: 0.6 }) }}
                   title={n.kind === "assigned" ? "Open Enquiries" : undefined}
                 >
                   <span className={`notif-status-dot status-${n.status.replace(/\s+/g, "-").toLowerCase()}`} />
                   <div>
-                    <div className="notif-item-title">{n.title}</div>
+                    <div className="notif-item-title">
+                      {n.unread && <span className="notif-new-chip">New</span>}
+                      {n.title}
+                    </div>
                     <div className="notif-item-status">
                       {n.kind === "assigned" ? (
                         <>

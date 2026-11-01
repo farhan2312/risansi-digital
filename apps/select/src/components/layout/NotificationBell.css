@@ -153,3 +153,17 @@
   .notif-bell-btn.has-alert .notif-bell-icon,
   .notif-bell-btn.has-alert .notif-bell-badge { animation: none; }
 }
+
+/* Unread items in the list (read ones stay a day, faded). */
+.notif-new-chip {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--neg, #dc2626);
+  color: white;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 15px;
+  vertical-align: 1px;
+}

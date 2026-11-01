@@ -98,6 +98,9 @@ export const projects = pgTable("projects", {
   /** The assignee has not seen this assignment yet - their top-bar bell shows
    *  it until they open the bell. Set when someone else assigns it to them. */
   assigneeUnread: boolean("assignee_unread").notNull().default(false),
+  /** When the assignee first opened the bell after it - the notification stays
+   *  in their bell (read) for a day after that. */
+  assigneeSeenAt: timestamp("assignee_seen_at", { withTimezone: true }),
   /** The client's reps, market type and zone in Market Intell, copied when
    *  the client is picked so the enquiry keeps what was true at the time. */
   clientPrimaryRep: varchar("client_primary_rep", { length: 255 }),
