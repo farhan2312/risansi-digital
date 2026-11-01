@@ -3056,3 +3056,8 @@ CREATE TABLE IF NOT EXISTS user_view_pages (
 ALTER TABLE order_pendency DROP CONSTRAINT IF EXISTS order_pendency_dept_check;
 ALTER TABLE order_pendency ADD  CONSTRAINT order_pendency_dept_check
     CHECK (dept IN ('billing', 'drawing', 'purchase', 'qc'));
+
+-- 0043  A pump EC's attachment: the SharePoint link given on the Pump Add-On,
+-- seen by Purchase, Planning, Assembly & Packing, Drawing, Quality and Orders.
+-- Idempotent and additive.
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS ec_link TEXT;

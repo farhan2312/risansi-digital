@@ -241,6 +241,8 @@ export type NewOrderInput = {
 
 /** Fields captured when adding an EC/pump item (the Add-On form). */
 export type NewItemInput = {
+  /** A pump EC's attachment: its SharePoint link. */
+  ec_link?: string;
   ec_no?: string;
   ec_date?: string;
   item_type?: string;
@@ -496,10 +498,10 @@ export async function createItem(
         order_id, ec_no, ec_date, item_type, pump_type, model_no, internal_model,
         quantity, orientation, suction, delivery, pump_sno, application, version,
         capacity, capacity_unit, head, head_unit, drive_motor_rating, drive_motor_rating_unit,
-        drive_motor_speed, pump_speed, liquid, tag_no, boi, base_plate
+        drive_motor_speed, pump_speed, liquid, tag_no, boi, base_plate, ec_link
      ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
+        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
      )
      RETURNING id, seq::int AS seq`,
     [
@@ -530,6 +532,7 @@ export async function createItem(
       nullify(input.boi),
       // A pump's is No unless said Yes; a Spare has none.
       input.item_type === "Spare" ? null : input.base_plate === "Yes" ? "Yes" : "No",
+      input.item_type === "Spare" ? null : nullify(input.ec_link),
     ]
   );
   return result.rows[0];
@@ -2785,6 +2788,7 @@ export async function listItemsForSection(
             o.sl_no::int AS sl_no,
             o.so_no,
             it.ec_no,
+            it.ec_link,
             it.item_type,
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
@@ -2958,6 +2962,8 @@ export type PurchaseQueueRow = {
   so_date: string | null;
   order_type: string | null;
   ec_no: string | null;
+  /** The EC's attachment (SharePoint link). */
+  ec_link?: string | null;
   boi: string | null;
   ld: string | null;
   ld_date: string | null;
@@ -2988,6 +2994,7 @@ export async function listItemsForPurchase(
             to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
             o.order_type,
             it.ec_no,
+            it.ec_link,
             it.item_type, it.model_no, it.pump_type, it.quantity, it.boi AS ec_boi,
             to_char(it.ec_date, 'YYYY-MM-DD') AS ec_date,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,

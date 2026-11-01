@@ -1,5 +1,6 @@
 "use client";
 
+import { EcLink } from "./ec-link";
 import { Fragment, useEffect, useState } from "react";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { ecBoiListAction } from "@/app/risansi/orders/actions";
@@ -135,7 +136,10 @@ export function OmEcsModal({
 
             <section role="tabpanel" className="rounded-xl border border-card-border">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border px-4 py-3">
-                <span className="font-semibold text-foreground">{str(current.ec_no) || "EC"}</span>
+                <span className="font-semibold text-foreground">
+                  {str(current.ec_no) || "EC"}
+                  <EcLink href={current.ec_link} />
+                </span>
                 {canManage && (
                   <span className="flex items-center gap-2">
                     <button
@@ -168,7 +172,13 @@ export function OmEcsModal({
                     )}
                     <div className="text-sm">
                       <dt className="text-[12px] text-muted">{f.label}</dt>
-                      <dd className="font-medium text-foreground">{formatDisplay(f, current[f.column]) || "—"}</dd>
+                      <dd className="break-all font-medium text-foreground">
+                        {f.column === "ec_link" ? (
+                          str(current.ec_link) ? <EcLink href={current.ec_link} label /> : "—"
+                        ) : (
+                          formatDisplay(f, current[f.column]) || "—"
+                        )}
+                      </dd>
                     </div>
                   </Fragment>
                 ))}

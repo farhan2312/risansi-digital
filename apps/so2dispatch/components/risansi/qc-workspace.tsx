@@ -1,5 +1,6 @@
 "use client";
 
+import { EcLink } from "./ec-link";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ExternalLink, FileCheck2, Link2, Loader2, MessageSquare, X } from "lucide-react";
@@ -275,7 +276,10 @@ export function QcWorkspace({
                               </td>
                             </>
                           )}
-                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>{str(row.ec_no) || "—"}</td>
+                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
+                            {str(row.ec_no) || "—"}
+                            <EcLink href={row.ec_link} />
+                          </td>
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.model_no) || "—"}</td>

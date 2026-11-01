@@ -1,5 +1,6 @@
 "use client";
 
+import { EcLink } from "./ec-link";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState } from "react";
@@ -354,7 +355,10 @@ export function PurchaseWorkspace({
                               </td>
                             </>
                           )}
-                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>{row.ec_no ?? "—"}</td>
+                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
+                            {row.ec_no ?? "—"}
+                            <EcLink href={row.ec_link} />
+                          </td>
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date ?? null)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.pump_type ?? "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.model_no ?? "—"}</td>
@@ -771,7 +775,10 @@ function BoiListTable({
                 <div className="text-xs text-muted">{formatDate(so.so_date)}</div>
               </td>
               <td className="whitespace-nowrap px-3 py-2">
-                <div className="font-medium">{ec.ec_no ?? "—"}</div>
+                <div className="font-medium">
+                  {ec.ec_no ?? "—"}
+                  <EcLink href={ec.ec_link} />
+                </div>
                 <div className="text-xs text-muted">{formatDate(ec.ec_date ?? null)}</div>
               </td>
               <td className="whitespace-nowrap border-l border-card-border px-3 py-2 font-semibold">{boiName(b)}</td>
