@@ -14,14 +14,14 @@ import {
   type ClientForm,
 } from "./EnquiryFields";
 import type { ProjectRecord } from "../../services/projectService";
-import type { OrderType } from "../../lib/roles";
+import { ORDER_SUBTYPES, defaultSubtype, type OrderSubtype, type OrderType } from "../../lib/roles";
 
 type Props = {
   isOpen: boolean;
   project: ProjectRecord | null;
   isSaving?: boolean;
   onClose: () => void;
-  onSave: (input: { enquiryDate: string; status: string; orderType: OrderType } & ClientForm) => void;
+  onSave: (input: { enquiryDate: string; status: string; orderType: OrderType; orderSubtype: OrderSubtype } & ClientForm) => void;
 };
 
 const STATUS_OPTIONS = ["In Progress", "Completed", "Pending"];
@@ -31,6 +31,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
   const [enquiryDate, setEnquiryDate] = useState("");
   const [status, setStatus] = useState("In Progress");
   const [orderType, setOrderType] = useState<OrderType>("pump");
+  const [orderSubtype, setOrderSubtype] = useState<OrderSubtype>("pcp");
 
   // Re-seed the fields whenever a different project is opened for editing.
   useEffect(() => {
@@ -46,7 +47,9 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
     });
     setEnquiryDate(project.enquiry_date ?? "");
     setStatus(project.status ?? "In Progress");
-    setOrderType(project.order_type === "spare" ? "spare" : "pump");
+    const t: OrderType = project.order_type === "spare" ? "spare" : "pump";
+    setOrderType(t);
+    setOrderSubtype(ORDER_SUBTYPES[t].find((o) => o.value === project.order_subtype)?.value ?? defaultSubtype(t));
   }, [project]);
 
   if (!isOpen || !project) return null;
@@ -66,7 +69,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
             type="button"
             className={btnPrimary}
             disabled={isSaving || !client.name.trim()}
-            onClick={() => onSave({ enquiryDate, status, orderType, ...client })}
+            onClick={() => onSave({ enquiryDate, status, orderType, orderSubtype, ...client })}
           >
             {isSaving ? "Saving…" : "Save Changes"}
           </button>
@@ -75,7 +78,14 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
     >
       <Section step={1} title="Enquiry" subtitle="Order type, date received and status">
         <Field label="Order type" wide group>
-          <OrderTypePicker value={orderType} onChange={setOrderType} />
+          <OrderTypePicker
+            value={orderType}
+            subtype={orderSubtype}
+            onChange={(t, s) => {
+              setOrderType(t);
+              setOrderSubtype(s);
+            }}
+          />
         </Field>
         <Field label="Enquiry date">
           <input type="date" className={inputCls} value={enquiryDate} onChange={(e) => setEnquiryDate(e.target.value)} />

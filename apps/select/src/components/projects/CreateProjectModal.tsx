@@ -14,7 +14,7 @@ import {
   type ClientForm,
 } from "./EnquiryFields";
 import { listAssignees, type Assignee, type CreateProjectInput } from "../../services/projectService";
-import { roleLabel, type OrderType } from "../../lib/roles";
+import { roleLabel, type OrderSubtype, type OrderType } from "../../lib/roles";
 
 type Props = {
   isOpen: boolean;
@@ -40,6 +40,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   const [enquiryNo, setEnquiryNo] = useState<string>(() => enquiryPrefix());
   const [enquiryDate, setEnquiryDate] = useState(() => todayYmd());
   const [orderType, setOrderType] = useState<OrderType>("pump");
+  const [orderSubtype, setOrderSubtype] = useState<OrderSubtype>("pcp");
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   // Who works the enquiry: a worker, or the master herself.
   const [assignees, setAssignees] = useState<Assignee[] | null>(null);
@@ -91,6 +92,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
       projectCode: trimmed,
       enquiryDate,
       orderType,
+      orderSubtype,
       assignedTo,
       ...client,
     });
@@ -124,7 +126,14 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
     >
       <Section step={1} title="Enquiry" subtitle="Order type, number and date received">
         <Field label="Order type" required wide group>
-          <OrderTypePicker value={orderType} onChange={setOrderType} />
+          <OrderTypePicker
+            value={orderType}
+            subtype={orderSubtype}
+            onChange={(t, s) => {
+              setOrderType(t);
+              setOrderSubtype(s);
+            }}
+          />
         </Field>
         <Field label="Enquiry no." required hint="Prefilled with this fiscal year's prefix - type the suffix after the last slash.">
           <input

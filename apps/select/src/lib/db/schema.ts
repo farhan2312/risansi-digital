@@ -89,6 +89,9 @@ export const projects = pgTable("projects", {
   /** "pump" | "spare" (CHECK). Spare is only recorded for now - its own
    *  process comes later (user, 2026-10-31). */
   orderType: varchar("order_type", { length: 10 }).notNull().default("pump"),
+  /** Pump: pcp | mmp | barrel | online_blind; spare: spare | retrofit_spare
+   *  (CHECK pairs it with order_type). Older enquiries backfilled to pcp. */
+  orderSubtype: varchar("order_subtype", { length: 20 }).notNull().default("pcp"),
   /** The worker (or the master herself) who works this enquiry - a worker
    *  sees only the enquiries assigned to them (lib/roles.ts). Backfilled to
    *  created_by for the enquiries made before assignment existed. */

@@ -1,12 +1,20 @@
 // Parsing the enquiry form's order type and client details (POST / PATCH
 // /api/projects). Client-safe.
-import type { OrderType } from "./roles";
+import { ORDER_SUBTYPES, defaultSubtype, type OrderSubtype, type OrderType } from "./roles";
 
 /** "pump" | "spare"; missing = "pump"; anything else = null (invalid). */
 export function orderTypeFrom(v: unknown): OrderType | null {
   if (v === undefined || v === null || v === "") return "pump";
   const s = String(v).trim().toLowerCase();
   return s === "pump" || s === "spare" ? s : null;
+}
+
+/** The subtype for that order type; missing = its default (PCP / Spare);
+ *  one that does not belong to the type = null (invalid). */
+export function orderSubtypeFrom(type: OrderType, v: unknown): OrderSubtype | null {
+  if (v === undefined || v === null || v === "") return defaultSubtype(type);
+  const s = String(v).trim().toLowerCase();
+  return ORDER_SUBTYPES[type].find((o) => o.value === s)?.value ?? null;
 }
 
 const text = (v: unknown, max: number): string | null => {

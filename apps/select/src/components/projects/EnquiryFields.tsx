@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 
 import ClientLookup from "./ClientLookup";
-import { ORDER_TYPES, type OrderType } from "../../lib/roles";
+import { ORDER_SUBTYPES, ORDER_TYPES, defaultSubtype, type OrderSubtype, type OrderType } from "../../lib/roles";
 import type { ClientLookupRow } from "../../services/clientsService";
 
 // Building blocks shared by Create and Edit Enquiry (Tailwind): the modal
@@ -124,7 +124,43 @@ export function Field({
   );
 }
 
-export function OrderTypePicker({ value, onChange }: { value: OrderType; onChange: (v: OrderType) => void }) {
+/** Pump / Spare, then which kind (PCP, MMP, ... / Spare, Retrofit spare).
+ *  Switching the type picks that type's first kind. */
+export function OrderTypePicker({
+  value,
+  subtype,
+  onChange,
+}: {
+  value: OrderType;
+  subtype: OrderSubtype;
+  onChange: (type: OrderType, subtype: OrderSubtype) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <OrderTypeToggle value={value} onChange={(t) => t !== value && onChange(t, defaultSubtype(t))} />
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={value === "spare" ? "Spare type" : "Pump type"}>
+        {ORDER_SUBTYPES[value].map((o) => {
+          const on = subtype === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(value, o.value)}
+              className={`h-8 rounded-full border px-3.5 text-[12.5px] font-semibold transition ${
+                on ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-3 hover:border-line-strong hover:text-fg"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function OrderTypeToggle({ value, onChange }: { value: OrderType; onChange: (v: OrderType) => void }) {
   return (
     <div className="grid grid-cols-2 gap-1 rounded-xl border border-line bg-sunk p-1" role="group" aria-label="Order type">
       {ORDER_TYPES.map((o) => {
