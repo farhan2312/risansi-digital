@@ -417,8 +417,8 @@ export function OrdersTable({
   // Planning, Assembly & Packing) in place of Spare's lots by department.
   const pump = ordersKind(getParam("type")) === "pump" && !!pumpSummaries;
   // Its department columns: Drawing 4, Purchase 1, Quality 1, Planning 2 and
-  // its lots, Assembly & Packing 3.
-  const pumpDeptCols = 4 + 1 + 1 + 2 + LOT_COLUMNS.length + 3;
+  // its lots, Assembly & Packing its Alignment and its lots.
+  const pumpDeptCols = 4 + 1 + 1 + 2 + LOT_COLUMNS.length + 1 + LOT_COLUMNS.length;
   // expand-toggle + 19 data columns (Planning and Assembly & Packing three lot
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
@@ -718,7 +718,7 @@ export function OrdersTable({
                             )}
                             <PumpTailCells
                               s={pumpSummaries[order.id]}
-                              today={today}
+                              lotCount={LOT_COLUMNS.length}
                               onOpen={(d) => setPopup({ order, what: DEPT_POPUP[d] })}
                             />
                           </>

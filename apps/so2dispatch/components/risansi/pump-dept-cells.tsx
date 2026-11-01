@@ -66,6 +66,25 @@ function stageTone(s: PumpStage, doneLabel: string): Tone {
 
 const td = (first = false) => `px-4 py-3 align-top ${first ? "border-l border-card-border" : ""}`;
 
+const DONE_WORDS = /^(approved|issued|fully|submitted|closed)/i;
+const PART_WORDS = /^(partial|sent|order placed)/i;
+const lineTone = (status: string) =>
+  status === "Resubmit" ? TONE.rework : DONE_WORDS.test(status) ? TONE.done : PART_WORDS.test(status) ? TONE.part : "text-foreground";
+
+/** EC by EC under a department's cell: "40266 · Approved by client". */
+function EcLines({ lines }: { lines: { ec: string; text: string; status: string; title?: string }[] }) {
+  if (lines.length === 0) return null;
+  return (
+    <span className="mt-1 flex flex-col gap-0.5 border-t border-card-border/60 pt-1">
+      {lines.map((l, i) => (
+        <span key={`${l.ec}-${i}`} title={l.title} className="whitespace-nowrap text-[11px]">
+          <span className="font-medium text-muted-foreground">{l.ec}</span> <span className={lineTone(l.status)}>{l.text}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** The Pump view's department heads: the group row (Drawing … Planning) — Assembly & Packing comes after the lots. */
 export function PumpLeadGroupHeads({
   lotCount,
@@ -83,7 +102,7 @@ export function PumpLeadGroupHeads({
       <th colSpan={1} className={g}>{h("purchase", "Purchase")}</th>
       <th colSpan={1} className={g}>{h("quality", "Quality")}</th>
       <th colSpan={2 + lotCount} className={g}>{h("planning", "Planning")}</th>
-      <th colSpan={3} className={g}>{h("assembly", "Assembly & Packing")}</th>
+      <th colSpan={1 + lotCount} className={g}>{h("assembly", "Assembly & Packing")}</th>
     </>
   );
 }
@@ -105,8 +124,9 @@ export function PumpLeadSubHeads({ lotCount }: { lotCount: number }) {
         <th key={i} className={h()}>Lot {i + 1}</th>
       ))}
       <th className={h(true)}>Alignment</th>
-      <th className={h()}>Assembly</th>
-      <th className={h()}>Packing</th>
+      {Array.from({ length: lotCount }, (_, i) => (
+        <th key={`a${i}`} className={h()}>Lot {i + 1}</th>
+      ))}
     </>
   );
 }
@@ -147,25 +167,32 @@ export function PumpLeadCells({
           line={d.gad.total ? `${d.gad.done}/${d.gad.total} issued` : undefined}
           onClick={() => onOpen("drawing")}
         />
+        <EcLines lines={d.ecs.map((e) => ({ ec: e.ec, text: e.gad, status: e.gad }))} />
       </td>
       <td className={td()} onClick={(e) => e.stopPropagation()}>
         {d.curve ? (
+          <>
           <Cell
             {...held(s, d.curve.label, stageTone(d.curve, "Approved by client"))}
             line={`${d.curve.done}/${d.curve.total} approved`}
             onClick={() => onOpen("drawing")}
           />
+          <EcLines lines={d.ecs.filter((e) => e.curve !== "Not required").map((e) => ({ ec: e.ec, text: e.curve, status: e.curve }))} />
+          </>
         ) : (
           <span className="text-xs text-muted-foreground">Not required</span>
         )}
       </td>
       <td className={td()} onClick={(e) => e.stopPropagation()}>
         {d.part ? (
+          <>
           <Cell
             {...held(s, d.part.label, stageTone(d.part, "Fully complete"))}
             line={`${d.part.done}/${d.part.total} complete`}
             onClick={() => onOpen("drawing")}
           />
+          <EcLines lines={d.ecs.filter((e) => e.part !== "Not required").map((e) => ({ ec: e.ec, text: e.part, status: e.part }))} />
+          </>
         ) : (
           <span className="text-xs text-muted-foreground">Not required</span>
         )}
@@ -181,23 +208,57 @@ export function PumpLeadCells({
       </td>
       <td className={td(true)} onClick={(e) => e.stopPropagation()}>
         {s.purchase.required ? (
+          <>
           <Cell
             {...held(s, s.purchase.state, s.purchase.state === "Closed" ? "done" : "pending")}
             line={s.purchase.items ? `${s.purchase.received}/${s.purchase.items} received` : "No items yet"}
             onClick={() => onOpen("purchase")}
           />
+          {/* Item by item: what, how many, where it stands, expected and received. */}
+          {s.purchase.list.length > 0 && (
+            <span className="mt-1 flex flex-col gap-1 border-t border-card-border/60 pt-1">
+              {s.purchase.list.map((b, i) => (
+                <span key={i} className="flex flex-col whitespace-nowrap text-[11px] leading-tight">
+                  <span>
+                    <span className="font-medium text-muted-foreground">{b.ec}</span>{" "}
+                    <span className="font-medium text-foreground">{b.item}</span>
+                    {b.qty != null && <span className="text-muted"> · Qty {b.qty}</span>}
+                  </span>
+                  <span className={TONE[b.tone]}>{b.status}</span>
+                  {(b.expected || b.received) && (
+                    <span className="text-muted">
+                      {b.expected ? `Exp ${formatDate(b.expected)}` : ""}
+                      {b.expected && b.received ? " · " : ""}
+                      {b.received ? <span className="text-emerald-700 dark:text-emerald-400">Rcvd {formatDate(b.received)}</span> : null}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </span>
+          )}
+          </>
         ) : (
           <span className="text-xs text-muted-foreground">Not required</span>
         )}
       </td>
       <td className={td(true)} onClick={(e) => e.stopPropagation()}>
         {s.quality.required ? (
+          <>
           <Cell
             {...held(s, s.quality.state, s.quality.state === "Closed" ? "done" : s.quality.submitted > 0 ? "part" : "pending")}
             line={s.quality.total ? `${s.quality.submitted}/${s.quality.total} ECs submitted` : "No ECs yet"}
             title={s.quality.docs ? `Needs: ${s.quality.docs}` : "No documents named yet"}
             onClick={() => onOpen("quality")}
           />
+          <EcLines
+            lines={s.quality.ecs.map((e) => ({
+              ec: e.ec,
+              status: e.label,
+              text: e.total ? `${e.label} ${e.done}/${e.total}${e.last ? ` · ${formatDate(e.last)}` : ""}` : e.label,
+              title: e.missing.length ? `Still to give: ${e.missing.join(", ")}` : undefined,
+            }))}
+          />
+          </>
         ) : (
           <span className="text-xs text-muted-foreground">Not required</span>
         )}
@@ -213,17 +274,6 @@ export function PumpLeadCells({
       </td>
     </>
   );
-}
-
-/** A stage of Assembly & Packing: its status, and its next planned day (red once passed) or the last one done. */
-function stageCell(st: { status: string; next: string | null; last: string | null }, today: string) {
-  const full = /^fully/i.test(st.status);
-  const late = !!st.next && st.next < today;
-  return {
-    tone: (full ? "done" : /^partially/i.test(st.status) ? "part" : "pending") as Tone,
-    line: !full && st.next ? `Plan ${formatDate(st.next)}${late ? " · overdue" : ""}` : st.last ? `Done ${formatDate(st.last)}` : undefined,
-    late: !full && late,
-  };
 }
 
 /**
@@ -293,11 +343,11 @@ export function PumpAfterPlanningCells({
   );
 }
 
-/** Assembly & Packing's cells on a pump SO: the Alignment, then assembly and packing. */
-export function PumpTailCells({ s, today, onOpen }: { s: PumpSummary; today: string; onOpen: (dept: Dept) => void }) {
+/** Assembly & Packing's cells on a pump SO: the Alignment, then each lot's assembly and packing. */
+export function PumpTailCells({ s, lotCount, onOpen }: { s: PumpSummary; lotCount: number; onOpen: (dept: Dept) => void }) {
   const a = s.alignment;
-  const asm = stageCell(s.assembly, today);
-  const pkg = stageCell(s.packing, today);
+  // The numbered slips and the lots each carries, for a packed lot on no slip.
+  const slips = s.slips.map((p) => ({ packing_slip_no: p.no, lot_nos: p.lot_nos }));
   const part = (name: string, yes: string | null, status: string | null, date?: string | null) =>
     yes === "Yes" ? `${name}: ${status ?? "Pending"}${date ? ` ${formatDate(date)}` : ""}` : yes === "No" ? `${name}: No` : null;
   const lines = [
@@ -326,12 +376,20 @@ export function PumpTailCells({ s, today, onOpen }: { s: PumpSummary; today: str
           )}
         </button>
       </td>
-      <td className={`${td()} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
-        <Cell {...(s.held || s.sentToAssembly ? held(s, s.assembly.status, asm.tone) : { text: "—", tone: "na" as Tone })} line={s.sentToAssembly ? asm.line : undefined} lineTone={asm.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
-      </td>
-      <td className={`${td()} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
-        <Cell {...(s.held || s.sentToAssembly ? held(s, s.packing.status, pkg.tone) : { text: "—", tone: "na" as Tone })} line={s.sentToAssembly ? pkg.line : undefined} lineTone={pkg.late ? "late" : "muted"} onClick={() => onOpen("assembly")} />
-      </td>
+      {/* Lot by lot: its assembly and packing, as on Assembly & Packing's page. */}
+      {Array.from({ length: lotCount }, (_, i) => i + 1).map((n) => (
+        <td key={n} className={`${td()} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
+          {s.held ? (
+            <span className={`text-[13px] font-medium ${TONE.hold}`}>Hold</span>
+          ) : s.sentToAssembly ? (
+            <button type="button" onClick={() => onOpen("assembly")} title="Open" className="-m-1 rounded-md p-1 text-left hover:bg-background">
+              <LotCell lot={s.lots.find((l) => l.n === n && l.ecs.length > 0)} slips={slips} />
+            </button>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </td>
+      ))}
     </>
   );
 }

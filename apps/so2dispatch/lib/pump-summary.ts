@@ -3,7 +3,9 @@
 // purchase-filter, qc-filter, assembly), one SO-level summary per row.
 
 import { query } from "@/lib/db";
-import { spareEcSql, boiReceivedSql, orderStatusSql } from "@/lib/dept-view";
+import { spareEcSql, boiReceivedSql, boiStatus, orderStatusSql } from "@/lib/dept-view";
+import { linksFromRows, qcDocsStatus, requiredQcDocs } from "@/lib/qc-docs";
+import { pumpLotsFromEcs, type PumpLot } from "@/lib/assembly";
 import { curveStatusSql, ecDrawingDoneSql, ecGadStatusSql, partStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
@@ -12,6 +14,17 @@ import { SO_PLANNING_STATUS } from "@/lib/orders";
 
 /** One department's standing on the SO: the status holding it back, and how many of its ECs are through. */
 export type PumpStage = { label: string; done: number; total: number };
+
+/** A bought-out item, as Purchase has it: what, for which EC, how many, where it stands and its dates. */
+export type PumpBoiItem = {
+  ec: string;
+  item: string;
+  qty: number | null;
+  status: string;
+  tone: "done" | "part" | "pending";
+  expected: string | null;
+  received: string | null;
+};
 
 export type PumpSummary = {
   drawing: {
@@ -22,9 +35,19 @@ export type PumpSummary = {
     part: PumpStage | null;
     readiness: string | null;
     closed: boolean;
+    /** Each pump EC's own GAD, curve and part drawing status ("Not required" where it needs none). */
+    ecs: { ec: string; gad: string; curve: string; part: string }[];
   };
-  purchase: { required: boolean; state: string; items: number; received: number };
-  quality: { required: boolean; state: string; docs: string | null; submitted: number; total: number };
+  purchase: { required: boolean; state: string; items: number; received: number; list: PumpBoiItem[] };
+  quality: {
+    required: boolean;
+    state: string;
+    docs: string | null;
+    submitted: number;
+    total: number;
+    /** Each EC's documents: how many of those needed are in, and the last day one went in. */
+    ecs: { ec: string; label: string; done: number; total: number; last: string | null; missing: string[] }[];
+  };
   planning: { status: string; readiness: string | null };
   assembly: { status: string; next: string | null; last: string | null };
   packing: { status: string; next: string | null; last: string | null };
@@ -48,8 +71,10 @@ export type PumpSummary = {
   held: boolean;
   /** Any EC yet: with none it reaches Drawing, Purchase, Quality and Planning not at all. */
   hasEcs: boolean;
-  /** Its packing slips (Planning's tentative and Packing's actual), oldest first. */
-  slips: { no: string | null; date: string | null; qty: number | null; kind: string | null }[];
+  /** Its packing slips (Planning's tentative and Packing's actual), oldest first, with the lots each carries. */
+  slips: { no: string | null; date: string | null; qty: number | null; kind: string | null; lot_nos?: unknown }[];
+  /** Its pump lots as Assembly & Packing works them: each lot's assembly and packing. */
+  lots: PumpLot[];
 };
 
 /** The earliest stage any EC is at (what holds the SO back), and how many reached the last. */
@@ -69,6 +94,10 @@ const PART_ORDER = ["Pending", "Partial complete", "Fully complete"];
 
 type Raw = {
   id: string;
+  ec_nos: string[];
+  boi_list: Record<string, unknown>[] | null;
+  qc_ecs: { ec: string | null; links: unknown }[] | null;
+  lot_ecs: Record<string, unknown>[] | null;
   gad: string[];
   curve: string[];
   part: string[];
@@ -102,8 +131,11 @@ type Raw = {
   sent_dsp: boolean;
   held: boolean;
   has_ecs: boolean;
-  slips: { no: string | null; date: string | null; qty: number | null; kind: string | null }[];
+  slips: { no: string | null; date: string | null; qty: number | null; kind: string | null; lot_nos?: unknown }[];
 };
+
+/** "EC/26/1/1563/40266" as "40266": the EC's own number, enough beside its SO. */
+const ecShort = (ec: string | null | undefined) => String(ec ?? "").split("/").pop() || "—";
 
 /** Every department's standing on each of these pump SOs, by SO id — one read for the page. */
 export async function listPumpSummaries(orderIds: string[]): Promise<Record<string, PumpSummary>> {
@@ -114,6 +146,25 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
                  WHERE ri.order_id = o.id AND ri.item_type IN ('Pump', 'ROLB') AND COALESCE(rl.qty, 0) > 0`;
   const r = await query<Raw>(
     `SELECT o.id,
+            COALESCE((SELECT array_agg(COALESCE(s.ec_no, '') ORDER BY s.seq) ${pumps("")}), '{}') AS ec_nos,
+            -- Purchase's items on the pump ECs, EC by EC.
+            (SELECT jsonb_agg(to_jsonb(b) || jsonb_build_object('ec_no', s.ec_no) ORDER BY s.seq, b.created_at)
+               FROM order_boi_items b JOIN order_items s ON s.id = b.item_id
+              WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")})) AS boi_list,
+            -- Quality's documents, EC by EC.
+            (SELECT jsonb_agg(jsonb_build_object('ec', s.ec_no, 'links',
+                      COALESCE((SELECT jsonb_agg(jsonb_build_object('doc_type', ql.doc_type, 'link', ql.link,
+                                  'submitted_date', to_char(ql.submitted_date, 'YYYY-MM-DD')))
+                                  FROM order_qc_doc_links ql WHERE ql.item_id = s.id), '[]'::jsonb)) ORDER BY s.seq)
+               FROM order_items s WHERE s.order_id = o.id) AS qc_ecs,
+            -- The pump ECs' lot rows with their assembly entries: the SO's lots (lib/assembly pumpLotsFromEcs).
+            (SELECT jsonb_agg(jsonb_build_object('id', s.id, 'ready_lots', COALESCE((
+                      SELECT jsonb_agg(to_jsonb(rl) || jsonb_build_object('asm', COALESCE((
+                               SELECT jsonb_agg(jsonb_build_object('id', la.id, 'qty', la.qty, 'plan_date', la.plan_date,
+                                        'shift', la.shift, 'assembled_date', la.assembled_date) ORDER BY la.seq)
+                                 FROM order_lot_assembly la WHERE la.lot_row_id = rl.id), '[]'::jsonb)) ORDER BY rl.seq)
+                        FROM order_ready_lots rl WHERE rl.item_id = s.id), '[]'::jsonb)) ORDER BY s.seq)
+               FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')) AS lot_ecs,
             COALESCE((SELECT array_agg(${ecGadStatusSql("s")} ORDER BY s.seq) ${pumps("")}), '{}') AS gad,
             COALESCE((SELECT array_agg(${curveStatusSql("s", "o")} ORDER BY s.seq) ${pumps("")}), '{}') AS curve,
             COALESCE((SELECT array_agg(${partStatusSql("s")} ORDER BY s.seq) ${pumps("")}), '{}') AS part,
@@ -161,7 +212,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
             EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AS has_ecs,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('no', ps.packing_slip_no,
                                        'date', to_char(ps.packing_slip_date, 'YYYY-MM-DD'),
-                                       'qty', ps.quantity, 'kind', ps.kind)
+                                       'qty', ps.quantity, 'kind', ps.kind, 'lot_nos', ps.lot_nos)
                                        ORDER BY ps.packing_slip_date NULLS LAST, ps.created_at)
                         FROM order_packing_slips ps
                        WHERE ps.order_id = o.id AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL), '[]'::jsonb) AS slips
@@ -175,6 +226,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
     const curves = x.curve.filter((s) => s !== "Not required");
     const parts = x.part.filter((s) => s !== "Not required");
     const qcNeeded = String(x.qc_required ?? "") === "Yes";
+    const needed = requiredQcDocs({ qc_documents: x.qc_documents });
     out[x.id] = {
       drawing: {
         gad: stage(x.gad, GAD_ORDER, "Issued to planning"),
@@ -182,14 +234,46 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
         part: parts.length ? stage(parts, PART_ORDER, "Fully complete") : null,
         readiness: x.drg_readiness,
         closed: x.drg_closed,
+        ecs: x.ec_nos.map((ec, i) => ({ ec: ecShort(ec), gad: x.gad[i] ?? "—", curve: x.curve[i] ?? "—", part: x.part[i] ?? "—" })),
       },
-      purchase: { required: x.boi === "Yes", state: x.purchase_state, items: x.boi_items, received: x.boi_received },
+      purchase: {
+        required: x.boi === "Yes",
+        state: x.purchase_state,
+        items: x.boi_items,
+        received: x.boi_received,
+        list: (x.boi_list ?? []).map((b) => {
+          const st = boiStatus(b);
+          const qty = Number(b.boi_qty ?? 0) || null;
+          return {
+            ec: ecShort(b.ec_no as string),
+            item: String(b.boi_item ?? "") === "Others" ? String(b.boi_item_other ?? "") || "Others" : String(b.boi_item ?? "") || "Item",
+            qty,
+            status: st.label,
+            tone: st.tone,
+            expected: b.expected_receipt_date ? String(b.expected_receipt_date).slice(0, 10) : null,
+            received: b.receipt_date ? String(b.receipt_date).slice(0, 10) : null,
+          };
+        }),
+      },
       quality: {
         required: qcNeeded,
         state: x.qc_state,
         docs: x.qc_documents,
         submitted: x.qc.filter((s) => s === "Submitted").length,
         total: x.qc.length,
+        ecs: (x.qc_ecs ?? []).map((e) => {
+          const links = linksFromRows(e.links);
+          const st = qcDocsStatus(needed, links);
+          const days = links.map((l) => l.submitted_date).filter(Boolean).sort();
+          return {
+            ec: ecShort(e.ec),
+            label: st.label,
+            done: st.done,
+            total: st.total,
+            last: days[days.length - 1] ?? null,
+            missing: needed.filter((d) => !links.some((l) => l.doc_type === d && (l.link.trim() || l.submitted_date))),
+          };
+        }),
       },
       planning: { status: x.planning_status, readiness: x.planning_readiness },
       assembly: { status: x.assembly_status, next: x.assembly_next, last: x.assembly_last },
@@ -209,6 +293,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
       held: !!x.held,
       hasEcs: !!x.has_ecs,
       slips: Array.isArray(x.slips) ? x.slips : [],
+      lots: pumpLotsFromEcs(x.lot_ecs ?? []),
     };
   }
   return out;
