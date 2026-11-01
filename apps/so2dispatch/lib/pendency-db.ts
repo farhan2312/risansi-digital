@@ -6,6 +6,7 @@ import { query } from "@/lib/db";
 import { BILLING_STATE } from "@/lib/orders";
 import { drawingFilterSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
+import { soQcStateSql } from "@/lib/qc-filter";
 import type { Pendency, PendencyDept } from "@/lib/pendency";
 
 const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
@@ -14,6 +15,7 @@ const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
 export function stillPendingSql(dept: PendencyDept, o = "o"): string {
   if (dept === "billing") return `${BILLING_STATE} IN ('Pending', 'Partially raised')`;
   if (dept === "drawing") return drawingFilterSql({ so: ["Open"], gad: [], curve: [], part: [] }, o);
+  if (dept === "qc") return `${soQcStateSql(o)} = 'Open'`;
   return `${soPurchaseStateSql(o)} = 'Open'`;
 }
 

@@ -1,9 +1,10 @@
 // Why an SO is still pending with a department: Proforma Invoice while a PI
 // is Pending (or Partially raised), Drawing and Purchase while the SO is
-// Open. One reason per SO per department, with remarks (order_pendency).
+// Open, Quality while the SO is Open. One reason per SO per department, with
+// remarks (order_pendency). Quality has no reasons: its remarks say it.
 // Shared by the browser and the server; the SQL is in pendency-db.
 
-export type PendencyDept = "billing" | "drawing" | "purchase";
+export type PendencyDept = "billing" | "drawing" | "purchase" | "qc";
 
 /** The catch-all reason, last in every list; its remarks say what it is. */
 export const OTHERS = "Others";
@@ -21,7 +22,17 @@ export const PENDENCY: Record<PendencyDept, { reasons: string[]; key: string }> 
     reasons: ["EC not received", "Vendor Quotation awaited", OTHERS],
     key: "pur_pend",
   },
+  // Remarks only: no list to choose from.
+  qc: { reasons: [], key: "qc_pend" },
 };
+
+/** What a remarks-only department's pendency is saved under: its remarks are the whole of it. */
+export const REMARKS_ONLY = "Remarks";
+
+/** A department with no reasons to choose from: the remarks say why. */
+export function remarksOnly(dept: PendencyDept): boolean {
+  return PENDENCY[dept].reasons.length === 0;
+}
 
 /**
  * An SO's latest pendency with a department, as saved. Cleared, it stays —

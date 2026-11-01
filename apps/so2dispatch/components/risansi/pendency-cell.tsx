@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { savePendencyAction } from "@/app/risansi/orders/pendency-actions";
-import { OTHERS, PENDENCY, type Pendency, type PendencyDept } from "@/lib/pendency";
+import { OTHERS, PENDENCY, REMARKS_ONLY, remarksOnly, type Pendency, type PendencyDept } from "@/lib/pendency";
 
 /**
  * A department's Pending / Open status with why it is still pending: the
@@ -30,6 +30,8 @@ export function PendencyCell({
   const [open, setOpen] = useState(false);
   // Cleared: no longer pending, the latest reason kept beneath.
   const active = pendency && !pendency.clearedAt ? pendency : undefined;
+  // Remarks only (Quality): the remarks are the reason.
+  const only = remarksOnly(dept);
   return (
     <span className="flex flex-col items-start gap-0.5">
       {canEdit ? (
@@ -46,8 +48,8 @@ export function PendencyCell({
       )}
       {active ? (
         <span className="max-w-[14rem] text-[11px] leading-snug">
-          <span className="font-medium text-amber-700 dark:text-amber-400">{active.reason}</span>
-          {active.remarks && <span className="block text-muted">{active.remarks}</span>}
+          <span className="font-medium text-amber-700 dark:text-amber-400">{only ? active.remarks : active.reason}</span>
+          {!only && active.remarks && <span className="block text-muted">{active.remarks}</span>}
         </span>
       ) : (
         <>
@@ -58,8 +60,8 @@ export function PendencyCell({
           )}
           {pendency && (
             <span className="max-w-[14rem] text-[11px] leading-snug text-muted" title={`Cleared ${pendency.clearedAt}${pendency.clearedBy ? ` by ${pendency.clearedBy}` : ""}`}>
-              Last: <span className="line-through">{pendency.reason}</span>
-              {pendency.remarks && <span className="block">{pendency.remarks}</span>}
+              Last: <span className="line-through">{only ? pendency.remarks : pendency.reason}</span>
+              {!only && pendency.remarks && <span className="block">{pendency.remarks}</span>}
             </span>
           )}
         </>
@@ -85,7 +87,8 @@ function PendencyForm({
   const router = useRouter();
   // A cleared one is the latest still: the form starts from it.
   const active = pendency && !pendency.clearedAt;
-  const [reason, setReason] = useState(pendency?.reason ?? "");
+  const only = remarksOnly(dept);
+  const [reason, setReason] = useState(only ? REMARKS_ONLY : (pendency?.reason ?? ""));
   const [remarks, setRemarks] = useState(pendency?.remarks ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +113,10 @@ function PendencyForm({
   }
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (only && !remarks.trim()) {
+      setError("Write why it is pending.");
+      return;
+    }
     if (!reason) {
       setError("Choose a reason.");
       return;
@@ -152,22 +159,24 @@ function PendencyForm({
           </button>
         </div>
         <div className="space-y-3">
+          {!only && (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                Reason <span className="text-danger">*</span>
+              </span>
+              <select value={reason} onChange={(e) => setReason(e.target.value)} className={`${field} h-10`}>
+                <option value="">Choose…</option>
+                {PENDENCY[dept].reasons.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-muted-foreground">
-              Reason <span className="text-danger">*</span>
-            </span>
-            <select value={reason} onChange={(e) => setReason(e.target.value)} className={`${field} h-10`}>
-              <option value="">Choose…</option>
-              {PENDENCY[dept].reasons.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted-foreground">
-              Remarks {reason === OTHERS && <span className="text-danger">*</span>}
+              {only ? "Why it is pending" : "Remarks"} {(only || reason === OTHERS) && <span className="text-danger">*</span>}
             </span>
             <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} className={`${field} py-2`} />
           </label>

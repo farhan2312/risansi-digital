@@ -21,6 +21,8 @@ import { KpiStrip } from "./kpi-strip";
 import { MultiSelectFilter } from "./multi-select-filter";
 import { QC_ASSEMBLY_STATES, QC_EC_STATUSES, QC_FILTER_KEYS, QC_SO_STATES, soQcState } from "@/lib/qc-filter";
 import { ecStageStatus } from "@/lib/assembly";
+import { PendencyCell } from "./pendency-cell";
+import type { Pendency } from "@/lib/pendency";
 import type { EcAssembly } from "@/lib/ec-assembly";
 
 type Row = Record<string, unknown>;
@@ -78,7 +80,10 @@ export function QcWorkspace({
   kpis = [],
   embedded = false,
   assembly = {},
+  pendency = {},
 }: {
+  /** Why each Open SO is still pending with Quality (remarks), by SO id. */
+  pendency?: Record<string, Pendency>;
   /** How far Assembly has got on each pump EC, by EC id. */
   assembly?: Record<string, EcAssembly>;
   queue: PageResult<Row>;
@@ -256,7 +261,16 @@ export function QcWorkspace({
                                 ) : (str(g.head.qc_so_state) || soQcState(g.ecs)) === "Closed" ? (
                                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
                                 ) : (
-                                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+                                  // Open: why, in Quality's remarks.
+                                  <PendencyCell
+                                    orderId={g.key}
+                                    soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
+                                    dept="qc"
+                                    pendency={pendency[g.key]}
+                                    canEdit={canEdit}
+                                  >
+                                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+                                  </PendencyCell>
                                 )}
                               </td>
                             </>

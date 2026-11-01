@@ -3050,3 +3050,9 @@ CREATE TABLE IF NOT EXISTS user_view_pages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, page)
 );
+
+-- 0042  Quality's pendency too: why an Open SO is still pending with it, in
+-- remarks only. Idempotent and additive.
+ALTER TABLE order_pendency DROP CONSTRAINT IF EXISTS order_pendency_dept_check;
+ALTER TABLE order_pendency ADD  CONSTRAINT order_pendency_dept_check
+    CHECK (dept IN ('billing', 'drawing', 'purchase', 'qc'));

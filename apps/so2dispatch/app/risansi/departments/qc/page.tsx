@@ -21,6 +21,7 @@ import { listRemindersForDepartment } from "@/lib/reminders";
 import { QC_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { unreadByOrder } from "@/lib/order-messages";
 import { QcWorkspace } from "@/components/risansi/qc-workspace";
+import { listPendency } from "@/lib/pendency-db";
 import { listEcAssembly } from "@/lib/ec-assembly";
 import { ecStageStatus } from "@/lib/assembly";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
@@ -164,7 +165,11 @@ export default async function QcWorkspacePage({
     queue.rows = queue.rows.filter((r) => qcFilter.ec.includes(ecQcStatus(r)));
   }
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
-  const [completions, unreadThreads] = await Promise.all([listDeptCompletions(orderIds), unreadByOrder(orderIds, user)]);
+  const [completions, unreadThreads, pendency] = await Promise.all([
+    listDeptCompletions(orderIds),
+    unreadByOrder(orderIds, user),
+    listPendency(orderIds, "qc"),
+  ]);
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
@@ -198,6 +203,7 @@ export default async function QcWorkspacePage({
         role={user.role}
         unreadThreads={unreadThreads}
         filterOptions={filterOptions}
+        pendency={pendency}
       />
     </div>
   );

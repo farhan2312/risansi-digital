@@ -7,25 +7,27 @@ import { logAudit } from "@/lib/audit";
 import { emitNotification } from "@/lib/notifications";
 import { subjectForOrder } from "@/lib/audit-subject";
 import { getOrderLabel } from "@/lib/orders";
-import { canEditChild } from "@/lib/roles";
-import { OTHERS, PENDENCY, type PendencyDept } from "@/lib/pendency";
+import { canEditChild, canEditQcDocuments } from "@/lib/roles";
+import { OTHERS, PENDENCY, REMARKS_ONLY, remarksOnly, type PendencyDept } from "@/lib/pendency";
 
 export type PendencyResult = { ok: true } | { ok: false; error: string };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Who may say why: the department itself (by what it edits there), Central Visibility and Admin. */
-const EDITS: Record<PendencyDept, Parameters<typeof canEditChild>[1]> = {
-  billing: "order_billing_docs",
-  drawing: "order_drawing_revisions",
-  purchase: "order_boi_items",
+const MAY_SET: Record<PendencyDept, (role: string) => boolean> = {
+  billing: (role) => canEditChild(role, "order_billing_docs"),
+  drawing: (role) => canEditChild(role, "order_drawing_revisions"),
+  purchase: (role) => canEditChild(role, "order_boi_items"),
+  qc: canEditQcDocuments,
 };
 const PAGE: Record<PendencyDept, string> = {
   billing: "/risansi/departments/billing",
   drawing: "/risansi/departments/drawing",
   purchase: "/risansi/departments/purchase",
+  qc: "/risansi/departments/qc",
 };
-const NAME: Record<PendencyDept, string> = { billing: "Proforma Invoice", drawing: "Drawing", purchase: "Purchase" };
+const NAME: Record<PendencyDept, string> = { billing: "Proforma Invoice", drawing: "Drawing", purchase: "Purchase", qc: "Quality" };
 
 /**
  * Why the SO is still pending with a department: one of its reasons, with
@@ -41,11 +43,13 @@ export async function savePendencyAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   if (!(dept in PENDENCY)) return { ok: false, error: "Unknown department." };
-  if (!canEditChild(user.role, EDITS[dept])) return { ok: false, error: `Only ${NAME[dept]} can set the pendency reason.` };
+  if (!MAY_SET[dept](user.role)) return { ok: false, error: `Only ${NAME[dept]} can set the pendency reason.` };
   if (!UUID_RE.test(orderId)) return { ok: false, error: "Order not found." };
-  const why = (reason ?? "").trim();
-  if (why && !PENDENCY[dept].reasons.includes(why)) return { ok: false, error: "Choose a reason from the list." };
   const note = (remarks ?? "").trim();
+  // Remarks only (Quality): the remarks are the pendency, kept under one word.
+  const why = remarksOnly(dept) ? ((reason ?? "").trim() ? REMARKS_ONLY : "") : (reason ?? "").trim();
+  if (remarksOnly(dept) && why && !note) return { ok: false, error: "Write why it is pending." };
+  if (why && !remarksOnly(dept) && !PENDENCY[dept].reasons.includes(why)) return { ok: false, error: "Choose a reason from the list." };
   // Others says nothing on its own: its remarks say what it is.
   if (why === OTHERS && !note) return { ok: false, error: "Others: write what it is in the remarks." };
   try {
@@ -77,7 +81,7 @@ export async function savePendencyAction(
       orderId,
       type: "dept_update",
       message: why
-        ? `${NAME[dept]} pendency — ${label}: ${why}${note ? ` · ${note}` : ""}`
+        ? `${NAME[dept]} pendency — ${label}: ${remarksOnly(dept) ? note : `${why}${note ? ` · ${note}` : ""}`}`
         : `${NAME[dept]} pendency cleared — ${label}`,
     });
   }
@@ -86,7 +90,9 @@ export async function savePendencyAction(
     action: "order.update",
     category: "activity",
     target: label,
-    details: why ? `${NAME[dept]} pendency — ${why}${note ? ` · ${note}` : ""}` : `${NAME[dept]} pendency cleared`,
+    details: why
+      ? `${NAME[dept]} pendency — ${remarksOnly(dept) ? note : `${why}${note ? ` · ${note}` : ""}`}`
+      : `${NAME[dept]} pendency cleared`,
     subject: await subjectForOrder(orderId),
   });
   revalidatePath(PAGE[dept]);
