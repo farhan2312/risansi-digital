@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ClipboardList, Download, FileText, Plus, Upload } from "lucide-react";
+import { ClipboardList, Download, Plus, Upload } from "lucide-react";
 import { listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
 import { listPumpSummaries } from "@/lib/pump-summary";
 import { parsePage } from "@/lib/pagination";
@@ -17,6 +17,7 @@ import { canCreateOrders, canViewAll, isRep } from "@/lib/roles";
 import { OrdersTable } from "@/components/risansi/orders-table";
 import { MissingDetailsButton } from "@/components/risansi/missing-details-modal";
 import { OneClickButton } from "@/components/risansi/one-click-modal";
+import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { cardBaseGet } from "@/lib/kpis";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
@@ -78,9 +79,10 @@ export default async function OrdersPage({
   // The export mirrors whatever the list is showing: with any filter on it
   // downloads just those SOs, otherwise the whole tracker.
   const isFiltered = isOrderListFiltered(filter);
-  // The PDF carries the same filter and sort as the list on screen.
+  // The report carries the same filter, sort and Pump card as the list on screen.
   const pdfParams = orderListFilterParams(filter);
   if (params.sort) pdfParams.set("sort", params.sort);
+  if (params.pk) pdfParams.set("pk", params.pk);
   const pdfHref = `/api/orders/pdf${pdfParams.size ? `?${pdfParams}` : ""}`;
   const exportHref = isFiltered
     ? `/api/orders/export?${orderListFilterParams(filter)}`
@@ -109,15 +111,8 @@ export default async function OrdersPage({
           {/* What the tracker is still waiting on, across every SO — see
               lib/order-gaps.ts. */}
           {!rep && <MissingDetailsButton />}
-          <a
-            href={pdfHref}
-            target="_blank"
-            rel="noopener"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-input-border bg-surface px-4 text-sm font-semibold text-foreground transition-colors hover:bg-background"
-          >
-            <FileText className="h-4 w-4" />
-            PDF report
-          </a>
+          {/* Every SO the list selects: the Excel (all its columns but Chat) or the PDF. */}
+          <ReportDialogButton title="Order report" href={pdfHref} />
           <a
             href={exportHref}
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-input-border bg-surface px-4 text-sm font-semibold text-foreground transition-colors hover:bg-background"

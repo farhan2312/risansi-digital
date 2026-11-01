@@ -5,6 +5,8 @@ import { canViewAll } from "@/lib/roles";
 import { isTestSo, listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
 import { describeOrderListFilter, ordersKind, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
 import { buildOrdersListPdf } from "@/lib/orders-list-pdf";
+import { buildPlanningReportXlsx } from "@/lib/planning-report-xlsx";
+import { ordersSheet } from "@/lib/orders-report-sheet";
 import { listPumpSummaries } from "@/lib/pump-summary";
 import { cardBaseGet } from "@/lib/kpis";
 
@@ -12,9 +14,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * The Orders list as one PDF — every SO the list's filter, search and sort
- * select, not just the page on screen. Opens in the browser, or saves with
- * ?download=1.
+ * The Orders list's report — every SO the list's filter, search and sort
+ * select, not just the page on screen. A PDF to open (?download=1 saves it);
+ * ?format=xlsx the Excel, every column of the list but Chat, and ?format=json
+ * the same sheet for the pop-up's Excel view.
  */
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -48,11 +51,35 @@ export async function GET(req: NextRequest) {
   const spare = filter.types.length === 1 && filter.types[0] === "Spare";
   // Pump: every department on each SO, as the Pump view shows it.
   const pump = !spare && filter.types.length > 0 && filter.types.every((t) => /^(pump|rolb)$/i.test(t));
+  const format = get("format");
+  const sheet = format === "xlsx" || format === "json";
   const [statuses, billing, summaries] = await Promise.all([
     listOrderDeptStatuses(ids),
-    spare ? listOrdersForBilling(ids) : Promise.resolve([]),
+    // The sheet has the Packing Slips … Docket & LR columns on both views.
+    spare || sheet ? listOrdersForBilling(ids) : Promise.resolve([]),
     pump ? listPumpSummaries(ids) : Promise.resolve({}),
   ]);
+  const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+  if (sheet) {
+    const report = ordersSheet({
+      rows: result.rows,
+      statuses,
+      docs: new Map(billing.map((b) => [b.id, { packing_slips: b.packing_slips ?? [], invoices: b.invoices ?? [] }])),
+      pump: pump ? new Map(Object.entries(summaries)) : undefined,
+      filterLine: describeOrderListFilter(filter),
+      kpis: result.kpis,
+    });
+    if (format === "json") return Response.json(report, { headers: { "Cache-Control": "no-store" } });
+    const xlsx = await buildPlanningReportXlsx(report);
+    return new Response(xlsx as unknown as ArrayBuffer, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${pump ? "pump" : "spare"}-orders-${stamp}.xlsx"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
 
   const bytes = await buildOrdersListPdf(result.rows, statuses, describeOrderListFilter(filter), {
     capped: result.rows.length < result.total,
@@ -63,7 +90,6 @@ export async function GET(req: NextRequest) {
     kpis: result.kpis,
   });
 
-  const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   return new Response(bytes as unknown as ArrayBuffer, {
     headers: {
       "Content-Type": "application/pdf",
