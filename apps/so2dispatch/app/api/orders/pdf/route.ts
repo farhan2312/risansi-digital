@@ -80,11 +80,22 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const bytes = await buildOrdersListPdf(result.rows, statuses, describeOrderListFilter(filter), {
+  // The PDF always goes Rep by Rep (A to Z, no Rep last), each Rep's SOs in
+  // the list's own order — unless the list is already sorted by Rep.
+  const repKey = (r: (typeof result.rows)[number]) => (r.reps ?? "").trim().toLowerCase();
+  const byRepRows =
+    sort === "rep" || sort === "-rep"
+      ? result.rows
+      : [...result.rows].sort((a, b) => {
+          const x = repKey(a);
+          const y = repKey(b);
+          return x === y ? 0 : !x ? 1 : !y ? -1 : x.localeCompare(y);
+        });
+  const bytes = await buildOrdersListPdf(byRepRows, statuses, describeOrderListFilter(filter), {
     capped: result.rows.length < result.total,
     total: result.total,
     spare: spare ? new Map(billing.map((b) => [b.id, b])) : undefined,
-    byRep: sort === "rep" || sort === "-rep",
+    byRep: true,
     pump: pump ? new Map(Object.entries(summaries)) : undefined,
     kpis: result.kpis,
   });

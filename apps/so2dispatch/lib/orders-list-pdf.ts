@@ -715,8 +715,7 @@ export async function buildOrdersListPdf(
   y -= cardH + 12;
 
   // ── Spare / Pump: a card per Rep, with their SOs and where they stand ──
-  // Only when the list is sorted by Rep: otherwise the PDF reads as the list does.
-  if ((spare || pump) && n && opts.byRep) {
+  if ((spare || pump) && n) {
     // The later states, each on a row of its own; the earlier ones two to a row.
     const LAST = spare
       ? [READY_NOT_PACKED, PACKED_NOT_DISPATCHED, FULLY_DISPATCHED]
