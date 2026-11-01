@@ -1655,7 +1655,8 @@ export async function updateOrderChildAction(
         });
         // Central Visibility: which item of which EC, and its status now.
         if (!notifyMuted && rowAfter) {
-          const ec = (await query<{ id: string; ec_no: string | null }>(`SELECT id, ec_no FROM order_items WHERE id = $1`, [String(rowAfter.item_id ?? "")])).rows[0];
+          // The EC from the row's subject: rowAfter holds only the schema's columns, not item_id.
+          const ec = subject?.itemId ? { id: subject.itemId, ec_no: subject.ecNo ?? null } : null;
           const item = String(rowAfter.boi_item ?? "") === "Others" ? String(rowAfter.boi_item_other ?? "") || "Others" : String(rowAfter.boi_item ?? "") || "BOI item";
           await emitNotification({
             roles: ["central_visibility"],
