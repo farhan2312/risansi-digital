@@ -177,6 +177,17 @@ export default async function ComplaintPage({ params, searchParams }: {
             <Link href="/risansi/complaints" style={{ fontSize: 11.5, color: 'var(--fg-3)', textDecoration: 'none' }}>← Complaints</Link>
             <h1 style={{ fontSize: 22, fontWeight: 600, margin: '5px 0 3px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: 'var(--font-mono)' }}>{c.complaint_no}</span>
+              {/* The number this complaint had before the portal. Said here
+                  because the portal's number is its own sequence and was never
+                  meant to equal the old one — without this, somebody holding
+                  the old register reads CMP-0377 against a row they know as
+                  253 and concludes the migration scrambled the numbering. */}
+              {c.legacy_ref && (
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}
+                  title="The number this complaint had in the old register, before the portal">
+                  was {c.legacy_ref}
+                </span>
+              )}
               <span style={{ ...PILL, background: STATUS_TONE[c.status] ?? 'var(--fg-3)' }}>{c.status}</span>
               {sev && <span style={{ ...PILL, background: SEVERITY_TONE[sev] }} title={SEVERITY_REQUIRES[sev]}>{SEVERITY_LABEL[sev]}</span>}
               {severe && <span style={{ ...PILL, background: 'var(--neg-fill)' }} title={`Immediate response: ${severeWhy}`}>Severe</span>}

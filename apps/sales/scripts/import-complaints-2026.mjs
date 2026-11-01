@@ -57,11 +57,21 @@ const pool = new pg.Pool({
   ssl: (g('DB_SSL') || '').toLowerCase() === 'false' ? false : { rejectUnauthorized: false },
 });
 
-// Client codes in the sheet that are not in the portal. Two are the same
-// company under a different code; MASH MAKES has no record at all and its
-// rows are reported and skipped rather than inventing a client.
-const CLIENT_REMAP = { SOLN01S085: 'MOHL01S130', WARA01S192: 'KOLH01S183' };
-const SKIP_CODES = new Set(['BELG01M220']);
+// Client codes in the sheet that are not in the portal. All three are the same
+// company under a different code.
+//
+// BELG01M220 "MASH MAKES (SPV One)" was skipped on the first run as having no
+// record at all, which cost three complaints. It does have one: UDUP01S561,
+// "SPV ONEENERGY PRODUCTS PVT LTD (MASH MAKE)" — and SO25/1/1391, the sales
+// order on the first of those three complaints, is on a pump belonging to it.
+// Same customer, Udupi code rather than Belgaum. The three were imported on
+// 1 Nov 2026 as CMP-0405 to CMP-0407.
+const CLIENT_REMAP = {
+  SOLN01S085: 'MOHL01S130',
+  WARA01S192: 'KOLH01S183',
+  BELG01M220: 'UDUP01S561',
+};
+const SKIP_CODES = new Set();
 
 const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const YES = v => { const s = norm(v); return s === 'yes' || s === 'y' || s === 'true' || s === '1'; };

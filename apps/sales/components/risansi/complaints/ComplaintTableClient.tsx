@@ -32,7 +32,7 @@ const day = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDat
 const fmtDays = (d: number) => (d < 1 ? '<1d' : `${Math.round(d)}d`);
 
 type ColId =
-  | 'no' | 'client' | 'status' | 'sev' | 'severe' | 'category' | 'subcat' | 'industry'
+  | 'no' | 'oldNo' | 'client' | 'status' | 'sev' | 'severe' | 'category' | 'subcat' | 'industry'
   | 'ctype' | 'model' | 'qty' | 'action' | 'freeRepl'
   | 'item' | 'frEc' | 'frEcDate' | 'frDispatch' | 'challanNo' | 'challan'
   | 'capa' | 'linked' | 'holder' | 'since' | 'age'
@@ -126,6 +126,15 @@ const itemsOf = (r: ComplaintListRow): string | null => {
 
 const COLUMNS: Col[] = [
   { id: 'no',         head: 'No.', locked: true, kind: 'text', value: r => r.complaint_no },
+  // The number the complaint had before the portal existed.
+  //
+  // Every migrated complaint carries one and the search box has always matched
+  // on it, but it was shown nowhere - so somebody holding the old register saw
+  // CMP-0377 against a row they knew as 253 and read it as the migration
+  // having scrambled the numbering. Right after the portal's own number,
+  // because the two are the same fact in two vocabularies.
+  { id: 'oldNo',      head: 'Old no.', pick: 'Old no. (pre-portal)', kind: 'text',
+    value: r => r.legacy_ref },
   { id: 'client',     head: 'Client', kind: 'text', value: r => r.client_name },
   // Directly after the client, because that is the pair people read a
   // complaint row by: who, and when it came in. It sat 24th, past the end of
@@ -195,8 +204,8 @@ const ALL_IDS = COLUMNS.map(c => c.id);
 //
 // The key carries the set, so adding more columns later means a new key
 // rather than a second reveal of these.
-const PROMOTED = ['challanNo', 'challan'] as const;
-const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v4';
+const PROMOTED = ['oldNo'] as const;
+const PROMOTED_KEY = 'risansi:cmp-cols:promoted-v5';
 const PROMOTED_SEEN = () => {
   try { return localStorage.getItem(PROMOTED_KEY) === '1'; } catch { return true; }
 };
