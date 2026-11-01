@@ -7,6 +7,7 @@ import { EXTRA_ROLE_CHOICES, listUserRoles } from "@/lib/user-roles";
 import { ExtraRolesEditor } from "@/components/risansi/extra-roles-editor";
 import { ViewPagesEditor } from "@/components/risansi/view-pages-editor";
 import { listViewPagesPeople } from "@/lib/view-pages-db";
+import { syncRolesFromHub } from "@/lib/hub-role-sync";
 
 export const metadata: Metadata = {
   title: "Users & Access | Risansi",
@@ -31,6 +32,9 @@ export const dynamic = "force-dynamic";
 export default async function UserAccessControlPage() {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") redirect("/risansi/dashboard");
+  // Main roles as the hub has them now — a role changed there (360° View too)
+  // shows here at once, not when the person next opens the portal.
+  await syncRolesFromHub({ force: true });
   const [people, viewers] = await Promise.all([listUserRoles(), listViewPagesPeople()]);
 
   return (
