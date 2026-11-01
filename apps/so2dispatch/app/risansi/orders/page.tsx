@@ -18,6 +18,7 @@ import { OrdersTable } from "@/components/risansi/orders-table";
 import { MissingDetailsButton } from "@/components/risansi/missing-details-modal";
 import { OneClickButton } from "@/components/risansi/one-click-modal";
 import { cardBaseGet } from "@/lib/kpis";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Orders | Risansi",
@@ -35,6 +36,8 @@ export default async function OrdersPage({
   // The whole-order list/summary is Central Visibility & Admin only;
   // department roles use their own workspace instead.
   if (!canViewAll(user.role)) redirect("/risansi/dashboard");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/orders")) redirect(homeFor(user));
   const rep = isRep(user.role);
 
   const params = await searchParams;

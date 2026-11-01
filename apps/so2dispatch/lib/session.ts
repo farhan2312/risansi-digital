@@ -5,9 +5,10 @@ import { COOKIE_NAME as SHARED_COOKIE, mayOpen, readToken, type Session } from "
 import { createLinkedUser, getUserById, getUserByIdentityId, getIdentityLink, type User } from "@/lib/users";
 import { identityDb } from "@/lib/db-identity";
 import { query } from "@/lib/db";
-import { ALL_ROLES, isRep, type Role } from "@/lib/roles";
+import { ALL_ROLES, isRep, isView360, type Role } from "@/lib/roles";
 import { getTeamRepNames } from "@/lib/market-intell";
 import { ACTIVE_ROLE_COOKIE, extraRolesFor } from "@/lib/user-roles";
+import { viewPagesFor } from "@/lib/view-pages-db";
 
 export const SESSION_COOKIE = "session";
 
@@ -110,8 +111,22 @@ export const getAccessRefusal = cache(async (): Promise<string | null> => (await
  */
 const readAccess = cache(async (): Promise<Access> => {
   const access = await resolveAccess();
-  return access.user ? { ...access, user: await withRepScope(await withActiveRole(access.user)) } : access;
+  return access.user ? { ...access, user: await withViewPages(await withRepScope(await withActiveRole(access.user))) } : access;
 });
+
+/**
+ * Working as 360° View: the pages Admin picked for them. Fails narrow — if
+ * they cannot be read, no pages, never every page.
+ */
+async function withViewPages(user: User): Promise<User> {
+  if (!isView360(user.role)) return user;
+  try {
+    return { ...user, view_pages: await viewPagesFor(user.id) };
+  } catch (error) {
+    logOnce("view-pages", `Could not read the 360° View pages: ${error instanceof Error ? error.message : String(error)}`);
+    return { ...user, view_pages: [] };
+  }
+}
 
 /**
  * The role they are working as: one of their extra departments when they have

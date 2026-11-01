@@ -8,6 +8,8 @@ import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { roleLabel, type Role } from "@/lib/roles";
 import { ACTIVE_ROLE_COOKIE, EXTRA_ROLE_CHOICES, listUserRoles, setExtraRoles } from "@/lib/user-roles";
+import { VIEW_PAGES, VIEW_PAGE_HREFS } from "@/lib/view-pages";
+import { listViewPagesPeople, setViewPages } from "@/lib/view-pages-db";
 
 
 
@@ -89,6 +91,30 @@ export async function saveExtraRolesAction(userId: string, roles: string[]): Pro
     category: "activity",
     target: person.email,
     details: `Extra departments: ${chosen.filter((r) => r !== person.role).map(roleLabel).join(", ") || "none"}`,
+  });
+  revalidatePath("/risansi/user-access-control");
+  return { ok: true };
+}
+
+/** Admin: the pages a 360° View account sees. */
+export async function saveViewPagesAction(userId: string, pages: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user || (user.primary_role ?? user.role) !== "admin") return { ok: false, error: "Only Admin can pick the pages." };
+  const person = (await listViewPagesPeople()).find((u) => u.id === userId);
+  if (!person) return { ok: false, error: "No 360° View account found." };
+  const chosen = (Array.isArray(pages) ? pages : []).filter((p) => VIEW_PAGE_HREFS.includes(p));
+  try {
+    await setViewPages(userId, chosen, user.id);
+  } catch (error) {
+    console.error("saveViewPagesAction failed:", error);
+    return { ok: false, error: "Could not save the pages." };
+  }
+  await logAudit({
+    actor: { id: user.id, email: user.email, role: user.role },
+    action: "user.view_pages",
+    category: "activity",
+    target: person.email,
+    details: `360° View pages: ${VIEW_PAGES.filter((p) => chosen.includes(p.href)).map((p) => p.label).join(", ") || "none"}`,
   });
   revalidatePath("/risansi/user-access-control");
   return { ok: true };

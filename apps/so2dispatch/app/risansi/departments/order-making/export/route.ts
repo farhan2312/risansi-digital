@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { canAccessOrderMaking, isOrderMakingSo } from "@/lib/roles";
+import { mayOpenPage } from "@/lib/view-pages";
+import { canViewOrderMaking, isOrderMakingSo } from "@/lib/roles";
 import { buildOrderMakingWorkbook, loadOrderMakingReport, orderMakingReport } from "@/lib/order-making-export";
 import { buildOrderMakingReportPdf } from "@/lib/order-making-report-pdf";
 
@@ -14,7 +15,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
-  if (!user || !canAccessOrderMaking(user.role)) return new Response("Forbidden", { status: 403 });
+  if (!user || !canViewOrderMaking(user.role) || !mayOpenPage(user, "/risansi/departments/order-making")) {
+    return new Response("Forbidden", { status: 403 });
+  }
 
   const params = req.nextUrl.searchParams;
   const { rows, scope, filtered, today } = await loadOrderMakingReport(user, (key) => params.get(key) ?? undefined);

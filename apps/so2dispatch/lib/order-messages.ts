@@ -1,5 +1,5 @@
 import { query } from "@/lib/db";
-import { ALL_ROLES, isCentral, type Role } from "@/lib/roles";
+import { ALL_ROLES, hasNoChat, isCentral, type Role } from "@/lib/roles";
 
 /**
  * Per-SO discussion, as two-party conversations.
@@ -76,8 +76,8 @@ export function laneOf(role: string): string {
   return role === "rep_manager" ? "rep" : role;
 }
 
-/** The department roles a conversation can be with — every non-central role that is its own side (CRM only reads). */
-export const DEPARTMENT_LANES: Role[] = ALL_ROLES.filter((r) => !isCentral(r) && r !== "crm" && laneOf(r) === r);
+/** The department roles a conversation can be with — every non-central role that is its own side (CRM and 360° View only read). */
+export const DEPARTMENT_LANES: Role[] = ALL_ROLES.filter((r) => !isCentral(r) && !hasNoChat(r) && laneOf(r) === r);
 
 /** Central Visibility as a conversation partner. Admin shares this side. */
 export const CENTRAL_PEER = "central_visibility";

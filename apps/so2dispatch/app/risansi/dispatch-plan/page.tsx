@@ -8,6 +8,7 @@ import { DISPATCH_PLAN_DAYS, listDispatchPlan, type DispatchPlanRow, type Dispat
 import { boiStatus } from "@/lib/dept-view";
 import { UrlSearchInput } from "@/components/risansi/url-table";
 import { TermPis } from "@/components/risansi/term-pis";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Dispatch Plan | Risansi",
@@ -73,6 +74,8 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canSeeDispatchPlan(user.role)) redirect("/risansi/dashboard");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/dispatch-plan")) redirect(homeFor(user));
 
   const { show: asked, q: rawQ } = await searchParams;
   const show = asked && asked in SHOWS ? (asked as Show) : null;

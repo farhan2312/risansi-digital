@@ -5,6 +5,8 @@ import { getCurrentUser } from "@/lib/session";
 import { HUB_URL } from "@/lib/hub";
 import { EXTRA_ROLE_CHOICES, listUserRoles } from "@/lib/user-roles";
 import { ExtraRolesEditor } from "@/components/risansi/extra-roles-editor";
+import { ViewPagesEditor } from "@/components/risansi/view-pages-editor";
+import { listViewPagesPeople } from "@/lib/view-pages-db";
 
 export const metadata: Metadata = {
   title: "Users & Access | Risansi",
@@ -29,7 +31,7 @@ export const dynamic = "force-dynamic";
 export default async function UserAccessControlPage() {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") redirect("/risansi/dashboard");
-  const people = await listUserRoles();
+  const [people, viewers] = await Promise.all([listUserRoles(), listViewPagesPeople()]);
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
@@ -74,6 +76,18 @@ export default async function UserAccessControlPage() {
         </p>
         <div className="mt-4">
           <ExtraRolesEditor people={people} choices={EXTRA_ROLE_CHOICES} />
+        </div>
+      </section>
+
+      {/* 360° View: which pages each such account sees. */}
+      <section className="mt-10">
+        <h2 className="font-display text-lg font-semibold text-foreground">360° View pages</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
+          A 360° View account sees every SO but changes nothing, on the pages ticked here — the sidebar shows only those.
+          No chat and no notifications.
+        </p>
+        <div className="mt-4">
+          <ViewPagesEditor people={viewers} />
         </div>
       </section>
     </div>

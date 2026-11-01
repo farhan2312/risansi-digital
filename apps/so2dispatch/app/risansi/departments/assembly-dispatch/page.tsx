@@ -33,6 +33,7 @@ import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Assembly & Packing | Risansi",
@@ -50,6 +51,8 @@ export default async function AssemblyDispatchWorkspacePage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canViewDepartment(user.role, TABLE)) redirect("/risansi/dashboard");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/departments/assembly-dispatch")) redirect(homeFor(user));
 
   const params = await searchParams;
   const { edit, thread, page, q } = params;

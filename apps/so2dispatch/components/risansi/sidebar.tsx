@@ -17,7 +17,7 @@ import { logout } from "@/app/risansi/actions";
 import {
   canViewAll,
   canViewDepartment,
-  canAccessOrderMaking,
+  canViewOrderMaking,
   canSeeDispatchPlan,
   canSeeEscalations,
   getsNotifications,
@@ -33,10 +33,11 @@ import {
   activeNavHref,
   type NavItem,
 } from "./nav-config";
+import { mayOpenPage } from "@/lib/view-pages";
 import { ThemeToggle } from "./theme-toggle";
 import { RoleSwitcher } from "./role-switcher";
 
-type SidebarUser = { name: string; email: string; role: string; roles?: string[] };
+type SidebarUser = { name: string; email: string; role: string; roles?: string[]; view_pages?: string[] };
 
 /**
  * Desktop navigation rail. Hidden below `lg`, where BottomNav takes over.
@@ -62,17 +63,18 @@ export function Sidebar({
     .join("")
     .toUpperCase();
 
-  const visibleDepartments = DEPARTMENT_NAV.filter((item) =>
-    // Order Making's page is over the orders table itself.
-    item.table === "orders"
-      ? canAccessOrderMaking(user.role)
-      : canViewDepartment(user.role, item.table)
+  // 360° View: only the pages picked for them (mayOpenPage).
+  const visibleDepartments = DEPARTMENT_NAV.filter(
+    (item) =>
+      // Order Making's page is over the orders table itself.
+      (item.table === "orders" ? canViewOrderMaking(user.role) : canViewDepartment(user.role, item.table)) &&
+      mayOpenPage(user, item.href)
   );
 
   // A department account: its own page, Notifications and its bug reports,
   // under one heading — no dashboard, no whole-order list.
   const deptAccount = !canViewAll(user.role) && visibleDepartments.length > 0;
-  const visiblePrimaryNav = deptAccount ? [] : PRIMARY_NAV;
+  const visiblePrimaryNav = deptAccount ? [] : PRIMARY_NAV.filter((item) => mayOpenPage(user, item.href));
   const deptLink = (item: (typeof visibleDepartments)[number]) => (
     <NavLink
       key={item.href}
@@ -139,7 +141,7 @@ export function Sidebar({
               <NavLink key={item.href} item={item} />
             ))}
             {/* After Orders: the pump SOs that can go out in the next two weeks. */}
-            {canSeeDispatchPlan(user.role) && <NavLink item={DISPATCH_PLAN_NAV} />}
+            {canSeeDispatchPlan(user.role) && mayOpenPage(user, DISPATCH_PLAN_NAV.href) && <NavLink item={DISPATCH_PLAN_NAV} />}
             {getsNotifications(user.role) && (
               <NavLink
                 item={{
