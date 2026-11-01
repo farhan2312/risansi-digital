@@ -10,6 +10,7 @@ import {
   fyCodeWindow, overdueClientWhere, repPipelineWhere, revBetweenSql, revClientWhere,
   revMonthsSql, stageWhere, visitsThisWeekWhere, wonClientWhere,
 } from '@/lib/risansi-dashboard';
+import { targetHolders, teamsByManager } from '@/lib/risansi-rep-targets';
 
 // What is behind a number on the landing dashboard.
 //
@@ -52,12 +53,23 @@ export type DashDrillKind =
   | 'pipeline' | 'stage' | 'order_in_hand' | 'order_booked'
   | 'at_risk' | 'market_supplier'
   // ── the personal (rep / manager) dashboard ──
-  | 'my_revenue' | 'my_visits_week' | 'my_overdue' | 'my_clients' | 'my_pipeline';
+  | 'my_revenue' | 'my_visits_week' | 'my_overdue' | 'my_clients' | 'my_pipeline'
+  // ── the Targets table, on both dashboards ──
+  | 'target_revenue' | 'target_new_clients' | 'target_visits';
 
 export interface DashDrillParams {
   kind: DashDrillKind;
   /** Row key: a stage, an industry, a supplier, 'Domestic' / 'Export', 'FY26'. */
   key?: string;
+  /**
+   * Targets only: whose row was clicked.
+   *
+   * `rep` is one person's id; `rollup` is the All reps or Your team row. The
+   * id is checked against what the viewer may see rather than trusted — the
+   * browser says which row, never whose rows to include.
+   */
+  rep?: number;
+  rollup?: 'all' | 'team';
 }
 
 /**
@@ -109,6 +121,43 @@ async function recordDrillFailure(p: DashDrillParams, email: string | null, e: u
   } catch (logErr) {
     console.error('[dashDrilldown] could not record the failure either', logErr);
   }
+}
+
+/**
+ * Whose rows a Targets drill-down may list, and what to call them.
+ *
+ * The browser sends which ROW was clicked. It does not get to send whose
+ * records to include: a rep id arriving from the page is only honoured when
+ * it is the viewer's own, somebody on their team, or the viewer is an admin.
+ * Null means "not yours to itemise", and the panel says so.
+ */
+async function targetAudience(
+  p: DashDrillParams,
+  me: { id: number | null; role: string },
+): Promise<{ ids: number[]; label: string } | null> {
+  const mine = me.id == null ? null : Number(me.id);
+
+  if (p.rollup === 'all') {
+    if (!hasRole(me.role, 'admin')) return null;
+    const ids = (await targetHolders()).map(h => Number(h.id)).filter(Number.isInteger);
+    return ids.length ? { ids, label: 'All reps' } : null;
+  }
+
+  if (p.rollup === 'team') {
+    if (mine == null) return null;
+    const team = ((await teamsByManager()).get(mine) ?? []).map(Number).filter(Number.isInteger);
+    return team.length ? { ids: team, label: 'Your team' } : null;
+  }
+
+  const id = Number(p.rep);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  let allowed = hasRole(me.role, 'admin') || id === mine;
+  if (!allowed && mine != null) {
+    allowed = ((await teamsByManager()).get(mine) ?? []).some(r => Number(r) === id);
+  }
+  if (!allowed) return null;
+  const holder = (await targetHolders()).find(h => Number(h.id) === id);
+  return { ids: [id], label: holder?.name ?? 'This rep' };
 }
 
 export async function dashDrilldown(p: DashDrillParams): Promise<DashDrillResult | null> {
@@ -393,6 +442,81 @@ export async function dashDrilldown(p: DashDrillParams): Promise<DashDrillResult
             ? 'Active accounts with no visit in 90 days'
             : 'Active accounts you own or cover',
           unit: 'count', rows, total: rows.length,
+        };
+      }
+
+      // ── The Targets table ────────────────────────────────────
+      //
+      // The three figures on a Targets row — revenue, new clients, visits —
+      // now open the same way every other number on these dashboards does.
+      // Each one repeats the predicate loadAchieved counted with, so the list
+      // cannot describe a different population from the figure above it; if
+      // one of those rules changes, both have to change together.
+      case 'target_revenue':
+      case 'target_new_clients':
+      case 'target_visits': {
+        const who = await targetAudience(p, me);
+        if (!who) return null;
+        const inReps = `(${who.ids.join(',')})`;
+
+        if (p.kind === 'target_revenue') {
+          const rows = await run(`
+            SELECT c.id, c.code, c.legal_name AS name,
+                   (SUM(crm.total_value) / 10000000.0) AS value,
+                   count(DISTINCT crm.month)::text || ' month(s) invoiced' AS detail
+              FROM client_revenue_monthly crm
+              JOIN clients c ON c.id = crm.client_id
+             WHERE c.primary_rep_id IN ${inReps}
+               AND crm.month >= '${w.cyStart}'::date AND crm.month < '${w.cyEnd}'::date
+             GROUP BY c.id, c.code, c.legal_name
+            HAVING SUM(crm.total_value) <> 0
+             ORDER BY value DESC NULLS LAST`);
+          return {
+            title: `${who.label} · revenue this year`,
+            subtitle: 'Invoiced revenue on the accounts they are primary rep for',
+            unit: 'cr', rows, total: sum(rows),
+            secondary: plural(rows.length, 'account'),
+          };
+        }
+
+        if (p.kind === 'target_new_clients') {
+          // The same two exclusions the count makes, for the same reason: a
+          // bulk loader tags itself instead of signing with an email, and a
+          // merged duplicate is housekeeping rather than a new account.
+          const rows = await run(`
+            SELECT c.id, c.code, c.legal_name AS name, NULL::numeric AS value,
+                   'added ' || to_char(c.created_at, 'DD Mon YYYY')
+                     || ' · ' || COALESCE(NULLIF(c.created_by, ''), 'unknown') AS detail
+              FROM clients c
+             WHERE c.primary_rep_id IN ${inReps}
+               AND c.deleted_at IS NULL AND c.status <> 'DUPLICATE'
+               AND c.created_by LIKE '%@%'
+               AND c.created_at >= '${w.cyStart}'::date AND c.created_at < '${w.cyEnd}'::date
+             ORDER BY c.created_at DESC`);
+          return {
+            title: `${who.label} · new clients this year`,
+            subtitle: 'Accounts a person added — bulk imports are not counted',
+            unit: 'count', rows, total: rows.length,
+          };
+        }
+
+        // Visits, counted when the report was submitted. LEFT JOIN so a visit
+        // with no client on it still counts towards the total the tile shows,
+        // listed as Unattributed rather than quietly dropped.
+        const rows = await run(`
+          SELECT c.id, c.code, c.legal_name AS name, count(*) AS value,
+                 count(*)::text || ' visit(s) · last '
+                   || to_char(max(v.submitted_at), 'DD Mon YYYY') AS detail
+            FROM visits v LEFT JOIN clients c ON c.id = v.client_id
+           WHERE v.rep_id IN ${inReps} AND v.submitted_at IS NOT NULL
+             AND v.submitted_at >= '${w.cyStart}'::date AND v.submitted_at < '${w.cyEnd}'::date
+           GROUP BY c.id, c.code, c.legal_name
+           ORDER BY value DESC, c.legal_name`);
+        return {
+          title: `${who.label} · visits this year`,
+          subtitle: 'Visit reports submitted, by account',
+          unit: 'count', rows, total: sum(rows),
+          secondary: plural(rows.length, 'account'),
         };
       }
 

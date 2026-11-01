@@ -1,5 +1,14 @@
 import type { CSSProperties } from 'react';
 import { METRIC_DEFS, type TargetMetric, type TargetSet } from '@/lib/risansi-target-metrics';
+import { DashCell } from './DashDrilldown';
+import type { DashDrillKind, DashDrillParams } from '@/app/actions/risansi-dashboard-drilldown';
+
+/** Which breakdown each column opens. The three metrics, in the same order. */
+const DRILL_KIND: Record<TargetMetric, DashDrillKind> = {
+  revenue_cr:  'target_revenue',
+  new_clients: 'target_new_clients',
+  visits:      'target_visits',
+};
 
 // Target vs Achieved, as a table.
 //
@@ -22,6 +31,8 @@ export interface TargetEntry {
   sub?: string | null;
   target: TargetSet;
   achieved: Record<TargetMetric, number>;
+  /** Which row this is, so each figure can open the accounts behind it. */
+  drill?: { rep?: number; rollup?: 'all' | 'team' };
 }
 
 const RS = '₹';
@@ -37,18 +48,27 @@ function verdict(pct: number, elapsed: number): { text: string; color: string } 
 }
 
 /** One metric in one row: figure, target, share, and a 3px bar. */
-function Cell({ metric, target, achieved, elapsedPct }: {
+function Cell({ metric, target, achieved, elapsedPct, drill }: {
   metric: TargetMetric;
   target: number | null;
   achieved: number;
   elapsedPct: number;
+  drill?: { rep?: number; rollup?: 'all' | 'team' };
 }) {
   const pct = target && target > 0 ? (achieved / target) * 100 : null;
   const v = pct === null ? null : verdict(pct, elapsedPct);
+  // Zero opens nothing: a breakdown of no accounts is a panel saying "it is
+  // zero", which the figure already said.
+  const params: DashDrillParams | null = drill && achieved > 0
+    ? { kind: DRILL_KIND[metric], ...drill }
+    : null;
+  const figure = <span style={FIG}>{fmtVal(metric, achieved)}</span>;
   return (
     <td style={CELL}>
       <div style={ROW_INNER}>
-        <span style={FIG}>{fmtVal(metric, achieved)}</span>
+        {params
+          ? <DashCell params={params} title="See the accounts behind this figure">{figure}</DashCell>
+          : figure}
         {target !== null && <span style={OF}>/ {fmtVal(metric, target)}</span>}
         <span style={{ ...PCTS, color: v ? v.color : 'var(--fg-4)' }}>
           {pct === null || !v ? 'no target' : pct.toFixed(0) + '% ' + v.text}
@@ -121,6 +141,7 @@ export function TargetsPanel({ fyLabel, elapsedPct, entries }: {
                       target={e.target[d.key]}
                       achieved={e.achieved[d.key] ?? 0}
                       elapsedPct={elapsedPct}
+                      drill={e.drill}
                     />
                   ))}
                 </tr>

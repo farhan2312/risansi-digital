@@ -223,6 +223,7 @@ export async function buildTargetEntries(opts: {
       label: me ? me.name : 'You',
       sub: 'your own accounts and visits',
       target: tgt(repId), achieved: got(repId),
+      drill: { rep: repId },
     });
     const team = teams.get(repId) ?? [];
     if (team.length > 0) {
@@ -230,6 +231,7 @@ export async function buildTargetEntries(opts: {
         label: 'Your team',
         sub: `${team.length} rep${team.length === 1 ? '' : 's'}, not counting your own book`,
         ...roll(team),
+        drill: { rollup: 'team' },
       });
     }
     return base;
@@ -240,9 +242,13 @@ export async function buildTargetEntries(opts: {
     label: 'All reps',
     sub: `${ids.length} people`,
     ...roll(ids),
+    drill: { rollup: 'all' },
   });
   for (const h of holders) {
-    base.entries.push({ label: h.name, sub: h.role, target: tgt(h.id), achieved: got(h.id) });
+    base.entries.push({
+      label: h.name, sub: h.role, target: tgt(h.id), achieved: got(h.id),
+      drill: { rep: h.id },
+    });
   }
   return base;
 }
@@ -252,4 +258,12 @@ export interface TargetEntryData {
   sub?: string | null;
   target: TargetSet;
   achieved: Record<TargetMetric, number>;
+  /**
+   * Which row this is, so its figures can open their own breakdown.
+   *
+   * Says only which row was clicked — the drill-down re-derives whose records
+   * that row may show from the session, so a rep id travelling through the
+   * browser buys nothing.
+   */
+  drill?: { rep?: number; rollup?: 'all' | 'team' };
 }
