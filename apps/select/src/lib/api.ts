@@ -49,6 +49,7 @@ export function userToDict(u: UserRow) {
 export function projectToDict(p: ProjectRow, createdByName?: string | null, assignedToName?: string | null) {
   return {
     order_type: p.orderType,
+    order_subtype: p.orderSubtype,
     assigned_to: p.assignedTo,
     assigned_to_name: assignedToName ?? null,
     assigned_at: p.assignedAt,

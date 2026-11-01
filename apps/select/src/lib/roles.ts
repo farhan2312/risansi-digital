@@ -79,3 +79,23 @@ export const ORDER_TYPES: { value: OrderType; label: string }[] = [
   { value: "spare", label: "Spare" },
 ];
 export const orderTypeLabel = (v: string | null | undefined): string => (v === "spare" ? "Spare" : "Pump");
+
+/** What kind of pump / spare (user, 2026-11-01). Every older enquiry is a PCP
+ *  pump; the DB CHECK pairs each subtype with its order type. */
+export type OrderSubtype = "pcp" | "mmp" | "barrel" | "online_blind" | "spare" | "retrofit_spare";
+export const ORDER_SUBTYPES: Record<OrderType, { value: OrderSubtype; label: string }[]> = {
+  pump: [
+    { value: "pcp", label: "PCP" },
+    { value: "mmp", label: "MMP" },
+    { value: "barrel", label: "Barrel" },
+    { value: "online_blind", label: "Online blind" },
+  ],
+  spare: [
+    { value: "spare", label: "Spare" },
+    { value: "retrofit_spare", label: "Retrofit spare" },
+  ],
+};
+/** The first one: PCP for a pump, a plain spare for a spare. */
+export const defaultSubtype = (t: OrderType): OrderSubtype => ORDER_SUBTYPES[t][0].value;
+export const orderSubtypeLabel = (v: string | null | undefined): string =>
+  [...ORDER_SUBTYPES.pump, ...ORDER_SUBTYPES.spare].find((o) => o.value === v)?.label ?? "";

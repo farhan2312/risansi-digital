@@ -1,5 +1,5 @@
 import apiClient from "./apiClient";
-import type { OrderType } from "../lib/roles";
+import type { OrderSubtype, OrderType } from "../lib/roles";
 import { filterParams, type EnquiryFilters } from "../lib/enquiry-filters";
 
 // Matches projectToDict() in lib/api.ts — raw snake_case columns plus the
@@ -23,6 +23,8 @@ export interface ProjectRecord {
   quotation_count?: number;
   /** "pump" | "spare". */
   order_type: string;
+  /** PCP / MMP / Barrel / Online blind, or Spare / Retrofit spare (lib/roles.ts). */
+  order_subtype: string;
   /** Who works the enquiry (a worker sees only theirs - lib/roles.ts). */
   assigned_to: string | null;
   assigned_to_name: string | null;
@@ -111,6 +113,7 @@ export interface CreateProjectInput {
   /** YYYY-MM-DD */
   enquiryDate: string;
   orderType: OrderType;
+  orderSubtype: OrderSubtype;
   /** User id; the creator when empty. */
   assignedTo: string;
   clientPrimaryRep: string;
@@ -143,6 +146,7 @@ export interface UpdateProjectInput {
   status?: string;
   remarks?: string;
   orderType?: OrderType;
+  orderSubtype?: OrderSubtype;
   clientPrimaryRep?: string;
   clientSecondaryReps?: string;
   clientMarketType?: string;

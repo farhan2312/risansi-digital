@@ -13,7 +13,7 @@ import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -763,6 +763,9 @@ const ProjectsPage = () => {
                       >
                         {orderTypeLabel(project.order_type)}
                       </span>
+                      {orderSubtypeLabel(project.order_subtype) && orderSubtypeLabel(project.order_subtype) !== orderTypeLabel(project.order_type) && (
+                        <span className="mt-0.5 block truncate text-[11.5px] text-fg-3">{orderSubtypeLabel(project.order_subtype)}</span>
+                      )}
                     </span>
 
                     {/* Client name over the client code */}

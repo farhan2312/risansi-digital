@@ -5,7 +5,7 @@ import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
-import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
+import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 import { viewDenied } from "@/lib/enquiry-access";
 
 const assignee = alias(users, "assignee");
@@ -113,6 +113,18 @@ export async function PATCH(
     const t = orderTypeFrom(body.orderType);
     if (!t) return error("'orderType' must be pump or spare", 400);
     patch.orderType = t;
+  }
+  if ("orderType" in body || "orderSubtype" in body) {
+    // The subtype has to belong to the (new or current) order type.
+    let t = patch.orderType as "pump" | "spare" | undefined;
+    if (!t) {
+      const [cur] = await db.select({ orderType: projects.orderType }).from(projects).where(eq(projects.id, id)).limit(1);
+      if (!cur) return error("Project not found", 404);
+      t = cur.orderType === "spare" ? "spare" : "pump";
+    }
+    const s = orderSubtypeFrom(t, body.orderSubtype);
+    if (!s) return error(`'orderSubtype' does not belong to a ${t} order`, 400);
+    patch.orderSubtype = s;
   }
   Object.assign(patch, clientDetailsFrom(body));
 

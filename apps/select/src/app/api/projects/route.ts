@@ -10,8 +10,8 @@ import { findAssignee } from "@/lib/enquiry-access";
 import { filtersFromParams } from "@/lib/enquiry-filters";
 import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
 import { repScope } from "@/lib/rep-scope";
-import { orderTypeLabel } from "@/lib/roles";
-import { clientDetailsFrom, orderTypeFrom } from "@/lib/enquiry-fields";
+import { orderSubtypeLabel, orderTypeLabel } from "@/lib/roles";
+import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 
 const assignee = alias(users, "assignee");
 
@@ -197,6 +197,8 @@ export async function POST(req: Request) {
 
   const orderType = orderTypeFrom(body.orderType);
   if (!orderType) return error("'orderType' must be pump or spare", 400);
+  const orderSubtype = orderSubtypeFrom(orderType, body.orderSubtype);
+  if (!orderSubtype) return error(`Pick a ${orderTypeLabel(orderType).toLowerCase()} type`, 400);
 
   // Assigned to a worker or the master; the creator when none is picked.
   const assignedToId = String(body.assignedTo ?? "").trim() || createdBy;
@@ -220,6 +222,7 @@ export async function POST(req: Request) {
         status: (body.status as string) ?? "Pending",
         createdBy,
         orderType,
+        orderSubtype,
         assignedTo: assignedTo.id,
         assignedBy: createdBy,
         assignedAt: new Date(),
@@ -252,7 +255,7 @@ export async function POST(req: Request) {
     action: "enquiry.create",
     entity: "projects",
     entityId: project.id,
-    detail: `Created enquiry ${project.projectCode} (${orderTypeLabel(orderType)}), assigned to ${assignedName}`,
+    detail: `Created enquiry ${project.projectCode} (${orderTypeLabel(orderType)} - ${orderSubtypeLabel(orderSubtype)}), assigned to ${assignedName}`,
   });
 
   return json(projectToDict(project, createdByName, assignedTo.name), 201);
