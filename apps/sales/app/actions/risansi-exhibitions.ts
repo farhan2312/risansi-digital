@@ -319,21 +319,68 @@ export async function updateExhibition(id: number, fd: FormData): Promise<SaveRe
 export async function deleteExhibition(id: number): Promise<SaveResult> {
   const user = await requireUser();
   if (!hasRole(user.role, 'admin')) return fail('Only an admin can delete an exhibition.');
-  // A closed exhibition is a settled record — meetings, expenses, invoices and a
-  // signed-off review. Deleting it is the most destructive edit there is, so it
-  // obeys the same freeze: a sysadmin has to reopen it first, which is logged.
-  {
-    const { rows } = await risansiPool.query<{ status: string }>(
-      'SELECT status FROM exhibitions WHERE id = $1', [id],
-    );
-    if (rows[0]?.status === 'Closed') {
-      return fail('This exhibition is closed and cannot be deleted. A sysadmin must reopen it first.');
-    }
+
+  const { rows: [ex] } = await risansiPool.query<{ status: string; name: string }>(
+    'SELECT status, name FROM exhibitions WHERE id = $1', [id],
+  );
+  if (!ex) return fail('That exhibition is already gone.');
+
+  // A closed exhibition is a settled record — meetings, expenses, invoices and
+  // a signed-off review — so deleting one is the most destructive edit there
+  // is. An admin still cannot: the freeze stands for them.
+  //
+  // A sysadmin now can, directly. Before, the only route was reopen, delete,
+  // and the reopen was itself an edit to a settled record made solely to get
+  // past the lock — so the log ended up recording a status change that nobody
+  // meant, and a deletion that looked like it happened to a live event. One
+  // logged act is more honest than two misleading ones.
+  if (ex.status === 'Closed' && !hasRole(user.role, 'sysadmin')) {
+    return fail('This exhibition is closed. Only a sysadmin can delete it.');
   }
-  await risansiPool.query('DELETE FROM exhibitions WHERE id = $1', [id]);
+
+  // Snapshot, then delete, in one transaction — so the copy cannot describe a
+  // record that changed underneath it, and a delete that fails leaves nothing
+  // half-removed. Seven tables cascade off an exhibition, two of them through
+  // its meetings; all of them are read before the row goes.
+  const tx = await risansiPool.connect();
+  let snapshot: Record<string, unknown> = {};
+  try {
+    await tx.query('BEGIN');
+    const row = (await tx.query('SELECT * FROM exhibitions WHERE id = $1 FOR UPDATE', [id])).rows[0];
+    if (!row) { await tx.query('ROLLBACK'); return fail('That exhibition is already gone.'); }
+    const children: Record<string, unknown[]> = {};
+    for (const t of ['exhibition_meetings', 'exhibition_expenses', 'exhibition_team',
+                     'exhibition_reviews', 'exhibition_approvals']) {
+      children[t] = (await tx.query(`SELECT * FROM ${t} WHERE exhibition_id = $1`, [id])).rows;
+    }
+    for (const t of ['exhibition_meeting_contacts', 'exhibition_meeting_cards']) {
+      children[t] = (await tx.query(
+        `SELECT x.* FROM ${t} x JOIN exhibition_meetings m ON m.id = x.meeting_id
+          WHERE m.exhibition_id = $1`, [id])).rows;
+    }
+    snapshot = { exhibition: row, children };
+    const del = await tx.query('DELETE FROM exhibitions WHERE id = $1', [id]);
+    if (del.rowCount !== 1) throw new Error(`delete touched ${del.rowCount} rows`);
+    await tx.query('COMMIT');
+  } catch (e) {
+    await tx.query('ROLLBACK');
+    console.error('[deleteExhibition] rolled back', e);
+    return fail('Could not delete this exhibition. Nothing was removed.');
+  } finally {
+    tx.release();
+  }
+
+  const counts = Object.entries((snapshot.children ?? {}) as Record<string, unknown[]>)
+    .filter(([, rows]) => rows.length)
+    .map(([t, rows]) => `${rows.length} ${t.replace('exhibition_', '')}`);
   await recordAudit({
     action: 'exhibition_deleted', entityType: 'exhibition', entityId: String(id),
-    summary: 'deleted exhibition', actorEmail: user.email,
+    entityLabel: ex.name,
+    summary: `Deleted ${ex.status.toLowerCase()} exhibition “${ex.name}”`
+      + (counts.length ? `, with ${counts.join(', ')}` : ', which held nothing')
+      + '. The full record is in this entry’s metadata.',
+    metadata: snapshot,
+    actorEmail: user.email,
   }).catch(() => {});
   revalidatePath('/risansi/exhibitions');
   return { ok: true };

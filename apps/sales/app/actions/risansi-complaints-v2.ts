@@ -550,14 +550,69 @@ export async function addComplaintNote(id: number, body: string): Promise<SaveRe
   return { ok: true };
 }
 
-/** Admin only. Gone for good — the stage log and files go with it. */
+/**
+ * Admin only. Gone for good from the portal — but not gone without trace.
+ *
+ * Six tables cascade off a complaint: its stage log, updates, parts, photos,
+ * service visits and attachment records. The delete used to write an audit row
+ * carrying the complaint number and the word "deleted", which is enough to
+ * know something was removed and nothing at all to put it back. Whatever is
+ * about to be destroyed is copied into the audit entry first, so a delete made
+ * in error can be read back and re-entered.
+ *
+ * Deliberately NOT a soft delete. A complaint that is still in the table but
+ * hidden has to be excluded from every count, every dashboard and every export
+ * for ever, and one place that forgets makes the figures lie. The snapshot
+ * gives back the one thing the hard delete was missing.
+ *
+ * The attachment ROWS are kept; the files they point at are not this
+ * function's to restore, and the snapshot says so by holding the names.
+ */
 export async function deleteComplaint(id: number): Promise<SaveResult> {
   const user = await getCurrentUser();
   if (!hasRole(user.role, 'admin')) return fail('Only an admin can delete a complaint.');
-  const { rows: [c] } = await risansiPool.query<{ complaint_no: string; client_id: number | null }>('SELECT complaint_no, client_id FROM complaints WHERE id = $1', [id]);
+  const { rows: [c] } = await risansiPool.query<{ complaint_no: string; client_id: number | null }>(
+    'SELECT complaint_no, client_id FROM complaints WHERE id = $1', [id]);
   if (!c) return fail('Already gone.');
-  await risansiPool.query('DELETE FROM complaints WHERE id = $1', [id]);
-  await recordAudit({ action: 'delete', entityType: 'complaint', entityId: id, entityLabel: c.complaint_no, summary: `Complaint ${c.complaint_no} deleted`, actorEmail: user.email });
+
+  // Read everything first, in one transaction with the delete, so the snapshot
+  // cannot describe a row that a concurrent edit has already changed.
+  const tx = await risansiPool.connect();
+  let snapshot: Record<string, unknown> = {};
+  try {
+    await tx.query('BEGIN');
+    const row = (await tx.query('SELECT * FROM complaints WHERE id = $1 FOR UPDATE', [id])).rows[0];
+    if (!row) { await tx.query('ROLLBACK'); return fail('Already gone.'); }
+    const children: Record<string, unknown[]> = {};
+    for (const t of ['complaint_stage_log', 'complaint_updates', 'complaint_parts',
+                     'complaint_photos', 'complaint_service_visits', 'complaint_attachments']) {
+      // Each is a plain child table keyed on complaint_id; the name is from the
+      // fixed list above, never from input.
+      children[t] = (await tx.query(`SELECT * FROM ${t} WHERE complaint_id = $1`, [id])).rows;
+    }
+    snapshot = { complaint: row, children };
+    const del = await tx.query('DELETE FROM complaints WHERE id = $1', [id]);
+    if (del.rowCount !== 1) throw new Error(`delete touched ${del.rowCount} rows`);
+    await tx.query('COMMIT');
+  } catch (e) {
+    await tx.query('ROLLBACK');
+    console.error('[deleteComplaint] rolled back', e);
+    return fail('Could not delete this complaint. Nothing was removed.');
+  } finally {
+    tx.release();
+  }
+
+  const childCount = Object.entries((snapshot.children ?? {}) as Record<string, unknown[]>)
+    .filter(([, rows]) => rows.length)
+    .map(([t, rows]) => `${rows.length} ${t.replace('complaint_', '')}`);
+  await recordAudit({
+    action: 'delete', entityType: 'complaint', entityId: id, entityLabel: c.complaint_no,
+    summary: `Complaint ${c.complaint_no} deleted`
+      + (childCount.length ? `, with ${childCount.join(', ')}` : '')
+      + '. The full record is in this entry’s metadata.',
+    metadata: snapshot,
+    actorEmail: user.email,
+  });
   revalidatePath('/risansi/complaints'); if (c.client_id) revalidatePath(`/risansi/clients/${c.client_id}`);
   return { ok: true };
 }

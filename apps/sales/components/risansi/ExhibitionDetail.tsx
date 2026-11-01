@@ -113,10 +113,12 @@ export function ExhibitionDetail(props: {
   const reviewOk  = canReview(ex.status);
   const hasLead   = team.some(t => t.team_role === 'Team Lead');
   // Deleting takes the meetings, expenses, invoices and the review with it, so
-  // it is offered only where the server would allow it: an admin, on an
-  // exhibition that is not Closed. A closed one is a settled record and a
-  // sysadmin has to reopen it first.
-  const canDelete = isAdmin && !isClosed;
+  // it is offered only where the server would allow it: an admin on anything
+  // not Closed, and a sysadmin on a closed one too. A closed exhibition is a
+  // settled record, which is why it is the higher bar — but the route used to
+  // be reopen, delete, and that reopen was an edit to a settled record made
+  // only to get past the lock. One logged act beats two misleading ones.
+  const canDelete = isAdmin && (!isClosed || isSysadmin);
   const readiness = submitReadiness(ex, team.length, hasLead);
 
   // Never leave someone parked on a tab that has since locked (e.g. after a
@@ -160,6 +162,7 @@ export function ExhibitionDetail(props: {
           name={ex.name}
           meetings={meetings.length}
           expenses={expenses.length}
+          closed={isClosed}
         />
       )}
 
@@ -1947,8 +1950,10 @@ const FLAG_NEW: CSSProperties = { padding: '2px 9px', borderRadius: 999, fontSiz
  * The server refuses a Closed exhibition and anything below admin regardless;
  * this only declines to offer what would be refused.
  */
-function DeleteExhibition({ id, name, meetings, expenses }: {
+function DeleteExhibition({ id, name, meetings, expenses, closed }: {
   id: number; name: string; meetings: number; expenses: number;
+  /** A closed one is a settled record, and only a sysadmin reaches this at all. */
+  closed: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -1993,9 +1998,21 @@ function DeleteExhibition({ id, name, meetings, expenses }: {
       </div>
       <div style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 10, lineHeight: 1.45 }}>
         {carries
-          ? `This also deletes ${carries} recorded against it. It cannot be undone.`
-          : 'Nothing is recorded against it yet. It cannot be undone.'}
+          ? `This also deletes ${carries} recorded against it, along with the team, the review and every contact met.`
+          : 'Nothing is recorded against it yet.'}
+        {' '}A full copy of the record is written to the audit log first, so a
+        delete made in error can be read back — but the portal will not put it back.
       </div>
+      {closed && (
+        <div style={{
+          fontSize: 11.5, lineHeight: 1.5, marginBottom: 10, padding: '7px 9px', borderRadius: 6,
+          color: 'var(--warn-strong)', background: 'var(--warn-soft)', border: '1px solid var(--warn)',
+        }}>
+          This exhibition is <strong>closed</strong> — a settled record with its
+          meetings, expenses and sign-off on it. Only a sysadmin can delete one,
+          and the deletion is logged against your name.
+        </div>
+      )}
       <label style={{ fontSize: 11.5, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
         Type the name to confirm
       </label>

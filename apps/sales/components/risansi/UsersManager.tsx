@@ -26,6 +26,16 @@ export interface UserRow {
   clients_count:  number;
 }
 
+/**
+ * Roles whose complaint access comes ENTIRELY from their departments.
+ *
+ * An admin or sysadmin short-circuits every check in canEditPage, and a rep or
+ * manager reaches Registration and Corrective Action through the client they
+ * work. These three reach nothing at all without a department, so leaving one
+ * blank is a silent no-op rather than a default.
+ */
+const NEEDS_DEPARTMENT = ['staff', 'registry'];
+
 // 'staff' first, because it is the one that needs explaining: it is not the
 // bottom of the ladder, it is off it. A staff user reaches Client 360 and
 // Complaints and nothing else, whatever their department.
@@ -142,11 +152,30 @@ export function UsersManager({ users }: { users: UserRow[] }) {
                   </td>
                   <td data-label="Role" style={TD}>
                     <Tag kind={u.role === 'sysadmin' || u.role === 'admin' ? 'accent' : undefined}>{u.role}</Tag>
-                    {u.departments?.length > 0 && (
+                    {u.departments?.length > 0 ? (
                       <span style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 6 }}>
                         {u.departments.join(' · ')}
                       </span>
-                    )}
+                    ) : NEEDS_DEPARTMENT.includes(u.role) && u.is_active ? (
+                      // A staff user with no department can open a complaint and
+                      // edit nothing on it. Their role is level 0 on purpose —
+                      // every door is opened by an explicit allowance, and the
+                      // department IS the allowance for all eight complaint
+                      // pages. Nothing said so before: the row simply showed
+                      // "staff" and the person found out by being unable to
+                      // save. It is masked today by the complaint edit override;
+                      // the day that goes off, they lose the lot.
+                      <span
+                        title="No department — this person can open a complaint but edit none of its pages. Edit them to add one."
+                        style={{
+                          fontSize: 10.5, fontWeight: 700, marginLeft: 6, padding: '1px 6px',
+                          borderRadius: 4, color: 'var(--warn-strong)',
+                          background: 'var(--warn-soft)', border: '1px solid var(--warn)',
+                        }}
+                      >
+                        no department
+                      </span>
+                    ) : null}
                   </td>
                   <td data-label="Status" style={TD}>
                     <Tag kind={u.status === 'Approved' ? 'pos' : u.status === 'Pending' ? 'warn' : 'neg'} dot>{u.status}</Tag>

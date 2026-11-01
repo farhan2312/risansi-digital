@@ -146,7 +146,7 @@ export default async function ClientListPage({
   }
 
   // ── All queries in parallel ────────────────────────────────────
-  const [clients, total, tabCounts, prospStats, industries, zones, countries, tiers, clientTypes, repOptions, fyYears, revBuckets, visitBuckets] = await Promise.all([
+  const [clients, total, repSplit, tabCounts, prospStats, industries, zones, countries, tiers, clientTypes, repOptions, fyYears, revBuckets, visitBuckets] = await Promise.all([
 
     (async (): Promise<ClientRow[]> => {
       try {
@@ -196,6 +196,37 @@ export default async function ClientListPage({
       } catch (err) {
         console.error('[clients/page] count query failed:', err);
         return 0;
+      }
+    })(),
+
+    // Owned against covered, when the list is narrowed to exactly one rep.
+    //
+    // This number and the Executive Review's "Active clients" were read as
+    // disagreeing — 261 against 258 — and both were right. The rep filter here
+    // matches a client where the person is EITHER the primary rep or a
+    // secondary one; the review's default scope counts only what they own. The
+    // gap is the accounts they cover for somebody else, and nothing on either
+    // screen said so. Now this one does.
+    (async (): Promise<{ owned: number; covered: number } | null> => {
+      if (repFilts.length !== 1) return null;
+      try {
+        const { rows } = await risansiPool.query<{ owned: string; covered: string }>(
+          `SELECT COUNT(DISTINCT c.id) FILTER (
+                    WHERE (SELECT u.name FROM users u WHERE u.id = c.primary_rep_id) = $${countParams.length + 1}
+                  )::text AS owned,
+                  COUNT(DISTINCT c.id) FILTER (
+                    WHERE (SELECT u.name FROM users u WHERE u.id = c.primary_rep_id) IS DISTINCT FROM $${countParams.length + 1}
+                  )::text AS covered
+             FROM clients c
+             LEFT JOIN tour_routes tr ON tr.id = c.tour_id
+             ${REV_JOIN}
+            WHERE ${whereClause}`,
+          [...countParams, repFilts[0]] as (string | number)[],
+        );
+        return { owned: Number(rows[0]?.owned ?? 0), covered: Number(rows[0]?.covered ?? 0) };
+      } catch (err) {
+        console.error('[clients/page] owned/covered split failed:', err);
+        return null;
       }
     })(),
 
@@ -499,6 +530,17 @@ export default async function ClientListPage({
             <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 3 }}>
               {tab === 'prospective' ? 'Prospective leads & clients' : 'Client master'} · {total.toLocaleString('en-IN')} records
             </div>
+            {/* Said out loud, because the Executive Review counts only what a
+                rep OWNS and this list counts what they own or cover — two right
+                answers that read as one of them being wrong. */}
+            {repSplit && repSplit.covered > 0 && (
+              <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 2 }}>
+                {repSplit.owned.toLocaleString('en-IN')} owned
+                {' · '}
+                {repSplit.covered.toLocaleString('en-IN')} covered for someone else.
+                {' '}The Executive Review counts the owned ones only.
+              </div>
+            )}
           </div>
           {/* Opens the column picker rather than downloading straight away. The
               filters still ride on exportHref; the picker only adds ?cols=. */}

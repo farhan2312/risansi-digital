@@ -28,7 +28,12 @@ export function ComplaintNotes({ complaintId, notes, isAdmin }: { complaintId: n
     });
   };
   const remove = () => {
-    if (!confirm('Delete this complaint for good? The stage history and files go with it. This cannot be undone.')) return;
+    if (!confirm(
+      'Delete this complaint? Its stage history, updates, parts, photos and service visits go with it, '
+      + 'and it leaves every count and export immediately.\n\n'
+      + 'A full copy of the record is written to the audit log first, so a delete made in error can be '
+      + 'read back and re-entered — but the portal will not put it back for you.',
+    )) return;
     start(async () => {
       const res = await deleteComplaint(complaintId);
       if (!res.ok) { setErr(res.error); return; }
