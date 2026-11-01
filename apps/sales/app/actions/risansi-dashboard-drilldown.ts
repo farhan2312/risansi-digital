@@ -79,13 +79,59 @@ const num = (v: unknown) => (v == null ? 0 : Number(v));
 const sum = (rows: DrillRow[]) => rows.reduce((t, r) => t + num(r.value), 0);
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-export async function dashDrilldown(p: DashDrillParams): Promise<DashDrillResult | null> {
-  const me = await getCurrentUser();
-  if (!me.email) return null;
-  if (ADMIN_ONLY.has(p.kind) && !hasRole(me.role, 'admin')) return null;
+/**
+ * Why a failure here is recorded rather than only logged.
+ *
+ * Every tile on the landing dashboard was coming back 500 and the panel could
+ * only say "could not be loaded". The switch below has always caught its own
+ * errors, so whatever was throwing was throwing somewhere this function could
+ * not see — and the one place the message existed was a Vercel function log
+ * nobody reading the dashboard can open. So it goes in audit_log, where the
+ * person who hit it can be told what it was.
+ *
+ * Never throws on its own account: a drill-down that cannot explain its failure
+ * must still fail quietly rather than turning one broken figure into two.
+ */
+async function recordDrillFailure(p: DashDrillParams, email: string | null, e: unknown) {
+  const err = e instanceof Error ? e : new Error(String(e));
+  console.error('[dashDrilldown]', p, err);
+  try {
+    await risansiPool.query(
+      `INSERT INTO audit_log (actor_email, action, entity_type, entity_id, entity_label, summary, metadata)
+       VALUES ($1, 'dashboard.drilldown.error', 'dashboard', $2, $3, $4, $5::jsonb)`,
+      [email, p.kind, p.key ?? null, `${err.name}: ${err.message}`.slice(0, 500),
+        JSON.stringify({
+          params: p, name: err.name, message: err.message,
+          stack: (err.stack ?? '').split('\n').slice(0, 12).join('\n'),
+          cause: err.cause instanceof Error ? `${err.cause.name}: ${err.cause.message}` : null,
+        })],
+    );
+  } catch (logErr) {
+    console.error('[dashDrilldown] could not record the failure either', logErr);
+  }
+}
 
-  const s = dashScope(me);
-  const w = dashWindows();
+export async function dashDrilldown(p: DashDrillParams): Promise<DashDrillResult | null> {
+  // The preamble is inside the guard too.
+  //
+  // It used to sit outside it, which is how every tile on this dashboard came
+  // to answer 500 rather than null: the switch below catches its own errors,
+  // but a throw in getCurrentUser, dashScope or dashWindows went straight past
+  // and out of the action, and an uncaught server action is a 500 whatever the
+  // caller does with it.
+  let me: Awaited<ReturnType<typeof getCurrentUser>>;
+  let s: ReturnType<typeof dashScope>;
+  let w: ReturnType<typeof dashWindows>;
+  try {
+    me = await getCurrentUser();
+    if (!me.email) return null;
+    if (ADMIN_ONLY.has(p.kind) && !hasRole(me.role, 'admin')) return null;
+    s = dashScope(me);
+    w = dashWindows();
+  } catch (e) {
+    await recordDrillFailure(p, null, e);
+    return null;
+  }
   const key = (p.key ?? '').trim();
 
   // Every branch returns rows biggest-first, which is what the reader is looking
@@ -368,7 +414,7 @@ export async function dashDrilldown(p: DashDrillParams): Promise<DashDrillResult
   } catch (e) {
     // Server actions hand back a null rather than throwing: a thrown error is
     // redacted in production, so the modal would have nothing to say.
-    console.error('[dashDrilldown]', p, e);
+    await recordDrillFailure(p, me.email, e);
     return null;
   }
   return null;
