@@ -32,8 +32,32 @@ async function sharedSessionIsValid(req: NextRequest): Promise<boolean> {
 
 
 
+/**
+ * Say what went wrong, rather than letting the platform answer a bare 500.
+ *
+ * A proxy that throws is answered by Vercel with an empty 500 before any of
+ * the app's own error handling runs — instrumentation.ts included, because the
+ * hook bails out on anything but the Node runtime and the proxy may not be on
+ * it. That is how every tile on the landing dashboard came to fail with no
+ * trace anywhere: the server action was never reached, so nothing it could
+ * have recorded was ever recorded.
+ *
+ * The name and message only, never the stack: it is returned to the caller,
+ * and the caller is whoever is holding the broken page.
+ */
+const proxyFailed = (e: unknown, pathname: string) => {
+  const err = e instanceof Error ? e : new Error(String(e));
+  console.error('[proxy] threw on', pathname, err);
+  return NextResponse.json(
+    { error: 'The portal could not check your session for this request.',
+      where: 'proxy', path: pathname, reason: `${err.name}: ${err.message}` },
+    { status: 500, headers: { 'x-risansi-proxy-error': `${err.name}: ${err.message}`.slice(0, 200) } },
+  );
+};
+
 const proxy = withAuth(
   async function proxy(req) {
+   try {
     const token    = req.nextauth.token;
     const pathname = req.nextUrl.pathname;
 
@@ -158,6 +182,9 @@ const proxy = withAuth(
     }
 
     return NextResponse.next();
+   } catch (e) {
+    return proxyFailed(e, req.nextUrl.pathname);
+   }
   },
   {
     callbacks: {
