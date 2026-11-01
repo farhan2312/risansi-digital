@@ -71,6 +71,13 @@ export function ExhibitionsClient({ rows, users, me }: {
   // narrows it — so the sort runs in memory over the whole filtered set.
   const { rows: ordered, sortBy } = useTableSort(shown, COLS);
 
+  // The same two controls, handed to the export so the workbook is the list.
+  const exportQuery = useMemo(() => {
+    const qs = new URLSearchParams({ status });
+    if (term.trim()) qs.set('q', term.trim());
+    return qs.toString();
+  }, [status, term]);
+
   const kpi = useMemo(() => {
     const awaiting = rows.filter(r => r.status === 'Submitted').length;
     const approved = rows.filter(r => r.status === 'Approved').length;
@@ -112,15 +119,21 @@ export function ExhibitionsClient({ rows, users, me }: {
         </span>
         {canCreate && (
           <>
-            {/* Every exhibition that has actually taken place, as one workbook
-                with a sheet each for the events, meetings, contacts, team,
-                expenses and reviews. Admin-only, like the route behind it. */}
+            {/* One workbook with a sheet each for the events, meetings,
+                contacts, team, expenses and reviews. Admin-only, like the route
+                behind it.
+
+                It carries the status filter and the search box, so what comes
+                down is what is on screen. Before, it was hardwired to closed
+                and completed events — which, with nearly every exhibition on
+                file still a Draft, meant a button labelled "Export all" handed
+                back six rows out of forty-one. */}
             <a
-              href="/api/risansi/exhibitions/export"
-              title="Every completed and closed exhibition, as an Excel workbook"
+              href={`/api/risansi/exhibitions/export?${exportQuery}`}
+              title={`${shown.length} exhibition${shown.length === 1 ? '' : 's'} — exactly what this list is showing — as an Excel workbook`}
               style={{ ...BTN_GHOST, marginLeft: 'auto', textDecoration: 'none', whiteSpace: 'nowrap' }}
             >
-              Export all
+              {status === 'all' && !term.trim() ? 'Export all' : 'Export shown'}
             </a>
             <button onClick={() => setOpen(true)} style={BTN_PRIMARY}>
               + New Exhibition

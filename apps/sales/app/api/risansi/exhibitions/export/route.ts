@@ -2,23 +2,31 @@ import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import risansiPool from '@/lib/db-risansi';
 import { getCurrentUser, hasRole } from '@/lib/risansi-auth';
+import { EXHIBITION_STATUSES, OPEN_STATUSES } from '@/lib/risansi-exhibition-fields';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Every CLOSED exhibition, as one workbook.
+// Every exhibition the list is showing, as one workbook.
 //
-//   GET /api/risansi/exhibitions/export
+//   GET /api/risansi/exhibitions/export?status=all&q=delhi
 //
 // The per-exhibition export at [id]/export answers "tell me about this
 // event". This answers the other question — "what did a year of exhibitions
 // actually get us" — so each sheet runs across events with an Exhibition
 // column on every row, which is what makes them sortable and pivotable.
 //
-// Closed only, deliberately. An exhibition still running has half its
-// meetings entered, its expenses unreconciled and no review; including it
-// would put figures into a year-end workbook that are going to change, and
-// the reader would have no way to tell which rows are settled.
+// It used to be Closed and Completed only, on the reasoning that a live event
+// has half its meetings entered and no review, so its figures would change.
+// That reasoning described the Meetings and Reviews sheets and then applied
+// itself to the Exhibitions sheet too — where most of what a reader wants
+// from a Draft (where, when, who is organising it, what it is budgeted at) is
+// settled the moment it is proposed. With 41 exhibitions on file and nearly
+// all of them Draft, "Export all" produced a workbook of six rows.
+//
+// So the scope is now the list's own: the status filter and the search box on
+// the page travel with the request, and every sheet carries a Status column
+// so a settled record is still tellable from one being reconciled.
 
 type Cell = string | number | Date | null;
 type Row = Record<string, unknown>;
@@ -29,7 +37,7 @@ const NAVY = 'FF0A3D8F';
 
 interface Col { label: string; width: number; get: (r: Row) => Cell; fmt?: string }
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user.email) return new NextResponse('Unauthorized', { status: 401 });
   // This spans every exhibition rather than one, so it is not scoped by team
@@ -38,19 +46,43 @@ export async function GET() {
     return new NextResponse('Only an admin can export every exhibition.', { status: 403 });
   }
 
-  // "Only after it has been closed" — meaning the event is over, not the
-  // narrower formal status.
+  // The scope, read from the same two controls the list uses.
   //
-  // On 23 Oct exactly one exhibition held the status 'Closed' and it had no
-  // meetings on it, while the six marked 'Completed' carry the actual record —
-  // PALMEX Medan 2026 alone has 42 companies met. Exporting the literal status
-  // would have produced an empty workbook and looked broken.
-  //
-  // So both statuses that mean the event has happened are included, and the
-  // Exhibitions sheet carries a Status column so a reader can tell a settled
-  // record from one still being reconciled. Draft, Shortlisted and Approved
-  // stay out: those events have not taken place.
-  const CLOSED = "e.status IN ('Closed','Completed')";
+  // 'all' (and no parameter at all) means every exhibition, because that is
+  // what the button says. 'open' is the list's "Active only" — Draft through
+  // Ongoing. 'closed' keeps the old meaning, which is "the event has happened":
+  // one exhibition holds the literal status Closed and carries no meetings,
+  // while the ones marked Completed hold the actual record, so exporting the
+  // literal status alone would look broken.
+  const sp = new URL(req.url).searchParams;
+  const status = (sp.get('status') ?? 'all').trim();
+  const term   = (sp.get('q') ?? '').trim();
+
+  const vals: unknown[] = [];
+  const bits: string[] = [];
+  let scopeLabel = 'every exhibition';
+  if (status === 'open') {
+    vals.push([...OPEN_STATUSES]);
+    bits.push(`e.status = ANY($${vals.length})`);
+    scopeLabel = 'active exhibitions';
+  } else if (status === 'closed') {
+    bits.push(`e.status IN ('Closed','Completed')`);
+    scopeLabel = 'closed exhibitions';
+  } else if (status !== 'all' && (EXHIBITION_STATUSES as readonly string[]).includes(status)) {
+    vals.push(status);
+    bits.push(`e.status = $${vals.length}`);
+    scopeLabel = `${status.toLowerCase()} exhibitions`;
+  }
+  if (term) {
+    vals.push(`%${term}%`);
+    const p = `$${vals.length}`;
+    bits.push(`(e.name ILIKE ${p} OR e.city ILIKE ${p} OR e.venue ILIKE ${p} OR e.organizer ILIKE ${p} OR e.industry ILIKE ${p})`);
+    scopeLabel += ` matching “${term}”`;
+  }
+  // 'TRUE' rather than dropping the clause: it is interpolated into six
+  // queries, each of which already reads WHERE ${CLOSED}.
+  const CLOSED = bits.length ? bits.join(' AND ') : 'TRUE';
+
   const [ex, mt, ct, tm, xp, rv] = await Promise.all([
     risansiPool.query(`
       SELECT e.*, e.start_date::text AS s_date, e.end_date::text AS e_date,
@@ -61,7 +93,7 @@ export async function GET() {
              (SELECT COALESCE(SUM(m.potential_value_inr),0) FROM exhibition_meetings m WHERE m.exhibition_id = e.id) AS potential_inr,
              (SELECT COALESCE(SUM(x.actual_inr),0) FROM exhibition_expenses x WHERE x.exhibition_id = e.id) AS actual_inr,
              (SELECT COALESCE(SUM(x.paid_inr),0)   FROM exhibition_expenses x WHERE x.exhibition_id = e.id) AS paid_inr
-        FROM exhibitions e WHERE ${CLOSED} ORDER BY e.start_date DESC NULLS LAST, e.id`),
+        FROM exhibitions e WHERE ${CLOSED} ORDER BY e.start_date DESC NULLS LAST, e.id`, vals),
     risansiPool.query(`
       SELECT e.name AS exhibition, m.*, m.met_on::text AS met_t, m.follow_up_date::text AS fu_t,
              u.name AS met_by_name, c.code AS client_code
@@ -69,33 +101,33 @@ export async function GET() {
         JOIN exhibitions e ON e.id = m.exhibition_id
         LEFT JOIN users u   ON u.id = m.met_by
         LEFT JOIN clients c ON c.id = m.client_id
-       WHERE ${CLOSED} ORDER BY e.start_date DESC NULLS LAST, m.met_on NULLS LAST, m.id`),
+       WHERE ${CLOSED} ORDER BY e.start_date DESC NULLS LAST, m.met_on NULLS LAST, m.id`, vals),
     risansiPool.query(`
       SELECT e.name AS exhibition, m.company_name, ct.name, ct.designation, ct.phone, ct.email
         FROM exhibition_meeting_contacts ct
         JOIN exhibition_meetings m ON m.id = ct.meeting_id
         JOIN exhibitions e ON e.id = m.exhibition_id
-       WHERE ${CLOSED} ORDER BY e.name, m.company_name, ct.id`),
+       WHERE ${CLOSED} ORDER BY e.name, m.company_name, ct.id`, vals),
     risansiPool.query(`
       SELECT e.name AS exhibition, u.name, t.team_role, u.role AS user_role
         FROM exhibition_team t
         JOIN exhibitions e ON e.id = t.exhibition_id
         JOIN users u ON u.id = t.user_id
-       WHERE ${CLOSED} ORDER BY e.name, t.team_role, u.name`),
+       WHERE ${CLOSED} ORDER BY e.name, t.team_role, u.name`, vals),
     risansiPool.query(`
       SELECT e.name AS exhibition, x.*, x.paid_on::text AS paid_t
         FROM exhibition_expenses x
         JOIN exhibitions e ON e.id = x.exhibition_id
-       WHERE ${CLOSED} ORDER BY e.name, x.category, x.id`),
+       WHERE ${CLOSED} ORDER BY e.name, x.category, x.id`, vals),
     risansiPool.query(`
       SELECT e.name AS exhibition, r.*, r.reviewed_at::text AS reviewed_t
         FROM exhibition_reviews r
         JOIN exhibitions e ON e.id = r.exhibition_id
-       WHERE ${CLOSED} ORDER BY e.name`),
+       WHERE ${CLOSED} ORDER BY e.name`, vals),
   ]);
 
   if (ex.rows.length === 0) {
-    return new NextResponse('No completed or closed exhibitions to export yet.', { status: 404 });
+    return new NextResponse(`Nothing to export: there are no ${scopeLabel}.`, { status: 404 });
   }
 
   const wb = new ExcelJS.Workbook();
@@ -105,7 +137,7 @@ export async function GET() {
   const sheet = (name: string, cols: Col[], rows: Row[], subtitle: string) => {
     const ws = wb.addWorksheet(name);
     const t = ws.getCell('A1');
-    t.value = name + ' · closed exhibitions';
+    t.value = name + ' · ' + scopeLabel;
     t.font = { size: 13, bold: true, color: { argb: NAVY } };
     const sub = ws.getCell('A2');
     sub.value = subtitle;
@@ -154,7 +186,7 @@ export async function GET() {
     { label: 'Potential', width: 16, get: r => n(r.potential_inr) },
     { label: 'Closed on', width: 14, get: r => d(r.closed_t) },
     { label: 'Closed by', width: 20, get: r => s(r.closed_by_name) },
-  ], ex.rows, ex.rows.length + ' exhibition(s) that have taken place, one row each. Figures in rupees.');
+  ], ex.rows, ex.rows.length + ' exhibition(s), one row each. Figures in rupees.');
 
   sheet('Meetings', [
     { label: 'Exhibition', width: 30, get: r => s(r.exhibition) },
@@ -173,7 +205,7 @@ export async function GET() {
     { label: 'Outcome', width: 30, get: r => s(r.outcome) },
     { label: 'Next action', width: 30, get: r => s(r.next_action) },
     { label: 'Follow up by', width: 14, get: r => d(r.fu_t) },
-  ], mt.rows, mt.rows.length + ' meeting(s) across every closed exhibition');
+  ], mt.rows, mt.rows.length + ' meeting(s) across ' + scopeLabel);
 
   sheet('Contacts', [
     { label: 'Exhibition', width: 30, get: r => s(r.exhibition) },
@@ -218,10 +250,15 @@ export async function GET() {
 
   const buf = await wb.xlsx.writeBuffer();
   const stamp = new Date().toISOString().slice(0, 10);
+  // The filename says what is in it, because three workbooks for three
+  // different filters all called -Closed- would be indistinguishable in a
+  // downloads folder.
+  const slug = (status === 'all' ? 'All' : status === 'open' ? 'Active' : status === 'closed' ? 'Closed' : status)
+    + (term ? '-filtered' : '');
   return new NextResponse(buf as ArrayBuffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': 'attachment; filename="Risansi-Exhibitions-Closed-' + stamp + '.xlsx"',
+      'Content-Disposition': 'attachment; filename="Risansi-Exhibitions-' + slug + '-' + stamp + '.xlsx"',
       'Cache-Control': 'no-store',
     },
   });
