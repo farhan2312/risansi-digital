@@ -1,5 +1,6 @@
 "use client";
 
+import { EcLink } from "./ec-link";
 import { Fragment, useState } from "react";
 import { ExternalLink, ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
@@ -327,6 +328,8 @@ export function PlanningPumpTable({
                           className={`${ecCell} cursor-pointer whitespace-nowrap hover:bg-primary/5 ${i === 0 ? "border-l border-card-border font-semibold text-primary underline-offset-2 hover:underline" : ""}`}
                         >
                           {v ? (unit && str(ec[unit]) ? `${v} ${str(ec[unit])}` : v) : <span className="text-muted">—</span>}
+                          {/* The EC's attachment, beside its EC No. */}
+                          {i === 0 && <EcLink href={r.ec_link} />}
                         </td>
                       );
                     })}

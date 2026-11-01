@@ -139,6 +139,14 @@ import {
 } from "@/lib/ready-lots";
 import { getUsdInrRate } from "@/lib/settings";
 import { lockReason } from "@/lib/order-lock";
+import { normaliseDocLink } from "@/lib/drawing-docs";
+
+/** The EC attachment as saved: a web link, or blank; null when it is not one. */
+function cleanEcLink(raw: unknown): string | null {
+  const text = String(raw ?? "").trim();
+  return text ? normaliseDocLink(text) : "";
+}
+const EC_LINK_BAD = "EC Attachment must be a web link (the SharePoint link, https://…).";
 import {
   checkFieldBounds,
   cleanBoiRows,
@@ -433,6 +441,9 @@ export async function createItemAction(
     ...input,
     item_type: (order.order.order_type as string | null) ?? input.item_type,
   };
+  const ecLink = cleanEcLink(input.ec_link);
+  if (ecLink === null) return { ok: false, error: EC_LINK_BAD };
+  itemInput.ec_link = ecLink;
 
   // Every Add-On field is mandatory (the Spare's Order Copy file aside). The
   // form checks this too; repeated here so a crafted request can't create a
@@ -831,6 +842,11 @@ export async function updateOrderSectionAction(
   }
 
   const tbl = table as OrderTable;
+  if (tbl === "order_items" && "ec_link" in allowedValues) {
+    const ecLink = cleanEcLink(allowedValues.ec_link);
+    if (ecLink === null) return { ok: false, error: EC_LINK_BAD };
+    allowedValues = { ...allowedValues, ec_link: ecLink };
+  }
   const bounds = checkFieldBounds(section.fields, allowedValues);
   if (bounds) return { ok: false, error: bounds };
   // A pump EC turned to BOI Yes brings Purchase in on its SO, as when it is added.

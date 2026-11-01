@@ -1,5 +1,6 @@
 "use client";
 
+import { EcLink } from "./ec-link";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useState, type ReactNode } from "react";
@@ -309,7 +310,10 @@ export function DrawingWorkspace({
                               </td>
                             </>
                           )}
-                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>{str(row.ec_no) || "—"}</td>
+                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
+                            {str(row.ec_no) || "—"}
+                            <EcLink href={row.ec_link} />
+                          </td>
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.model_no) || "—"}</td>

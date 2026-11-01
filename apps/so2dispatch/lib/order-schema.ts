@@ -666,6 +666,8 @@ export const ORDER_SECTIONS: OrderSection[] = [
     fields: [
       { column: "ec_no", label: "EC No.", type: "text" },
       { column: "ec_date", label: "EC Date", type: "date" },
+      // A pump EC's attachment (SharePoint link).
+      { column: "ec_link", label: "EC Attachment (SharePoint link)", type: "text", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
       {
         column: "item_type",
         label: "Type",
@@ -1239,8 +1241,12 @@ export function dependsOnSatisfied(
 // Order Copy file is deliberately NOT here — it is the one optional input.
 // ---------------------------------------------------------------------------
 
+/** A pump EC's attachment: its SharePoint link, at the top of the Pump Add-On. */
+export const EC_LINK_COLUMN = "ec_link";
+
 /** Pump / ROLB Add-On: the full EC attribute set. */
 export const ADD_ON_PUMP_FIELDS: OrderField[] = [
+  { column: EC_LINK_COLUMN, label: "EC Attachment (SharePoint link)", type: "text" },
   { column: "ec_no", label: "EC No.", type: "text" },
   { column: "ec_date", label: "EC Date", type: "date" },
   {
@@ -1446,7 +1452,7 @@ export function addOnFieldsFor(orderType?: string | null): OrderField[] {
 }
 
 /** Add-On fields that may be left blank; every other one is mandatory — the name plate included. */
-export const ADD_ON_OPTIONAL = new Set<string>(["version"]);
+export const ADD_ON_OPTIONAL = new Set<string>(["version", "ec_link"]);
 
 /** A Spare EC needs only its EC No. and EC Date; the rest may be filled later. */
 const SPARE_ADD_ON_REQUIRED = new Set<string>(["ec_no", "ec_date"]);

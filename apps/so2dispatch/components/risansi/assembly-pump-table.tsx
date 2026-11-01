@@ -1,5 +1,6 @@
 "use client";
 
+import { EcLink } from "./ec-link";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Layers, Loader2, MessageSquare, Moon, Package, Pencil, Plus, Sun, Wrench, X } from "lucide-react";
@@ -41,10 +42,11 @@ const todayIso = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().sl
 
 /** A pump EC as assembly and packing read it. */
 /** model: its Internal Model. */
-type Ec = { id: string; label: string; model: string; quantity: number; ready: number };
+type Ec = { id: string; label: string; model: string; quantity: number; ready: number; link: string };
 const ecOf = (r: Row): Ec => ({
   id: str(r.id),
   label: str(r.ec_no) || "EC",
+  link: str(r.ec_link),
   model: str(((r.ec ?? {}) as Row).internal_model),
   quantity: num(((r.ec ?? {}) as Row).quantity),
   ready: num(r.ready_qty),
@@ -305,6 +307,7 @@ export function AssemblyPumpTable({
                       )}
                       <td className={`${ecCell} whitespace-nowrap border-l border-card-border font-semibold`}>
                         {e.label}
+                        <EcLink href={e.link} />
                         {e.model && <div className="text-xs font-normal text-muted">{e.model}</div>}
                       </td>
                       <td className={`${ecCell} whitespace-nowrap text-muted`}>{shortDate(((r.ec ?? {}) as Row).ec_date)}</td>

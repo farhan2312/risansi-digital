@@ -1,5 +1,6 @@
 "use client";
 
+import { EcLink, ecLinkHref } from "./ec-link";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Paperclip, Pencil } from "lucide-react";
@@ -443,7 +444,9 @@ export function EditableSection({
                                       ? lotsLead.status
                                       : lotsLead.date
                                   )
-                                : formatDisplay(field, data?.[field.column] ?? field.defaultValue)}
+                                : field.column === "ec_link" && ecLinkHref(data?.ec_link)
+                                  ? <EcLink href={data?.ec_link} label />
+                                  : formatDisplay(field, data?.[field.column] ?? field.defaultValue)}
                             </span>
                             {fieldExtra?.(field)}
                           </div>

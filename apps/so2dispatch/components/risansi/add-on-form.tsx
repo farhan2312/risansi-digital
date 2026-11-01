@@ -243,7 +243,8 @@ export function AddOnForm({
                   {field.group}
                 </h3>
               )}
-              <div>
+              {/* The EC attachment's link, the whole width at the top. */}
+              <div className={field.column === "ec_link" ? "col-span-full" : undefined}>
                 <label
                   htmlFor={`addon-${field.column}`}
                   className="mb-1.5 block text-[13px] font-medium text-brand-label"
@@ -273,12 +274,15 @@ export function AddOnForm({
                     id={`addon-${field.column}`}
                     required={!isAddOnOptional(orderType, field.column)}
                     type={
-                      field.type === "date"
-                        ? "date"
-                        : field.type === "text"
-                          ? "text"
-                          : "number"
+                      field.column === "ec_link"
+                        ? "url"
+                        : field.type === "date"
+                          ? "date"
+                          : field.type === "text"
+                            ? "text"
+                            : "number"
                     }
+                    placeholder={field.column === "ec_link" ? "Paste the SharePoint link (https://…sharepoint.com/…)" : undefined}
                     step={field.type === "number" ? "any" : undefined}
                     value={values[field.column] ?? ""}
                     onChange={(e) =>
