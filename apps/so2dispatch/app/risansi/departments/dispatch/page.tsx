@@ -20,6 +20,7 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { BillingWorkspace } from "@/components/risansi/billing-workspace";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { deptKpiCards } from "@/lib/orders";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Dispatch | Risansi",
@@ -37,6 +38,8 @@ export default async function DispatchWorkspacePage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canViewDepartment(user.role, TABLE)) redirect("/risansi/dashboard");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/departments/dispatch")) redirect(homeFor(user));
 
   const params = await searchParams;
   const { edit, thread, page, q } = params;

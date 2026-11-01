@@ -40,6 +40,7 @@ import {
   purchaseFilterSql,
   soPurchaseState,
 } from "@/lib/purchase-filter";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Purchase | Risansi",
@@ -57,6 +58,8 @@ export default async function PurchaseWorkspacePage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canViewDepartment(user.role, TABLE)) redirect("/risansi/dashboard");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/departments/purchase")) redirect(homeFor(user));
 
   const params = await searchParams;
   const { edit, thread, page, q } = params;

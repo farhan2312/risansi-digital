@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { FilePlus2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
-import { canAccessOrderMaking, canAssignSo, canCreateOrders, isOrderMakingSo } from "@/lib/roles";
+import { canViewOrderMaking, canAssignSo, canCreateOrders, isOrderMakingSo } from "@/lib/roles";
 import { listSoMembers, parseAssignWindow, soMemberSummary } from "@/lib/so-assignment";
 import { listOrderListOptions, listOrdersForOrderMaking } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
@@ -10,6 +10,7 @@ import { parseOrderMakingFilter } from "@/lib/order-making-filter";
 import { cardBaseGet } from "@/lib/kpis";
 import { unreadByOrder } from "@/lib/order-messages";
 import { OrderMakingWorkspace } from "@/components/risansi/order-making-workspace";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Order Making | Risansi",
@@ -31,7 +32,9 @@ export default async function OrderMakingPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!canAccessOrderMaking(user.role)) redirect("/risansi/dashboard");
+  if (!canViewOrderMaking(user.role)) redirect("/risansi/dashboard");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/departments/order-making")) redirect(homeFor(user));
 
   const params = await searchParams;
   const filter = parseOrderMakingFilter((key) => params[key]);

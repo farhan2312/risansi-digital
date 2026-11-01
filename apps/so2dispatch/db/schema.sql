@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
                                CHECK (role IN ('admin', 'central_visibility', 'operations',
                                                'accounts', 'drawing', 'planning', 'purchase',
                                                'qc', 'assembly', 'dispatch', 'order_making', 'order_making_so', 'rep',
-                                               'rep_manager', 'crm')),
+                                               'rep_manager', 'crm', 'view_360')),
     status        TEXT         NOT NULL DEFAULT 'pending'
                                CHECK (status IN ('pending', 'approved', 'rejected', 'disabled')),
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -40,7 +40,7 @@ ALTER TABLE users ADD  CONSTRAINT users_role_check
     CHECK (role IN ('admin', 'central_visibility', 'operations', 'accounts',
                     'drawing', 'planning', 'purchase', 'qc',
                     'assembly', 'dispatch', 'order_making', 'order_making_so', 'rep',
-                    'rep_manager', 'crm'));
+                    'rep_manager', 'crm', 'view_360'));
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
 ALTER TABLE users ADD  CONSTRAINT users_status_check
     CHECK (status IN ('pending', 'approved', 'rejected', 'disabled'));
@@ -3036,3 +3036,13 @@ ALTER TABLE order_pendency ADD COLUMN IF NOT EXISTS cleared_by TEXT;
 -- 0040  SO Category: a project or a regular order, with the Purchase Order
 -- details on the Order Making form. Idempotent and additive.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS so_category TEXT;
+
+-- 0041  360° View: the pages each such account sees, one row per page (its
+-- href), ticked by Admin on Users & Access. Idempotent and additive.
+CREATE TABLE IF NOT EXISTS user_view_pages (
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    page       TEXT NOT NULL,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, page)
+);

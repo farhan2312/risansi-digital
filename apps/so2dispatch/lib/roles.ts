@@ -35,6 +35,10 @@ export const ROLE_LABELS = {
   // CRM: the Dashboard and the Orders list, read-only, for every SO — no
   // department pages, no chat.
   crm: "CRM",
+  // 360° View: every SO, read-only, on the pages Admin ticks for the account
+  // (Users & Access, lib/view-pages.ts) — the sidebar shows only those and the
+  // rest send them away. No chat, no notifications.
+  view_360: "360° View",
 } as const;
 
 export type Role = keyof typeof ROLE_LABELS;
@@ -56,6 +60,7 @@ export const REQUESTABLE_ROLES: Role[] = [
   "dispatch",
   "central_visibility",
   "crm",
+  "view_360",
   "admin",
 ];
 
@@ -96,9 +101,19 @@ export function isCrm(role: string): boolean {
   return role === "crm";
 }
 
-/** Sees the SOs but changes nothing: a Rep (their own) or CRM (all). */
+/** 360° View: every SO, read-only, on the pages picked for the account (User.view_pages). */
+export function isView360(role: string): boolean {
+  return role === "view_360";
+}
+
+/** Sees the SOs but changes nothing: a Rep (their own), CRM or 360° View (all). */
 export function isReadOnlyViewer(role: string): boolean {
-  return isRep(role) || isCrm(role);
+  return isRep(role) || isCrm(role) || isView360(role);
+}
+
+/** Reads, never talks: no chat for CRM or 360° View. */
+export function hasNoChat(role: string): boolean {
+  return isCrm(role) || isView360(role);
 }
 
 /** The Notifications page and its badge: everyone but a Rep, Rep Manager or CRM (they only read). */
@@ -108,12 +123,12 @@ export function getsNotifications(role: string): boolean {
 
 /** Sees the whole tracker's screens (the Orders list; Central, Admin and a Rep every department too): Central, Admin, a Rep, CRM. */
 export function canViewAll(role: string): boolean {
-  return isCentral(role) || isRep(role) || isCrm(role);
+  return isCentral(role) || isRep(role) || isCrm(role) || isView360(role);
 }
 
 /** May open a department's queue — its own, or (Central, Admin, a Rep) any. Editing is canEditSection. */
 export function canViewDepartment(role: string, table: OrderTable): boolean {
-  return canAccessDepartment(role, table) || isRep(role);
+  return canAccessDepartment(role, table) || isRep(role) || isView360(role);
 }
 
 /** Admin and Central Visibility can edit any section; others only their own. */
@@ -170,6 +185,11 @@ export function canAccessOrderMaking(role: string): boolean {
   return isOrderMakingAny(role) || isCentral(role);
 }
 
+/** Who may open the Order Making page and its report: those above, and 360° View (read-only). Writes stay canAccessOrderMaking. */
+export function canViewOrderMaking(role: string): boolean {
+  return canAccessOrderMaking(role) || isView360(role);
+}
+
 /** Who assigns an SO's Sales Order details to an Order Making SO member. */
 export function canAssignSo(role: string): boolean {
   return isOrderMaking(role) || isCentral(role);
@@ -190,7 +210,7 @@ export function canSeeEscalations(role: string): boolean {
 
 /** The central full-visibility dashboard is for Central Visibility and Admin. */
 export function canSeeCentralDashboard(role: string): boolean {
-  return role === "admin" || role === "central_visibility" || isRep(role) || isCrm(role);
+  return role === "admin" || role === "central_visibility" || isRep(role) || isCrm(role) || isView360(role);
 }
 
 /**

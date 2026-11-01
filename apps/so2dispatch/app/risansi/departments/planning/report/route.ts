@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
+import { mayOpenPage } from "@/lib/view-pages";
 import { canViewDepartment } from "@/lib/roles";
 import { listItemsForSectionPage, listReadyLotHistories, parseQueueSort } from "@/lib/orders";
 import { parseQuery } from "@/lib/pagination";
@@ -24,7 +25,9 @@ const TABLE = "order_planning" as const;
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Not authorized", { status: 401 });
-  if (!canViewDepartment(user.role, TABLE)) return new NextResponse("Forbidden", { status: 403 });
+  if (!canViewDepartment(user.role, TABLE) || !mayOpenPage(user, "/risansi/departments/planning")) {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
 
   const url = new URL(request.url);
   const get = (key: string) => url.searchParams.get(key) ?? undefined;

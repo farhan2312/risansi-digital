@@ -17,7 +17,7 @@ import { logout } from "@/app/risansi/actions";
 import {
   canViewAll,
   canViewDepartment,
-  canAccessOrderMaking,
+  canViewOrderMaking,
   canSeeEscalations,
   getsNotifications,
   canSeeDispatchPlan,
@@ -33,9 +33,10 @@ import {
   activeNavHref,
   type NavItem,
 } from "./nav-config";
+import { mayOpenPage } from "@/lib/view-pages";
 import { ThemeToggle } from "./theme-toggle";
 
-type ShellUser = { name: string; email: string; role: string };
+type ShellUser = { name: string; email: string; role: string; view_pages?: string[] };
 
 /**
  * Mobile bottom navigation. Replaces the sidebar below `lg`: four primary
@@ -76,14 +77,16 @@ export function BottomNav({
   const notifBadge =
     notifUnread + (canSeeEscalations(user.role) ? alertCount : 0);
 
-  const visibleDepartments = DEPARTMENT_NAV.filter((item) =>
-    // Order Making's page is over the orders table itself.
-    item.table === "orders"
-      ? canAccessOrderMaking(user.role)
-      : canViewDepartment(user.role, item.table)
+  // 360° View: only the pages picked for them (mayOpenPage).
+  const visibleDepartments = DEPARTMENT_NAV.filter(
+    (item) =>
+      // Order Making's page is over the orders table itself.
+      (item.table === "orders" ? canViewOrderMaking(user.role) : canViewDepartment(user.role, item.table)) &&
+      mayOpenPage(user, item.href)
   );
   // A department account has no dashboard or whole-order list: its own page is home.
-  const visiblePrimaryNav = !canViewAll(user.role) && visibleDepartments.length > 0 ? [] : PRIMARY_NAV;
+  const visiblePrimaryNav =
+    !canViewAll(user.role) && visibleDepartments.length > 0 ? [] : PRIMARY_NAV.filter((item) => mayOpenPage(user, item.href));
 
   // Four tabs at most: the primary destinations, then Notifications and
   // Messages. A department user (one primary item) gets their own workspace
@@ -203,7 +206,7 @@ export function BottomNav({
                 </div>
               )}
 
-              {canSeeDispatchPlan(user.role) && (
+              {canSeeDispatchPlan(user.role) && mayOpenPage(user, DISPATCH_PLAN_NAV.href) && (
                 <div className="mb-4 space-y-1">
                   <SheetLink item={DISPATCH_PLAN_NAV} />
                 </div>

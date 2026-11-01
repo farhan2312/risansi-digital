@@ -15,6 +15,7 @@ import { KpiStrip } from "@/components/risansi/kpi-strip";
 import { SpareDashboardView } from "@/components/risansi/spare-dashboard/spare-dashboard";
 import { PumpDashboardView } from "@/components/risansi/spare-dashboard/pump-dashboard";
 import { cardBaseGet } from "@/lib/kpis";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Dashboard | Risansi",
@@ -35,6 +36,8 @@ export default async function DashboardPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/dashboard")) redirect(homeFor(user));
   // Order Making has no dashboard: its page is its work.
   if (user.role === "order_making" || user.role === "order_making_so") redirect("/risansi/departments/order-making");
   // Nor does any department account: it lands on its own page.

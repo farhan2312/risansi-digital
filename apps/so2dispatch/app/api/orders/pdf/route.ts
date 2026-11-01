@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
+import { mayOpenPage } from "@/lib/view-pages";
 import { canViewAll } from "@/lib/roles";
 import { isTestSo, listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
 import { describeOrderListFilter, ordersKind, parseOrderListFilter, scopeToRep, withOrdersKind } from "@/lib/order-list-filter";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
-  if (!user || !canViewAll(user.role)) {
+  if (!user || !canViewAll(user.role) || !mayOpenPage(user, "/risansi/orders")) {
     return new Response("Forbidden", { status: 403 });
   }
 

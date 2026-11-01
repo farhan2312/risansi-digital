@@ -28,6 +28,7 @@ import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards } from "@/lib/orders";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Planning | Risansi",
@@ -45,6 +46,8 @@ export default async function PlanningWorkspacePage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canViewDepartment(user.role, TABLE)) redirect("/risansi/dashboard");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/departments/planning")) redirect(homeFor(user));
 
   const params = await searchParams;
   const { edit, thread, page, q } = params;

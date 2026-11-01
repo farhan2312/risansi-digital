@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
+import { mayOpenPage } from "@/lib/view-pages";
 import { canViewAll } from "@/lib/roles";
 import { listOrderExports, listOrderIdsMatching } from "@/lib/orders";
 import { buildOneClickWorkbook, buildOneSheet, hideOneColumns } from "@/lib/one-click-export";
@@ -26,7 +27,7 @@ const PREVIEW_ROWS = 200;
  */
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
-  if (!user || !canViewAll(user.role)) return new Response("Forbidden", { status: 403 });
+  if (!user || !canViewAll(user.role) || !mayOpenPage(user, "/risansi/orders")) return new Response("Forbidden", { status: 403 });
 
   const params = req.nextUrl.searchParams;
   const filter = scopeToRep(

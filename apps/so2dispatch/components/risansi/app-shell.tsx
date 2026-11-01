@@ -7,7 +7,7 @@ import { useUrlTableBusy } from "./url-table";
 import { Bell, ChevronRight, PlayCircle, RotateCw, ZoomOut } from "lucide-react";
 import { ReportBugTrigger } from "./report-bug";
 import { DiscussionBell } from "./discussion-bell";
-import { isCrm } from "@/lib/roles";
+import { hasNoChat } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
 import { RoleSwitcher } from "./role-switcher";
 import { BottomNav } from "./bottom-nav";
@@ -18,7 +18,8 @@ const DEMO_VIDEO_URL =
   "https://risansi-my.sharepoint.com/personal/asad_risansi_com/_layouts/15/stream.aspx?id=%2Fpersonal%2Fasad%5Frisansi%5Fcom%2FDocuments%2FSOdispatchDemo%2FSODispatch%2Emp4&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&ga=1&referrer=StreamWebApp%2EWeb&referrerScenario=AddressBarCopied%2Eview%2E4d270a1e%2Ddb24%2D4b77%2Da8f7%2D3e728102fe28";
 
 /** `roles`: every department they may work as (the switcher shows for more than one). */
-type ShellUser = { name: string; email: string; role: string; roles?: string[] };
+/** `view_pages`: working as 360° View, the pages picked for them (the nav shows only those). */
+type ShellUser = { name: string; email: string; role: string; roles?: string[]; view_pages?: string[] };
 
 // Route-segment → friendly label + optional parent (for two-level breadcrumbs
 // like "Central Admin > Bug Tracker"). Segments not in the map get a
@@ -45,6 +46,7 @@ const ROUTE_LABELS: Record<string, Crumb> = {
   "/risansi/reports": { label: "Reports", parent: "Central Admin" },
   "/risansi/bug-reports": { label: "Bug Reports" },
   "/risansi/settings": { label: "USD to INR" },
+  "/risansi/no-pages": { label: "360° View" },
 };
 
 function crumbsFor(pathname: string): { label: string; href?: string }[] {
@@ -188,7 +190,7 @@ export function AppShell({
             </span>
             <ReportBugTrigger />
             {/* CRM only reads: no chat. */}
-            {!isCrm(user.role) && (
+            {!hasNoChat(user.role) && (
               <DiscussionBell
                 role={user.role}
                 initialUnread={discussionUnread}

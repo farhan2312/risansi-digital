@@ -44,6 +44,11 @@ export type User = {
    */
   roles?: UserRole[];
   primary_role?: UserRole;
+  /**
+   * Working as 360° View: the pages Admin picked for them (hrefs, the
+   * sidebar's order; lib/view-pages.ts). Set on the signed-in user only.
+   */
+  view_pages?: string[];
 };
 
 export type NewUser = {

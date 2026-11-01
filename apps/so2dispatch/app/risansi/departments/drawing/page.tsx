@@ -33,6 +33,7 @@ import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
 import { CURVE_STATUSES, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
+import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
   title: "Drawing | Risansi",
@@ -50,6 +51,8 @@ export default async function DrawingWorkspacePage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canViewDepartment(user.role, TABLE)) redirect("/risansi/dashboard");
+  // 360° View: only the pages picked for them.
+  if (!mayOpenPage(user, "/risansi/departments/drawing")) redirect(homeFor(user));
 
   const params = await searchParams;
   const { edit, thread, page, q } = params;

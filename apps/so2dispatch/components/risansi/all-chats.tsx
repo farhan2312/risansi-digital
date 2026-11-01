@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, MessagesSquare, Search, X } from "lucide-react";
-import { ALL_ROLES, isCentral, isCrm, roleLabel } from "@/lib/roles";
+import { ALL_ROLES, hasNoChat, isCentral, roleLabel } from "@/lib/roles";
 import type { ChatSummary } from "@/lib/order-messages";
 import { allChatsAction } from "@/app/risansi/orders/thread-actions";
 import { OrderThreadModal } from "./order-thread-modal";
@@ -120,8 +120,8 @@ export function AllChatsButton() {
     return [...out.values()];
   }, [chats]);
 
-  // CRM only reads: no chats.
-  if (role && isCrm(role)) return null;
+  // CRM and 360° View only read: no chats.
+  if (role && hasNoChat(role)) return null;
 
   return (
     <>
