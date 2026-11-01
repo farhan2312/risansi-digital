@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Layers, Loader2, MessageSquare, Moon, Package, Plus, Sun, Wrench, X } from "lucide-react";
+import { CheckCircle2, Layers, Loader2, MessageSquare, Moon, Package, Pencil, Plus, Sun, Wrench, X } from "lucide-react";
 import { PUMP_LIKE, READY_LOT_LIMIT } from "@/lib/order-schema";
 import {
   ASSEMBLY_SHIFTS,
@@ -403,6 +403,8 @@ function LotStagesModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ro = !canEdit;
+  // A packed lot's assembly is locked; Edit lot opens it again (to correct it, or unpack).
+  const [editing, setEditing] = useState<number[]>([]);
   const dirty = JSON.stringify([lots, entries]) !== JSON.stringify([initialLots, initialEntries]);
   const set = (i: number, patch: Partial<PumpLot>) => setLots((ls) => ls.map((l, k) => (k === i ? { ...l, ...patch } : l)));
   const setEntry = (key: string, patch: Partial<Entry>) => setEntries((es) => es.map((e) => (e.key === key ? { ...e, ...patch } : e)));
@@ -507,7 +509,8 @@ function LotStagesModal({
               const assembled = !!view.assembled_date;
               const some = view.ecs.some((x) => x.assembled > 0);
               const mine = entries.filter(inLot(l));
-              const canAdd = !ro && named && l.ecs.some((x) => unpicked(l, x) > 0);
+              const unlocked = !l.packed_date || editing.includes(l.n);
+              const canAdd = !ro && named && unlocked && l.ecs.some((x) => unpicked(l, x) > 0);
               return (
                 <section key={l.n} className={`rounded-xl border p-4 ${l.packed_date ? "border-emerald-200 bg-emerald-50/30" : "border-card-border"}`}>
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -522,8 +525,26 @@ function LotStagesModal({
                         {l.status === "In plan" ? " · In plan, not ready yet" : ""}
                       </p>
                     </div>
-                    <Chip label={l.packed_date ? "Packed" : assembled ? "Assembled" : some ? "Partially assembled" : "Pending"} />
+                    <span className="flex items-center gap-2">
+                      {!ro && l.packed_date && !editing.includes(l.n) && (
+                        <button
+                          type="button"
+                          onClick={() => setEditing((xs) => [...xs, l.n])}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-[11px] font-semibold text-foreground hover:bg-background"
+                        >
+                          <Pencil className="h-3 w-3" /> Edit lot
+                        </button>
+                      )}
+                      <Chip label={l.packed_date ? "Packed" : assembled ? "Assembled" : some ? "Partially assembled" : "Pending"} />
+                    </span>
                   </div>
+                  {/* Packed though not all of it is assembled: it cannot be saved so. */}
+                  {l.packed_date && !assembled && (
+                    <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      Packed, but not all of this lot is assembled.{" "}
+                      {editing.includes(l.n) || ro ? "Mark the rest assembled, or untick Packed." : "Edit lot to mark the rest assembled, or untick Packed."}
+                    </p>
+                  )}
                   <div className="grid gap-3 lg:grid-cols-[3fr_2fr]">
                     <div className="rounded-lg border border-card-border p-3">
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -566,7 +587,7 @@ function LotStagesModal({
                           {mine.map((e) => {
                             const x = l.ecs.find((y) => y.row_id === e.lot_row_id);
                             const max = x ? unpicked(l, x, e.key) : 0;
-                            const lock = ro || !!l.packed_date;
+                            const lock = ro || !unlocked;
                             return (
                               <div key={e.key} className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,2fr)_4.5rem_8.5rem_5.5rem_minmax(0,2fr)_1.75rem]">
                                 <select
@@ -675,7 +696,8 @@ function LotStagesModal({
                           <input
                             type="checkbox"
                             checked={!!l.packed_date}
-                            disabled={ro || !assembled}
+                            // Unticking is always open; ticking waits for all of the lot assembled.
+                            disabled={ro || (!assembled && !l.packed_date)}
                             onChange={(e) => set(i, { packed_date: e.target.checked ? l.packing_plan_date || todayIso() : "" })}
                             className="h-4 w-4 accent-primary"
                           />
