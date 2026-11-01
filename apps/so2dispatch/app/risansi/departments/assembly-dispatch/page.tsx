@@ -23,6 +23,8 @@ import { ASSEMBLY_CONTEXT_FIELDS, SECTION_BY_TABLE } from "@/lib/order-schema";
 import {
   SO_ASSEMBLY_STATUSES,
   SO_PACKING_STATUSES,
+  alignmentRestrict,
+  pickAlignment,
   pickStageStatuses,
   pumpViewRestrict,
   soStageStatusSql,
@@ -124,7 +126,9 @@ export default async function AssemblyDispatchWorkspacePage({
     return cards.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } }));
   };
   // The Pump view's SOs: those Planning has Partial or Fully ready.
-  const pumpRestrict = ecKind === "pump" ? pumpViewRestrict(assemblyStatuses, packingStatuses) : undefined;
+  // …and the base plate and wooden box asked for (cards too: the filter bar's, not a card's).
+  const alignment = alignmentRestrict(pickAlignment((key) => params[key]));
+  const pumpRestrict = ecKind === "pump" ? `${pumpViewRestrict(assemblyStatuses, packingStatuses)} AND ${alignment}` : undefined;
   // A notification links to an EC (item id) or an SO; either way the queue
   // must open on the page that holds it.
   // Which SO a notification link should open on. Without a link this is
@@ -144,7 +148,7 @@ export default async function AssemblyDispatchWorkspacePage({
     ,
       {
         kpis: ecKind === "pump" ? assemblyPumpCards() : deptKpiCards("assembly", ["Spare"]),
-        kpiRestrict: ecKind === "pump" ? pumpViewRestrict(cardAssembly, cardPacking) : undefined,
+        kpiRestrict: ecKind === "pump" ? `${pumpViewRestrict(cardAssembly, cardPacking)} AND ${alignment}` : undefined,
         page: parsePage(page),
         search: parseQuery(q),
         focusOrderId,

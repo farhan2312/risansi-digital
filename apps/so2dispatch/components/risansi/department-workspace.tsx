@@ -8,7 +8,16 @@ import { PlanningPumpTable } from "./planning-pump-table";
 import type { PumpSummary } from "@/lib/pump-summary";
 import { AssemblyPumpTable } from "./assembly-pump-table";
 import { MultiSelectFilter } from "./multi-select-filter";
-import { ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY, SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES } from "@/lib/assembly";
+import {
+  ASSEMBLY_STATUS_KEY,
+  BASE_PLATE_FILTER,
+  BASE_PLATE_KEY,
+  PACKING_STATUS_KEY,
+  SO_ASSEMBLY_STATUSES,
+  SO_PACKING_STATUSES,
+  WOODEN_BOX_FILTER,
+  WOODEN_BOX_KEY,
+} from "@/lib/assembly";
 import { PUMP_SO_PLANNING_FIELDS } from "@/lib/order-schema";
 import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
@@ -261,6 +270,8 @@ export function DepartmentWorkspace({
   const { get: getParam, getList, setParams } = useUrlTable();
   // Assembly & Packing's Pump view: its own SO assembly status filter.
   const assemblyPump = ecKind === "pump" && table === "order_assembly_dispatch";
+  // Planning's and Assembly & Packing's Pump views filter by base plate and wooden box.
+  const alignmentFilters = ecKind === "pump" && (table === "order_assembly_dispatch" || table === "order_planning");
   const [threadFor, setThreadFor] = useState<{
     orderId: string;
     soLabel: string;
@@ -707,10 +718,15 @@ export function DepartmentWorkspace({
             searchPlaceholder={searchPlaceholder}
             kindToggle={ecKind}
             noStatusFilter={assemblyPump}
-            extraKeys={assemblyPump ? [ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY] : []}
+            extraKeys={[
+              ...(assemblyPump ? [ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY] : []),
+              ...(alignmentFilters ? [BASE_PLATE_KEY, WOODEN_BOX_KEY] : []),
+            ]}
             extraFilters={
-              assemblyPump ? (
+              alignmentFilters ? (
                 <>
+                  {assemblyPump && (
+                    <>
                   <MultiSelectFilter
                     label="Assembly"
                     allLabel="Any assembly status"
@@ -724,6 +740,23 @@ export function DepartmentWorkspace({
                     options={SO_PACKING_STATUSES}
                     selected={getList(PACKING_STATUS_KEY)}
                     onChange={(next) => setParams({ [PACKING_STATUS_KEY]: next })}
+                  />
+                    </>
+                  )}
+                  {/* A pump SO's base plate and wooden box, Planning's and Assembly & Packing's alike. */}
+                  <MultiSelectFilter
+                    label="Base plate"
+                    allLabel="Any base plate"
+                    options={BASE_PLATE_FILTER}
+                    selected={getList(BASE_PLATE_KEY)}
+                    onChange={(next) => setParams({ [BASE_PLATE_KEY]: next })}
+                  />
+                  <MultiSelectFilter
+                    label="Wooden box"
+                    allLabel="Any wooden box"
+                    options={WOODEN_BOX_FILTER}
+                    selected={getList(WOODEN_BOX_KEY)}
+                    onChange={(next) => setParams({ [WOODEN_BOX_KEY]: next })}
                   />
                 </>
               ) : undefined

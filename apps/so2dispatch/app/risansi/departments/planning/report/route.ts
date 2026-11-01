@@ -10,6 +10,7 @@ import { buildPlanningReportPdf } from "@/lib/planning-report-pdf";
 import { buildPlanningReportXlsx } from "@/lib/planning-report-xlsx";
 import { pumpSheet, spareSheet } from "@/lib/planning-report-sheet";
 import { listPumpSummaries } from "@/lib/pump-summary";
+import { alignmentLine, alignmentRestrict, pickAlignment } from "@/lib/assembly";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -46,10 +47,18 @@ export async function GET(request: Request) {
       type: f.type,
       from: f.from ?? ("orders" as const),
     })),
-    { page: 1, search, filter, sort: parseQueueSort(get("sort")), all: true }
+    {
+      page: 1,
+      search,
+      filter,
+      sort: parseQueueSort(get("sort")),
+      all: true,
+      // Pump: the base plate and wooden box asked for.
+      extraRestrict: kind === "pump" ? alignmentRestrict(pickAlignment(get)) : undefined,
+    }
   );
 
-  const filterLine = [describeOrderListFilter(filter), search && `Search: ${search}`]
+  const filterLine = [describeOrderListFilter(filter), kind === "pump" && alignmentLine(pickAlignment(get)), search && `Search: ${search}`]
     .filter(Boolean)
     .join("  ·  ");
   // How each SO's readiness date moved, for the Date moved column.

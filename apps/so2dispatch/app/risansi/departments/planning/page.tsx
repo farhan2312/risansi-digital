@@ -29,6 +29,7 @@ import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards } from "@/lib/orders";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { alignmentRestrict, pickAlignment } from "@/lib/assembly";
 
 export const metadata: Metadata = {
   title: "Planning | Risansi",
@@ -84,6 +85,10 @@ export default async function PlanningWorkspacePage({
     ,
       {
         kpis: deptKpiCards("planning", ecKind === "pump" ? ["Pump"] : ["Spare"]),
+        // Pump: the base plate and wooden box asked for, list and cards alike.
+        ...(ecKind === "pump"
+          ? { extraRestrict: alignmentRestrict(pickAlignment((key) => params[key])), kpiRestrict: alignmentRestrict(pickAlignment((key) => params[key])) }
+          : {}),
         page: parsePage(page),
         search: parseQuery(q),
         focusOrderId,

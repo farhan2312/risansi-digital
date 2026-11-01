@@ -300,6 +300,47 @@ export function pickStageStatuses(get: (key: string) => string | undefined, stag
     .filter((v) => allowed.includes(v));
 }
 
+/** The URL params the Pump view's Base plate and Wooden box filters live under. */
+export const BASE_PLATE_KEY = "bp";
+export const WOODEN_BOX_KEY = "wb";
+export const ALIGNMENT_NOT_REQUIRED = "Not required";
+/** What each filter offers: not needed on the SO, else where it stands. */
+export const BASE_PLATE_FILTER = [ALIGNMENT_NOT_REQUIRED, ...BASE_PLATE_STATUSES];
+export const WOODEN_BOX_FILTER = [ALIGNMENT_NOT_REQUIRED, ...WOODEN_BOX_STATUSES];
+
+/** The SO's (alias o) base plate as the filter reads it: Not required, else its stage (Pending when none set). */
+const basePlateStageSql = (o: string) =>
+  `(CASE WHEN ${basePlateSql(o)} = 'No' THEN '${ALIGNMENT_NOT_REQUIRED}' ELSE COALESCE(NULLIF(btrim(${o}.base_plate_status), ''), 'Pending') END)`;
+/** …and its wooden box: Not required unless packed in one, else its status (Pending before any is entered). */
+const woodenBoxStageSql = (o: string) =>
+  `(CASE WHEN ${woodenBoxSql(o)} = 'Yes' THEN COALESCE(${woodenBoxStatusSql(o)}, 'Pending') ELSE '${ALIGNMENT_NOT_REQUIRED}' END)`;
+
+/** The Base plate and Wooden box filters as asked in the URL, keeping only what each offers. */
+export function pickAlignment(get: (key: string) => string | undefined): { basePlate: string[]; woodenBox: string[] } {
+  const pick = (key: string, allowed: string[]) =>
+    (get(key) ?? "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter((v) => allowed.includes(v));
+  return { basePlate: pick(BASE_PLATE_KEY, BASE_PLATE_FILTER), woodenBox: pick(WOODEN_BOX_KEY, WOODEN_BOX_FILTER) };
+}
+
+/** Those filters as a condition on the SO (alias o); TRUE with neither set. */
+export function alignmentRestrict(f: { basePlate: string[]; woodenBox: string[] }, o = "o"): string {
+  const inList = (vals: string[]) => vals.map((s) => `'${s.replace(/'/g, "''")}'`).join(", ");
+  return [
+    f.basePlate.length ? `${basePlateStageSql(o)} IN (${inList(f.basePlate)})` : "TRUE",
+    f.woodenBox.length ? `${woodenBoxStageSql(o)} IN (${inList(f.woodenBox)})` : "TRUE",
+  ].join(" AND ");
+}
+
+/** …and as the report's filter line says them. */
+export function alignmentLine(f: { basePlate: string[]; woodenBox: string[] }): string {
+  return [f.basePlate.length && `Base plate: ${f.basePlate.join(", ")}`, f.woodenBox.length && `Wooden box: ${f.woodenBox.join(", ")}`]
+    .filter(Boolean)
+    .join("  ·  ");
+}
+
 /** The Pump view's queue: its ready SOs, at the assembly and packing statuses picked. */
 export function pumpViewRestrict(assembly: string[], packing: string[]): string {
   const inList = (vals: string[]) => vals.map((s) => `'${s}'`).join(", ");
