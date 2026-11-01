@@ -109,7 +109,13 @@ export function DashDrilldownProvider({ children }: { children: ReactNode }) {
           <div className="risansi-modal" style={MODAL} role="dialog" aria-label="Breakdown">
             <div style={HEAD}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{result?.title ?? 'Loading…'}</div>
+                {/* Not "Loading…" once it has failed. The body said the
+                    breakdown could not be built while the heading above it
+                    still claimed to be fetching, so a panel that had finished
+                    read as one that was hung. */}
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {result?.title ?? (failed ? 'Could not load this breakdown' : 'Loading…')}
+                </div>
                 <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 2 }}>
                   {result?.subtitle ?? ''}
                 </div>

@@ -97,7 +97,11 @@ export function ExecDrilldownProvider({ tsm, scope, fy, children }: {
           <div className="risansi-modal" style={MODAL} role="dialog" aria-label="Breakdown">
             <div style={HEAD}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{result?.title ?? 'Loading…'}</div>
+                {/* See DashDrilldown: a failed panel must not keep saying
+                    it is loading. */}
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {result?.title ?? (failed ? 'Could not load this breakdown' : 'Loading…')}
+                </div>
                 <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 2 }}>
                   {result?.subtitle ?? ''}
                 </div>

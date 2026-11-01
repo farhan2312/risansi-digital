@@ -60,7 +60,7 @@ export function AuditDrilldownProvider({ filters, children }: {
             <div style={HEAD}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>
-                  {result?.title ?? 'Loading…'}
+                  {result?.title ?? (failed ? 'Could not load this breakdown' : 'Loading…')}
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 2 }}>
                   {result ? `${result.rows.length}${result.capped ? '+ (first 300)' : ''} · ${result.note}` : ' '}
