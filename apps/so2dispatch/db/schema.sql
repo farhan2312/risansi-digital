@@ -2409,12 +2409,16 @@ ALTER TABLE order_ready_lots DROP CONSTRAINT IF EXISTS order_ready_lots_packing_
 ALTER TABLE order_ready_lots ADD CONSTRAINT order_ready_lots_packing_status_check
     CHECK (packing_status IS NULL OR packing_status IN ('Partially packed', 'Fully packed'));
 -- An EC already packed before lots existed: its Fully ready lot was packed
--- on its Actual Material Packing Date. Idempotent.
+-- on its Actual Material Packing Date. Only an EC none of whose lots is
+-- packed: the Actual Packing Date is now worked out from the lots, so on a
+-- re-run an EC packing lot by lot would have its later, unpacked lots marked
+-- packed too. Idempotent.
 UPDATE order_ready_lots rl
    SET packing_status = 'Fully packed', packed_date = ad.actual_packing_date
   FROM order_assembly_dispatch ad
  WHERE ad.item_id = rl.item_id AND rl.status = 'Fully ready'
-   AND ad.actual_packing_date IS NOT NULL AND rl.packed_date IS NULL;
+   AND ad.actual_packing_date IS NOT NULL AND rl.packed_date IS NULL
+   AND NOT EXISTS (SELECT 1 FROM order_ready_lots x WHERE x.item_id = rl.item_id AND x.packed_date IS NOT NULL);
 
 -- A dispatch (invoice / challan card) covers one or more of the SO's packing
 -- slips, chosen by Dispatch; a slip goes out on one dispatch only.
