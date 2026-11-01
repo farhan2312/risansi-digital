@@ -68,7 +68,6 @@ export async function GET(req: NextRequest) {
       docs: new Map(billing.map((b) => [b.id, { packing_slips: b.packing_slips ?? [], invoices: b.invoices ?? [] }])),
       pump: pump ? new Map(Object.entries(summaries)) : undefined,
       filterLine: describeOrderListFilter(filter),
-      kpis: result.kpis,
     });
     if (format === "json") return Response.json(report, { headers: { "Cache-Control": "no-store" } });
     const xlsx = await buildPlanningReportXlsx(report);

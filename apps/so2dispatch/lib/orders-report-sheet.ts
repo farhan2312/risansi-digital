@@ -7,7 +7,6 @@ import { billModeLabel, PAYMENT_HOLD_VALUE, READY_LOT_LIMIT } from "@/lib/order-
 import { CLOSED, assemblyView, orderStatusOf, planningText, reachedAssembly, reachedDepts, reachedDispatch } from "@/lib/order-row-view";
 import { PACKED_FOR, PACKING_IN_PROGRESS, lotOnSlip, type SoLot } from "@/lib/ready-lots";
 import { day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
-import type { KpiCard } from "@/lib/kpis";
 import type { OrderListRow, SoDeptStatus } from "@/lib/orders";
 import type { PumpSummary } from "@/lib/pump-summary";
 import type { PumpLot } from "@/lib/assembly";
@@ -136,7 +135,6 @@ export function ordersSheet(opts: {
   /** The Pump view: each SO's departments in detail. Absent, the Spare view's columns. */
   pump?: Map<string, PumpSummary>;
   filterLine: string;
-  kpis?: KpiCard[];
 }): ReportSheet {
   const { rows, statuses, docs, pump, filterLine } = opts;
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -356,10 +354,8 @@ export function ordersSheet(opts: {
     title: pump ? "Pump order report" : "Spare order report",
     filterLine,
     summary: {
-      // The list's own cards, as on the page (the first counts its SOs).
-      tiles: opts.kpis?.length
-        ? opts.kpis.slice(0, 8).map((k) => ({ label: k.label, value: Number(k.count) || 0 }))
-        : [{ label: "SOs", value: rows.length }],
+      // No summary tiles: the sheet is the list itself.
+      tiles: [],
       counts: [],
     },
     columns,

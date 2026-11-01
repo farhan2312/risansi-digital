@@ -32,13 +32,15 @@ export async function buildPlanningReportXlsx(sheet: ReportSheet): Promise<Buffe
   sub.font = { size: 9, color: { argb: TONES.muted } };
   ws.mergeCells(2, 1, 2, n);
 
-  // The summary: the PDF's tiles, label then value, side by side.
-  const sr = ws.addRow(summary.tiles.flatMap((x) => [x.label, x.value]));
-  summary.tiles.forEach((x, i) => {
-    sr.getCell(i * 2 + 1).font = { bold: true, size: 9, color: { argb: TONES.muted } };
-    sr.getCell(i * 2 + 2).font = { bold: true, size: 12, color: { argb: x.tone ? TONES[x.tone] : "FF111827" } };
-    sr.getCell(i * 2 + 2).alignment = { horizontal: "left" };
-  });
+  // The summary: the PDF's tiles, label then value, side by side (none, no row).
+  if (summary.tiles.length) {
+    const sr = ws.addRow(summary.tiles.flatMap((x) => [x.label, x.value]));
+    summary.tiles.forEach((x, i) => {
+      sr.getCell(i * 2 + 1).font = { bold: true, size: 9, color: { argb: TONES.muted } };
+      sr.getCell(i * 2 + 2).font = { bold: true, size: 12, color: { argb: x.tone ? TONES[x.tone] : "FF111827" } };
+      sr.getCell(i * 2 + 2).alignment = { horizontal: "left" };
+    });
+  }
   for (const c of summary.counts) {
     if (!c.text) continue;
     const r = ws.addRow([`${c.label}:  ${c.text}`]);
