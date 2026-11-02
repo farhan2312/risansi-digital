@@ -128,9 +128,98 @@ export type CommercialTag = {
   mechSealOption: MechSealOption | null;
   mechSealNote: string | null;
   prices: CommercialPrices;
+  /** Priced items whose make or model changed since: waiting for an answer. */
+  priceChanges: PriceChange[];
+  /** Items removed by themselves when the selection stopped having them. */
+  removedBoi: BoiRemoved[];
   updatedAt: string | null;
   updatedByName: string | null;
 };
+
+// --- Prices vs the pump selection --------------------------------------------
+// (lib/commercial-review.ts has the server side.)
+
+/** The lines linked to the pump selection. Strainer, PRV and Other items aren't,
+ *  so they can't be checked: the Prices reviewed tick covers them. */
+export const REVIEWED_LINES = [
+  { key: "paPrice", label: "Pump & Accessories" },
+  { key: "motorPrice", label: "Motor" },
+  { key: "gearboxPrice", label: "Gearbox" },
+  { key: "vfdPrice", label: "VFD" },
+  { key: "mechSealPrice", label: "Mechanical Seal" },
+  { key: "drpPrice", label: "DRP" },
+] as const;
+export type ReviewedLineKey = (typeof REVIEWED_LINES)[number]["key"];
+
+export type PriceChange = {
+  key: ReviewedLineKey;
+  label: string;
+  /** What the price was for, and what the selection has now. */
+  was: string;
+  now: string;
+  price: number;
+  /** The new item's master price, when there is one to use. */
+  newPrice: number | null;
+};
+
+export type BoiRemoved = { key: string; label: string; price: number; reason: string; at: string };
+
+type TagForReview = Pick<CommercialTag, "productCode" | "model" | "motorRef" | "gearboxRef" | "motorKw" | "vfdOptions" | "mechSealOption" | "drpOption" | "prices">;
+
+const VFD_FITS = "fits";
+
+/** What each line would be for now. A VFD follows the motor only as far as the
+ *  chosen one still covers it. */
+export function boiIdentities(tag: TagForReview, vfdModel: string | null = tag.prices.vfdModel ?? null): Record<ReviewedLineKey, string> {
+  return {
+    paPrice: tag.productCode ?? tag.model ?? "",
+    motorPrice: tag.motorRef?.label ?? "",
+    gearboxPrice: tag.gearboxRef?.label ?? "",
+    vfdPrice: !vfdModel || tag.vfdOptions.some((o) => o.driveDescription === vfdModel) ? VFD_FITS : `Motor ${tag.motorKw ?? "?"} kW`,
+    mechSealPrice: tag.mechSealOption?.label ?? "",
+    drpPrice: tag.drpOption?.label ?? "",
+  };
+}
+
+/** The basis to store: what each priced line is for now. */
+export function boiBasisFor(tag: TagForReview): Record<string, string> {
+  const now = boiIdentities(tag);
+  return Object.fromEntries(REVIEWED_LINES.filter((l) => tag.prices[l.key] !== null && tag.prices[l.key] !== undefined).map((l) => [l.key, now[l.key]]));
+}
+
+/** Priced lines whose item changed since the stored basis. */
+export function priceChangesFor(tag: TagForReview, basis: Record<string, string>): PriceChange[] {
+  const now = boiIdentities(tag);
+  const newPriceOf: Partial<Record<ReviewedLineKey, number | null>> = {
+    motorPrice: tag.motorRef?.price ?? null,
+    gearboxPrice: tag.gearboxRef?.price ?? null,
+    mechSealPrice: tag.mechSealOption?.price ?? null,
+    drpPrice: tag.drpOption?.total ?? null,
+  };
+  const out: PriceChange[] = [];
+  for (const { key, label } of REVIEWED_LINES) {
+    const price = tag.prices[key];
+    const was = basis[key];
+    if (price === null || price === undefined || was === undefined || was === now[key]) continue;
+    out.push({
+      key,
+      label,
+      was: (key === "vfdPrice" && was === VFD_FITS ? tag.prices.vfdModel : was) || "nothing selected",
+      now: now[key] || "nothing selected",
+      price,
+      newPrice: newPriceOf[key] ?? null,
+    });
+  }
+  return out;
+}
+
+/** What stops this drive group's quotation going to the client, or null. */
+export function sendToClientBlock(summary: CommercialSummary, group: string): string | null {
+  const flagged = summary.tags.filter((t) => t.driveGroup === group && t.priceChanges.length > 0);
+  if (flagged.length > 0) return `Answer the price changes first: ${flagged.map((t) => t.tagName).join(", ")}.`;
+  if (summary.project.versionNo > 0 && !summary.project.pricesReviewedAt) return "Tick Prices reviewed first.";
+  return null;
+}
 
 /** Technical lines the Commercial Offer repeats from the Technical Data
  *  Sheet (same values): liquid, pump type, pump speed, motor rating. */
@@ -139,7 +228,11 @@ export type TagTech = { liquid: string; pumpType: string; pumpSpeed: string; mot
 export type CommercialSummary = {
   project: {
     id: string;
+    /** The enquiry no. with its version ("ENQ-12 V1"). */
     code: string;
+    versionNo: number;
+    /** False on an older version of the enquiry, which is view only. */
+    isLatest: boolean;
     name: string;
     customerName: string | null;
     clientCode: string | null;
@@ -148,6 +241,8 @@ export type CommercialSummary = {
     /** Quote in USD toggle: "USD" with the rate fixed for this enquiry. */
     quoteCurrency: "INR" | "USD";
     usdInrRate: number | null;
+    /** The Prices reviewed tick, needed on a new version before Send to client. */
+    pricesReviewedAt: string | null;
   };
   tags: CommercialTag[];
 };

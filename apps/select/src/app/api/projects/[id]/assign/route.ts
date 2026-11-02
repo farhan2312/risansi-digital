@@ -5,7 +5,7 @@ import { AuthError, requireEnquiryManager } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
-import { findAssignee } from "@/lib/enquiry-access";
+import { findAssignee, versionLocked } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
+  const locked = await versionLocked({ projectId: id });
+  if (locked) return locked;
 
   let body: Record<string, unknown>;
   try {

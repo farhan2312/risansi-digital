@@ -4,7 +4,7 @@
 // portal) is only READ — through miQuery, which is read-only — to list the
 // possible TSMs and to suggest the client's primary rep. Nothing is written
 // there.
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { isMarketIntellConfigured, miQuery } from "@/lib/db/market-intell";
@@ -119,13 +119,31 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
   if (!q) return null;
   // The rest at once: drive groups, versions and the live snapshot (used
   // only when a version is still live, but built alongside to save a round trip).
+  // History runs across the enquiry's versions up to this one: each has its own
+  // row with the same number, so the sent versions stay on show after a revision.
+  const quoteIds =
+    q.serial === null
+      ? [q.id]
+      : (
+          await db
+            .select({ id: quotation.id })
+            .from(quotation)
+            .innerJoin(projects, eq(projects.id, quotation.projectId))
+            .where(
+              and(
+                eq(quotation.serial, q.serial),
+                eq(quotation.driveGroup, q.driveGroup),
+                lte(projects.versionNo, sql`(select p.version_no from projects p where p.id = ${projectId}::uuid)`),
+              ),
+            )
+        ).map((r) => r.id);
   const [groups, versions, snapshot] = await Promise.all([
     projectDriveGroups(projectId),
     db
       .select({ v: quotationVersion, createdByName: users.name })
       .from(quotationVersion)
       .leftJoin(users, eq(users.id, quotationVersion.createdBy))
-      .where(eq(quotationVersion.quotationId, q.id))
+      .where(inArray(quotationVersion.quotationId, quoteIds))
       .orderBy(asc(quotationVersion.createdAt)),
     buildSnapshot(projectId, driveGroup),
   ]);

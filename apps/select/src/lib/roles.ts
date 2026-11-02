@@ -56,12 +56,15 @@ export const worksOnAnyEnquiry = (role: string | null | undefined): boolean =>
   canManageEnquiries(role) || role === "admin" || role === "selection_head";
 
 /** May this person work on this enquiry (open the wizard, edit tags, quote,
- *  price, edit its documents)? */
+ *  price, edit its documents)? An older version is view only for everyone. */
 export const canWorkOn = (
   user: { id: string; role: string | null | undefined } | null | undefined,
-  enquiry: { assigned_to?: string | null; assignedTo?: string | null },
+  enquiry: { assigned_to?: string | null; assignedTo?: string | null; is_latest?: boolean },
 ): boolean =>
-  Boolean(user) && (worksOnAnyEnquiry(user!.role) || (enquiry.assigned_to ?? enquiry.assignedTo ?? null) === user!.id);
+  Boolean(user) && enquiry.is_latest !== false && (worksOnAnyEnquiry(user!.role) || (enquiry.assigned_to ?? enquiry.assignedTo ?? null) === user!.id);
+
+/** The enquiry no. with its version, as shown and printed: "ENQ-12 V1". */
+export const enquiryNoWithVersion = (code: string, version: number | null | undefined): string => `${code} V${version ?? 0}`;
 
 /** Rep / Rep Manager: read-only, and only their own enquiries. */
 export const REP_ROLES = ["rep", "rep_manager"] as const;

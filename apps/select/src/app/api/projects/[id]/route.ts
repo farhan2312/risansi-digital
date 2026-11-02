@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
@@ -6,7 +6,9 @@ import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from 
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
 import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
-import { viewDenied } from "@/lib/enquiry-access";
+import { ENQUIRY_STATUSES } from "@/lib/enquiry-filters";
+import { enquiryStatusColumns } from "@/lib/enquiry-filters-server";
+import { versionLocked, viewDenied } from "@/lib/enquiry-access";
 
 const assignee = alias(users, "assignee");
 
@@ -32,6 +34,27 @@ async function guard(
 function textOrNull(v: unknown): string | null {
   if (v === null || v === undefined || String(v).trim() === "") return null;
   return String(v).trim();
+}
+
+/** A status and date from the Edit form. They are stored only where they differ
+ *  from the automatic ones, so a status left alone keeps updating by itself.
+ *  An error message when it won't do. */
+function statusChoice(
+  label: string,
+  value: unknown,
+  day: unknown,
+  autoStatus: string,
+  autoDay: string | null,
+): { override: string | null; date: string | null } | string {
+  const s = textOrNull(value);
+  if (s === null || !(ENQUIRY_STATUSES as readonly string[]).includes(s)) return `'${label}' must be ${ENQUIRY_STATUSES.join(", ")}`;
+  const override = s === autoStatus ? null : s;
+  if (s !== "Completed") return { override, date: null };
+  const d = textOrNull(day);
+  if (d === null || !/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`))) {
+    return `Completed needs its date for '${label}' (YYYY-MM-DD)`;
+  }
+  return { override, date: d === autoDay ? null : d };
 }
 
 export async function GET(
@@ -67,6 +90,8 @@ export async function PATCH(
 
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
+  const locked = await versionLocked({ projectId: id });
+  if (locked) return locked;
 
   let body: Record<string, unknown>;
   try {
@@ -83,8 +108,9 @@ export async function PATCH(
     if (!n) return error("'name' can't be empty", 400);
     patch.name = n;
   }
-  // Enquiry no. (project_code) is also NOT NULL and UNIQUE — accepted from
-  // either projectCode or project_code so client code doesn't have to pick.
+  // Enquiry no. (project_code) is also NOT NULL and unique per version —
+  // accepted from either projectCode or project_code so client code doesn't
+  // have to pick. Every version of the enquiry takes the new number.
   const rawCode = "projectCode" in body ? body.projectCode
     : "project_code" in body ? body.project_code
     : undefined;
@@ -104,18 +130,20 @@ export async function PATCH(
     }
     patch.enquiryDate = d;
   }
-  if ("status" in body) {
-    const s = textOrNull(body.status);
-    if (s === null) return error("'status' can't be empty", 400);
-    patch.status = s;
-    // Completed carries its date; any other status hands it back to the tags.
-    if (s !== "Completed") patch.completedOn = null;
-    else if ("completedOn" in body) {
-      const d = textOrNull(body.completedOn);
-      if (d !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`)))) {
-        return error("'completedOn' must be a date (YYYY-MM-DD)", 400);
-      }
-      patch.completedOn = d;
+  if ("technicalStatus" in body || "commercialStatus" in body) {
+    const [auto] = await db.select(enquiryStatusColumns).from(projects).where(eq(projects.id, id)).limit(1);
+    if (!auto) return error("Project not found", 404);
+    if ("technicalStatus" in body) {
+      const c = statusChoice("technicalStatus", body.technicalStatus, body.completedOn, auto.technicalAuto, auto.technicalDayAuto);
+      if (typeof c === "string") return error(c, 400);
+      patch.technicalStatusOverride = c.override;
+      patch.completedOn = c.date;
+    }
+    if ("commercialStatus" in body) {
+      const c = statusChoice("commercialStatus", body.commercialStatus, body.commercialCompletedOn, auto.commercialAuto, auto.commercialDayAuto);
+      if (typeof c === "string") return error(c, 400);
+      patch.commercialStatusOverride = c.override;
+      patch.commercialCompletedOn = c.date;
     }
   }
   if ("orderType" in body) {
@@ -144,11 +172,17 @@ export async function PATCH(
 
   let updated: typeof projects.$inferSelect | undefined;
   try {
-    [updated] = await db
-      .update(projects)
-      .set(patch)
-      .where(eq(projects.id, id))
-      .returning();
+    updated = await db.transaction(async (tx) => {
+      const [row] = await tx.update(projects).set(patch).where(eq(projects.id, id)).returning();
+      if (row && patch.projectCode) {
+        const root = row.rootProjectId ?? row.id;
+        await tx
+          .update(projects)
+          .set({ projectCode: patch.projectCode })
+          .where(or(eq(projects.id, root), eq(projects.rootProjectId, root)));
+      }
+      return row;
+    });
   } catch (e) {
     if (isUniqueViolation(e)) {
       return error(`Enquiry no. "${patch.projectCode}" already exists`, 409);
@@ -176,11 +210,23 @@ export async function DELETE(
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
 
+  // An older version stays as long as a newer one exists; deleting the latest
+  // version makes the one before it the latest again.
+  const locked = await versionLocked({ projectId: id });
+  if (locked) return locked;
+
   // pump_selection_input rows for this project cascade-delete via its FK.
-  const [deleted] = await db
-    .delete(projects)
-    .where(eq(projects.id, id))
-    .returning();
+  const deleted = await db.transaction(async (tx) => {
+    const [row] = await tx.delete(projects).where(eq(projects.id, id)).returning();
+    if (row?.rootProjectId) {
+      const root = row.rootProjectId;
+      await tx
+        .update(projects)
+        .set({ isLatest: true })
+        .where(and(eq(projects.versionNo, row.versionNo - 1), or(eq(projects.id, root), eq(projects.rootProjectId, root))));
+    }
+    return row;
+  });
   if (!deleted) return error("Project not found", 404);
 
   return json({ id: deleted.id, deleted: true });

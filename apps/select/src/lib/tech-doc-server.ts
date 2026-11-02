@@ -7,6 +7,7 @@ import { and, asc, eq, getTableColumns, inArray, isNotNull } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import { db } from "@/lib/db";
+import { enquiryNoWithVersion } from "@/lib/roles";
 import {
   driveDirectInput,
   driveGearedInput,
@@ -56,6 +57,7 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
   const [p] = await db
     .select({
       code: projects.projectCode,
+      versionNo: projects.versionNo,
       name: projects.name,
       enquiryDate: projects.enquiryDate,
       config: projects.techDocConfig,
@@ -128,9 +130,9 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
   };
 
   const data: TechDocData = {
-    projectCode: p.code,
+    projectCode: enquiryNoWithVersion(p.code, p.versionNo),
     clientName: p.name,
-    enquiry: [p.code, p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
+    enquiry: [enquiryNoWithVersion(p.code, p.versionNo), p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
     tags: tagRows.map((t) => {
       const form = forms.get(t.id) ?? {};
       return { tagId: t.id, tagName: t.name, form, pump: pumpFor(form) };

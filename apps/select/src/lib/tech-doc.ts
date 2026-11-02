@@ -150,8 +150,8 @@ export function techDocSheet(data: TechDocData, group: TechDocGroup): TechDocShe
     projectCode: data.projectCode,
     header: {
       clientName: data.clientName,
-      enquiry: data.enquiry,
       // Typed on the sheet's header wins over the automatic line.
+      enquiry: cfg?.enquiryText || data.enquiry,
       // The ERP quotation no. (the portal's own number is not on the sheet).
       quotation: cfg?.erpText || data.erpNumbers?.[group] || "",
       hidden: cfg?.headerHidden ?? [],
@@ -455,6 +455,7 @@ export interface TechDocConfig {
   /** Rows added by hand, in order. */
   custom: TechDocCustomRow[];
   /** Header lines typed in for this sheet ("" / absent = automatic). */
+  enquiryText?: string;
   quotationText?: string;
   erpText?: string;
   /** Header lines removed from this sheet. */
@@ -517,6 +518,7 @@ export function normalizeTechDocConfig(raw: unknown): TechDocConfig {
     labels,
     values,
     custom,
+    enquiryText: text(r.enquiryText),
     quotationText: text(r.quotationText),
     erpText: text(r.erpText),
     headerHidden: headerHiddenList(r.headerHidden),
@@ -792,9 +794,25 @@ export function sheetFileStem(
     .join("_");
 }
 
-// --- Client versions ------------------------------------------------------------
+// --- Sent to operation ----------------------------------------------------------
 
-/** A sent version of one drive group's sheet (tech_doc_version). */
+/** Key order and JSON round trips (the stored copy is jsonb) don't count as changes. */
+const canonical = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(canonical)
+    : v && typeof v === "object"
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([k, x]) => [k, canonical(x)]),
+        )
+      : v;
+const canonicalText = (sheet: unknown) => JSON.stringify(canonical(JSON.parse(JSON.stringify(sheet))));
+
+/** Is this sheet the same as one sent earlier? */
+export const sameTechDocSheet = (a: unknown, b: unknown): boolean => canonicalText(a) === canonicalText(b);
+
+/** One send of a drive group's sheet to operation (tech_doc_version). */
 export interface TechDocVersion {
   id: string;
   group: TechDocGroup;

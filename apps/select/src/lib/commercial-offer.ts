@@ -227,6 +227,7 @@ export interface OfferConfig {
   scopeText?: string;
   outOfScopeText?: string;
   /** Header lines typed in for this sheet ("" / absent = automatic). */
+  enquiryText?: string;
   quotationText?: string;
   erpText?: string;
   /** Header lines removed from this sheet. */
@@ -298,6 +299,7 @@ export function normalizeOfferConfig(raw: unknown): OfferConfig {
     scopeExtra: scopeList(r.scopeExtra) ?? [],
     scopeText: text(r.scopeText, MAX_SCOPE_LINE),
     outOfScopeText: text(r.outOfScopeText, MAX_SCOPE_LINE),
+    enquiryText: text(r.enquiryText),
     quotationText: text(r.quotationText),
     erpText: text(r.erpText),
     headerHidden: headerHiddenList(r.headerHidden),

@@ -23,6 +23,7 @@ import {
 } from "../../services/mocRecommendationService";
 import { downloadMocReportPdf } from "../../lib/moc-pdf-report";
 import PdfPreviewModal, { type PdfPreview } from "../ui/PdfPreviewModal";
+import ViewButton from "./ViewButton";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import {
   deleteClientRequirements,
@@ -947,15 +948,14 @@ const MocDetailsStep = ({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
+                    <ViewButton
                       disabled={pdfGenerating}
-                      onClick={handleDownloadPdf}
-                      className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-[13px] font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => void handleDownloadPdf()}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-[13px] font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                     >
                       <span>📄</span>
                       {pdfGenerating ? "Preparing PDF…" : "View MOC AI Report"}
-                    </button>
+                    </ViewButton>
                   </div>
 
                   {/* Content */}

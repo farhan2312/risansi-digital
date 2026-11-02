@@ -57,6 +57,8 @@ export default function QuotationPanel({
   hasUnsavedPrices,
   pricesVersion,
   onGenerate,
+  readOnly = false,
+  sendBlock = null,
 }: {
   projectId: string;
   /** Drive group this panel quotes (GM / GB / VB / DD) — one quotation each. */
@@ -69,6 +71,10 @@ export default function QuotationPanel({
   pricesVersion: number;
   /** Opens the enquiry's Quotation step (quotations are generated there, not here). */
   onGenerate: () => void;
+  /** An older version of the enquiry: its versions can be viewed, nothing else. */
+  readOnly?: boolean;
+  /** What stops Send to client (flagged prices, the Prices reviewed tick), or null. */
+  sendBlock?: string | null;
 }) {
   const [quotation, setQuotation] = useState<QuotationInfo | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -203,9 +209,11 @@ export default function QuotationPanel({
           <p className="text-[13px] text-fg-2">
             No quotation for {groupLabel ? `the ${groupLabel} tags` : "this enquiry"} yet — generate it on the Quotation step.
           </p>
-          <button type="button" className={btnPrimarySm} onClick={onGenerate}>
-            Generate quotation
-          </button>
+          {!readOnly && (
+            <button type="button" className={btnPrimarySm} onClick={onGenerate}>
+              Generate quotation
+            </button>
+          )}
         </div>
       </section>
     );
@@ -234,6 +242,8 @@ export default function QuotationPanel({
         <div className="flex flex-wrap items-center gap-2">
           <VersionBadge label="Internal" value={versionLabel(quotation.internalVersion)} />
           <VersionBadge label="Client" value={versionLabel(quotation.clientVersion)} muted={quotation.clientVersion === null} />
+          {!readOnly && (
+          <>
           <button
             type="button"
             className={btnSm}
@@ -249,9 +259,11 @@ export default function QuotationPanel({
           <button
             type="button"
             className={btnPrimarySm}
-            disabled={busy || hasUnsavedPrices || !liveInternal}
+            disabled={busy || hasUnsavedPrices || !liveInternal || Boolean(sendBlock)}
             title={
-              hasUnsavedPrices
+              sendBlock
+                ? sendBlock
+                : hasUnsavedPrices
                 ? "Save the price changes first"
                 : !liveInternal
                   ? "Already sent — start a new internal version for further changes"
@@ -261,10 +273,12 @@ export default function QuotationPanel({
           >
             Send to client
           </button>
+          </>
+          )}
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <fieldset disabled={readOnly} className="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No.</span>
           <span className="flex flex-wrap items-center gap-1.5">
@@ -313,9 +327,10 @@ export default function QuotationPanel({
             </div>
           )}
         </div>
-      </div>
+      </fieldset>
 
-      {!liveInternal && (
+      {sendBlock && !readOnly && <p className="px-4 pb-2 text-[12px] font-semibold text-warn">Send to client is waiting: {sendBlock}</p>}
+      {!liveInternal && !readOnly && (
         <p className="px-4 pb-2 text-[12px] text-warn">
           Internal V{quotation.internalVersion} was sent to the client and is frozen. If the TSM asks for changes,
           start a new internal version before changing prices.

@@ -215,7 +215,8 @@ export default function EnquiryFilterBar({
       {multi("zone", "Zone", opts?.zones)}
       {multi("market", "Market", opts?.markets)}
       {multi("industry", "Industry", opts?.industries)}
-      {multi("status", "Status", ENQUIRY_STATUSES)}
+      {multi("status", "Technical status", ENQUIRY_STATUSES)}
+      {multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}
       {hasEnquiryFilters(value) && (
         <button
           type="button"

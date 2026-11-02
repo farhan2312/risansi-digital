@@ -9,11 +9,12 @@ import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal"
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
+import EnquiryVersionsModal from "../../components/projects/EnquiryVersionsModal";
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, enquiryNoWithVersion, isRepRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -50,13 +51,13 @@ export const SELECTED_PROJECT_KEY = "selectedProject";
 const PAGE_SIZE = 20;
 
 // Enquiry row columns: chevron | enquiry no. / date | order type | client /
-// code | reps / zone | industry / market | status | assigned to | actions.
+// code | reps / zone | industry / market | statuses | assigned to | actions.
 // Tailwind only sees whole class strings, so each variant is written out: the
 // User-Master's Actions column is wider (Edit and Delete as well).
 const ROW_GRID_MANAGER =
-  "grid grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_222px] 2xl:grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_478px]";
+  "grid grid-cols-[28px_minmax(170px,1.1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(170px,0.9fr)_minmax(140px,1fr)_222px] 2xl:grid-cols-[28px_minmax(170px,1.1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(170px,0.9fr)_minmax(140px,1fr)_478px]";
 const ROW_GRID_WORKER =
-  "grid grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_190px] 2xl:grid-cols-[28px_minmax(140px,1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(96px,0.8fr)_minmax(140px,1fr)_400px]";
+  "grid grid-cols-[28px_minmax(170px,1.1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(170px,0.9fr)_minmax(140px,1fr)_190px] 2xl:grid-cols-[28px_minmax(170px,1.1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(170px,0.9fr)_minmax(140px,1fr)_400px]";
 
 const ProjectsPage = () => {
   const router = useRouter();
@@ -71,6 +72,8 @@ const ProjectsPage = () => {
   const isRep = isRepRole(user?.role);
   const [rep, setRep] = useState("");
   const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
+  // The pop-up listing an enquiry's versions.
+  const [versionsFor, setVersionsFor] = useState<ProjectRecord | null>(null);
   const ROW_GRID = manager ? ROW_GRID_MANAGER : ROW_GRID_WORKER;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -287,7 +290,7 @@ const ProjectsPage = () => {
       SELECTED_PROJECT_KEY,
       JSON.stringify({
         id: project.id,
-        code: project.project_code,
+        code: enquiryNoWithVersion(project.project_code, project.version_no),
         name: project.name,
         customer: project.customer_name,
         status: project.status,
@@ -701,7 +704,7 @@ const ProjectsPage = () => {
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
           <div className="overflow-x-auto">
-          <div className={manager ? "min-w-[1120px] 2xl:min-w-[1360px]" : "min-w-[1080px] 2xl:min-w-[1260px]"}>
+          <div className={manager ? "min-w-[1225px] 2xl:min-w-[1465px]" : "min-w-[1185px] 2xl:min-w-[1365px]"}>
           <div className={`border-b border-line bg-elev px-4 py-2.5 ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
             <span />
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry No. / Date</span>
@@ -739,15 +742,19 @@ const ProjectsPage = () => {
                         <ChevronIcon />
                       </button>
 
-                    {/* Enquiry no. over the enquiry date */}
+                    {/* Enquiry no. and version over the enquiry date */}
+                    <span className="min-w-0">
                     <button
                       type="button"
                       onClick={() => toggleExpanded(project.id)}
-                      className="min-w-0 text-left"
+                      className="block w-full min-w-0 text-left"
                       title={isOpen ? "Hide tags" : "Show tags"}
                     >
-                      <span className="block truncate font-mono text-[12.5px] font-bold text-title group-hover:text-accent">{project.project_code}</span>
-                      <span className="mt-0.5 flex items-center gap-1 text-[11.5px] whitespace-nowrap text-fg-3" title="Enquiry date">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="min-w-0 font-mono text-[12.5px] font-bold [overflow-wrap:anywhere] text-title group-hover:text-accent">{project.project_code}</span>
+                        <span className="shrink-0 rounded bg-accent-soft px-1 py-px font-mono text-[10.5px] font-bold text-accent">V{project.version_no}</span>
+                      </span>
+                      <span className="mt-0.5 flex items-center gap-1 text-[11.5px] whitespace-nowrap text-fg-3" title={project.version_no > 0 ? "Revised enquiry date" : "Enquiry date"}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">
                           <rect x="3.5" y="5" width="17" height="15" rx="2" />
                           <path d="M3.5 10h17M8 3v4M16 3v4" />
@@ -755,6 +762,17 @@ const ProjectsPage = () => {
                         {project.enquiry_date ? new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                       </span>
                     </button>
+                    {project.version_no > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setVersionsFor(project)}
+                        className="mt-0.5 rounded-md px-1 py-0.5 text-[11.5px] font-semibold text-accent transition hover:bg-accent-soft"
+                        aria-label={`Versions of enquiry ${project.project_code}`}
+                      >
+                        Versions
+                      </button>
+                    )}
+                    </span>
 
                     <span className="min-w-0">
                       <span
@@ -806,12 +824,8 @@ const ProjectsPage = () => {
                     </span>
 
                     <span className="flex flex-col items-start gap-1">
-                      <StatusPill status={project.status} />
-                      {project.completed_on && (
-                        <span className="text-[11px] text-fg-3">
-                          on {new Date(`${project.completed_on}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                        </span>
-                      )}
+                      <StatusLine label="Technical" status={project.status} on={project.completed_on} edited={project.technical_status_override !== null} />
+                      <StatusLine label="Commercial" status={project.commercial_status} on={project.commercial_completed_on} edited={project.commercial_status_override !== null} />
                       {tags && (
                         <span className="text-[11px] text-fg-3">
                           {doneCount}/{tags.length} tag{tags.length === 1 ? "" : "s"} done
@@ -1176,9 +1190,10 @@ const ProjectsPage = () => {
         <EnquiryDocumentModal
           source={{
             projectId: viewingDocFor.id,
-            projectCode: viewingDocFor.project_code,
+            projectCode: enquiryNoWithVersion(viewingDocFor.project_code, viewingDocFor.version_no),
             projectName: viewingDocFor.name,
           }}
+          readOnly={!viewingDocFor.is_latest}
           onClose={() => setViewingDocFor(null)}
         />
       )}
@@ -1204,6 +1219,19 @@ const ProjectsPage = () => {
         />
       )}
 
+      {versionsFor && (
+        <EnquiryVersionsModal
+          project={versionsFor}
+          showCommercial={!isRep}
+          onClose={() => setVersionsFor(null)}
+          onOpenTag={openProject}
+          onOpenTechnical={(v) => {
+            setVersionsFor(null);
+            setViewingDocFor(v);
+          }}
+        />
+      )}
+
       <AssignEnquiryModal
         project={assigning}
         onClose={() => setAssigning(null)}
@@ -1223,6 +1251,14 @@ const ProjectsPage = () => {
         isSaving={isSaving}
         onClose={() => !isSaving && setEditing(null)}
         onSave={handleEditSave}
+        onVersionCreated={() => {
+          setEditing(null);
+          // The copy dialog's list held the version that is now view only.
+          setAllProjects(null);
+          // The new version is the newest enquiry: top of page 1.
+          if (page === 1) loadProjects();
+          else setPage(1);
+        }}
       />
 
       <ConfirmModal
@@ -1236,6 +1272,9 @@ const ProjectsPage = () => {
               </strong>{" "}
               and its saved pump-selection inputs will be permanently removed. This
               can&apos;t be undone.
+              {confirmingDelete.version_no > 0 && (
+                <> Only V{confirmingDelete.version_no} is deleted; V{confirmingDelete.version_no - 1} becomes the latest version again.</>
+              )}
             </>
           ) : null
         }
@@ -1269,6 +1308,19 @@ const ProjectsPage = () => {
     </div>
   );
 };
+
+/** One of the enquiry's two statuses, with its completion date. */
+const StatusLine = ({ label, status, on, edited }: { label: string; status: string | null | undefined; on: string | null; edited: boolean }) => (
+  <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5" title={edited ? `${label} status changed on the Edit form` : `${label} status updates by itself`}>
+    <span className="w-[60px] shrink-0 text-[10.5px] text-fg-3">{label}</span>
+    <StatusPill status={status} />
+    {on && (
+      <span className="pl-[66px] text-[11px] text-fg-3">
+        on {new Date(`${on}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+      </span>
+    )}
+  </span>
+);
 
 // --- Inline icons (self-contained, no external asset dependency) -----------
 // The chevron ships as a right-arrow; the .projects-chevron.is-open class in

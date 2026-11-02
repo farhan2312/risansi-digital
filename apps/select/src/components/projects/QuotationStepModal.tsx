@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { DRIVE_GROUP_LABEL, type EnquiryQuotations, type TsmOption } from "../../lib/commercial";
+import ConfirmModal from "../ui/ConfirmModal";
 import ScopeControls, { ScopeLines } from "../../screens/commercial/ScopeControls";
 import { EMPTY_OFFER_CONFIG, type OfferConfig } from "../../lib/commercial-offer";
 import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
@@ -50,24 +51,27 @@ export default function QuotationStepModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  // Each drive group's offer config (scope lists live there), saved on change.
+  // Each drive group's offer config (scope lists live there): the form's copy,
+  // and what is saved. The Save button below writes the difference.
   const [offerConfigs, setOfferConfigs] = useState<Record<string, OfferConfig> | null>(null);
-  const [scopeSave, setScopeSave] = useState<"" | "saving" | "saved" | "error">("");
+  const [savedConfigs, setSavedConfigs] = useState<Record<string, OfferConfig>>({});
+  const [confirmClose, setConfirmClose] = useState(false);
   useEffect(() => {
     let cancelled = false;
     getCommercialOffer(project.id)
-      .then((d) => !cancelled && setOfferConfigs(d.configs))
+      .then((d) => {
+        if (cancelled) return;
+        setOfferConfigs(d.configs);
+        setSavedConfigs(d.configs);
+      })
       .catch(() => !cancelled && setOfferConfigs({}));
     return () => {
       cancelled = true;
     };
   }, [project.id]);
-  const saveScope = (group: string, next: OfferConfig) => {
+  const changeScope = (group: string, next: OfferConfig) => {
     setOfferConfigs((m) => ({ ...(m ?? {}), [group]: next }));
-    setScopeSave("saving");
-    saveCommercialOfferConfig(project.id, group, next)
-      .then(() => setScopeSave("saved"))
-      .catch(() => setScopeSave("error"));
+    setSaved(false);
   };
 
   const load = useCallback(async () => {
@@ -88,18 +92,16 @@ export default function QuotationStepModal({
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, busy]);
-
   const missing = data?.groups.filter((g) => !g.quotation) ?? [];
   const erpChanged = (data?.groups ?? []).filter(
     (g) => g.quotation && (erp[g.group] ?? "").trim().toUpperCase() !== (g.quotation.erpSerial ?? ""),
   );
   const needsTsm = missing.length > 0 && !data?.clientTsm;
-  const canSubmit = !busy && (missing.length > 0 || erpChanged.length > 0) && (!needsTsm || !!tsmId);
+  const scopeChanged = (data?.groups ?? [])
+    .map((g) => g.group)
+    .filter((g) => JSON.stringify(offerConfigs?.[g] ?? EMPTY_OFFER_CONFIG) !== JSON.stringify(savedConfigs[g] ?? EMPTY_OFFER_CONFIG));
+  const unsaved = erpChanged.length > 0 || scopeChanged.length > 0;
+  const canSubmit = !busy && (missing.length > 0 || unsaved) && (!needsTsm || !!tsmId);
   const allGenerated = !!data && data.groups.length > 0 && missing.length === 0;
 
   const submit = async () => {
@@ -114,12 +116,17 @@ export default function QuotationStepModal({
         await createQuotation(project.id, g.group, data.clientTsm ? undefined : Number(tsmId), serial || undefined);
       }
       for (const g of erpChanged) await setQuotationErpSerial(g.quotation!.id, (erp[g.group] ?? "").trim());
+      for (const g of scopeChanged) {
+        const config = offerConfigs?.[g] ?? EMPTY_OFFER_CONFIG;
+        await saveCommercialOfferConfig(project.id, g, config);
+        setSavedConfigs((m) => ({ ...m, [g]: config }));
+      }
       const fresh = await load();
       if (fresh) onDone(fresh.groups.filter((g) => g.quotation).length);
       setSaved(true);
     } catch (e) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg || "Couldn't generate the quotation. Try again.");
+      setError(msg || (missing.length > 0 ? "Couldn't generate the quotation. Try again." : "Couldn't save. Try again."));
       const fresh = await load();
       if (fresh) onDone(fresh.groups.filter((g) => g.quotation).length);
     } finally {
@@ -127,8 +134,19 @@ export default function QuotationStepModal({
     }
   };
 
+  const requestClose = () => {
+    if (busy) return;
+    if (unsaved) setConfirmClose(true);
+    else onClose();
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !confirmClose && requestClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => !busy && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={requestClose}>
       <div
         // Wide and tall enough that the scope dropdowns (340px lists) open
         // without squeezing; the body scrolls inside.
@@ -145,7 +163,7 @@ export default function QuotationStepModal({
               {project.name || "—"} · one quotation per drive system, sharing one serial. Technical and Commercial open once it&apos;s generated.
             </p>
           </div>
-          <button type="button" className={btn} onClick={onClose} disabled={busy}>
+          <button type="button" className={btn} onClick={requestClose} disabled={busy}>
             Close
           </button>
         </header>
@@ -262,7 +280,7 @@ export default function QuotationStepModal({
                         <ScopeControls
                           config={offerConfigs[g.group] ?? EMPTY_OFFER_CONFIG}
                           group={g.group}
-                          onChange={(next) => saveScope(g.group, next)}
+                          onChange={(next) => changeScope(g.group, next)}
                         />
                         <ScopeLines config={offerConfigs[g.group] ?? EMPTY_OFFER_CONFIG} group={g.group} />
                       </>
@@ -280,13 +298,6 @@ export default function QuotationStepModal({
               <p className="text-[12px] text-fg-3">
                 The quotation no. (ERP) and the scope lines are what the Technical Data Sheet and the Commercial Offer
                 show; both can still be changed later on the Commercial page.
-                {scopeSave === "saving"
-                  ? " Saving scope…"
-                  : scopeSave === "saved"
-                    ? " Scope saved."
-                    : scopeSave === "error"
-                      ? " Couldn't save the scope — try again."
-                      : ""}
               </p>
             </>
           )}
@@ -294,9 +305,13 @@ export default function QuotationStepModal({
         </div>
 
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-3">
-          {saved && !error && <span className="mr-auto text-[12.5px] font-medium text-pos">Saved</span>}
+          {unsaved ? (
+            <span className="mr-auto text-[12.5px] font-medium text-warn">Unsaved changes</span>
+          ) : (
+            saved && !error && <span className="mr-auto text-[12.5px] font-medium text-pos">Saved</span>
+          )}
           {allGenerated && (
-            <button type="button" className={btn} onClick={onOpenCommercial} disabled={busy}>
+            <button type="button" className={btn} onClick={onOpenCommercial} disabled={busy || unsaved} title={unsaved ? "Save your changes first" : undefined}>
               Open Commercial →
             </button>
           )}
@@ -306,10 +321,23 @@ export default function QuotationStepModal({
                 ? "Working…"
                 : missing.length > 0
                   ? `Generate quotation${missing.length > 1 ? `s (${missing.length})` : ""}`
-                  : "Save quotation no."}
+                  : "Save"}
             </button>
           )}
         </footer>
+      </div>
+      {/* Stops clicks here reaching the backdrop behind it. */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <ConfirmModal
+          open={confirmClose}
+          title="Close without saving?"
+          description="Your changes to the scope or the quotation no. will be lost."
+          confirmLabel="Close without saving"
+          cancelLabel="Keep editing"
+          tone="danger"
+          onConfirm={onClose}
+          onClose={() => setConfirmClose(false)}
+        />
       </div>
     </div>
   );

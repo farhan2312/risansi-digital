@@ -53,11 +53,15 @@ import {
   type VfdOption,
   type DrpOption,
 } from "../../lib/commercial";
+import { sendToClientBlock, type ReviewedLineKey } from "../../lib/commercial";
 import {
   getCommercialSummary,
   saveCommercialPrices,
   saveCommercialRemarks,
   setQuoteCurrency,
+  answerPriceChange,
+  dismissRemovedBoi,
+  setPricesReviewed,
 } from "../../services/commercialService";
 import { getUsdInrSetting } from "../../services/settingsService";
 import { getEnquiryQuotations } from "../../services/quotationService";
@@ -310,6 +314,7 @@ export default function CommercialSummaryPage() {
       setShowErrors((m) => ({ ...m, [tagId]: false }));
       setJustSaved((m) => ({ ...m, [tagId]: true }));
       setPricesVersion((n) => n + 1);
+      void refreshReview();
       return true;
     } catch (e) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -317,6 +322,33 @@ export default function CommercialSummaryPage() {
       return false;
     } finally {
       setSaving((m) => ({ ...m, [tagId]: false }));
+    }
+  };
+
+  // A saved price can settle a flagged line: re-read the flags, not the drafts.
+  const refreshReview = useCallback(async () => {
+    if (!projectId) return;
+    const res = await getCommercialSummary(projectId).catch(() => null);
+    if (res) setData(res);
+  }, [projectId]);
+
+  const [reviewError, setReviewError] = useState<Record<string, string>>({});
+  const answerChange = async (tagId: string, key: ReviewedLineKey, useNew: boolean) => {
+    setReviewError((m) => ({ ...m, [tagId]: "" }));
+    try {
+      const res = await answerPriceChange(tagId, key, useNew);
+      if (useNew) {
+        const patch: Partial<Draft> = { [key]: priceText(res.price) };
+        if (key === "mechSealPrice") patch.mechSealModel = res.model ?? "";
+        if (key === "drpPrice") patch.drpModel = res.model ?? "";
+        setSaved((m) => ({ ...m, [tagId]: { ...m[tagId], ...patch } }));
+        setDrafts((m) => ({ ...m, [tagId]: { ...m[tagId], ...patch } }));
+        setPricesVersion((n) => n + 1);
+      }
+      await refreshReview();
+    } catch (e) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setReviewError((m) => ({ ...m, [tagId]: msg || "Couldn't save your answer. Try again." }));
     }
   };
 
@@ -347,6 +379,20 @@ export default function CommercialSummaryPage() {
   const missingQty = groupRows.filter((r) => r.tag.quantity === null).length;
 
   const project = data?.project;
+  // An older version of the enquiry: everything can be viewed, nothing changed.
+  const readOnly = project?.isLatest === false;
+  // What stops this tab's quotation going to the client.
+  const sendBlock = data && tab && tab !== "NONE" ? sendToClientBlock(data, tab) : null;
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const toggleReviewed = async (reviewed: boolean) => {
+    setReviewBusy(true);
+    try {
+      const res = await setPricesReviewed(projectId, reviewed);
+      setData((d) => (d ? { ...d, project: { ...d.project, pricesReviewedAt: res.pricesReviewedAt } } : d));
+    } finally {
+      setReviewBusy(false);
+    }
+  };
 
   // Quote in USD: prices stay in INR; the totals and the Commercial Offer
   // also show USD at the rate fixed on the enquiry when it was switched on.
@@ -442,7 +488,7 @@ export default function CommercialSummaryPage() {
             )}
             <button
               type="button"
-              className={btnPrimarySm}
+              className={`${btnPrimarySm} ${readOnly ? "hidden" : ""}`}
               onClick={saveAll}
               disabled={dirtyIds.length === 0 || dirtyIds.some((id) => saving[id])}
             >
@@ -489,6 +535,13 @@ export default function CommercialSummaryPage() {
           </div>
         }
       />
+
+      {readOnly && (
+        <p className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3.5 py-2.5 text-[12.5px] text-fg-2">
+          <span className="rounded-md bg-accent px-2 py-0.5 text-[11.5px] font-bold text-white">View only</span>
+          This is an older version of the enquiry - nothing here can be changed. Work on the latest version from the Enquiries list.
+        </p>
+      )}
 
       {loadError && (
         <div className="rounded-xl border border-line bg-paper p-5 text-[13.5px] text-neg">
@@ -538,7 +591,8 @@ export default function CommercialSummaryPage() {
           </p>
           <button
             type="button"
-            className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90"
+            className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={readOnly}
             onClick={() => setShowQuotationStep(true)}
           >
             Generate quotation
@@ -602,10 +656,29 @@ export default function CommercialSummaryPage() {
                 hasUnsavedPrices={groupDirty}
                 pricesVersion={pricesVersion}
                 onGenerate={() => setShowQuotationStep(true)}
+                readOnly={readOnly}
+                sendBlock={sendBlock}
               />
             )
           )}
 
+          {/* An older version: the prices show, every control below is off. */}
+          <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
+          {data.project.versionNo > 0 && (
+            <label className="flex cursor-pointer flex-wrap items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3 text-[13px] text-fg-2">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={Boolean(data.project.pricesReviewedAt)}
+                disabled={reviewBusy}
+                onChange={(e) => void toggleReviewed(e.target.checked)}
+              />
+              <span className="min-w-0 flex-1">
+                <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the prices copied from V{data.project.versionNo - 1},
+                including Strainer, PRV and Other items. Needed before Send to client.
+              </span>
+            </label>
+          )}
           {tab && tab !== "NONE" && (
             <section className="rounded-xl border border-line bg-paper">
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
@@ -857,6 +930,11 @@ export default function CommercialSummaryPage() {
               justSaved={!!justSaved[tag.tagId]}
               error={saveError[tag.tagId] ?? ""}
               errors={showErrors[tag.tagId] ? draftErrors(drafts[tag.tagId]) : {}}
+              reviewError={reviewError[tag.tagId] ?? ""}
+              onAnswerChange={(key, useNew) => void answerChange(tag.tagId, key, useNew)}
+              onDismissRemoved={() => {
+                void dismissRemovedBoi(tag.tagId).then(refreshReview);
+              }}
               onChange={(patch) => updateDraft(tag.tagId, patch)}
               onSave={() => saveTag(tag.tagId)}
               onReset={() => {
@@ -876,10 +954,12 @@ export default function CommercialSummaryPage() {
               setPricesVersion((n) => n + 1);
             }}
           />
+          </fieldset>
         </>
       )}
       {showOffer && tab && tab !== "NONE" && (
         <CommercialOfferModal
+          readOnly={readOnly}
           projectId={projectId}
           group={tab}
           tags={offerTags}
@@ -893,6 +973,7 @@ export default function CommercialSummaryPage() {
       )}
       {showTechno && projectId && tab && tab !== "NONE" && (
         <TechnoCommercialModal
+          readOnly={readOnly}
           projectId={projectId}
           group={tab}
           tags={offerTags}
@@ -929,6 +1010,9 @@ function TagCard({
   justSaved,
   error,
   errors,
+  reviewError,
+  onAnswerChange,
+  onDismissRemoved,
   onChange,
   onSave,
   onReset,
@@ -947,6 +1031,9 @@ function TagCard({
   justSaved: boolean;
   error: string;
   errors: Record<string, string>;
+  reviewError: string;
+  onAnswerChange: (key: ReviewedLineKey, useNew: boolean) => void;
+  onDismissRemoved: () => void;
   onChange: (patch: Partial<Draft>) => void;
   onSave: () => void;
   onReset: () => void;
@@ -1121,6 +1208,51 @@ function TagCard({
           </button>
         </div>
       </header>
+
+      {(tag.priceChanges.length > 0 || tag.removedBoi.length > 0) && (
+        <div className="flex flex-col gap-2 border-b border-line bg-[var(--warn-soft)] px-4 py-3 text-[12.5px] text-fg-2">
+          {tag.priceChanges.map((c) => (
+            <div key={c.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="min-w-0 flex-1">
+                <b className="font-semibold text-warn">{c.label} changed</b> from {c.was} to {c.now}. Old price{" "}
+                <b className="font-mono">{formatInr(c.price)}</b>
+                {c.newPrice !== null ? (
+                  <>
+                    , new price <b className="font-mono">{formatInr(c.newPrice)}</b>.
+                  </>
+                ) : (
+                  ". Type the new price below and Save, or keep the old one."
+                )}
+              </span>
+              <span className="flex flex-wrap items-center gap-1.5">
+                {c.newPrice !== null && (
+                  <button type="button" className={btnPrimarySm} onClick={() => onAnswerChange(c.key, true)}>
+                    Use new price
+                  </button>
+                )}
+                <button type="button" className={btnSm} onClick={() => onAnswerChange(c.key, false)}>
+                  Keep old price
+                </button>
+              </span>
+            </div>
+          ))}
+          {tag.removedBoi.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="min-w-0 flex-1">
+                {tag.removedBoi.map((r) => (
+                  <span key={r.key} className="block">
+                    <b className="font-semibold text-fg">{r.label} {formatInr(r.price)} removed</b>: {r.reason}.
+                  </span>
+                ))}
+              </span>
+              <button type="button" className={btnSm} onClick={onDismissRemoved}>
+                OK
+              </button>
+            </div>
+          )}
+          {reviewError && <p className="font-medium text-neg">{reviewError}</p>}
+        </div>
+      )}
 
       <div className={`grid grid-cols-1 gap-5 p-4 lg:grid-cols-[1fr_280px] ${collapsed ? "hidden" : ""}`}>
         <div className="flex min-w-0 flex-col gap-4">

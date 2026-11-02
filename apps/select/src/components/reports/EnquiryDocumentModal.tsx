@@ -9,6 +9,7 @@ import {
   buildTechDoc,
   buildTechDocHtml,
   techDocGroupLabel,
+  sameTechDocSheet,
   techDocExtrasFor,
   techDocGroups,
   techDocSheet,
@@ -28,7 +29,7 @@ import {
   getEnquiryDocument,
   listTechDocVersions,
   saveEnquiryDocumentConfig,
-  sendTechDocToClient,
+  sendTechDocToOperation,
 } from "../../services/enquiryDocumentService";
 
 export interface EnquiryDocumentSource {
@@ -59,7 +60,7 @@ const EnquiryDocumentModal = ({
 }: {
   source: EnquiryDocumentSource;
   /** View only - for someone who may not work on this enquiry (a worker it is
-   *  not assigned to): no edits, no Send to client. */
+   *  not assigned to, or an older version): no edits, no Send to operation. */
   readOnly?: boolean;
   onClose: () => void;
 }) => {
@@ -76,9 +77,8 @@ const EnquiryDocumentModal = ({
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const [printing, setPrinting] = useState(false);
   const [pageSize, setPageSize] = usePrintPageSize();
-  // Client versions (sent sheets) of every group; one may be open read-only.
+  // Every send to operation, of every group, newest first.
   const [versions, setVersions] = useState<TechDocVersion[] | null>(null);
-  const [viewing, setViewing] = useState<TechDocVersion | null>(null);
   const [sendNote, setSendNote] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -161,6 +161,7 @@ const EnquiryDocumentModal = ({
   };
   const customised =
     config.hidden.length + Object.keys(config.labels).length + Object.keys(config.values).length + config.custom.length > 0 ||
+    !!config.enquiryText ||
     !!config.quotationText ||
     !!config.erpText ||
     (config.headerHidden?.length ?? 0) > 0 ||
@@ -179,21 +180,21 @@ const EnquiryDocumentModal = ({
     }
     return techDocSheet({ ...data, configs, scopes }, group);
   }, [data, configs, group, typedScopes]);
-  // What is shown / printed / exported: the open sent version, else the live sheet.
-  const shown = viewing ? viewing.sheet : doc;
-  // No editing while a sent version is shown, or at all when read-only.
-  const locked = readOnly || Boolean(viewing);
+  const locked = readOnly;
   const html = useMemo(
-    () => (shown ? buildTechDocHtml(shown, typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png") : ""),
-    [shown],
+    () => (doc ? buildTechDocHtml(doc, typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png") : ""),
+    [doc],
   );
-  const groupVersions = (versions ?? []).filter((v) => v.group === group);
-  const sendToClient = async () => {
+  const groupSends = (versions ?? []).filter((v) => v.group === group);
+  const lastSent = groupSends[0] ?? null;
+  // It can go again once the sheet has changed since the last send.
+  const editedSinceSent = Boolean(lastSent && doc && !sameTechDocSheet(lastSent.sheet, doc));
+  const sendToOperation = async () => {
     if (!group || sending) return;
     setSending(true);
     setSendError("");
     try {
-      const list = await sendTechDocToClient(source.projectId, group, sendNote.trim());
+      const list = await sendTechDocToOperation(source.projectId, group, sendNote.trim());
       setVersions(list);
       setSendNote("");
     } catch (e) {
@@ -269,7 +270,6 @@ const EnquiryDocumentModal = ({
                         aria-selected={g === group}
                         onClick={() => {
                           setActiveGroup(g);
-                          setViewing(null);
                         }}
                         className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold ${
                           g === group ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-accent"
@@ -283,28 +283,21 @@ const EnquiryDocumentModal = ({
                   })}
                 </div>
               )}
-              {/* Client versions of this sheet + Send to client */}
+              {/* Send to operation: again whenever the sheet has changed */}
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px]">
-                <span className="font-semibold text-fg-2">Client versions:</span>
+                <span className="font-semibold text-fg-2">Operation:</span>
                 {versions === null ? (
                   <span className="text-fg-3">Loading…</span>
-                ) : groupVersions.length === 0 ? (
+                ) : !lastSent ? (
                   <span className="text-fg-3">Not sent yet</span>
                 ) : (
-                  groupVersions.map((v) => (
-                    <button
-                      key={v.id}
-                      type="button"
-                      onClick={() => setViewing(viewing?.id === v.id ? null : v)}
-                      title={[v.createdByName && `Sent by ${v.createdByName}`, v.note].filter(Boolean).join(" — ") || undefined}
-                      className={`rounded-full border px-2.5 py-0.5 font-semibold ${
-                        viewing?.id === v.id ? "border-accent bg-accent text-white" : "border-line bg-paper text-fg-2 hover:border-accent"
-                      }`}
-                    >
-                      V{v.version} · {v.createdAt ? new Date(v.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}
-                    </button>
-                  ))
+                  <span className="text-fg-2" title={lastSent.note || undefined}>
+                    Sent {lastSent.createdAt ? new Date(lastSent.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : ""}
+                    {lastSent.createdByName ? ` by ${lastSent.createdByName}` : ""}
+                    {groupSends.length > 1 ? ` · sent ${groupSends.length} times` : ""}
+                  </span>
                 )}
+                {editedSinceSent && <span className="font-semibold text-warn">Edited since then</span>}
                 <span className={`ml-auto flex flex-wrap items-center gap-1.5 ${readOnly ? "hidden" : ""}`}>
                   <input
                     className="w-[200px] rounded-md border border-line bg-paper px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
@@ -312,38 +305,24 @@ const EnquiryDocumentModal = ({
                     value={sendNote}
                     maxLength={1000}
                     onChange={(e) => setSendNote(e.target.value)}
-                    aria-label="Note for this version"
+                    aria-label="Note for this send"
                   />
                   <button
                     type="button"
-                    onClick={() => void sendToClient()}
-                    disabled={sending || saveState === "saving" || !hasTags}
+                    onClick={() => void sendToOperation()}
+                    disabled={sending || saveState === "saving" || !hasTags || (Boolean(lastSent) && !editedSinceSent)}
                     className="rounded-md bg-accent px-3 py-1 font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Freeze this sheet as it is now as the next client version"
+                    title={lastSent && !editedSinceSent ? "Nothing has changed since the last send" : "Record this sheet as sent to operation"}
                   >
-                    {sending ? "Sending…" : `Send to client → V${groupVersions.length ? Math.max(...groupVersions.map((v) => v.version)) + 1 : 0}`}
+                    {sending ? "Sending…" : lastSent ? "Send again to operation" : "Send to operation"}
                   </button>
                 </span>
                 {sendError && <span className="w-full text-neg">{sendError}</span>}
               </div>
 
-              {viewing && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent bg-accent-soft px-3 py-2 text-[12.5px] text-fg">
-                  <span>
-                    Viewing <b>Client V{viewing.version}</b> as sent
-                    {viewing.createdAt ? ` on ${new Date(viewing.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}` : ""}
-                    {viewing.createdByName ? ` by ${viewing.createdByName}` : ""} — read-only.
-                    {viewing.note ? <span className="text-fg-2"> Note: {viewing.note}</span> : null}
-                  </span>
-                  <button type="button" className="ml-auto font-semibold text-accent hover:underline" onClick={() => setViewing(null)}>
-                    Back to current sheet
-                  </button>
-                </div>
-              )}
-
-              {readOnly && !viewing && (
+              {readOnly && (
                 <div className="rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px] text-fg-3">
-                  View only - this enquiry is assigned to someone else. You can print or download it.
+                  View only - you can print or download it.
                 </div>
               )}
 
@@ -442,7 +421,13 @@ const EnquiryDocumentModal = ({
                     onHiddenChange={(next) => updateConfig({ ...config, headerHidden: next as TechDocConfig["headerHidden"] })}
                     fields={[
                       { key: "client", label: "Client Name", value: "", auto: data?.clientName ?? "" },
-                      { key: "enquiry", label: "Enquiry No. & Date", value: "", auto: data?.enquiry ?? "" },
+                      {
+                        key: "enquiry",
+                        label: "Enquiry No. & Date",
+                        value: config.enquiryText ?? "",
+                        auto: data?.enquiry ?? "",
+                        onChange: (v) => updateConfig({ ...config, enquiryText: v }),
+                      },
                       {
                         key: "quotation",
                         label: "Quotation No. & Date",
@@ -487,7 +472,7 @@ const EnquiryDocumentModal = ({
           <button type="button" className={framePrimary} onClick={handlePrint} disabled={printing || !hasTags}>
             {printing ? "Preparing…" : "Print / Save as PDF"}
           </button>
-          <button type="button" className={frameBtn} onClick={() => shown && downloadTechDocExcel(shown)} disabled={!hasTags}>
+          <button type="button" className={frameBtn} onClick={() => doc && downloadTechDocExcel(doc)} disabled={!hasTags}>
             Download Excel
           </button>
         </footer>

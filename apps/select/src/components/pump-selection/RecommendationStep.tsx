@@ -4,6 +4,7 @@ import "./GeneralInformationStep.css";
 import Stepper from "./Stepper";
 import { useEffect, useState } from "react";
 import PdfPreviewModal from "../ui/PdfPreviewModal";
+import ViewButton from "./ViewButton";
 import { gearboxRateItems, upliftedPriceLabel } from "../../lib/motor-price";
 import { getRecommendations } from "../../services/recommendationService";
 import { SIZE_COLUMN_BY_RANGE, sizeOverride } from "../../lib/suction-discharge-size";
@@ -651,8 +652,7 @@ const RecommendationStep = ({
       <div className="step-card">
         <h2>
           Selection Summary
-          <button
-            type="button"
+          <ViewButton
             className="step-header-action"
             disabled={!confirmedPump || preparingSummary}
             onClick={() => void handleSummaryReport()}
@@ -674,9 +674,8 @@ const RecommendationStep = ({
               />
             </svg>
             {preparingSummary ? "Preparing…" : "Summary Report"}
-          </button>
-          <button
-            type="button"
+          </ViewButton>
+          <ViewButton
             className="step-header-action"
             disabled={!recheck || downloadingRecheck}
             onClick={() => void handleRecheckPdf()}
@@ -698,7 +697,7 @@ const RecommendationStep = ({
               />
             </svg>
             {downloadingRecheck ? "Preparing…" : "Recheck PDF"}
-          </button>
+          </ViewButton>
         </h2>
 
         {recheckPreview && (

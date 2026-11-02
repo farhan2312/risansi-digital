@@ -796,8 +796,13 @@ never auto-filled from the AI result.
   Document only — the wizard data is never changed. (tech_doc_extras was
   replaced by this column the same day.)
 
-- **Client versions** (user, 2026-10-05; own track, NOT tied to quotation
-  sends): `tech_doc_version` (project, drive_group incl. NONE, version 0,1,…,
+- **Send to operation** (user, 2026-11-03) replaced client versions: the sheet has
+  no versions of its own. POST /api/enquiry-document/versions records it (nothing
+  is e-mailed), needs every tag Completed + a quotation, and refuses an unchanged
+  sheet (sameTechDocSheet), so it goes again only after an edit. Rows stay in
+  tech_doc_version per enquiry version, not shared across versions.
+- Earlier **client versions** (user, 2026-10-05; own track, NOT tied to quotation
+  sends, now gone from the UI): `tech_doc_version` (project, drive_group incl. NONE, version 0,1,…,
   note, snapshot = the TechDocSheet, created_by/at). POST
   /api/enquiry-document/versions {projectId, group, note} builds the sheet on
   the SERVER (lib/tech-doc-server.ts `loadTechDocData`, also used by GET
@@ -930,3 +935,76 @@ never auto-filled from the AI result.
 - UI: Enquiries/Dashboard/Reports show RepPicker (managers) instead of the
   scope toggle; no copy/create/edit; tag "View" opens the wizard view-only
   (fieldset disabled, saveStep off, "View only" bar with step picker).
+
+## Enquiry statuses (user, 2026-11-03)
+- Two per enquiry, each automatic but editable (SQL rules in
+  lib/enquiry-filters-server.ts, used everywhere). Technical: Completed when all
+  tags are Completed, a quotation exists and every Technical Data Sheet went to
+  operation (projects.sent_to_operation_at; enquiries Completed before this were
+  backfilled as sent); Pending when all tags Pending; else In Progress. Commercial: Completed when Technical is Completed, every tag
+  has a saved P&A price (commercial_tag_price.pa_price) and every drive group's
+  quotation went to the client from this version (projects.sent_to_client_at;
+  enquiries Completed before this were backfilled as sent); In Progress once any
+  tag has saved prices; else Pending.
+- Edit form: dropdowns show the status as it is now. Saved values are stored only
+  where they differ from the automatic ones (technical_status_override /
+  commercial_status_override, completed_on / commercial_completed_on), so picking
+  the automatic status again returns to updating by itself. Automatic completion
+  day: Technical = sent_to_operation_at (first send; old enquiries = last tag
+  confirmed or quotation generated); Commercial = sent_to_client_at (first
+  send). A send clears a hand-set Pending / In Progress on its status.
+  "status" in the list APIs = Technical status, so the
+  Dashboard, workload cards, Reports and the version rule all read Technical.
+
+## BOI prices vs the pump selection (user, 2026-11-03)
+- lib/commercial-review.ts + REVIEWED_LINES / priceChangesFor in lib/commercial.ts.
+  commercial_tag_price.boi_basis records what each price was for (P&A = product
+  code, Motor / Gearbox = wizard pick label, Seal / DRP = BOI Master suggestion, VFD
+  = whether the chosen drive still covers the motor).
+- Item leaves the selection (drive no longer Geared -> Gearbox; sealing no longer
+  Mechanical -> Seal): the wizard PUT clears its price by itself, on the CHANGE only
+  ("Price anyway" stays), with a note (boi_removed) until seen or the next save.
+- Item changed: flagged on the Tag card with Use new price / Keep old price (PATCH
+  /api/commercial/[tagId]); typing a new price and saving also answers it, a plain
+  Save does not. Baseline taken just before the first change (ensureBoiBasis).
+- Send to client (route + QuotationPanel, sendToClientBlock) waits for every flag on
+  that drive group's tags, and on V1+ for the Prices reviewed tick
+  (projects.prices_reviewed_at, PUT /api/commercial/reviewed), which covers Strainer,
+  PRV and Other items. A new version resets the tick.
+
+## Enquiry versions (user, 2026-11-03)
+- V0 is the enquiry as created. Once the latest version's Technical status is Completed, the
+  User-Master / system admin makes the next one (New version section on the Edit
+  Enquiry form, EnquiryVersionSection): revised enquiry date, assignee, optional note. POST
+  /api/projects/[id]/versions, lib/enquiry-revision.ts (one transaction, audited
+  enquiry.revise, assignee told by the bell).
+- Each version is its OWN `projects` row: version_no, root_project_id (the V0
+  row; null on V0), is_latest (one per enquiry, unique index), revision_note.
+  Same project_code on all (unique on project_code + version_no; a change of
+  enquiry no. goes to every version). Tags, prices and documents hang off the
+  row, so nothing else needed changing.
+- Copied: client details, order type, tags + 9 wizard tables + uploaded files,
+  commercial_tag_price, remarks, currency, tech/offer sheet edits (tag ids in
+  them remapped), quotations. Starts anew: date, assignee, status, completed_on,
+  step approvals, tag reports + Selection Summary (each tag is confirmed again;
+  the Technical sheet only lists confirmed tags).
+- Older versions are view only for everyone: versionLocked (lib/enquiry-access.ts),
+  called by workDenied and directly by projects PATCH/DELETE/assign and approval
+  decisions; canWorkOn is false on them. The wizard, Commercial page and sheets
+  have their read-only modes. Delete only the latest; the one before becomes
+  latest again.
+- Lists and counts show each enquiry once as its latest: enquiryFilterSql always
+  adds projects.is_latest (Enquiries, Dashboard), assignee-stats does too. Reports
+  shows each enquiry's newest version with reports, "Show older versions" for all.
+  "Versions" on a row (version_no > 0) opens EnquiryVersionsModal.
+- Quotation number is kept: each version has its own quotation rows with the same
+  serial (the serial + drive_group unique index was dropped), finYear and number
+  unchanged, quote date = revision day. Internal version +1 and live; the older
+  version's live one freezes; client version carries on. loadQuotation shows the
+  history of all versions up to the one open. Client Quoted Prices lists the latest version's
+  quotation only (it carries the history).
+- Quotation pop-up (QuotationStepModal): scope changes wait for its Save button, with
+  the ERP serial, and it warns before closing with unsaved changes (user,
+  2026-11-03). The Commercial page's Scope card still saves on change.
+- `enquiryNoWithVersion` (lib/roles.ts) = "ENQ-12 V1", also on V0, on the wizard
+  header, PDFs, Excel, sheets, Commercial, Reports, Dashboard, approvals, bell.

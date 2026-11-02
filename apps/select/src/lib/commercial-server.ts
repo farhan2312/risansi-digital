@@ -4,6 +4,7 @@
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { enquiryNoWithVersion } from "@/lib/roles";
 import {
   boiDrpPanel,
   boiDrpProbe,
@@ -38,6 +39,7 @@ import {
   parseQuantity,
   vfdOptionsFor,
 } from "@/lib/commercial";
+import { priceChangesFor } from "@/lib/commercial";
 import { VFD_YES } from "@/lib/recheck-calc";
 import { gearboxUpliftedRate } from "@/lib/motor-price";
 import { partsFromFields } from "@/lib/pump-code";
@@ -90,12 +92,15 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     .select({
       id: projects.id,
       code: projects.projectCode,
+      versionNo: projects.versionNo,
+      isLatest: projects.isLatest,
       name: projects.name,
       customerName: projects.customerName,
       clientCode: projects.clientCode,
       remarks: projects.commercialRemarks,
       quoteCurrency: projects.quoteCurrency,
       usdInrRate: projects.usdInrRate,
+      pricesReviewedAt: projects.pricesReviewedAt,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -202,7 +207,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
   const shaftOf = (model: string | null) =>
     model ? (shafts.find((s) => s.model.trim().toUpperCase() === model.trim().toUpperCase())?.shaftDia ?? null) : null;
 
-  const tags: CommercialTag[] = rows.map((r) => {
+  const tags: Omit<CommercialTag, "priceChanges" | "removedBoi">[] = rows.map((r) => {
     const drp = drpOptionFor(r.model || null, shafts, probes, panel);
     const vfdRequired = r.vfdRequired === VFD_YES;
     const motorKw = num(r.motorKw);
@@ -320,11 +325,17 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
   return {
     project: {
       ...project,
+      code: enquiryNoWithVersion(project.code, project.versionNo),
       remarks: project.remarks ?? "",
       quoteCurrency: project.quoteCurrency === "USD" ? "USD" : "INR",
       usdInrRate: project.usdInrRate === null ? null : Number(project.usdInrRate),
+      pricesReviewedAt: project.pricesReviewedAt ? project.pricesReviewedAt.toISOString() : null,
     },
-    tags,
+    tags: tags.map((t, i) => ({
+      ...t,
+      priceChanges: priceChangesFor(t, rows[i].price?.boiBasis ?? {}),
+      removedBoi: rows[i].price?.boiRemoved ?? [],
+    })),
   };
 }
 

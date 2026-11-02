@@ -11,8 +11,9 @@ import {
 } from "@/lib/db/schema";
 import { IST_OFFSET_MS } from "@/lib/ist";
 import type { EnquiryFilters } from "@/lib/enquiry-filters";
-import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
+import { enquiryFilterSql, enquiryStatusSql } from "@/lib/enquiry-filters-server";
 import { filterKey } from "@/lib/enquiry-filters";
+import { enquiryNoWithVersion } from "@/lib/roles";
 import type { DashboardData, DashboardEnquiry } from "@/lib/dashboard-shared";
 
 // Everything the Dashboard shows, in one call (GET /api/dashboard).
@@ -20,9 +21,8 @@ import type { DashboardData, DashboardEnquiry } from "@/lib/dashboard-shared";
 //   since / until : bound the enquiry's (or tag's) created_at; either may be null
 //   mineUserId    : only enquiries assigned to that user ("Assigned to me")
 //
-// Days are IST. Enquiry status is rolled up from its tags with the same rule
-// as GET /api/projects (all Completed -> Completed, all Pending -> Pending,
-// otherwise In Progress).
+// Days are IST. Enquiry status is the Technical status, the same as GET
+// /api/projects (lib/enquiry-filters-server.ts).
 
 const RECENT_LIMIT = 8;
 const MAX_DAYS = 92;
@@ -54,19 +54,7 @@ export async function getDashboardData({
   const projectWhere = and(...created(projects.createdAt), ...scope);
   const tagWhere = and(...created(enquiryTags.createdAt), ...scope);
 
-  // Outer columns written out as projects.* on purpose: on a single-table
-  // select Drizzle renders ${projects.id} as a bare "id", which inside this
-  // subquery would resolve to the tag's own id.
-  const rollup = sql<string>`(
-    SELECT CASE
-      WHEN projects.completed_on IS NOT NULL THEN 'Completed'
-      WHEN COUNT(*) = 0 THEN coalesce(projects.status, 'Pending')
-      WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*) THEN 'Completed'
-      WHEN COUNT(*) FILTER (WHERE t.status = 'Pending') = COUNT(*) THEN 'Pending'
-      ELSE 'In Progress'
-    END
-    FROM ${enquiryTags} t WHERE t.project_id = projects.id
-  )`;
+  const rollup = enquiryStatusSql;
 
   const [
     [projectCounts],
@@ -204,7 +192,7 @@ export async function getDashboardData({
 
   const recent: DashboardEnquiry[] = recentRows.map((r) => ({
     id: r.project.id,
-    code: r.project.projectCode,
+    code: enquiryNoWithVersion(r.project.projectCode, r.project.versionNo),
     client: r.project.name,
     customer: r.project.customerName,
     clientCode: r.project.clientCode,

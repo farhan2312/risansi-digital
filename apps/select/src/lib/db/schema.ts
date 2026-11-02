@@ -19,6 +19,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  type AnyPgColumn,
   text,
   timestamp,
   unique,
@@ -69,7 +70,8 @@ export const users = pgTable("users_pump", {
 
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  projectCode: varchar("project_code", { length: 50 }).notNull().unique(),
+  /** The Enquiry no. Every version of an enquiry has the same one. */
+  projectCode: varchar("project_code", { length: 50 }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   customerName: varchar("customer_name", { length: 255 }),
   clientCode: varchar("client_code", { length: 100 }),
@@ -92,10 +94,34 @@ export const projects = pgTable("projects", {
   /** Pump: pcp | mmp | barrel | online_blind; spare: spare | retrofit_spare
    *  (CHECK pairs it with order_type). Older enquiries backfilled to pcp. */
   orderSubtype: varchar("order_subtype", { length: 20 }).notNull().default("pcp"),
-  /** Set when someone marks the enquiry Completed on the Edit form: the date
-   *  it was completed. While set, the enquiry reads Completed whatever its tags
-   *  say; cleared, the status follows the tags again (user, 2026-11-02). */
+  /** Two statuses, each worked out automatically (lib/enquiry-filters-server.ts)
+   *  but editable on the Edit form (user, 2026-11-03). The override is set only
+   *  when what was picked there differs from the automatic status. */
+  technicalStatusOverride: varchar("technical_status_override", { length: 20 }),
+  commercialStatusOverride: varchar("commercial_status_override", { length: 20 }),
+  /** A completion date entered there, when it differs from the automatic one. */
   completedOn: date("completed_on", { mode: "string" }),
+  commercialCompletedOn: date("commercial_completed_on", { mode: "string" }),
+  /** When the last of the enquiry's Technical Data Sheets went to operation: the
+   *  technical step is done. Enquiries already technically Completed when this
+   *  came in were backfilled as sent. */
+  sentToOperationAt: timestamp("sent_to_operation_at", { withTimezone: true }),
+  /** When the last of this version's quotations went to the client: the
+   *  commercial step is done. Enquiries already commercially Completed when this
+   *  came in were backfilled as sent. */
+  sentToClientAt: timestamp("sent_to_client_at", { withTimezone: true }),
+  /** The Prices reviewed tick, needed on a new version before Send to client. */
+  pricesReviewedAt: timestamp("prices_reviewed_at", { withTimezone: true }),
+  pricesReviewedBy: uuid("prices_reviewed_by"),
+  /** Enquiry versions (lib/enquiry-revision.ts): 0 is the enquiry as created,
+   *  each later version is its own row copied from the one before. */
+  versionNo: integer("version_no").notNull().default(0),
+  /** The V0 row of this enquiry; null on V0 itself. */
+  rootProjectId: uuid("root_project_id").references((): AnyPgColumn => projects.id),
+  /** The version being worked on (one per enquiry); the older ones are view only. */
+  isLatest: boolean("is_latest").notNull().default(true),
+  /** What the client asked to change, entered when the version was made. */
+  revisionNote: text("revision_note"),
   /** The worker (or the master herself) who works this enquiry - a worker
    *  sees only the enquiries assigned to them (lib/roles.ts). Backfilled to
    *  created_by for the enquiries made before assignment existed. */
@@ -146,7 +172,10 @@ export const projects = pgTable("projects", {
    *  on (app_settings usd_inr_rate at that moment), so a later rate change
    *  never silently re-prices a quote. */
   usdInrRate: numeric("usd_inr_rate", { precision: 12, scale: 4 }),
-});
+}, (t) => [
+  unique("projects_project_code_version_no_key").on(t.projectCode, t.versionNo),
+  unique("projects_root_project_id_version_no_key").on(t.rootProjectId, t.versionNo),
+]);
 
 /** Key/value settings for the portal (e.g. usd_inr_rate - Admin > USD to INR). */
 export const appSettings = pgTable("app_settings", {
@@ -1230,6 +1259,12 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
   /** Vendor discount % + markup % per fixed BOI row; the *_price columns hold
    *  BASE prices. Quoted row price = base × (1 − disc) × (1 + markup). */
   boiAdjust: jsonb("boi_adjust").$type<BoiAdjustMap>().notNull().default({}),
+  /** What each price was for (lib/commercial boiBasisFor): compared with the pump
+   *  selection to flag a changed make or model. */
+  boiBasis: jsonb("boi_basis").$type<Record<string, string>>().notNull().default({}),
+  /** Items removed by themselves when the selection stopped having them; shown on
+   *  the Commercial page until seen or the tag's prices are next saved. */
+  boiRemoved: jsonb("boi_removed").$type<{ key: string; label: string; price: number; reason: string; at: string }[]>().notNull().default([]),
   remarks: text("remarks"),
   updatedBy: uuid("updated_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
@@ -1241,7 +1276,8 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
 // RIL/QT/<region_code>/<fin_year>/<product_type>/<serial>. region_code is the
 // TSM's initials for now. `serial` comes from the Postgres sequence
 // quotation_serial_seq (6000, 6001, … — user, 2026-10-01), one per enquiry:
-// its drive-group quotations share it (unique on serial + drive_group).
+// its drive-group quotations share it, and so do its versions (each version of
+// the enquiry has its own quotation rows with the same number).
 // Two version tracks, independent of each other:
 //   internal_version — V0 on create, +1 each time the TSM asks for changes
 //                      (changing WHO the TSM is does not make a version);
@@ -1471,10 +1507,12 @@ export const boiMechSeal = pgTable("boi_mech_seal", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
-// Technical Data Sheet client versions (user, 2026-10-05): "Send to client" on
-// a drive group's sheet freezes it — rows, edits, values, header — as Client
-// V0, V1, … per enquiry and group (NONE = tags without a drive). Independent
-// of the quotation's versions. snapshot = the lib/tech-doc TechDocSheet.
+// Technical Data Sheet sends (user, 2026-11-03): "Send to operation" on a drive
+// group's sheet records it — rows, edits, values, header — per enquiry and group
+// (NONE = tags without a drive). It can go again once the sheet has changed. The
+// sheet has no versions of its own: `version` only orders the sends. Before this
+// was "Send to client"; those rows count as sends. snapshot = the lib/tech-doc
+// TechDocSheet.
 export const techDocVersion = pgTable(
   "tech_doc_version",
   {
