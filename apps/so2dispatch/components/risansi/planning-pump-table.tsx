@@ -3,7 +3,7 @@
 import { EcLink } from "./ec-link";
 import { Fragment, useState } from "react";
 import { ExternalLink, ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
-import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
+import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, SORTABLE_DATE_COLUMNS, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
 import { ecDone, pumpEcStage, pumpLotsFromEcs } from "@/lib/assembly";
 import { boiInHand, drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
@@ -36,8 +36,6 @@ const WITH_UNIT: Record<string, string> = {
 const UNIT_COLUMNS = new Set(Object.values(WITH_UNIT));
 
 /** The EC on the front: who it is and how many; the whole form opens from the row. */
-/** The SO's date columns the queue can sort by (lib/orders queueOrderBy). */
-const SORTABLE_SO_DATES = ["dispatch_target_date", "ld_date", "so_handover_date"];
 const EC_FRONT = ["ec_no", "ec_date", "pump_type", "model_no", "internal_model", "quantity", "boi"];
 const EC_COLUMNS: OrderField[] = EC_FRONT.map((c) => ADD_ON_PUMP_FIELDS.find((f) => f.column === c)!).filter(
   (f) => f && !UNIT_COLUMNS.has(f.column)
@@ -139,7 +137,7 @@ export function PlanningPumpTable({
           {soColumns.map((f) => (
             <th key={f.column} className={th}>
               {/* The SO's own dates sort the queue. */}
-              {f.type === "date" && SORTABLE_SO_DATES.includes(f.column) ? <SortHeader label={f.label} sortKey={f.column} /> : f.label}
+              {f.type === "date" && SORTABLE_DATE_COLUMNS.has(f.column) ? <SortHeader label={f.label} sortKey={f.column} /> : f.label}
             </th>
           ))}
           <th className={th}>Status</th>
@@ -162,7 +160,9 @@ export function PlanningPumpTable({
           <th className={`${th} border-l border-card-border`}>GAD</th>
           <th className={th}>Part Drawing</th>
           {ecPlanCols.map((f, i) => (
-            <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{f.label}</th>
+            <th key={f.column} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>
+              {f.type === "date" && SORTABLE_DATE_COLUMNS.has(f.column) ? <SortHeader label={f.label} sortKey={f.column} /> : f.label}
+            </th>
           ))}
           <th className={th}>Shortage</th>
           {canEdit && <th className={th} />}

@@ -200,12 +200,12 @@ export function DrawingWorkspace({
                 <th className="sticky-so px-3 py-2"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2">Chat</th>
                 <th className="px-3 py-2">Client</th>
-                <th className="px-3 py-2 whitespace-nowrap">Drawing Target</th>
-                <th className="px-3 py-2 whitespace-nowrap">Readiness</th>
+                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Drawing Target" sortKey="drg_target_date" /></th>
+                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Readiness" sortKey="drg_readiness_date" /></th>
                 <th className="px-3 py-2 whitespace-nowrap">Perf. Curve</th>
                 <th className="px-3 py-2 whitespace-nowrap">SO Status</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
-                <th className="px-3 py-2">EC Date</th>
+                <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
                 <th className="px-3 py-2">GAD</th>

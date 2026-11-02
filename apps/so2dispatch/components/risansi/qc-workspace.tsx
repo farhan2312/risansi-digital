@@ -179,11 +179,11 @@ export function QcWorkspace({
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
                 <th className="sticky-so px-3 py-2"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2">Chat</th>
-                <th className="px-3 py-2 whitespace-nowrap">Quality Target</th>
+                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Quality Target" sortKey="qc_doc_target_date" /></th>
                 <th className="px-3 py-2 whitespace-nowrap">Docs Needed</th>
                 <th className="px-3 py-2 whitespace-nowrap">SO Status</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
-                <th className="px-3 py-2">EC Date</th>
+                <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
                 <th className="px-3 py-2">Qty</th>
@@ -191,7 +191,7 @@ export function QcWorkspace({
                 <th className="px-3 py-2">Assembled</th>
                 <th className="px-3 py-2">Assembly</th>
                 <th className="px-3 py-2">Documents</th>
-                <th className="px-3 py-2 whitespace-nowrap">Submitted On</th>
+                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Submitted On" sortKey="qc_submitted" /></th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>

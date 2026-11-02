@@ -264,11 +264,11 @@ export function PurchaseWorkspace({
                 <th className="px-3 py-2"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2">BOI</th>
                 <th className="px-3 py-2">LD</th>
-                <th className="px-3 py-2">LD Date</th>
-                <th className="px-3 py-2 whitespace-nowrap">Purchase Target</th>
+                <th className="px-3 py-2"><SortHeader label="LD Date" sortKey="ld_date" /></th>
+                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Purchase Target" sortKey="purchase_target_date" /></th>
                 <th className="px-3 py-2">SO Status</th>
                 <th className="border-l border-card-border px-3 py-2">EC No.</th>
-                <th className="px-3 py-2">EC Date</th>
+                <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
                 <th className="px-3 py-2">EC Status</th>
@@ -580,6 +580,14 @@ function ExpectedHistory({ item }: { item: Row }) {
   );
 }
 
+/** The bought-out list's date columns, sorted by their own date. */
+const ITEM_DATE_HEADS: Record<string, string> = {
+  ril_po_date: "RIL PO Date",
+  vendor_so_date: "Vendor SO Date",
+  expected_receipt_date: "Expected",
+  receipt_date: "Recd Date",
+};
+
 /**
  * An EC is Closed once every bought-out item it lists is in hand (RIL stock
  * plus what the vendor delivered); Open until then (none listed yet is Open too).
@@ -732,9 +740,20 @@ function BoiListTable({
   const d = (v: unknown) => (v ? formatDate(String(v)) : "—");
   const money = (v: unknown) =>
     v == null || v === "" ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  const { get } = useUrlTable();
   const items = groups.flatMap((g) =>
     g.ecs.flatMap((ec) => ((ec.boi_items ?? []) as Row[]).map((b) => ({ so: g.head, ec, b }))),
   );
+  // Sorted by an item's own date: the server pages the SOs by it, and the page's items follow it (undated last).
+  const sort = get("sort") ?? "";
+  const itemDate = ITEM_DATE_HEADS[sort.replace("-", "")] ? sort.replace("-", "") : "";
+  if (itemDate) {
+    const at = (x: { b: Row }) => String(x.b[itemDate] ?? "").slice(0, 10);
+    items.sort((x, y) => {
+      if (!at(x) || !at(y)) return at(x) ? -1 : at(y) ? 1 : 0;
+      return sort.startsWith("-") ? at(y).localeCompare(at(x)) : at(x).localeCompare(at(y));
+    });
+  }
   const th = "whitespace-nowrap px-3 py-2";
   const itemHeads = [
     "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor Code", "Vendor Name", "RIL PO No.", "RIL PO Date",
@@ -746,9 +765,14 @@ function BoiListTable({
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={th}>SO</th>
           <th className={th}>EC</th>
-          {itemHeads.map((h, i) => (
-            <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{h}</th>
-          ))}
+          {itemHeads.map((h, i) => {
+            const dateKey = Object.keys(ITEM_DATE_HEADS).find((k) => ITEM_DATE_HEADS[k] === h);
+            return (
+              <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>
+                {dateKey ? <SortHeader label={h} sortKey={dateKey} /> : h}
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody className="divide-y divide-card-border">

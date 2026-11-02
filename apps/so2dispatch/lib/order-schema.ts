@@ -924,6 +924,11 @@ export const SECTION_BY_TABLE = new Map<OrderTable, OrderSection>(
 // SO-level sections (keyed by order_id) shown on the order "Open" detail;
 // item-level sections (keyed by item_id) shown on an EC's detail page.
 export const SO_SECTIONS = ORDER_SECTIONS.filter((s) => s.scope === "so");
+/** The date columns a department's queue sorts by: every section's dates, and Drawing's own Readiness. */
+export const SORTABLE_DATE_COLUMNS = new Set<string>([
+  ...ORDER_SECTIONS.flatMap((s) => s.fields.filter((f) => f.type === "date").map((f) => f.column)),
+  "drg_readiness_date",
+]);
 
 /**
  * Order Making fills an SO's Client and Purchase Order details — those groups

@@ -27,8 +27,13 @@ export const OM_DATE_FIELDS = [
 export type OmDateField = (typeof OM_DATE_FIELDS)[number]["value"];
 
 /** Sl. No., SO date or number of ECs, either way ("-" = latest / most first). Default: newest Sl. No. first. */
-export type OmSort = "sl" | "-sl" | "so_date" | "-so_date" | "ecs" | "-ecs";
-const SORTS: OmSort[] = ["sl", "-sl", "so_date", "-so_date", "ecs", "-ecs"];
+export type OmSort =
+  | "sl" | "-sl" | "so_date" | "-so_date" | "ecs" | "-ecs"
+  | "po_received_date" | "-po_received_date" | "ec_sent_operation_date" | "-ec_sent_operation_date";
+const SORTS: OmSort[] = [
+  "sl", "-sl", "so_date", "-so_date", "ecs", "-ecs",
+  "po_received_date", "-po_received_date", "ec_sent_operation_date", "-ec_sent_operation_date",
+];
 
 export type OrderMakingFilter = {
   /** What the summary cards count over: this filter less the card clicked (cardBaseGet). */

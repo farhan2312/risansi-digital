@@ -546,7 +546,7 @@ export function OrderMakingWorkspace({
                 {cols.map((c) => (
                   <Fragment key={c.column}>
                     <th className={`px-4 py-3 ${c.column === "order_value" ? "text-right" : c.column === "so_no" ? "sticky-so" : ""}`}>
-                      {c.column === "so_date" ? <SortHeader label={c.label} sortKey="so_date" /> : c.label}
+                      {["so_date", "po_received_date", "ec_sent_operation_date"].includes(c.column) ? <SortHeader label={c.label} sortKey={c.column} /> : c.label}
                     </th>
                     {c.column === "so_no" && <th className="px-4 py-3">Chat</th>}
                   </Fragment>

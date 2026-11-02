@@ -60,6 +60,8 @@ import { assignableSql } from "@/lib/so-assignment";
 import { toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
 import {
   CHILD_FIELDS,
+  ORDER_SECTIONS,
+  SORTABLE_DATE_COLUMNS,
   PUMP_LIKE,
   READY_LOT_LIMIT,
   PAYMENT_HOLD_VALUE,
@@ -4836,8 +4838,8 @@ export async function listOrdersForOrderMaking(opts: {
     : undefined;
   const dir = f.sort?.startsWith("-") ? "DESC" : "ASC";
   const orderBy =
-    f.sort === "so_date" || f.sort === "-so_date"
-      ? `o.so_date ${dir} NULLS LAST, o.sl_no DESC`
+    f.sort && /^-?(so_date|po_received_date|ec_sent_operation_date)$/.test(f.sort)
+      ? `o.${f.sort.replace("-", "")} ${dir} NULLS LAST, o.sl_no DESC`
       : f.sort === "ecs" || f.sort === "-ecs"
         ? `(SELECT count(*) FROM order_items i WHERE i.order_id = o.id) ${dir}, o.sl_no DESC`
       : f.sort === "sl"
@@ -4917,21 +4919,47 @@ const REPORT_LIMIT = 2000;
 export type QueueSort =
   | "sl" | "-sl" | "readiness" | "-readiness" | "packing" | "-packing" | "so_date" | "-so_date" | "ecs" | "-ecs" | "rep" | "-rep"
   | "asm_plan" | "-asm_plan" | "ec_date" | "-ec_date"
-  | "drg_readiness_date" | "-drg_readiness_date"
+  // Any of SORTABLE_DATE_COLUMNS or the ones below (see DATE_SORT_SQL).
+  | `${string}_date` | `-${string}_date` | "qc_submitted" | "-qc_submitted"
   | "dispatch_target_date" | "-dispatch_target_date" | "ld_date" | "-ld_date" | "so_handover_date" | "-so_handover_date";
 
 const QUEUE_SORTS: QueueSort[] = [
   "sl", "-sl", "readiness", "-readiness", "packing", "-packing", "so_date", "-so_date", "ecs", "-ecs", "rep", "-rep",
   "asm_plan", "-asm_plan", "ec_date", "-ec_date",
   "dispatch_target_date", "-dispatch_target_date", "ld_date", "-ld_date", "so_handover_date", "-so_handover_date",
-  "drg_readiness_date", "-drg_readiness_date",
 ];
 
-/** The SO's own date columns a queue sorts by, as they are named on orders. */
-const SO_DATE_SORTS = new Set(["so_date", "dispatch_target_date", "ld_date", "so_handover_date", "drg_readiness_date"]);
+/**
+ * Each date a queue sorts by, as one date per SO over `o`: the SO's own; for
+ * an EC's, the SO's earliest; a bought-out item's, the same across its ECs.
+ */
+const DATE_SORT_SQL = new Map<string, string>([
+  ...ORDER_SECTIONS.flatMap((s) =>
+    s.fields
+      .filter((f) => f.type === "date")
+      .map((f): [string, string] => [
+        f.column,
+        s.table === "orders"
+          ? `o.${f.column}`
+          : s.table === "order_items"
+            ? `(SELECT min(s.${f.column}) FROM order_items s WHERE s.order_id = o.id)`
+            : s.scope === "so"
+              ? `(SELECT d.${f.column} FROM ${s.table} d WHERE d.order_id = o.id)`
+              : `(SELECT min(d.${f.column}) FROM order_items s JOIN ${s.table} d ON d.item_id = s.id WHERE s.order_id = o.id)`,
+      ])
+  ),
+  ["drg_readiness_date", "o.drg_readiness_date"],
+  ["qc_submitted", "(SELECT max(ql.submitted_date) FROM order_items s JOIN order_qc_doc_links ql ON ql.item_id = s.id WHERE s.order_id = o.id)"],
+  ...["ril_po_date", "vendor_so_date", "expected_receipt_date", "receipt_date"].map((c): [string, string] => [
+    c,
+    `(SELECT min(bi.${c}) FROM order_items s JOIN order_boi_items bi ON bi.item_id = s.id WHERE s.order_id = o.id)`,
+  ]),
+]);
 
 export function parseQueueSort(value: string | undefined): QueueSort | null {
-  return QUEUE_SORTS.includes(value as QueueSort) ? (value as QueueSort) : null;
+  return QUEUE_SORTS.includes(value as QueueSort) || DATE_SORT_SQL.has((value ?? "").replace(/^-/, ""))
+    ? (value as QueueSort)
+    : null;
 }
 
 /** A queue sort as SQL over `o`; undated SOs last, newest Sl. No. breaking ties. */
@@ -4967,9 +4995,7 @@ function queueOrderBy(sort: QueueSort | null | undefined): string | undefined {
     bare === "readiness"
       ? `(SELECT max(rpl.planning_readiness_date) FROM order_items s
            JOIN order_planning rpl ON rpl.item_id = s.id WHERE s.order_id = o.id)`
-      : SO_DATE_SORTS.has(bare)
-        ? `o.${bare}`
-        : "o.so_date";
+      : DATE_SORT_SQL.get(bare) ?? "o.so_date";
   return `${key} ${dir} NULLS LAST, o.sl_no DESC`;
 }
 

@@ -18,7 +18,7 @@ import {
   WOODEN_BOX_FILTER,
   WOODEN_BOX_KEY,
 } from "@/lib/assembly";
-import { PUMP_SO_PLANNING_FIELDS } from "@/lib/order-schema";
+import { PUMP_SO_PLANNING_FIELDS, SORTABLE_DATE_COLUMNS } from "@/lib/order-schema";
 import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
 import {
@@ -110,6 +110,11 @@ const ACCT_SO_LEFT = "11rem";
 
 /** Planning's Lot columns: one per readiness lot a Spare can have. */
 const LOT_COLUMNS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
+
+/** A column's heading: a date sorts the queue by it (an EC's, by the SO's earliest). */
+function fieldHead(f: OrderField) {
+  return f.type === "date" && SORTABLE_DATE_COLUMNS.has(f.column) ? <SortHeader label={f.label} sortKey={f.column} /> : f.label;
+}
 
 function toInput(value: unknown): string {
   return value === null || value === undefined ? "" : String(value);
@@ -834,7 +839,7 @@ export function DepartmentWorkspace({
                     ) : table === "order_accounts" && f.column === "payment_terms" ? (
                       "Payment terms & PIs"
                     ) : (
-                      f.label
+                      fieldHead(f)
                     )}
                   </th>
                 ))}
@@ -885,7 +890,7 @@ export function DepartmentWorkspace({
                   <>
                     {visibleFields.map((f) => (
                       <th key={f.column} className="px-3 py-3 whitespace-nowrap">
-                        {f.label}
+                        {fieldHead(f)}
                       </th>
                     ))}
                     {documents.map((doc) => (
@@ -1281,7 +1286,7 @@ export function DepartmentWorkspace({
                                         key={f.column}
                                         className="px-3 py-2 whitespace-nowrap"
                                       >
-                                        {f.label}
+                                        {fieldHead(f)}
                                       </th>
                                     ))}
                                     {fieldsFor(g.ecs).map((f) => (
@@ -1289,7 +1294,7 @@ export function DepartmentWorkspace({
                                         key={f.column}
                                         className="px-3 py-2 whitespace-nowrap"
                                       >
-                                        {f.label}
+                                        {fieldHead(f)}
                                       </th>
                                     ))}
                                     {documents.map((doc) => (
