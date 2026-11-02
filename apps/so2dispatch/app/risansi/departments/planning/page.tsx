@@ -31,6 +31,7 @@ import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { alignmentRestrict, pickAlignment } from "@/lib/assembly";
 import { boiItemRestrict, parsePurchaseFilter } from "@/lib/purchase-filter";
+import { ecDrawingRestrict, parseDrawingFilter } from "@/lib/drawing-filter";
 
 export const metadata: Metadata = {
   title: "Planning | Risansi",
@@ -73,8 +74,8 @@ export default async function PlanningWorkspacePage({
   // immediate; everything else below loads side by side.
   // A reminder (?focus=) lands on its SO in this queue, like a notification.
   const section = SECTION_BY_TABLE.get(TABLE)!;
-  // Pump: the base plate, wooden box and bought-out items asked for, list and cards alike.
-  const pumpRestrict = `${alignmentRestrict(pickAlignment((key) => params[key]))} AND ${boiItemRestrict(parsePurchaseFilter((key) => params[key]))}`;
+  // Pump: the base plate, wooden box, bought-out items and drawings asked for, list and cards alike.
+  const pumpRestrict = `${alignmentRestrict(pickAlignment((key) => params[key]))} AND ${boiItemRestrict(parsePurchaseFilter((key) => params[key]))} AND ${ecDrawingRestrict(parseDrawingFilter((key) => params[key]))}`;
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,

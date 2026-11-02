@@ -20,6 +20,7 @@ import {
 } from "@/lib/assembly";
 import { PUMP_SO_PLANNING_FIELDS, SORTABLE_DATE_COLUMNS } from "@/lib/order-schema";
 import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS } from "@/lib/purchase-filter";
+import { DRAWING_FILTER_KEYS, GAD_STATUSES, PART_STATUSES } from "@/lib/drawing-filter";
 import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
 import {
@@ -728,7 +729,7 @@ export function DepartmentWorkspace({
             extraKeys={[
               ...(assemblyPump ? [ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY] : []),
               ...(alignmentFilters ? [BASE_PLATE_KEY, WOODEN_BOX_KEY] : []),
-              ...(planningPump ? [PURCHASE_FILTER_KEYS.item, PURCHASE_FILTER_KEYS.boi] : []),
+              ...(planningPump ? [PURCHASE_FILTER_KEYS.item, PURCHASE_FILTER_KEYS.boi, DRAWING_FILTER_KEYS.gad, DRAWING_FILTER_KEYS.part] : []),
             ]}
             extraFilters={
               alignmentFilters ? (
@@ -782,6 +783,21 @@ export function DepartmentWorkspace({
                         options={BOI_STATUSES}
                         selected={getList(PURCHASE_FILTER_KEYS.boi)}
                         onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.boi]: next })}
+                      />
+                      {/* …and the drawings: one EC both. */}
+                      <MultiSelectFilter
+                        label="GAD"
+                        allLabel="Any GAD"
+                        options={GAD_STATUSES}
+                        selected={getList(DRAWING_FILTER_KEYS.gad)}
+                        onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.gad]: next })}
+                      />
+                      <MultiSelectFilter
+                        label="Part drawing"
+                        allLabel="Any part drawing"
+                        options={PART_STATUSES}
+                        selected={getList(DRAWING_FILTER_KEYS.part)}
+                        onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.part]: next })}
                       />
                     </>
                   )}

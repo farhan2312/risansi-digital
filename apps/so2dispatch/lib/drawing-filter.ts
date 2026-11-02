@@ -151,6 +151,27 @@ export function partStatusSql(it: string): string {
                                  FROM order_part_drawings pd WHERE pd.item_id = ${it}.id) n)`;
 }
 
+/**
+ * Planning's GAD and Part Drawing filters, under Drawing's URL params: an SO
+ * with a pump EC at those statuses, the one EC both. The status as the EC
+ * shows it, held SO or not. TRUE with neither set.
+ */
+export function ecDrawingRestrict(f: Pick<DrawingFilter, "gad" | "part">, o = "o"): string {
+  const c: string[] = [];
+  if (f.gad.length) c.push(inList(ecGadStatusSql("s"), f.gad));
+  if (f.part.length) c.push(inList(partStatusSql("s"), f.part));
+  return c.length
+    ? `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)}) AND ${c.join(" AND ")})`
+    : "TRUE";
+}
+
+/** …and as the report's filter line says them. */
+export function ecDrawingLine(f: Pick<DrawingFilter, "gad" | "part">): string {
+  return [f.gad.length && `GAD: ${f.gad.join(", ")}`, f.part.length && `Part drawing: ${f.part.join(", ")}`]
+    .filter(Boolean)
+    .join("  ·  ");
+}
+
 /** Drawing is done with an EC (alias it, its SO o): the SQL twin of ecDrawingDone. */
 export function ecDrawingDoneSql(it: string, o: string): string {
   return ecDoneSql(it, o);
