@@ -940,6 +940,14 @@ export const ORDER_MAKING_EDITABLE: OrderField[] = ORDER_MAKING_FIELDS.filter(
   (f) => !f.computed && !f.readOnly && !f.centralOnly
 );
 /**
+ * Order Making's Operation pop-up: the handover dates, Terms & Conditions,
+ * documents and target dates. Documents go with them: saving once an SO has
+ * gone to Operation needs every one of these filled.
+ */
+export const OPERATION_FIELDS: OrderField[] = (ORDER_SECTIONS.find((s) => s.table === "orders")?.fields ?? []).filter((f) =>
+  ["Handover", "Terms & Conditions", "Document Required", "Target Dates"].includes(f.group ?? "")
+);
+/**
  * The Sales Order details: what an Order Making SO member fills on an SO
  * assigned to them. The rest of Order Making's fields are the PO's.
  */

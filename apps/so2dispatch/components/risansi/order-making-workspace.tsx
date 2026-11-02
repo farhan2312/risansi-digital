@@ -13,6 +13,7 @@ import { AllChatsRow } from "./all-chats";
 import { canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
 import { OmEcsModal } from "./om-ecs-modal";
+import { OrderOperationPopup } from "./order-operation-popup";
 import { useSoNoTaken } from "./use-so-no-taken";
 import { OmReportModal } from "./om-report-modal";
 import { OmReportPanel } from "./om-report-panel";
@@ -199,6 +200,8 @@ export function OrderMakingWorkspace({
   const [editEc, setEditEc] = useState<{ row: OrderMakingRow; item: Record<string, unknown> } | null>(null);
   // The SO whose ECs are open in the pop-up (by id, so a refresh shows the new list).
   const [ecsFor, setEcsFor] = useState<string | null>(null);
+  // The SO whose Operation pop-up is open.
+  const [operationFor, setOperationFor] = useState<OrderMakingRow | null>(null);
   const ecsRow = ecsFor ? queue.rows.find((r) => r.id === ecsFor) ?? null : null;
   const [deletingEc, setDeletingEc] = useState<string | null>(null);
   async function removeEc(item: Record<string, unknown>) {
@@ -550,6 +553,7 @@ export function OrderMakingWorkspace({
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">PO details</th>
                 <th className="px-4 py-3">SO details</th>
+                <th className="px-4 py-3">Operation</th>
                 <th className="px-4 py-3"><SortHeader label="ECs" sortKey="ecs" /></th>
                 {mode === "po" && <th className="px-4 py-3">Assigned to</th>}
                 {canEdit && <th className="px-4 py-3" />}
@@ -558,7 +562,7 @@ export function OrderMakingWorkspace({
             <tbody className="divide-y divide-card-border">
               {queue.rows.length === 0 && (
                 <tr>
-                  <td colSpan={cols.length + 8} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={cols.length + 9} className="px-4 py-10 text-center text-sm text-muted">
                     {mode === "so"
                       ? "No SOs assigned to you match."
                       : missingOnly
@@ -662,6 +666,23 @@ export function OrderMakingWorkspace({
                       >
                         Pending · {row.so_missing.length} missing
                       </span>
+                    )}
+                  </td>
+                  {/* Its handover, terms and target dates, in a pop-up. Only Billing has none of them. */}
+                  <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    {isOnlyBilling(row) ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setOperationFor(row)}
+                        className="inline-flex flex-col items-start rounded-lg border border-input-border px-2.5 py-1 text-left text-xs font-medium text-foreground transition-colors hover:bg-background"
+                      >
+                        Operation
+                        <span className="text-[11px] font-normal text-muted">
+                          {str(row.so_handover_date) ? `PPC ${formatDisplay(field("so_date"), row.so_handover_date)}` : "PPC not sent"}
+                        </span>
+                      </button>
                     )}
                   </td>
                   {/* The SO's ECs: Order Making PO fills the EC form (Pump or Spare Add-On). */}
@@ -798,6 +819,15 @@ export function OrderMakingWorkspace({
         {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
         {showAssignPdf && (
           <AssignmentPdfDialog range={period === "range" ? assignRange : null} onClose={() => setShowAssignPdf(false)} />
+        )}
+        {operationFor && (
+          <OrderOperationPopup
+            orderId={operationFor.id}
+            soLabel={str(operationFor.so_no) || `#${operationFor.sl_no}`}
+            role={role}
+            version={queue}
+            onClose={() => setOperationFor(null)}
+          />
         )}
         {ecsRow && (
           <OmEcsModal

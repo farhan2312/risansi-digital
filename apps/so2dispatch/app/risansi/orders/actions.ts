@@ -72,6 +72,7 @@ import {
   SECTION_BY_TABLE,
   BILL_TYPE_FOR_MODE,
   FR_PAYMENT_TERMS_REMARKS,
+  OPERATION_FIELDS,
   ORDER_MAKING_EDITABLE,
   ORDER_MAKING_FIELDS,
   ORDER_MAKING_SO_EDITABLE,
@@ -100,6 +101,7 @@ import {
   isOrderMaking,
   isOrderMakingAny,
   isOrderMakingSo,
+  canViewOrderMaking,
   canEditChild,
   canEditQcDocuments,
   canEditQcRequirementDocs,
@@ -1813,6 +1815,36 @@ export async function getOrderQuickViewAction(orderId: string): Promise<
   const [detail, targetRevisions] = await Promise.all([getOrderDetail(orderId), listTargetRevisions(orderId)]);
   if (!detail) return { ok: false, error: "Order not found." };
   return { ok: true, detail, targetRevisions };
+}
+
+/**
+ * What Order Making's Operation pop-up shows: its own fields and the ones they
+ * depend on, no more of the order. An SO member: only the SOs assigned to them.
+ */
+export async function getOrderOperationAction(orderId: string): Promise<
+  | { ok: true; order: Record<string, unknown>; paymentTerms: Record<string, unknown>[]; targetRevisions: TargetRevision[] }
+  | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!canViewOrderMaking(user.role)) return { ok: false, error: "This is for Order Making." };
+  if (!UUID_RE_ACTION.test(orderId)) return { ok: false, error: "Order not found." };
+  if (isOrderMakingSo(user.role) && !(await isAssignedTo(orderId, user.id))) {
+    return { ok: false, error: "This SO is not assigned to you." };
+  }
+  const [detail, targetRevisions] = await Promise.all([getOrderDetail(orderId), listTargetRevisions(orderId)]);
+  if (!detail) return { ok: false, error: "Order not found." };
+  const columns = new Set(["id", "sl_no", "so_no", "client_name"]);
+  for (const f of OPERATION_FIELDS) {
+    columns.add(f.column);
+    for (const d of f.dependsOn ?? []) columns.add(d.column);
+  }
+  return {
+    ok: true,
+    order: Object.fromEntries([...columns].map((c) => [c, detail.order[c] ?? null])),
+    paymentTerms: detail.order_payment_terms as Record<string, unknown>[],
+    targetRevisions,
+  };
 }
 
 /** Accounts' hold reasons, for its hold pop-up. */

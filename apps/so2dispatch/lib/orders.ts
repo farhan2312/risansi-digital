@@ -4864,6 +4864,8 @@ export async function listOrdersForOrderMaking(opts: {
   const r = await query<OrderMakingRow>(
     `SELECT o.id, o.sl_no::int AS sl_no, ${cols}, ${missingSql} AS missing,
             ${SO_DETAILS_MISSING_SQL} AS so_missing,
+            -- The Operation column's line.
+            to_char(o.so_handover_date, 'YYYY-MM-DD') AS so_handover_date,
             o.so_assignee_id, au.full_name AS so_assignee_name, o.so_migrated,
             -- Every Clear / Hold, oldest first: its reason and remarks (the report lists them all).
             COALESCE((SELECT jsonb_agg(jsonb_build_object('status', h.status, 'reason', h.reason, 'remarks', h.remarks,
