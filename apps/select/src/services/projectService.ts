@@ -25,6 +25,8 @@ export interface ProjectRecord {
   order_type: string;
   /** PCP / MMP / Barrel / Online blind, or Spare / Retrofit spare (lib/roles.ts). */
   order_subtype: string;
+  /** YYYY-MM-DD: marked Completed on the Edit form on this date (overrides the tags). */
+  completed_on: string | null;
   /** Who works the enquiry (a worker sees only theirs - lib/roles.ts). */
   assigned_to: string | null;
   assigned_to_name: string | null;
@@ -144,6 +146,8 @@ export interface UpdateProjectInput {
   /** YYYY-MM-DD; empty clears it. */
   enquiryDate?: string;
   status?: string;
+  /** With status Completed: the completion date. */
+  completedOn?: string;
   remarks?: string;
   orderType?: OrderType;
   orderSubtype?: OrderSubtype;

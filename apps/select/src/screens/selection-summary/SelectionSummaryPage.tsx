@@ -307,7 +307,10 @@ const SelectionSummaryPage = () => {
             <ul className="divide-y divide-line">
               {pageGroups.map((g) => {
                 const isOpen = expanded.has(g.project_id);
-                const enquiryStatus = rollupTagStatuses(g.tags.map((t) => t.status ?? ""));
+                // Marked Completed on the Edit form: Completed whatever the tags say.
+                const enquiryStatus = g.tags.some((t) => t.enquiry_completed_on)
+                  ? "Completed"
+                  : rollupTagStatuses(g.tags.map((t) => t.status ?? ""));
                 return (
                   <li key={g.project_id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                     <div className={`group px-4 py-3 transition-colors hover:bg-elev ${GRID} items-center gap-x-3 [&>*]:min-w-0`}>

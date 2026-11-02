@@ -15,6 +15,8 @@ export interface ReportRecord {
   created_by_name: string | null;
   /** The enquiry's assignee - a worker views the documents of others only. */
   assigned_to: string | null;
+  /** Enquiry marked Completed on the Edit form on this date (overrides its tags). */
+  enquiry_completed_on: string | null;
   /** Quotations on the enquiry; the documents open once there is one. */
   quotation_count: number;
   document_filename: string | null;

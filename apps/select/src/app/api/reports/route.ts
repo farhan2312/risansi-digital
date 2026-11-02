@@ -43,6 +43,7 @@ export async function GET(req: Request) {
       // Who may work on it (a worker only views the documents of others), and
       // whether a quotation exists (the documents open once one does).
       assignedTo: projects.assignedTo,
+      completedOn: projects.completedOn,
       quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
       documentFilename: enquiryTags.reportFilename,
       documentGeneratedAt: enquiryTags.reportGeneratedAt,
@@ -66,6 +67,7 @@ export async function GET(req: Request) {
       status: r.tagStatus,
       created_by_name: r.createdByName,
       assigned_to: r.assignedTo,
+      enquiry_completed_on: r.completedOn,
       quotation_count: r.quotationCount,
       document_filename: r.documentFilename,
       document_generated_at: r.documentGeneratedAt,

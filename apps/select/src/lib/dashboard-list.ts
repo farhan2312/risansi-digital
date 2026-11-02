@@ -47,6 +47,7 @@ export async function getDashboardList({
   // Written as projects.* on purpose - see the note in dashboard-data.ts.
   const rollup = sql<string>`(
     SELECT CASE
+      WHEN projects.completed_on IS NOT NULL THEN 'Completed'
       WHEN COUNT(*) = 0 THEN coalesce(projects.status, 'Pending')
       WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*) THEN 'Completed'
       WHEN COUNT(*) FILTER (WHERE t.status = 'Pending') = COUNT(*) THEN 'Pending'

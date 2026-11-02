@@ -92,6 +92,10 @@ export const projects = pgTable("projects", {
   /** Pump: pcp | mmp | barrel | online_blind; spare: spare | retrofit_spare
    *  (CHECK pairs it with order_type). Older enquiries backfilled to pcp. */
   orderSubtype: varchar("order_subtype", { length: 20 }).notNull().default("pcp"),
+  /** Set when someone marks the enquiry Completed on the Edit form: the date
+   *  it was completed. While set, the enquiry reads Completed whatever its tags
+   *  say; cleared, the status follows the tags again (user, 2026-11-02). */
+  completedOn: date("completed_on", { mode: "string" }),
   /** The worker (or the master herself) who works this enquiry - a worker
    *  sees only the enquiries assigned to them (lib/roles.ts). Backfilled to
    *  created_by for the enquiries made before assignment existed. */
