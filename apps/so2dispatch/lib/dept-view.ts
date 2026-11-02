@@ -261,11 +261,13 @@ export const DEPT_VIEWS: Record<DeptKey, DeptView> = {
     status: (r) =>
       same(r.bill_type, "challan")
         ? NOT_APPLICABLE
-        : text(r.payment_status) || PENDING,
+        : text(r.payment_status) || (r.after_receipt_only ? "After Receipt" : PENDING),
     done: (r) =>
       !same(r.bill_type, "challan") &&
       (same(r.payment_status, "payment rcvd") ||
-        same(r.payment_status, "after receipt")),
+        same(r.payment_status, "after receipt") ||
+        // Every term after receipt: nothing pending until the money arrives.
+        (r.after_receipt_only && !text(r.payment_status))),
     // A Challan order carries no receivable; a paid-after-receipt one has
     // nothing to confirm until the money simply arrives.
     na: (r) => same(r.bill_type, "challan") || paidAfterReceipt(r),

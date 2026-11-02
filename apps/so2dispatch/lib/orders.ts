@@ -3432,12 +3432,15 @@ function soState(dept: DeptFilterKey, status: string): string {
   if (dept === "accounts") {
     if (status === NOT_APPLICABLE) return `(${IS_CHALLAN} OR ${PAID_AFTER_RECEIPT})`;
     if (status === PENDING) {
-      return `NOT (${IS_CHALLAN}) AND NOT ${PAID_AFTER_RECEIPT} AND NOT ${PAYMENT_SET}`;
+      // Every term after receipt: nothing pending with Accounts (it reads After Receipt).
+      return `NOT (${IS_CHALLAN}) AND NOT ${PAID_AFTER_RECEIPT} AND NOT ${AFTER_RECEIPT_ONLY} AND NOT ${PAYMENT_SET}`;
     }
     return `NOT (${IS_CHALLAN}) AND NOT ${PAID_AFTER_RECEIPT}
-            AND EXISTS (SELECT 1 FROM order_accounts a
-                         WHERE a.order_id = o.id
-                           AND a.payment_status = ${lit(status)})`;
+            AND (EXISTS (SELECT 1 FROM order_accounts a
+                          WHERE a.order_id = o.id
+                            AND a.payment_status = ${lit(status)})${
+              status === "After Receipt" ? ` OR (${AFTER_RECEIPT_ONLY} AND NOT ${PAYMENT_SET})` : ""
+            })`;
   }
   // Not at Dispatch yet: an open SO with no numbered packing slip.
   if (status === NOT_AT_DISPATCH) return `${orderOpenSql("o")} AND NOT ${SO_REACHED_DISPATCH}`;
@@ -5452,7 +5455,9 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
         ? NA
         : head.payment_status
           ? done(head.payment_status)
-          : pending(),
+          : head.after_receipt_only
+            ? done("After Receipt")
+            : pending(),
       dispatch:
         // Held by Dispatch: still to go.
         head.dispatch_status === "Hold"
