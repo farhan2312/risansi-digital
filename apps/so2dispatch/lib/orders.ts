@@ -4917,16 +4917,18 @@ const REPORT_LIMIT = 2000;
 export type QueueSort =
   | "sl" | "-sl" | "readiness" | "-readiness" | "packing" | "-packing" | "so_date" | "-so_date" | "ecs" | "-ecs" | "rep" | "-rep"
   | "asm_plan" | "-asm_plan" | "ec_date" | "-ec_date"
+  | "drg_readiness_date" | "-drg_readiness_date"
   | "dispatch_target_date" | "-dispatch_target_date" | "ld_date" | "-ld_date" | "so_handover_date" | "-so_handover_date";
 
 const QUEUE_SORTS: QueueSort[] = [
   "sl", "-sl", "readiness", "-readiness", "packing", "-packing", "so_date", "-so_date", "ecs", "-ecs", "rep", "-rep",
   "asm_plan", "-asm_plan", "ec_date", "-ec_date",
   "dispatch_target_date", "-dispatch_target_date", "ld_date", "-ld_date", "so_handover_date", "-so_handover_date",
+  "drg_readiness_date", "-drg_readiness_date",
 ];
 
 /** The SO's own date columns a queue sorts by, as they are named on orders. */
-const SO_DATE_SORTS = new Set(["so_date", "dispatch_target_date", "ld_date", "so_handover_date"]);
+const SO_DATE_SORTS = new Set(["so_date", "dispatch_target_date", "ld_date", "so_handover_date", "drg_readiness_date"]);
 
 export function parseQueueSort(value: string | undefined): QueueSort | null {
   return QUEUE_SORTS.includes(value as QueueSort) ? (value as QueueSort) : null;

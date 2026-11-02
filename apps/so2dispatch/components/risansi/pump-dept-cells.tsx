@@ -3,6 +3,7 @@
 import type { PumpStage, PumpSummary } from "@/lib/pump-summary";
 import { latestPumpLot, type PumpLot } from "@/lib/assembly";
 import { AlignmentValue } from "./alignment-cell";
+import { SortHeader } from "./sort-header";
 import { LatestLot, LotCell } from "./lot-cell";
 
 type Dept = "drawing" | "purchase" | "quality" | "planning" | "assembly";
@@ -116,11 +117,11 @@ export function PumpLeadSubHeads({ lotCount }: { lotCount: number }) {
       <th className={h(true)}>GAD</th>
       <th className={h()}>Perf. Curve</th>
       <th className={h()}>Part Drawing</th>
-      <th className={h()}>Readiness</th>
+      <th className={h()}><SortHeader label="Readiness" sortKey="drg_readiness_date" /></th>
       <th className={h(true)}>BOI</th>
       <th className={h(true)}>QC Docs</th>
       <th className={h(true)}>Status</th>
-      <th className={h()}>Assembly Readiness</th>
+      <th className={h()}><SortHeader label="Assembly Readiness" sortKey="readiness" /></th>
       {Array.from({ length: lotCount }, (_, i) => (
         <th key={i} className={h()}>Lot {i + 1}</th>
       ))}
