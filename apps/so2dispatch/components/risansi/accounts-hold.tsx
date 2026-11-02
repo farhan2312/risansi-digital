@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Hand, Loader2, Plus, X } from "lucide-react";
 import {
@@ -35,7 +36,8 @@ export function AccountsHoldButton({ order }: { order: Row }) {
         <Hand className="h-3 w-3" />
         {held ? "Edit hold" : "Hold"}
       </button>
-      {open && <HoldForm order={order} onClose={() => setOpen(false)} />}
+      {/* On the page itself: the pinned SO cell would otherwise keep it under the table's header and pinned columns. */}
+      {open && createPortal(<HoldForm order={order} onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }
@@ -123,7 +125,11 @@ function HoldForm({ order, onClose }: { order: Row; onClose: () => void }) {
       aria-modal="true"
       aria-label="Accounts hold"
       className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
-      onClick={() => !saving && onClose()}
+      onClick={(e) => {
+        // A portal still bubbles to the row, which opens the order.
+        e.stopPropagation();
+        if (!saving) onClose();
+      }}
     >
       <form
         onSubmit={save}

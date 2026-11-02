@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { updateOrderSectionAction } from "@/app/risansi/orders/actions";
@@ -191,7 +192,8 @@ export function ClearanceBadge({ order, readOnly = false }: { order: Row; readOn
         <span className="font-semibold">{held ? "On hold" : "Clear"}</span>
         {held && str(order.clearance_hold_reason) && <span className="whitespace-normal">{str(order.clearance_hold_reason)}</span>}
       </button>
-      {open && <ClearanceForm order={order} onClose={() => setOpen(false)} />}
+      {/* On the page itself: the pinned SO cell would otherwise keep it under the table's header and pinned columns. */}
+      {open && createPortal(<ClearanceForm order={order} onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }
@@ -266,7 +268,11 @@ function ClearanceForm({ order, onClose }: { order: Row; onClose: () => void }) 
       aria-label="Clearance"
       // Opened from a table cell that does not wrap; the pop-up's text must.
       className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
-      onClick={() => !saving && onClose()}
+      onClick={(e) => {
+        // A portal still bubbles to the row, which opens the order.
+        e.stopPropagation();
+        if (!saving) onClose();
+      }}
     >
       <form
         onSubmit={save}
