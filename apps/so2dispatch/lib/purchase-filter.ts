@@ -127,6 +127,28 @@ export function purchaseFilterSql(f: PurchaseFilter, o = "o"): string {
   return parts.length ? parts.join(" AND ") : "TRUE";
 }
 
+/**
+ * Planning's BOI filters, under Purchase's URL params: an SO with a bought-out
+ * item of those kinds at those statuses, the one item both. The status as the
+ * item shows it, held SO or not. TRUE with neither set.
+ */
+export function boiItemRestrict(f: Pick<PurchaseFilter, "item" | "boi">, o = "o"): string {
+  const c: string[] = [];
+  if (f.item.length) c.push(inList("TRIM(COALESCE(pb.boi_item, ''))", f.item));
+  if (f.boi.length) c.push(inList(boiStatusSql("pb"), f.boi));
+  return c.length
+    ? `EXISTS (SELECT 1 FROM order_items s JOIN order_boi_items pb ON pb.item_id = s.id
+               WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)}) AND ${c.join(" AND ")})`
+    : "TRUE";
+}
+
+/** …and as the report's filter line says them. */
+export function boiItemLine(f: Pick<PurchaseFilter, "item" | "boi">): string {
+  return [f.item.length && `BOI item: ${f.item.join(", ")}`, f.boi.length && `BOI status: ${f.boi.join(", ")}`]
+    .filter(Boolean)
+    .join("  ·  ");
+}
+
 /** How many of the SO's (alias o) pump ECs are in this state — a card's figure. */
 export function ecCountSql(o: string, state?: string): string {
   return `(SELECT count(*) FROM order_items s WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})${

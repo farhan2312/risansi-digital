@@ -11,6 +11,7 @@ import { buildPlanningReportXlsx } from "@/lib/planning-report-xlsx";
 import { pumpSheet, spareSheet } from "@/lib/planning-report-sheet";
 import { listPumpSummaries } from "@/lib/pump-summary";
 import { alignmentLine, alignmentRestrict, pickAlignment } from "@/lib/assembly";
+import { boiItemLine, boiItemRestrict, parsePurchaseFilter } from "@/lib/purchase-filter";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -53,12 +54,12 @@ export async function GET(request: Request) {
       filter,
       sort: parseQueueSort(get("sort")),
       all: true,
-      // Pump: the base plate and wooden box asked for.
-      extraRestrict: kind === "pump" ? alignmentRestrict(pickAlignment(get)) : undefined,
+      // Pump: the base plate, wooden box and bought-out items asked for.
+      extraRestrict: kind === "pump" ? `${alignmentRestrict(pickAlignment(get))} AND ${boiItemRestrict(parsePurchaseFilter(get))}` : undefined,
     }
   );
 
-  const filterLine = [describeOrderListFilter(filter), kind === "pump" && alignmentLine(pickAlignment(get)), search && `Search: ${search}`]
+  const filterLine = [describeOrderListFilter(filter), kind === "pump" && alignmentLine(pickAlignment(get)), kind === "pump" && boiItemLine(parsePurchaseFilter(get)), search && `Search: ${search}`]
     .filter(Boolean)
     .join("  ·  ");
   // How each SO's readiness date moved, for the Date moved column.

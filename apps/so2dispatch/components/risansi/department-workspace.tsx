@@ -19,6 +19,7 @@ import {
   WOODEN_BOX_KEY,
 } from "@/lib/assembly";
 import { PUMP_SO_PLANNING_FIELDS, SORTABLE_DATE_COLUMNS } from "@/lib/order-schema";
+import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS } from "@/lib/purchase-filter";
 import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
 import {
@@ -277,6 +278,7 @@ export function DepartmentWorkspace({
   const assemblyPump = ecKind === "pump" && table === "order_assembly_dispatch";
   // Planning's and Assembly & Packing's Pump views filter by base plate and wooden box.
   const alignmentFilters = ecKind === "pump" && (table === "order_assembly_dispatch" || table === "order_planning");
+  const planningPump = ecKind === "pump" && table === "order_planning";
   const [threadFor, setThreadFor] = useState<{
     orderId: string;
     soLabel: string;
@@ -726,6 +728,7 @@ export function DepartmentWorkspace({
             extraKeys={[
               ...(assemblyPump ? [ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY] : []),
               ...(alignmentFilters ? [BASE_PLATE_KEY, WOODEN_BOX_KEY] : []),
+              ...(planningPump ? [PURCHASE_FILTER_KEYS.item, PURCHASE_FILTER_KEYS.boi] : []),
             ]}
             extraFilters={
               alignmentFilters ? (
@@ -763,6 +766,25 @@ export function DepartmentWorkspace({
                     selected={getList(WOODEN_BOX_KEY)}
                     onChange={(next) => setParams({ [WOODEN_BOX_KEY]: next })}
                   />
+                  {/* Planning's Pump view: the bought-out items, one item both (Gear Box, Pending). */}
+                  {planningPump && (
+                    <>
+                      <MultiSelectFilter
+                        label="BOI item"
+                        allLabel="Any BOI item"
+                        options={BOI_ITEMS}
+                        selected={getList(PURCHASE_FILTER_KEYS.item)}
+                        onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.item]: next })}
+                      />
+                      <MultiSelectFilter
+                        label="BOI status"
+                        allLabel="Any BOI status"
+                        options={BOI_STATUSES}
+                        selected={getList(PURCHASE_FILTER_KEYS.boi)}
+                        onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.boi]: next })}
+                      />
+                    </>
+                  )}
                 </>
               ) : undefined
             }

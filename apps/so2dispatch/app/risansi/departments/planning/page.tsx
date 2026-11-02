@@ -30,6 +30,7 @@ import { deptKpiCards } from "@/lib/orders";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { alignmentRestrict, pickAlignment } from "@/lib/assembly";
+import { boiItemRestrict, parsePurchaseFilter } from "@/lib/purchase-filter";
 
 export const metadata: Metadata = {
   title: "Planning | Risansi",
@@ -72,6 +73,8 @@ export default async function PlanningWorkspacePage({
   // immediate; everything else below loads side by side.
   // A reminder (?focus=) lands on its SO in this queue, like a notification.
   const section = SECTION_BY_TABLE.get(TABLE)!;
+  // Pump: the base plate, wooden box and bought-out items asked for, list and cards alike.
+  const pumpRestrict = `${alignmentRestrict(pickAlignment((key) => params[key]))} AND ${boiItemRestrict(parsePurchaseFilter((key) => params[key]))}`;
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,
@@ -85,10 +88,7 @@ export default async function PlanningWorkspacePage({
     ,
       {
         kpis: deptKpiCards("planning", ecKind === "pump" ? ["Pump"] : ["Spare"]),
-        // Pump: the base plate and wooden box asked for, list and cards alike.
-        ...(ecKind === "pump"
-          ? { extraRestrict: alignmentRestrict(pickAlignment((key) => params[key])), kpiRestrict: alignmentRestrict(pickAlignment((key) => params[key])) }
-          : {}),
+        ...(ecKind === "pump" ? { extraRestrict: pumpRestrict, kpiRestrict: pumpRestrict } : {}),
         page: parsePage(page),
         search: parseQuery(q),
         focusOrderId,
