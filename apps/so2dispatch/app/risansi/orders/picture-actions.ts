@@ -1,0 +1,93 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { query } from "@/lib/db";
+import { getCurrentUser } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
+import { subjectForOrder } from "@/lib/audit-subject";
+import { getOrderLabel } from "@/lib/orders";
+import { canEditChild } from "@/lib/roles";
+import { normaliseDocLink } from "@/lib/drawing-docs";
+
+export type PictureResult = { ok: true } | { ok: false; error: string };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function refresh() {
+  revalidatePath("/risansi/departments/dispatch");
+  revalidatePath("/risansi/orders");
+}
+
+/**
+ * Add the order's pictures: SharePoint links, one or several at once (each on
+ * its own line). Dispatch's, as its invoices are, with Central Visibility and
+ * Admin. A link the SO already has is not added twice.
+ */
+export async function addOrderPicturesAction(orderId: string, text: string): Promise<PictureResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!canEditChild(user.role, "order_invoices")) return { ok: false, error: "Only Dispatch can add the order's pictures." };
+  if (!UUID_RE.test(orderId)) return { ok: false, error: "Order not found." };
+  const typed = String(text ?? "").split(/\s+/).filter(Boolean);
+  if (typed.length === 0) return { ok: false, error: "Paste the SharePoint link." };
+  const links: string[] = [];
+  for (const raw of typed) {
+    const link = normaliseDocLink(raw);
+    if (!link) return { ok: false, error: `Not a web link: ${raw.slice(0, 60)}` };
+    links.push(link);
+  }
+  try {
+    await query(
+      `INSERT INTO order_picture_links (order_id, link, added_by)
+       SELECT $1, l, $3 FROM unnest($2::text[]) AS l
+       ON CONFLICT (order_id, link) DO NOTHING`,
+      [orderId, links, user.id]
+    );
+  } catch (error) {
+    console.error("addOrderPicturesAction failed:", error);
+    return { ok: false, error: "Could not save the links." };
+  }
+  await logAudit({
+    actor: { id: user.id, email: user.email, role: user.role },
+    action: "order.update",
+    category: "activity",
+    target: (await getOrderLabel(orderId)) ?? orderId,
+    details: `Added ${links.length} order picture link${links.length === 1 ? "" : "s"}`,
+    subject: await subjectForOrder(orderId),
+  });
+  refresh();
+  return { ok: true };
+}
+
+/** Take one of the order's picture links off. */
+export async function removeOrderPictureAction(id: string): Promise<PictureResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!canEditChild(user.role, "order_invoices")) return { ok: false, error: "Only Dispatch can remove the order's pictures." };
+  if (!UUID_RE.test(id)) return { ok: false, error: "Link not found." };
+  let orderId: string | undefined;
+  let link: string | undefined;
+  try {
+    const gone = await query<{ order_id: string; link: string }>(
+      `DELETE FROM order_picture_links WHERE id = $1 RETURNING order_id, link`,
+      [id]
+    );
+    orderId = gone.rows[0]?.order_id;
+    link = gone.rows[0]?.link;
+  } catch (error) {
+    console.error("removeOrderPictureAction failed:", error);
+    return { ok: false, error: "Could not remove the link." };
+  }
+  if (orderId) {
+    await logAudit({
+      actor: { id: user.id, email: user.email, role: user.role },
+      action: "order.update",
+      category: "activity",
+      target: (await getOrderLabel(orderId)) ?? orderId,
+      details: `Removed an order picture link: ${link}`,
+      subject: await subjectForOrder(orderId),
+    });
+  }
+  refresh();
+  return { ok: true };
+}

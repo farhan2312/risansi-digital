@@ -13,6 +13,7 @@ import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { billModeLabel } from "@/lib/order-schema";
 import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchInline } from "./dispatch-inline";
+import { OrderPictures } from "./order-pictures";
 import { SortHeader } from "./sort-header";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { DispatchStatusPill, NotAtDispatch, atDispatch } from "./dispatch-status-pill";
@@ -188,6 +189,7 @@ export function BillingWorkspace({
                 {mode === "billing" && <th className="px-4 py-3">PI Status</th>}
                 <th className="px-4 py-3">Dispatch Status</th>
                 {mode === "dispatch" && <th className="px-4 py-3">Stage</th>}
+                {mode === "dispatch" && <th className="px-4 py-3 whitespace-nowrap">Order Pictures</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border">
@@ -354,6 +356,11 @@ export function BillingWorkspace({
                       {mode === "dispatch" && (
                         <td className="px-4 py-3 whitespace-nowrap">
                           <StagePill stage={row.dispatch_stage} />
+                        </td>
+                      )}
+                      {mode === "dispatch" && (
+                        <td className="px-4 py-3 align-top">
+                          <OrderPictures orderId={row.id} soLabel={row.so_no ?? `#${row.sl_no}`} links={row.picture_links} canEdit={canEdit} />
                         </td>
                       )}
                     </tr>

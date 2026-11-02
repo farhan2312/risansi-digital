@@ -3061,3 +3061,14 @@ ALTER TABLE order_pendency ADD  CONSTRAINT order_pendency_dept_check
 -- seen by Purchase, Planning, Assembly & Packing, Drawing, Quality and Orders.
 -- Idempotent and additive.
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS ec_link TEXT;
+
+-- 0044  The order's pictures: SharePoint links Dispatch adds, as many as there
+-- are, seen on the Orders page too. Idempotent and additive.
+CREATE TABLE IF NOT EXISTS order_picture_links (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id   UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    link       TEXT NOT NULL,
+    added_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (order_id, link)
+);

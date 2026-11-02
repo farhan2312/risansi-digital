@@ -183,6 +183,7 @@ export function ordersSheet(opts: {
     Col("Invoice", 28, "Dispatch"),
     Col("Dispatch", 26, "Dispatch"),
     Col("Docket & LR", 30, "Dispatch"),
+    Col("Order Pictures", 40, "Dispatch"),
     Col("Dispatch Status", 16, "Dispatch"),
     Col("ECs", 7, "Dispatch", true),
   ];
@@ -336,6 +337,7 @@ export function ordersSheet(opts: {
     const dispatchText = closed ? dispatch : onlyBilling ? null : held || dispatch === "Hold" ? "Hold" : atDispatch ? dispatch : "Not at Dispatch yet";
     const tailCells: [SheetCell, Tone | null][] = [
       ...docCells(docs.get(o.id)).map((t): [SheetCell, Tone | null] => [t || null, /pending/i.test(t) ? "amber" : null]),
+      [(o.picture_links ?? []).map((p) => p.link).join("\n") || null, null],
       [
         dispatchText,
         !dispatchText ? null : dispatchText === "Hold" || closed ? "red" : !atDispatch ? "muted" : dispatch.toLowerCase() === "pending" ? "amber" : "green",

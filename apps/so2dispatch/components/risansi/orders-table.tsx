@@ -8,6 +8,7 @@ import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
+import { OrderPictures } from "./order-pictures";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel } from "@/lib/order-schema";
 import { dispatchRowTone } from "@/lib/dept-view";
@@ -423,7 +424,7 @@ export function OrdersTable({
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
   // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
-  const baseCols = (pump ? 16 + pumpDeptCols : 25) + 4;
+  const baseCols = (pump ? 16 + pumpDeptCols : 25) + 5;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -498,6 +499,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3">Invoice</th>
                 <th rowSpan={2} className="px-4 py-3">Dispatch</th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Docket &amp; LR</th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Pictures</th>
                 <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">
                   <ColumnFilter column="dept:dispatch" label="Dispatch Status" />
                 </th>
@@ -819,6 +821,9 @@ export function OrdersTable({
                         docs={dispatchDocs[order.id]}
                         onOpen={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
                       />
+                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <OrderPictures orderId={order.id} soLabel={order.so_no ?? `#${order.sl_no}`} links={order.picture_links} canEdit={false} />
+                      </td>
                       <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <StatusText
                           hold={held || dispatch === "Hold"}

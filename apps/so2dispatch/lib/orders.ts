@@ -123,7 +123,13 @@ export type ItemSummary = {
 };
 
 /** A row in the master SO list — one per sales order, with its EC items. */
+/** The SO's (alias o) picture links, as Dispatch added them. */
+const PICTURE_LINKS_SQL = `COALESCE((SELECT jsonb_agg(jsonb_build_object('id', pl.id, 'link', pl.link) ORDER BY pl.created_at, pl.id)
+                      FROM order_picture_links pl WHERE pl.order_id = o.id), '[]'::jsonb)`;
+
 export type OrderListRow = {
+  /** The order's pictures: Dispatch's SharePoint links. */
+  picture_links?: { id: string; link: string }[];
   id: string;
   sl_no: number;
   so_no: string | null;
@@ -2807,6 +2813,8 @@ export async function listItemsForSection(
 }
 
 export type BillingQueueRow = {
+  /** The order's pictures: Dispatch's SharePoint links. */
+  picture_links?: { id: string; link: string }[];
   id: string;
   /** Dispatch: the SO's stage in Invoice → Dispatch → Docket & LR. */
   dispatch_stage?: string | null;
@@ -2890,6 +2898,7 @@ export async function listOrdersForBilling(
             o.taxable_value::text AS taxable_value,
             (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
                FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
+            ${PICTURE_LINKS_SQL} AS picture_links,
             b.challan_no,
             to_char(b.challan_date, 'YYYY-MM-DD') AS challan_date,
             b.challan_value::text AS challan_value,
@@ -4069,6 +4078,7 @@ export async function listOrdersPage(opts: {
                       FROM order_payment_terms t WHERE t.order_id = o.id), '[]'::jsonb) AS term_lines,
             COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
                       FROM order_billing_docs pd WHERE pd.order_id = o.id), '[]'::jsonb) AS pi_docs,
+            ${PICTURE_LINKS_SQL} AS picture_links,
             (SELECT to_char(min(rp.planning_readiness_date), 'YYYY-MM-DD')
                FROM order_items ri JOIN order_planning rp ON rp.item_id = ri.id
               WHERE ri.order_id = o.id) AS readiness_from,
