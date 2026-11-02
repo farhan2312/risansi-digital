@@ -48,6 +48,7 @@ const FILTER_KEYS = [
   "q",
   "zone",
   "rep",
+  "repteam",
   "market",
   "client",
   // The Pump card picked on the Orders page.
@@ -147,7 +148,21 @@ export function OrderListFilterBar({
   const typeToggle = !kindToggle && !noTypeFilter && (dept === "billing" || dept === "accounts" || dept === "dispatch");
   // With the toggle, the type is pinned to it (statuses read that type's words).
   const filter = kindToggle ? { ...parsed, types: kindToggle === "pump" ? ["Pump", "ROLB"] : ["Spare"] } : parsed;
-  const filtered = isOrderListFiltered(parsed) || extraKeys.some((k) => !!get(k));
+  const filtered = isOrderListFiltered(parsed) || !!filter.repTeam?.length || extraKeys.some((k) => !!get(k));
+  // The second Rep filter: a Rep Manager's own login, themself and their team;
+  // anyone else, those of the Rep Manager(s) picked in the first.
+  const teamOptions = options.repScope
+    ? options.repScope.length > 1
+      ? options.repScope
+      : []
+    : [
+        ...new Set(
+          filter.reps.flatMap((r) => {
+            const manager = Object.keys(options.repTeams ?? {}).find((m) => m.toLowerCase() === r.trim().toLowerCase());
+            return manager ? options.repTeams![manager] : [];
+          })
+        ),
+      ];
   const activeDept = dept ?? filter.dept;
   // "Target date" only means something once a department is settled, and only
   // for one that works to a date at all. On the order list, where the
@@ -216,8 +231,8 @@ export function OrderListFilterBar({
           selected={filter.zones}
           onChange={(next) => setParams({ zone: next })}
         />
-        {options.repScope && options.repScope.length <= 1 ? (
-          // A Rep: their own SOs, nothing to choose.
+        {options.repScope ? (
+          // A Rep or Rep Manager: themself; a Rep has nothing to choose.
           <span className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-input-border bg-background px-3 text-sm text-foreground">
             <span className="text-muted">Rep:</span> {options.repScope[0]}
           </span>
@@ -226,7 +241,17 @@ export function OrderListFilterBar({
             label="Rep"
             options={options.reps}
             selected={filter.reps}
-            onChange={(next) => setParams({ rep: next })}
+            // Who is under whom follows the Rep picked.
+            onChange={(next) => setParams({ rep: next, repteam: null })}
+          />
+        )}
+        {teamOptions.length > 0 && (
+          <MultiSelectFilter
+            label="Team"
+            allLabel="Self & whole team"
+            options={teamOptions}
+            selected={filter.repTeam ?? []}
+            onChange={(next) => setParams({ repteam: next })}
           />
         )}
         <MultiSelectFilter

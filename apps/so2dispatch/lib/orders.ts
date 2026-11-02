@@ -3801,13 +3801,15 @@ function orderListClauses(
 /**
  * A Rep Manager picked in the Rep filter stands for their team too: the
  * reps who report to them in the sales portal (manager_reps), as Rep Manager
- * accounts see them. Fails narrow: the sales portal unread, the names stay as
- * picked.
+ * accounts see them — or, picked in the second filter, only those of them
+ * named there (themself, some of their reps). A Rep or Rep Manager's own
+ * login is already settled by scopeToRep. Fails narrow: the sales portal
+ * unread, the names stay as picked.
  */
-async function withRepTeams<F extends { reps: string[] }>(f: F): Promise<F> {
-  if (!f.reps.length) return f;
-  const managers = await query<{ email: string }>(
-    `SELECT lower(trim(email)) AS email FROM users
+async function withRepTeams<F extends { reps: string[]; repTeam?: string[]; repScope?: string[] }>(f: F): Promise<F> {
+  if (f.repScope || !f.reps.length) return f;
+  const managers = await query<{ email: string; name: string }>(
+    `SELECT lower(trim(email)) AS email, trim(full_name) AS name FROM users
       WHERE role = 'rep_manager' AND lower(trim(full_name)) = ANY($1::text[])`,
     [f.reps.map((r) => r.trim().toLowerCase())]
   );
@@ -3819,9 +3821,16 @@ async function withRepTeams<F extends { reps: string[] }>(f: F): Promise<F> {
     console.error("withRepTeams: could not read teams:", error);
     return f;
   }
-  const names = new Map(f.reps.map((r) => [r.trim().toLowerCase(), r]));
+  const key = (n: string) => n.trim().toLowerCase();
+  const chosen = new Set((f.repTeam ?? []).map(key));
+  const names = new Map(f.reps.map((r) => [key(r), r]));
   for (const m of managers.rows) {
-    for (const n of teams.get(m.email) ?? []) names.set(n.trim().toLowerCase(), n.trim());
+    const team = (teams.get(m.email) ?? []).map((n) => n.trim());
+    const members = [m.name, ...team];
+    // Who of theirs was picked; none of them, all of them.
+    const some = members.filter((n) => chosen.has(key(n)));
+    if (some.length) names.delete(key(m.name));
+    for (const n of some.length ? some : team) names.set(key(n), n);
   }
   return { ...f, reps: [...names.values()] };
 }
@@ -3945,14 +3954,39 @@ export type OrderListOptions = {
   pumpTypes: string[];
   models: string[];
   internalModels: string[];
-  /** A Rep's names (their own, a Rep Manager's team): the only reps offered. One name is shown fixed. */
+  /** A Rep's names (their own, then a Rep Manager's team): the only reps offered. */
   repScope?: string[];
+  /** Each Rep Manager with a team: themself, then the reps under them — what the second Rep filter offers. */
+  repTeams?: Record<string, string[]>;
 };
 
 /** Each facet's distinct trimmed values, in one trip. */
 export async function listOrderListOptions(scope?: { repScope?: string[] }): Promise<OrderListOptions> {
   const options = await allOrderListOptions();
-  return scope?.repScope ? { ...options, reps: scope.repScope, repScope: scope.repScope } : options;
+  if (scope?.repScope) return { ...options, reps: scope.repScope, repScope: scope.repScope };
+  return { ...options, repTeams: await repTeamOptions() };
+}
+
+/** Rep Managers with a team, for the second Rep filter. The sales portal unread, none: the first still works. */
+async function repTeamOptions(): Promise<Record<string, string[]>> {
+  try {
+    const [managers, teams] = await Promise.all([
+      query<{ email: string; name: string }>(
+        `SELECT lower(trim(email)) AS email, trim(full_name) AS name FROM users
+          WHERE role = 'rep_manager' AND trim(COALESCE(full_name, '')) <> ''`
+      ),
+      listTeams(),
+    ]);
+    const out: Record<string, string[]> = {};
+    for (const m of managers.rows) {
+      const team = (teams.get(m.email) ?? []).map((n) => n.trim()).filter((n) => n.toLowerCase() !== m.name.toLowerCase());
+      if (team.length) out[m.name] = [m.name, ...team];
+    }
+    return out;
+  } catch (error) {
+    console.error("repTeamOptions: could not read teams:", error);
+    return {};
+  }
 }
 
 async function allOrderListOptions(): Promise<OrderListOptions> {

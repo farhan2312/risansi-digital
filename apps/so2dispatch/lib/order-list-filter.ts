@@ -147,6 +147,11 @@ export type OrderListFilter = {
   search: string;
   zones: string[];
   reps: string[];
+  /**
+   * The second Rep filter: of the Rep Manager picked, who exactly — themself,
+   * any of the reps under them. Nothing picked is all of them.
+   */
+  repTeam?: string[];
   /** Set for a Rep or Rep Manager: the only reps they may see (their own, and a manager's team). */
   repScope?: string[];
   markets: string[];
@@ -313,6 +318,7 @@ export function parseOrderListFilter(
     search: (get("q") ?? "").trim(),
     zones: list(get("zone")),
     reps: list(get("rep")),
+    repTeam: list(get("repteam")),
     markets: list(get("market")),
     // Client names can hold commas, so they are kept apart by "|".
     clients: [...new Set((get("client") ?? "").split("|").map((v) => v.trim()).filter(Boolean))],
@@ -372,10 +378,10 @@ export function parseOrderListFilter(
 
 /**
  * A Rep sees only their own SOs, a Rep Manager also their team's
- * (User.rep_names). The Rep filter the URL asks for is kept to those names —
- * a manager may narrow to some of their reps, never reach past them — and
- * with nothing (or nothing of theirs) chosen it is all of them. No names
- * sees nothing. Anyone else, as is.
+ * (User.rep_names). The Rep filters the URL asks for are kept to those names —
+ * a manager may narrow to themself or some of their reps, never reach past
+ * them — and with nothing (or nothing of theirs) chosen it is all of them. No
+ * names sees nothing. Anyone else, as is.
  */
 export function scopeToRep<F extends { reps: string[] }>(
   filter: F,
@@ -384,7 +390,8 @@ export function scopeToRep<F extends { reps: string[] }>(
   if (!isRep(user.role)) return filter;
   const scope = user.rep_names?.length ? user.rep_names : ["(no rep linked)"];
   const allowed = new Map(scope.map((n) => [n.trim().toLowerCase(), n]));
-  const picked = filter.reps.map((r) => allowed.get(r.trim().toLowerCase())).filter((r): r is string => !!r);
+  const asked = (filter as { repTeam?: string[] }).repTeam?.length ? (filter as { repTeam?: string[] }).repTeam! : filter.reps;
+  const picked = asked.map((r) => allowed.get(r.trim().toLowerCase())).filter((r): r is string => !!r);
   return { ...filter, reps: picked.length ? picked : scope, repScope: scope };
 }
 
@@ -456,6 +463,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.search) p.set("q", f.search);
   if (f.zones.length) p.set("zone", f.zones.join(","));
   if (f.reps.length) p.set("rep", f.reps.join(","));
+  if (f.repTeam?.length) p.set("repteam", f.repTeam.join(","));
   if (f.markets.length) p.set("market", f.markets.join(","));
   if (f.clients?.length) p.set("client", f.clients.join("|"));
   if (f.types.length) p.set("type", f.types.join(","));
@@ -526,6 +534,8 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.internalModels.length) parts.push(`Internal model: ${f.internalModels.join(", ")}`);
   if (f.zones.length) parts.push(`Zone: ${f.zones.join(", ")}`);
   if (f.reps.length) parts.push(`Rep: ${f.reps.join(", ")}`);
+  // A Rep Manager's own login: Rep above already says who.
+  if (f.repTeam?.length && !f.repScope) parts.push(`Under Rep Manager: ${f.repTeam.join(", ")}`);
   if (f.markets.length) parts.push(`Market: ${f.markets.join(", ")}`);
   if (f.clients?.length) parts.push(`Client: ${f.clients.join(", ")}`);
   if (f.types.length) parts.push(`Type: ${f.types.join(", ")}`);
