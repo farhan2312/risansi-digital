@@ -231,13 +231,14 @@ export function OrderMakingWorkspace({
   const cols: { column: string; label: string }[] = [
     { column: "so_no", label: "SO No." },
     { column: "so_date", label: "SO Date" },
-    { column: "client_code", label: "Client Code" },
-    { column: "client_name", label: "Client Name" },
+    // The Client Code sits under the name, in one column.
+    { column: "client_name", label: "Client Name & Code" },
     { column: "order_type", label: "Order Type" },
     { column: "bill_mode", label: "Bill Mode" },
     // An FR (replacement) SO carries its complaint in place of a PO.
     { column: "complaint_no", label: "Complaint No." },
     { column: "po_no", label: "PO No." },
+    { column: "po_received_date", label: "PO Receiving Date" },
     { column: "order_value", label: "Order Value" },
     // Order Making PO's: an SO member does not see it.
     ...(mode === "so" ? [] : [{ column: "ec_sent_operation_date", label: "SO Sent to Operation" }]),
@@ -598,6 +599,9 @@ export function OrderMakingWorkspace({
                       >
                         {formatDisplay(field(c.column), row[c.column])}
                         {c.column === "order_value" && str(row.order_currency) ? ` ${str(row.order_currency)}` : ""}
+                        {c.column === "client_name" && str(row.client_code) && (
+                          <span className="block text-[11px] text-muted">{str(row.client_code)}</span>
+                        )}
                         {/* As in every department: Central's and Accounts' holds, and Only Billing. */}
                         {c.column === "so_no" && (
                           <>
