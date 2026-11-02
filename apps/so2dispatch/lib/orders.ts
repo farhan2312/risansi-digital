@@ -3781,6 +3781,7 @@ function orderListClauses(
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_ready_lots prl ON prl.item_id = s.id
                              WHERE s.order_id = o.id AND ${range("prl.packing_plan_date")})`);
     } else if (f.dateField === "drg_readiness") clauses.push(range("o.drg_readiness_date"));
+    else if (f.dateField === "po_date") clauses.push(range("o.customer_po_date"));
     else if (f.dateField === "boi_expected") {
       // A bought-out item's expected receipt date (the vendor's), on any EC of the SO.
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_boi_items xb ON xb.item_id = s.id

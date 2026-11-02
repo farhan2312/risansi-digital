@@ -644,6 +644,7 @@ export function OrderListFilterBar({
             if (f.value === "packing") return !dept || ["planning", "assembly", "dispatch"].includes(activeDept ?? "");
             // Drawing's own readiness date.
             if (f.value === "drg_readiness") return !dept || activeDept === "drawing";
+            if (f.value === "po_date") return activeDept === "drawing";
             // Purchase's bought-out items: when each is expected.
             if (f.value === "boi_expected") return !dept || activeDept === "purchase";
             if (f.value === "dispatch_target") return !dept && !noDispatchTarget;

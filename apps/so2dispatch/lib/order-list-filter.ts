@@ -37,6 +37,8 @@ export const ORDER_DATE_FIELDS = [
   { value: "readiness", label: "Readiness date" },
   // Drawing's own: when it says the SO's drawings will be ready.
   { value: "drg_readiness", label: "Drawing readiness" },
+  // Drawing also finds an SO by its client's Purchase Order date.
+  { value: "po_date", label: "PO date" },
   // Purchase's own: when a bought-out item is expected from its vendor.
   { value: "boi_expected", label: "Expected date" },
   // Assembly & Packing's own: when it plans to assemble a pump lot, and to pack a lot.
@@ -298,7 +300,7 @@ export function parseOrderListFilter(
           ? (dept ? "so_date" : fallbackDate)
         : dateFieldRaw === "assembly_plan" && dept && dept !== "assembly"
           ? "so_date"
-        : dateFieldRaw === "drg_readiness" && dept && dept !== "drawing"
+        : (dateFieldRaw === "drg_readiness" || dateFieldRaw === "po_date") && dept && dept !== "drawing"
           ? "so_date"
         : dateFieldRaw === "boi_expected" && dept && dept !== "purchase"
           ? "so_date"
