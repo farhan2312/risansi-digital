@@ -59,6 +59,7 @@ export async function getDashboardData({
   // subquery would resolve to the tag's own id.
   const rollup = sql<string>`(
     SELECT CASE
+      WHEN projects.completed_on IS NOT NULL THEN 'Completed'
       WHEN COUNT(*) = 0 THEN coalesce(projects.status, 'Pending')
       WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*) THEN 'Completed'
       WHEN COUNT(*) FILTER (WHERE t.status = 'Pending') = COUNT(*) THEN 'Pending'

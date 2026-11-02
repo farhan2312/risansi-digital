@@ -9,12 +9,14 @@ import { filterKey, type EnquiryFilterOptions, type EnquiryFilters } from "./enq
 
 const esc = (v: string) => v.replace(/([\\%_])/g, "\\$1");
 
-/** Same rollup as the Enquiries list: all tags Completed -> Completed, all
+/** Same rollup as the Enquiries list: marked Completed on the Edit form
+ *  (completed_on) -> Completed, all tags Completed -> Completed, all
  *  Pending -> Pending, otherwise In Progress. Outer columns written as
  *  projects.* - on a single-table select Drizzle renders ${projects.id} bare,
  *  which inside this subquery would mean the tag's id. */
 export const enquiryStatusSql = sql<string>`(
   SELECT CASE
+    WHEN projects.completed_on IS NOT NULL THEN 'Completed'
     WHEN COUNT(*) = 0 THEN coalesce(projects.status, 'Pending')
     WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*) THEN 'Completed'
     WHEN COUNT(*) FILTER (WHERE t.status = 'Pending') = COUNT(*) THEN 'Pending'

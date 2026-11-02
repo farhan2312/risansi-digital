@@ -35,8 +35,10 @@ export async function GET(req: Request) {
   // SQL so the Dashboard, Projects list and Reports list all agree without
   // an extra client round-trip. projects.status is left in place but no
   // longer read by the app; the wizard writes to enquiry_tags.status now.
+  // An enquiry marked Completed on the Edit form (completed_on) overrides them.
   const rollup = sql<string>`(
     SELECT CASE
+      WHEN ${projects.completedOn} IS NOT NULL THEN 'Completed'
       WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*)
            AND COUNT(*) > 0
         THEN 'Completed'

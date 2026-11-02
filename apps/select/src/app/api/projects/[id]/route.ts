@@ -108,6 +108,15 @@ export async function PATCH(
     const s = textOrNull(body.status);
     if (s === null) return error("'status' can't be empty", 400);
     patch.status = s;
+    // Completed carries its date; any other status hands it back to the tags.
+    if (s !== "Completed") patch.completedOn = null;
+    else if ("completedOn" in body) {
+      const d = textOrNull(body.completedOn);
+      if (d !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`)))) {
+        return error("'completedOn' must be a date (YYYY-MM-DD)", 400);
+      }
+      patch.completedOn = d;
+    }
   }
   if ("orderType" in body) {
     const t = orderTypeFrom(body.orderType);

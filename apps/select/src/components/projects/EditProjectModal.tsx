@@ -13,6 +13,7 @@ import {
   inputCls,
   type ClientForm,
 } from "./EnquiryFields";
+import { todayYmd } from "./CreateProjectModal";
 import type { ProjectRecord } from "../../services/projectService";
 import { ORDER_SUBTYPES, defaultSubtype, type OrderSubtype, type OrderType } from "../../lib/roles";
 
@@ -21,7 +22,7 @@ type Props = {
   project: ProjectRecord | null;
   isSaving?: boolean;
   onClose: () => void;
-  onSave: (input: { enquiryDate: string; status: string; orderType: OrderType; orderSubtype: OrderSubtype } & ClientForm) => void;
+  onSave: (input: { enquiryDate: string; status: string; completedOn: string; orderType: OrderType; orderSubtype: OrderSubtype } & ClientForm) => void;
 };
 
 const STATUS_OPTIONS = ["In Progress", "Completed", "Pending"];
@@ -30,6 +31,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   const [enquiryDate, setEnquiryDate] = useState("");
   const [status, setStatus] = useState("In Progress");
+  const [completedOn, setCompletedOn] = useState("");
   const [orderType, setOrderType] = useState<OrderType>("pump");
   const [orderSubtype, setOrderSubtype] = useState<OrderSubtype>("pcp");
 
@@ -47,12 +49,24 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
     });
     setEnquiryDate(project.enquiry_date ?? "");
     setStatus(project.status ?? "In Progress");
+    setCompletedOn(project.completed_on ?? "");
     const t: OrderType = project.order_type === "spare" ? "spare" : "pump";
     setOrderType(t);
     setOrderSubtype(ORDER_SUBTYPES[t].find((o) => o.value === project.order_subtype)?.value ?? defaultSubtype(t));
   }, [project]);
 
   if (!isOpen || !project) return null;
+
+  // Already Completed through its tags, never marked: the date is optional, so
+  // editing the client of a finished enquiry does not ask for one.
+  const doneByTags = project.status === "Completed" && !project.completed_on;
+  const completing = status === "Completed";
+  const dateMissing = completing && !doneByTags && !completedOn;
+  const dateTooEarly = completing && Boolean(completedOn && enquiryDate && completedOn < enquiryDate);
+  const chooseStatus = (s: string) => {
+    setStatus(s);
+    if (s === "Completed" && !doneByTags && !completedOn) setCompletedOn(todayYmd());
+  };
 
   return (
     <ModalShell
@@ -68,8 +82,8 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
           <button
             type="button"
             className={btnPrimary}
-            disabled={isSaving || !client.name.trim()}
-            onClick={() => onSave({ enquiryDate, status, orderType, orderSubtype, ...client })}
+            disabled={isSaving || !client.name.trim() || dateMissing || dateTooEarly}
+            onClick={() => onSave({ enquiryDate, status, completedOn: completing ? completedOn : "", orderType, orderSubtype, ...client })}
           >
             {isSaving ? "Saving…" : "Save Changes"}
           </button>
@@ -90,8 +104,8 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
         <Field label="Enquiry date">
           <input type="date" className={inputCls} value={enquiryDate} onChange={(e) => setEnquiryDate(e.target.value)} />
         </Field>
-        <Field label="Status">
-          <select className={inputCls} value={status} onChange={(e) => setStatus(e.target.value)}>
+        <Field label="Status" hint="Completed applies to the whole enquiry, whatever its tags say. Any other status follows the tags.">
+          <select className={inputCls} value={status} onChange={(e) => chooseStatus(e.target.value)}>
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -99,6 +113,21 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave }: Props)
             ))}
           </select>
         </Field>
+        {completing && (
+          <Field
+            label="Completion date"
+            required={!doneByTags}
+            hint={
+              dateTooEarly
+                ? "Can't be before the enquiry date."
+                : doneByTags
+                  ? "Completed through its tags. Enter a date to record it."
+                  : "The date this enquiry was completed."
+            }
+          >
+            <input type="date" className={inputCls} value={completedOn} min={enquiryDate || undefined} max={todayYmd()} onChange={(e) => setCompletedOn(e.target.value)} />
+          </Field>
+        )}
       </Section>
 
       <Section step={2} title="Client" subtitle="Pick a client to replace these details, or edit them">

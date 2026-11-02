@@ -472,9 +472,10 @@ const ProjectsPage = () => {
     setIsSaving(true);
     setError(null);
     try {
-      const updated = await updateProject(editing.id, input);
-      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      await updateProject(editing.id, input);
       setEditing(null);
+      // Re-read: the status shown is rolled up on the server, the PATCH reply has the raw row.
+      loadProjects();
     } catch {
       setError("Couldn't save the project changes. Please try again.");
     } finally {
@@ -806,6 +807,11 @@ const ProjectsPage = () => {
 
                     <span className="flex flex-col items-start gap-1">
                       <StatusPill status={project.status} />
+                      {project.completed_on && (
+                        <span className="text-[11px] text-fg-3">
+                          on {new Date(`${project.completed_on}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        </span>
+                      )}
                       {tags && (
                         <span className="text-[11px] text-fg-3">
                           {doneCount}/{tags.length} tag{tags.length === 1 ? "" : "s"} done
