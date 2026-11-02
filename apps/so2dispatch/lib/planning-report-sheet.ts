@@ -10,7 +10,7 @@ import {
 } from "@/lib/planning-report-pdf";
 import { readinessSummary } from "@/lib/readiness-history";
 import { PLANNING_CONTEXT_FIELDS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
-import { ecDone, pumpEcStage, latestPumpLot, pumpLotsFromEcs, type PumpLot } from "@/lib/assembly";
+import { LOT_PACKING_PENDING, ecDone, pumpEcStage, latestPumpLot, pumpLotsFromEcs, type PumpLot } from "@/lib/assembly";
 import { boiInHand, boiStatus, drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
 import { partDrawingStatus } from "@/lib/part-drawings";
 import { lotOnSlip, lotsFromRows } from "@/lib/ready-lots";
@@ -96,7 +96,7 @@ export function asmLotText(lot: PumpLot | undefined, slips: Row[]): string {
   const qty = lot.ecs.reduce((t, e) => t + e.qty, 0);
   const assembled = lot.ecs.reduce((t, e) => t + e.assembled, 0);
   const packed = lot.packed_date ? qty : 0;
-  const label = lot.packed_date ? "Packed" : lot.assembled_date ? "Assembled" : assembled > 0 ? "Partially assembled" : lot.status || "Pending";
+  const label = lot.packed_date ? "Packed" : lot.pack_status === LOT_PACKING_PENDING ? LOT_PACKING_PENDING : lot.assembled_date ? "Assembled" : assembled > 0 ? "Partially assembled" : lot.status || "Pending";
   const when = (done: string, plan: string, word: string) =>
     done ? `${word} ${day(done)}` : plan ? `${word} plan ${day(plan)}` : "";
   return [
@@ -104,6 +104,7 @@ export function asmLotText(lot: PumpLot | undefined, slips: Row[]): string {
     qty > 0 ? `Qty ${qty} · Assembled ${assembled} · Packed ${packed}` : "",
     when(lot.assembled_date, lot.assembly_plan_date, "Assembly"),
     when(lot.packed_date, lot.packing_plan_date, "Packing"),
+    lot.pack_remarks,
     lot.packed_date && !lotOnSlip(lot.n, slips) ? "No slip" : "",
   ]
     .filter(Boolean)

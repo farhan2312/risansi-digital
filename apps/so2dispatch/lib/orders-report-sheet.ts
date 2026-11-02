@@ -9,7 +9,7 @@ import { PACKED_FOR, PACKING_IN_PROGRESS, lotOnSlip, type SoLot } from "@/lib/re
 import { day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
 import type { OrderListRow, SoDeptStatus } from "@/lib/orders";
 import type { PumpSummary } from "@/lib/pump-summary";
-import { latestPumpLot, type PumpLot } from "@/lib/assembly";
+import { LOT_PACKING_PENDING, latestPumpLot, type PumpLot } from "@/lib/assembly";
 
 type Row = Record<string, unknown>;
 /** An SO's packing slips and dispatches, as the list's Packing Slips … Docket & LR columns read them. */
@@ -80,13 +80,14 @@ function pumpLot(l: PumpLot | undefined, slips: Row[]): string {
   if (!l) return "";
   const qty = l.ecs.reduce((t, e) => t + e.qty, 0);
   const assembled = l.ecs.reduce((t, e) => t + e.assembled, 0);
-  const label = l.packed_date ? "Packed" : l.assembled_date ? "Assembled" : assembled > 0 ? "Partially assembled" : l.status || "Pending";
+  const label = l.packed_date ? "Packed" : l.pack_status === LOT_PACKING_PENDING ? LOT_PACKING_PENDING : l.assembled_date ? "Assembled" : assembled > 0 ? "Partially assembled" : l.status || "Pending";
   const stage = (done: string, plan: string, word: string) => (done ? `${word} ${day(done)}` : plan ? `${word} plan ${day(plan)}` : "");
   return lines([
     label,
     qty > 0 && `Qty ${qty} · Assembled ${assembled} · Packed ${l.packed_date ? qty : 0}`,
     stage(l.assembled_date, l.assembly_plan_date, "Assembly"),
     stage(l.packed_date, l.packing_plan_date, "Packing"),
+    l.pack_remarks,
     l.packed_date && !lotOnSlip(l.n, slips) && "No slip",
   ]);
 }

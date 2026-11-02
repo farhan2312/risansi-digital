@@ -224,6 +224,7 @@ export function SoSections({
               canEditCentral={central}
               lotCount={Number(order.lot_count ?? 0)}
               packedLots={Array.isArray(order.packed_lots) ? (order.packed_lots as number[]) : []}
+              lotPacking={(order.lot_packing as Record<string, string> | null) ?? undefined}
             />
           </section>
         ) : (

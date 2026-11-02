@@ -284,6 +284,8 @@ export function BillingWorkspace({
                             canEdit={canEdit}
                           />
                         ) : (
+                          <>
+                          <PumpPackingLines lots={row.pump_lots} />
                           <DispatchInline
                             orderId={row.id}
                             soLabel={row.so_no ?? `#${row.sl_no}`}
@@ -292,6 +294,7 @@ export function BillingWorkspace({
                             billType={row.bill_type}
                             canEdit={canEdit}
                           />
+                          </>
                         )}
                       </td>
                       {mode === "dispatch" ? (
@@ -388,6 +391,23 @@ export function BillingWorkspace({
           onClose={() => setThreadFor(null)}
         />
       )}
+    </div>
+  );
+}
+
+/** A pump SO's lots as Assembly & Packing has them: Dispatch sees what is packed before sending. */
+function PumpPackingLines({ lots }: { lots: BillingQueueRow["pump_lots"] }) {
+  if (!lots?.length) return null;
+  return (
+    <div className="mb-2 flex w-[44rem] flex-wrap gap-1.5">
+      {lots.map((l) => (
+        <span key={l.n} title={l.remarks ?? undefined} className="inline-flex max-w-full items-center gap-1 rounded-md border border-card-border px-1.5 py-0.5 text-[11px]">
+          <span className="font-semibold text-foreground">Lot {l.n}</span>
+          <span className={l.status === "Packed" ? "text-emerald-700" : l.status ? "text-amber-700" : "text-muted"}>{l.status ?? "No packing status"}</span>
+          {l.status === "Packed" && l.packed_date && <span className="text-muted">{formatDate(l.packed_date)}</span>}
+          {l.remarks && <span className="truncate text-muted">· {l.remarks}</span>}
+        </span>
+      ))}
     </div>
   );
 }

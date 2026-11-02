@@ -33,6 +33,7 @@ export function dispatchSheet(rows: Row[], filterLine: string): ReportSheet {
     Col("Bill Mode", 14, "SO"),
     Col("Slips waiting", 30, "Packing slips & dispatches"),
     Col("Dispatches", 50, "Packing slips & dispatches"),
+    Col("Pump lots' packing", 34, "Packing slips & dispatches"),
     Col("Order Value", 14, "Order value details", true),
     Col("Currency", 9, "Order value details"),
     Col("Discount %", 10, "Order value details", true),
@@ -71,6 +72,12 @@ export function dispatchSheet(rows: Row[], filterLine: string): ReportSheet {
         pick(BILL),
         pick(WAITING),
         pick(DISPATCHES),
+        [
+          (Array.isArray(o.pump_lots) ? (o.pump_lots as Row[]) : [])
+            .map((l) => [`Lot ${str(l.n)}: ${str(l.status) || "No packing status"}`, str(l.status) === "Packed" && str(l.packed_date), str(l.remarks)].filter(Boolean).join(" · "))
+            .join("\n") || null,
+          null,
+        ],
         [amount(o.order_value), null],
         [str(o.order_currency) || null, null],
         [amount(o.discount_percent), null],

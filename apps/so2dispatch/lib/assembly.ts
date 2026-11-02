@@ -95,6 +95,9 @@ export type PumpLot = {
   packing_shift: string;
   pdi: string;
   packed_date: string;
+  /** What Assembly & Packing chose for it (LOT_PACKING_STATUSES); blank until then. */
+  pack_status: string;
+  pack_remarks: string;
 };
 
 /** The SO's lots from its pump ECs' lot rows: lot n is each EC's n-th row. */
@@ -140,6 +143,8 @@ export function pumpLotsFromEcs(ecRows: Row[]): PumpLot[] {
       packing_shift: pick("packing_shift"),
       pdi: pick("pdi"),
       packed_date: day(pick("packed_date")),
+      pack_status: pick("pump_packing_status") || (pick("packed_date") ? LOT_PACKED : ""),
+      pack_remarks: pick("packing_remarks"),
     });
   }
   return lots;
@@ -220,7 +225,7 @@ export function soStatuses(ecs: { id: string; quantity: number }[], lots: PumpLo
 }
 
 /** What Assembly & Packing edits on a lot as a whole: its packing. */
-export type LotStages = Pick<PumpLot, "n" | "packing_plan_date" | "packing_shift" | "pdi" | "packed_date">;
+export type LotStages = Pick<PumpLot, "n" | "packing_plan_date" | "packing_shift" | "pdi" | "packed_date" | "pack_status" | "pack_remarks">;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -262,6 +267,10 @@ export function lotStagesError(
     if (s.packing_shift && !ASSEMBLY_SHIFTS.includes(s.packing_shift)) return `${n}: choose the packing shift.`;
     if (s.pdi && !PDI_CHOICES.includes(s.pdi)) return `${n}: choose PDI Yes or No.`;
     const assembled = lotAssembly(l.ecs, mine).assembled_date;
+    if (s.pack_status && !LOT_PACKING_STATUSES.includes(s.pack_status)) return `${n}: choose the packing status.`;
+    if (s.pack_status === LOT_PACKED && !s.packed_date) return `${n}: enter the day it was packed.`;
+    if (s.pack_status === LOT_PACKING_PENDING && !s.pack_remarks.trim()) return `${n}: Actual Packing Pending needs remarks.`;
+    if (s.pack_status && !s.packed_date && !assembled) return `${n} needs all of it assembled before a packing status.`;
     if (s.packed_date && !assembled) return `${n} cannot be packed until all of it is assembled.`;
     if (s.packed_date && s.packed_date < assembled) return `${n} cannot be packed before the day it was assembled.`;
   }
@@ -299,6 +308,11 @@ export function pickStageStatuses(get: (key: string) => string | undefined, stag
     .map((v) => v.trim())
     .filter((v) => allowed.includes(v));
 }
+
+/** A pump lot's packing status: Assembly & Packing chooses it; with either, the lot can go on a packing slip. */
+export const LOT_PACKED = "Packed";
+export const LOT_PACKING_PENDING = "Actual Packing Pending";
+export const LOT_PACKING_STATUSES = [LOT_PACKED, LOT_PACKING_PENDING];
 
 /** The SO's latest lot, for the Latest Lot column: the last with an EC's share in it (else simply the last). */
 export function latestPumpLot(lots: PumpLot[]): PumpLot | undefined {

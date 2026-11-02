@@ -124,6 +124,23 @@ export type ItemSummary = {
   quantity: string | null;
 };
 
+/** A pump SO's (alias o) lots' packing statuses by lot number, as JSON; NULL on an SO with no pump EC. */
+const LOT_PACKING_SQL = `CASE WHEN EXISTS (SELECT 1 FROM order_items pe WHERE pe.order_id = o.id AND pe.item_type IN ('Pump', 'ROLB')) THEN
+  COALESCE((SELECT jsonb_object_agg(z.n, z.st) FROM (
+     SELECT y.n, max(y.st) AS st FROM (
+       SELECT row_number() OVER (PARTITION BY lq.item_id ORDER BY lq.seq)::int AS n,
+              COALESCE(lq.pump_packing_status, CASE WHEN lq.packed_date IS NOT NULL THEN 'Packed' END) AS st
+         FROM order_ready_lots lq JOIN order_items qi ON qi.id = lq.item_id
+        WHERE qi.order_id = o.id AND qi.item_type IN ('Pump', 'ROLB')) y
+      WHERE y.st IS NOT NULL GROUP BY y.n) z), '{}'::jsonb) END`;
+
+/** A pump SO's lots' packing statuses by lot number; null on an SO with no pump EC. */
+export async function lotPackingOf(orderId: string): Promise<Record<string, string> | null> {
+  if (!UUID_RE.test(orderId)) return null;
+  const r = await query<{ lots: Record<string, string> | null }>(`SELECT ${LOT_PACKING_SQL} AS lots FROM orders o WHERE o.id = $1`, [orderId]);
+  return r.rows[0]?.lots ?? null;
+}
+
 /** A row in the master SO list — one per sales order, with its EC items. */
 export type OrderListRow = {
   /** The SO's latest follow-up, and how many it has. */
@@ -646,7 +663,9 @@ export async function getOrderDetail(id: string): Promise<OrderDetail | null> {
           'packed_lots', COALESCE((SELECT jsonb_agg(DISTINCT n) FROM (
                                      SELECT (row_number() OVER (PARTITION BY lp.item_id ORDER BY lp.seq))::int AS n, lp.packed_date
                                        FROM order_ready_lots lp JOIN order_items pi2 ON pi2.id = lp.item_id
-                                      WHERE pi2.order_id = o.id) y WHERE y.packed_date IS NOT NULL), '[]'::jsonb)
+                                      WHERE pi2.order_id = o.id) y WHERE y.packed_date IS NOT NULL), '[]'::jsonb),
+          -- A pump SO: each lot's packing status, for the packing slips' Lot ticks.
+          'lot_packing', ${LOT_PACKING_SQL}
         ) AS order,
         to_jsonb(b)  AS order_billing,
         to_jsonb(ac) AS order_accounts,
@@ -2820,6 +2839,8 @@ export async function listItemsForSection(
 }
 
 export type BillingQueueRow = {
+  /** A pump SO's lots as Dispatch reads them: each one's packing status, day and remarks. */
+  pump_lots?: { n: number; status: string | null; packed_date: string | null; remarks: string | null }[];
   id: string;
   /** Dispatch: the SO's stage in Invoice → Dispatch → Docket & LR. */
   dispatch_stage?: string | null;
@@ -2903,6 +2924,13 @@ export async function listOrdersForBilling(
             o.taxable_value::text AS taxable_value,
             (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
                FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
+            (SELECT jsonb_agg(jsonb_build_object('n', pz.n, 'status', pz.status, 'packed_date', pz.packed_date, 'remarks', pz.remarks) ORDER BY pz.n)
+               FROM (SELECT py.n, max(py.st) AS status, to_char(max(py.packed_date), 'YYYY-MM-DD') AS packed_date, max(py.packing_remarks) AS remarks
+                       FROM (SELECT row_number() OVER (PARTITION BY pr.item_id ORDER BY pr.seq)::int AS n, pr.packed_date, pr.packing_remarks,
+                                    COALESCE(pr.pump_packing_status, CASE WHEN pr.packed_date IS NOT NULL THEN 'Packed' END) AS st
+                               FROM order_ready_lots pr JOIN order_items pit ON pit.id = pr.item_id
+                              WHERE pit.order_id = o.id AND pit.item_type IN ('Pump', 'ROLB')) py
+                      GROUP BY py.n) pz) AS pump_lots,
             b.challan_no,
             to_char(b.challan_date, 'YYYY-MM-DD') AS challan_date,
             b.challan_value::text AS challan_value,

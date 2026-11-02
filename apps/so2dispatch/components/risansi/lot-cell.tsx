@@ -1,6 +1,6 @@
 "use client";
 
-import type { PumpLot } from "@/lib/assembly";
+import { LOT_PACKING_PENDING, type PumpLot } from "@/lib/assembly";
 import { lotOnSlip } from "@/lib/ready-lots";
 
 type Row = Record<string, unknown>;
@@ -43,7 +43,9 @@ export function LotCell({ lot, slips }: { lot: PumpLot | undefined; slips: Row[]
   const packed = lot.packed_date ? qty : 0;
   const label = lot.packed_date
     ? "Packed"
-    : lot.assembled_date
+    : lot.pack_status === LOT_PACKING_PENDING
+      ? LOT_PACKING_PENDING
+      : lot.assembled_date
       ? "Assembled"
       : assembled > 0
         ? "Partially assembled"
@@ -68,6 +70,7 @@ export function LotCell({ lot, slips }: { lot: PumpLot | undefined; slips: Row[]
       )}
       {day(lot.assembled_date, lot.assembly_plan_date, "Assembly")}
       {day(lot.packed_date, lot.packing_plan_date, "Packing")}
+      {lot.pack_remarks && <span className="max-w-[14rem] whitespace-normal text-[11px] text-muted">{lot.pack_remarks}</span>}
       {/* Packed, but on no packing slip yet. */}
       {lot.packed_date && !lotOnSlip(lot.n, slips) && (
         <span className="rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>

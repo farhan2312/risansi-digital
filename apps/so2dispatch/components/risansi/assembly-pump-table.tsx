@@ -12,6 +12,9 @@ import {
   ecReadyLots,
   ecStageStatus,
   latestPumpLot,
+  LOT_PACKED,
+  LOT_PACKING_PENDING,
+  LOT_PACKING_STATUSES,
   lotAssembly,
   lotStagesError,
   pumpLotsFromEcs,
@@ -297,6 +300,7 @@ export function AssemblyPumpTable({
                               canEditCentral={canEditCentral}
                               lotCount={lots.length}
                               packedLots={lots.filter((l) => l.packed_date).map((l) => l.n)}
+                              lotPacking={Object.fromEntries(lots.filter((l) => l.pack_status).map((l) => [String(l.n), l.pack_status]))}
                             />
                           </td>
                           {/* Where Dispatch has got to: — until it has the SO (a numbered packing slip). */}
@@ -459,6 +463,8 @@ function LotStagesModal({
       packing_shift: l.packing_shift,
       pdi: l.pdi,
       packed_date: l.packed_date,
+      pack_status: l.pack_status,
+      pack_remarks: l.pack_remarks,
     }));
     const sending: AsmEntry[] = entries.map((e) => ({
       id: e.id,
@@ -544,14 +550,14 @@ function LotStagesModal({
                           <Pencil className="h-3 w-3" /> Edit lot
                         </button>
                       )}
-                      <Chip label={l.packed_date ? "Packed" : assembled ? "Assembled" : some ? "Partially assembled" : "Pending"} />
+                      <Chip label={l.packed_date ? "Packed" : l.pack_status === LOT_PACKING_PENDING ? LOT_PACKING_PENDING : assembled ? "Assembled" : some ? "Partially assembled" : "Pending"} />
                     </span>
                   </div>
                   {/* Packed though not all of it is assembled: it cannot be saved so. */}
                   {l.packed_date && !assembled && (
                     <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       Packed, but not all of this lot is assembled.{" "}
-                      {editing.includes(l.n) || ro ? "Mark the rest assembled, or untick Packed." : "Edit lot to mark the rest assembled, or untick Packed."}
+                      {editing.includes(l.n) || ro ? "Mark the rest assembled, or clear the packing status." : "Edit lot to mark the rest assembled, or clear the packing status."}
                     </p>
                   )}
                   <div className="grid gap-3 lg:grid-cols-[3fr_2fr]">
@@ -701,28 +707,53 @@ function LotStagesModal({
                             ))}
                           </select>
                         </Field>
-                        <label className="col-span-3 flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={!!l.packed_date}
-                            // Unticking is always open; ticking waits for all of the lot assembled.
-                            disabled={ro || (!assembled && !l.packed_date)}
-                            onChange={(e) => set(i, { packed_date: e.target.checked ? l.packing_plan_date || todayIso() : "" })}
-                            className="h-4 w-4 accent-primary"
-                          />
-                          Packed
-                          {!assembled && <span className="text-xs text-muted">(once all of the lot is assembled)</span>}
-                          {l.packed_date && (
-                            <input
-                              type="date"
-                              value={l.packed_date}
-                              disabled={ro}
-                              onChange={(e) => set(i, { packed_date: e.target.value })}
-                              aria-label={`Lot ${l.n} packed on`}
-                              className={`${input} ml-auto w-40`}
-                            />
+                        <div className="col-span-3 grid grid-cols-2 gap-2">
+                          <Field label="Packing status">
+                            <select
+                              value={l.pack_status}
+                              // Clearing is always open; choosing waits for all of the lot assembled.
+                              disabled={ro || (!assembled && !l.pack_status)}
+                              onChange={(e) => {
+                                const status = e.target.value;
+                                set(i, {
+                                  pack_status: status,
+                                  packed_date: status === LOT_PACKED ? l.packed_date || l.packing_plan_date || todayIso() : "",
+                                });
+                              }}
+                              className={input}
+                            >
+                              <option value="">—</option>
+                              {LOT_PACKING_STATUSES.map((s) => (
+                                <option key={s}>{s}</option>
+                              ))}
+                            </select>
+                          </Field>
+                          {l.pack_status === LOT_PACKED && (
+                            <Field label="Packed on">
+                              <input
+                                type="date"
+                                value={l.packed_date}
+                                disabled={ro}
+                                onChange={(e) => set(i, { packed_date: e.target.value })}
+                                className={input}
+                              />
+                            </Field>
                           )}
-                        </label>
+                        </div>
+                        {!assembled && !l.pack_status && (
+                          <p className="col-span-3 text-xs text-muted">Packing status opens once all of the lot is assembled.</p>
+                        )}
+                        <div className="col-span-3">
+                          <Field label={l.pack_status === LOT_PACKING_PENDING ? "Remarks *" : "Remarks"}>
+                            <input
+                              type="text"
+                              value={l.pack_remarks}
+                              disabled={ro || !named}
+                              onChange={(e) => set(i, { pack_remarks: e.target.value })}
+                              className={input}
+                            />
+                          </Field>
+                        </div>
                       </div>
                     </div>
                   </div>

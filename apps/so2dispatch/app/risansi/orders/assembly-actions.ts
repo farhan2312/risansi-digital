@@ -11,6 +11,8 @@ import { canEditSection } from "@/lib/roles";
 import { PUMP_LIKE } from "@/lib/order-schema";
 import {
   BASE_PLATE_STATUSES,
+  LOT_PACKED,
+  LOT_PACKING_PENDING,
   STAGE_WORDS,
   WOODEN_BOX_SOURCES,
   WOODEN_BOX_STATUSES,
@@ -72,7 +74,10 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
     packing_plan_date: t(l.packing_plan_date),
     packing_shift: t(l.packing_shift),
     pdi: t(l.pdi),
-    packed_date: t(l.packed_date),
+    // Actual Packing Pending is not packed, and a packed day is Packed.
+    packed_date: t(l.pack_status) === LOT_PACKING_PENDING ? "" : t(l.packed_date),
+    pack_status: t(l.pack_status) || (t(l.packed_date) ? LOT_PACKED : ""),
+    pack_remarks: t(l.pack_remarks),
   }));
   const sent: AsmEntry[] = (Array.isArray(entries) ? entries : []).map((e) => ({
     id: UUID_RE.test(t(e.id)) ? t(e.id) : "",
@@ -153,6 +158,10 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
           packing_shift: l.packing_shift,
           pdi: l.pdi,
         });
+        await query(
+          `UPDATE order_ready_lots SET pump_packing_status = NULLIF($2, ''), packing_remarks = NULLIF($3, '') WHERE id = $1`,
+          [row.id, l.pack_status, l.pack_remarks]
+        );
       }
       // The packing columns go through the Spare's own path, so a moved
       // packing date joins the packing plan history as it does there.
