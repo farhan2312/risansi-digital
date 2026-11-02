@@ -1534,6 +1534,16 @@ export const AFTER_RECEIPT_TERMS = ["After Receipt"];
 export const TERMS_WITH_DAYS = [...AFTER_RECEIPT_TERMS, "Letter of Credit"];
 
 /**
+ * A term line's payment status as it reads: what was recorded, and on an After
+ * Receipt line with nothing recorded, After Receipt. Read, not stored: a stored
+ * status would count as a payment when the SO's payments roll up.
+ */
+export function termPaymentStatus(t: { term?: unknown; term_payment_status?: unknown }): string {
+  const recorded = String(t.term_payment_status ?? "").trim();
+  return recorded || (AFTER_RECEIPT_TERMS.includes(String(t.term ?? "").trim()) ? "After Receipt" : "");
+}
+
+/**
  * Nothing is due before the client has the material: the order has payment
  * terms and every one of them is counted from receipt. That is what used to be
  * answered by hand as "Paid after Receipt" — it is now simply what the terms

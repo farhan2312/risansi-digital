@@ -3,7 +3,7 @@ import "server-only";
 // pop-up's Excel view shows: every column of the list but Chat, one row per
 // SO, Spare and Pump each with the columns its own view has.
 
-import { billModeLabel, PAYMENT_HOLD_VALUE, READY_LOT_LIMIT } from "@/lib/order-schema";
+import { billModeLabel, PAYMENT_HOLD_VALUE, READY_LOT_LIMIT, termPaymentStatus } from "@/lib/order-schema";
 import { CLOSED, assemblyView, ecQuantityOf, orderStatusOf, planningText, reachedAssembly, reachedDepts, reachedDispatch } from "@/lib/order-row-view";
 import { PACKED_FOR, PACKING_IN_PROGRESS, lotOnSlip, type SoLot } from "@/lib/ready-lots";
 import { day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
@@ -52,7 +52,7 @@ function paymentText(o: OrderListRow): string {
       paid(str(pi.pi_payment_status), str(pi.pi_amount_received), str(pi.pi_confirmed_date), str(pi.pi_hold_reason));
     } else {
       out.push("  No PI yet");
-      paid(str(t.term_payment_status), str(t.term_amount_received), str(t.term_confirmed_date), str(t.term_hold_reason));
+      paid(termPaymentStatus(t), str(t.term_amount_received), str(t.term_confirmed_date), str(t.term_hold_reason));
     }
   }
   for (const pi of unlinked) {

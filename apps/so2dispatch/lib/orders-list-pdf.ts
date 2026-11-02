@@ -1,7 +1,7 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import { sanitize, wrap } from "@/lib/pdf-text";
-import { billModeLabel, PAYMENT_HOLD_VALUE } from "@/lib/order-schema";
+import { billModeLabel, PAYMENT_HOLD_VALUE, termPaymentStatus } from "@/lib/order-schema";
 import { CLOSED, READY, assemblyView, planningText, reachedAssembly, reachedDepts, reachedDispatch } from "@/lib/order-row-view";
 import type { BillingQueueRow, DeptCell, OrderListRow, SoDeptStatus } from "@/lib/orders";
 import type { KpiCard, KpiTone } from "@/lib/kpis";
@@ -473,7 +473,7 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
       payment(str(pi.pi_payment_status), str(pi.pi_amount_received), str(pi.pi_confirmed_date), str(pi.pi_hold_reason));
     } else {
       pay.push({ text: "No PI yet", color: C.muted });
-      payment(str(t.term_payment_status), str(t.term_amount_received), str(t.term_confirmed_date), str(t.term_hold_reason));
+      payment(termPaymentStatus(t), str(t.term_amount_received), str(t.term_confirmed_date), str(t.term_hold_reason));
     }
   });
   unlinked.forEach((pi, n) => {

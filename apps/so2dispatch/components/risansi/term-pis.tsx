@@ -9,7 +9,7 @@ import {
   savePiAction,
   savePiPaymentAction,
 } from "@/app/risansi/orders/actions";
-import { PAYMENT_HOLD_VALUE, PAYMENT_STATUS_OPTIONS } from "@/lib/order-schema";
+import { PAYMENT_HOLD_VALUE, PAYMENT_STATUS_OPTIONS, termPaymentStatus } from "@/lib/order-schema";
 
 type Row = Record<string, unknown>;
 
@@ -480,7 +480,7 @@ function PaymentCell({ pi }: { pi: Row }) {
 function termAsLine(t: Row): Row {
   return {
     id: t.id,
-    pi_payment_status: t.term_payment_status,
+    pi_payment_status: termPaymentStatus(t),
     pi_confirmed_date: t.term_confirmed_date,
     pi_amount_received: t.term_amount_received,
     pi_hold_reason: t.term_hold_reason,

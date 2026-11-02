@@ -14,6 +14,7 @@ import {
   SECTION_BY_TABLE,
   type OrderField,
   type OrderFieldType,
+  termPaymentStatus,
 } from "@/lib/order-schema";
 import { buildSummarySheet, writeSheet, type SheetSpec } from "@/lib/order-export";
 import { statusColumn, statusOf, type OneCell, type OneGroup, type OneSheet } from "@/lib/one-click-export";
@@ -246,7 +247,7 @@ export function buildSpareOneSheet(orders: OrderExportRow[], statuses?: OneClick
       ),
       st("billing"),
       st("accounts"),
-      lines(o.order_payment_terms.map((t) => join(termLabel(t), paid(t.term_payment_status, t.term_confirmed_date, t.term_amount_received, t.term_hold_reason)))),
+      lines(o.order_payment_terms.map((t) => join(termLabel(t), paid(termPaymentStatus(t), t.term_confirmed_date, t.term_amount_received, t.term_hold_reason)))),
       lines(
         o.order_billing_docs.map((d) =>
           join(str(d.pi_no), day(d.pi_date), money(d.pi_value), termById.get(str(d.payment_term_id)) ?? "", paid(d.pi_payment_status, d.pi_confirmed_date, d.pi_amount_received, d.pi_hold_reason))
