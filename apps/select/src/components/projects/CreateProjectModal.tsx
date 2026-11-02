@@ -36,7 +36,7 @@ export function enquiryPrefix(now: Date = new Date()): string {
 export const todayYmd = (d: Date = new Date()): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
+const CreateEnquiryForm = ({ onClose, onCreate }: Omit<Props, "isOpen">) => {
   const [enquiryNo, setEnquiryNo] = useState<string>(() => enquiryPrefix());
   const [enquiryDate, setEnquiryDate] = useState(() => todayYmd());
   const [orderType, setOrderType] = useState<OrderType>("pump");
@@ -48,21 +48,11 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Refresh the prefix each time the modal opens - covers the rare Apr-1
-  // rollover mid-session, and resets the field after a cancelled attempt.
-  // If the user is mid-edit with a value that extends the prefix, keep it.
   useEffect(() => {
-    if (!isOpen) return;
-    const fresh = enquiryPrefix();
-    setEnquiryNo((v) => (v && v.startsWith(fresh) ? v : fresh));
-    setEnquiryDate((v) => v || todayYmd());
-    setError("");
     listAssignees()
       .then(setAssignees)
       .catch(() => setAssignees([]));
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+  }, []);
 
   const currentPrefix = enquiryPrefix();
 
@@ -166,7 +156,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
       </Section>
 
       <Section step={2} title="Client" subtitle="Pick from the client master to fill everything, or type it in">
-        <ClientFields value={client} onChange={setClient} active={isOpen} />
+        <ClientFields value={client} onChange={setClient} />
       </Section>
 
       <Section step={3} title="Assignment" subtitle="Who works on this enquiry">
@@ -189,5 +179,9 @@ const CreateProjectModal = ({ isOpen, onClose, onCreate }: Props) => {
     </ModalShell>
   );
 };
+
+// The form is mounted only while open, so every open starts blank: nothing
+// carries over from the last enquiry, created or cancelled.
+const CreateProjectModal = ({ isOpen, ...form }: Props) => (isOpen ? <CreateEnquiryForm {...form} /> : null);
 
 export default CreateProjectModal;
