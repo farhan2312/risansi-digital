@@ -106,6 +106,11 @@ export function isView360(role: string): boolean {
   return role === "view_360";
 }
 
+/** Who records an SO's follow-ups on the Orders list: Central, a Rep (their own SOs), CRM. 360° View only reads them. */
+export function canAddFollowup(role: string): boolean {
+  return isCentral(role) || isRep(role) || isCrm(role);
+}
+
 /** Sees the SOs but changes nothing: a Rep (their own), CRM or 360° View (all). */
 export function isReadOnlyViewer(role: string): boolean {
   return isRep(role) || isCrm(role) || isView360(role);

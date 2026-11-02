@@ -126,6 +126,8 @@ export type ItemSummary = {
 
 /** A row in the master SO list — one per sales order, with its EC items. */
 export type OrderListRow = {
+  /** The SO's latest follow-up, and how many it has. */
+  last_followup?: { followup_date: string; remarks: string; next_followup_date: string; count: number } | null;
   id: string;
   sl_no: number;
   so_no: string | null;
@@ -4108,6 +4110,12 @@ export async function listOrdersPage(opts: {
                       FROM order_payment_terms t WHERE t.order_id = o.id), '[]'::jsonb) AS term_lines,
             COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
                       FROM order_billing_docs pd WHERE pd.order_id = o.id), '[]'::jsonb) AS pi_docs,
+            (SELECT to_jsonb(x) FROM (
+               SELECT to_char(fu.followup_date, 'YYYY-MM-DD') AS followup_date, fu.remarks,
+                      to_char(fu.next_followup_date, 'YYYY-MM-DD') AS next_followup_date,
+                      (SELECT count(*)::int FROM order_followups c WHERE c.order_id = o.id) AS count
+                 FROM order_followups fu WHERE fu.order_id = o.id
+                ORDER BY fu.created_at DESC LIMIT 1) x) AS last_followup,
             (SELECT to_char(min(rp.planning_readiness_date), 'YYYY-MM-DD')
                FROM order_items ri JOIN order_planning rp ON rp.item_id = ri.id
               WHERE ri.order_id = o.id) AS readiness_from,

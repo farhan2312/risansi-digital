@@ -4,7 +4,7 @@ import "server-only";
 // SO, Spare and Pump each with the columns its own view has.
 
 import { billModeLabel, PAYMENT_HOLD_VALUE, READY_LOT_LIMIT } from "@/lib/order-schema";
-import { CLOSED, assemblyView, orderStatusOf, planningText, reachedAssembly, reachedDepts, reachedDispatch } from "@/lib/order-row-view";
+import { CLOSED, assemblyView, ecQuantityOf, orderStatusOf, planningText, reachedAssembly, reachedDepts, reachedDispatch } from "@/lib/order-row-view";
 import { PACKED_FOR, PACKING_IN_PROGRESS, lotOnSlip, type SoLot } from "@/lib/ready-lots";
 import { day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
 import type { OrderListRow, SoDeptStatus } from "@/lib/orders";
@@ -161,6 +161,7 @@ export function ordersSheet(opts: {
     Col("Order Value", 14, "SO", true),
     Col("Currency", 9, "SO"),
     Col("Order Value (INR)", 14, "SO", true),
+    ...(pump ? [Col("Quantity", 9, "SO", true)] : []),
     Col("Departments", 30, "SO"),
     Col("Payment terms, PIs & payment", 40, "SO"),
   ];
@@ -194,6 +195,7 @@ export function ordersSheet(opts: {
     Col("Order Pictures", 40, "Dispatch"),
     Col("Dispatch Status", 16, "Dispatch"),
     Col("ECs", 7, "Dispatch", true),
+    Col("Follow Up", 40, "Follow Up"),
   ];
   const columns = [...lead, ...middle, ...tail];
 
@@ -229,6 +231,7 @@ export function ordersSheet(opts: {
       [amount(o.order_value), null],
       [o.order_value ? currency : null, null],
       [currency.toUpperCase() === "INR" ? amount(o.order_value) : amount(o.order_value_inr), null],
+      ...(pump ? [[ecQuantityOf(o.items), null] as [SheetCell, Tone | null]] : []),
       [depts || null, null],
       [paymentText(o), null],
     ];
@@ -363,6 +366,12 @@ export function ordersSheet(opts: {
         !dispatchText ? null : dispatchText === "Hold" || closed ? "red" : !atDispatch ? "muted" : dispatch.toLowerCase() === "pending" ? "amber" : "green",
       ],
       [Number(o.ec_count ?? 0), null],
+      [
+        o.last_followup
+          ? lines([`${day(o.last_followup.followup_date)}: ${o.last_followup.remarks}`, `Next ${day(o.last_followup.next_followup_date)}`])
+          : null,
+        null,
+      ],
     ];
     const cells = [...leadCells, ...middleCells, ...tailCells];
     return {

@@ -15,6 +15,12 @@ export const CLOSED = ["Cancelled by client", "Diverted"];
  * Accounts'); else Active.
  */
 export type OrderStatus = "Active" | "Active-Hold" | "Canceled" | "Diverted" | "Closed";
+/** The SO's quantity: all its ECs' added up; null when none states one. */
+export function ecQuantityOf(items: { quantity: string | null }[] | null | undefined): number | null {
+  const given = (items ?? []).map((i) => Number(i.quantity)).filter((n, k) => (items ?? [])[k].quantity !== null && Number.isFinite(n));
+  return given.length ? given.reduce((t, n) => t + n, 0) : null;
+}
+
 export function orderStatusOf(o: {
   dispatch_status?: string | null;
   clearance_status?: string | null;

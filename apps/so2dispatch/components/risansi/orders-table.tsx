@@ -9,15 +9,16 @@ import { TermPis } from "./term-pis";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchPictures, type PictureLink } from "./dispatch-pictures";
+import { FollowupCell } from "./order-followups";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel } from "@/lib/order-schema";
 import { dispatchRowTone } from "@/lib/dept-view";
-import { canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
+import { canAddFollowup, canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
-import { CLOSED, READY, assemblyView, planningText, reachedAssembly, reachedDepts, orderStatusOf, reachedDispatch, type ReachedDept } from "@/lib/order-row-view";
+import { CLOSED, READY, assemblyView, ecQuantityOf, planningText, reachedAssembly, reachedDepts, orderStatusOf, reachedDispatch, type ReachedDept } from "@/lib/order-row-view";
 import { OrderStatusPill } from "./order-status-pill";
 import { ColumnFilter } from "./column-filter";
 import type { DeptCell, OrderListOptions, OrderListRow, SoDeptStatus } from "@/lib/orders";
@@ -443,7 +444,8 @@ export function OrdersTable({
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
   // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
-  const baseCols = (pump ? 16 + pumpDeptCols : 25) + 5;
+  // (+1 Follow Up; the Pump view +1 Quantity.)
+  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 6;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -492,6 +494,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label="Order Status" /></th>
                 <th rowSpan={2} className="px-4 py-3 text-right">Order Value</th>
+                {pump && <th rowSpan={2} className="px-4 py-3 text-right">Quantity</th>}
                 <th rowSpan={2} className="px-4 py-3">Departments</th>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
                 {pump ? (
@@ -524,6 +527,7 @@ export function OrdersTable({
                 </th>
                 <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
                 {canDelete && <th rowSpan={2} className="px-4 py-3" />}
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Follow Up</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 {pump ? (
@@ -651,6 +655,8 @@ export function OrdersTable({
                           "—"
                         )}
                       </td>
+                      {/* A pump SO's quantity: all its ECs' added up. */}
+                      {pump && <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{ecQuantityOf(order.items) ?? "—"}</td>}
                       {/* The departments the SO has reached, each opening its pop-up. */}
                       {(
                       <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
@@ -894,6 +900,14 @@ export function OrdersTable({
                           </button>
                         </td>
                       )}
+                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <FollowupCell
+                          orderId={order.id}
+                          soLabel={order.so_no ?? `#${order.sl_no}`}
+                          last={order.last_followup}
+                          canAdd={canAddFollowup(role)}
+                        />
+                      </td>
                     </tr>
                   </Fragment>
                 );
