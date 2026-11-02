@@ -170,7 +170,8 @@ export function TermPis({
           <PaymentCell pi={termAsLine(term)} />
         </td>
         <td className="py-1.5 text-right whitespace-nowrap">
-          {payments.canEdit && (
+          {/* An After Receipt term takes no payment here; one recorded earlier still shows. */}
+          {payments.canEdit && !isAfterReceipt(term) && (
             <button
               type="button"
               onClick={() => setPaying({ pi: termAsLine(term), label, termId: str(term.id) })}

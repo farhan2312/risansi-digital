@@ -64,6 +64,7 @@ import {
   BILLING_STATE,
 } from "@/lib/orders";
 import {
+  AFTER_RECEIPT_TERMS,
   CHILD_FIELDS,
   ORDER_STATUS_OPTIONS,
   splitHoldReason,
@@ -2981,19 +2982,22 @@ export async function savePiPaymentAction(
   if (locked) return { ok: false, error: locked };
 
   const line = (
-    await query<{ name: string | null; status: string | null; amount: string | null }>(
+    await query<{ name: string | null; status: string | null; amount: string | null; term?: string | null }>(
       piId
         ? `SELECT 'PI ' || COALESCE(pi_no, '—') || COALESCE(' (' || (SELECT concat_ws(' ', rtrim(rtrim(t.percent::text, '0'), '.') || '%', t.term)
                     FROM order_payment_terms t WHERE t.id = d.payment_term_id) || ')', '') AS name,
                   pi_payment_status AS status, pi_amount_received::text AS amount
              FROM order_billing_docs d WHERE id = $1 AND order_id = $2`
         : `SELECT concat_ws(' ', rtrim(rtrim(percent::text, '0'), '.') || '%', term) AS name,
-                  term_payment_status AS status, term_amount_received::text AS amount
+                  term_payment_status AS status, term_amount_received::text AS amount, term
              FROM order_payment_terms WHERE id = $1 AND order_id = $2`,
       [piId ?? termId, orderId]
     )
   ).rows[0];
   if (!line) return { ok: false, error: "Payment line not found." };
+  if (AFTER_RECEIPT_TERMS.includes(String(line.term ?? "").trim())) {
+    return { ok: false, error: "An After Receipt term takes no payment here." };
+  }
   const payment = { payment_status: status, confirmed_date: date, amount_received: amount, hold_reason: input.hold_reason ?? "" };
   const saved = piId ? await savePiPayment(orderId, piId, payment) : await saveTermPayment(orderId, termId!, payment);
   if (!saved) return { ok: false, error: "This term now has a PI — record the payment on the PI." };
