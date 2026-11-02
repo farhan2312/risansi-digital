@@ -300,10 +300,10 @@ export function pickStageStatuses(get: (key: string) => string | undefined, stag
     .filter((v) => allowed.includes(v));
 }
 
-/** The SO's latest lot, for the Latest Lot column after Lot 3: the last with an EC's share in it. */
+/** The SO's latest lot, for the Latest Lot column: the last with an EC's share in it (else simply the last). */
 export function latestPumpLot(lots: PumpLot[]): PumpLot | undefined {
   const withEcs = lots.filter((l) => l.ecs.length > 0);
-  return withEcs[withEcs.length - 1];
+  return withEcs[withEcs.length - 1] ?? lots[lots.length - 1];
 }
 
 /** The URL params the Pump view's Base plate and Wooden box filters live under. */

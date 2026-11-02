@@ -26,6 +26,16 @@ export function Chip({ label }: { label: string }) {
  * and packed, and the days — assembled (or planned) and packed (or planned).
  * Assembly & Packing's Pump view and Planning's show it alike.
  */
+/** The Latest Lot column: which lot it is, then its assembly and packing as any lot's. */
+export function LatestLot({ lot, slips }: { lot: PumpLot | undefined; slips: Row[] }) {
+  return (
+    <span className="flex flex-col items-start gap-0.5">
+      {lot && <span className="text-[11px] font-semibold text-muted">Lot {lot.n}</span>}
+      <LotCell lot={lot} slips={slips} />
+    </span>
+  );
+}
+
 export function LotCell({ lot, slips }: { lot: PumpLot | undefined; slips: Row[] }) {
   if (!lot) return <span className="text-muted">—</span>;
   const qty = lot.ecs.reduce((t, e) => t + e.qty, 0);

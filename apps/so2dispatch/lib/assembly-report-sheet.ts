@@ -2,7 +2,7 @@ import "server-only";
 import { C, assemblyReport, type Cell } from "@/lib/dept-report-pdf";
 import { alignmentText, asmLotText, day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
 import { PUMP_LIKE, READY_LOT_LIMIT } from "@/lib/order-schema";
-import { ecDone, ecReadyLots, ecStageStatus, pumpLotsFromEcs, soStatuses, type PumpLot } from "@/lib/assembly";
+import { ecDone, ecReadyLots, ecStageStatus, latestPumpLot, pumpLotsFromEcs, soStatuses, type PumpLot } from "@/lib/assembly";
 import { lotNosLabel } from "@/lib/ready-lots";
 import type { PumpSummary } from "@/lib/pump-summary";
 
@@ -91,6 +91,7 @@ export function assemblyPumpSheet(rows: Row[], filterLine: string): ReportSheet 
     Col("PPC Status", 16, "SO"),
     Col("Readiness Date", 13, "SO"),
     ...lotNs.map((n) => Col(`Lot ${n}`, 30, "Lots")),
+    Col("Latest Lot", 30, "Lots"),
     Col("Base Plate", 16, "Alignment"),
     Col("Wooden Box", 34, "Alignment"),
     Col("Assembly Status", 18, "Assembly"),
@@ -146,6 +147,11 @@ export function assemblyPumpSheet(rows: Row[], filterLine: string): ReportSheet 
         const t = asmLotText(lots.find((l) => l.n === n), slips);
         return [t || null, t ? (t.endsWith("No slip") ? "red" : statusTone(t)) : null];
       }),
+      ((): [SheetCell, Tone | null] => {
+        const last = latestPumpLot(lots);
+        const t = asmLotText(last, slips);
+        return [t && last ? `Lot ${last.n}\n${t}` : null, t ? (t.endsWith("No slip") ? "red" : statusTone(t)) : null];
+      })(),
       ...(["base_plate", "wooden_box"] as const).map((w): [SheetCell, Tone | null] => {
         const t = alignmentText(head.alignment as PumpSummary["alignment"] | undefined, w);
         return [t || null, t && t !== "No" ? statusTone(t.replace(/^[^:]*: /, "")) : null];

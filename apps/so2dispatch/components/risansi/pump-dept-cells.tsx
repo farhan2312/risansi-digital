@@ -3,7 +3,7 @@
 import type { PumpStage, PumpSummary } from "@/lib/pump-summary";
 import { latestPumpLot, type PumpLot } from "@/lib/assembly";
 import { AlignmentValue } from "./alignment-cell";
-import { LotCell } from "./lot-cell";
+import { LatestLot, LotCell } from "./lot-cell";
 
 type Dept = "drawing" | "purchase" | "quality" | "planning" | "assembly";
 type Tone = "done" | "part" | "pending" | "rework" | "na" | "hold";
@@ -53,16 +53,6 @@ function Cell({
       <span className={`text-[13px] font-medium ${TONE[tone]}`}>{text}</span>
       {line && <span className={`text-[11px] ${lineTone === "late" ? "font-medium text-rose-600" : "text-muted"}`}>{line}</span>}
     </button>
-  );
-}
-
-/** The Latest Lot column: which lot it is, then its assembly and packing as any lot's. */
-function LatestLot({ lot, slips }: { lot: PumpLot | undefined; slips: Record<string, unknown>[] }) {
-  return (
-    <span className="flex flex-col items-start gap-0.5">
-      {lot && <span className="text-[11px] font-semibold text-muted">Lot {lot.n}</span>}
-      <LotCell lot={lot} slips={slips} />
-    </span>
   );
 }
 

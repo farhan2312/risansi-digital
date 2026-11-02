@@ -11,6 +11,7 @@ import {
   ecDone,
   ecReadyLots,
   ecStageStatus,
+  latestPumpLot,
   lotAssembly,
   lotStagesError,
   pumpLotsFromEcs,
@@ -23,7 +24,7 @@ import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { AlignmentForm, AlignmentValue } from "./alignment-cell";
-import { Chip, LotCell } from "./lot-cell";
+import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
 import { SortHeader } from "./sort-header";
@@ -147,7 +148,7 @@ export function AssemblyPumpTable({
         <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
             <th colSpan={5} className="px-3 pt-2.5 pb-1">SO</th>
-            <th colSpan={lotCols.length} className={group}>Lots</th>
+            <th colSpan={lotCols.length + 1} className={group}>Lots</th>
             <th colSpan={2} className={group}>Alignment</th>
             <th colSpan={2} className={group}>Assembly</th>
             <th colSpan={3} className={group}>Packing</th>
@@ -164,6 +165,7 @@ export function AssemblyPumpTable({
             {lotCols.map((n, i) => (
               <th key={n} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
             ))}
+            <th className={th}>Latest Lot</th>
             <th className={`${th} border-l border-card-border`}>Base Plate</th>
             <th className={th}>Wooden Box</th>
             <th className={`${th} border-l border-card-border`}>Status</th>
@@ -187,7 +189,7 @@ export function AssemblyPumpTable({
         <tbody>
           {sos.length === 0 && (
             <tr>
-              <td colSpan={23 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
+              <td colSpan={24 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
                 No pump SO is ready to assemble.
               </td>
             </tr>
@@ -250,6 +252,10 @@ export function AssemblyPumpTable({
                               <LotCell lot={lots.find((l) => l.n === n)} slips={(head.so_child_rows ?? []) as Row[]} />
                             </td>
                           ))}
+                          {/* However many lots there are: the latest, whichever it is. */}
+                          <td rowSpan={span} className={soCell}>
+                            <LatestLot lot={latestPumpLot(lots)} slips={(head.so_child_rows ?? []) as Row[]} />
+                          </td>
                           {/* The SO's Alignment: base plate and wooden box. */}
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
                             <AlignmentValue alignment={head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor(orderId)} />
