@@ -29,7 +29,6 @@ import {
   savePiPayment,
   saveTermPayment,
   lockFactsForItem,
-  lotPackingOf,
   getOrderLabel,
   recomputeDispatchStatus,
   insertQcDocument,
@@ -1489,15 +1488,6 @@ export async function updateOrderChildAction(
     const maxLots = facts.rows[0]?.max_lots ?? 0;
     const bad = slipLots.find((n) => n > maxLots);
     if (bad) return { ok: false, error: `This SO has no Lot ${bad}.` };
-    // A pump lot joins a slip once Assembly & Packing has given it a packing
-    // status. A lot already on the slip stays as it is.
-    const soId = facts.rows[0]?.order_id;
-    const lotPacking = soId ? await lotPackingOf(soId) : null;
-    if (lotPacking) {
-      const had = parseLotNos(rowBefore?.lot_nos);
-      const waiting = slipLots.find((n) => !had.includes(n) && !lotPacking[String(n)]);
-      if (waiting) return { ok: false, error: `Lot ${waiting} has no packing status yet. Set it on Assembly & Packing first.` };
-    }
     const slipNo = ("packing_slip_no" in clean ? clean.packing_slip_no : String(rowBefore?.packing_slip_no ?? "")).trim();
     if (maxLots > 0 && slipNo && slipLots.length === 0) {
       return { ok: false, error: "Tick the lot(s) this packing slip carries." };

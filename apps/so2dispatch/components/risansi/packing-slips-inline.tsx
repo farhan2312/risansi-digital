@@ -49,7 +49,7 @@ export function PackingSlipsInline({
   lotCount?: number;
   /** Lot numbers with something packed. */
   packedLots?: number[];
-  /** A pump SO: each lot's packing status (by lot number); one without cannot go on a slip. */
+  /** A pump SO: each lot's packing status (by lot number), shown beside its tick. */
   lotPacking?: Record<string, string>;
   // The SO's market type and Packing Details Required: which fields apply.
   context: Row;
@@ -347,24 +347,17 @@ function SlipForm({
                 const on = lots.includes(n);
                 const packed = packedLots.includes(n);
                 const packing = lotPacking?.[String(n)];
-                // A pump lot with no packing status waits; one already on the slip can still come off.
-                const shut = !!lotPacking && !packing && !on;
                 return (
                   <label
                     key={n}
-                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      shut
-                        ? "cursor-not-allowed border-input-border text-muted opacity-60"
-                        : on
-                          ? "cursor-pointer border-primary bg-primary/[0.06] text-foreground"
-                          : "cursor-pointer border-input-border text-foreground hover:bg-background"
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      on ? "border-primary bg-primary/[0.06] text-foreground" : "border-input-border text-foreground hover:bg-background"
                     }`}
                   >
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-primary"
                       checked={on}
-                      disabled={shut}
                       onChange={() => setLots((cur) => (on ? cur.filter((x) => x !== n) : [...cur, n].sort((a, b) => a - b)))}
                     />
                     Lot {n}

@@ -134,13 +134,6 @@ const LOT_PACKING_SQL = `CASE WHEN EXISTS (SELECT 1 FROM order_items pe WHERE pe
         WHERE qi.order_id = o.id AND qi.item_type IN ('Pump', 'ROLB')) y
       WHERE y.st IS NOT NULL GROUP BY y.n) z), '{}'::jsonb) END`;
 
-/** A pump SO's lots' packing statuses by lot number; null on an SO with no pump EC. */
-export async function lotPackingOf(orderId: string): Promise<Record<string, string> | null> {
-  if (!UUID_RE.test(orderId)) return null;
-  const r = await query<{ lots: Record<string, string> | null }>(`SELECT ${LOT_PACKING_SQL} AS lots FROM orders o WHERE o.id = $1`, [orderId]);
-  return r.rows[0]?.lots ?? null;
-}
-
 /** A row in the master SO list — one per sales order, with its EC items. */
 export type OrderListRow = {
   /** The SO's latest follow-up, and how many it has. */

@@ -309,7 +309,7 @@ export function pickStageStatuses(get: (key: string) => string | undefined, stag
     .filter((v) => allowed.includes(v));
 }
 
-/** A pump lot's packing status: Assembly & Packing chooses it; with either, the lot can go on a packing slip. */
+/** A pump lot's packing status: Assembly & Packing chooses it. */
 export const LOT_PACKED = "Packed";
 export const LOT_PACKING_PENDING = "Actual Packing Pending";
 export const LOT_PACKING_STATUSES = [LOT_PACKED, LOT_PACKING_PENDING];
