@@ -1497,6 +1497,7 @@ export const PAYMENT_TERM_OPTIONS = opts([
   "Advance Against ABG",
   "Before Dispatch",
   "Balance Against PBG",
+  "Payment Against CBG",
   "After Receipt",
   "Payment Against Documents",
   "Cheque on Delivery",
