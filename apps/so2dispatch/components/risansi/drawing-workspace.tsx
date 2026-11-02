@@ -35,6 +35,9 @@ import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { applyDrawingVersionToSoAction } from "@/app/risansi/orders/drawing-readiness-actions";
 
 type Row = Record<string, unknown>;
+/** The SO No. column's set width, and so where the PO column pinned beside it starts. */
+const SO_W = "w-44 min-w-44 max-w-44";
+const SO_LEFT = "11rem";
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 const yes = (v: unknown) => str(v).trim().toLowerCase() === "yes";
 
@@ -192,12 +195,13 @@ export function DrawingWorkspace({
           <table className="w-full min-w-[1600px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={8} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={9} className="px-3 pt-2.5 pb-1">SO</th>
                 <th colSpan={8} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="sticky-so px-3 py-2"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
+                <th className={`sticky-so px-3 py-2 ${SO_W}`} style={{ boxShadow: "none" }}><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
+                <th className={`sticky-so px-3 py-2 ${SO_W}`} style={{ left: SO_LEFT }}>PO No. / Date</th>
                 <th className="px-3 py-2">Chat</th>
                 <th className="px-3 py-2">Client</th>
                 <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Drawing Target" sortKey="drg_target_date" /></th>
@@ -217,7 +221,7 @@ export function DrawingWorkspace({
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={17} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -242,10 +246,15 @@ export function DrawingWorkspace({
                               <td rowSpan={span} data-focus-row={str(g.head.order_id)} className={`${soCell} font-medium tabular-nums ${focusClass(str(g.head.order_id))}`}>
                                 {str(g.head.sl_no)}
                               </td>
-                              <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap`}>
+                              <td rowSpan={span} className={`${soCell} sticky-so ${SO_W}`} style={{ boxShadow: "none" }}>
                                 <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
                                 <HoldBadge order={g.head} />
                                 <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>
+                              </td>
+                              {/* Pinned beside the SO No. as the table scrolls. */}
+                              <td rowSpan={span} className={`${soCell} sticky-so ${SO_W}`} style={{ left: SO_LEFT }}>
+                                <span className="block break-words font-medium">{str(g.head.po_no) || "—"}</span>
+                                {str(g.head.customer_po_date) && <span className="block text-xs text-muted">{formatDate(g.head.customer_po_date)}</span>}
                               </td>
                               <td rowSpan={span} className={soCell}>
                                 <button

@@ -1791,6 +1791,8 @@ export const PAYMENT_TERMS_CONTEXT_FIELDS: OrderField[] = [
 // the Drawing workspace.
 export const DRAWING_CONTEXT_FIELDS: OrderField[] = [
   ...SO_CONTEXT_FIELDS,
+  { column: "po_no", label: "PO No.", type: "text" },
+  { column: "customer_po_date", label: "PO Date", type: "date" },
   { column: "drg_target_date", label: "Target Date for Drawing", type: "date" },
   // Drawing's own: when it says the SO's drawings will be ready (set on its page, with history).
   { column: "drg_readiness_date", label: "Drawing Readiness Date", type: "date" },
