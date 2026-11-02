@@ -444,8 +444,8 @@ export function OrdersTable({
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
   // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
-  // (+1 Follow Up, -1 ECs, shown on the row's button; the Pump view +1 Quantity.)
-  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 5;
+  // (+1 Follow Up; the Pump view +1 Quantity.)
+  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 6;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -525,6 +525,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">
                   <ColumnFilter column="dept:dispatch" label="Dispatch Status" />
                 </th>
+                <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Follow Up</th>
                 {canDelete && <th rowSpan={2} className="px-4 py-3" />}
               </tr>
@@ -877,6 +878,7 @@ export function OrdersTable({
                           onClick={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
                         />
                       </td>
+                      <td className="px-4 py-3 text-center tabular-nums">{order.ec_count}</td>
                       <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <FollowupCell
                           orderId={order.id}
