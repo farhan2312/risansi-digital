@@ -56,7 +56,7 @@ export function OrderStatusPanel({
 }) {
   const [open, setOpen] = useState(false);
   const override = str(order.status_override);
-  const fromInvoices = str(order.dispatch_status) || "Pending";
+  const fromInvoices = str(order.invoice_dispatch_status) || str(order.dispatch_status) || "Pending";
   const status = override || fromInvoices;
   const closed = status === "Cancelled by client" || status === "Diverted";
   const setBy = str(order.status_set_by_name);

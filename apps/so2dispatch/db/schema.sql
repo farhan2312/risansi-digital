@@ -3086,3 +3086,10 @@ CREATE TABLE IF NOT EXISTS order_followups (
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS order_followups_order_idx ON order_followups (order_id, created_at DESC);
+
+-- 0046  What the invoices alone make of an SO's dispatch gets its own column,
+-- so dispatch_status can always read as the portal shows it: the status set
+-- by hand if there is one, else this. Idempotent; changes no dispatch_status.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS invoice_dispatch_status TEXT;
+UPDATE orders SET invoice_dispatch_status = COALESCE(NULLIF(dispatch_status, ''), 'Pending')
+ WHERE invoice_dispatch_status IS NULL;

@@ -1801,7 +1801,7 @@ export async function recomputeDispatchStatus(orderId: string): Promise<void> {
   // invoices' quantity and value.
   await query(
     `UPDATE orders o
-        SET dispatch_status = CASE
+        SET invoice_dispatch_status = CASE
               WHEN EXISTS (SELECT 1 FROM order_packing_slips s WHERE s.order_id = o.id AND s.kind = 'actual') THEN
                 CASE
                   WHEN NOT EXISTS (${SENT_SLIPS_SQL("o")}) THEN 'Pending'
@@ -1849,6 +1849,11 @@ export async function recomputeDispatchStatus(orderId: string): Promise<void> {
                        AND (i.invoice_no IS NOT NULL OR i.challan_no IS NOT NULL
                             OR i.invoice_date IS NOT NULL OR i.challan_date IS NOT NULL
                             OR i.invoice_value IS NOT NULL OR i.challan_value IS NOT NULL))`,
+    [orderId]
+  );
+  // The stored status reads as the portal shows it: set by hand, else the invoices'.
+  await query(
+    `UPDATE orders SET dispatch_status = COALESCE(NULLIF(status_override, ''), invoice_dispatch_status, 'Pending') WHERE id = $1`,
     [orderId]
   );
 }
@@ -1918,7 +1923,8 @@ export type OrderStatusState = {
 export async function getOrderStatusState(orderId: string): Promise<OrderStatusState | null> {
   if (!UUID_RE.test(orderId)) return null;
   const r = await query<OrderStatusState>(
-    `SELECT so_no, sl_no::int AS sl_no, status_override, dispatch_status
+    `SELECT so_no, sl_no::int AS sl_no, status_override,
+            COALESCE(invoice_dispatch_status, dispatch_status) AS dispatch_status
        FROM orders WHERE id = $1`,
     [orderId]
   );
@@ -1928,7 +1934,8 @@ export async function getOrderStatusState(orderId: string): Promise<OrderStatusS
 /**
  * Set — or with null, clear — the status Central Visibility gives an order.
  * Cleared, the status follows the invoices again. The reason and the
- * diverted-to note belong to the setting, so clearing clears them too.
+ * diverted-to note belong to the setting, so clearing clears them too. The
+ * stored dispatch_status follows it, either way.
  */
 export async function setOrderStatus(input: {
   orderId: string;
@@ -1944,7 +1951,9 @@ export async function setOrderStatus(input: {
             status_reason      = CASE WHEN $2::text IS NULL THEN NULL ELSE $3 END,
             status_diverted_to = CASE WHEN $2::text = 'Diverted' THEN $4 ELSE NULL END,
             status_set_at      = now(),
-            status_set_by      = $5
+            status_set_by      = $5,
+            invoice_dispatch_status = COALESCE(invoice_dispatch_status, CASE WHEN status_override IS NULL THEN dispatch_status END),
+            dispatch_status    = COALESCE($2::text, invoice_dispatch_status, CASE WHEN status_override IS NULL THEN dispatch_status END, 'Pending')
       WHERE id = $1`,
     [input.orderId, input.status, input.reason, input.divertedTo, input.actorId]
   );
@@ -2901,7 +2910,7 @@ export async function listOrdersForBilling(
             ${DISPATCH_STATUS} AS dispatch_status,
             NULLIF(o.status_override, '') AS status_override,
             o.status_reason,
-            COALESCE(NULLIF(o.dispatch_status, ''), 'Pending') AS invoice_dispatch_status,
+            COALESCE(NULLIF(o.invoice_dispatch_status, ''), NULLIF(o.dispatch_status, ''), 'Pending') AS invoice_dispatch_status,
             COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.seq)
                       FROM order_billing_docs d WHERE d.order_id = o.id),
                      '[]'::jsonb) AS pi_docs,
