@@ -8,7 +8,7 @@ import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
-import { OrderPictures } from "./order-pictures";
+import { DispatchPictures, type PictureLink } from "./dispatch-pictures";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel } from "@/lib/order-schema";
 import { dispatchRowTone } from "@/lib/dept-view";
@@ -363,6 +363,24 @@ function DispatchDocCells({ docs, onOpen }: { docs: SoDispatchDocs | undefined; 
             )
           : none
       )}
+      {/* The order's pictures, dispatch by dispatch: each link opens on its own, so not within the button above. */}
+      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+        {invoices.some((v) => ((v.picture_links as PictureLink[] | undefined) ?? []).length > 0) ? (
+          <span className="flex flex-col items-start gap-2">
+            {invoices.map((v, i) => {
+              const links = (v.picture_links as PictureLink[] | undefined) ?? [];
+              return links.length > 0 ? (
+                <span key={i} className="flex flex-col items-start gap-1">
+                  <span className="whitespace-nowrap text-[11px] text-muted">Dispatch #{i + 1}</span>
+                  <DispatchPictures invoiceId={s(v.id)} label={`Dispatch #${i + 1}`} links={links} canEdit={false} />
+                </span>
+              ) : null;
+            })}
+          </span>
+        ) : (
+          none
+        )}
+      </td>
     </>
   );
 }
@@ -821,9 +839,6 @@ export function OrdersTable({
                         docs={dispatchDocs[order.id]}
                         onOpen={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
                       />
-                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                        <OrderPictures orderId={order.id} soLabel={order.so_no ?? `#${order.sl_no}`} links={order.picture_links} canEdit={false} />
-                      </td>
                       <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <StatusText
                           hold={held || dispatch === "Hold"}

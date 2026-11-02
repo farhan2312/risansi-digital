@@ -94,8 +94,8 @@ function pumpLot(l: PumpLot | undefined, slips: Row[]): string {
 /** A department's summary, then EC by EC: "40266 · Approved by client". */
 const withEcs = (head: string, ecs: { ec: string; text: string }[]) => lines([head, ...ecs.map((e) => `${e.ec} · ${e.text}`)]);
 
-/** Packing Slips, Invoice, Dispatch, Docket & LR, as the list's four cells read. */
-function docCells(docs: OrderDocs | undefined): [string, string, string, string] {
+/** Packing Slips, Invoice, Dispatch, Docket & LR and Order Pictures, as the list's five cells read. */
+function docCells(docs: OrderDocs | undefined): [string, string, string, string, string] {
   const slips = docs?.packing_slips ?? [];
   const invoices = docs?.invoices ?? [];
   const lotsOf = (v: unknown) => (Array.isArray(v) && v.length ? (v as number[]).map((n) => `L${n}`).join("+") : "");
@@ -124,6 +124,12 @@ function docCells(docs: OrderDocs | undefined): [string, string, string, string]
             ? "Docket pending"
             : "—"
       )
+      .join("\n"),
+    invoices
+      .flatMap((v, i) => {
+        const links = ((v.picture_links ?? []) as Row[]).map((p) => str(p.link));
+        return links.length ? [`Dispatch #${i + 1}`, ...links] : [];
+      })
       .join("\n"),
   ];
 }
@@ -337,7 +343,6 @@ export function ordersSheet(opts: {
     const dispatchText = closed ? dispatch : onlyBilling ? null : held || dispatch === "Hold" ? "Hold" : atDispatch ? dispatch : "Not at Dispatch yet";
     const tailCells: [SheetCell, Tone | null][] = [
       ...docCells(docs.get(o.id)).map((t): [SheetCell, Tone | null] => [t || null, /pending/i.test(t) ? "amber" : null]),
-      [(o.picture_links ?? []).map((p) => p.link).join("\n") || null, null],
       [
         dispatchText,
         !dispatchText ? null : dispatchText === "Hold" || closed ? "red" : !atDispatch ? "muted" : dispatch.toLowerCase() === "pending" ? "amber" : "green",

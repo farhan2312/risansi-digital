@@ -7,6 +7,7 @@ import { CheckCircle2, Circle, ExternalLink, Loader2, Pencil, Trash2, Truck } fr
 import { deleteOrderChildAction } from "@/app/risansi/orders/actions";
 import { nextStep, stepsDone, type DispatchStepKey } from "@/lib/dispatch-steps";
 import { DispatchWizard } from "./dispatch-wizard";
+import { DispatchPictures, type PictureLink } from "./dispatch-pictures";
 
 type Row = Record<string, unknown>;
 
@@ -27,15 +28,18 @@ function day(v: unknown): string {
  * Docket & LR, each filled in or "—" — and one line per packing slip still
  * waiting, with a tick. Tick the slips going out together and New dispatch
  * opens the step-by-step pop-up; Continue picks a dispatch up where it stopped.
+ * Each dispatch carries its own pictures of the order: SharePoint links.
  */
 export function DispatchInline({
   orderId,
+  soLabel,
   slips,
   invoices,
   billType,
   canEdit,
 }: {
   orderId: string;
+  soLabel: string;
   slips: Row[];
   invoices: Row[];
   billType: unknown;
@@ -91,7 +95,7 @@ export function DispatchInline({
   );
 
   return (
-    <div className="w-[44rem]">
+    <div className="w-[51rem]">
       <table className="w-full table-fixed text-xs">
         <colgroup>
           <col className="w-[8rem]" />
@@ -99,6 +103,7 @@ export function DispatchInline({
           <col className="w-[8.5rem]" />
           <col className="w-[7.5rem]" />
           <col className="w-[6.5rem]" />
+          <col className="w-[7rem]" />
           <col />
         </colgroup>
         <thead>
@@ -108,6 +113,7 @@ export function DispatchInline({
             <th className="pb-1.5 pr-2 whitespace-nowrap">2 · Sent</th>
             <th className="pb-1.5 pr-2 whitespace-nowrap">3 · Docket / LR</th>
             <th className="pb-1.5 pr-2 whitespace-nowrap">Status</th>
+            <th className="pb-1.5 pr-2 whitespace-nowrap">Order Pictures</th>
             <th className="pb-1.5" />
           </tr>
         </thead>
@@ -169,6 +175,14 @@ export function DispatchInline({
                       Next: {nextLabel}
                     </span>
                   )}
+                </td>
+                <td className="py-2 pr-2">
+                  <DispatchPictures
+                    invoiceId={str(inv.id)}
+                    label={`${soLabel} · Dispatch #${n}`}
+                    links={inv.picture_links as PictureLink[] | undefined}
+                    canEdit={canEdit}
+                  />
                 </td>
                 <td className="rounded-r-md py-2 pr-1.5 text-right whitespace-nowrap">
                   {canEdit && (
@@ -241,7 +255,7 @@ export function DispatchInline({
                 <td colSpan={3} className="py-2 pr-2 text-[11px] text-muted">
                   {canEdit ? "Tick to send it on a new dispatch" : "Not on a dispatch yet"}
                 </td>
-                <td colSpan={2} className="rounded-r-md py-2 pr-2">
+                <td colSpan={3} className="rounded-r-md py-2 pr-2">
                   <span className="inline-flex rounded-full border border-slate-300 bg-surface px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:border-white/20 dark:text-slate-300">
                     Waiting
                   </span>

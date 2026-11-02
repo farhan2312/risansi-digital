@@ -3,29 +3,31 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Image as ImageIcon, Loader2, Plus, Trash2, X } from "lucide-react";
-import { addOrderPicturesAction, removeOrderPictureAction } from "@/app/risansi/orders/picture-actions";
+import { addDispatchPicturesAction, removeDispatchPictureAction } from "@/app/risansi/orders/picture-actions";
 
 export type PictureLink = { id: string; link: string };
 
 /**
- * The order's pictures: its SharePoint links, each opening directly. Dispatch
- * adds and removes them here; the Orders page shows them as they stand.
+ * The order's pictures on one dispatch: its SharePoint links, each opening
+ * directly. Dispatch adds and removes them here; the Orders page shows them
+ * as they stand.
  */
-export function OrderPictures({
-  orderId,
-  soLabel,
+export function DispatchPictures({
+  invoiceId,
+  label,
   links,
   canEdit,
 }: {
-  orderId: string;
-  soLabel: string;
+  invoiceId: string;
+  /** What the pop-up says it is for: the SO and the dispatch. */
+  label: string;
   links?: PictureLink[] | null;
   canEdit: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const list = links ?? [];
   return (
-    <span className="flex min-w-[6rem] flex-col items-start gap-1">
+    <span className="flex flex-col items-start gap-1">
       {list.map((l, i) => (
         <a
           key={l.id}
@@ -55,19 +57,19 @@ export function OrderPictures({
       ) : (
         list.length === 0 && <span className="text-muted-foreground">—</span>
       )}
-      {open && <PicturesDialog orderId={orderId} soLabel={soLabel} links={list} onClose={() => setOpen(false)} />}
+      {open && <PicturesDialog invoiceId={invoiceId} label={label} links={list} onClose={() => setOpen(false)} />}
     </span>
   );
 }
 
 function PicturesDialog({
-  orderId,
-  soLabel,
+  invoiceId,
+  label,
   links,
   onClose,
 }: {
-  orderId: string;
-  soLabel: string;
+  invoiceId: string;
+  label: string;
   links: PictureLink[];
   onClose: () => void;
 }) {
@@ -80,7 +82,7 @@ function PicturesDialog({
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await addOrderPicturesAction(orderId, text);
+    const res = await addDispatchPicturesAction(invoiceId, text);
     setBusy(false);
     if (!res.ok) {
       setError(res.error);
@@ -94,7 +96,7 @@ function PicturesDialog({
     if (!window.confirm(`Remove Picture ${n}?`)) return;
     setBusy(true);
     setError(null);
-    const res = await removeOrderPictureAction(l.id);
+    const res = await removeDispatchPictureAction(l.id);
     setBusy(false);
     if (!res.ok) {
       setError(res.error);
@@ -122,7 +124,7 @@ function PicturesDialog({
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-semibold text-foreground">Order pictures</h2>
-            <p className="text-xs text-muted">SO {soLabel}</p>
+            <p className="text-xs text-muted">{label}</p>
           </div>
           <button
             type="button"
