@@ -17,7 +17,8 @@ const inputClass =
 
 /**
  * A Spare's readiness lots inside the Planning form. Editing: each lot's
- * status and date, Add lot up to the limit, and remove the last one. Once a
+ * status and date, Add lot (a Spare up to the limit, a pump as many as it
+ * needs), and remove the last one. Once a
  * lot is Fully ready the lots lock; "Correct lots" opens them again.
  */
 export function ReadyLotsEditor({
@@ -67,7 +68,7 @@ export function ReadyLotsEditor({
         <p className="text-[13px] font-semibold text-foreground">
           Readiness lots{" "}
           <span className="font-normal text-muted">
-            (up to {READY_LOT_LIMIT} · the status and readiness date follow the latest lot)
+            ({ecs ? "as many as needed" : `up to ${READY_LOT_LIMIT}`} · the status and readiness date follow the latest lot)
           </span>
         </p>
         {editing && frozen && !unlocked && (
@@ -180,7 +181,7 @@ export function ReadyLotsEditor({
       {editing && frozen && !unlocked && (
         <p className="mt-2 text-xs text-muted">Fully ready — the lots are locked.</p>
       )}
-      {editable && !lotsFrozen(lots) && lots.length < READY_LOT_LIMIT && (
+      {editable && !lotsFrozen(lots) && (ecs || lots.length < READY_LOT_LIMIT) && (
         <button
           type="button"
           onClick={() => onChange([...lots, ecs ? { status: "", ready_date: "", ecs: {} } : { status: "", ready_date: "" }])}

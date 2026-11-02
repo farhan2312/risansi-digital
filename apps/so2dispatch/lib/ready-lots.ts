@@ -104,7 +104,8 @@ export function lotsSummary(lots: ReadyLot[]): { status: string; date: string } 
 
 /** The first thing wrong with a set of lots, or null when they can be saved. */
 export function lotsError(lots: ReadyLot[]): string | null {
-  if (lots.length > READY_LOT_LIMIT) return `A Spare takes at most ${READY_LOT_LIMIT} lots.`;
+  // A pump's lots name their ECs, and it takes as many as it needs.
+  if (lots.length > READY_LOT_LIMIT && !lots.some((l) => l.ecs)) return `A Spare takes at most ${READY_LOT_LIMIT} lots.`;
   for (let i = 0; i < lots.length; i++) {
     const lot = lots[i];
     const n = i + 1;

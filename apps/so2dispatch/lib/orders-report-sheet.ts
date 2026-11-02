@@ -9,7 +9,7 @@ import { PACKED_FOR, PACKING_IN_PROGRESS, lotOnSlip, type SoLot } from "@/lib/re
 import { day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
 import type { OrderListRow, SoDeptStatus } from "@/lib/orders";
 import type { PumpSummary } from "@/lib/pump-summary";
-import type { PumpLot } from "@/lib/assembly";
+import { latestPumpLot, type PumpLot } from "@/lib/assembly";
 
 type Row = Record<string, unknown>;
 /** An SO's packing slips and dispatches, as the list's Packing Slips … Docket & LR columns read them. */
@@ -175,8 +175,10 @@ export function ordersSheet(opts: {
         Col("Planning Status", 16, "Planning"),
         Col("Assembly Readiness", 14, "Planning"),
         ...LOTS.map((n) => Col(`Planning Lot ${n}`, 20, "Planning")),
+        Col("Planning Latest Lot", 20, "Planning"),
         Col("Alignment", 26, "Assembly & Packing"),
         ...LOTS.map((n) => Col(`Assembly & Packing Lot ${n}`, 32, "Assembly & Packing")),
+        Col("Assembly & Packing Latest Lot", 32, "Assembly & Packing"),
       ]
     : [
         Col("Readiness Date", 14, "Planning"),
@@ -289,6 +291,12 @@ export function ordersSheet(opts: {
             const t = planningLot(soLots[n - 1]);
             return [t || null, t ? statusTone(t) : null];
           }),
+          // The latest, however many lots there are: which it is, then as any lot.
+          ((): [SheetCell, Tone | null] => {
+            const last = soLots[soLots.length - 1];
+            const t = planningLot(last);
+            return [t ? `Lot ${last.n}\n${t}` : null, t ? statusTone(t) : null];
+          })(),
           [
             lines([
               align("Base plate", s.alignment.base_plate, s.alignment.base_plate_status, s.alignment.base_plate_date),
@@ -307,6 +315,13 @@ export function ordersSheet(opts: {
             const t = pumpLot(s.lots.find((l) => l.n === n && l.ecs.length > 0), slips);
             return [t || null, t ? (t.includes("No slip") ? "red" : statusTone(t)) : null];
           }),
+          ((): [SheetCell, Tone | null] => {
+            if (s.held) return ["Hold", "red"];
+            if (!s.sentToAssembly) return [null, null];
+            const last = latestPumpLot(s.lots);
+            const t = pumpLot(last, slips);
+            return [t && last ? `Lot ${last.n}\n${t}` : null, t ? (t.includes("No slip") ? "red" : statusTone(t)) : null];
+          })(),
         ];
       }
     } else {

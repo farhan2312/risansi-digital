@@ -1,7 +1,7 @@
 "use client";
 
 import type { PumpStage, PumpSummary } from "@/lib/pump-summary";
-import type { PumpLot } from "@/lib/assembly";
+import { latestPumpLot, type PumpLot } from "@/lib/assembly";
 import { AlignmentValue } from "./alignment-cell";
 import { LotCell } from "./lot-cell";
 
@@ -56,6 +56,16 @@ function Cell({
   );
 }
 
+/** The Latest Lot column: which lot it is, then its assembly and packing as any lot's. */
+function LatestLot({ lot, slips }: { lot: PumpLot | undefined; slips: Record<string, unknown>[] }) {
+  return (
+    <span className="flex flex-col items-start gap-0.5">
+      {lot && <span className="text-[11px] font-semibold text-muted">Lot {lot.n}</span>}
+      <LotCell lot={lot} slips={slips} />
+    </span>
+  );
+}
+
 /** A stage across the SO's ECs: the status holding it back, and how many are through. */
 function stageTone(s: PumpStage, doneLabel: string): Tone {
   if (s.total > 0 && s.done === s.total) return "done";
@@ -101,8 +111,9 @@ export function PumpLeadGroupHeads({
       <th colSpan={4} className={g}>{h("drawing", "Drawing")}</th>
       <th colSpan={1} className={g}>{h("purchase", "Purchase")}</th>
       <th colSpan={1} className={g}>{h("quality", "Quality")}</th>
-      <th colSpan={2 + lotCount} className={g}>{h("planning", "Planning")}</th>
-      <th colSpan={1 + lotCount} className={g}>{h("assembly", "Assembly & Packing")}</th>
+      {/* Each with its Latest Lot after the numbered ones. */}
+      <th colSpan={3 + lotCount} className={g}>{h("planning", "Planning")}</th>
+      <th colSpan={2 + lotCount} className={g}>{h("assembly", "Assembly & Packing")}</th>
     </>
   );
 }
@@ -123,10 +134,12 @@ export function PumpLeadSubHeads({ lotCount }: { lotCount: number }) {
       {Array.from({ length: lotCount }, (_, i) => (
         <th key={i} className={h()}>Lot {i + 1}</th>
       ))}
+      <th className={h()}>Latest Lot</th>
       <th className={h(true)}>Alignment</th>
       {Array.from({ length: lotCount }, (_, i) => (
         <th key={`a${i}`} className={h()}>Lot {i + 1}</th>
       ))}
+      <th className={h()}>Latest Lot</th>
     </>
   );
 }
@@ -314,6 +327,9 @@ export function PumpAfterPlanningCells({
           {s.held ? holdText : s.sentToAssembly ? <LotCell lot={lots.find((l) => l.n === n && l.ecs.length > 0)} slips={slips} /> : none}
         </td>
       ))}
+      <td rowSpan={rowSpan} className={className}>
+        {s.held ? holdText : s.sentToAssembly ? <LatestLot lot={latestPumpLot(lots)} slips={slips} /> : none}
+      </td>
       <td rowSpan={rowSpan} className={`${className} whitespace-nowrap border-l border-card-border`}>
         {s.slips.length
           ? s.slips.map((p, i) => (
@@ -390,6 +406,18 @@ export function PumpTailCells({ s, lotCount, onOpen }: { s: PumpSummary; lotCoun
           )}
         </td>
       ))}
+      {/* However many lots there are: the latest, whichever it is. */}
+      <td className={`${td()} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
+        {s.held ? (
+          <span className={`text-[13px] font-medium ${TONE.hold}`}>Hold</span>
+        ) : s.sentToAssembly ? (
+          <button type="button" onClick={() => onOpen("assembly")} title="Open" className="-m-1 rounded-md p-1 text-left hover:bg-background">
+            <LatestLot lot={latestPumpLot(s.lots)} slips={slips} />
+          </button>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </td>
     </>
   );
 }

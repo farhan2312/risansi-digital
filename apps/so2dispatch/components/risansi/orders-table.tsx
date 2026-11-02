@@ -437,7 +437,8 @@ export function OrdersTable({
   const pump = ordersKind(getParam("type")) === "pump" && !!pumpSummaries;
   // Its department columns: Drawing 4, Purchase 1, Quality 1, Planning 2 and
   // its lots, Assembly & Packing its Alignment and its lots.
-  const pumpDeptCols = 4 + 1 + 1 + 2 + LOT_COLUMNS.length + 1 + LOT_COLUMNS.length;
+  // Planning's and Assembly & Packing's lots, each with its Latest Lot.
+  const pumpDeptCols = 4 + 1 + 1 + 2 + LOT_COLUMNS.length + 1 + 1 + LOT_COLUMNS.length + 1;
   // expand-toggle + 19 data columns (Planning and Assembly & Packing three lot
   // columns each) + open/add-on + optional delete. The Pump view has no Type,
   // Departments, Readiness or Packing Date column, and its department groups.
@@ -732,9 +733,19 @@ export function OrdersTable({
                                     onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
                                   />
                                 </td>
-                              ))
+                              )).concat(
+                                <td key="pLatest" className="whitespace-nowrap px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                                  <span className="flex flex-col items-start gap-0.5">
+                                    <span className="text-[11px] font-semibold text-muted">Lot {lots[lots.length - 1].n}</span>
+                                    <PlanningLotCell
+                                      lot={lots[lots.length - 1]}
+                                      onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                                    />
+                                  </span>
+                                </td>
+                              )
                             ) : (
-                              <td colSpan={LOT_COLUMNS.length} className="px-4 py-3 align-top text-xs text-muted-foreground">No lots yet</td>
+                              <td colSpan={LOT_COLUMNS.length + 1} className="px-4 py-3 align-top text-xs text-muted-foreground">No lots yet</td>
                             )}
                             <PumpTailCells
                               s={pumpSummaries[order.id]}

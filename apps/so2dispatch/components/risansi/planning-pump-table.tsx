@@ -111,10 +111,10 @@ export function PlanningPumpTable({
 
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
-  const soSpan = 6 + soColumns.length + LOT_COLUMNS.length + (canEdit ? 1 : 0);
+  const soSpan = 6 + soColumns.length + LOT_COLUMNS.length + 1 + (canEdit ? 1 : 0);
   // After Planning, once per SO, right after its lots.
   // After Planning, as Assembly & Packing lays it out: the Alignment, then a column per lot.
-  const AFTER = ["Base Plate", "Wooden Box", ...LOT_COLUMNS.map((n) => `Lot ${n}`), "Packing Slips", "Dispatch Status"];
+  const AFTER = ["Base Plate", "Wooden Box", ...LOT_COLUMNS.map((n) => `Lot ${n}`), "Latest Lot", "Packing Slips", "Dispatch Status"];
   const showAfter = !!summaries;
   // Today in the browser's calendar, to mark a plan that has passed.
   const today = new Date().toLocaleDateString("en-CA");
@@ -147,6 +147,7 @@ export function PlanningPumpTable({
           {LOT_COLUMNS.map((n) => (
             <th key={n} className={th}>Lot {n}</th>
           ))}
+          <th className={th}>Latest Lot</th>
           {showAfter &&
             AFTER.map((h, i) => (
               <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>{h}</th>
@@ -258,9 +259,12 @@ export function PlanningPumpTable({
                             "—"
                           )}
                         </td>
-                        {LOT_COLUMNS.map((n) => {
+                        {/* Lot 1 to 3, then the latest however many there are (col 0). */}
+                        {[...LOT_COLUMNS, 0].map((col) => {
                           // The SO's lots are the same on every EC: the first's stand for all.
-                          const lot = lotsFromRows(head.ready_lots)[n - 1];
+                          const planLots = lotsFromRows(head.ready_lots);
+                          const n = col || planLots.length;
+                          const lot = planLots[n - 1];
                           // …and which ECs are in it, how many of each.
                           const inLot = ecs
                             .map((e) => {
@@ -270,9 +274,10 @@ export function PlanningPumpTable({
                             })
                             .filter((x) => x.qty > 0);
                           return (
-                            <td key={n} rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                            <td key={col} rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                               {lot ? (
                                 <span>
+                                  {col === 0 && <span className="block text-[11px] font-semibold text-muted">Lot {n}</span>}
                                   <span className={`block font-medium ${lot.status === "Fully ready" ? "text-emerald-700" : "text-foreground"}`}>
                                     {lot.status || "—"}
                                   </span>

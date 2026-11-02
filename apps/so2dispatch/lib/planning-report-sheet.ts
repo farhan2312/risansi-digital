@@ -10,7 +10,7 @@ import {
 } from "@/lib/planning-report-pdf";
 import { readinessSummary } from "@/lib/readiness-history";
 import { PLANNING_CONTEXT_FIELDS, PUMP_LIKE, READY_LOT_LIMIT, pumpEcStatus, type OrderField } from "@/lib/order-schema";
-import { ecDone, pumpEcStage, pumpLotsFromEcs, type PumpLot } from "@/lib/assembly";
+import { ecDone, pumpEcStage, latestPumpLot, pumpLotsFromEcs, type PumpLot } from "@/lib/assembly";
 import { boiInHand, boiStatus, drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
 import { partDrawingStatus } from "@/lib/part-drawings";
 import { lotOnSlip, lotsFromRows } from "@/lib/ready-lots";
@@ -151,9 +151,11 @@ export function pumpSheet(
     C("Overdue (days)", 10, "Planning (SO)", true),
     C("Date moved", 26, "Planning (SO)"),
     ...LOTS.map((n) => C(`Lot ${n}`, 26, "Planning (SO)")),
+    C("Latest Lot", 26, "Planning (SO)"),
     C("Base Plate", 16, "Assembly & Packing · Dispatch"),
     C("Wooden Box", 34, "Assembly & Packing · Dispatch"),
     ...LOTS.map((n) => C(`A&P Lot ${n}`, 30, "Assembly & Packing · Dispatch")),
+    C("A&P Latest Lot", 30, "Assembly & Packing · Dispatch"),
     C("Packing Slips", 30, "Assembly & Packing · Dispatch"),
     C("Dispatch Status", 18, "Assembly & Packing · Dispatch"),
     C("EC No.", 20, "EC details"),
@@ -213,7 +215,9 @@ export function pumpSheet(
       ],
       [overdue > 0 ? overdue : null, overdue > 0 ? "red" : null],
       [hist.dateMoves > 0 ? `${hist.dateMoves}× · ${hist.dates.map((d) => day(d, false)).join(" → ")}` : null, hist.dateMoves > 0 ? "amber" : null],
-      ...LOTS.map((n): [SheetCell, Tone | null] => {
+      // Lot 1 to 3, then the latest however many there are (col 0).
+      ...[...LOTS, 0].map((col): [SheetCell, Tone | null] => {
+        const n = col || planLots.length;
         const lot = planLots[n - 1];
         if (!lot) return [null, null];
         const shares = ecs
@@ -223,7 +227,7 @@ export function pumpSheet(
             return qty > 0 ? `${str(e.ec_no)} ×${qty}` : "";
           })
           .filter(Boolean);
-        return [[lot.status || "—", day(lot.ready_date), ...shares].filter(Boolean).join("\n"), statusTone(lot.status)];
+        return [[col === 0 && `Lot ${n}`, lot.status || "—", day(lot.ready_date), ...shares].filter(Boolean).join("\n"), statusTone(lot.status)];
       }),
       ...(["base_plate", "wooden_box"] as const).map((w): [SheetCell, Tone | null] => {
         const t = alignmentText(s?.alignment, w);
@@ -236,6 +240,14 @@ export function pumpSheet(
         const t = asmLotText(lots.find((l) => l.n === n && l.ecs.length > 0), slips);
         return [t || null, t ? statusTone(t) : null];
       }),
+      ((): [SheetCell, Tone | null] => {
+        if (!s) return [null, null];
+        if (s.held) return ["Hold", "red"];
+        if (!s.sentToAssembly) return [null, null];
+        const last = latestPumpLot(lots);
+        const t = asmLotText(last, slips);
+        return [t && last ? `Lot ${last.n}\n${t}` : null, t ? statusTone(t) : null];
+      })(),
       [
         s?.slips.length
           ? s.slips
