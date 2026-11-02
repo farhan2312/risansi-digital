@@ -93,19 +93,24 @@ export async function listConversationsAction(
 /**
  * Post into one conversation. The peer names the other side: a department for
  * Central, and for a department either another department or Central
- * Visibility. Which columns that lands in is sidesFor's business.
+ * Visibility. Which columns that lands in is sidesFor's business. `alsoTo` are
+ * other conversations to post the same message in, each as private as ever.
  */
 export async function postMessageAction(
   orderId: string,
   peer: string,
   body: string,
-  kind = "note"
+  kind = "note",
+  alsoTo: string[] = []
 ): Promise<ThreadResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
 
   const sides = sidesFor(user.role, peer);
   if (!sides) return { ok: false, error: "Pick who to send this to." };
+  const others = [...new Set(Array.isArray(alsoTo) ? alsoTo : [])].filter((p) => p !== peer);
+  // Every conversation checked before any is written to.
+  if (others.some((p) => !sidesFor(user.role, p))) return { ok: false, error: "Pick who to send this to." };
   if (!(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
 
   const text = body.trim();
@@ -131,12 +136,39 @@ export async function postMessageAction(
         isMessageKind(kind) && canLogDelay(user.role, peer) ? kind : "note",
     });
     await markConversationRead(user.id, orderId, peer);
-
-    const messages = await listMessages(orderId, peer, user);
-    return { ok: true, messages };
   } catch (error) {
     console.error("postMessageAction failed:", error);
     return { ok: false, error: "Could not send that message." };
+  }
+
+  // The others, one by one: one that fails does not undo those already sent.
+  const failed: string[] = [];
+  for (const other of others) {
+    const s = sidesFor(user.role, other)!;
+    try {
+      await insertMessage({
+        orderId,
+        deptRole: s.deptRole,
+        toRole: s.toRole,
+        authorId: user.id,
+        authorName: user.full_name,
+        authorRole: user.role,
+        body: text,
+        kind: isMessageKind(kind) && canLogDelay(user.role, other) ? kind : "note",
+      });
+      await markConversationRead(user.id, orderId, other);
+    } catch (error) {
+      console.error("postMessageAction failed for", other, error);
+      failed.push(roleLabel(other));
+    }
+  }
+  if (failed.length) return { ok: false, error: `Sent, except to ${failed.join(", ")}.` };
+
+  try {
+    return { ok: true, messages: await listMessages(orderId, peer, user) };
+  } catch (error) {
+    console.error("postMessageAction failed:", error);
+    return { ok: false, error: "Sent, but the conversation could not be reloaded." };
   }
 }
 

@@ -101,6 +101,9 @@ export function OrderThread({
   const [mode, setMode] = useState<"note" | "delay">("note");
   const [showLogs, setShowLogs] = useState(false);
   const [body, setBody] = useState("");
+  // Other conversations the message goes to as well.
+  const [alsoOpen, setAlsoOpen] = useState(false);
+  const [alsoTo, setAlsoTo] = useState<string[]>([]);
   // Editing or deleting an entry: which one, its new text, and the one asking "Delete?".
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -233,7 +236,8 @@ export function OrderThread({
     event.preventDefault();
     if (!peer || body.trim() === "" || sending) return;
     setSending(true);
-    const res = await postMessageAction(orderId, peer, body, composing);
+    const others = alsoTo.filter((p) => p !== peer);
+    const res = await postMessageAction(orderId, peer, body, composing, others);
     setSending(false);
     if (!res.ok) {
       setError(res.error);
@@ -242,6 +246,8 @@ export function OrderThread({
     setError(null);
     setBody("");
     setMode("note");
+    setAlsoTo([]);
+    setAlsoOpen(false);
     setMessages(res.messages);
     refreshConversations();
   }
@@ -651,6 +657,47 @@ export function OrderThread({
               </div>
             )}
 
+
+            {/* The same message to more departments: each its own private conversation. */}
+            {conversations.length > 1 && (
+              <div className="text-xs">
+                <button
+                  type="button"
+                  onClick={() => setAlsoOpen((v) => !v)}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {alsoTo.filter((p) => p !== peer).length
+                    ? `Also sending to ${alsoTo.filter((p) => p !== peer).length} more`
+                    : "Also send to…"}
+                </button>
+                {alsoOpen && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {conversations
+                      .filter((c) => c.peer !== peer)
+                      .map((c) => {
+                        const on = alsoTo.includes(c.peer);
+                        return (
+                          <label
+                            key={c.peer}
+                            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 ${
+                              on ? "border-primary bg-primary/10 text-foreground" : "border-card-border text-muted hover:text-foreground"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              onChange={() => setAlsoTo((xs) => (on ? xs.filter((x) => x !== c.peer) : [...xs, c.peer]))}
+                              className="h-3 w-3 accent-primary"
+                            />
+                            {peerName(c.peer)}
+                          </label>
+                        );
+                      })}
+                    <p className="w-full text-[11px] text-muted">Each gets it in their own private chat with you, and cannot see the others&apos; replies.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex items-end gap-2">
               <textarea
