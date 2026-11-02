@@ -4848,6 +4848,8 @@ export async function listOrdersForOrderMaking(opts: {
             o.boi,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(
                         'id', i.id, 'ec_no', i.ec_no, 'ec_date', to_char(i.ec_date, 'YYYY-MM-DD'),
+                        -- Every field of the EC form: one missing here opens blank, and saves blank.
+                        'ec_link', i.ec_link, 'base_plate', i.base_plate,
                         'pump_type', i.pump_type, 'model_no', i.model_no, 'internal_model', i.internal_model,
                         'quantity', i.quantity, 'suction', i.suction, 'delivery', i.delivery,
                         'pump_sno', i.pump_sno, 'application', i.application, 'version', i.version,
