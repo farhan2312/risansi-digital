@@ -17,14 +17,14 @@ export const saveEnquiryDocumentConfig = async (
   return data.config;
 };
 
-/** Every sent version of the enquiry's Technical Data Sheets, newest first. */
+/** Every send of the enquiry's Technical Data Sheets to operation, newest first. */
 export const listTechDocVersions = async (projectId: string): Promise<TechDocVersion[]> => {
   const { data } = await apiClient.get<TechDocVersion[]>("/enquiry-document/versions", { params: { projectId } });
   return data;
 };
 
-/** "Send to client": freezes the group's sheet as the next Client version. */
-export const sendTechDocToClient = async (projectId: string, group: string, note: string): Promise<TechDocVersion[]> => {
+/** "Send to operation": records the group's sheet as it is now. */
+export const sendTechDocToOperation = async (projectId: string, group: string, note: string): Promise<TechDocVersion[]> => {
   const { data } = await apiClient.post<TechDocVersion[]>("/enquiry-document/versions", { projectId, group, note });
   return data;
 };

@@ -1,4 +1,4 @@
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, or } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import {
@@ -13,6 +13,7 @@ import {
 import { AuthError, requireApprover } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enquiryTags, generalInfoInput, projects, stepApproval, users } from "@/lib/db/schema";
+import { enquiryNoWithVersion } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ export async function GET(req: Request) {
       sentAt: stepApproval.sentAt,
       tagName: enquiryTags.name,
       enquiryCode: projects.projectCode,
+      versionNo: projects.versionNo,
       projectName: projects.name,
       customerName: projects.customerName,
       pumpModel: generalInfoInput.selectedModel,
@@ -60,7 +62,14 @@ export async function GET(req: Request) {
     .innerJoin(projects, eq(projects.id, enquiryTags.projectId))
     .leftJoin(generalInfoInput, eq(generalInfoInput.tagId, stepApproval.tagId))
     .leftJoin(users, eq(users.id, stepApproval.sentBy))
-    .where(and(eq(stepApproval.selected, true), ne(stepApproval.status, DEFAULT_APPROVAL_STATUS)))
+    .where(
+      and(
+        eq(stepApproval.selected, true),
+        ne(stepApproval.status, DEFAULT_APPROVAL_STATUS),
+        // A step still waiting on an older version can't be decided any more.
+        or(eq(projects.isLatest, true), ne(stepApproval.status, SENT_APPROVAL_STATUS)),
+      ),
+    )
     .orderBy(desc(stepApproval.sentAt));
 
   const byTag = new Map<string, ApprovalInboxItem>();
@@ -70,7 +79,7 @@ export async function GET(req: Request) {
       item = {
         tagId: r.tagId,
         tagName: r.tagName,
-        enquiryCode: r.enquiryCode,
+        enquiryCode: enquiryNoWithVersion(r.enquiryCode, r.versionNo),
         projectName: r.projectName,
         customerName: r.customerName,
         pumpModel: r.pumpModel || null,

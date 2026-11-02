@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export interface PdfPreview {
   /** Object URL of the generated PDF blob. */
@@ -10,7 +11,9 @@ export interface PdfPreview {
 
 /**
  * Shows a generated PDF before it is saved: the document in an iframe, with a
- * Download button that saves that same file. Closes on the backdrop, Close or
+ * Download button that saves that same file. Rendered on <body>, so its buttons
+ * still work when opened from the view-only wizard, whose disabled fieldset
+ * turns off every button inside it. Closes on the backdrop, Close or
  * Escape. The caller owns the object URL (revoke it in onClose).
  */
 export default function PdfPreviewModal({
@@ -37,7 +40,7 @@ export default function PdfPreviewModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(10,22,40,0.6)] p-4" onClick={onClose}>
       <div
         role="dialog"
@@ -81,6 +84,7 @@ export default function PdfPreviewModal({
         </div>
         <iframe title={title} src={preview.url} className="w-full flex-1 border-0 bg-sunk" />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

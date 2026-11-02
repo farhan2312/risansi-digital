@@ -122,6 +122,7 @@ export default function CommercialOfferModal({
     config.scope !== null ||
     config.outOfScope !== null ||
     config.scopeExtra.length > 0 ||
+    !!config.enquiryText ||
     !!config.quotationText ||
     !!config.erpText ||
     !!config.scopeText ||
@@ -138,7 +139,7 @@ export default function CommercialOfferModal({
       projectCode: data.projectCode,
       header: {
         clientName: data.clientName,
-        enquiry: data.enquiry,
+        enquiry: config.enquiryText || data.enquiry,
         // The ERP quotation no. (typed on the sheet's header wins); the
         // portal's own number is not on the sheet.
         quotation: config.erpText || data.erpNumbers?.[group] || "",
@@ -286,7 +287,13 @@ export default function CommercialOfferModal({
                     onHiddenChange={(next) => update({ ...config, headerHidden: next as OfferConfig["headerHidden"] })}
                     fields={[
                       { key: "client", label: "Client Name", value: "", auto: data.clientName },
-                      { key: "enquiry", label: "Enquiry No. & Date", value: "", auto: data.enquiry },
+                      {
+                        key: "enquiry",
+                        label: "Enquiry No. & Date",
+                        value: config.enquiryText ?? "",
+                        auto: data.enquiry,
+                        onChange: (v) => update({ ...config, enquiryText: v }),
+                      },
                       {
                         key: "quotation",
                         label: "Quotation No. & Date",

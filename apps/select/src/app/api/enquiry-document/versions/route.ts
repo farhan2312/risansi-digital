@@ -4,8 +4,8 @@ import { error, json, isUniqueViolation } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { projects, techDocVersion, users } from "@/lib/db/schema";
-import { techDocGroups, techDocSheet, type TechDocGroup, type TechDocSheet, type TechDocVersion } from "@/lib/tech-doc";
+import { enquiryTags, projects, quotation, techDocVersion, users } from "@/lib/db/schema";
+import { sameTechDocSheet, techDocGroups, techDocSheet, type TechDocGroup, type TechDocSheet, type TechDocVersion } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
 import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-async function listVersions(projectId: string): Promise<TechDocVersion[]> {
+async function listSends(projectId: string): Promise<TechDocVersion[]> {
   const rows = await db
     .select({ v: techDocVersion, by: users.name })
     .from(techDocVersion)
@@ -31,19 +31,22 @@ async function listVersions(projectId: string): Promise<TechDocVersion[]> {
   }));
 }
 
-// GET /api/enquiry-document/versions?projectId=… — every sent version of the
-// enquiry's Technical Data Sheets (all drive groups), newest first.
+// GET /api/enquiry-document/versions?projectId=… — every time the enquiry's
+// Technical Data Sheets (all drive groups) went to operation, newest first.
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
   const notYours = await viewDenied(req, { projectId });
   if (notYours) return notYours;
-  return json(await listVersions(projectId));
+  return json(await listSends(projectId));
 }
 
 // POST /api/enquiry-document/versions {projectId, group, note?} — "Send to
-// client": freezes the group's sheet as it is now (built on the server from the
-// current data + saved edits) as the next Client version. Audited.
+// operation": records the group's sheet as it is now (built on the server from
+// the current data + saved edits). Nothing is e-mailed. It can go again once the
+// sheet has changed. When every sheet of the enquiry has gone, the technical
+// step is done (projects.sent_to_operation_at, lib/enquiry-filters-server.ts).
+// Audited.
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -60,20 +63,40 @@ export async function POST(req: Request) {
 
   const data = await loadTechDocData(projectId);
   if (!data) return error("Enquiry not found", 404);
-  if (!techDocGroups(data).includes(group)) return error("This enquiry has no confirmed tag on that drive system.", 400);
+  const groups = techDocGroups(data);
+  if (!groups.includes(group)) return error("This enquiry has no confirmed tag on that drive system.", 400);
   const sheet = techDocSheet(data, group);
   if (sheet.tags.length === 0) return error("No confirmed tag on this sheet.", 400);
 
+  const [tags, [quote]] = await Promise.all([
+    db.select({ status: enquiryTags.status }).from(enquiryTags).where(eq(enquiryTags.projectId, projectId)),
+    db.select({ id: quotation.id }).from(quotation).where(eq(quotation.projectId, projectId)).limit(1),
+  ]);
+  if (tags.some((t) => t.status !== "Completed")) return error("Complete every tag of the enquiry before sending to operation.", 409);
+  if (!quote) return error("Generate the quotation before sending to operation.", 409);
+
   const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
-  let version = 0;
+  const needed = groups.filter((g) => techDocSheet(data, g).tags.length > 0);
+  let unchanged = false;
   try {
-    version = await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`techdoc:${projectId}:${group}`}))`);
+      const here = and(eq(techDocVersion.projectId, projectId), eq(techDocVersion.driveGroup, group));
+      const [last] = await tx
+        .select({ snapshot: techDocVersion.snapshot })
+        .from(techDocVersion)
+        .where(here)
+        .orderBy(desc(techDocVersion.version))
+        .limit(1);
+      if (last && sameTechDocSheet(last.snapshot, sheet)) {
+        unchanged = true;
+        return;
+      }
       const [{ next }] = await tx
         .select({ next: sql<number>`coalesce(max(${techDocVersion.version}) + 1, 0)` })
         .from(techDocVersion)
-        .where(and(eq(techDocVersion.projectId, projectId), eq(techDocVersion.driveGroup, group)));
+        .where(here);
       await tx.insert(techDocVersion).values({
         projectId,
         driveGroup: group,
@@ -82,18 +105,31 @@ export async function POST(req: Request) {
         snapshot: sheet as unknown as Record<string, unknown>,
         createdBy,
       });
-      return Number(next);
+      const sent = await tx.selectDistinct({ group: techDocVersion.driveGroup }).from(techDocVersion).where(eq(techDocVersion.projectId, projectId));
+      if (needed.every((g) => sent.some((s) => s.group === g))) {
+        // The first time sets the completion date; sending again after an edit
+        // keeps it. A status changed by hand to not done gives way to the send.
+        await tx
+          .update(projects)
+          .set({
+            sentToOperationAt: sql`coalesce(${projects.sentToOperationAt}, now())`,
+            technicalStatusOverride: sql`nullif(nullif(${projects.technicalStatusOverride}, 'Pending'), 'In Progress')`,
+          })
+          .where(eq(projects.id, projectId));
+      }
     });
   } catch (err) {
     if (isUniqueViolation(err)) return error("Someone sent this sheet at the same moment — try again.", 409);
     throw err;
   }
+  if (unchanged) return error("Nothing has changed on this sheet since it was last sent.", 409);
+
   const [p] = await db.select({ code: projects.projectCode }).from(projects).where(eq(projects.id, projectId)).limit(1);
   await logAudit(req, {
     action: "tech_doc.send",
     entity: "tech_doc_version",
     entityId: projectId,
-    detail: `${p?.code ?? "Enquiry"}: Technical Data Sheet${data.mixed && group !== "NONE" ? ` (${group})` : ""} sent to client as V${version}${note ? ` — ${note}` : ""}`,
+    detail: `${p?.code ?? "Enquiry"}: Technical Data Sheet${data.mixed && group !== "NONE" ? ` (${group})` : ""} sent to operation${note ? ` — ${note}` : ""}`,
   });
-  return json(await listVersions(projectId), 201);
+  return json(await listSends(projectId), 201);
 }

@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 import { findAssignee } from "@/lib/enquiry-access";
 import { filtersFromParams } from "@/lib/enquiry-filters";
-import { enquiryFilterSql } from "@/lib/enquiry-filters-server";
+import { enquiryFilterSql, enquiryStatusColumns, enquiryStatusFields } from "@/lib/enquiry-filters-server";
 import { repScope } from "@/lib/rep-scope";
 import { orderSubtypeLabel, orderTypeLabel } from "@/lib/roles";
 import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
@@ -28,30 +28,9 @@ export async function GET(req: Request) {
   // Left-join users so the list can show a real "Created By" name - created_by
   // on the project row is just a user id, not a display name.
   //
-  // Status is now DERIVED from the enquiry's tags rather than read straight
-  // from projects.status: an enquiry rolls up to Completed only when EVERY
-  // tag under it is Completed, Pending only when every tag is Pending, and
-  // In Progress otherwise (any mix, or any tag in progress). Rolled up in
-  // SQL so the Dashboard, Projects list and Reports list all agree without
-  // an extra client round-trip. projects.status is left in place but no
-  // longer read by the app; the wizard writes to enquiry_tags.status now.
-  // An enquiry marked Completed on the Edit form (completed_on) overrides them.
-  const rollup = sql<string>`(
-    SELECT CASE
-      WHEN ${projects.completedOn} IS NOT NULL THEN 'Completed'
-      WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*)
-           AND COUNT(*) > 0
-        THEN 'Completed'
-      WHEN COUNT(*) FILTER (WHERE t.status = 'Pending') = COUNT(*)
-           AND COUNT(*) > 0
-        THEN 'Pending'
-      WHEN COUNT(*) = 0
-        THEN ${projects.status}
-      ELSE 'In Progress'
-    END
-    FROM ${enquiryTags} t
-    WHERE t.project_id = ${projects.id}
-  )`;
+  // The two statuses are worked out in SQL (lib/enquiry-filters-server.ts) so the
+  // Dashboard, Projects list and Reports list all agree without an extra client
+  // round-trip. projects.status is left in place but no longer read by the app.
 
   // Filters live here rather than in the browser: with pagination the client
   // only holds one page, so filtering there would search 20 rows instead of
@@ -116,7 +95,7 @@ export async function GET(req: Request) {
   const base = db
     .select({
       project: projects,
-      derivedStatus: rollup,
+      ...enquiryStatusColumns,
       createdByName: users.name,
       assignedToName: assignee.name,
       // Commercial opens only once the Quotation step has generated one.
@@ -134,9 +113,9 @@ export async function GET(req: Request) {
 
   const items = rows.map((r) => ({
     ...projectToDict(r.project, r.createdByName, r.assignedToName),
-    // Overwrite status with the rollup so the Dashboard's status column and
-    // stat cards read the tag-aware value automatically.
-    status: r.derivedStatus,
+    // Overwrites status with the Technical status, so everything reading the
+    // list's status gets it.
+    ...enquiryStatusFields(r.project, r),
     quotation_count: r.quotationCount,
   }));
 

@@ -5,6 +5,8 @@ import { AuthError, decodeToken } from "@/lib/auth";
 import { repScope } from "@/lib/rep-scope";
 import { db } from "@/lib/db";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
+import { enquiryStatusSql } from "@/lib/enquiry-filters-server";
+import { enquiryNoWithVersion } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +45,10 @@ export async function GET(req: Request) {
       // Who may work on it (a worker only views the documents of others), and
       // whether a quotation exists (the documents open once one does).
       assignedTo: projects.assignedTo,
-      completedOn: projects.completedOn,
+      enquiryStatus: enquiryStatusSql,
+      versionNo: projects.versionNo,
+      rootProjectId: projects.rootProjectId,
+      isLatest: projects.isLatest,
       quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
       documentFilename: enquiryTags.reportFilename,
       documentGeneratedAt: enquiryTags.reportGeneratedAt,
@@ -59,7 +64,10 @@ export async function GET(req: Request) {
       tag_id: r.tagId,
       tag_name: r.tagName,
       project_id: r.projectId,
-      project_code: r.projectCode,
+      project_code: enquiryNoWithVersion(r.projectCode, r.versionNo),
+      version_no: r.versionNo,
+      is_latest: r.isLatest,
+      enquiry_root_id: r.rootProjectId ?? r.projectId,
       project_name: r.projectName,
       client_code: r.clientCode,
       // Status is now the TAG's status - the value shown on the projects
@@ -67,7 +75,7 @@ export async function GET(req: Request) {
       status: r.tagStatus,
       created_by_name: r.createdByName,
       assigned_to: r.assignedTo,
-      enquiry_completed_on: r.completedOn,
+      enquiry_status: r.enquiryStatus,
       quotation_count: r.quotationCount,
       document_filename: r.documentFilename,
       document_generated_at: r.documentGeneratedAt,

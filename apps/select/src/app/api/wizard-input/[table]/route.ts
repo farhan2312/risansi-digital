@@ -25,6 +25,7 @@ import {
   pumpModelQtyInput,
 } from "@/lib/db/schema";
 import { workDenied, viewDenied } from "@/lib/enquiry-access";
+import { ensureBoiBasis, removeBoiNoLongerInSelection } from "@/lib/commercial-review";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,8 @@ type TableKey = keyof typeof TABLES;
 // The three mutually-exclusive drive-system tables — a tag has one drive
 // system, so at most one of these ever holds a row for a given tag.
 const DRIVE_TABLE_KEYS: TableKey[] = ["drive-direct", "drive-vbelt", "drive-geared"];
+// The steps a tag's prices depend on (lib/commercial boiIdentities).
+const SELECTION_TABLE_KEYS: TableKey[] = ["general-info", "moc-sealing", "motor-drive", "pump-model-qty", ...DRIVE_TABLE_KEYS];
 
 // Fields the wizard actually sends per table — anything else in the request
 // body is ignored rather than trusted straight into the insert/update.
@@ -323,6 +326,8 @@ export async function PUT(
       .limit(1);
   }
   const changes = changedFields(previous, values);
+  // The tag's prices must know what they were for before the selection moves.
+  if (changes.length > 0 && SELECTION_TABLE_KEYS.includes(tableKey)) await ensureBoiBasis(ctx.projectId, ctx.tagId);
 
   const result = await db
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -365,6 +370,17 @@ export async function PUT(
       .update(enquiryTags)
       .set({ status: "In Progress", updatedAt: new Date() })
       .where(and(eq(enquiryTags.id, ctx.tagId), eq(enquiryTags.status, "Pending")));
+  }
+
+  // An item this change took out of the selection loses its price.
+  const removedBoi = await removeBoiNoLongerInSelection(ctx.tagId, tableKey, previous, values);
+  if (removedBoi) {
+    await logAudit(req, {
+      action: "commercial.update",
+      entity: "commercial_tag_price",
+      entityId: ctx.tagId,
+      detail: await tagDetail(ctx.tagId, removedBoi),
+    });
   }
 
   // A save that changed nothing - the step re-sent unchanged on navigation -

@@ -1,10 +1,11 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { enquiryTags } from "@/lib/db/schema";
 import { workDenied } from "@/lib/enquiry-access";
+import { WIZARD_TABLES, copyTagRows } from "@/lib/tag-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -12,35 +13,6 @@ export const dynamic = "force-dynamic";
 // into the same enquiry or into a different one. Used by the copy buttons on
 // the Enquiries page: "copy this tag" (same enquiry) and "copy into another /
 // new enquiry".
-//
-// The wizard tables are copied column-by-column off information_schema rather
-// than a hand-written column list: those tables carry 60+ columns between them
-// and gain more as the wizard grows, and a stale list would silently drop
-// fields from the copy. Table names come from the fixed allowlist below and
-// column names from the catalogue, so nothing user-supplied reaches the SQL.
-const WIZARD_TABLES = [
-  "general_info_input",
-  "fluid_properties_input",
-  "operating_conditions_input",
-  "moc_sealing_input",
-  "motor_drive_input",
-  "drive_direct_input",
-  "drive_vbelt_input",
-  "drive_geared_input",
-  "pump_model_qty_input",
-] as const;
-
-// Set per row, never copied.
-const IDENTITY_COLUMNS = new Set(["id", "project_id", "tag_id"]);
-
-// Generated artefacts of the SOURCE tag, deliberately not carried over: the
-// copy is a fresh selection run and re-generates its own. The uploaded
-// client-requirements file IS copied — that's an input, not an artefact.
-const SKIP_COLUMNS: Record<string, Set<string>> = {
-  moc_sealing_input: new Set(["document", "document_filename", "document_generated_at"]),
-};
-
-const quote = (ident: string) => `"${ident.replace(/"/g, '""')}"`;
 
 /** "Tag A" -> "Tag A (copy)", then "(copy 2)", … so the new tag never collides
  * with an existing name in the destination enquiry. */
@@ -108,28 +80,7 @@ export async function POST(
     .returning();
 
   // Copy each wizard row that exists for the source tag.
-  let copiedTables = 0;
-  for (const table of WIZARD_TABLES) {
-    const cols = await db.execute<{ column_name: string }>(
-      sql`SELECT column_name FROM information_schema.columns
-          WHERE table_schema = current_schema() AND table_name = ${table}`,
-    );
-    const skip = SKIP_COLUMNS[table];
-    const carried = cols.rows
-      .map((c) => c.column_name)
-      .filter((c) => !IDENTITY_COLUMNS.has(c) && !(skip && skip.has(c)));
-
-    // Identifiers are interpolated (allowlisted table, catalogue columns);
-    // the three values stay parameterised.
-    const colList = carried.length ? ", " + carried.map(quote).join(", ") : "";
-
-    const inserted = await db.execute(
-      sql`INSERT INTO ${sql.identifier(table)} (id, project_id, tag_id${sql.raw(colList)})
-          SELECT gen_random_uuid(), ${targetProjectId}::uuid, ${created.id}::uuid${sql.raw(colList)}
-            FROM ${sql.identifier(table)} WHERE tag_id = ${sourceTagId}::uuid`,
-    );
-    if ((inserted.rowCount ?? 0) > 0) copiedTables += 1;
-  }
+  const copiedTables = await copyTagRows(db, WIZARD_TABLES, sourceTagId, targetProjectId, created.id);
 
   await logAudit(req, {
     action: "tag.copy",

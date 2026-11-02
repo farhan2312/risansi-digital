@@ -8,6 +8,23 @@ export const getCommercialSummary = async (projectId: string): Promise<Commercia
 };
 
 /** Saves the one remarks note for the whole Commercial Summary. */
+/** Answers a flagged price: the new item's master price, or keep the old one. */
+export const answerPriceChange = async (tagId: string, key: string, useNew: boolean): Promise<{ price: number; model: string | null }> => {
+  const { data } = await apiClient.patch<{ price: number; model: string | null }>(`/commercial/${tagId}`, { key, useNew });
+  return data;
+};
+
+/** The notes about items removed by themselves were seen. */
+export const dismissRemovedBoi = async (tagId: string): Promise<void> => {
+  await apiClient.patch(`/commercial/${tagId}`, { dismissRemoved: true });
+};
+
+/** The Prices reviewed tick on a new version. */
+export const setPricesReviewed = async (projectId: string, reviewed: boolean): Promise<{ pricesReviewedAt: string | null }> => {
+  const { data } = await apiClient.put<{ pricesReviewedAt: string | null }>("/commercial/reviewed", { projectId, reviewed });
+  return data;
+};
+
 export const saveCommercialRemarks = async (projectId: string, remarks: string): Promise<void> => {
   await apiClient.put("/commercial/remarks", { projectId, remarks });
 };

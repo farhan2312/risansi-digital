@@ -48,6 +48,23 @@ export async function viewDenied(req: Request, ref: EnquiryRef): Promise<Respons
 }
 
 /**
+ * A 409 when this is an older version of the enquiry, else null: once a newer
+ * version exists it stays exactly as it was, for everyone. workDenied checks it
+ * for every enquiry write; routes without workDenied call it themselves.
+ */
+export async function versionLocked(ref: EnquiryRef): Promise<Response | null> {
+  const projectId = await projectIdOf(ref);
+  if (!projectId) return null;
+  const [p] = await db
+    .select({ isLatest: projects.isLatest, version: projects.versionNo })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!p || p.isLatest) return null;
+  return error(`V${p.version} is an older version of this enquiry - it can only be viewed. Work on the latest version.`, 409);
+}
+
+/**
  * A 403 when the caller is a worker and the enquiry is not assigned to them,
  * else null. Called at the top of every route that changes an enquiry or its
  * tags (wizard inputs, tags, approvals sent, prices, quotations, documents).
@@ -60,6 +77,8 @@ export async function workDenied(
 ): Promise<Response | null> {
   const claims = await tryDecodeToken(req);
   if (!claims) return null; // the route's own auth check answers this
+  const locked = await versionLocked(ref);
+  if (locked) return locked;
   if (worksOnAnyEnquiry(claims.role)) return null;
 
   const projectId = await projectIdOf(ref);

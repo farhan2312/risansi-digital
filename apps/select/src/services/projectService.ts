@@ -14,6 +14,9 @@ export interface ProjectRecord {
   /** YYYY-MM-DD, or null on older enquiries. */
   enquiry_date: string | null;
   remarks: string | null;
+  /** Lists: the Technical status - Completed when all tags are completed, a
+   *  quotation is generated and the data sheet is sent to operation, or what was
+   *  picked on the Edit form. */
   status: string | null;
   created_by: string | null;
   created_by_name: string | null;
@@ -25,8 +28,24 @@ export interface ProjectRecord {
   order_type: string;
   /** PCP / MMP / Barrel / Online blind, or Spare / Retrofit spare (lib/roles.ts). */
   order_subtype: string;
-  /** YYYY-MM-DD: marked Completed on the Edit form on this date (overrides the tags). */
+  /** Lists: the Commercial status - Completed when Technical is Completed, every
+   *  tag has a P&A price and the quotations are sent to the client, or what was
+   *  picked on the Edit form. */
+  commercial_status?: string;
+  /** Changed on the Edit form; null = updating by itself. */
+  technical_status_override: string | null;
+  commercial_status_override: string | null;
+  /** YYYY-MM-DD: when each status was completed, filled in by itself but editable. */
   completed_on: string | null;
+  commercial_completed_on: string | null;
+  /** Enquiry version: 0, 1, 2… Each version is its own row with the same enquiry no. */
+  version_no: number;
+  /** The V0 row of this enquiry; null on V0 itself. */
+  root_project_id: string | null;
+  /** False on an older version, which is view only. */
+  is_latest: boolean;
+  /** What the client asked to change in this version. */
+  revision_note: string | null;
   /** Who works the enquiry (a worker sees only theirs - lib/roles.ts). */
   assigned_to: string | null;
   assigned_to_name: string | null;
@@ -145,9 +164,13 @@ export interface UpdateProjectInput {
   industry?: string;
   /** YYYY-MM-DD; empty clears it. */
   enquiryDate?: string;
-  status?: string;
-  /** With status Completed: the completion date. */
+  /** Pending / In Progress / Completed. The same as the automatic status means it
+   *  keeps updating by itself. */
+  technicalStatus?: string;
+  /** With Completed: the completion date. */
   completedOn?: string;
+  commercialStatus?: string;
+  commercialCompletedOn?: string;
   remarks?: string;
   orderType?: OrderType;
   orderSubtype?: OrderSubtype;
@@ -162,6 +185,21 @@ export const updateProject = async (
   input: UpdateProjectInput
 ): Promise<ProjectRecord> => {
   const { data } = await apiClient.patch<ProjectRecord>(`/projects/${id}`, input);
+  return data;
+};
+
+/** Every version of an enquiry, newest first. */
+export const listEnquiryVersions = async (id: string): Promise<ProjectRecord[]> => {
+  const { data } = await apiClient.get<ProjectRecord[]>(`/projects/${id}/versions`);
+  return data;
+};
+
+/** The next version of a Completed enquiry (User-Master / system admins only). */
+export const createEnquiryRevision = async (
+  id: string,
+  input: { enquiryDate: string; assignedTo: string; note: string },
+): Promise<ProjectRecord> => {
+  const { data } = await apiClient.post<ProjectRecord>(`/projects/${id}/versions`, input);
   return data;
 };
 

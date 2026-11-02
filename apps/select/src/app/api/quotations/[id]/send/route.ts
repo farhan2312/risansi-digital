@@ -1,11 +1,12 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { quotation, quotationVersion } from "@/lib/db/schema";
-import { formatInr, quotationNumber } from "@/lib/commercial";
+import { projects, quotation, quotationVersion } from "@/lib/db/schema";
+import { formatInr, quotationNumber, sendToClientBlock } from "@/lib/commercial";
+import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, freezeLiveInternal, loadQuotation } from "@/lib/quotation-server";
 import { workDenied } from "@/lib/enquiry-access";
 
@@ -17,7 +18,9 @@ const UUID = /^[0-9a-f-]{36}$/i;
 // client: the next CLIENT version (V0 the first time) with a frozen copy of the
 // prices. What is sent is the live internal version, which freezes with it (its
 // number doesn't change). Needs a live internal version: after a send, further
-// changes start a new internal version first. Nothing is e-mailed.
+// changes start a new internal version first. Nothing is e-mailed. When every
+// drive group in use has gone from this version of the enquiry, the commercial
+// step is done (projects.sent_to_client_at, lib/enquiry-filters-server.ts).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) return error("Invalid quotation id", 400);
@@ -26,8 +29,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const [current] = await db.select().from(quotation).where(eq(quotation.id, id)).limit(1);
   if (!current) return error("Quotation not found", 404);
 
-  const snapshot = await buildSnapshot(current.projectId, current.driveGroup);
+  const [snapshot, groups] = await Promise.all([buildSnapshot(current.projectId, current.driveGroup), projectDriveGroups(current.projectId)]);
   if (snapshot.tags.length === 0) return error("This enquiry has no tags to quote.", 400);
+  const summary = await loadCommercialSummary(current.projectId);
+  const blocked = summary && sendToClientBlock(summary, current.driveGroup);
+  if (blocked) return error(blocked, 409);
 
   const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
@@ -49,6 +55,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       frozenAt: new Date(),
       createdBy,
     });
+    const sent = await tx
+      .selectDistinct({ group: quotation.driveGroup })
+      .from(quotation)
+      .innerJoin(quotationVersion, eq(quotationVersion.quotationId, quotation.id))
+      .where(and(eq(quotation.projectId, current.projectId), eq(quotationVersion.track, "client")));
+    if (groups.every((g) => sent.some((s) => s.group === g))) {
+      // The first time sets the completion date; sending again keeps it. A status
+      // changed by hand to not done gives way to the send.
+      await tx
+        .update(projects)
+        .set({
+          sentToClientAt: sql`coalesce(${projects.sentToClientAt}, now())`,
+          commercialStatusOverride: sql`nullif(nullif(${projects.commercialStatusOverride}, 'Pending'), 'In Progress')`,
+        })
+        .where(eq(projects.id, current.projectId));
+    }
     return { v, internal };
   });
   if (!result) {

@@ -6,7 +6,12 @@ export interface ReportRecord {
   tag_id: string;
   tag_name: string;
   project_id: string;
+  /** The enquiry no. with its version ("ENQ-12 V1"). */
   project_code: string;
+  version_no: number;
+  is_latest: boolean;
+  /** Shared by every version of the enquiry. */
+  enquiry_root_id: string;
   project_name: string | null;
   client_code: string | null;
   /** Status of the TAG (not the project) - Completed once its final report
@@ -15,8 +20,8 @@ export interface ReportRecord {
   created_by_name: string | null;
   /** The enquiry's assignee - a worker views the documents of others only. */
   assigned_to: string | null;
-  /** Enquiry marked Completed on the Edit form on this date (overrides its tags). */
-  enquiry_completed_on: string | null;
+  /** The enquiry's Technical status. */
+  enquiry_status: string;
   /** Quotations on the enquiry; the documents open once there is one. */
   quotation_count: number;
   document_filename: string | null;

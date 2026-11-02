@@ -1,6 +1,6 @@
 // The enquiry filters shared by the Enquiries list and the Dashboard (and its
 // KPI lists): client, order type, primary rep, secondary rep, zone, market
-// type, industry and status. Every filter but the client search is multi-select. Client-safe;
+// type, industry and the two statuses. Every filter but the client search is multi-select. Client-safe;
 // the SQL is in enquiry-filters-server.ts.
 
 export type EnquiryFilters = {
@@ -18,11 +18,12 @@ export type EnquiryFilters = {
   zone?: string[];
   market?: string[];
   industry?: string[];
-  /** The enquiry's status rolled up from its tags. */
+  /** The Technical status. */
   status?: string[];
+  commercialStatus?: string[];
 };
 
-export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status"] as const;
+export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus"] as const;
 export type MultiFilterKey = (typeof MULTI_FILTER_KEYS)[number];
 
 export const ENQUIRY_STATUSES = ["Pending", "In Progress", "Completed"] as const;

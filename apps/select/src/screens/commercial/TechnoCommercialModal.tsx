@@ -147,7 +147,7 @@ export default function TechnoCommercialModal({
       projectCode: offer.projectCode,
       header: {
         clientName: offer.clientName,
-        enquiry: offer.enquiry,
+        enquiry: offerConfig.enquiryText || offer.enquiry,
         quotation: offerConfig.erpText || offer.erpNumbers?.[group] || "",
         hidden: offerConfig.headerHidden ?? [],
       },
@@ -192,6 +192,7 @@ export default function TechnoCommercialModal({
       Object.keys(offerConfig.values).length +
       offerConfig.custom.length >
       0 ||
+    !!offerConfig.enquiryText ||
     !!offerConfig.erpText ||
     !!offerConfig.scopeText ||
     !!offerConfig.outOfScopeText ||
@@ -206,6 +207,7 @@ export default function TechnoCommercialModal({
       labels: {},
       values: {},
       custom: [],
+      enquiryText: undefined,
       erpText: undefined,
       headerHidden: [],
       scopeText: "",
@@ -364,7 +366,13 @@ export default function TechnoCommercialModal({
                     onHiddenChange={(next) => updateOffer({ ...offerConfig, headerHidden: next as OfferConfig["headerHidden"] })}
                     fields={[
                       { key: "client", label: "Client Name", value: "", auto: offer.clientName },
-                      { key: "enquiry", label: "Enquiry No. & Date", value: "", auto: offer.enquiry },
+                      {
+                        key: "enquiry",
+                        label: "Enquiry No. & Date",
+                        value: offerConfig.enquiryText ?? "",
+                        auto: offer.enquiry,
+                        onChange: (v) => updateOffer({ ...offerConfig, enquiryText: v }),
+                      },
                       {
                         key: "quotation",
                         label: "Quotation No. & Date",

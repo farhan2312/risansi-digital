@@ -15,9 +15,13 @@ import {
   parsePct,
   type CommercialPrices,
   MAX_OTHER_ITEMS,
+  REVIEWED_LINES,
+  type ReviewedLineKey,
+  boiIdentities,
   formatInr,
   parsePrice,
 } from "@/lib/commercial";
+import { loadCommercialSummary } from "@/lib/commercial-server";
 import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
@@ -146,6 +150,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
   }
   if ((prev?.remarks ?? "") !== next.remarks) changes.push("Remarks updated");
 
+  // What each price is for. A line whose item changed stays flagged until its
+  // price or model changes, or it is answered (PATCH below): a plain Save is no answer.
+  const summary = await loadCommercialSummary(tag.projectId);
+  const current = summary?.tags.find((t) => t.tagId === tagId);
+  const boiBasis: Record<string, string> = { ...(prev?.boiBasis ?? {}) };
+  if (current) {
+    const now = boiIdentities(current, next.vfdModel ?? null);
+    const modelOf: Partial<Record<ReviewedLineKey, "vfdModel" | "mechSealModel" | "drpModel">> = {
+      vfdPrice: "vfdModel",
+      mechSealPrice: "mechSealModel",
+      drpPrice: "drpModel",
+    };
+    for (const { key } of REVIEWED_LINES) {
+      if (next[key] === null) {
+        delete boiBasis[key];
+        continue;
+      }
+      const model = modelOf[key];
+      const answered =
+        (prev ? numOrNull(prev[key]) : null) !== next[key] || Boolean(model && (prev?.[model] ?? null) !== (next[model] ?? null));
+      if (boiBasis[key] === undefined || answered) boiBasis[key] = now[key];
+    }
+  }
+
   const claims = await tryDecodeToken(req);
   const updatedBy = claims?.sub && /^[0-9a-f-]{36}$/i.test(claims.sub) ? claims.sub : null;
   const values = {
@@ -163,6 +191,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
     drpPrice: next.drpPrice?.toString() ?? null,
     others,
     boiAdjust: adjust as Record<string, BoiAdjust>,
+    boiBasis,
+    boiRemoved: [],
     remarks: next.remarks || null,
   };
 
@@ -187,4 +217,64 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
     });
   }
   return json({ ok: true, changed: changes.length > 0 });
+}
+
+// PATCH /api/commercial/[tagId] — answers the review on one tag:
+//   {key, useNew}          a line whose make or model changed: take the new item's
+//                          master price, or keep the old one. Audited.
+//   {dismissRemoved: true} the notes about items removed by themselves were seen.
+export async function PATCH(req: Request, { params }: { params: Promise<{ tagId: string }> }) {
+  const { tagId } = await params;
+  if (!/^[0-9a-f-]{36}$/i.test(tagId)) return error("Invalid tag id", 400);
+  const noWork = await workDenied(req, { tagId });
+  if (noWork) return noWork;
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return error("Request body must be JSON", 400);
+  }
+
+  if (body.dismissRemoved === true) {
+    await db.update(commercialTagPrice).set({ boiRemoved: [] }).where(eq(commercialTagPrice.tagId, tagId));
+    return json({ ok: true });
+  }
+
+  const [tag] = await db.select({ projectId: enquiryTags.projectId }).from(enquiryTags).where(eq(enquiryTags.id, tagId)).limit(1);
+  if (!tag) return error("Tag not found", 404);
+  const current = (await loadCommercialSummary(tag.projectId))?.tags.find((t) => t.tagId === tagId);
+  const change = current?.priceChanges.find((c) => c.key === body.key);
+  const [row] = await db.select({ basis: commercialTagPrice.boiBasis }).from(commercialTagPrice).where(eq(commercialTagPrice.tagId, tagId)).limit(1);
+  if (!current || !change || !row) return error("This price no longer needs an answer.", 409);
+
+  const useNew = body.useNew === true;
+  if (useNew && change.newPrice === null) return error("There is no master price for the new item. Type the price instead.", 400);
+  const key = change.key;
+  const model = key === "mechSealPrice" ? current.mechSealOption?.label : key === "drpPrice" ? current.drpOption?.label : undefined;
+  await db
+    .update(commercialTagPrice)
+    .set({
+      boiBasis: { ...row.basis, [key]: boiIdentities(current)[key] },
+      ...(useNew
+        ? {
+            [key]: String(change.newPrice),
+            ...(key === "mechSealPrice" ? { mechSealModel: model ?? null } : {}),
+            ...(key === "drpPrice" ? { drpModel: model ?? null } : {}),
+            updatedAt: new Date(),
+          }
+        : {}),
+    })
+    .where(eq(commercialTagPrice.tagId, tagId));
+
+  const where = (await describeTag(tagId)) ?? "tag";
+  await logAudit(req, {
+    action: "commercial.review",
+    entity: "commercial_tag_price",
+    entityId: tagId,
+    detail: `${where}: ${change.label} changed from ${change.was} to ${change.now} - ${
+      useNew ? `used the new price ${formatInr(change.newPrice)} (was ${formatInr(change.price)})` : `kept the old price ${formatInr(change.price)}`
+    }`.slice(0, 2000),
+  });
+  return json({ ok: true, price: useNew ? change.newPrice : change.price, model: model ?? null });
 }

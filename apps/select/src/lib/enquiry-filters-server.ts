@@ -4,26 +4,80 @@
 import { sql, type AnyColumn, type SQL } from "drizzle-orm";
 
 import { db } from "./db";
-import { enquiryTags, projects } from "./db/schema";
+import { commercialTagPrice, enquiryTags, projects, quotation } from "./db/schema";
 import { filterKey, type EnquiryFilterOptions, type EnquiryFilters } from "./enquiry-filters";
 
 const esc = (v: string) => v.replace(/([\\%_])/g, "\\$1");
 
-/** Same rollup as the Enquiries list: marked Completed on the Edit form
- *  (completed_on) -> Completed, all tags Completed -> Completed, all
- *  Pending -> Pending, otherwise In Progress. Outer columns written as
- *  projects.* - on a single-table select Drizzle renders ${projects.id} bare,
- *  which inside this subquery would mean the tag's id. */
-export const enquiryStatusSql = sql<string>`(
+/** Technical status, automatic: Completed when every tag is Completed, a
+ *  quotation is generated and the Technical Data Sheets are sent to operation
+ *  (app/api/enquiry-document/versions), Pending when every tag is Pending, otherwise In
+ *  Progress. Outer columns written as projects.* - on a single-table select
+ *  Drizzle renders ${projects.id} bare, which inside this subquery would mean
+ *  the tag's id. */
+export const technicalStatusAutoSql = sql<string>`(
   SELECT CASE
-    WHEN projects.completed_on IS NOT NULL THEN 'Completed'
     WHEN COUNT(*) = 0 THEN coalesce(projects.status, 'Pending')
-    WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*) THEN 'Completed'
+    WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*)
+         AND EXISTS (SELECT 1 FROM ${quotation} q WHERE q.project_id = projects.id)
+         AND projects.sent_to_operation_at IS NOT NULL THEN 'Completed'
     WHEN COUNT(*) FILTER (WHERE t.status = 'Pending') = COUNT(*) THEN 'Pending'
     ELSE 'In Progress'
   END
   FROM ${enquiryTags} t WHERE t.project_id = projects.id
 )`;
+
+/** The Technical status shown: what was picked on the Edit form, else automatic. */
+export const enquiryStatusSql = sql<string>`coalesce(projects.technical_status_override, ${technicalStatusAutoSql})`;
+
+/** Commercial status, automatic: Completed once the Technical status is Completed,
+ *  every tag has a saved P&A price and the quotations are sent to the client
+ *  (app/api/quotations/[id]/send), In Progress once any tag's prices are saved,
+ *  otherwise Pending. */
+export const commercialStatusAutoSql = sql<string>`(
+  SELECT CASE
+    WHEN COUNT(*) > 0 AND COUNT(k.pa_price) = COUNT(*)
+         AND projects.sent_to_client_at IS NOT NULL
+         AND ${enquiryStatusSql} = 'Completed' THEN 'Completed'
+    WHEN COUNT(k.tag_id) > 0 THEN 'In Progress'
+    ELSE 'Pending'
+  END
+  FROM ${enquiryTags} t LEFT JOIN ${commercialTagPrice} k ON k.tag_id = t.id
+  WHERE t.project_id = projects.id
+)`;
+
+/** The status shown: what was picked on the Edit form, else the automatic one. */
+export const commercialStatusSql = sql<string>`coalesce(projects.commercial_status_override, ${commercialStatusAutoSql})`;
+
+/** The automatic completion day (YYYY-MM-DD, IST): when the sheets went to
+ *  operation, and when the quotations went to the client. */
+const technicalDayAutoSql = sql<string | null>`to_char(projects.sent_to_operation_at at time zone 'Asia/Kolkata', 'YYYY-MM-DD')`;
+const commercialDayAutoSql = sql<string | null>`to_char(projects.sent_to_client_at at time zone 'Asia/Kolkata', 'YYYY-MM-DD')`;
+
+/** For a select on projects, with enquiryStatusFields on its rows. */
+export const enquiryStatusColumns = {
+  technicalAuto: technicalStatusAutoSql,
+  commercialAuto: commercialStatusAutoSql,
+  technicalDayAuto: technicalDayAutoSql,
+  commercialDayAuto: commercialDayAutoSql,
+};
+
+type StatusAutos = { technicalAuto: string; commercialAuto: string; technicalDayAuto: string | null; commercialDayAuto: string | null };
+
+/** The statuses and dates shown: what was changed on the Edit form, else automatic. */
+export const enquiryStatusFields = (
+  p: { technicalStatusOverride: string | null; commercialStatusOverride: string | null; completedOn: string | null; commercialCompletedOn: string | null },
+  auto: StatusAutos,
+) => {
+  const status = p.technicalStatusOverride ?? auto.technicalAuto;
+  const commercial = p.commercialStatusOverride ?? auto.commercialAuto;
+  return {
+    status,
+    completed_on: status === "Completed" ? (p.completedOn ?? auto.technicalDayAuto) : null,
+    commercial_status: commercial,
+    commercial_completed_on: commercial === "Completed" ? (p.commercialCompletedOn ?? auto.commercialDayAuto) : null,
+  };
+};
 
 /** A value as filterKey() sees it: lower case, letters and digits only. */
 const keyOf = (expr: SQL | AnyColumn) => sql`regexp_replace(lower(coalesce(${expr}, '')), '[^a-z0-9]', '', 'g')`;
@@ -37,7 +91,9 @@ const anyOf = (col: AnyColumn, picked: string[]): SQL | null => {
 };
 
 export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
-  const out: SQL[] = [];
+  // Lists and counts hold each enquiry once, as its latest version (written as
+  // projects.* for the same reason as enquiryStatusSql).
+  const out: SQL[] = [sql`projects.is_latest`];
   const push = (c: SQL | null) => c && out.push(c);
   // Every word of the client search must match the name or the code.
   for (const w of (f.client ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 6)) {
@@ -59,6 +115,7 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
   push(anyOf(projects.clientMarketType, f.market ?? []));
   push(anyOf(projects.industry, f.industry ?? []));
   if (f.status?.length) out.push(sql`${enquiryStatusSql} IN (${list(f.status)})`);
+  if (f.commercialStatus?.length) out.push(sql`${commercialStatusSql} IN (${list(f.commercialStatus)})`);
   return out;
 }
 

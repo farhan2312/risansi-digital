@@ -195,8 +195,10 @@ const PumpSelectionPage = () => {
   const { user: currentUser } = useCurrentUser();
   // Rep / Rep Manager: the wizard is view-only - every field locked, nothing
   // saved (the API refuses their changes too), stepped through with the View
-  // only bar instead of each step's own Next / Previous.
-  const readOnly = isRepRole(currentUser?.role);
+  // only bar instead of each step's own Next / Previous. An older version of
+  // an enquiry is the same for everyone.
+  const olderVersion = liveProject?.is_latest === false;
+  const readOnly = isRepRole(currentUser?.role) || olderVersion;
 
   useEffect(() => {
     const raw = sessionStorage.getItem(SELECTED_PROJECT_KEY);
@@ -754,7 +756,9 @@ const PumpSelectionPage = () => {
         <div className="mx-auto mt-3 max-w-[1400px] px-4 sm:px-6">
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3.5 py-2.5 text-[12.5px]">
             <span className="rounded-md bg-accent px-2 py-0.5 text-[11.5px] font-bold text-white">View only</span>
-            <span className="text-fg-2">Look through every step - nothing here can be changed.</span>
+            <span className="text-fg-2">
+              {olderVersion ? "This is an older version of the enquiry. " : ""}Look through every step - nothing here can be changed.
+            </span>
             <span className="ml-auto flex items-center gap-1.5">
               <button
                 type="button"

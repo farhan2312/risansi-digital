@@ -39,7 +39,8 @@ export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
   const from = instant(p.get("from"));
   const to = instant(p.get("to"));
-  const window: SQL[] = [isNotNull(projects.assignedTo)];
+  // Each enquiry counts once, as its latest version.
+  const window: SQL[] = [isNotNull(projects.assignedTo), eq(projects.isLatest, true)];
   if (from) window.push(gte(projects.assignedAt, from));
   if (to) window.push(lte(projects.assignedAt, to));
   const where = and(...window);
