@@ -101,8 +101,7 @@ export function OrderThread({
   const [mode, setMode] = useState<"note" | "delay">("note");
   const [showLogs, setShowLogs] = useState(false);
   const [body, setBody] = useState("");
-  // Other conversations the message goes to as well.
-  const [alsoOpen, setAlsoOpen] = useState(false);
+  // Other departments ticked on their buttons: the message goes to them as well.
   const [alsoTo, setAlsoTo] = useState<string[]>([]);
   // Editing or deleting an entry: which one, its new text, and the one asking "Delete?".
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -236,7 +235,6 @@ export function OrderThread({
     event.preventDefault();
     if (!peer || body.trim() === "" || sending) return;
     setSending(true);
-    const others = alsoTo.filter((p) => p !== peer);
     const res = await postMessageAction(orderId, peer, body, composing, others);
     setSending(false);
     if (!res.ok) {
@@ -247,7 +245,6 @@ export function OrderThread({
     setBody("");
     setMode("note");
     setAlsoTo([]);
-    setAlsoOpen(false);
     setMessages(res.messages);
     refreshConversations();
   }
@@ -388,6 +385,8 @@ export function OrderThread({
   }
 
   const peerLabel = peer ? peerName(peer) : "";
+  // Those ticked besides the open chat.
+  const others = alsoTo.filter((p) => p !== peer);
   // Every conversation can carry a delay — with Central or department to
   // department — beside a plain note.
   const canLogDelay = !!peer;
@@ -479,21 +478,38 @@ export function OrderThread({
       )}
 
       {/* Every conversation this user can hold on the SO. A department sees
-          the other departments and Central; Central sees each department. */}
+          the other departments and Central; Central sees each department. A
+          button's name opens the chat; its tick adds it to the next message. */}
       {open && conversations.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-b border-card-border px-4 py-2.5">
           {conversations.map((c) => {
             const active = c.peer === peer;
+            const ticked = active || alsoTo.includes(c.peer);
             return (
-              <button
+              <span
                 key={c.peer}
-                type="button"
-                onClick={() => setPeer(c.peer)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`inline-flex shrink-0 items-center rounded-full pl-2.5 text-xs font-semibold transition-colors ${
                   active
                     ? "bg-primary text-primary-foreground"
-                    : "border border-card-border bg-background text-muted hover:text-foreground"
+                    : ticked
+                      ? "border border-primary bg-primary/10 text-foreground"
+                      : "border border-card-border bg-background text-muted hover:text-foreground"
                 }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={ticked}
+                  // The open chat always gets the message.
+                  disabled={active}
+                  onChange={() => setAlsoTo((xs) => (xs.includes(c.peer) ? xs.filter((x) => x !== c.peer) : [...xs, c.peer]))}
+                  aria-label={`Send the message to ${peerName(c.peer)} too`}
+                  title={active ? "The open chat gets the message" : "Send the message here too"}
+                  className="h-3.5 w-3.5 cursor-pointer accent-primary disabled:cursor-default"
+                />
+              <button
+                type="button"
+                onClick={() => setPeer(c.peer)}
+                className="inline-flex items-center gap-1.5 rounded-full py-1.5 pl-1.5 pr-3"
               >
                 {peerName(c.peer)}
                 {c.unread > 0 ? (
@@ -516,6 +532,7 @@ export function OrderThread({
                   )
                 )}
               </button>
+              </span>
             );
           })}
         </div>
@@ -658,45 +675,11 @@ export function OrderThread({
             )}
 
 
-            {/* The same message to more departments: each its own private conversation. */}
-            {conversations.length > 1 && (
-              <div className="text-xs">
-                <button
-                  type="button"
-                  onClick={() => setAlsoOpen((v) => !v)}
-                  className="font-medium text-primary hover:underline"
-                >
-                  {alsoTo.filter((p) => p !== peer).length
-                    ? `Also sending to ${alsoTo.filter((p) => p !== peer).length} more`
-                    : "Also send to…"}
-                </button>
-                {alsoOpen && (
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {conversations
-                      .filter((c) => c.peer !== peer)
-                      .map((c) => {
-                        const on = alsoTo.includes(c.peer);
-                        return (
-                          <label
-                            key={c.peer}
-                            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 ${
-                              on ? "border-primary bg-primary/10 text-foreground" : "border-card-border text-muted hover:text-foreground"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={on}
-                              onChange={() => setAlsoTo((xs) => (on ? xs.filter((x) => x !== c.peer) : [...xs, c.peer]))}
-                              className="h-3 w-3 accent-primary"
-                            />
-                            {peerName(c.peer)}
-                          </label>
-                        );
-                      })}
-                    <p className="w-full text-[11px] text-muted">Each gets it in their own private chat with you, and cannot see the others&apos; replies.</p>
-                  </div>
-                )}
-              </div>
+            {/* The same message to the departments ticked above: each its own private chat. */}
+            {others.length > 0 && (
+              <p className="text-xs text-muted">
+                Sending to {[peerLabel, ...others.map(peerName)].join(", ")}. Each gets it in their own private chat with you.
+              </p>
             )}
 
             <div className="flex items-end gap-2">
@@ -716,7 +699,9 @@ export function OrderThread({
                 placeholder={
                   composing === "delay"
                     ? "What exactly is holding it up?"
-                    : peerLabel
+                    : others.length > 0
+                      ? `Message ${others.length + 1} departments…`
+                      : peerLabel
                       ? `Message ${peerLabel}…`
                       : "Add an update…"
                 }
@@ -739,6 +724,7 @@ export function OrderThread({
                   <Send className="h-4 w-4" />
                 )}
                 {composing === "delay" ? "Log delay" : "Send"}
+                {others.length > 0 && ` to ${others.length + 1}`}
               </button>
             </div>
           </form>
