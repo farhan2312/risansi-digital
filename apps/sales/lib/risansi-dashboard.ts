@@ -179,18 +179,6 @@ export const OPEN_STAGES = ['Prospect', 'Budgetary Quotation', 'Quoted', 'Negoti
  */
 export const PIPELINE_STAGES = ['Quoted', 'Negotiating'] as const;
 
-/**
- * A quotation given to help somebody size a project is not money in play, even
- * once it reaches Quoted.
- *
- * The stage catches most of them — Budgetary Quotation sits below Quoted and so
- * is already outside PIPELINE_STAGES. This catches the rest: a deal that was
- * quoted properly and only later turned out to be indicative is marked on the
- * quotation itself, and would otherwise sit in the pipeline and the forecast
- * at full value. NULL counts as non-budgetary, which is what every row written
- * before Nov 2026 holds.
- */
-export const NOT_BUDGETARY = `COALESCE(o.quotation_type, 'Non-budgetary') <> 'Budgetary'`;
 
 const quoted = (vs: readonly string[]) => vs.map(v => `'${v.replace(/'/g, "''")}'`).join(',');
 
@@ -201,12 +189,17 @@ export const stageWhere = (s: DashScope, stages: readonly string[]) =>
 /** Open opportunities on the rep dashboard — everything still in play. */
 export const repPipelineWhere = (s: DashScope) =>
   // The quoted pipe, the same PIPELINE_STAGES the admin dashboard's Open
-  // Pipeline uses. This was `NOT IN ('Won','Lost')`, which counted Prospect and
-  // Prospect — neither of which carries an offer — and, because Dropped is
-  // neither Won nor Lost, counted dead deals as pipeline too. On one rep's
-  // board that read ₹13.74 Cr against a real quoted pipe of ₹4.72 Cr, ₹0.88 Cr
-  // of it dropped.
-  `o.stage IN (${PIPELINE_STAGES.map(x => `'${x}'`).join(', ')}) AND ${NOT_BUDGETARY}${s.oppCreditAnd}`;
+  // Pipeline uses. This was `NOT IN ('Won','Lost')`, which counted Prospect
+  // and Budgetary Quotation — neither of which carries a real offer — and,
+  // because Dropped is neither Won nor Lost, counted dead deals as pipeline
+  // too. On one rep's board that read ₹13.74 Cr against a real quoted pipe of
+  // ₹4.72 Cr, ₹0.88 Cr of it dropped.
+  //
+  // A budgetary quotation needs no predicate of its own. It is a stage, and
+  // that stage is not one of these two, so it is already out of the pipeline
+  // and out of the forecast. A column saying the same thing a second time was
+  // one more place for the two answers to disagree.
+  `o.stage IN (${PIPELINE_STAGES.map(x => `'${x}'`).join(', ')})${s.oppCreditAnd}`;
 
 /**
  * Order in Hand and Order Booked, as the two halves of a Won opportunity.

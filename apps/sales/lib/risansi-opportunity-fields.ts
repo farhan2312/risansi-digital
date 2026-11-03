@@ -66,7 +66,6 @@ export const SUSPECT_REASONS = [
  * reach Quoted and only then turn out to have been indicative. Budgetary, by
  * either route, is excluded from the open pipeline and the forecast.
  */
-export const QUOTATION_TYPES = ['Non-budgetary', 'Budgetary'] as const;
 
 export const HOLD_REASONS = [
   'Awaiting client budget', 'Awaiting technical clearance', 'Project deferred',
@@ -206,13 +205,6 @@ export const OPP_FIELDS: OppFieldDef[] = [
   { name: 'suspect_reason', label: 'Expansion horizon', kind: 'select', asked: 'Prospect',
     onlyStages: ['Prospect'], options: SUSPECT_REASONS,
     help: 'Only when the requirement is a year or more out.' },
-
-  // ── Budgetary Quotation · is this a real offer? ─────────────
-  // Asked here and still answerable at Quoted, because a deal can reach a
-  // formal quotation and only then turn out to have been indicative all along.
-  { name: 'quotation_type', label: 'Quotation type', kind: 'select', asked: 'Budgetary Quotation',
-    requiredAt: ['Budgetary Quotation', 'Quoted'], options: QUOTATION_TYPES,
-    help: 'Budgetary is a price to size a project by. It stays out of the open pipeline and the forecast.' },
 
   // ── Quoted · the quotation ──────────────────────────────────
   { name: 'product_type',    label: 'Product Type',   kind: 'select', asked: 'Quoted', requiredAt: [...QUOTE_STAGES, 'Won', 'Lost'], options: PRODUCT_TYPES },

@@ -1608,8 +1608,6 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
     suspect_reason:       (formData.get('suspect_reason') as string | null) || null,
     // Budgetary or Non-budgetary. A budgetary quotation is a price to size a
     // project by, and leaves the open pipeline and the forecast — see
-    // NOT_BUDGETARY in lib/risansi-dashboard.
-    quotation_type:       (formData.get('quotation_type') as string | null) || null,
     hold_reason:          (formData.get('hold_reason') as string | null) || null,
     po_date:              (formData.get('po_date') as string | null) || null,
     invoice_no:           (formData.get('invoice_no') as string | null)?.trim() || null,
@@ -1652,7 +1650,7 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
                    'unit_project','notes','po_number','lost_to_competitor',
                    'lost_to_competitor_other','lost_reason',
                    'opportunity_type','opportunity_source','opportunity_category',
-                   'client_reference','suspect_reason','quotation_type','hold_reason','po_date','po_received_date',
+                   'client_reference','suspect_reason','hold_reason','po_date','po_received_date',
                    'market','enquiry_no','enquiry_date',
                    'invoice_no','invoice_date','invoice_value_inr']) {
     if (formData.get(k) === null) delete candidates[k];
