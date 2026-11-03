@@ -452,7 +452,7 @@ export function EditableSection({
                                       : lotsLead.date
                                   )
                                 : field.column === "ec_link" && ecLinkHref(data?.ec_link)
-                                  ? <EcLink href={data?.ec_link} label />
+                                  ? <EcLink href={data?.ec_link} at={data?.ec_link_at} label />
                                   : formatDisplay(field, liveGross ? values[field.column] : data?.[field.column] ?? field.defaultValue)}
                             </span>
                             {fieldExtra?.(field)}
