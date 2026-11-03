@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Plus, Search, X } from "lucide-react";
 import {
+  gadStandardOf,
   OTHER_PART_SECTION,
   partDrawingStatus,
   partListsFor,
@@ -27,7 +28,7 @@ const TONE: Record<PartDrawingTone, string> = {
 export function PartDrawingCell({ required, parts }: { required: unknown; parts: Row[] }) {
   const st = partDrawingStatus(required, parts);
   if (!st) {
-    return <span className="text-xs text-muted">{str(required).toLowerCase() === "no" ? "No" : "Not asked"}</span>;
+    return <span className="text-xs text-muted">{str(required).toLowerCase() === "no" ? "Not required" : "Not selected"}</span>;
   }
   return (
     <span className="flex flex-col items-start gap-0.5">
@@ -39,6 +40,50 @@ export function PartDrawingCell({ required, parts }: { required: unknown; parts:
         {st.done}/{st.total} part{st.total === 1 ? "" : "s"}
       </span>
     </span>
+  );
+}
+
+/** The EC's GAD on Drawing's front: Standard, Non Standard with its parts, or yet to be chosen. */
+export function GadStandardCell({
+  required,
+  parts,
+  canEdit,
+  onOpen,
+}: {
+  required: unknown;
+  parts: Row[];
+  canEdit: boolean;
+  onOpen: () => void;
+}) {
+  const st = gadStandardOf(required);
+  if (!st) {
+    return canEdit ? (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="inline-flex h-7 items-center whitespace-nowrap rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
+      >
+        Select
+      </button>
+    ) : (
+      <span className="text-xs text-muted">Not selected</span>
+    );
+  }
+  return (
+    <button type="button" onClick={onOpen} title={canEdit ? "Change Standard or Non Standard" : "See the parts"} className="flex flex-col items-start gap-0.5 text-left">
+      <span
+        className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+          st === "Standard" ? "bg-background text-foreground ring-card-border" : TONE.part
+        }`}
+      >
+        {st}
+      </span>
+      {st === "Non Standard" && (
+        <span className="text-[11px] text-muted">
+          {parts.length} part{parts.length === 1 ? "" : "s"}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -71,8 +116,9 @@ const input =
   "h-10 w-full rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-background disabled:text-muted";
 
 /**
- * Planning's pick for one EC: part drawing Yes / No, and the parts — ticked
- * from the pump's parts list, or named under Others.
+ * Drawing's pick for one EC: its GAD Standard or Non Standard and, when Non
+ * Standard, the parts for drawing — ticked from the pump's parts list, or named
+ * under Others. Planning's shortage uses the same list.
  */
 export function PartPickerModal({
   itemId,
@@ -84,7 +130,7 @@ export function PartPickerModal({
   onClose,
   mode = "drawing",
 }: {
-  /** Part drawings (Yes / No and the parts), or the parts the EC is short of. */
+  /** Part drawings (Standard / Non Standard and the parts), or the parts the EC is short of. */
   mode?: "drawing" | "shortage";
   itemId: string;
   label: string;
@@ -98,7 +144,8 @@ export function PartPickerModal({
   const lists = partListsFor(pumpType);
   const shortage = mode === "shortage";
   // A shortage is just its parts: there is no Yes / No to it.
-  const [yes, setYes] = useState(shortage || str(required).toLowerCase() === "yes");
+  // Null until Drawing has chosen.
+  const [yes, setYes] = useState<boolean | null>(shortage ? true : gadStandardOf(required) === null ? null : gadStandardOf(required) === "Non Standard");
   // Picked parts by key; the list's parts and any others already named.
   const [picked, setPicked] = useState<Map<string, PartListItem>>(
     () =>
@@ -163,32 +210,32 @@ export function PartPickerModal({
   }
 
   return (
-    <Shell title={`${shortage ? "Shortage" : "Part drawing"} · ${label}`} subtitle={lists.map((l) => l.title).join(" / ")} onClose={onClose}>
+    <Shell title={`${shortage ? "Shortage" : "STD / Non STD"} · ${label}`} subtitle={lists.map((l) => l.title).join(" / ")} onClose={onClose}>
       {shortage ? (
         <p className="mb-4 text-sm text-muted">
           Tick the parts this EC is short of, and how many of each. <span className="font-medium text-foreground">{picked.size} short</span>
         </p>
       ) : (
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium text-foreground">Part drawing required</span>
+        <span className="text-sm font-medium text-foreground">GAD</span>
         <div role="radiogroup" className="inline-flex h-10 rounded-lg border border-input-border p-0.5">
-          {(["No", "Yes"] as const).map((o) => (
+          {(["Standard", "Non Standard"] as const).map((o) => (
             <button
               key={o}
               type="button"
               role="radio"
-              aria-checked={(o === "Yes") === yes}
+              aria-checked={(o === "Non Standard") === yes}
               disabled={ro}
-              onClick={() => setYes(o === "Yes")}
+              onClick={() => setYes(o === "Non Standard")}
               className={`rounded-md px-4 text-sm font-semibold transition-colors ${
-                (o === "Yes") === yes ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
+                (o === "Non Standard") === yes ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
               }`}
             >
               {o}
             </button>
           ))}
         </div>
-        {yes && <span className="text-sm text-muted">{picked.size} picked</span>}
+        {yes && <span className="text-sm text-muted">{picked.size} part{picked.size === 1 ? "" : "s"} for drawing</span>}
       </div>
       )}
 
@@ -311,7 +358,7 @@ export function PartPickerModal({
           <button
             type="button"
             onClick={save}
-            disabled={saving}
+            disabled={saving || yes === null}
             className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -323,7 +370,7 @@ export function PartPickerModal({
   );
 }
 
-/** Drawing's side: each part Planning picked, ticked complete with its date. */
+/** Drawing's side: each part picked, ticked complete with its date. */
 export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts: Row[]; canEdit: boolean }) {
   const router = useRouter();
   const initial = () =>
@@ -360,7 +407,7 @@ export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts
   }
 
   if (parts.length === 0) {
-    return <p className="rounded-xl border border-dashed border-card-border px-4 py-8 text-center text-sm text-muted">Planning has not picked any parts yet.</p>;
+    return <p className="rounded-xl border border-dashed border-card-border px-4 py-8 text-center text-sm text-muted">No parts picked yet.</p>;
   }
   return (
     <div className="space-y-3">

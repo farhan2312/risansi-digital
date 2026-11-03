@@ -27,7 +27,7 @@ import {
   PART_STATUSES,
   SO_STATES,
 } from "@/lib/drawing-filter";
-import { PartDrawingCell, PartProgress } from "./part-drawing";
+import { GadStandardCell, PartDrawingCell, PartPickerModal, PartProgress } from "./part-drawing";
 import { partDrawingStatus } from "@/lib/part-drawings";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { DrawingReadinessCell } from "./drawing-readiness-cell";
@@ -55,7 +55,7 @@ const wantsCurve = (r: Row) => yes(r.performance_curve_required);
 /** The documents an EC has: a GAD always, a Performance Curve when asked for. */
 const docsFor = (r: Row): DrawingDocType[] => DRAWING_DOC_TYPES.filter((d) => d === "GAD" || wantsCurve(r));
 const versionsOf = (r: Row) => (Array.isArray(r.child_rows) ? (r.child_rows as Row[]) : []);
-/** Planning asked for part drawings on this EC. */
+/** This EC's GAD is Non Standard, so it needs part drawings. */
 const wantsParts = (r: Row) => str(r.part_drawing).trim().toLowerCase() === "yes";
 const partsOf = (r: Row) => (Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []);
 /** A tab of the pop-up: a document, or the EC's part drawings. */
@@ -105,6 +105,8 @@ export function DrawingWorkspace({
     openItemId && rows.some((r) => r.id === openItemId) ? openItemId : null
   );
   const [docFor, setDocFor] = useState<DrawingTab>("GAD");
+  // The EC whose Standard / Non Standard is open to choose.
+  const [stdFor, setStdFor] = useState<string | null>(null);
   // The discussion icon's deep link arrives with that SO's thread open.
   const [threadFor, setThreadFor] = useState<{ orderId: string; soLabel: string } | null>(() => {
     const row = openThreadId ? rows.find((r) => String(r.order_id) === openThreadId) : null;
@@ -197,7 +199,7 @@ export function DrawingWorkspace({
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th colSpan={9} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={8} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={9} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
@@ -213,6 +215,7 @@ export function DrawingWorkspace({
                 <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
+                <th className="px-3 py-2 whitespace-nowrap">STD / Non STD</th>
                 <th className="px-3 py-2">GAD</th>
                 <th className="px-3 py-2">Performance Curve</th>
                 <th className="px-3 py-2">Part Drawing</th>
@@ -222,7 +225,7 @@ export function DrawingWorkspace({
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={17} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={18} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -327,6 +330,9 @@ export function DrawingWorkspace({
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.model_no) || "—"}</td>
+                          <td className={ecCell}>
+                            <GadStandardCell required={row.part_drawing} parts={partsOf(row)} canEdit={canEdit} onOpen={() => setStdFor(ecId)} />
+                          </td>
                           <td className={ecCell}>
                             <DocCell row={row} doc="GAD" onOpen={() => open(ecId, "GAD")} />
                           </td>
@@ -453,6 +459,23 @@ export function DrawingWorkspace({
               )}
             </div>
           </div>
+        );
+      })()}
+
+      {(() => {
+        const ec = stdFor ? rows.find((r) => r.id === stdFor) : null;
+        if (!ec) return null;
+        return (
+          <PartPickerModal
+            key={str(ec.id)}
+            itemId={str(ec.id)}
+            label={[str(ec.so_no), `EC ${str(ec.ec_no) || "—"}`].filter(Boolean).join(" · ")}
+            pumpType={ec.pump_type}
+            required={ec.part_drawing}
+            parts={partsOf(ec)}
+            canEdit={canEdit}
+            onClose={() => setStdFor(null)}
+          />
         );
       })()}
 

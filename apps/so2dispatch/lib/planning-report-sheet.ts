@@ -288,8 +288,8 @@ export function pumpSheet(
       const partText = part
         ? `${part.label}\n${part.done}/${part.total} part${part.total === 1 ? "" : "s"}`
         : str(r.part_drawing).toLowerCase() === "no"
-          ? "No"
-          : "Not asked";
+          ? "Not required"
+          : "Not selected";
       const short = (Array.isArray(r.part_shortages) ? r.part_shortages : []) as Row[];
       const shortText = short.length
         ? `${short.length} short: ${short.map((p) => (str(p.qty) ? `${str(p.part_name)} ×${str(p.qty)}` : str(p.part_name))).join(", ")}`

@@ -2756,7 +2756,7 @@ export async function listItemsForSection(
                          FROM order_drawing_revisions rv
                         WHERE rv.item_id = it.id),
                       '[]'::jsonb) AS child_rows,
-           -- Part drawings, when Planning has asked for them.
+           -- Part drawings, when Drawing has called the GAD Non Standard.
            (SELECT pl.part_drawing FROM order_planning pl WHERE pl.item_id = it.id) AS part_drawing,
            COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
                              FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings`
@@ -2805,7 +2805,7 @@ export async function listItemsForSection(
                  COALESCE((SELECT jsonb_agg(to_jsonb(rv) ORDER BY rv.seq)
                              FROM order_drawing_revisions rv
                             WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'), '[]'::jsonb) AS gad_versions,
-                 -- Part drawings: whether Planning asked for them, and the parts.
+                 -- Part drawings: whether Drawing called the GAD Non Standard, and the parts.
                  d.part_drawing,
                  -- The parts the EC is short of.
                  COALESCE((SELECT jsonb_agg(to_jsonb(ps) ORDER BY ps.seq)

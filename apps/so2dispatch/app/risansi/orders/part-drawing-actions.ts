@@ -45,9 +45,10 @@ function refresh() {
 }
 
 /**
- * Planning's call on an EC: whether it needs part drawings, and which parts.
- * Parts no longer picked are dropped; those already there keep what Drawing
- * has recorded. Saying No keeps the parts, so a Yes again brings them back.
+ * Drawing's call on an EC: its GAD Standard (No) or Non Standard (Yes), and
+ * for a Non Standard one the parts it needs drawn. Parts no longer picked are
+ * dropped; those already there keep what has been recorded. Standard keeps the
+ * parts, so Non Standard again brings them back.
  */
 export async function savePartSelectionAction(
   itemId: string,
@@ -56,8 +57,8 @@ export async function savePartSelectionAction(
 ): Promise<PartDrawingResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!canEditSection(user.role, "order_planning")) {
-    return { ok: false, error: "Only Planning can choose part drawings." };
+  if (!canEditChild(user.role, "order_drawing_revisions")) {
+    return { ok: false, error: "Only Drawing can choose Standard or Non Standard." };
   }
   const ec = await ecFacts(itemId);
   if (!ec) return { ok: false, error: "EC not found." };
@@ -110,20 +111,10 @@ export async function savePartSelectionAction(
       category: "activity",
       target: "Part drawing",
       details: yes
-        ? `Part drawing: Yes · ${wanted.size} part${wanted.size === 1 ? "" : "s"} (${added} added, ${removed} removed)`
-        : "Part drawing: No",
+        ? `GAD Non Standard · ${wanted.size} part${wanted.size === 1 ? "" : "s"} (${added} added, ${removed} removed)`
+        : "GAD Standard",
       subject: await subjectForItem(itemId),
     });
-    if (yes && (added > 0 || removed > 0)) {
-      const so = (await getOrderLabel(ec.order_id)) ?? ec.order_id;
-      await emitNotification({
-        roles: ["drawing"],
-        orderId: ec.order_id,
-        itemId,
-        type: "dept_update",
-        message: `Part drawings for ${so} · EC ${ec.ec_no ?? "—"}: ${wanted.size} part${wanted.size === 1 ? "" : "s"} to draw`,
-      });
-    }
     refresh();
     return { ok: true };
   } catch (error) {

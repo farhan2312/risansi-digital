@@ -1,6 +1,7 @@
-// Part drawings: Planning (PPC) says whether a pump EC needs them and picks
-// the parts — from its pump's parts list, or others by name — and Drawing
-// marks each part complete. Shared by the browser and the server.
+// Part drawings: Drawing says whether a pump EC's GAD is Standard or Non
+// Standard; a Non Standard one needs them, so Drawing picks the parts — from
+// its pump's parts list, or others by name — and marks each part complete.
+// Shared by the browser and the server.
 
 export type PartListItem = { section: string; part_no: string; part_name: string };
 
@@ -100,12 +101,21 @@ export function partListsFor(pumpType: unknown): { title: string; parts: PartLis
 /** A part someone named rather than picked from a list. */
 export const OTHER_PART_SECTION = "Others";
 
+/**
+ * Drawing's word for an EC's part_drawing: Non Standard needs part drawings
+ * (Yes), Standard none (No). Null until Drawing has chosen.
+ */
+export function gadStandardOf(partDrawing: unknown): "Standard" | "Non Standard" | null {
+  const v = String(partDrawing ?? "").trim().toLowerCase();
+  return v === "yes" ? "Non Standard" : v === "no" ? "Standard" : null;
+}
+
 export type PartDrawingTone = "done" | "part" | "pending";
 
 /**
  * Where an EC's part drawings stand: Pending until a part is drawn, Fully
- * complete once every part picked is, Partial complete between. Null when
- * Planning has not asked for part drawings.
+ * complete once every part picked is, Partial complete between. Null unless
+ * the EC's GAD is Non Standard.
  */
 export function partDrawingStatus(
   required: unknown,

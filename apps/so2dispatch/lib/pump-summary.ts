@@ -31,7 +31,7 @@ export type PumpSummary = {
     gad: PumpStage;
     /** Null when the SO asks for no Performance Curve. */
     curve: PumpStage | null;
-    /** Null when Planning asked for part drawings on none of its ECs. */
+    /** Null when none of its ECs' GADs is Non Standard. */
     part: PumpStage | null;
     readiness: string | null;
     closed: boolean;

@@ -2,7 +2,7 @@
 
 import { EcLink } from "./ec-link";
 import { Fragment, useState } from "react";
-import { ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
+import { MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, SORTABLE_DATE_COLUMNS, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
 import { ecDone, pumpEcStage, pumpLotsFromEcs } from "@/lib/assembly";
@@ -10,7 +10,7 @@ import { boiInHand } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { GadCell } from "./gad-cell";
-import { PartDrawingCell, PartPickerModal, ShortageCell } from "./part-drawing";
+import { PartDrawingCell, PartDrawingView, PartPickerModal, ShortageCell } from "./part-drawing";
 import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
 import { PumpAfterPlanningCells } from "./pump-dept-cells";
@@ -88,7 +88,7 @@ export function PlanningPumpTable({
   onThread: (orderId: string, soLabel: string) => void;
 }) {
   const pumps = rows.filter((r) => PUMP_LIKE.includes(str(r.item_type)));
-  // The EC whose part drawings are open to pick.
+  // The EC whose part drawings are open to read; Drawing picks them.
   const [partsFor, setPartsFor] = useState<string | null>(null);
   // The EC whose shortage is open to mark.
   const [shortFor, setShortFor] = useState<string | null>(null);
@@ -382,18 +382,13 @@ export function PlanningPumpTable({
                       <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} />
                     </td>
                     <td className={ecCell}>
-                      <div className="flex items-start gap-2">
-                        <PartDrawingCell required={r.part_drawing} parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []} />
-                        <button
-                          type="button"
-                          onClick={() => setPartsFor(str(r.id))}
-                          title={canEdit ? "Pick parts for drawing" : "Parts for drawing"}
-                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
-                        >
-                          <ListChecks className="h-3.5 w-3.5" />
-                          Parts
+                      {str(r.part_drawing).toLowerCase() === "yes" ? (
+                        <button type="button" onClick={() => setPartsFor(str(r.id))} title="See the parts" className="text-left">
+                          <PartDrawingCell required={r.part_drawing} parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []} />
                         </button>
-                      </div>
+                      ) : (
+                        <PartDrawingCell required={r.part_drawing} parts={[]} />
+                      )}
                     </td>
                     {ecPlanCols.map((f, i) => (
                       <td key={f.column} className={`${ecCell} whitespace-nowrap ${i === 0 ? "border-l border-card-border" : ""}`}>
@@ -456,16 +451,12 @@ export function PlanningPumpTable({
       {(() => {
         const r = partsFor ? pumps.find((x) => str(x.id) === partsFor) : null;
         if (!r) return null;
-        const ec = (r.ec ?? {}) as Row;
         return (
-          <PartPickerModal
+          <PartDrawingView
             key={str(r.id)}
             itemId={str(r.id)}
             label={[str(r.so_no), `EC ${str(r.ec_no) || "—"}`].filter(Boolean).join(" · ")}
-            pumpType={ec.pump_type}
-            required={r.part_drawing}
             parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []}
-            canEdit={canEdit}
             onClose={() => setPartsFor(null)}
           />
         );
