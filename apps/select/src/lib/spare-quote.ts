@@ -74,6 +74,7 @@ export const quoteTotal = (q: SpareQuote): number => q.models.reduce((s, m) => s
 
 /** What stops the quote going to the client, or null. */
 export function spareQuoteProblem(q: SpareQuote): string | null {
+  if (!q.poNo || !q.poDate) return "Enter the reference PO No. and date.";
   const parts = q.models.flatMap((m) => m.lines);
   if (parts.length === 0) return "Add a model and its parts first.";
   if (q.models.some((m) => m.lines.length === 0)) return "Every model needs at least one part.";

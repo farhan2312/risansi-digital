@@ -37,6 +37,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if ("erpSerial" in body && !("tsmRepId" in body)) {
     const erpSerial = parseErpSerial(body.erpSerial);
     if (erpSerial === undefined) return error("ERP serial: letters, digits, - or / only (max 30).", 400);
+    if (!erpSerial && current.productType === "SPR") return error("A spare quotation needs its Quotation No. serial (ERP).", 400);
     if ((current.erpSerial ?? null) !== erpSerial) {
       await db.update(quotation).set({ erpSerial, updatedAt: sql`now()` }).where(eq(quotation.id, id));
       await logAudit(req, {

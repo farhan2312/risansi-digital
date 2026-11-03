@@ -9,6 +9,7 @@ import { SPARE_GROUP, finYearOf, isDriveGroup, parseErpSerial, quotationNumber }
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, loadQuotation, suggestedTsm, tsmById } from "@/lib/quotation-server";
 import { workDenied, viewDenied } from "@/lib/enquiry-access";
+import { normalizeSpareQuote } from "@/lib/spare-quote";
 
 export const dynamic = "force-dynamic";
 
@@ -67,13 +68,19 @@ export async function POST(req: Request) {
   if (erpSerial === undefined) return error("ERP serial: letters, digits, - or / only (max 30).", 400);
 
   const [p] = await db
-    .select({ code: projects.projectCode, name: projects.name, clientCode: projects.clientCode, orderType: projects.orderType })
+    .select({ code: projects.projectCode, name: projects.name, clientCode: projects.clientCode, orderType: projects.orderType, spareQuote: projects.spareQuote })
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
   if (!p) return error("Enquiry not found", 404);
   const groups = await projectDriveGroups(projectId);
   if (spare !== (p.orderType === "spare")) return error(spare ? "This enquiry is not a spare order." : "A spare order has its own quotation.", 400);
+  if (spare) {
+    // All four are needed: reference PO No. and date, TSM (below) and the ERP serial.
+    const quote = normalizeSpareQuote(p.spareQuote);
+    if (!quote.poNo || !quote.poDate) return error("Enter the reference PO No. and date.", 400);
+    if (!erpSerial) return error("Enter the Quotation No. serial (ERP).", 400);
+  }
   if (!spare && !groups.includes(group as (typeof groups)[number])) return error("This enquiry has no tag on that drive system.", 400);
 
   let tsm;
