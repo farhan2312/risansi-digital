@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import risansiPool from '@/lib/db-risansi';
 import { complaintEditOverride } from '@/lib/risansi-settings';
+import { activeGrant, GRANT_HOURS, MIN_REASON } from '@/lib/risansi-complaint-unlock';
 import { getCurrentUser, hasRole, canViewClient, complaintVisibilitySql, type CurrentUser } from '@/lib/risansi-auth';
 import { recordAudit } from '@/lib/audit';
 import { pushInApp } from '@/lib/risansi-inapp';
 import { sendNotification } from '@/lib/risansi-email';
 import {
-  pageById, STATUSES, NEXT, canEditPage, canMove, gateFor, severityOf, holderFor, isFieldShown,
+  pageById, PAGES, STATUSES, NEXT, canEditPage, canMove, gateFor, severityOf, holderFor, isFieldShown,
   cascadeParent, costImpactForced, isImmediateResponse, statusAfterSavingPage,
   ADD_ON_LOOKUP_KINDS, CASCADING_LOOKUP_KINDS,
   responsibleDepartmentFor, routingOwner, IMMEDIATE_RISK_FIELDS, asList,
@@ -53,10 +54,119 @@ async function loadAccess(id: number): Promise<{ user: CurrentUser; row: AccessR
 
 // Async because the edit override lives in app_settings. cache() behind it
 // means the extra awaits cost one query per request, not one per call.
-const editor = async (u: CurrentUser) => ({
+const editor = async (u: CurrentUser, complaintId?: number) => ({
   id: u.id, role: u.role, departments: u.departments,
   override: await complaintEditOverride(),
+  // The per-complaint grant, which lifts the Closed gate and nothing else.
+  // Passing no id means "no grant", so a caller that forgets one gets the
+  // old, stricter answer rather than a quietly permissive one.
+  unlocked: complaintId == null ? false : !!(await activeGrant(complaintId)),
 });
+
+// ── Editing a closed complaint ─────────────────────────────────
+
+/**
+ * May this person ask to edit this closed complaint?
+ *
+ * Whoever could have edited some page of it had it not been closed — asked by
+ * running the real rules against the same complaint with the Closed gate
+ * lifted. That deliberately adds nobody: the grant changes WHEN a person may
+ * edit, never WHO. A reader with no page of their own still has none.
+ */
+function mayUnlock(e: Awaited<ReturnType<typeof editor>>, row: AccessRow, worksClient: boolean): boolean {
+  if (hasRole(e.role, 'admin')) return true;
+  const asIfOpen = { ...e, unlocked: true };
+  return PAGES.some(page => canEditPage(asIfOpen, { ...row, worksClient }, page));
+}
+
+/**
+ * Open a closed complaint for correction, for GRANT_HOURS, with a reason.
+ *
+ * Deliberately not Reopen. Reopen moves the complaint back through the
+ * workflow, which rewrites its history to fix a typo in it; this leaves the
+ * status exactly where it is and records that somebody was allowed to touch
+ * it, who, when and why.
+ */
+export async function unlockClosedComplaint(id: number, reason: string): Promise<SaveResult> {
+  const a = await loadAccess(id);
+  if (!a || !a.canSee) return fail('This complaint is not one you can see.');
+  const { user, row } = a;
+
+  if (row.schema_version < 2) return fail('This is a legacy complaint, shown as it was recorded. It cannot be edited.');
+  if (row.status !== 'Closed') return fail('This complaint is not closed — it can be edited as it stands.');
+
+  const e = await editor(user, id);
+  if (!mayUnlock(e, row, a.worksClient)) {
+    return fail('Editing a closed complaint is for the people who work it — the Complaint Team, the department that owns the page, or whoever it was assigned to. Ask one of them, or an admin.');
+  }
+
+  const why = (reason ?? '').trim();
+  if (why.length < MIN_REASON) {
+    return fail(`Say what needs correcting and why — at least ${MIN_REASON} characters. It goes on the complaint's own record and into the audit log.`);
+  }
+
+  // The unique index allows one live grant per complaint, so a second unlock
+  // while one is running is a conflict rather than a silent extension.
+  try {
+    const { rows } = await risansiPool.query<{ id: number; expires_at: string }>(
+      `INSERT INTO complaint_edit_grants (complaint_id, reason, status_then, granted_by, expires_at)
+       VALUES ($1, $2, $3, $4, now() + ($5 || ' hours')::interval)
+       RETURNING id, expires_at::text`,
+      [id, why, row.status, user.email, String(GRANT_HOURS)]);
+    const grant = rows[0];
+
+    // On the complaint's own timeline, not only in the admin audit. The people
+    // who read this complaint next are the ones who need to know it was opened.
+    await risansiPool.query(
+      `INSERT INTO complaint_updates (complaint_id, body, created_by) VALUES ($1, $2, $3)`,
+      [id, `Opened for correction while closed, for ${GRANT_HOURS} hours — ${why}`, user.email]);
+
+    await recordAudit({
+      action: 'complaint.unlock', entityType: 'complaint', entityId: id, entityLabel: row.complaint_no,
+      summary: `Closed complaint opened for correction for ${GRANT_HOURS}h — ${why}`,
+      metadata: { grant_id: grant?.id, reason: why, status_then: row.status, expires_at: grant?.expires_at },
+      actorEmail: user.email,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '';
+    if (/complaint_edit_grants_one_live/.test(msg)) return fail('This complaint is already open for correction.');
+    if (/complaint_edit_grants/.test(msg) && /does not exist/.test(msg)) {
+      return fail('Editing closed complaints is not switched on yet — migration 0130 has not been applied.');
+    }
+    return fail('Could not open it for correction. Nothing was changed.');
+  }
+
+  revalidatePath(`/risansi/complaints/${id}`);
+  return { ok: true };
+}
+
+/** End a grant early, once the correction is done. */
+export async function relockComplaint(id: number): Promise<SaveResult> {
+  const a = await loadAccess(id);
+  if (!a || !a.canSee) return fail('This complaint is not one you can see.');
+  const { user, row } = a;
+
+  const grant = await activeGrant(id);
+  if (!grant) return fail('This complaint is not open for correction.');
+
+  const e = await editor(user, id);
+  if (!mayUnlock(e, row, a.worksClient)) return fail('That is not yours to close.');
+
+  await risansiPool.query(
+    `UPDATE complaint_edit_grants SET ended_at = now(), ended_by = $2
+      WHERE id = $1 AND ended_at IS NULL`,
+    [grant.id, user.email]);
+
+  await recordAudit({
+    action: 'complaint.lock', entityType: 'complaint', entityId: id, entityLabel: row.complaint_no,
+    summary: 'Closed complaint locked again',
+    metadata: { grant_id: grant.id, reason: grant.reason },
+    actorEmail: user.email,
+  });
+
+  revalidatePath(`/risansi/complaints/${id}`);
+  return { ok: true };
+}
 
 // ── Value coercion ─────────────────────────────────────────────────────────
 
@@ -248,11 +358,15 @@ export async function saveComplaintPage(id: number, pageId: number, input: Recor
   const normallyAllowed = canEditPage(
     { id: user.id, role: user.role, departments: user.departments },
     { ...row, worksClient: a.worksClient }, page);
-  if (!canEditPage(await editor(user), { ...row, worksClient: a.worksClient }, page)) {
+  // Which of the two let it through. A grant names the complaint and carries a
+  // reason, so the audit line can say what the correction was for; the global
+  // override says only that editing happened to be open at the time.
+  const grantUsed = normallyAllowed ? null : await activeGrant(id);
+  if (!canEditPage(await editor(user, id), { ...row, worksClient: a.worksClient }, page)) {
     return fail(row.schema_version < 2
       ? 'This is a legacy complaint, shown as it was recorded. It cannot be edited.'
       : row.status === 'Closed'
-        ? 'This complaint is closed. Reopen it from Closure & Review if there is more to do.'
+        ? 'This complaint is closed. Use “Edit this closed complaint” to correct it, or reopen it from Closure & Review if there is more work to do.'
         : `${page.title} is edited by ${page.owner}${page.id === 4 || page.id === 5 || page.id === 7 ? ', or whoever it is assigned to' : ''}. Ask the Complaint Team.`);
   }
 
@@ -357,8 +471,13 @@ export async function saveComplaintPage(id: number, pageId: number, input: Recor
   await recordAudit({ action: 'update', entityType: 'complaint', entityId: id, entityLabel: row.complaint_no,
     summary: `${page.title}: ${keys.filter(k => k !== 'severity').join(', ')}`
       + `${changed.severity ? ` · severity ${changed.severity}` : ''}`
-      + `${normallyAllowed ? '' : ' · via the complaint edit override'}`,
-    metadata: { ...changed, ...(normallyAllowed ? {} : { edit_override: true }) }, actorEmail: user.email });
+      + `${normallyAllowed ? '' : grantUsed ? ` · while open for correction — ${grantUsed.reason}` : ' · via the complaint edit override'}`,
+    metadata: {
+      ...changed,
+      ...(normallyAllowed ? {} : grantUsed
+        ? { edit_grant_id: grantUsed.id, edit_grant_reason: grantUsed.reason }
+        : { edit_override: true }),
+    }, actorEmail: user.email });
 
   // Severe / Immediate Response, the moment it becomes true. Told once, on the
   // crossing, so re-saving page 3 does not page the department again.
@@ -519,7 +638,7 @@ export async function deleteComplaintAttachment(attachmentId: number): Promise<S
   const a = await loadAccess(att.complaint_id);
   if (!a || !a.canSee) return fail('This complaint is not one you can see.');
   const page = pageById(att.category === 'capa' ? 6 : 1)!;
-  if (!canEditPage(await editor(a.user), { ...a.row, worksClient: a.worksClient }, page) && !canEditPage(await editor(a.user), { ...a.row, worksClient: a.worksClient }, pageById(6)!)) {
+  if (!canEditPage(await editor(a.user, att.complaint_id), { ...a.row, worksClient: a.worksClient }, page) && !canEditPage(await editor(a.user, att.complaint_id), { ...a.row, worksClient: a.worksClient }, pageById(6)!)) {
     return fail('Only somebody who can edit this complaint can remove its files.');
   }
   await risansiPool.query('DELETE FROM complaint_attachments WHERE id = $1', [attachmentId]);
@@ -816,7 +935,7 @@ export async function addLookupFromForm(input: {
   const page = pageById(Number(input?.pageId));
   if (!page) return fail('Unknown page.');
   const may = hasRole(a.user.role, 'admin')
-    || canEditPage(await editor(a.user), { ...a.row, worksClient: a.worksClient }, page);
+    || canEditPage(await editor(a.user, Number(input?.complaintId)), { ...a.row, worksClient: a.worksClient }, page);
   if (!may) return fail(`Only somebody who can edit ${page.title} can add to this list.`);
 
   const value = String(input?.value ?? '').trim().replace(/\s+/g, ' ');
@@ -895,11 +1014,11 @@ export async function saveComplaintParts(complaintId: number, rows: ComplaintPar
   const a = await loadAccess(id);
   if (!a || !a.canSee) return fail('This complaint is not one you can see.');
   const { user, row } = a;
-  if (!canEditPage(await editor(user), { ...row, worksClient: a.worksClient }, page)) {
+  if (!canEditPage(await editor(user, id), { ...row, worksClient: a.worksClient }, page)) {
     return fail(row.schema_version < 2
       ? 'This is a legacy complaint, shown as it was recorded. Its parts cannot be edited.'
       : row.status === 'Closed'
-        ? 'This complaint is closed. Reopen it from Closure & Review if there is more to do.'
+        ? 'This complaint is closed. Use “Edit this closed complaint” to correct it, or reopen it from Closure & Review if there is more work to do.'
         : `Part details are edited by ${page.owner}. Ask the Complaint Team.`);
   }
   const list = Array.isArray(rows) ? rows : [];

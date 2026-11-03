@@ -12,6 +12,8 @@ import {
   type ComplaintStatus, type ComplaintValues, type Severity,
 } from '@/lib/risansi-complaint-flow';
 import { ComplaintPageForm, type UserOpt, type OemOpt } from '@/components/risansi/complaints/ComplaintPageForm';
+import { ClosedEditPanel } from '@/components/risansi/complaints/ClosedEditPanel';
+import { activeGrant } from '@/lib/risansi-complaint-unlock';
 import type { ComplaintPartRow } from '@/components/risansi/complaints/ComplaintPartsEditor';
 import { ComplaintTimeline, ComplaintLifecycle } from '@/components/risansi/complaints/ComplaintTimeline';
 import { ComplaintMoveBar } from '@/components/risansi/complaints/ComplaintMoveBar';
@@ -126,7 +128,12 @@ export default async function ComplaintPage({ params, searchParams }: {
   const legacy = c.schema_version < 2;
   const worksClient = c.client_id != null && !hasRole(user.role, 'admin') ? await canViewClient(user, c.client_id) : hasRole(user.role, 'admin');
   const access = { ...c, worksClient } as Parameters<typeof canEditPage>[1];
-  const editor = { id: user.id, role: user.role, departments: user.departments, override: await complaintEditOverride() };
+  // A live grant (complaint_edit_grants) lifts the Closed gate on THIS
+  // complaint and nothing else - every page's own department and assignment
+  // rule still applies, so the grant changes when a person may edit, not who.
+  const grant = c.status === 'Closed' ? await activeGrant(id) : null;
+  const editor = { id: user.id, role: user.role, departments: user.departments,
+    override: await complaintEditOverride(), unlocked: !!grant };
   const mayMove = canMove(editor, access);
   const hasCapa = files.some(f => f.category === 'capa');
   const sev = (c.severity as Severity | null) ?? null;
@@ -142,8 +149,13 @@ export default async function ComplaintPage({ params, searchParams }: {
   const slug = typeof sp.page === 'string' ? sp.page : PAGES[0].slug;
   const page = pageBySlug(slug) ?? PAGES[0];
   const canEditThis = canEditPage(editor, access, page);
+  // Who may ask for the unlock: whoever could have edited some page of this
+  // complaint had it not been closed. Asked by running the real rules with the
+  // gate lifted, so it adds nobody who could not already edit it.
+  const mayUnlockClosed = hasRole(user.role, 'admin')
+    || PAGES.some(pg => canEditPage({ ...editor, unlocked: true }, access, pg));
   const whyNot = legacy ? 'This is a legacy complaint, recorded before the workflow. It is shown as it was and does not change.'
-    : c.status === 'Closed' ? 'This complaint is closed. Reopen it from the move bar if there is more to do.'
+    : c.status === 'Closed' ? 'This complaint is closed. Use “Edit this closed complaint” above to correct it, or Reopen from the move bar if there is more work to do.'
     : `${page.title} is edited by ${page.owner}${[4, 5, 7].includes(page.id) ? ', or whoever it is assigned to' : ''}.`;
   const pageHref = (s: string) => `/risansi/complaints/${id}?page=${s}`;
   const canEditFiles = canEditPage(editor, access, PAGES[0]);
@@ -280,6 +292,9 @@ export default async function ComplaintPage({ params, searchParams }: {
                 )}
                 <ComplaintAttachments complaintId={id} files={files} canEdit={canEditFiles} canEditCapa={canEditCapa} only={['complaint', 'photo']} />
               </div>
+            )}
+            {c.status === 'Closed' && !legacy && (
+              <ClosedEditPanel complaintId={id} grant={grant} mayUnlock={mayUnlockClosed} />
             )}
             <ComplaintPageForm key={page.id} complaintId={id} clientId={c.client_id} page={page} initial={c} oems={oems}
               lookups={lookups} cascades={cascades} parts={partRows} users={userRows} canEdit={canEditThis} whyNot={whyNot} />

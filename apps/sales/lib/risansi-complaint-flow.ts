@@ -775,6 +775,16 @@ export interface Editor {
    * than here, so this module never touches the database.
    */
   override?: boolean;
+  /**
+   * This complaint has a live edit grant (complaint_edit_grants, migration
+   * 0130) - somebody asked to correct it after closure and wrote down why.
+   *
+   * Unlike `override` this is not a skeleton key. It lifts the Closed gate
+   * and nothing else, so the page's department and assignment rules still
+   * decide who may edit what; a grant lets the right person edit a closed
+   * complaint, not anybody edit anything.
+   */
+  unlocked?: boolean;
 }
 
 export interface ComplaintForAccess {
@@ -813,7 +823,7 @@ export function canEditPage(user: Editor, c: ComplaintForAccess, page: Complaint
   if (isAdminRole(user.role)) return true;
   if (user.override) return true;
   if (c.schema_version < 2) return false;
-  if (c.status === 'Closed') return false;
+  if (c.status === 'Closed' && !user.unlocked) return false;
   const uid = user.id;
   if (uid != null) {
     if (page.id === 4 && c.investigation_assigned_to === uid) return true;
