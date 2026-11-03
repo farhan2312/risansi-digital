@@ -20,6 +20,7 @@ import {
   otherNet,
   versionLabel,
 } from "../../lib/commercial";
+import { SPARE_GROUP } from "../../lib/commercial";
 import {
   changeQuotationTsm,
   setQuotationErpSerial,
@@ -59,6 +60,7 @@ export default function QuotationPanel({
   onGenerate,
   readOnly = false,
   sendBlock = null,
+  onChanged,
 }: {
   projectId: string;
   /** Drive group this panel quotes (GM / GB / VB / DD) — one quotation each. */
@@ -75,7 +77,12 @@ export default function QuotationPanel({
   readOnly?: boolean;
   /** What stops Send to client (flagged prices, the Prices reviewed tick), or null. */
   sendBlock?: string | null;
+  /** After the quotation changes (sent, a new version, …). */
+  onChanged?: (q: QuotationInfo) => void;
 }) {
+  // A spare is versioned through its enquiry versions, so its quotation shows no
+  // internal or client versions: it goes to the client once per enquiry version.
+  const isSpare = group === SPARE_GROUP;
   const [quotation, setQuotation] = useState<QuotationInfo | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -154,6 +161,7 @@ export default function QuotationPanel({
     try {
       const q = await fn();
       setQuotation(q);
+      onChanged?.(q);
       setTsmId(String(clientTsm?.id ?? q.tsmRepId ?? ""));
       setNote("");
     } catch (e) {
@@ -240,10 +248,15 @@ export default function QuotationPanel({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <VersionBadge label="Internal" value={versionLabel(quotation.internalVersion)} />
-          <VersionBadge label="Client" value={versionLabel(quotation.clientVersion)} muted={quotation.clientVersion === null} />
+          {!isSpare && (
+            <>
+              <VersionBadge label="Internal" value={versionLabel(quotation.internalVersion)} />
+              <VersionBadge label="Client" value={versionLabel(quotation.clientVersion)} muted={quotation.clientVersion === null} />
+            </>
+          )}
           {!readOnly && (
           <>
+          {!isSpare && (
           <button
             type="button"
             className={btnSm}
@@ -256,6 +269,7 @@ export default function QuotationPanel({
           >
             New internal version
           </button>
+          )}
           <button
             type="button"
             className={btnPrimarySm}
@@ -266,19 +280,21 @@ export default function QuotationPanel({
                 : hasUnsavedPrices
                 ? "Save the price changes first"
                 : !liveInternal
-                  ? "Already sent — start a new internal version for further changes"
+                  ? isSpare
+                    ? "Already sent. For changes, create a new version from Edit on the Enquiries list."
+                    : "Already sent — start a new internal version for further changes"
                   : undefined
             }
             onClick={() => setConfirm("send")}
           >
-            Send to client
+            {isSpare && !liveInternal ? "Sent to client" : "Send to client"}
           </button>
           </>
           )}
         </div>
       </header>
 
-      <fieldset disabled={readOnly} className="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <fieldset disabled={readOnly || (isSpare && !liveInternal)} className="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No.</span>
           <span className="flex flex-wrap items-center gap-1.5">
@@ -330,7 +346,12 @@ export default function QuotationPanel({
       </fieldset>
 
       {sendBlock && !readOnly && <p className="px-4 pb-2 text-[12px] font-semibold text-warn">Send to client is waiting: {sendBlock}</p>}
-      {!liveInternal && !readOnly && (
+      {isSpare && !liveInternal && !readOnly && (
+        <p className="px-4 pb-3 text-[12.5px] font-semibold text-pos">
+          Sent to the client. To change anything, create a new version from Edit on the Enquiries list.
+        </p>
+      )}
+      {!isSpare && !liveInternal && !readOnly && (
         <p className="px-4 pb-2 text-[12px] text-warn">
           Internal V{quotation.internalVersion} was sent to the client and is frozen. If the TSM asks for changes,
           start a new internal version before changing prices.
@@ -343,7 +364,7 @@ export default function QuotationPanel({
       )}
       {actionError && <p className="px-4 pb-3 text-[12.5px] text-neg">{actionError}</p>}
 
-      <div className="grid grid-cols-1 gap-4 border-t border-line p-4 md:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-4 border-t border-line p-4 md:grid-cols-2 ${isSpare ? "hidden" : ""}`}>
         <VersionList title="Internal versions" hint="A new one each time the TSM asks for changes." items={internal} onView={setViewing} />
         <VersionList title="Client versions" hint="A new one each time it is sent to the client." items={client} onView={setViewing} />
       </div>
@@ -410,15 +431,21 @@ export default function QuotationPanel({
       </ConfirmModal>
       <ConfirmModal
         open={confirm === "send"}
-        title={`Record client V${nextClient}?`}
+        title={isSpare ? "Send to the client?" : `Record client V${nextClient}?`}
         description={
+          isSpare ? (
+            <>
+              Marks this quotation ({formatInr(liveInternal?.snapshot.grandTotal ?? 0)}) as sent to the client. After this, changes need a new version of the enquiry. Nothing is e-mailed.
+            </>
+          ) : (
           <>
             Marks internal V{quotation.internalVersion} ({formatInr(liveInternal?.snapshot.grandTotal ?? 0)}) as sent
             to the client as <b>client V{nextClient}</b>. Both keep a frozen copy of these prices; further changes need a
             new internal version. Nothing is e-mailed.
           </>
+          )
         }
-        confirmLabel={`Send as client V${nextClient}`}
+        confirmLabel={isSpare ? "Mark as sent" : `Send as client V${nextClient}`}
         busy={busy}
         onClose={() => setConfirm(null)}
         onConfirm={() => run(() => sendQuotationToClient(quotation.id), "Couldn't record the send.")}

@@ -32,13 +32,15 @@ export async function POST(req: Request) {
   if (noWork) return noWork;
 
   const rows = await db
-    .select({ id: projects.id, code: projects.projectCode, version: projects.versionNo, orderType: projects.orderType, quote: projects.spareQuote })
+    .select({ id: projects.id, code: projects.projectCode, version: projects.versionNo, orderType: projects.orderType, quote: projects.spareQuote, sentAt: projects.sentToClientAt })
     .from(projects)
     .where(inArray(projects.id, [sourceId, targetId]));
   const source = rows.find((r) => r.id === sourceId);
   const target = rows.find((r) => r.id === targetId);
   if (!source || !target) return error("Enquiry not found", 404);
   if (source.orderType !== "spare" || target.orderType !== "spare") return error("Both enquiries must be spare orders.", 400);
+
+  if (target.sentAt) return error("That enquiry's quotation was already sent to the client.", 409);
 
   const from = normalizeSpareQuote(source.quote);
   if (from.models.length === 0) return error("This enquiry has no models to copy yet.", 400);

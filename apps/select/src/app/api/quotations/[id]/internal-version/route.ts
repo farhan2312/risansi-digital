@@ -5,7 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { quotation, quotationVersion } from "@/lib/db/schema";
-import { formatInr, quotationNumber } from "@/lib/commercial";
+import { SPARE_GROUP, formatInr, quotationNumber } from "@/lib/commercial";
 import { buildSnapshot, freezeLiveInternal, loadQuotation } from "@/lib/quotation-server";
 import { workDenied } from "@/lib/enquiry-access";
 
@@ -41,6 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const [current] = await db.select().from(quotation).where(eq(quotation.id, id)).limit(1);
   if (!current) return error("Quotation not found", 404);
+  if (current.driveGroup === SPARE_GROUP) return error("A spare quotation is versioned through its enquiry versions.", 400);
 
   const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;

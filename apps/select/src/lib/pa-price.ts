@@ -11,6 +11,7 @@
  *   Only auger, no bucket (AG)  ABBN +10 % · BBBN +12 % · CCCN +15 %
  *   EPDM                        × 1.1
  *   Food grade (FGM / FGE)      P+A + 5 %
+ *   Nitrile (N)                 P+A + 5 % (user, 2026-11-04)
  *   Viton / HNBR                + fixed amount per family ("added to P&A")
  *   Base plate SS304            + 5 %          (27-10-2025)
  *   Suction / delivery size     +3 % larger / −3 % smaller than standard (27-03-2026)
@@ -254,6 +255,7 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
   if (i.rubber === "E") adj.push({ key: "epdm", label: "EPDM × 1.1 (+10%)", short: "EPDM +10%", pct: 10, defaultOn: true });
   if (i.rubber === "FGM" || i.rubber === "FGE")
     adj.push({ key: "food", label: "Food grade +5%", short: "Food grade +5%", pct: 5, defaultOn: true });
+  if (i.rubber === "N") adj.push({ key: "nitrile", label: "Nitrile +5%", short: "Nitrile +5%", pct: 5, defaultOn: true });
   if (i.rubber === "V" || i.rubber === "H") {
     const name = i.rubber === "V" ? "Viton" : "HNBR";
     const a = findAddon(data, i.model);

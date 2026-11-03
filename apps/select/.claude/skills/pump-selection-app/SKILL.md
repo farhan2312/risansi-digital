@@ -976,10 +976,14 @@ never auto-filled from the AI result.
   PumpCodeInput.tsx, shared with Pump & Qty) and per model parts (PartPicker: lists in
   lib/spare-parts.ts copied from SO to Dispatch, plus Others) with qty, unit price and
   amount. Stored whole in projects.spare_quote (lib/spare-quote.ts, PUT /api/spare-quote).
-- The quotation is a normal one: drive_group SP (SPARE_GROUP), product type SPR, same
-  serial sequence, internal / client versions. Its snapshot has one row per part
+- No internal or client versions on screen (user, 2026-11-04): a spare is versioned
+  through its enquiry versions. Send to client once per enquiry version; after that the
+  quote is locked (page + PUT /api/spare-quote) until a new version. Underneath it is a
+  normal quotation: drive_group SP (SPARE_GROUP), product type SPR, same serial sequence,
+  with its version rows kept. Its snapshot has one row per part
   (spareSnapshot) so version lists and Client Quoted Prices read it as usual. Document:
-  lib/spare-quote-doc.ts in the sample's format (terms not added yet).
+  lib/spare-quote-doc.ts in the sample's format (terms not added yet); every row editable
+  or removable for the document only (projects.spare_doc_edits, PUT /api/spare-quote/doc).
 - One status, shown just as Status (table, Edit form), kept in the commercial columns;
   the row's button reads Quotation. Completed when sent to client, In Progress once the quotation
   is generated, else Pending (SPARE_STATUS). "status" in the lists = that status.

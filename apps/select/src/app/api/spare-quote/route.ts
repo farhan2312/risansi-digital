@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
 import { enquiryNoWithVersion } from "@/lib/roles";
-import { normalizeSpareQuote, quoteTotal } from "@/lib/spare-quote";
+import { normalizeSpareDocEdits, normalizeSpareQuote, quoteTotal } from "@/lib/spare-quote";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,8 @@ const load = (projectId: string) =>
       enquiryDate: projects.enquiryDate,
       orderType: projects.orderType,
       quote: projects.spareQuote,
+      sentAt: projects.sentToClientAt,
+      docEdits: projects.spareDocEdits,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -38,6 +40,7 @@ export async function GET(req: Request) {
   if (!p) return error("Enquiry not found", 404);
   return json({
     quote: normalizeSpareQuote(p.quote),
+    docEdits: normalizeSpareDocEdits(p.docEdits),
     enquiryNo: p.code,
     enquiryDate: p.enquiryDate,
     clientName: p.name,
@@ -59,6 +62,7 @@ export async function PUT(req: Request) {
   const [p] = await load(projectId);
   if (!p) return error("Enquiry not found", 404);
   if (p.orderType !== "spare") return error("This enquiry is not a spare order.", 400);
+  if (p.sentAt) return error("This quotation was sent to the client. To change it, create a new version.", 409);
 
   const quote = normalizeSpareQuote(body.quote);
   if (quote.models.some((m) => !m.productCode)) return error("Every model needs its code.", 400);
