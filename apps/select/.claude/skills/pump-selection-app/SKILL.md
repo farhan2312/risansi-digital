@@ -971,8 +971,8 @@ never auto-filled from the AI result.
   quotation), and tags can't be copied into a spare. No Default tag on
   create (older spares keep theirs, hidden). The order type can't change once a
   quotation exists.
-- /commercial renders screens/commercial/SpareCommercial.tsx: reference PO + TSM + ERP
-  serial -> Generate; then QuotationPanel, models (code built or picked,
+- /commercial renders screens/commercial/SpareCommercial.tsx: reference PO No., date,
+  TSM and ERP serial, all four mandatory (page + POST /api/quotations) -> Generate; then QuotationPanel, models (code built or picked,
   PumpCodeInput.tsx, shared with Pump & Qty) and per model parts (PartPicker: lists in
   lib/spare-parts.ts copied from SO to Dispatch, plus Others) with qty, unit price and
   amount. Stored whole in projects.spare_quote (lib/spare-quote.ts, PUT /api/spare-quote).

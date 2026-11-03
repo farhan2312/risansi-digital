@@ -204,7 +204,7 @@ export default function SpareCommercial({
         setSaved(q);
         setDraft(toDraft(q));
       });
-      await createQuotation(projectId, SPARE_GROUP, clientTsm ? undefined : Number(tsmId), erpSerial.trim() || undefined);
+      await createQuotation(projectId, SPARE_GROUP, clientTsm ? undefined : Number(tsmId), erpSerial.trim());
       await loadQuotation();
     } catch (e) {
       setGenerateError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Couldn't generate the quotation. Try again.");
@@ -285,11 +285,11 @@ export default function SpareCommercial({
   const poFields = (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <label className="flex flex-col gap-1">
-        <span className={labelCls}>Reference PO No.</span>
+        <span className={labelCls}>Reference PO No. <span className="text-neg">*</span></span>
         <input className={inputCls} value={draft.poNo} maxLength={120} placeholder="e.g. 2025-26/106" onChange={(e) => update({ poNo: e.target.value })} />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={labelCls}>Reference PO date</span>
+        <span className={labelCls}>Reference PO date <span className="text-neg">*</span></span>
         <input type="date" className={inputCls} value={draft.poDate} onChange={(e) => update({ poDate: e.target.value })} />
       </label>
     </div>
@@ -310,12 +310,12 @@ export default function SpareCommercial({
         <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-paper p-4">
           <div>
             <h2 className="text-[14px] font-semibold text-fg">Generate the quotation</h2>
-            <p className="text-[12.5px] text-fg-3">Enter the client&apos;s reference PO, then generate. Models and parts come next.</p>
+            <p className="text-[12.5px] text-fg-3">All four are needed to generate. Models and parts come next.</p>
           </div>
           {poFields}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
-              <span className={labelCls}>TSM</span>
+              <span className={labelCls}>TSM <span className="text-neg">*</span></span>
               {clientTsm ? (
                 <span className="py-2 text-[13px] font-semibold text-fg">
                   {clientTsm.name} ({clientTsm.initials})<span className="ml-1.5 font-normal text-fg-3">· the client&apos;s rep in sales</span>
@@ -332,13 +332,13 @@ export default function SpareCommercial({
               )}
             </div>
             <label className="flex flex-col gap-1">
-              <span className={labelCls}>Quotation No. serial (ERP, optional)</span>
+              <span className={labelCls}>Quotation No. serial (ERP) <span className="text-neg">*</span></span>
               <input className={`${inputCls} font-mono uppercase`} value={erpSerial} maxLength={30} onChange={(e) => setErpSerial(e.target.value)} />
             </label>
           </div>
           {generateError && <p className="text-[12.5px] text-neg">{generateError}</p>}
           <div>
-            <button type="button" className={btnPrimary} onClick={() => void generate()} disabled={generating || (!clientTsm && !tsmId)}>
+            <button type="button" className={btnPrimary} onClick={() => void generate()} disabled={generating || (!clientTsm && !tsmId) || !draft.poNo.trim() || !draft.poDate || !erpSerial.trim()}>
               {generating ? "Generating…" : "Generate quotation"}
             </button>
           </div>
