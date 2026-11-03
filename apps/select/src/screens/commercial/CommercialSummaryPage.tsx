@@ -66,6 +66,7 @@ import {
 import { getUsdInrSetting } from "../../services/settingsService";
 import { getEnquiryQuotations } from "../../services/quotationService";
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
+import SpareCommercial from "./SpareCommercial";
 
 // Commercial Summary (pricing v1, manual). Every tag of one enquiry on one
 // page: Pump & Accessories + BOI items typed in per unit, quantity pulled from
@@ -468,6 +469,16 @@ export default function CommercialSummaryPage() {
         }),
     [data, saved, tab],
   );
+
+  if (project?.orderType === "spare") {
+    return (
+      <SpareCommercial
+        projectId={projectId}
+        project={project}
+        onReviewedChange={(at) => setData((d) => (d ? { ...d, project: { ...d.project, pricesReviewedAt: at } } : d))}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 sm:px-6">

@@ -532,6 +532,8 @@ function SnapshotModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   const s = version.snapshot;
+  // A spare quotation's rows are its parts.
+  const isSpare = Boolean(s.spare);
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -560,9 +562,11 @@ function SnapshotModal({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" className={btnSm} onClick={() => setShowOffer(true)}>
-              Commercial Offer
-            </button>
+            {!isSpare && (
+              <button type="button" className={btnSm} onClick={() => setShowOffer(true)}>
+                Commercial Offer
+              </button>
+            )}
             <button type="button" className={btnSm} onClick={onClose}>
               Close
             </button>
@@ -591,8 +595,8 @@ function SnapshotModal({
           <table className="w-full min-w-[600px] text-[13px]">
             <thead>
               <tr className="border-b border-line text-left text-[11.5px] font-semibold tracking-[0.06em] text-fg-3 uppercase">
-                <th className="px-4 py-2">Tag</th>
-                <th className="px-4 py-2">Pump Model</th>
+                <th className="px-4 py-2">{isSpare ? "Part" : "Tag"}</th>
+                <th className="px-4 py-2">{isSpare ? "Model" : "Pump Model"}</th>
                 <th className="px-4 py-2 text-right">Unit Price</th>
                 <th className="px-4 py-2 text-right">Qty</th>
                 <th className="px-4 py-2 text-right">Sub-total</th>
@@ -630,7 +634,7 @@ function SnapshotModal({
           </table>
 
           {/* Each tag's price build-up, as saved in this version. */}
-          <div className="flex flex-col gap-3 border-t border-line bg-sunk p-4">
+          <div className={`flex flex-col gap-3 border-t border-line bg-sunk p-4 ${isSpare ? "hidden" : ""}`}>
             {s.remarks && (
               <p className="rounded-lg border border-line bg-paper px-3 py-2 text-[12.5px] whitespace-pre-line text-fg-2">
                 <span className="font-semibold">Remarks:</span> {s.remarks}

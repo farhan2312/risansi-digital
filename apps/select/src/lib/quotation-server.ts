@@ -10,12 +10,14 @@ import { db } from "@/lib/db";
 import { isMarketIntellConfigured, miQuery } from "@/lib/db/market-intell";
 import { projects, quotation, quotationVersion, users } from "@/lib/db/schema";
 import { normalizeOfferConfigs } from "@/lib/commercial-offer";
+import { normalizeSpareQuote, spareSnapshot } from "@/lib/spare-quote";
 import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import {
   type QuotationInfo,
   type QuotationSnapshot,
   type QuotationTrack,
   type TsmOption,
+  SPARE_GROUP,
   erpQuotationNumber,
   quotationNumber,
   quoteFxOf,
@@ -80,6 +82,10 @@ export async function suggestedTsm(clientCode: string | null): Promise<TsmOption
 /** Frozen copy of one drive group's prices (only that group's tags), stored
  *  with every version of that group's quotation. */
 export async function buildSnapshot(projectId: string, driveGroup: string): Promise<QuotationSnapshot> {
+  if (driveGroup === SPARE_GROUP) {
+    const [row] = await db.select({ quote: projects.spareQuote }).from(projects).where(eq(projects.id, projectId)).limit(1);
+    return spareSnapshot(normalizeSpareQuote(row?.quote));
+  }
   const [summary, [p]] = await Promise.all([
     loadCommercialSummary(projectId),
     db.select({ offer: projects.commercialOfferConfig }).from(projects).where(eq(projects.id, projectId)).limit(1),
@@ -147,7 +153,7 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
       .orderBy(asc(quotationVersion.createdAt)),
     buildSnapshot(projectId, driveGroup),
   ]);
-  const mixed = groups.length > 1;
+  const mixed = driveGroup !== SPARE_GROUP && groups.length > 1;
   // The live internal version shows the current saved prices, not its stored copy.
   const liveSnapshot = versions.some(({ v }) => v.frozenAt === null) ? snapshot : null;
   return {

@@ -231,6 +231,8 @@ export type CommercialSummary = {
     /** The enquiry no. with its version ("ENQ-12 V1"). */
     code: string;
     versionNo: number;
+    /** "pump" | "spare": a spare has its own Commercial page. */
+    orderType: string;
     /** False on an older version of the enquiry, which is view only. */
     isLatest: boolean;
     name: string;
@@ -630,6 +632,8 @@ export type QuotationSnapshot = {
   remarks?: string;
   /** Quoted in USD at this rate when the version was made (absent = INR). */
   fx?: QuoteFx;
+  /** A spare quotation's reference PO (its `tags` are its parts). */
+  spare?: { poNo: string; poDate: string };
 };
 
 export type QuotationVersionInfo = {
@@ -731,6 +735,9 @@ export const versionLabel = (v: number | null): string => (v === null ? "Not sen
 // An enquiry's tags are quoted per drive system: one quotation (own versions),
 // one price summary and one data sheet per group. The code goes after the
 // serial in the quotation number only when the enquiry mixes drives.
+
+/** The drive_group of a spare order's quotation: spares have no drive system. */
+export const SPARE_GROUP = "SP";
 
 export const DRIVE_GROUPS = ["GM", "GB", "VB", "DD"] as const;
 export type DriveGroup = (typeof DRIVE_GROUPS)[number];

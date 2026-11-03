@@ -956,6 +956,26 @@ never auto-filled from the AI result.
   "status" in the list APIs = Technical status, so the
   Dashboard, workload cards, Reports and the version rule all read Technical.
 
+## Spare orders (user, 2026-11-04)
+- order_type spare: no tags, no technical step, no scope of supply. The Enquiries row
+  has only Commercial and Copy (no chevron, Quotation or Technical); Copy adds its models
+  and parts to another spare or a new enquiry (POST /api/spare-quote/copy; not the PO or
+  quotation), and tags can't be copied into a spare. No Default tag on
+  create (older spares keep theirs, hidden). The order type can't change once a
+  quotation exists.
+- /commercial renders screens/commercial/SpareCommercial.tsx: reference PO + TSM + ERP
+  serial -> Generate; then QuotationPanel, models (code built or picked,
+  PumpCodeInput.tsx, shared with Pump & Qty) and per model parts (PartPicker: lists in
+  lib/spare-parts.ts copied from SO to Dispatch, plus Others) with qty, unit price and
+  amount. Stored whole in projects.spare_quote (lib/spare-quote.ts, PUT /api/spare-quote).
+- The quotation is a normal one: drive_group SP (SPARE_GROUP), product type SPR, same
+  serial sequence, internal / client versions. Its snapshot has one row per part
+  (spareSnapshot) so version lists and Client Quoted Prices read it as usual. Document:
+  lib/spare-quote-doc.ts in the sample's format (terms not added yet).
+- One status, shown just as Status (table, Edit form), kept in the commercial columns;
+  the row's button reads Quotation. Completed when sent to client, In Progress once the quotation
+  is generated, else Pending (SPARE_STATUS). "status" in the lists = that status.
+
 ## BOI prices vs the pump selection (user, 2026-11-03)
 - lib/commercial-review.ts + REVIEWED_LINES / priceChangesFor in lib/commercial.ts.
   commercial_tag_price.boi_basis records what each price was for (P&A = product

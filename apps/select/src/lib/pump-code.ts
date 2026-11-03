@@ -149,6 +149,22 @@ export function partsFromHints(h: CodeHints, options: CodeOption[]): Partial<Cod
 
 /** Saved parts from the pump_model_qty_input fields, or null when the tag's
  *  code was not built with the builder. */
+/** Saved parts read back from JSON: the known segments, or null when there are none. */
+export function partsFromFieldsOrNull(v: unknown): CodeParts | null {
+  if (!v || typeof v !== "object") return null;
+  const r = v as Record<string, unknown>;
+  const parts = { ...EMPTY_PARTS };
+  let any = false;
+  for (const s of CODE_SEGMENTS) {
+    const x = r[s.key];
+    if (typeof x === "string" && x) {
+      parts[s.key] = x.slice(0, 40);
+      any = true;
+    }
+  }
+  return any ? parts : null;
+}
+
 export function partsFromFields(f: Record<string, unknown>): CodeParts | null {
   const parts = { ...EMPTY_PARTS };
   let any = false;

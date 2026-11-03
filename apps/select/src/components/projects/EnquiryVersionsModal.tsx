@@ -90,23 +90,26 @@ export default function EnquiryVersionsModal({
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <span className="rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-[12px] font-bold text-accent">V{v.version_no}</span>
                     {v.is_latest && <span className="text-[11.5px] font-semibold text-pos">Latest</span>}
+                    {v.order_type !== "spare" && (
+                      <span className="inline-flex items-center gap-1.5 text-[12px] text-fg-3">
+                        Technical <StatusPill status={v.status} />
+                      </span>
+                    )}
                     <span className="inline-flex items-center gap-1.5 text-[12px] text-fg-3">
-                      Technical <StatusPill status={v.status} />
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 text-[12px] text-fg-3">
-                      Commercial <StatusPill status={v.commercial_status} />
+                      {v.order_type === "spare" ? "" : "Commercial "}
+                      <StatusPill status={v.commercial_status} />
                     </span>
                     <span className="text-[12px] text-fg-3">
                       Enquiry date <span className="text-fg-2">{fmtDay(v.enquiry_date)}</span>
                     </span>
-                    {v.completed_on && (
+                    {v.completed_on && v.order_type !== "spare" && (
                       <span className="text-[12px] text-fg-3">
                         Technical completed <span className="text-fg-2">{fmtDay(v.completed_on)}</span>
                       </span>
                     )}
                     {v.commercial_completed_on && (
                       <span className="text-[12px] text-fg-3">
-                        Commercial completed <span className="text-fg-2">{fmtDay(v.commercial_completed_on)}</span>
+                        {v.order_type === "spare" ? "Completed" : "Commercial completed"} <span className="text-fg-2">{fmtDay(v.commercial_completed_on)}</span>
                       </span>
                     )}
                     <span className="text-[12px] text-fg-3">
@@ -116,15 +119,19 @@ export default function EnquiryVersionsModal({
                   {v.revision_note && <p className="mt-1.5 text-[12.5px] whitespace-pre-wrap text-fg-2">{v.revision_note}</p>}
                   {!v.is_latest && (
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <button type="button" className={btn} aria-expanded={Boolean(tags)} onClick={() => toggleTags(v.id)}>
-                        Tags
-                      </button>
-                      <button type="button" className={btn} onClick={() => onOpenTechnical(v)}>
-                        Technical
-                      </button>
+                      {v.order_type !== "spare" && (
+                        <>
+                          <button type="button" className={btn} aria-expanded={Boolean(tags)} onClick={() => toggleTags(v.id)}>
+                            Tags
+                          </button>
+                          <button type="button" className={btn} onClick={() => onOpenTechnical(v)}>
+                            Technical
+                          </button>
+                        </>
+                      )}
                       {showCommercial && (
                         <Link href={`/commercial?projectId=${v.id}`} className={btn}>
-                          Commercial
+                          {v.order_type === "spare" ? "Quotation" : "Commercial"}
                         </Link>
                       )}
                       <span className="text-[11.5px] text-fg-3">View only</span>
