@@ -351,6 +351,9 @@ export type OrderSection = {
   };
 };
 
+const GROSS_USD_LABEL = "Gross Order Value (USD)";
+const GROSS_INR_LABEL = "Gross Order Value (INR)";
+
 export const ORDER_SECTIONS: OrderSection[] = [
   {
     key: "core",
@@ -483,6 +486,16 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "discount_percent", label: "Discount %", type: "number", min: 0, group: "Purchase Order" },
       { column: "packing_forwarding_percent", label: "Packing & Forwarding %", type: "number", min: 0, group: "Purchase Order" },
       { column: "gst_percent", label: "GST %", type: "number", min: 0, group: "Purchase Order" },
+      // A USD order's gross in USD, worked out from the figures above; its Gross
+      // Order Value is then that in INR, at the order's rate (see grossValuesOf).
+      {
+        column: "gross_value_usd",
+        label: GROSS_USD_LABEL,
+        type: "number",
+        computed: true,
+        dependsOn: [{ column: "order_currency", value: "USD" }],
+        group: "Purchase Order",
+      },
       { column: "taxable_value", label: "Gross Order Value", type: "number", min: 0, group: "Purchase Order" },
 
       // Handover: when the SO went to Operations (Order Making SO fills it).
@@ -989,9 +1002,12 @@ export function orderMakingRequired(
   saved?: (column: string) => string
 ): OrderField[] {
   const own = ORDER_MAKING_EDITABLE.filter((f) =>
-    mode === "so"
-      ? SO_DETAIL_COLUMNS.includes(f.column)
-      : f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && !/remarks/i.test(f.column)
+    // A USD order's Gross Order Value is worked out, not filled.
+    f.column === "taxable_value" && isUsd(read?.("order_currency"))
+      ? false
+      : mode === "so"
+        ? SO_DETAIL_COLUMNS.includes(f.column)
+        : f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && !/remarks/i.test(f.column)
   );
   // Order Making PO owes the day the SO went to Operation once its Sales
   // Order details were saved in full: the save that completes them goes
@@ -1438,14 +1454,41 @@ export function withValueRules<T extends Record<string, unknown>>(
   // Taxable Value, worked out as the figures are typed: the value less the
   // discount, plus packing & forwarding on that, plus GST on that. Typing
   // into Taxable Value itself overrides it until one of these changes again.
-  if (TAXABLE_INPUTS.includes(column)) {
-    const taxable = taxableValueOf(next);
-    if (taxable !== null) next.taxable_value = taxable;
-  }
+  if (TAXABLE_INPUTS.includes(column)) Object.assign(next, grossValuesOf(next));
   return next as T;
 }
 
-const TAXABLE_INPUTS = ["order_value", "discount_percent", "packing_forwarding_percent", "gst_percent"];
+const TAXABLE_INPUTS = ["order_value", "order_currency", "discount_percent", "packing_forwarding_percent", "gst_percent"];
+
+/** Whether an order is priced in USD. */
+export function isUsd(currency: unknown): boolean {
+  return String(currency ?? "").trim().toUpperCase() === "USD";
+}
+
+/**
+ * The gross as the form shows it. A USD order: its gross in USD, and Gross Order
+ * Value that in INR at the order's rate (blank until a rate is known; the save
+ * works both out again). Any other: Gross Order Value itself, and no USD figure.
+ */
+export function grossValuesOf(v: Record<string, unknown>): Record<string, string> {
+  const gross = taxableValueOf(v);
+  if (!isUsd(v.order_currency)) return gross === null ? { gross_value_usd: "" } : { gross_value_usd: "", taxable_value: gross };
+  const rate = Number(v.order_fx_rate);
+  return {
+    gross_value_usd: gross ?? "",
+    taxable_value: gross !== null && rate > 0 ? (Math.round(Number(gross) * rate * 100) / 100).toFixed(2) : "",
+  };
+}
+
+/** A USD order's two gross figures are worked out: neither is typed. */
+export function isAutoGross(column: string, currency: unknown): boolean {
+  return column === "gross_value_usd" || (column === "taxable_value" && isUsd(currency));
+}
+
+/** Gross Order Value says it is in INR beside a USD order's USD figure. */
+export function grossLabel(column: string, label: string, currency: unknown): string {
+  return column === "taxable_value" && isUsd(currency) ? GROSS_INR_LABEL : label;
+}
 
 /** Value × (1 − Discount %) × (1 + P&F %) × (1 + GST %), to 2 places; null without a value. */
 export function taxableValueOf(v: Record<string, unknown>): string | null {

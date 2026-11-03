@@ -3106,3 +3106,16 @@ UPDATE order_ready_lots rl SET pump_packing_status = 'Packed'
   FROM order_items it
  WHERE it.id = rl.item_id AND it.item_type IN ('Pump', 'ROLB')
    AND rl.packed_date IS NOT NULL AND rl.pump_packing_status IS NULL;
+
+-- 0048  An order priced in USD carries its gross in both: Gross Order Value (USD)
+-- here, and taxable_value (Gross Order Value) in INR at the order's own rate,
+-- the figure invoices and payments count against. Orders already in USD move
+-- over. Idempotent.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS gross_value_usd NUMERIC(14,2);
+UPDATE orders
+   SET gross_value_usd = taxable_value,
+       taxable_value = round(taxable_value * order_fx_rate, 2)
+ WHERE upper(btrim(COALESCE(order_currency, ''))) = 'USD'
+   AND gross_value_usd IS NULL
+   AND taxable_value IS NOT NULL
+   AND order_fx_rate IS NOT NULL;

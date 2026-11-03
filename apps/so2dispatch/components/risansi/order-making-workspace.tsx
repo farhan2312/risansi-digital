@@ -1,5 +1,7 @@
 "use client";
 
+import { UsdGross, type OrderValueRow } from "./order-value-details";
+import { useUsdRate } from "./use-usd-rate";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
@@ -44,6 +46,9 @@ import {
   selectOptionsFor,
   withFrZeros,
   withValueRules,
+  grossLabel,
+  isAutoGross,
+  isUsd,
   soNoPrefix,
   numberFormatNote,
   withoutBarePrefix,
@@ -61,6 +66,9 @@ import { formatDisplay } from "./editable-section";
 import { dispatchRowTone, isClosedStatus } from "@/lib/dept-view";
 
 /** All, Spare or Pump — shows the choice at once; the list follows when it loads. */
+/** Worked out on save: the form holds them to show a USD order's gross, and does not send them. */
+const USD_GROSS_FIELDS = ORDER_MAKING_FIELDS.filter((f) => f.column === "gross_value_usd" || f.column === "order_fx_rate");
+
 function KindTabs({ value, onChange }: { value: "all" | "spare" | "pump"; onChange: (v: "all" | "spare" | "pump") => void }) {
   const [asked, setAsked] = useState<"all" | "spare" | "pump" | null>(null);
   const [seen, setSeen] = useState(value);
@@ -599,6 +607,7 @@ export function OrderMakingWorkspace({
                       >
                         {formatDisplay(field(c.column), row[c.column])}
                         {c.column === "order_value" && str(row.order_currency) ? ` ${str(row.order_currency)}` : ""}
+                        {c.column === "order_value" && <UsdGross row={row as OrderValueRow} />}
                         {c.column === "client_name" && str(row.client_code) && (
                           <span className="block text-[11px] text-muted">{str(row.client_code)}</span>
                         )}
@@ -934,7 +943,7 @@ function OrderMakingEdit({
   const [values, setValues] = useState<Record<string, string>>(() => {
     const start = withFrZeros(
       Object.fromEntries(
-        ORDER_MAKING_EDITABLE.map((f) => [f.column, str(row?.[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
+        [...ORDER_MAKING_EDITABLE, ...USD_GROSS_FIELDS].map((f) => [f.column, str(row?.[f.column]).slice(0, f.type === "date" ? 10 : undefined)])
       )
     );
     if (!str(start.so_no).trim()) start.so_no = soNoPrefix(start.so_date);
@@ -950,6 +959,7 @@ function OrderMakingEdit({
     return () => document.removeEventListener("keydown", onKey);
   }, [saving, onClose]);
 
+  useUsdRate(values.order_currency, setValues);
   const read = (c: string) => values[c] ?? "";
   // The SO as last saved: once its Sales Order details were in, SO Sent to Operation is owed.
   const saved = row ? (c: string) => str(row[c as keyof OrderMakingRow]) : undefined;
@@ -1031,7 +1041,7 @@ function OrderMakingEdit({
   const challanLocked = (f: OrderField) =>
     read("bill_mode") === "FR" && (f.column === "order_value" || f.column === "order_currency");
   const input = (f: OrderField) => {
-    const on = !challanLocked(f);
+    const on = !challanLocked(f) && !isAutoGross(f.column, read("order_currency"));
     return f.type === "select" ? (
       <select
         id={f.column}
@@ -1114,7 +1124,10 @@ function OrderMakingEdit({
           // Only what applies, as the Order details form: FR takes a
           // complaint instead of a quotation and PO, a Spare has no total
           // quantity.
-          const fields = ORDER_MAKING_EDITABLE.filter((f) => section.fields(f) && dependsOnSatisfied(f, read));
+          const usd = isUsd(read("order_currency"));
+          const fields = ORDER_MAKING_EDITABLE.filter((f) => section.fields(f) && dependsOnSatisfied(f, read))
+            // A USD order's gross in USD, just before its Gross Order Value in INR.
+            .flatMap((f) => (usd && f.column === "taxable_value" ? [...USD_GROSS_FIELDS.filter((g) => g.column === "gross_value_usd"), f] : [f]));
           const isSo = section.title === "Sales Order";
           const isHandover = section.title === "Handover";
           // The Handover (SO Sent to Operation) is Order Making PO's: an SO member does not see it.
@@ -1154,7 +1167,7 @@ function OrderMakingEdit({
                 <dl className="grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
                   {fields.map((f) => (
                     <div key={f.column} className="text-sm">
-                      <dt className="text-[12px] text-muted">{f.label}</dt>
+                      <dt className="text-[12px] text-muted">{grossLabel(f.column, f.label, read("order_currency"))}</dt>
                       <dd className="font-medium text-foreground">
                         {formatDisplay(f, f.column === "so_no" ? withoutBarePrefix("so_no", read(f.column)) : read(f.column)) || "—"}
                       </dd>
@@ -1166,10 +1179,15 @@ function OrderMakingEdit({
                   {fields.map((f) => (
                     <label key={f.column} htmlFor={f.column} className="block text-sm">
                       <span className="mb-1 block text-[13px] font-medium text-brand-label">
-                        {f.label}
+                        {grossLabel(f.column, f.label, read("order_currency"))}
                         {(f.column === "client_code" || requiredHere.has(f.column)) && <span className="text-danger"> *</span>}
                       </span>
                       {input(f)}
+                      {usd && f.column === "taxable_value" && (
+                        <span className="mt-1 block text-[11px] text-muted">
+                          {read("order_fx_rate") ? `Auto, at USD → INR ${read("order_fx_rate")}` : "Auto, on save, once a rate is set in Settings"}
+                        </span>
+                      )}
                       {challanLocked(f) && (
                         <span className="mt-1 block text-[11px] text-muted">0 INR on a Challan order</span>
                       )}

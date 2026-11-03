@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import { isUsd } from "@/lib/order-schema";
 
 const numberFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
 const money = (v: unknown) => {
@@ -18,6 +19,7 @@ export type OrderValueRow = {
   packing_forwarding_percent?: unknown;
   gst_percent?: unknown;
   taxable_value?: unknown;
+  gross_value_usd?: unknown;
 };
 
 /**
@@ -41,10 +43,36 @@ export function OrderValueDetails({ row }: { row: OrderValueRow }) {
           <span className="text-right tabular-nums text-foreground">{v}</span>
         </Fragment>
       ))}
-      <span className="mt-0.5 border-t border-card-border pt-0.5 font-semibold text-foreground">Gross value</span>
-      <span className="mt-0.5 border-t border-card-border pt-0.5 text-right font-semibold tabular-nums text-foreground">
-        {money(row.taxable_value) ? `${money(row.taxable_value)}${cur}` : "—"}
-      </span>
+      {isUsd(row.order_currency) ? (
+        <>
+          <span className="mt-0.5 border-t border-card-border pt-0.5 font-semibold text-foreground">Gross value (USD)</span>
+          <span className="mt-0.5 border-t border-card-border pt-0.5 text-right font-semibold tabular-nums text-foreground">
+            {money(row.gross_value_usd) ? `${money(row.gross_value_usd)} USD` : "—"}
+          </span>
+          <span className="font-semibold text-foreground">Gross value (INR)</span>
+          <span className="text-right font-semibold tabular-nums text-foreground">
+            {money(row.taxable_value) ? `${money(row.taxable_value)} INR` : "—"}
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="mt-0.5 border-t border-card-border pt-0.5 font-semibold text-foreground">Gross value</span>
+          <span className="mt-0.5 border-t border-card-border pt-0.5 text-right font-semibold tabular-nums text-foreground">
+            {money(row.taxable_value) ? `${money(row.taxable_value)}${cur}` : "—"}
+          </span>
+        </>
+      )}
     </div>
+  );
+}
+
+/** Under an Order Value column: a USD order's gross, in USD and in INR. */
+export function UsdGross({ row }: { row: OrderValueRow }) {
+  if (!isUsd(row.order_currency)) return null;
+  return (
+    <>
+      {money(row.gross_value_usd) && <span className="block whitespace-nowrap text-xs text-muted">Gross {money(row.gross_value_usd)} USD</span>}
+      {money(row.taxable_value) && <span className="block whitespace-nowrap text-xs text-muted">Gross {money(row.taxable_value)} INR</span>}
+    </>
   );
 }

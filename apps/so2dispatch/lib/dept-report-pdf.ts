@@ -3,6 +3,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB }
 import { sanitize, wrap } from "@/lib/pdf-text";
 import { PACKED_FOR, PACKING_IN_PROGRESS, lotNosLabel, packingLotsFromRows, parseLotNos } from "@/lib/ready-lots";
 import { stepsDone } from "@/lib/dispatch-steps";
+import { isUsd } from "@/lib/order-schema";
 import { billModeLabel } from "@/lib/order-schema";
 
 // Assembly & Packing's and Dispatch's queues on paper, the way Planning's
@@ -345,7 +346,12 @@ export function orderValueLines(o: Row): [string, string][] {
     ["Discount", pct(o.discount_percent)],
     ["Packing", pct(o.packing_forwarding_percent)],
     ["GST", pct(o.gst_percent)],
-    ["Gross value", whole(o.taxable_value) ? `${whole(o.taxable_value)}${cur}` : "—"],
+    ...(isUsd(o.order_currency)
+      ? ([
+          ["Gross value (USD)", whole(o.gross_value_usd) ? `${whole(o.gross_value_usd)} USD` : "—"],
+          ["Gross value (INR)", whole(o.taxable_value) ? `${whole(o.taxable_value)} INR` : "—"],
+        ] as [string, string][])
+      : ([["Gross value", whole(o.taxable_value) ? `${whole(o.taxable_value)}${cur}` : "—"]] as [string, string][])),
   ];
 }
 
@@ -397,8 +403,9 @@ export function dispatchReport(rows: Row[], filterLine: string): Report {
     const status = str(o.dispatch_status) || "Pending";
     if (status === "Fully dispatch") full++;
     if (status === "LOT dispatch") lot++;
-    const cur = str(o.order_currency) ? ` ${str(o.order_currency)}` : "";
-    const details: Line[] = orderValueLines(o).map(([k, v], i, all) => ({ text: `${k}: ${v}`, bold: i === all.length - 1, small: i < all.length - 1 }));
+    // A USD order's gross, and so what is in hand, is in INR, as its invoices are.
+    const cur = isUsd(o.order_currency) ? " INR" : str(o.order_currency) ? ` ${str(o.order_currency)}` : "";
+    const details: Line[] = orderValueLines(o).map(([k, v]) => ({ text: `${k}: ${v}`, bold: k.startsWith("Gross"), small: !k.startsWith("Gross") }));
     const hand = orderInHand(o);
     const inHand: Line[] = !hand
       ? []

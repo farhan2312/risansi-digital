@@ -37,7 +37,7 @@ import {
   serializeDeptStatusMulti,
   presetRange,
 } from "@/lib/order-list-filter";
-import type { OrderInHandTotal, OrderListOptions } from "@/lib/orders";
+import type { OrderListOptions } from "@/lib/orders";
 import { SIGN_OFF_ENABLED } from "@/lib/dept-completion";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
 import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
@@ -104,8 +104,8 @@ export function OrderListFilterBar({
   noChats = false,
   orderInHand,
 }: {
-  /** Dispatch: the cumulative Order in Hand of every matching SO, by currency. */
-  orderInHand?: OrderInHandTotal[];
+  /** Dispatch: the cumulative Order in Hand of every matching SO, in INR. */
+  orderInHand?: number;
   /** The dashboard: no All chats button. */
   noChats?: boolean;
   /** A queue with statuses of its own (Drawing) drops the department Status filter… */
@@ -734,13 +734,11 @@ export function OrderListFilterBar({
             </span>
           </>
         )}
-        {orderInHand && (
+        {orderInHand !== undefined && (
           <span className={`${filtered ? "" : "ml-auto "}inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/40 bg-primary/[0.06] px-3 text-sm`}>
             <span className="text-muted">Cumulative order in hand:</span>
             <span className="font-semibold tabular-nums text-foreground">
-              {orderInHand.length > 0
-                ? orderInHand.map((t) => `${t.amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })} ${t.currency}`).join(" · ")
-                : "0"}
+              {orderInHand.toLocaleString("en-IN", { maximumFractionDigits: 0 })} INR
             </span>
           </span>
         )}

@@ -14,6 +14,8 @@ import {
   selectOptionsFor,
   splitMulti,
   withValueRules,
+  grossLabel,
+  isAutoGross,
   soNoPrefix,
   ONLY_BILLING,
   numberFormatNote,
@@ -24,6 +26,7 @@ import type { QcDocTable } from "@/lib/orders";
 import type { MarketIntellClient } from "@/lib/market-intell";
 import { QcDocumentsModal } from "./qc-documents-modal";
 import { ClientLookup } from "./client-lookup";
+import { useUsdRate } from "./use-usd-rate";
 import { MultiSelectField } from "./multi-select-field";
 import { ReadyLotsEditor } from "./ready-lots-editor";
 import {
@@ -147,6 +150,8 @@ export function EditableSection({
     if (section.table === "orders" && start.bill_mode === ONLY_BILLING && !(start.so_reference ?? "").trim()) start.so_reference = soNoPrefix(start.so_date);
     return start;
   });
+
+  useUsdRate(values.order_currency, setValues);
 
   // A Spare's readiness lots live in Planning's form; once there is one, the
   // status and readiness date are the latest lot's.
@@ -352,7 +357,10 @@ export function EditableSection({
                       !fromLots &&
                       !field.computed &&
                       !field.readOnly &&
+                      !isAutoGross(field.column, values.order_currency) &&
                       (!field.centralOnly || canEditCentral);
+                    // A USD order's gross follows the figures as they are typed.
+                    const liveGross = editing && isAutoGross(field.column, values.order_currency);
                     const lotsHere =
                       spareLots &&
                       field.column === "actual_spare_status" &&
@@ -363,7 +371,7 @@ export function EditableSection({
                       <Fragment key={field.column}>
                       <div>
                         <div className="mb-1 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
-                          {field.label}
+                          {grossLabel(field.column, field.label, editing ? values.order_currency : data?.order_currency)}
                           {editing && afterOps.has(field.column) && <span className="text-danger">*</span>}
                           {field.centralOnly && !canEditCentral && (
                             <span className="rounded bg-slate-100 px-1 text-[9px] font-semibold text-slate-500">
@@ -445,7 +453,7 @@ export function EditableSection({
                                   )
                                 : field.column === "ec_link" && ecLinkHref(data?.ec_link)
                                   ? <EcLink href={data?.ec_link} label />
-                                  : formatDisplay(field, data?.[field.column] ?? field.defaultValue)}
+                                  : formatDisplay(field, liveGross ? values[field.column] : data?.[field.column] ?? field.defaultValue)}
                             </span>
                             {fieldExtra?.(field)}
                           </div>

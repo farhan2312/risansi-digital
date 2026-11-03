@@ -12,6 +12,7 @@ import { DispatchPictures, type PictureLink } from "./dispatch-pictures";
 import { FollowupCell } from "./order-followups";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel } from "@/lib/order-schema";
+import { UsdGross } from "./order-value-details";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { canAddFollowup, canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
@@ -650,6 +651,7 @@ export function OrdersTable({
                             {(order.order_currency ?? "INR").toUpperCase() !== "INR" && order.order_value_inr && (
                               <div className="text-xs text-muted">{formatValue(order.order_value_inr)} INR</div>
                             )}
+                            <UsdGross row={order} />
                           </>
                         ) : (
                           "—"

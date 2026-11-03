@@ -9,6 +9,7 @@ import { addOrderChildAction, createOrderAction, updateOrderChildAction } from "
 import type { NewOrderInput } from "@/lib/orders";
 import type { MarketIntellClient } from "@/lib/market-intell";
 import { ClientLookup } from "./client-lookup";
+import { useUsdRate } from "./use-usd-rate";
 import {
   CLEARANCE_HOLD_REASONS,
   CLEARANCE_OPTIONS,
@@ -17,6 +18,9 @@ import {
   ORDER_TYPE_OPTIONS,
   YES_NO_OPTIONS,
   withValueRules,
+  grossLabel,
+  isAutoGross,
+  isUsd,
   soNoPrefix,
   numberFormatNote,
   ONLY_BILLING,
@@ -112,6 +116,8 @@ const SECTIONS: Section[] = [
       { name: "discount_percent", label: "Discount %", type: "number", min: 0 },
       { name: "packing_forwarding_percent", label: "Packing & Forwarding %", type: "number", min: 0 },
       { name: "gst_percent", label: "GST %", type: "number", min: 0 },
+      // A USD order's gross in USD; Gross Order Value is then that in INR. Both worked out.
+      { name: "gross_value_usd", label: "Gross Order Value (USD)", type: "number", dependsOn: { name: "order_currency", value: "USD" } },
       { name: "taxable_value", label: "Gross Order Value", type: "number", min: 0 },
     ],
   },
@@ -340,6 +346,7 @@ export function OrderForm() {
   // Every new SO starts Clear; Central Visibility holds it when needed.
   // …and its SO No. opens with all but its number ("SO26/1/"), still editable.
   const [values, setValues] = useState<NewOrderInput>({ clearance_status: "Clear", so_no: soNoPrefix() });
+  useUsdRate(values.order_currency, setValues);
   const soNoNote = numberFormatNote("so_no", values.so_no);
   const soNoTaken = useSoNoTaken(values.so_no ?? "", null);
   const [error, setError] = useState<string | null>(null);
@@ -480,14 +487,15 @@ export function OrderForm() {
                     </div>
                   );
                 }
-                const disabled = challanLocked(field);
+                const locked = challanLocked(field);
+                const disabled = locked || isAutoGross(field.name, values.order_currency);
                 return (
                 <div key={field.name}>
                   <label
                     htmlFor={field.name}
                     className="mb-1.5 block text-[13px] font-medium text-brand-label"
                   >
-                    {field.label}
+                    {grossLabel(field.name, field.label, values.order_currency)}
                     {field.required && <span className="text-danger"> *</span>}
                   </label>
                   {field.type === "multiselect" ? (
@@ -527,8 +535,13 @@ export function OrderForm() {
                       className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-50`}
                     />
                   )}
-                  {disabled && (
+                  {locked && (
                     <p className="mt-1 text-[11px] text-muted">0 INR on a Challan order</p>
+                  )}
+                  {field.name === "taxable_value" && isUsd(values.order_currency) && (
+                    <p className="mt-1 text-[11px] text-muted">
+                      {values.order_fx_rate ? `Auto, at USD → INR ${values.order_fx_rate}` : "Auto, on save, once a rate is set in Settings"}
+                    </p>
                   )}
                   {field.name === "so_no" && (soNoNote || soNoTaken) && (
                     <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">

@@ -1848,6 +1848,12 @@ export async function getOrderOperationAction(orderId: string): Promise<
 }
 
 /** Accounts' hold reasons, for its hold pop-up. */
+/** The USD → INR rate a new USD order will convert at, for the forms to show its gross. */
+export async function usdInrRateAction(): Promise<number | null> {
+  const user = await getCurrentUser();
+  return user ? getUsdInrRate() : null;
+}
+
 export async function listAccountsHoldReasonsAction(): Promise<string[]> {
   const user = await getCurrentUser();
   if (!user || !canEditSection(user.role, "order_accounts")) return [];

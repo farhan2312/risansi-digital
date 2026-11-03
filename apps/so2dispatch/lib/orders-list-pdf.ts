@@ -444,6 +444,11 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
     if ((o.order_currency ?? "INR").toUpperCase() !== "INR" && o.order_value_inr) {
       value.push({ text: `${money.format(Number(o.order_value_inr))} INR`, color: C.muted, size: 6.5 });
     }
+    // …and a USD order's gross, in both.
+    if ((o.order_currency ?? "").toUpperCase() === "USD") {
+      if (o.gross_value_usd) value.push({ text: `Gross ${money.format(Number(o.gross_value_usd))} USD`, color: C.muted, size: 6.5 });
+      if (o.taxable_value) value.push({ text: `Gross ${money.format(Number(o.taxable_value))} INR`, color: C.muted, size: 6.5 });
+    }
   }
 
   // Payment terms, each with its PI and what came in.

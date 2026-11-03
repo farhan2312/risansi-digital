@@ -6,11 +6,11 @@ import { Fragment, useEffect, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import type { BillingQueueRow } from "@/lib/orders";
 import { TermPis } from "./term-pis";
-import { OrderValueDetails } from "./order-value-details";
+import { OrderValueDetails, UsdGross } from "./order-value-details";
 import { PendencyCell } from "./pendency-cell";
 import { MultiSelectFilter } from "./multi-select-filter";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
-import { billModeLabel } from "@/lib/order-schema";
+import { billModeLabel, isUsd } from "@/lib/order-schema";
 import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchInline } from "./dispatch-inline";
 import { SortHeader } from "./sort-header";
@@ -21,7 +21,7 @@ import { isCentral } from "@/lib/roles";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
-import type { OrderInHandTotal, OrderListOptions } from "@/lib/orders";
+import type { OrderListOptions } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import { useFocusRow } from "./use-focus-row";
 import type { PageResult } from "@/lib/pagination";
@@ -67,7 +67,7 @@ export function BillingWorkspace({
   orderInHand,
 }: {
   /** Dispatch: the cumulative Order in Hand of every SO the filter bar matches. */
-  orderInHand?: OrderInHandTotal[];
+  orderInHand?: number;
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
   /** Why each SO's PI is still pending (Proforma Invoice), by SO id. */
@@ -314,6 +314,7 @@ export function BillingWorkspace({
                         <td className="px-4 py-3 text-right tabular-nums">
                           {formatValue(row.order_value)}
                           {row.order_currency ? ` ${row.order_currency}` : ""}
+                          <UsdGross row={row} />
                         </td>
                       )}
                       {mode === "billing" && (
@@ -425,7 +426,8 @@ function OrderInHand({ row }: { row: BillingQueueRow }) {
   const diff = Number(row.taxable_value) - invoiced;
   // Invoices are rounded to the rupee: under one either way is all invoiced.
   const left = Math.abs(diff) < 1 ? 0 : diff;
-  const cur = row.order_currency ? ` ${row.order_currency}` : "";
+  // A USD order's gross here is its INR figure, as its invoices are.
+  const cur = isUsd(row.order_currency) ? " INR" : row.order_currency ? ` ${row.order_currency}` : "";
   return (
     <span className="flex flex-col items-end whitespace-nowrap">
       <span className={`text-sm font-semibold tabular-nums ${left > 0 ? "text-foreground" : "text-emerald-700 dark:text-emerald-400"}`}>

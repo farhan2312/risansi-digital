@@ -152,6 +152,9 @@ export type OrderListRow = {
   /** The value's currency (INR when not given), and a USD order's INR figure. */
   order_currency: string | null;
   order_value_inr: string | null;
+  /** A USD order's gross in USD; taxable_value is then that in INR. */
+  gross_value_usd: string | null;
+  taxable_value: string | null;
   // Whether this SO has bought-out items at all: the EC form only offers the
   // BOI list when it is Yes.
   boi: string | null;
@@ -233,6 +236,9 @@ export type NewOrderInput = {
   payment_terms?: string;
   payment_terms_remarks?: string;
   order_value_inr?: string;
+  // Worked out on save; the form holds them to show the gross as it is typed.
+  gross_value_usd?: string;
+  order_fx_rate?: string;
   ld?: string;
   ld_date?: string;
   order_value?: string;
@@ -1676,14 +1682,14 @@ export async function orderHasPi(orderId: string): Promise<boolean> {
  */
 /**
  * What Accounts counts payments against: the SO's (alias o) gross order value
- * in INR — its Gross Order Value (taken to INR for a foreign-currency order),
- * else its order value with the SO's GST % (18% when none). Accounts sets no
- * GST of its own.
+ * in INR — its Gross Order Value (in INR whatever the order's currency), else
+ * its order value with the SO's GST % (18% when none), taken to INR for a
+ * foreign-currency order. Accounts sets no GST of its own.
  */
 export const ORDER_GROSS_INR_SQL = (o: string): string => `round(
-    COALESCE(${o}.taxable_value, ${o}.order_value * (1 + COALESCE(${o}.gst_percent, ${DEFAULT_GST_RATE}) / 100.0))
+    COALESCE(${o}.taxable_value, ${o}.order_value * (1 + COALESCE(${o}.gst_percent, ${DEFAULT_GST_RATE}) / 100.0)
     * (CASE WHEN upper(COALESCE(${o}.order_currency, 'INR')) <> 'INR' AND COALESCE(${o}.order_value, 0) <> 0
-            THEN COALESCE(${o}.order_value_inr / ${o}.order_value, 1) ELSE 1 END), 2)`;
+            THEN COALESCE(${o}.order_value_inr / ${o}.order_value, 1) ELSE 1 END)), 2)`;
 
 // Which parent column each 1:many child hangs off: per-SO tables key on
 // order_id, per-EC tables on item_id.
@@ -2002,21 +2008,34 @@ export async function applyUsdConversion(orderId: string, rate: number | null): 
               CASE WHEN upper(COALESCE(o.order_currency, '')) = 'USD'
                    THEN COALESCE(o.order_fx_rate, $2::numeric) END AS fx,
               o.order_value, o.order_currency, o.order_value_inr AS inr_now,
-              o.order_fx_rate AS fx_now
+              o.order_fx_rate AS fx_now,
+              o.taxable_value AS gross_now, o.gross_value_usd AS usd_now,
+              round(o.order_value * (1 - COALESCE(o.discount_percent, 0) / 100.0)
+                                  * (1 + COALESCE(o.packing_forwarding_percent, 0) / 100.0)
+                                  * (1 + COALESCE(o.gst_percent, 0) / 100.0), 2) AS worked
          FROM orders o WHERE o.id = $1
      ),
      calc AS (
-       SELECT id, fx, fx_now, inr_now,
+       SELECT id, fx, fx_now, inr_now, gross_now, usd_now,
               CASE WHEN upper(COALESCE(order_currency, '')) <> 'USD' THEN NULL
                    WHEN order_value IS NULL OR fx IS NULL THEN inr_now
-                   ELSE round(order_value * fx, 2) END AS inr
+                   ELSE round(order_value * fx, 2) END AS inr,
+              -- USD: its gross in USD, and Gross Order Value that in INR at its
+              -- rate. Back from USD: Gross Order Value is the figures again.
+              -- Anything else keeps its Gross Order Value, typed over or not.
+              CASE WHEN upper(COALESCE(order_currency, '')) = 'USD' THEN worked END AS usd,
+              CASE WHEN upper(COALESCE(order_currency, '')) = 'USD' THEN round(worked * fx, 2)
+                   WHEN usd_now IS NOT NULL THEN worked
+                   ELSE gross_now END AS gross
          FROM next
      )
      UPDATE orders o
-        SET order_fx_rate = calc.fx, order_value_inr = calc.inr
+        SET order_fx_rate = calc.fx, order_value_inr = calc.inr,
+            gross_value_usd = calc.usd, taxable_value = calc.gross
        FROM calc
       WHERE o.id = calc.id
-        AND (calc.fx IS DISTINCT FROM calc.fx_now OR calc.inr IS DISTINCT FROM calc.inr_now)`,
+        AND (calc.fx IS DISTINCT FROM calc.fx_now OR calc.inr IS DISTINCT FROM calc.inr_now
+             OR calc.usd IS DISTINCT FROM calc.usd_now OR calc.gross IS DISTINCT FROM calc.gross_now)`,
     [orderId, rate]
   );
   // A new INR figure (or a Challan's 0) moves what the payments count against.
@@ -2578,6 +2597,7 @@ export async function listOrdersForSection(
                   o.discount_percent::text AS discount_percent,
                   o.packing_forwarding_percent::text AS packing_forwarding_percent,
                   o.gst_percent::text AS gst_percent, o.taxable_value::text AS taxable_value,
+                  o.gross_value_usd::text AS gross_value_usd,
                   (${ORDER_GROSS_INR_SQL("o")})::text AS order_value_gst, NULL::text AS order_value_details`;
       }
       let alias: string;
@@ -2862,8 +2882,10 @@ export type BillingQueueRow = {
   discount_percent: string | null;
   packing_forwarding_percent: string | null;
   gst_percent: string | null;
-  /** The Gross Order Value: the value less discount, plus packing & forwarding, plus GST. */
+  /** The Gross Order Value: the value less discount, plus packing & forwarding, plus GST (in INR for a USD order). */
   taxable_value: string | null;
+  /** A USD order's gross in USD. */
+  gross_value_usd: string | null;
   /** The SO's invoices' (or challans') values, added up; null before any. */
   invoiced_value: string | null;
   // Challan-only, when bill_type = Challan (used by the flat edit modal).
@@ -2922,6 +2944,7 @@ export async function listOrdersForBilling(
             o.packing_forwarding_percent::text AS packing_forwarding_percent,
             o.gst_percent::text AS gst_percent,
             o.taxable_value::text AS taxable_value,
+            o.gross_value_usd::text AS gross_value_usd,
             (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
                FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
             (SELECT jsonb_agg(jsonb_build_object('n', pz.n, 'status', pz.status, 'packed_date', pz.packed_date, 'remarks', pz.remarks) ORDER BY pz.n)
@@ -4117,6 +4140,8 @@ export async function listOrdersPage(opts: {
             o.order_value::text AS order_value,
             o.order_currency,
             o.order_value_inr::text AS order_value_inr,
+            o.gross_value_usd::text AS gross_value_usd,
+            o.taxable_value::text AS taxable_value,
             o.boi,
             a.payment_status,
             ${DISPATCH_STATUS} AS dispatch_status,
@@ -4250,6 +4275,8 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.order_value::text AS order_value,
             o.order_currency,
             o.order_value_inr::text AS order_value_inr,
+            o.gross_value_usd::text AS gross_value_usd,
+            o.taxable_value::text AS taxable_value,
             o.boi,
             a.payment_status,
             ${DISPATCH_STATUS} AS dispatch_status,
@@ -4322,7 +4349,7 @@ async function pageOfOrderIds(opts: {
   kpis?: KpiRequest;
   /** Dispatch: add up what is still to invoice over every matching SO. */
   inHand?: boolean;
-}): Promise<{ ids: string[]; total: number; page: number; kpis?: KpiCard[]; inHand?: OrderInHandTotal[] }> {
+}): Promise<{ ids: string[]; total: number; page: number; kpis?: KpiCard[]; inHand?: number }> {
   const search = opts.search ? likePattern(opts.search) : null;
   const kpis = opts.kpis ? await countKpis(opts.kpis, opts.filter, search, opts.searchable) : undefined;
   const facets = opts.filter
@@ -4339,15 +4366,14 @@ async function pageOfOrderIds(opts: {
   );
   const total = Number(totals.rows[0]?.count ?? 0);
 
-  // What is left to invoice, SO by SO: under a rupee is nothing left, an SO
-  // invoiced past its gross has nothing left rather than taking from the others,
-  // and a Challan / FR SO or one with no gross has none. By currency: USD is not
-  // added to INR. A blank currency is INR.
+  // What is left to invoice, in INR, SO by SO: under a rupee is nothing left, an
+  // SO invoiced past its gross has nothing left rather than taking from the
+  // others, and a Challan / FR SO or one with no gross has none.
   const inHand = opts.inHand
-    ? (
-        await query<{ currency: string; amount: string }>(
-          `SELECT COALESCE(NULLIF(btrim(o.order_currency), ''), 'INR') AS currency,
-                  sum(CASE WHEN h.diff < 1 THEN 0 ELSE h.diff END)::text AS amount
+    ? Number(
+        (
+          await query<{ amount: string | null }>(
+            `SELECT sum(CASE WHEN h.diff < 1 THEN 0 ELSE h.diff END)::text AS amount
              FROM orders o
              CROSS JOIN LATERAL (
                SELECT o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))
@@ -4355,12 +4381,11 @@ async function pageOfOrderIds(opts: {
              ) h
              ${where}
               AND o.taxable_value IS NOT NULL
-              AND COALESCE(btrim(o.bill_type), '') <> 'Challan'
-            GROUP BY 1
-            ORDER BY 1`,
-          [...facets.params, search]
-        )
-      ).rows.map((r) => ({ currency: r.currency, amount: Number(r.amount) }))
+              AND COALESCE(btrim(o.bill_type), '') <> 'Challan'`,
+            [...facets.params, search]
+          )
+        ).rows[0]?.amount ?? 0
+      )
     : undefined;
 
   // Rank the target inside this queue's own ordering (sl_no ASC), then
@@ -5234,9 +5259,6 @@ export async function listBoiVendors(): Promise<string[]> {
   return r.rows.map((x) => x.v);
 }
 
-/** What is still to invoice over a queue as filtered, in one currency. */
-export type OrderInHandTotal = { currency: string; amount: number };
-
 /** Billing and Dispatch queue: one page of SOs, filtered in SQL. */
 export async function listOrdersForBillingPage(opts: {
   page: number;
@@ -5253,7 +5275,7 @@ export async function listOrdersForBillingPage(opts: {
   extraRestrict?: string;
   /** Dispatch: the cumulative Order in Hand, over every matching SO. */
   inHand?: boolean;
-}): Promise<PageResult<BillingQueueRow> & { kpis?: KpiCard[]; inHand?: OrderInHandTotal[] }> {
+}): Promise<PageResult<BillingQueueRow> & { kpis?: KpiCard[]; inHand?: number }> {
   const extra = opts.extraRestrict ? ` AND (${opts.extraRestrict})` : "";
   const restrict = (opts.onlyPacked
     ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
