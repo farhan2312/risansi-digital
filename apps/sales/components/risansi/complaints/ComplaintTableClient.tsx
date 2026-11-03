@@ -464,6 +464,12 @@ function renderCell(col: Col, r: ComplaintListRow, clientFrozen: boolean): React
           </div>
         </td>
       );
+    case 'oldNo':
+      return (
+        <td key={col.id} style={{ ...TD, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>
+          {r.legacy_ref ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}
+        </td>
+      );
     case 'client':
       return (
         <td key={col.id} className="cmp-fz-client" style={{ ...TD, ...FREEZE_CLIENT, boxShadow: SEAM }}>
@@ -646,6 +652,26 @@ function renderCell(col: Col, r: ComplaintListRow, clientFrozen: boolean): React
     case 'open':
       return <td key={col.id} style={TD}><Link href={`/risansi/complaints/${r.id}`} style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open →</Link></td>;
   }
+  // A column with no case of its own still gets a cell.
+  //
+  // It used to fall out of the switch and return undefined, so React emitted
+  // no <td> at all and every cell to the right of it slid one column left,
+  // under the wrong header. 'oldNo' shipped that way and the table showed the
+  // client's name under "Old no.". Printing the sort value is a plain cell
+  // rather than a right answer, but a plain cell keeps the row in line.
+  return (
+    <td key={col.id} style={{ ...TD, fontSize: 11 }}>
+      {fallbackText(col, r) ?? <span style={{ color: 'var(--fg-4)' }}>—</span>}
+    </td>
+  );
+}
+
+/** The sort value as text, for a column that has no cell of its own. */
+function fallbackText(col: Col, r: ComplaintListRow): string | null {
+  const v = col.value?.(r);
+  if (v == null) return null;
+  const t = String(v).trim();
+  return t === '' ? null : t;
 }
 
 
