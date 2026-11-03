@@ -24,7 +24,8 @@ export type OrderValueRow = {
 
 /**
  * How the SO's order value comes to its gross: the value, discount, packing &
- * forwarding, GST, and the gross. Dispatch and Accounts show it alike.
+ * forwarding, GST, and the gross; a USD order's gross in USD and in INR. Every
+ * list with an order value shows it alike.
  */
 export function OrderValueDetails({ row }: { row: OrderValueRow }) {
   const cur = row.order_currency ? ` ${String(row.order_currency)}` : "";
@@ -63,16 +64,5 @@ export function OrderValueDetails({ row }: { row: OrderValueRow }) {
         </>
       )}
     </div>
-  );
-}
-
-/** Under an Order Value column: a USD order's gross, in USD and in INR. */
-export function UsdGross({ row }: { row: OrderValueRow }) {
-  if (!isUsd(row.order_currency)) return null;
-  return (
-    <>
-      {money(row.gross_value_usd) && <span className="block whitespace-nowrap text-xs text-muted">Gross {money(row.gross_value_usd)} USD</span>}
-      {money(row.taxable_value) && <span className="block whitespace-nowrap text-xs text-muted">Gross {money(row.taxable_value)} INR</span>}
-    </>
   );
 }

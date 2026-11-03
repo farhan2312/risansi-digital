@@ -1,3 +1,4 @@
+import { OrderValueDetails } from "@/components/risansi/order-value-details";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -14,13 +15,6 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-const numberFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
-
-function formatValue(value: string | null): string {
-  if (value === null || value.trim() === "") return "—";
-  const n = Number(value);
-  return Number.isFinite(n) ? numberFmt.format(n) : value;
-}
 
 export default async function EscalationsPage({
   searchParams,
@@ -70,7 +64,7 @@ export default async function EscalationsPage({
                 <th className="px-4 py-3">SO No.</th>
                 <th className="px-4 py-3">Client Name</th>
                 <th className="px-4 py-3">Hold Reason</th>
-                <th className="px-4 py-3 text-right">Order Value</th>
+                <th className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -87,8 +81,8 @@ export default async function EscalationsPage({
                   <td className="px-4 py-3 text-muted">
                     {hold.hold_reason ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {formatValue(hold.order_value)}
+                  <td className="px-4 py-3 align-top">
+                    <OrderValueDetails row={hold} />
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <Link

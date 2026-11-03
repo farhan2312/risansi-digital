@@ -155,6 +155,10 @@ export type OrderListRow = {
   /** A USD order's gross in USD; taxable_value is then that in INR. */
   gross_value_usd: string | null;
   taxable_value: string | null;
+  /** How the order value comes to its gross (Order Value Details). */
+  discount_percent: string | null;
+  packing_forwarding_percent: string | null;
+  gst_percent: string | null;
   // Whether this SO has bought-out items at all: the EC form only offers the
   // BOI list when it is Yes.
   boi: string | null;
@@ -2509,6 +2513,12 @@ export type PaymentHoldRow = {
   client_name: string | null;
   hold_reason: string | null;
   order_value: string | null;
+  order_currency: string | null;
+  discount_percent: string | null;
+  packing_forwarding_percent: string | null;
+  gst_percent: string | null;
+  gross_value_usd: string | null;
+  taxable_value: string | null;
 };
 
 /** Payment Holds show this many per page. */
@@ -2531,6 +2541,12 @@ export async function listPaymentHoldsPage(page: number): Promise<PageResult<Pay
                 o.order_type,
                 o.client_name,
                 o.order_value::text AS order_value,
+                o.order_currency,
+                o.discount_percent::text AS discount_percent,
+                o.packing_forwarding_percent::text AS packing_forwarding_percent,
+                o.gst_percent::text AS gst_percent,
+                o.gross_value_usd::text AS gross_value_usd,
+                o.taxable_value::text AS taxable_value,
                 a.hold_reason,
                 count(*) OVER ()::text AS total_count
            ${from}
@@ -4142,6 +4158,9 @@ export async function listOrdersPage(opts: {
             o.order_value_inr::text AS order_value_inr,
             o.gross_value_usd::text AS gross_value_usd,
             o.taxable_value::text AS taxable_value,
+            o.discount_percent::text AS discount_percent,
+            o.packing_forwarding_percent::text AS packing_forwarding_percent,
+            o.gst_percent::text AS gst_percent,
             o.boi,
             a.payment_status,
             ${DISPATCH_STATUS} AS dispatch_status,
@@ -4277,6 +4296,9 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.order_value_inr::text AS order_value_inr,
             o.gross_value_usd::text AS gross_value_usd,
             o.taxable_value::text AS taxable_value,
+            o.discount_percent::text AS discount_percent,
+            o.packing_forwarding_percent::text AS packing_forwarding_percent,
+            o.gst_percent::text AS gst_percent,
             o.boi,
             a.payment_status,
             ${DISPATCH_STATUS} AS dispatch_status,

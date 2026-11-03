@@ -12,7 +12,7 @@ import { DispatchPictures, type PictureLink } from "./dispatch-pictures";
 import { FollowupCell } from "./order-followups";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel } from "@/lib/order-schema";
-import { UsdGross } from "./order-value-details";
+import { OrderValueDetails } from "./order-value-details";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { canAddFollowup, canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
@@ -36,13 +36,6 @@ import { isOrderListFiltered, ordersKind, parseOrderListFilter } from "@/lib/ord
 import type { PumpSummary } from "@/lib/pump-summary";
 import { PumpLeadCells, PumpLeadGroupHeads, PumpLeadSubHeads, PumpTailCells } from "./pump-dept-cells";
 
-const numberFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
-
-function formatValue(value: string | null): string {
-  if (value === null || value.trim() === "") return "—";
-  const n = Number(value);
-  return Number.isFinite(n) ? numberFmt.format(n) : value;
-}
 
 function formatDate(value: string | null): string {
   if (!value) return "—";
@@ -494,7 +487,7 @@ export function OrdersTable({
                 {/* Headers that filter, Excel-like: the values the column holds, each with its count. */}
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label="Order Status" /></th>
-                <th rowSpan={2} className="px-4 py-3 text-right">Order Value</th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
                 {pump && <th rowSpan={2} className="px-4 py-3 text-right">Quantity</th>}
                 <th rowSpan={2} className="px-4 py-3">Departments</th>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
@@ -642,20 +635,8 @@ export function OrdersTable({
                       <td className="px-4 py-3 whitespace-nowrap">
                         <OrderStatusPill status={orderStatusOf(order)} />
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
-                        {/* With its unit; a USD order shows its INR figure beneath. */}
-                        {order.order_value ? (
-                          <>
-                            {formatValue(order.order_value)}{" "}
-                            <span className="text-xs text-muted">{order.order_currency || "INR"}</span>
-                            {(order.order_currency ?? "INR").toUpperCase() !== "INR" && order.order_value_inr && (
-                              <div className="text-xs text-muted">{formatValue(order.order_value_inr)} INR</div>
-                            )}
-                            <UsdGross row={order} />
-                          </>
-                        ) : (
-                          "—"
-                        )}
+                      <td className="px-4 py-3 align-top">
+                        <OrderValueDetails row={order} />
                       </td>
                       {/* A pump SO's quantity: all its ECs' added up. */}
                       {pump && <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{ecQuantityOf(order.items) ?? "—"}</td>}

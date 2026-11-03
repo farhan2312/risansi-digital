@@ -1,6 +1,6 @@
 "use client";
 
-import { UsdGross, type OrderValueRow } from "./order-value-details";
+import { OrderValueDetails, type OrderValueRow } from "./order-value-details";
 import { useUsdRate } from "./use-usd-rate";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
@@ -247,7 +247,7 @@ export function OrderMakingWorkspace({
     { column: "complaint_no", label: "Complaint No." },
     { column: "po_no", label: "PO No." },
     { column: "po_received_date", label: "PO Receiving Date" },
-    { column: "order_value", label: "Order Value" },
+    { column: "order_value", label: "Order Value Details" },
     // Order Making PO's: an SO member does not see it.
     ...(mode === "so" ? [] : [{ column: "ec_sent_operation_date", label: "SO Sent to Operation" }]),
   ];
@@ -553,7 +553,7 @@ export function OrderMakingWorkspace({
                 </th>
                 {cols.map((c) => (
                   <Fragment key={c.column}>
-                    <th className={`px-4 py-3 ${c.column === "order_value" ? "text-right" : c.column === "so_no" ? "sticky-so" : ""}`}>
+                    <th className={`px-4 py-3 ${c.column === "order_value" ? "whitespace-nowrap" : c.column === "so_no" ? "sticky-so" : ""}`}>
                       {["so_date", "po_received_date", "ec_sent_operation_date"].includes(c.column) ? <SortHeader label={c.label} sortKey={c.column} /> : c.label}
                     </th>
                     {c.column === "so_no" && <th className="px-4 py-3">Chat</th>}
@@ -602,12 +602,10 @@ export function OrderMakingWorkspace({
                     <Fragment key={c.column}>
                       <td
                         className={`px-4 py-3 ${
-                          c.column === "order_value" ? "text-right tabular-nums" : c.column === "client_name" ? "" : "whitespace-nowrap"
+                          c.column === "order_value" ? "align-top" : c.column === "client_name" ? "" : "whitespace-nowrap"
                         } ${c.column === "so_no" ? "sticky-so" : ""}`}
                       >
-                        {formatDisplay(field(c.column), row[c.column])}
-                        {c.column === "order_value" && str(row.order_currency) ? ` ${str(row.order_currency)}` : ""}
-                        {c.column === "order_value" && <UsdGross row={row as OrderValueRow} />}
+                        {c.column === "order_value" ? <OrderValueDetails row={row as OrderValueRow} /> : formatDisplay(field(c.column), row[c.column])}
                         {c.column === "client_name" && str(row.client_code) && (
                           <span className="block text-[11px] text-muted">{str(row.client_code)}</span>
                         )}

@@ -8,6 +8,7 @@ import type { KpiCard, KpiTone } from "@/lib/kpis";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import type { PumpStage as SummaryStage, PumpSummary } from "@/lib/pump-summary";
 import { stageOf as pumpStageOf, type PumpStage } from "@/lib/pump-dashboard";
+import { orderValueLines } from "@/lib/dept-report-pdf";
 
 // The Orders list on paper: the same columns as the list on screen, every SO
 // on one line, with summary cards on top. A3 landscape, so all seventeen
@@ -122,7 +123,7 @@ const PUMP_OR_ALL_COLUMNS: Column[] = [
   { key: "rep", label: "Rep", width: 64 },
   { key: "zone", label: "Zone", width: 36 },
   { key: "bill", label: "Bill Mode", width: 61 },
-  { key: "value", label: "Order Value", width: 70, align: "right" },
+  { key: "value", label: "Order Value Details", width: 70 },
   { key: "depts", label: "Departments", width: 122 },
   { key: "pay", label: "Payment terms, PIs & payment", width: 165 },
   { key: "readiness", label: "Readiness Date", width: 62 },
@@ -144,7 +145,7 @@ const SPARE_COLUMNS: Column[] = [
   { key: "rep", label: "Rep", width: 48 },
   { key: "zone", label: "Zone", width: 34 },
   { key: "bill", label: "Bill Mode", width: 50 },
-  { key: "value", label: "Order Value", width: 60, align: "right" },
+  { key: "value", label: "Order Value Details", width: 60 },
   { key: "pay", label: "Payment terms, PIs & payment", width: 104 },
   { key: "p1", label: "Lot 1", width: 50, group: "Planning" },
   { key: "p2", label: "Lot 2", width: 50, group: "Planning" },
@@ -166,7 +167,7 @@ const PUMP_COLUMNS: Column[] = [
   { key: "so", label: "SO No. & Date", width: 70 },
   { key: "client", label: "Client Name", width: 88 },
   { key: "rep", label: "Rep", width: 46 },
-  { key: "value", label: "Order Value", width: 58, align: "right" },
+  { key: "value", label: "Order Value Details", width: 58 },
   { key: "pay", label: "Payment terms, PIs & payment", width: 100 },
   { key: "gad", label: "GAD", width: 64, group: "Drawing" },
   { key: "curve", label: "Perf. Curve", width: 54, group: "Drawing" },
@@ -437,19 +438,12 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
     so.push({ text: `Accounts hold${o.accounts_hold_reason ? `: ${o.accounts_hold_reason}` : ""}`, color: C.red, size: 6.5 });
   }
 
-  // Value with its unit; a USD order adds its INR figure.
-  const value: Line[] = [];
-  if (o.order_value) {
-    value.push({ text: `${money.format(Number(o.order_value))} ${o.order_currency || "INR"}` });
-    if ((o.order_currency ?? "INR").toUpperCase() !== "INR" && o.order_value_inr) {
-      value.push({ text: `${money.format(Number(o.order_value_inr))} INR`, color: C.muted, size: 6.5 });
-    }
-    // …and a USD order's gross, in both.
-    if ((o.order_currency ?? "").toUpperCase() === "USD") {
-      if (o.gross_value_usd) value.push({ text: `Gross ${money.format(Number(o.gross_value_usd))} USD`, color: C.muted, size: 6.5 });
-      if (o.taxable_value) value.push({ text: `Gross ${money.format(Number(o.taxable_value))} INR`, color: C.muted, size: 6.5 });
-    }
-  }
+  // The order value to its gross, as the list shows it.
+  const value: Line[] = orderValueLines(o as unknown as Record<string, unknown>).map(([k, v]) =>
+    k.startsWith("Gross")
+      ? { text: `${k}: ${v}`, bold: true, size: 6.5 }
+      : { text: `${k}: ${v}`, color: C.muted, size: 6.5 }
+  );
 
   // Payment terms, each with its PI and what came in.
   const terms = (o.term_lines ?? []) as Row[];

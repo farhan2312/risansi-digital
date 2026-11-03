@@ -6,7 +6,7 @@ import { Fragment, useEffect, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import type { BillingQueueRow } from "@/lib/orders";
 import { TermPis } from "./term-pis";
-import { OrderValueDetails, UsdGross } from "./order-value-details";
+import { OrderValueDetails } from "./order-value-details";
 import { PendencyCell } from "./pendency-cell";
 import { MultiSelectFilter } from "./multi-select-filter";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
@@ -46,12 +46,6 @@ function formatDate(value: string | null): string {
 }
 
 const numberFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
-function formatValue(v: string | null): string {
-  if (!v || v.trim() === "") return "—";
-  const n = Number(v);
-  return Number.isFinite(n) ? numberFmt.format(n) : v;
-}
-
 export function BillingWorkspace({
   queue,
   mode = "billing",
@@ -181,14 +175,8 @@ export function BillingWorkspace({
                 <th className="px-4 py-3">Bill Mode</th>
                 {mode === "dispatch" && <th className="px-4 py-3">Payment terms &amp; PIs</th>}
                 <th className="px-4 py-3">{mode === "billing" ? "Payment terms & PIs" : "Packing slips & dispatches"}</th>
-                {mode === "dispatch" ? (
-                  <>
-                    <th className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
-                    <th className="px-4 py-3 whitespace-nowrap text-right">Order in Hand</th>
-                  </>
-                ) : (
-                  <th className="px-4 py-3 text-right">Order Value</th>
-                )}
+                <th className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
+                {mode === "dispatch" && <th className="px-4 py-3 whitespace-nowrap text-right">Order in Hand</th>}
                 {mode === "billing" && <th className="px-4 py-3">PI Status</th>}
                 <th className="px-4 py-3">Dispatch Status</th>
                 {mode === "dispatch" && <th className="px-4 py-3">Stage</th>}
@@ -301,20 +289,12 @@ export function BillingWorkspace({
                           </>
                         )}
                       </td>
-                      {mode === "dispatch" ? (
-                        <>
-                          <td className="px-4 py-3 align-top">
-                            <OrderValueDetails row={row} />
-                          </td>
-                          <td className="px-4 py-3 align-top text-right">
-                            <OrderInHand row={row} />
-                          </td>
-                        </>
-                      ) : (
-                        <td className="px-4 py-3 text-right tabular-nums">
-                          {formatValue(row.order_value)}
-                          {row.order_currency ? ` ${row.order_currency}` : ""}
-                          <UsdGross row={row} />
+                      <td className="px-4 py-3 align-top">
+                        <OrderValueDetails row={row} />
+                      </td>
+                      {mode === "dispatch" && (
+                        <td className="px-4 py-3 align-top text-right">
+                          <OrderInHand row={row} />
                         </td>
                       )}
                       {mode === "billing" && (
