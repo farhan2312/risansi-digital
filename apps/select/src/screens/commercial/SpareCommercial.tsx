@@ -248,7 +248,7 @@ export default function SpareCommercial({
     <PageHeader
       icon={<PartsIcon />}
       title="Spare Quotation"
-      subtitle={[project.code, project.name].filter(Boolean).join(" · ")}
+      subtitle={[project.code, `V${project.commercialVersionNo}`, project.name].filter(Boolean).join(" · ")}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           {dirty && <span className="text-[12.5px] font-medium text-warn">Unsaved changes</span>}

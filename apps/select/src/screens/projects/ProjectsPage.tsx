@@ -10,12 +10,14 @@ import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal"
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
+import ClearanceModal, { clearanceTone } from "../../components/projects/ClearanceModal";
+import { holdReasonText } from "../../lib/clearance";
 import EnquiryVersionsModal from "../../components/projects/EnquiryVersionsModal";
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, enquiryNoWithVersion, isRepRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -53,13 +55,12 @@ export const SELECTED_PROJECT_KEY = "selectedProject";
 const PAGE_SIZE = 20;
 
 // Enquiry row columns: chevron | enquiry no. / date | order type | client /
-// code | reps / zone | industry / market | statuses | assigned to | actions.
-// Tailwind only sees whole class strings, so each variant is written out: the
-// User-Master's Actions column is wider (Edit and Delete as well).
-const ROW_GRID_MANAGER =
-  "grid grid-cols-[28px_minmax(170px,1.1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(170px,0.9fr)_minmax(140px,1fr)_222px] 2xl:grid-cols-[28px_minmax(170px,1.1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(170px,0.9fr)_minmax(140px,1fr)_478px]";
-const ROW_GRID_WORKER =
-  "grid grid-cols-[28px_minmax(170px,1.1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(170px,0.9fr)_minmax(140px,1fr)_190px] 2xl:grid-cols-[28px_minmax(170px,1.1fr)_minmax(64px,0.5fr)_minmax(170px,1.8fr)_minmax(130px,1.1fr)_minmax(110px,0.9fr)_minmax(170px,0.9fr)_minmax(140px,1fr)_400px]";
+// code | reps / zone | industry / market | statuses | clearance | assigned to | actions.
+// The table fits the page with no sideways scroll: from xl (1280px, less the 240px
+// sidebar) the columns share the width and the actions sit in two rows of three,
+// icons only until 2xl; below xl each enquiry stacks as a card.
+const ROW_COLS =
+  "grid-cols-2 gap-y-2 xl:grid-cols-[28px_minmax(110px,1fr)_minmax(52px,0.45fr)_minmax(120px,1.4fr)_minmax(90px,0.9fr)_minmax(78px,0.7fr)_minmax(128px,1fr)_minmax(78px,0.6fr)_minmax(100px,0.8fr)_102px] xl:gap-y-0 2xl:grid-cols-[28px_minmax(110px,1fr)_minmax(52px,0.45fr)_minmax(120px,1.4fr)_minmax(90px,0.9fr)_minmax(78px,0.7fr)_minmax(128px,1fr)_minmax(78px,0.6fr)_minmax(100px,0.8fr)_310px]";
 
 const ProjectsPage = () => {
   const router = useRouter();
@@ -74,9 +75,10 @@ const ProjectsPage = () => {
   const isRep = isRepRole(user?.role);
   const [rep, setRep] = useState("");
   const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
+  // The clearance pop-up: Clear or Hold, and its history.
+  const [clearanceFor, setClearanceFor] = useState<ProjectRecord | null>(null);
   // The pop-up listing an enquiry's versions.
   const [versionsFor, setVersionsFor] = useState<ProjectRecord | null>(null);
-  const ROW_GRID = manager ? ROW_GRID_MANAGER : ROW_GRID_WORKER;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -308,7 +310,7 @@ const ProjectsPage = () => {
       SELECTED_PROJECT_KEY,
       JSON.stringify({
         id: project.id,
-        code: enquiryNoWithVersion(project.project_code, project.version_no),
+        code: project.project_code,
         name: project.name,
         customer: project.customer_name,
         status: project.status,
@@ -750,9 +752,9 @@ const ProjectsPage = () => {
 
       {!isLoading && !error && filteredProjects.length > 0 && (
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
-          <div className="overflow-x-auto">
-          <div className={manager ? "min-w-[1225px] 2xl:min-w-[1465px]" : "min-w-[1185px] 2xl:min-w-[1365px]"}>
-          <div className={`border-b border-line bg-elev px-4 py-2.5 ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
+          <div>
+          <div>
+          <div className={`hidden border-b border-line bg-elev px-4 py-2.5 xl:grid ${ROW_COLS} items-center gap-x-2 [&>*]:min-w-0`}>
             <span />
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry No. / Date</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Order Type</span>
@@ -760,6 +762,7 @@ const ProjectsPage = () => {
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Reps / Zone</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry / Market</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Clearance</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Assigned To</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Actions</span>
           </div>
@@ -776,7 +779,7 @@ const ProjectsPage = () => {
               return (
                 <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                   {/* Enquiry row: columns on wide screens, stacked below lg */}
-                  <div className={`group px-4 py-3 transition-colors hover:bg-elev ${ROW_GRID} items-center gap-x-3 [&>*]:min-w-0`}>
+                  <div className={`group grid px-4 py-3 transition-colors hover:bg-elev ${ROW_COLS} items-center gap-x-2 [&>*]:min-w-0`}>
                     <button
                         type="button"
                         onClick={() => toggleExpanded(project.id)}
@@ -802,12 +805,6 @@ const ProjectsPage = () => {
                     >
                       <span className="flex min-w-0 items-center gap-1.5">
                         <span className="min-w-0 font-mono text-[12.5px] font-bold [overflow-wrap:anywhere] text-title group-hover:text-accent">{project.project_code}</span>
-                        <span
-                          className="shrink-0 rounded bg-accent-soft px-1 py-px font-mono text-[10.5px] font-bold text-accent"
-                          title={`Technical V${project.version_no} · Commercial V${project.commercial_version_no}`}
-                        >
-                          {project.version_no === project.commercial_version_no ? `V${project.version_no}` : `T${project.version_no} · C${project.commercial_version_no}`}
-                        </span>
                       </span>
                       <span className="mt-0.5 flex items-center gap-1 text-[11.5px] whitespace-nowrap text-fg-3" title={project.version_no > 0 ? "Revised enquiry date" : "Enquiry date"}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">
@@ -879,13 +876,29 @@ const ProjectsPage = () => {
                     </span>
 
                     <span className="flex flex-col items-start gap-1">
-                      {!isSpare && <StatusLine label="Technical" status={project.status} on={project.completed_on} edited={project.technical_status_override !== null} />}
-                      <StatusLine label={isSpare ? undefined : "Commercial"} status={project.commercial_status} on={project.commercial_completed_on} edited={project.commercial_status_override !== null} />
+                      {!isSpare && <StatusLine label={`Technical V${project.version_no}`} status={project.status} on={project.completed_on} edited={project.technical_status_override !== null} />}
+                      <StatusLine label={isSpare ? `V${project.commercial_version_no}` : `Commercial V${project.commercial_version_no}`} status={project.commercial_status} on={project.commercial_completed_on} edited={project.commercial_status_override !== null} />
                       {tags && (
                         <span className="text-[11px] text-fg-3">
                           {doneCount}/{tags.length} tag{tags.length === 1 ? "" : "s"} done
                         </span>
                       )}
+                    </span>
+
+                    <span className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => setClearanceFor(project)}
+                        className="flex max-w-full flex-col items-start gap-0.5 rounded-md text-left"
+                        title={project.clearance?.remarks || "Clear or Hold, and its history"}
+                        aria-label={`Clearance of enquiry ${project.project_code}`}
+                      >
+                        {/* Clear until someone holds it. */}
+                        <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${clearanceTone(project.clearance?.status ?? "Clear")}`}>{project.clearance?.status ?? "Clear"}</span>
+                        {project.clearance?.status === "Hold" && (
+                          <span className="line-clamp-2 text-[11px] text-fg-3">{holdReasonText(project.clearance.group, project.clearance.reason)}</span>
+                        )}
+                      </button>
                     </span>
 
                     {/* Who works it and since when; the User-Master assigns / reassigns here. */}
@@ -925,7 +938,7 @@ const ProjectsPage = () => {
                       )}
                     </span>
 
-                    <div className="flex flex-nowrap items-center justify-start gap-0.5">
+                    <div className={`col-span-2 flex flex-wrap items-center gap-0.5 xl:col-span-1 xl:grid ${isSpare ? "xl:grid-cols-2" : "xl:grid-cols-3"} [&>button]:justify-center xl:[&>button]:px-1.5 2xl:[&>button]:px-2`}>
                       {!isSpare && (
                       <>
                       <button
@@ -1269,7 +1282,7 @@ const ProjectsPage = () => {
         <EnquiryDocumentModal
           source={{
             projectId: viewingDocFor.id,
-            projectCode: enquiryNoWithVersion(viewingDocFor.project_code, viewingDocFor.version_no),
+            projectCode: viewingDocFor.project_code,
             projectName: viewingDocFor.name,
           }}
           readOnly={!viewingDocFor.is_latest}
@@ -1295,6 +1308,19 @@ const ProjectsPage = () => {
             setCopyError(null);
           }}
           onConfirm={handleCopyConfirm}
+        />
+      )}
+
+      {clearanceFor && (
+        <ClearanceModal
+          project={clearanceFor}
+          canEdit={workable(clearanceFor)}
+          onClose={() => setClearanceFor(null)}
+          onSaved={(now) => {
+            const id = clearanceFor.id;
+            setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, clearance: now } : p)));
+            setClearanceFor((p) => (p ? { ...p, clearance: now } : p));
+          }}
         />
       )}
 
@@ -1403,14 +1429,14 @@ const ProjectsPage = () => {
   );
 };
 
-/** One of the enquiry's statuses, with its completion date. A spare has just the
- *  one status, so it goes without a label. */
-const StatusLine = ({ label, status, on, edited }: { label?: string; status: string | null | undefined; on: string | null; edited: boolean }) => (
-  <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5" title={`${label ? `${label} status` : "Status"} ${edited ? "changed on the Edit form" : "updates by itself"}`}>
-    {label && <span className="w-[60px] shrink-0 text-[10.5px] text-fg-3">{label}</span>}
+/** One of the enquiry's statuses with its version and completion date. A spare has
+ *  just the one status, so its label is only the version. */
+const StatusLine = ({ label, status, on, edited }: { label: string; status: string | null | undefined; on: string | null; edited: boolean }) => (
+  <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5" title={`${label}: ${edited ? "status changed on the Edit form" : "status updates by itself"}`}>
+    <span className={`${label.includes(" ") ? "w-[78px]" : ""} shrink-0 text-[10.5px] text-fg-3`}>{label}</span>
     <StatusPill status={status} />
     {on && (
-      <span className={`${label ? "pl-[66px]" : "w-full"} text-[11px] text-fg-3`}>
+      <span className={`${label.includes(" ") ? "pl-[84px]" : "w-full"} text-[11px] text-fg-3`}>
         on {new Date(`${on}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
       </span>
     )}

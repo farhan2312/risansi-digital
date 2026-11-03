@@ -38,7 +38,7 @@ export async function GET(req: Request) {
   if (!p) return error("Enquiry not found", 404);
   return json({
     quote: normalizeSpareQuote(p.quote),
-    enquiryNo: enquiryNoWithVersion(p.code, p.version),
+    enquiryNo: p.code,
     enquiryDate: p.enquiryDate,
     clientName: p.name,
   });

@@ -184,6 +184,30 @@ export const projects = pgTable("projects", {
   unique("projects_root_project_id_version_no_key").on(t.rootProjectId, t.versionNo),
 ]);
 
+/** An enquiry's clearance history (lib/clearance.ts): every Clear / Hold is a row and
+ *  the newest is the current one. */
+export const enquiryClearance = pgTable("enquiry_clearance", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 10 }).notNull(),
+  /** Hold only: the reason's group, and its choice within the group if it has any. */
+  reasonGroup: varchar("reason_group", { length: 80 }),
+  reason: varchar("reason", { length: 120 }),
+  remarks: text("remarks"),
+  createdBy: uuid("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().$defaultFn(() => new Date()),
+});
+
+/** Hold reasons added by hand (the Other group), for everyone. */
+export const clearanceReason = pgTable("clearance_reason", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  label: varchar("label", { length: 120 }).notNull(),
+  createdBy: uuid("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
 /** Key/value settings for the portal (e.g. usd_inr_rate - Admin > USD to INR). */
 export const appSettings = pgTable("app_settings", {
   key: varchar("key", { length: 60 }).primaryKey(),

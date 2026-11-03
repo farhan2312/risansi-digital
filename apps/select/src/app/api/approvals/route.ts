@@ -13,7 +13,6 @@ import {
 import { AuthError, requireApprover } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enquiryTags, generalInfoInput, projects, stepApproval, users } from "@/lib/db/schema";
-import { enquiryNoWithVersion } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +49,6 @@ export async function GET(req: Request) {
       sentAt: stepApproval.sentAt,
       tagName: enquiryTags.name,
       enquiryCode: projects.projectCode,
-      versionNo: projects.versionNo,
       projectName: projects.name,
       customerName: projects.customerName,
       pumpModel: generalInfoInput.selectedModel,
@@ -79,7 +77,7 @@ export async function GET(req: Request) {
       item = {
         tagId: r.tagId,
         tagName: r.tagName,
-        enquiryCode: enquiryNoWithVersion(r.enquiryCode, r.versionNo),
+        enquiryCode: r.enquiryCode,
         projectName: r.projectName,
         customerName: r.customerName,
         pumpModel: r.pumpModel || null,

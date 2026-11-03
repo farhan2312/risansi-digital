@@ -16,7 +16,7 @@ import {
 import { todayYmd } from "./CreateProjectModal";
 import EnquiryVersionSection from "./EnquiryVersionSection";
 import type { ProjectRecord } from "../../services/projectService";
-import { ORDER_SUBTYPES, defaultSubtype, enquiryNoWithVersion, type OrderSubtype, type OrderType } from "../../lib/roles";
+import { ORDER_SUBTYPES, defaultSubtype, type OrderSubtype, type OrderType } from "../../lib/roles";
 
 type Props = {
   isOpen: boolean;
@@ -148,7 +148,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
   return (
     <ModalShell
       title="Edit Enquiry"
-      subtitle={enquiryNoWithVersion(project.project_code, project.version_no)}
+      subtitle={project.project_code}
       busy={isSaving || creatingVersion}
       onClose={onClose}
       footer={

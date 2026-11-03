@@ -6,7 +6,6 @@ export interface ReportRecord {
   tag_id: string;
   tag_name: string;
   project_id: string;
-  /** The enquiry no. with its version ("ENQ-12 V1"). */
   project_code: string;
   version_no: number;
   is_latest: boolean;

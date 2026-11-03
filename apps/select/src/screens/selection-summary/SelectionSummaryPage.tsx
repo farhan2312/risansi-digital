@@ -75,6 +75,7 @@ interface EnquiryGroup {
   created_by_name: string | null;
   assigned_to: string | null;
   is_latest: boolean;
+  version_no: number;
   enquiry_status: string;
   quotation_count: number;
   latest_generated_at: string | null;
@@ -179,6 +180,7 @@ const SelectionSummaryPage = () => {
           created_by_name: r.created_by_name,
           assigned_to: r.assigned_to,
           is_latest: r.is_latest,
+          version_no: r.version_no,
           enquiry_status: r.enquiry_status,
           quotation_count: r.quotation_count,
           latest_generated_at: r.document_generated_at,
@@ -342,7 +344,8 @@ const SelectionSummaryPage = () => {
 
                       <span className="truncate text-[12.5px] whitespace-nowrap text-fg-2" title={fmtDate(g.latest_generated_at)}>{fmtDate(g.latest_generated_at)}</span>
 
-                      <span>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[11px] font-semibold text-fg-3">V{g.version_no}</span>
                         <StatusPill status={g.enquiry_status} />
                       </span>
 

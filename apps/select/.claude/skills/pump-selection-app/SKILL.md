@@ -956,6 +956,14 @@ never auto-filled from the AI result.
   "status" in the list APIs = Technical status, so the
   Dashboard, workload cards, Reports and the version rule all read Technical.
 
+## Clearance (user, 2026-11-04)
+- Enquiries column before Assigned To; ClearanceModal: Clear or Hold, remarks on both
+  (optional), Hold needs a reason (lib/clearance.ts HOLD_REASONS; Other = clearance_reason
+  table, added in the pop-up for everyone). Every save is a row in enquiry_clearance, newest
+  = current; GET/POST /api/projects/[id]/clearance shows history across versions. Who can
+  change: workDenied (assignee, managers, admin, selection head; not older versions).
+  No row reads as Clear (the default); a new version starts Clear.
+
 ## Spare orders (user, 2026-11-04)
 - order_type spare: no tags, no technical step, no scope of supply. The Enquiries row
   has only Commercial and Copy (no chevron, Quotation or Technical); Copy adds its models
@@ -1004,8 +1012,6 @@ never auto-filled from the AI result.
 - On a Technical only version prices never change by themselves: an item leaving the
   selection is flagged (Remove price / Keep old price) rather than removed, and flags
   still block the next Send to client.
-- Labels: Technical sheet + wizard = version_no; Commercial page + Offer + Client Quoted
-  Prices = commercial_version_no; Techno, Reports, Dashboard, bell = enquiryNoWithVersions.
 
 ## Enquiry versions (user, 2026-11-03)
 - V0 is the enquiry as created. Once the latest version's Technical status is Completed, the
@@ -1041,5 +1047,7 @@ never auto-filled from the AI result.
 - Quotation pop-up (QuotationStepModal): scope changes wait for its Save button, with
   the ERP serial, and it warns before closing with unsaved changes (user,
   2026-11-03). The Commercial page's Scope card still saves on change.
-- `enquiryNoWithVersion` (lib/roles.ts) = "ENQ-12 V1", also on V0, on the wizard
-  header, PDFs, Excel, sheets, Commercial, Reports, Dashboard, approvals, bell.
+- The enquiry no. never carries the version on screen or on documents (user,
+  2026-11-04). It shows on the status: "Technical V1" / "Commercial V0" on the Enquiries
+  list, V1 beside Reports' status, Commercial page subtitle. `enquiryNoWithVersion`
+  (lib/roles.ts) is only for audit details.

@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import ConfirmModal from "../ui/ConfirmModal";
-import { enquiryNoWithVersion } from "../../lib/roles";
 import type { ProjectRecord } from "../../services/projectService";
 
 const NEW = "__new__";
@@ -36,7 +35,7 @@ export default function CopySpareModal({
       title="Copy this spare quotation"
       description={
         <>
-          Copies the models and parts of <b className="font-mono">{enquiryNoWithVersion(source.project_code, source.version_no)}</b>, with quantities and
+          Copies the models and parts of <b className="font-mono">{source.project_code}</b>, with quantities and
           prices. The reference PO and quotation number are not copied.
         </>
       }
@@ -58,7 +57,7 @@ export default function CopySpareModal({
         {allowNew ? <option value={NEW}>A new enquiry</option> : <option value="">Select an enquiry</option>}
         {targets.map((p) => (
           <option key={p.id} value={p.id}>
-            {enquiryNoWithVersion(p.project_code, p.version_no)}
+            {p.project_code}
             {p.name ? ` - ${p.name}` : ""}
           </option>
         ))}
