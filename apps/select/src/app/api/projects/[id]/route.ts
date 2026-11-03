@@ -1,10 +1,10 @@
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
+import { enquiryTags, projects, quotation, quotationVersion, users } from "@/lib/db/schema";
 import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 import { ENQUIRY_STATUSES } from "@/lib/enquiry-filters";
 import { enquiryStatusColumns } from "@/lib/enquiry-filters-server";
@@ -231,6 +231,31 @@ export async function DELETE(
 
   // pump_selection_input rows for this project cascade-delete via its FK.
   const deleted = await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ kind: projects.versionKind, version: projects.versionNo, root: projects.rootProjectId })
+      .from(projects)
+      .where(eq(projects.id, id))
+      .limit(1);
+    if (before?.kind === "technical" && before.root) {
+      const [previous] = await tx
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.versionNo, before.version - 1), or(eq(projects.id, before.root), eq(projects.rootProjectId, before.root))))
+        .limit(1);
+      const quotes = await tx.select().from(quotation).where(eq(quotation.projectId, id));
+      for (const q of quotes) {
+        const [back] = previous
+          ? await tx.select({ id: quotation.id }).from(quotation).where(and(eq(quotation.projectId, previous.id), eq(quotation.driveGroup, q.driveGroup))).limit(1)
+          : [];
+        if (!back) continue;
+        const moved = await tx
+          .update(quotationVersion)
+          .set({ quotationId: back.id })
+          .where(and(eq(quotationVersion.quotationId, q.id), eq(quotationVersion.track, "internal"), isNull(quotationVersion.frozenAt)))
+          .returning({ version: quotationVersion.version });
+        if (moved[0]) await tx.update(quotation).set({ internalVersion: moved[0].version }).where(eq(quotation.id, back.id));
+      }
+    }
     const [row] = await tx.delete(projects).where(eq(projects.id, id)).returning();
     if (row?.rootProjectId) {
       const root = row.rootProjectId;

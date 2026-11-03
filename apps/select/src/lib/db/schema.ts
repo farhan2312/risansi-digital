@@ -120,6 +120,11 @@ export const projects = pgTable("projects", {
   versionNo: integer("version_no").notNull().default(0),
   /** The V0 row of this enquiry; null on V0 itself. */
   rootProjectId: uuid("root_project_id").references((): AnyPgColumn => projects.id),
+  /** The Commercial side's version. version_no is the Technical one: a Technical
+   *  only version moves that alone (user, 2026-11-04). */
+  commercialVersionNo: integer("commercial_version_no").notNull().default(0),
+  /** How this version was made: "both" | "technical" (CHECK). */
+  versionKind: varchar("version_kind", { length: 10 }).notNull().default("both"),
   /** The version being worked on (one per enquiry); the older ones are view only. */
   isLatest: boolean("is_latest").notNull().default(true),
   /** What the client asked to change, entered when the version was made. */

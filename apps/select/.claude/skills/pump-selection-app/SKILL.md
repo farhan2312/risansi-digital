@@ -992,6 +992,21 @@ never auto-filled from the AI result.
   (projects.prices_reviewed_at, PUT /api/commercial/reviewed), which covers Strainer,
   PRV and Other items. A new version resets the tick.
 
+## Technical only versions (user, 2026-11-04)
+- The New version section offers Both or Technical only (spares: always both).
+  projects.version_no = Technical version, commercial_version_no = Commercial,
+  version_kind = both | technical. Each counts separately (V0/V0 -> T1/C0 -> T2/C1).
+- Technical only (createRevision): carries Commercial status, date, sent_to_client_at
+  and the Prices reviewed tick; the quotation keeps its date and versions, and its live
+  internal version row MOVES to the new row (back again if that version is deleted).
+- Commercial stays Completed meanwhile: sent_to_client_at < created_at means a carried
+  send, so Technical isn't waited for.
+- On a Technical only version prices never change by themselves: an item leaving the
+  selection is flagged (Remove price / Keep old price) rather than removed, and flags
+  still block the next Send to client.
+- Labels: Technical sheet + wizard = version_no; Commercial page + Offer + Client Quoted
+  Prices = commercial_version_no; Techno, Reports, Dashboard, bell = enquiryNoWithVersions.
+
 ## Enquiry versions (user, 2026-11-03)
 - V0 is the enquiry as created. Once the latest version's Technical status is Completed, the
   User-Master / system admin makes the next one (New version section on the Edit

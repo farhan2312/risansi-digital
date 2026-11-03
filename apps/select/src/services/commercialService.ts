@@ -14,6 +14,11 @@ export const answerPriceChange = async (tagId: string, key: string, useNew: bool
   return data;
 };
 
+/** Takes a flagged line off, when the selection no longer has it. */
+export const removeFlaggedPrice = async (tagId: string, key: string): Promise<void> => {
+  await apiClient.patch(`/commercial/${tagId}`, { key, remove: true });
+};
+
 /** The notes about items removed by themselves were seen. */
 export const dismissRemovedBoi = async (tagId: string): Promise<void> => {
   await apiClient.patch(`/commercial/${tagId}`, { dismissRemoved: true });

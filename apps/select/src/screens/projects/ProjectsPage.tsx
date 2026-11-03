@@ -802,7 +802,12 @@ const ProjectsPage = () => {
                     >
                       <span className="flex min-w-0 items-center gap-1.5">
                         <span className="min-w-0 font-mono text-[12.5px] font-bold [overflow-wrap:anywhere] text-title group-hover:text-accent">{project.project_code}</span>
-                        <span className="shrink-0 rounded bg-accent-soft px-1 py-px font-mono text-[10.5px] font-bold text-accent">V{project.version_no}</span>
+                        <span
+                          className="shrink-0 rounded bg-accent-soft px-1 py-px font-mono text-[10.5px] font-bold text-accent"
+                          title={`Technical V${project.version_no} · Commercial V${project.commercial_version_no}`}
+                        >
+                          {project.version_no === project.commercial_version_no ? `V${project.version_no}` : `T${project.version_no} · C${project.commercial_version_no}`}
+                        </span>
                       </span>
                       <span className="mt-0.5 flex items-center gap-1 text-[11.5px] whitespace-nowrap text-fg-3" title={project.version_no > 0 ? "Revised enquiry date" : "Enquiry date"}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">

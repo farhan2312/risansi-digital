@@ -66,6 +66,10 @@ export const canWorkOn = (
 /** The enquiry no. with its version, as shown and printed: "ENQ-12 V1". */
 export const enquiryNoWithVersion = (code: string, version: number | null | undefined): string => `${code} V${version ?? 0}`;
 
+/** Both sides' versions: "ENQ-12 V1" when level, else "ENQ-12 Technical V1 / Commercial V0". */
+export const enquiryNoWithVersions = (code: string, technical: number | null | undefined, commercial: number | null | undefined): string =>
+  (technical ?? 0) === (commercial ?? 0) ? enquiryNoWithVersion(code, technical) : `${code} Technical V${technical ?? 0} / Commercial V${commercial ?? 0}`;
+
 /** Rep / Rep Manager: read-only, and only their own enquiries. */
 export const REP_ROLES = ["rep", "rep_manager"] as const;
 export const isRepRole = (role: string | null | undefined): boolean => (REP_ROLES as readonly string[]).includes(role ?? "");

@@ -6,7 +6,7 @@ import { normalizeOfferConfig, normalizeOfferConfigs, type CommercialOfferData }
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
 import { projects, quotation } from "@/lib/db/schema";
-import { enquiryNoWithVersion } from "@/lib/roles";
+import { enquiryNoWithVersion, enquiryNoWithVersions } from "@/lib/roles";
 import { dotDate } from "@/lib/tech-doc";
 import { workDenied, viewDenied } from "@/lib/enquiry-access";
 
@@ -25,6 +25,7 @@ export async function GET(req: Request) {
       .select({
         code: projects.projectCode,
         versionNo: projects.versionNo,
+        commercialVersionNo: projects.commercialVersionNo,
         name: projects.name,
         enquiryDate: projects.enquiryDate,
         config: projects.commercialOfferConfig,
@@ -38,9 +39,10 @@ export async function GET(req: Request) {
   if (!p) return error("Enquiry not found", 404);
   const mixed = groups.length > 1;
   const data: CommercialOfferData = {
-    projectCode: enquiryNoWithVersion(p.code, p.versionNo),
+    projectCode: enquiryNoWithVersion(p.code, p.commercialVersionNo),
     clientName: p.name,
-    enquiry: [enquiryNoWithVersion(p.code, p.versionNo), p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
+    enquiry: [enquiryNoWithVersion(p.code, p.commercialVersionNo), p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
+    technoEnquiry: [enquiryNoWithVersions(p.code, p.versionNo, p.commercialVersionNo), p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
     mixed,
     quotations: Object.fromEntries(quotes.map((q) => [q.driveGroup, `${quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`])),
     erpNumbers: Object.fromEntries(

@@ -13,7 +13,11 @@
 //                send to operation and the quotations' send to the client.
 //   Stays put:   sent quotation versions (frozen on the older version; shown
 //                across versions as one history).
-import { asc, eq, getTableName } from "drizzle-orm";
+// That is a "both" version. A "technical" one moves only the Technical side
+// (user, 2026-11-04): the Commercial version, its status and date, the send to the
+// client, the Prices reviewed tick and the quotation's versions all carry on; the
+// live internal version moves across as it is, and nothing is numbered up.
+import { and, asc, eq, getTableName, isNull } from "drizzle-orm";
 
 import { boiBasisFor } from "./commercial";
 import { loadCommercialSummary } from "./commercial-server";
@@ -45,9 +49,10 @@ function withNewTagIds<T>(config: T, tagIds: Map<string, string>): T {
 
 export async function createRevision(
   source: ProjectRow,
-  input: { enquiryDate: string; assignedTo: string; note: string | null; createdBy: string },
+  input: { enquiryDate: string; assignedTo: string; note: string | null; createdBy: string; kind: "both" | "technical" },
 ): Promise<ProjectRow> {
   const version = source.versionNo + 1;
+  const both = input.kind === "both";
   const now = new Date();
   const quoteDate = new Date(now.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
 
@@ -68,19 +73,19 @@ export async function createRevision(
       .values({
         ...carried,
         versionNo: version,
+        commercialVersionNo: both ? source.commercialVersionNo + 1 : source.commercialVersionNo,
+        versionKind: input.kind,
         rootProjectId: source.rootProjectId ?? source.id,
         isLatest: true,
         revisionNote: input.note,
         enquiryDate: input.enquiryDate,
         status: "In Progress",
         technicalStatusOverride: null,
-        commercialStatusOverride: null,
         completedOn: null,
-        commercialCompletedOn: null,
         sentToOperationAt: null,
-        sentToClientAt: null,
-        pricesReviewedAt: null,
-        pricesReviewedBy: null,
+        ...(both
+          ? { commercialStatusOverride: null, commercialCompletedOn: null, sentToClientAt: null, pricesReviewedAt: null, pricesReviewedBy: null }
+          : {}),
         createdBy: input.createdBy,
         createdAt: now,
         updatedAt: now,
@@ -150,13 +155,20 @@ export async function createRevision(
         .values({
           ...quote,
           projectId: created.id,
-          quoteDate,
-          internalVersion: q.internalVersion + 1,
+          quoteDate: both ? quoteDate : q.quoteDate,
+          internalVersion: both ? q.internalVersion + 1 : q.internalVersion,
           createdBy: input.createdBy,
           createdAt: now,
           updatedAt: now,
         })
         .returning({ id: quotation.id });
+      if (!both) {
+        await tx
+          .update(quotationVersion)
+          .set({ quotationId: copy.id })
+          .where(and(eq(quotationVersion.quotationId, q.id), eq(quotationVersion.track, "internal"), isNull(quotationVersion.frozenAt)));
+        continue;
+      }
       await freezeLiveInternal(tx, q.id, snapshots[i]);
       await tx.insert(quotationVersion).values({
         quotationId: copy.id,

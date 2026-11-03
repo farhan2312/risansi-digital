@@ -147,7 +147,7 @@ export default function TechnoCommercialModal({
       projectCode: offer.projectCode,
       header: {
         clientName: offer.clientName,
-        enquiry: offerConfig.enquiryText || offer.enquiry,
+        enquiry: offerConfig.enquiryText || offer.technoEnquiry,
         quotation: offerConfig.erpText || offer.erpNumbers?.[group] || "",
         hidden: offerConfig.headerHidden ?? [],
       },
@@ -370,7 +370,7 @@ export default function TechnoCommercialModal({
                         key: "enquiry",
                         label: "Enquiry No. & Date",
                         value: offerConfig.enquiryText ?? "",
-                        auto: offer.enquiry,
+                        auto: offer.technoEnquiry,
                         onChange: (v) => updateOffer({ ...offerConfig, enquiryText: v }),
                       },
                       {
