@@ -226,7 +226,8 @@ export async function POST(req: Request) {
   // tables is NOT NULL, so a project with no tag can't hold any wizard
   // data. Without this, the Open button on a tag row would 404 because
   // no tag exists yet.
-  await db.insert(enquiryTags).values({ projectId: project.id, name: "Default" });
+  // A spare order has no tags: it is quoted part by part on its Commercial page.
+  if (orderType !== "spare") await db.insert(enquiryTags).values({ projectId: project.id, name: "Default" });
 
   const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, createdBy)).limit(1);
   const createdByName = creator?.name ?? null;

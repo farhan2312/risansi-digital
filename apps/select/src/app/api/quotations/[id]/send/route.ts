@@ -5,7 +5,8 @@ import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion } from "@/lib/db/schema";
-import { formatInr, quotationNumber, sendToClientBlock } from "@/lib/commercial";
+import { SPARE_GROUP, formatInr, quotationNumber, sendToClientBlock } from "@/lib/commercial";
+import { normalizeSpareQuote, spareQuoteProblem } from "@/lib/spare-quote";
 import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, freezeLiveInternal, loadQuotation } from "@/lib/quotation-server";
 import { workDenied } from "@/lib/enquiry-access";
@@ -30,7 +31,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!current) return error("Quotation not found", 404);
 
   const [snapshot, groups] = await Promise.all([buildSnapshot(current.projectId, current.driveGroup), projectDriveGroups(current.projectId)]);
-  if (snapshot.tags.length === 0) return error("This enquiry has no tags to quote.", 400);
+  const spare = current.driveGroup === SPARE_GROUP;
+  if (spare) {
+    const [row] = await db.select({ quote: projects.spareQuote }).from(projects).where(eq(projects.id, current.projectId)).limit(1);
+    const problem = spareQuoteProblem(normalizeSpareQuote(row?.quote));
+    if (problem) return error(problem, 409);
+  } else if (snapshot.tags.length === 0) return error("This enquiry has no tags to quote.", 400);
   const summary = await loadCommercialSummary(current.projectId);
   const blocked = summary && sendToClientBlock(summary, current.driveGroup);
   if (blocked) return error(blocked, 409);
@@ -60,7 +66,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .from(quotation)
       .innerJoin(quotationVersion, eq(quotationVersion.quotationId, quotation.id))
       .where(and(eq(quotation.projectId, current.projectId), eq(quotationVersion.track, "client")));
-    if (groups.every((g) => sent.some((s) => s.group === g))) {
+    const needed: string[] = spare ? [SPARE_GROUP] : groups;
+    if (needed.every((g) => sent.some((s) => s.group === g))) {
       // The first time sets the completion date; sending again keeps it. A status
       // changed by hand to not done gives way to the send.
       await tx

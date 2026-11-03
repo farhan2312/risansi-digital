@@ -61,7 +61,9 @@ export default function EnquiryVersionSection({
     <Section step={step} title={`New version (V${next})`} subtitle={`This is V${project.version_no}. Use this when the client asks for changes.`}>
       {!completed ? (
         <p className="text-[12.5px] text-fg-3 sm:col-span-2">
-          V{next} can be created once this version&apos;s Technical status is Completed and saved.
+          {project.order_type === "spare"
+            ? `V${next} can be created once this version's quotation is sent to the client.`
+            : `V${next} can be created once this version's Technical status is Completed and saved.`}
         </p>
       ) : (
         <>
@@ -100,7 +102,9 @@ export default function EnquiryVersionSection({
             <span className="min-w-0 flex-1 text-[12px] text-fg-3">
               {hasUnsavedChanges
                 ? `Save or cancel your changes above first - V${next} is copied from the saved enquiry.`
-                : `Copies the tags, pump selection, prices and quotation number. V${project.version_no} becomes view only, and each tag is confirmed again in V${next}.`}
+                : project.order_type === "spare"
+                  ? `Copies the reference PO, models, parts, prices and quotation number. V${project.version_no} becomes view only.`
+                  : `Copies the tags, pump selection, prices and quotation number. V${project.version_no} becomes view only, and each tag is confirmed again in V${next}.`}
             </span>
           </div>
           {err && <p className="text-[12.5px] font-medium text-neg sm:col-span-2">{err}</p>}

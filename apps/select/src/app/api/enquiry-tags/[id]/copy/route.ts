@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { enquiryTags } from "@/lib/db/schema";
+import { enquiryTags, projects } from "@/lib/db/schema";
 import { workDenied } from "@/lib/enquiry-access";
 import { WIZARD_TABLES, copyTagRows } from "@/lib/tag-copy";
 
@@ -52,6 +52,9 @@ export async function POST(
       : source.projectId;
   const noWork = await workDenied(req, { projectId: targetProjectId });
   if (noWork) return noWork;
+
+  const [target] = await db.select({ orderType: projects.orderType }).from(projects).where(eq(projects.id, targetProjectId)).limit(1);
+  if (target?.orderType === "spare") return error("A spare order has no tags to copy into.", 400);
 
   const requestedName =
     typeof body.name === "string" && body.name.trim() ? body.name.trim() : null;

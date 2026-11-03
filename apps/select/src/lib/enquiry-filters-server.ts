@@ -9,6 +9,14 @@ import { filterKey, type EnquiryFilterOptions, type EnquiryFilters } from "./enq
 
 const esc = (v: string) => v.replace(/([\\%_])/g, "\\$1");
 
+/** A spare order has no technical step: Completed when its quotation is sent to the
+ *  client, In Progress once it is generated, otherwise Pending. */
+const SPARE_STATUS = sql`CASE
+      WHEN projects.sent_to_client_at IS NOT NULL THEN 'Completed'
+      WHEN EXISTS (SELECT 1 FROM ${quotation} q WHERE q.project_id = projects.id) THEN 'In Progress'
+      ELSE 'Pending'
+    END`;
+
 /** Technical status, automatic: Completed when every tag is Completed, a
  *  quotation is generated and the Technical Data Sheets are sent to operation
  *  (app/api/enquiry-document/versions), Pending when every tag is Pending, otherwise In
@@ -17,6 +25,7 @@ const esc = (v: string) => v.replace(/([\\%_])/g, "\\$1");
  *  the tag's id. */
 export const technicalStatusAutoSql = sql<string>`(
   SELECT CASE
+    WHEN projects.order_type = 'spare' THEN ${SPARE_STATUS}
     WHEN COUNT(*) = 0 THEN coalesce(projects.status, 'Pending')
     WHEN COUNT(*) FILTER (WHERE t.status = 'Completed') = COUNT(*)
          AND EXISTS (SELECT 1 FROM ${quotation} q WHERE q.project_id = projects.id)
@@ -27,8 +36,9 @@ export const technicalStatusAutoSql = sql<string>`(
   FROM ${enquiryTags} t WHERE t.project_id = projects.id
 )`;
 
-/** The Technical status shown: what was picked on the Edit form, else automatic. */
-export const enquiryStatusSql = sql<string>`coalesce(projects.technical_status_override, ${technicalStatusAutoSql})`;
+/** The status lists and counts go by: the Technical status (a spare's only status
+ *  is its Commercial one): what was picked on the Edit form, else automatic. */
+export const enquiryStatusSql = sql<string>`coalesce(CASE WHEN projects.order_type = 'spare' THEN projects.commercial_status_override ELSE projects.technical_status_override END, ${technicalStatusAutoSql})`;
 
 /** Commercial status, automatic: Completed once the Technical status is Completed,
  *  every tag has a saved P&A price and the quotations are sent to the client
@@ -36,6 +46,7 @@ export const enquiryStatusSql = sql<string>`coalesce(projects.technical_status_o
  *  otherwise Pending. */
 export const commercialStatusAutoSql = sql<string>`(
   SELECT CASE
+    WHEN projects.order_type = 'spare' THEN ${SPARE_STATUS}
     WHEN COUNT(*) > 0 AND COUNT(k.pa_price) = COUNT(*)
          AND projects.sent_to_client_at IS NOT NULL
          AND ${enquiryStatusSql} = 'Completed' THEN 'Completed'
@@ -66,16 +77,19 @@ type StatusAutos = { technicalAuto: string; commercialAuto: string; technicalDay
 
 /** The statuses and dates shown: what was changed on the Edit form, else automatic. */
 export const enquiryStatusFields = (
-  p: { technicalStatusOverride: string | null; commercialStatusOverride: string | null; completedOn: string | null; commercialCompletedOn: string | null },
+  p: { orderType: string; technicalStatusOverride: string | null; commercialStatusOverride: string | null; completedOn: string | null; commercialCompletedOn: string | null },
   auto: StatusAutos,
 ) => {
-  const status = p.technicalStatusOverride ?? auto.technicalAuto;
   const commercial = p.commercialStatusOverride ?? auto.commercialAuto;
+  const commercialDay = commercial === "Completed" ? (p.commercialCompletedOn ?? auto.commercialDayAuto) : null;
+  // A spare's only status is its Commercial one.
+  if (p.orderType === "spare") return { status: commercial, completed_on: commercialDay, commercial_status: commercial, commercial_completed_on: commercialDay };
+  const status = p.technicalStatusOverride ?? auto.technicalAuto;
   return {
     status,
     completed_on: status === "Completed" ? (p.completedOn ?? auto.technicalDayAuto) : null,
     commercial_status: commercial,
-    commercial_completed_on: commercial === "Completed" ? (p.commercialCompletedOn ?? auto.commercialDayAuto) : null,
+    commercial_completed_on: commercialDay,
   };
 };
 

@@ -181,6 +181,8 @@ export default function EnquiryFilterBar({
     />
   );
 
+  const onlySpares = value.orderType?.length === 1 && value.orderType[0] === "Spare";
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="flex items-center gap-1.5 text-[11.5px] font-semibold tracking-[0.06em] text-fg-3 uppercase">
@@ -207,7 +209,16 @@ export default function EnquiryFilterBar({
           />
         </label>
       )}
-      {multi("orderType", "Order type", ORDER_TYPE_LABELS)}
+      <MultiSelect
+        label="Order type"
+        options={ORDER_TYPE_LABELS}
+        value={value.orderType ?? []}
+        onChange={(next) => {
+          // Only spares picked: the Commercial status filter leaves with its dropdown.
+          const spare = next.length === 1 && next[0] === "Spare";
+          onChange({ ...value, orderType: next.length ? next : undefined, ...(spare ? { commercialStatus: undefined } : {}) });
+        }}
+      />
       {multi("pumpType", "Pump type", PUMP_TYPE_LABELS)}
       {multi("spareType", "Spare type", SPARE_TYPE_LABELS)}
       {multi("primaryRep", "Primary rep", opts?.primaryReps)}
@@ -215,8 +226,9 @@ export default function EnquiryFilterBar({
       {multi("zone", "Zone", opts?.zones)}
       {multi("market", "Market", opts?.markets)}
       {multi("industry", "Industry", opts?.industries)}
-      {multi("status", "Technical status", ENQUIRY_STATUSES)}
-      {multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}
+      {/* A spare has just one status, which `status` already filters on. */}
+      {multi("status", onlySpares ? "Status" : "Technical status", ENQUIRY_STATUSES)}
+      {!onlySpares && multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}
       {hasEnquiryFilters(value) && (
         <button
           type="button"

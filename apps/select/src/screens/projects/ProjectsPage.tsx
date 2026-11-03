@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
 import CopyTagModal, { type CopyDestination } from "../../components/projects/CopyTagModal";
+import CopySpareModal from "../../components/projects/CopySpareModal";
 import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal";
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
@@ -33,6 +34,7 @@ import {
   type ProjectRecord,
   type UpdateProjectInput,
 } from "../../services/projectService";
+import { copySpareQuote } from "../../services/spareQuoteService";
 import {
   copyTag,
   createTag,
@@ -114,6 +116,11 @@ const ProjectsPage = () => {
   const [copyError, setCopyError] = useState<string | null>(null);
   const [pendingCopyTagId, setPendingCopyTagId] = useState<string | null>(null);
   const [copyingTagId, setCopyingTagId] = useState<string | null>(null);
+  // Copying a spare's models and parts. `pendingSpareCopy` survives the hand-off to
+  // the Create Enquiry form, like pendingCopyTagId.
+  const [copyingSpare, setCopyingSpare] = useState<ProjectRecord | null>(null);
+  const [pendingSpareCopy, setPendingSpareCopy] = useState<ProjectRecord | null>(null);
+  const [spareCopied, setSpareCopied] = useState<string | null>(null);
   // The copy dialog offers EVERY enquiry as a destination, not just the page
   // on screen, so it loads the full list on open rather than reusing the
   // paged one. Cached for the life of the page after the first open.
@@ -224,7 +231,7 @@ const ProjectsPage = () => {
   // Copy dialog's destination list: every enquiry, fetched once on first open.
   // Falls back to the current page if the fetch fails, which is still usable.
   useEffect(() => {
-    if (!copyingFrom || allProjects !== null) return;
+    if ((!copyingFrom && !copyingSpare) || allProjects !== null) return;
     let cancelled = false;
     listProjects()
       .then((rows) => {
@@ -234,7 +241,7 @@ const ProjectsPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [copyingFrom, allProjects]);
+  }, [copyingFrom, copyingSpare, allProjects]);
 
   const handleCreateProject = async (input: CreateProjectInput): Promise<string | null> => {
     setIsCreating(true);
@@ -247,6 +254,17 @@ const ProjectsPage = () => {
       // the page size and the total honest rather than growing this page.
       if (page === 1) loadProjects();
       else setPage(1);
+      if (pendingSpareCopy) {
+        const source = pendingSpareCopy;
+        setPendingSpareCopy(null);
+        await copySpareQuote(source.id, created.id)
+          .then(() => setSpareCopied(`Copied the models and parts into ${created.project_code}.`))
+          .catch((err) =>
+            setError(
+              (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "The enquiry was created, but its models and parts weren't copied.",
+            ),
+          );
+      }
       // Came here from "copy into a new enquiry": land the copy, then drop
       // the empty Default tag the create flow auto-adds, so the new enquiry
       // holds just the copied selection.
@@ -470,6 +488,29 @@ const ProjectsPage = () => {
     }
   };
 
+  const handleCopySpare = async (target: string | "new") => {
+    const source = copyingSpare;
+    if (!source) return;
+    if (target === "new") {
+      setPendingSpareCopy(source);
+      setCopyingSpare(null);
+      setIsModalOpen(true);
+      return;
+    }
+    setCopyBusy(true);
+    setCopyError(null);
+    try {
+      await copySpareQuote(source.id, target);
+      const to = (allProjects ?? projects).find((p) => p.id === target);
+      setSpareCopied(`Copied the models and parts into ${to?.project_code ?? "the enquiry"}.`);
+      setCopyingSpare(null);
+    } catch (err) {
+      setCopyError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Couldn't copy.");
+    } finally {
+      setCopyBusy(false);
+    }
+  };
+
   const handleEditSave = async (input: UpdateProjectInput) => {
     if (!editing) return;
     setIsSaving(true);
@@ -662,6 +703,12 @@ const ProjectsPage = () => {
         </div>
       )}
 
+      {spareCopied && (
+        <p className="mt-4 rounded-lg bg-[var(--pos-soft)] px-4 py-3 text-[13px] font-medium text-pos" role="status">
+          {spareCopied}
+        </p>
+      )}
+
       {isLoading && (
         <div className="mt-4 space-y-2.5">
           {Array.from({ length: 5 }, (_, i) => (
@@ -724,6 +771,8 @@ const ProjectsPage = () => {
               const tagError = tagsErrorFor[project.id];
               const doneCount = tags?.filter((t) => (t.status ?? "").toLowerCase() === "completed").length ?? 0;
               const reps = [project.client_primary_rep, project.client_secondary_reps].filter(Boolean).join(", ");
+              // A spare has no tags or technical step: only its Commercial page.
+              const isSpare = project.order_type === "spare";
               return (
                 <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
                   {/* Enquiry row: columns on wide screens, stacked below lg */}
@@ -731,9 +780,10 @@ const ProjectsPage = () => {
                     <button
                         type="button"
                         onClick={() => toggleExpanded(project.id)}
+                        disabled={isSpare}
                         aria-expanded={isOpen}
                         aria-label={isOpen ? "Hide tags" : "Show tags"}
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${isSpare ? "invisible" : ""} ${
                           isOpen
                             ? "rotate-90 border-transparent bg-accent text-white"
                             : "border-line bg-paper text-fg-3 hover:border-accent hover:text-accent"
@@ -746,9 +796,9 @@ const ProjectsPage = () => {
                     <span className="min-w-0">
                     <button
                       type="button"
-                      onClick={() => toggleExpanded(project.id)}
+                      onClick={() => !isSpare && toggleExpanded(project.id)}
                       className="block w-full min-w-0 text-left"
-                      title={isOpen ? "Hide tags" : "Show tags"}
+                      title={isSpare ? undefined : isOpen ? "Hide tags" : "Show tags"}
                     >
                       <span className="flex min-w-0 items-center gap-1.5">
                         <span className="min-w-0 font-mono text-[12.5px] font-bold [overflow-wrap:anywhere] text-title group-hover:text-accent">{project.project_code}</span>
@@ -824,8 +874,8 @@ const ProjectsPage = () => {
                     </span>
 
                     <span className="flex flex-col items-start gap-1">
-                      <StatusLine label="Technical" status={project.status} on={project.completed_on} edited={project.technical_status_override !== null} />
-                      <StatusLine label="Commercial" status={project.commercial_status} on={project.commercial_completed_on} edited={project.commercial_status_override !== null} />
+                      {!isSpare && <StatusLine label="Technical" status={project.status} on={project.completed_on} edited={project.technical_status_override !== null} />}
+                      <StatusLine label={isSpare ? undefined : "Commercial"} status={project.commercial_status} on={project.commercial_completed_on} edited={project.commercial_status_override !== null} />
                       {tags && (
                         <span className="text-[11px] text-fg-3">
                           {doneCount}/{tags.length} tag{tags.length === 1 ? "" : "s"} done
@@ -871,6 +921,8 @@ const ProjectsPage = () => {
                     </span>
 
                     <div className="flex flex-nowrap items-center justify-start gap-0.5">
+                      {!isSpare && (
+                      <>
                       <button
                         type="button"
                         className={`${btn} relative`}
@@ -908,24 +960,44 @@ const ProjectsPage = () => {
                         <DocumentIcon />
                         <span className="hidden 2xl:inline">Technical</span>
                       </button>
+                      </>
+                      )}
                       <button
                         type="button"
                         className={btnCommercial}
                         onClick={() => router.push(`/commercial?projectId=${project.id}`)}
-                        disabled={!project.quotation_count || !workable(project)}
+                        disabled={(!isSpare && !project.quotation_count) || !workable(project)}
                         title={
                           !workable(project)
                             ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
+                            : isSpare
+                            ? "Spare quotation: reference PO, models and parts"
                             : project.quotation_count
                             ? "Commercial Summary: P&A and BOI prices for every tag"
                             : "Generate the quotation first (Quotation button)"
                         }
-                        aria-label={`Commercial Summary for ${project.project_code}`}
+                        aria-label={`${isSpare ? "Quotation" : "Commercial Summary"} for ${project.project_code}`}
                       >
                         <RupeeIcon />
-                        <span className="hidden 2xl:inline">Commercial</span>
+                        <span className="hidden 2xl:inline">{isSpare ? "Quotation" : "Commercial"}</span>
                       </button>
-                      {!isRep && (
+                      {!isRep && isSpare && (
+                      <button
+                        type="button"
+                        className={btn}
+                        onClick={() => {
+                          setCopyError(null);
+                          setSpareCopied(null);
+                          setCopyingSpare(project);
+                        }}
+                        title="Copy this spare quotation's models and parts"
+                        aria-label={`Copy the spare quotation of ${project.project_code}`}
+                      >
+                        <CopyIcon />
+                        <span className="hidden 2xl:inline">Copy</span>
+                      </button>
+                      )}
+                      {!isRep && !isSpare && (
                       <button
                         type="button"
                         className={btn}
@@ -973,7 +1045,7 @@ const ProjectsPage = () => {
                   </div>
 
                   {/* Tags */}
-                  {isOpen && (
+                  {isOpen && !isSpare && (
                     <div className="pr-4 pb-4 pl-[60px]">
                       <div className="rounded-xl border border-line bg-paper">
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3.5 py-2.5">
@@ -1169,9 +1241,11 @@ const ProjectsPage = () => {
           // Backing out of the create form abandons a queued copy too —
           // otherwise it would silently attach to the next enquiry created.
           setPendingCopyTagId(null);
+          setPendingSpareCopy(null);
           setIsModalOpen(false);
         }}
         onCreate={handleCreateProject}
+        startAsSpare={pendingSpareCopy !== null}
       />
 
       {quotationFor && (
@@ -1204,7 +1278,7 @@ const ProjectsPage = () => {
           tags={tagsByProject[copyingFrom.project.id] ?? []}
           initialTagId={copyingFrom.tagId}
           projects={(allProjects ?? projects).filter(
-            (p) => p.id !== copyingFrom.project.id && workable(p),
+            (p) => p.id !== copyingFrom.project.id && workable(p) && p.order_type !== "spare",
           )}
           allowSame={workable(copyingFrom.project)}
           busy={copyBusy}
@@ -1229,6 +1303,21 @@ const ProjectsPage = () => {
             setVersionsFor(null);
             setViewingDocFor(v);
           }}
+        />
+      )}
+
+      {copyingSpare && (
+        <CopySpareModal
+          source={copyingSpare}
+          targets={(allProjects ?? projects).filter((p) => p.id !== copyingSpare.id && p.order_type === "spare" && workable(p))}
+          allowNew={manager}
+          busy={copyBusy}
+          error={copyError}
+          onCancel={() => {
+            setCopyingSpare(null);
+            setCopyError(null);
+          }}
+          onConfirm={(target) => void handleCopySpare(target)}
         />
       )}
 
@@ -1309,13 +1398,14 @@ const ProjectsPage = () => {
   );
 };
 
-/** One of the enquiry's two statuses, with its completion date. */
-const StatusLine = ({ label, status, on, edited }: { label: string; status: string | null | undefined; on: string | null; edited: boolean }) => (
-  <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5" title={edited ? `${label} status changed on the Edit form` : `${label} status updates by itself`}>
-    <span className="w-[60px] shrink-0 text-[10.5px] text-fg-3">{label}</span>
+/** One of the enquiry's statuses, with its completion date. A spare has just the
+ *  one status, so it goes without a label. */
+const StatusLine = ({ label, status, on, edited }: { label?: string; status: string | null | undefined; on: string | null; edited: boolean }) => (
+  <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5" title={`${label ? `${label} status` : "Status"} ${edited ? "changed on the Edit form" : "updates by itself"}`}>
+    {label && <span className="w-[60px] shrink-0 text-[10.5px] text-fg-3">{label}</span>}
     <StatusPill status={status} />
     {on && (
-      <span className="pl-[66px] text-[11px] text-fg-3">
+      <span className={`${label ? "pl-[66px]" : "w-full"} text-[11px] text-fg-3`}>
         on {new Date(`${on}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
       </span>
     )}

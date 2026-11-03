@@ -1,0 +1,732 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+import ConfirmModal from "../../components/ui/ConfirmModal";
+import PageHeader from "../../components/ui/PageHeader";
+import { SPARE_GROUP, formatInr, type CommercialSummary, type QuotationInfo, type TsmOption } from "../../lib/commercial";
+import { printHtml } from "../../lib/enquiry-print";
+import { EMPTY_PARTS, type CodeOption } from "../../lib/pump-code";
+import { OTHER_PART_SECTION, partListFor } from "../../lib/spare-parts";
+import { lineAmount, spareQuoteProblem, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
+import { buildSpareQuoteHtml, downloadSpareQuoteExcel, type SpareQuoteSheet } from "../../lib/spare-quote-doc";
+import { dotDate } from "../../lib/tech-doc";
+import { setPricesReviewed } from "../../services/commercialService";
+import { createQuotation, getQuotation, listTsmOptions } from "../../services/quotationService";
+import { getSpareQuote, saveSpareQuote } from "../../services/spareQuoteService";
+import { CodeFields, CodeModeToggle, codeError, codeOf, type CodeValue } from "./PumpCodeInput";
+import { loadPumpQtyLists } from "./PumpQtyStep";
+import QuotationPanel from "./QuotationPanel";
+
+// A spare order's Commercial page (lib/spare-quote.ts): no tags, no technical step
+// and no scope of supply. Reference PO and the quotation first; then pump models,
+// and per model the parts quoted with quantity and unit price.
+
+const btn =
+  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
+const btnPrimary =
+  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+const inputCls =
+  "w-full rounded-lg border border-line bg-paper px-2.5 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60";
+const labelCls = "text-[11.5px] font-semibold text-fg-3";
+
+type LineDraft = { partNo: string; partName: string; qty: string; unitPrice: string };
+type ModelDraft = { id: string; code: CodeValue; pumpKind: "PCP" | "MMP"; lines: LineDraft[] };
+type Draft = { poNo: string; poDate: string; models: ModelDraft[] };
+
+const numText = (n: number | null) => (n === null ? "" : String(n));
+
+const toDraft = (q: SpareQuote): Draft => ({
+  poNo: q.poNo,
+  poDate: q.poDate,
+  models: q.models.map((m) => ({
+    id: m.id,
+    code: { mode: m.codeParts || !m.productCode ? "build" : "pick", parts: m.codeParts ?? EMPTY_PARTS, picked: m.productCode },
+    pumpKind: m.pumpKind,
+    lines: m.lines.map((l) => ({ partNo: l.partNo, partName: l.partName, qty: numText(l.qty), unitPrice: numText(l.unitPrice) })),
+  })),
+});
+
+const parseAmount = (s: string): number | null => {
+  const t = s.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+const toQuote = (d: Draft): SpareQuote => ({
+  poNo: d.poNo.trim(),
+  poDate: d.poDate,
+  models: d.models.map(
+    (m): SpareModel => ({
+      id: m.id,
+      productCode: codeOf(m.code),
+      codeParts: m.code.mode === "build" ? m.code.parts : null,
+      pumpKind: m.pumpKind,
+      lines: m.lines.map((l) => ({ partNo: l.partNo, partName: l.partName, qty: parseAmount(l.qty), unitPrice: parseAmount(l.unitPrice) })),
+    }),
+  ),
+});
+
+const partKey = (p: { partNo: string; partName: string }) => `${p.partNo}|${p.partName}`;
+
+export default function SpareCommercial({
+  projectId,
+  project,
+  onReviewedChange,
+}: {
+  projectId: string;
+  project: CommercialSummary["project"];
+  onReviewedChange: (at: string | null) => void;
+}) {
+  const readOnly = !project.isLatest;
+  const [loadError, setLoadError] = useState("");
+  const [head, setHead] = useState<{ enquiryNo: string; enquiryDate: string | null; clientName: string | null } | null>(null);
+  const [saved, setSaved] = useState<SpareQuote | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [justSaved, setJustSaved] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
+  const [pricesVersion, setPricesVersion] = useState(0);
+
+  // The quotation, and what generating it needs.
+  const [quotation, setQuotation] = useState<QuotationInfo | null>(null);
+  const [quoteLoaded, setQuoteLoaded] = useState(false);
+  const [clientTsm, setClientTsm] = useState<TsmOption | null>(null);
+  const [tsmOptions, setTsmOptions] = useState<TsmOption[]>([]);
+  const [tsmId, setTsmId] = useState("");
+  const [erpSerial, setErpSerial] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
+
+  // The code builder's choices.
+  const [options, setOptions] = useState<CodeOption[]>([]);
+  const [known, setKnown] = useState<Set<string>>(new Set());
+
+  const [pickingFor, setPickingFor] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [preview, setPreview] = useState<SpareQuoteSheet | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSpareQuote(projectId)
+      .then((d) => {
+        if (cancelled) return;
+        setHead({ enquiryNo: d.enquiryNo, enquiryDate: d.enquiryDate, clientName: d.clientName });
+        setSaved(d.quote);
+        setDraft(toDraft(d.quote));
+      })
+      .catch(() => !cancelled && setLoadError("Couldn't load the spare quotation."));
+    loadPumpQtyLists()
+      .then(([opts, pumps]) => {
+        if (cancelled) return;
+        setOptions(opts);
+        setKnown(new Set(pumps.map((p) => p.productCode.toUpperCase())));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  const loadQuotation = useCallback(async () => {
+    const q = await getQuotation(projectId, SPARE_GROUP);
+    setQuotation(q.quotation);
+    setClientTsm(q.clientTsm);
+    if (!q.clientTsm && !q.quotation) setTsmOptions(await listTsmOptions().catch(() => []));
+    setQuoteLoaded(true);
+    return q.quotation;
+  }, [projectId]);
+  useEffect(() => {
+    loadQuotation().catch(() => setLoadError("Couldn't load the quotation."));
+  }, [loadQuotation]);
+
+  const dirty = useMemo(() => Boolean(draft && saved && JSON.stringify(toQuote(draft)) !== JSON.stringify(saved)), [draft, saved]);
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  const update = (patch: Partial<Draft>) => {
+    setDraft((d) => (d ? { ...d, ...patch } : d));
+    setJustSaved(false);
+  };
+  const updateModel = (id: string, patch: Partial<ModelDraft>) => {
+    setDraft((d) => (d ? { ...d, models: d.models.map((m) => (m.id === id ? { ...m, ...patch } : m)) } : d));
+    setJustSaved(false);
+  };
+  const updateLine = (id: string, i: number, patch: Partial<LineDraft>) => {
+    setDraft((d) =>
+      d ? { ...d, models: d.models.map((m) => (m.id === id ? { ...m, lines: m.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) } : m)) } : d,
+    );
+    setJustSaved(false);
+  };
+
+  const save = async (): Promise<boolean> => {
+    if (!draft) return false;
+    if (draft.models.some((m) => codeError(m.code))) {
+      setShowErrors(true);
+      setSaveError("Every model needs a complete code before saving.");
+      return false;
+    }
+    setSaving(true);
+    setSaveError("");
+    try {
+      const q = await saveSpareQuote(projectId, toQuote(draft));
+      setSaved(q);
+      setDraft(toDraft(q));
+      setJustSaved(true);
+      setShowErrors(false);
+      setPricesVersion((n) => n + 1);
+      return true;
+    } catch (e) {
+      setSaveError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Couldn't save. Try again.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const generate = async () => {
+    if (!draft) return;
+    setGenerating(true);
+    setGenerateError("");
+    try {
+      await saveSpareQuote(projectId, toQuote(draft)).then((q) => {
+        setSaved(q);
+        setDraft(toDraft(q));
+      });
+      await createQuotation(projectId, SPARE_GROUP, clientTsm ? undefined : Number(tsmId), erpSerial.trim() || undefined);
+      await loadQuotation();
+    } catch (e) {
+      setGenerateError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Couldn't generate the quotation. Try again.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const toggleReviewed = async (reviewed: boolean) => {
+    setReviewBusy(true);
+    try {
+      const res = await setPricesReviewed(projectId, reviewed);
+      onReviewedChange(res.pricesReviewedAt);
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+
+  const openPreview = async () => {
+    if (!saved || !head) return;
+    const q = await loadQuotation().catch(() => quotation);
+    setPreview({
+      projectCode: head.enquiryNo,
+      quote: saved,
+      header: {
+        clientName: head.clientName ?? "",
+        enquiry: [head.enquiryNo, head.enquiryDate ? `Dt. ${dotDate(head.enquiryDate)}` : ""].filter(Boolean).join(", "),
+        quotation: q ? `${q.erpNumber ?? q.number}, Dt. ${dotDate(q.quoteDate)}` : "",
+        hidden: [],
+      },
+    });
+  };
+
+  const current = draft ? toQuote(draft) : null;
+  const total = current ? current.models.reduce((s, m) => s + m.lines.reduce((x, l) => x + lineAmount(l), 0), 0) : 0;
+  const sendBlock = saved
+    ? (spareQuoteProblem(saved) ?? (project.versionNo > 0 && !project.pricesReviewedAt ? "Tick Prices reviewed first." : null))
+    : null;
+
+  const header = (
+    <PageHeader
+      icon={<PartsIcon />}
+      title="Spare Quotation"
+      subtitle={[project.code, project.name].filter(Boolean).join(" · ")}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          {dirty && <span className="text-[12.5px] font-medium text-warn">Unsaved changes</span>}
+          {justSaved && !dirty && <span className="text-[12.5px] font-medium text-pos">Saved</span>}
+          {quotation && (
+            <button type="button" className={btn} onClick={() => void openPreview()} disabled={dirty || !saved?.models.length} title={dirty ? "Save your changes first" : undefined}>
+              Quotation document
+            </button>
+          )}
+          {quotation && !readOnly && (
+            <button type="button" className={btnPrimary} onClick={() => void save()} disabled={saving || !dirty}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          )}
+          <Link href="/projects" className={btn}>
+            Back to Enquiries
+          </Link>
+        </div>
+      }
+    />
+  );
+
+  if (loadError || !draft || !quoteLoaded) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 sm:px-6">
+        {header}
+        <div className={`rounded-xl border border-line bg-paper p-6 text-center text-[13.5px] ${loadError ? "text-neg" : "text-fg-3"}`}>
+          {loadError || "Loading…"}
+        </div>
+      </div>
+    );
+  }
+
+  const poFields = (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <label className="flex flex-col gap-1">
+        <span className={labelCls}>Reference PO No.</span>
+        <input className={inputCls} value={draft.poNo} maxLength={120} placeholder="e.g. 2025-26/106" onChange={(e) => update({ poNo: e.target.value })} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className={labelCls}>Reference PO date</span>
+        <input type="date" className={inputCls} value={draft.poDate} onChange={(e) => update({ poDate: e.target.value })} />
+      </label>
+    </div>
+  );
+
+  return (
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 sm:px-6">
+      {header}
+
+      {readOnly && (
+        <p className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3.5 py-2.5 text-[12.5px] text-fg-2">
+          <span className="rounded-md bg-accent px-2 py-0.5 text-[11.5px] font-bold text-white">View only</span>
+          This is an older version of the enquiry - nothing here can be changed. Work on the latest version from the Enquiries list.
+        </p>
+      )}
+
+      {!quotation ? (
+        <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-paper p-4">
+          <div>
+            <h2 className="text-[14px] font-semibold text-fg">Generate the quotation</h2>
+            <p className="text-[12.5px] text-fg-3">Enter the client&apos;s reference PO, then generate. Models and parts come next.</p>
+          </div>
+          {poFields}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <span className={labelCls}>TSM</span>
+              {clientTsm ? (
+                <span className="py-2 text-[13px] font-semibold text-fg">
+                  {clientTsm.name} ({clientTsm.initials})<span className="ml-1.5 font-normal text-fg-3">· the client&apos;s rep in sales</span>
+                </span>
+              ) : (
+                <select className={inputCls} value={tsmId} aria-label="TSM" onChange={(e) => setTsmId(e.target.value)}>
+                  <option value="">Pick the TSM</option>
+                  {tsmOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name} ({o.initials}){o.zone ? ` · ${o.zone}` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <label className="flex flex-col gap-1">
+              <span className={labelCls}>Quotation No. serial (ERP, optional)</span>
+              <input className={`${inputCls} font-mono uppercase`} value={erpSerial} maxLength={30} onChange={(e) => setErpSerial(e.target.value)} />
+            </label>
+          </div>
+          {generateError && <p className="text-[12.5px] text-neg">{generateError}</p>}
+          <div>
+            <button type="button" className={btnPrimary} onClick={() => void generate()} disabled={generating || (!clientTsm && !tsmId)}>
+              {generating ? "Generating…" : "Generate quotation"}
+            </button>
+          </div>
+        </fieldset>
+      ) : (
+        <>
+          <QuotationPanel
+            projectId={projectId}
+            group={SPARE_GROUP}
+            hasUnsavedPrices={dirty}
+            pricesVersion={pricesVersion}
+            onGenerate={() => {}}
+            readOnly={readOnly}
+            sendBlock={sendBlock}
+          />
+
+          <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
+            {project.versionNo > 0 && (
+              <label className="flex cursor-pointer flex-wrap items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3 text-[13px] text-fg-2">
+                <input
+                  type="checkbox"
+                  className="accent-accent"
+                  checked={Boolean(project.pricesReviewedAt)}
+                  disabled={reviewBusy}
+                  onChange={(e) => void toggleReviewed(e.target.checked)}
+                />
+                <span className="min-w-0 flex-1">
+                  <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the parts and prices copied from V{project.versionNo - 1}. Needed before Send to client.
+                </span>
+              </label>
+            )}
+
+            <section className="flex flex-col gap-3 rounded-xl border border-line bg-paper p-4">
+              <h2 className="text-[14px] font-semibold text-fg">Reference PO</h2>
+              {poFields}
+            </section>
+
+            {draft.models.map((m, index) => (
+              <ModelCard
+                key={m.id}
+                index={index}
+                model={m}
+                options={options}
+                known={known}
+                showErrors={showErrors}
+                onOptionAdded={(o) => setOptions((list) => [...list, o])}
+                onChange={(patch) => updateModel(m.id, patch)}
+                onLineChange={(i, patch) => updateLine(m.id, i, patch)}
+                onPickParts={() => setPickingFor(m.id)}
+                onRemove={() => setRemoving(m.id)}
+              />
+            ))}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-paper px-4 py-3">
+              <button
+                type="button"
+                className={btn}
+                onClick={() =>
+                  update({
+                    models: [...draft.models, { id: crypto.randomUUID(), code: { mode: "build", parts: EMPTY_PARTS, picked: "" }, pumpKind: "PCP", lines: [] }],
+                  })
+                }
+              >
+                + Add model
+              </button>
+              <span className="text-[14px] text-fg-2">
+                Grand total <b className="ml-1 font-mono text-[16px] text-fg">{formatInr(total)}</b>
+              </span>
+            </div>
+            {saveError && <p className="text-[12.5px] font-medium text-neg">{saveError}</p>}
+          </fieldset>
+        </>
+      )}
+
+      {pickingFor &&
+        (() => {
+          const m = draft.models.find((x) => x.id === pickingFor);
+          return m ? (
+            <PartPicker
+              model={m}
+              onClose={() => setPickingFor(null)}
+              onSave={(lines) => {
+                updateModel(m.id, { lines });
+                setPickingFor(null);
+              }}
+            />
+          ) : null;
+        })()}
+
+      <ConfirmModal
+        open={removing !== null}
+        title="Remove this model?"
+        description="The model and its parts leave the quotation when you save."
+        confirmLabel="Remove model"
+        tone="danger"
+        onConfirm={() => {
+          update({ models: draft.models.filter((m) => m.id !== removing) });
+          setRemoving(null);
+        }}
+        onClose={() => setRemoving(null)}
+      />
+
+      {preview && <QuotePreview sheet={preview} onClose={() => setPreview(null)} />}
+    </div>
+  );
+}
+
+function ModelCard({
+  index,
+  model,
+  options,
+  known,
+  showErrors,
+  onOptionAdded,
+  onChange,
+  onLineChange,
+  onPickParts,
+  onRemove,
+}: {
+  index: number;
+  model: ModelDraft;
+  options: CodeOption[];
+  known: Set<string>;
+  showErrors: boolean;
+  onOptionAdded: (o: CodeOption) => void;
+  onChange: (patch: Partial<ModelDraft>) => void;
+  onLineChange: (i: number, patch: Partial<LineDraft>) => void;
+  onPickParts: () => void;
+  onRemove: () => void;
+}) {
+  const code = codeOf(model.code);
+  const complete = !codeError(model.code);
+  // Opens on the code until it is complete, then folds to one line.
+  const [editingCode, setEditingCode] = useState(!complete);
+  const subtotal = model.lines.reduce((s, l) => s + lineAmount({ qty: parseAmount(l.qty), unitPrice: parseAmount(l.unitPrice) }), 0);
+
+  return (
+    <section className="rounded-xl border border-line bg-paper">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-[11.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Model {index + 1}</p>
+          <p className="font-mono text-[14px] font-semibold break-all text-fg">{code || "No code yet"}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[13px] text-fg-2">
+            Sub-total <b className="font-mono text-fg">{formatInr(subtotal)}</b>
+          </span>
+          <button type="button" className={btn} onClick={() => setEditingCode((v) => !v)}>
+            {editingCode ? "Hide code" : "Change code"}
+          </button>
+          <button type="button" className={`${btn} text-neg hover:text-neg`} onClick={onRemove}>
+            Remove
+          </button>
+        </div>
+      </header>
+
+      {(editingCode || (showErrors && !complete)) && (
+        <div className="flex flex-col gap-3 border-b border-line px-4 py-4">
+          <CodeModeToggle mode={model.code.mode} onChange={(mode) => onChange({ code: { ...model.code, mode } })} />
+          <CodeFields
+            value={model.code}
+            options={options}
+            known={known}
+            showErrors={showErrors}
+            onChange={(patch) => onChange({ code: { ...model.code, ...patch } })}
+            onOptionAdded={onOptionAdded}
+          />
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <label className="flex items-center gap-2">
+          <span className={labelCls}>Parts list</span>
+          <select
+            className={`${inputCls} w-auto`}
+            value={model.pumpKind}
+            onChange={(e) => onChange({ pumpKind: e.target.value === "MMP" ? "MMP" : "PCP" })}
+          >
+            <option value="PCP">Screw Pump (PCP)</option>
+            <option value="MMP">Rota Pump (MMP)</option>
+          </select>
+        </label>
+        <button type="button" className={btn} onClick={onPickParts}>
+          {model.lines.length ? `Select parts (${model.lines.length})` : "Select parts"}
+        </button>
+      </div>
+
+      {model.lines.length > 0 && (
+        <div className="overflow-x-auto border-t border-line">
+          <table className="w-full min-w-[640px] text-[13px]">
+            <thead>
+              <tr className="border-b border-line bg-sunk text-left text-[11px] font-semibold tracking-[0.05em] text-fg-3 uppercase">
+                <th className="px-4 py-2">Part No.</th>
+                <th className="px-4 py-2">Description</th>
+                <th className="w-[110px] px-2 py-2 text-right">Qty</th>
+                <th className="w-[150px] px-2 py-2 text-right">Unit price (₹)</th>
+                <th className="w-[140px] px-4 py-2 text-right">Amount</th>
+                <th className="w-[44px]" aria-label="Remove" />
+              </tr>
+            </thead>
+            <tbody>
+              {model.lines.map((l, i) => {
+                const qty = parseAmount(l.qty);
+                const price = parseAmount(l.unitPrice);
+                return (
+                  <tr key={partKey(l)} className="border-b border-line last:border-b-0">
+                    <td className="px-4 py-1.5 font-mono text-fg-2">{l.partNo || "—"}</td>
+                    <td className="px-4 py-1.5 text-fg">{l.partName}</td>
+                    <td className="px-2 py-1.5">
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        inputMode="decimal"
+                        className={`${inputCls} py-1.5 text-right font-mono`}
+                        value={l.qty}
+                        aria-label={`Quantity of ${l.partName}`}
+                        onChange={(e) => onLineChange(i, { qty: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        inputMode="decimal"
+                        className={`${inputCls} py-1.5 text-right font-mono`}
+                        value={l.unitPrice}
+                        aria-label={`Unit price of ${l.partName}`}
+                        onChange={(e) => onLineChange(i, { unitPrice: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-4 py-1.5 text-right font-mono text-fg">{formatInr(lineAmount({ qty, unitPrice: price }))}</td>
+                    <td className="pr-3 text-right">
+                      <button
+                        type="button"
+                        className="rounded px-1.5 text-[16px] leading-none text-fg-3 hover:text-neg"
+                        aria-label={`Remove ${l.partName}`}
+                        onClick={() => onChange({ lines: model.lines.filter((_, j) => j !== i) })}
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Tick the parts of this model from its parts list, or name others. */
+function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: () => void; onSave: (lines: LineDraft[]) => void }) {
+  const list = partListFor(model.pumpKind);
+  const listKeys = useMemo(() => new Set(list.map((p) => partKey({ partNo: p.part_no, partName: p.part_name }))), [list]);
+  const [picked, setPicked] = useState<LineDraft[]>(model.lines);
+  const [find, setFind] = useState("");
+  const [otherNo, setOtherNo] = useState("");
+  const [otherName, setOtherName] = useState("");
+
+  const q = find.trim().toLowerCase();
+  const matches = (p: { part_no: string; part_name: string }) => !q || p.part_no.toLowerCase().includes(q) || p.part_name.toLowerCase().includes(q);
+  const sections = [...new Set(list.map((p) => p.section))];
+  const others = picked.filter((l) => !listKeys.has(partKey(l)));
+
+  const toggle = (partNo: string, partName: string) => {
+    const key = partKey({ partNo, partName });
+    setPicked((cur) => (cur.some((l) => partKey(l) === key) ? cur.filter((l) => partKey(l) !== key) : [...cur, { partNo, partName, qty: "", unitPrice: "" }]));
+  };
+  const addOther = () => {
+    const partName = otherName.trim();
+    if (!partName) return;
+    const partNo = otherNo.trim();
+    if (!picked.some((l) => partKey(l) === partKey({ partNo, partName }))) setPicked((cur) => [...cur, { partNo, partName, qty: "", unitPrice: "" }]);
+    setOtherNo("");
+    setOtherName("");
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-[720px] flex-col overflow-hidden rounded-xl border border-line bg-paper" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-semibold text-fg">Select parts</h3>
+            <p className="font-mono text-[12.5px] break-all text-fg-3">{codeOf(model.code) || "No code yet"}</p>
+          </div>
+          <span className="shrink-0 text-[12.5px] text-fg-3">{picked.length} picked</span>
+        </header>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <input className={inputCls} type="search" value={find} placeholder="Find a part by name or number…" aria-label="Find a part" onChange={(e) => setFind(e.target.value)} />
+          <section className="rounded-lg border border-line p-3">
+            {sections.map((sec) => {
+              const shown = list.filter((p) => p.section === sec && matches(p));
+              if (shown.length === 0) return null;
+              return (
+                <div key={sec} className="mb-3 last:mb-0">
+                  <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-fg-3 uppercase">{sec}</p>
+                  <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+                    {shown.map((p) => {
+                      const on = picked.some((l) => partKey(l) === partKey({ partNo: p.part_no, partName: p.part_name }));
+                      return (
+                        <label key={`${p.part_no}-${p.part_name}`} className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] hover:bg-elev">
+                          <input type="checkbox" className="accent-accent" checked={on} onChange={() => toggle(p.part_no, p.part_name)} />
+                          <span className="w-[46px] shrink-0 font-mono text-[12px] text-fg-3">{p.part_no}</span>
+                          <span className="min-w-0 text-fg">{p.part_name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+          <section className="flex flex-col gap-2 rounded-lg border border-line p-3">
+            <h4 className="text-[13px] font-semibold text-fg">{OTHER_PART_SECTION}</h4>
+            {others.map((l) => (
+              <label key={partKey(l)} className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-[13px] hover:bg-elev">
+                <input type="checkbox" className="accent-accent" checked onChange={() => toggle(l.partNo, l.partName)} />
+                <span className="w-[46px] shrink-0 font-mono text-[12px] text-fg-3">{l.partNo || "—"}</span>
+                <span className="min-w-0 text-fg">{l.partName}</span>
+              </label>
+            ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <input className={`${inputCls} w-[130px]`} value={otherNo} maxLength={40} placeholder="Part No." aria-label="Other part number" onChange={(e) => setOtherNo(e.target.value)} />
+              <input
+                className={`${inputCls} min-w-[180px] flex-1`}
+                value={otherName}
+                maxLength={200}
+                placeholder="Part name"
+                aria-label="Other part name"
+                onChange={(e) => setOtherName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addOther();
+                  }
+                }}
+              />
+              <button type="button" className={btn} onClick={addOther} disabled={!otherName.trim()}>
+                + Add
+              </button>
+            </div>
+          </section>
+        </div>
+        <footer className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+          <button type="button" className={btn} onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className={btnPrimary} onClick={() => onSave(picked)}>
+            Done
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function QuotePreview({ sheet, onClose }: { sheet: SpareQuoteSheet; onClose: () => void }) {
+  const html = useMemo(() => buildSpareQuoteHtml(sheet, `${window.location.origin}/logo.png`), [sheet]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="flex h-[92vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-xl border border-line bg-paper" onClick={(e) => e.stopPropagation()}>
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+          <h3 className="text-[15px] font-semibold text-fg">Quotation for Spares</h3>
+          <div className="flex items-center gap-2">
+            <button type="button" className={btn} onClick={() => void printHtml(html)}>
+              Print / PDF
+            </button>
+            <button type="button" className={btn} onClick={() => downloadSpareQuoteExcel(sheet)}>
+              Excel
+            </button>
+            <button type="button" className={btn} onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </header>
+        <iframe title="Quotation for Spares" srcDoc={html} className="w-full flex-1 border-0 bg-white" />
+      </div>
+    </div>
+  );
+}
+
+const PartsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+  </svg>
+);

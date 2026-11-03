@@ -21,6 +21,8 @@ type Props = {
   onClose: () => void;
   /** Resolves to an error message to show inline, or null on success. */
   onCreate: (project: CreateProjectInput) => Promise<string | null>;
+  /** Opens as a spare order: a spare quotation is being copied into it. */
+  startAsSpare?: boolean;
 };
 
 // House prefix for enquiry numbers: RIL/EN/<indian-fiscal-year>/<suffix>.
@@ -36,11 +38,11 @@ export function enquiryPrefix(now: Date = new Date()): string {
 export const todayYmd = (d: Date = new Date()): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-const CreateEnquiryForm = ({ onClose, onCreate }: Omit<Props, "isOpen">) => {
+const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Props, "isOpen">) => {
   const [enquiryNo, setEnquiryNo] = useState<string>(() => enquiryPrefix());
   const [enquiryDate, setEnquiryDate] = useState(() => todayYmd());
-  const [orderType, setOrderType] = useState<OrderType>("pump");
-  const [orderSubtype, setOrderSubtype] = useState<OrderSubtype>("pcp");
+  const [orderType, setOrderType] = useState<OrderType>(startAsSpare ? "spare" : "pump");
+  const [orderSubtype, setOrderSubtype] = useState<OrderSubtype>(startAsSpare ? "spare" : "pcp");
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   // Who works the enquiry: a worker, or the master herself.
   const [assignees, setAssignees] = useState<Assignee[] | null>(null);

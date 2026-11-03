@@ -4,7 +4,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { projects, users } from "@/lib/db/schema";
+import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 import { ENQUIRY_STATUSES } from "@/lib/enquiry-filters";
 import { enquiryStatusColumns } from "@/lib/enquiry-filters-server";
@@ -164,6 +164,16 @@ export async function PATCH(
     patch.orderSubtype = s;
   }
   Object.assign(patch, clientDetailsFrom(body));
+  // A quotation is made for one kind of order, so the kind stays once there is one.
+  let needsDefaultTag = false;
+  if (patch.orderType) {
+    const [cur] = await db.select({ orderType: projects.orderType }).from(projects).where(eq(projects.id, id)).limit(1);
+    if (cur && cur.orderType !== patch.orderType) {
+      const [quoted] = await db.select({ id: quotation.id }).from(quotation).where(eq(quotation.projectId, id)).limit(1);
+      if (quoted) return error("The order type can't change once a quotation is generated.", 409);
+      needsDefaultTag = patch.orderType === "pump";
+    }
+  }
 
   if (Object.keys(patch).length === 0) {
     return error("No editable fields provided", 400);
@@ -190,6 +200,10 @@ export async function PATCH(
     throw e;
   }
   if (!updated) return error("Project not found", 404);
+  if (needsDefaultTag) {
+    const [tag] = await db.select({ id: enquiryTags.id }).from(enquiryTags).where(eq(enquiryTags.projectId, id)).limit(1);
+    if (!tag) await db.insert(enquiryTags).values({ projectId: id, name: "Default" });
+  }
 
   const nameOf = async (userId: string | null) => {
     if (!userId) return null;

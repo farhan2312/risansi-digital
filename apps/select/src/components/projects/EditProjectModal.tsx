@@ -26,8 +26,8 @@ type Props = {
   onSave: (
     input: {
       enquiryDate: string;
-      technicalStatus: string;
-      completedOn: string;
+      technicalStatus?: string;
+      completedOn?: string;
       commercialStatus: string;
       commercialCompletedOn: string;
       orderType: OrderType;
@@ -73,7 +73,7 @@ const StatusField = ({
         </select>
       </Field>
       {choice === "Completed" && (
-        <Field label={`${label} completion date`} required hint={tooEarly ? "Can't be before the enquiry date." : undefined}>
+        <Field label={label === "Status" ? "Completion date" : `${label} completion date`} required hint={tooEarly ? "Can't be before the enquiry date." : undefined}>
           <input type="date" className={inputCls} value={day} min={minDay || undefined} max={todayYmd()} onChange={(e) => onDay(e.target.value)} />
         </Field>
       )}
@@ -130,14 +130,15 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
   const savedCommercialDay = savedDay(project.commercial_status, project.commercial_completed_on);
   const badDay = (status: string, day: string, saved: string) =>
     status === "Completed" && (!day || (day !== saved && Boolean(enquiryDate && day < enquiryDate)));
-  const datesBad = badDay(technicalStatus, completedOn, savedTechnicalDay) || badDay(commercialStatus, commercialCompletedOn, savedCommercialDay);
+  const isSpare = project.order_type === "spare";
+  const datesBad = (!isSpare && badDay(technicalStatus, completedOn, savedTechnicalDay)) || badDay(commercialStatus, commercialCompletedOn, savedCommercialDay);
 
   const savedType: OrderType = project.order_type === "spare" ? "spare" : "pump";
   const savedClient = clientOf(project);
   const unsaved =
     enquiryDate !== (project.enquiry_date ?? "") ||
-    technicalStatus !== savedStatus(project.status) ||
-    (technicalStatus === "Completed" && completedOn !== savedTechnicalDay) ||
+    (!isSpare && technicalStatus !== savedStatus(project.status)) ||
+    (!isSpare && technicalStatus === "Completed" && completedOn !== savedTechnicalDay) ||
     commercialStatus !== savedStatus(project.commercial_status) ||
     (commercialStatus === "Completed" && commercialCompletedOn !== savedCommercialDay) ||
     orderType !== savedType ||
@@ -162,8 +163,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
             onClick={() =>
               onSave({
                 enquiryDate,
-                technicalStatus,
-                completedOn: technicalStatus === "Completed" ? completedOn : "",
+                ...(isSpare ? {} : { technicalStatus, completedOn: technicalStatus === "Completed" ? completedOn : "" }),
                 commercialStatus,
                 commercialCompletedOn: commercialStatus === "Completed" ? commercialCompletedOn : "",
                 orderType,
@@ -191,20 +191,22 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
         <Field label="Enquiry date">
           <input type="date" className={inputCls} value={enquiryDate} onChange={(e) => setEnquiryDate(e.target.value)} />
         </Field>
+        {!isSpare && (
+          <StatusField
+            label="Technical status"
+            choice={technicalStatus}
+            day={completedOn}
+            saved={savedTechnicalDay}
+            minDay={enquiryDate}
+            onChoice={(s) => {
+              setTechnicalStatus(s);
+              if (s === "Completed" && !completedOn) setCompletedOn(project.completed_on ?? todayYmd());
+            }}
+            onDay={setCompletedOn}
+          />
+        )}
         <StatusField
-          label="Technical status"
-          choice={technicalStatus}
-          day={completedOn}
-          saved={savedTechnicalDay}
-          minDay={enquiryDate}
-          onChoice={(s) => {
-            setTechnicalStatus(s);
-            if (s === "Completed" && !completedOn) setCompletedOn(project.completed_on ?? todayYmd());
-          }}
-          onDay={setCompletedOn}
-        />
-        <StatusField
-          label="Commercial status"
+          label={isSpare ? "Status" : "Commercial status"}
           choice={commercialStatus}
           day={commercialCompletedOn}
           saved={savedCommercialDay}

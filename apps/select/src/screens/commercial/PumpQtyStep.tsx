@@ -2,23 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import ProductCodeSelect from "../../components/pump-selection/ProductCodeSelect";
 import { DRIVE_GROUP_LABEL, type CommercialTag } from "../../lib/commercial";
-import {
-  CODE_SEGMENTS,
-  EMPTY_PARTS,
-  SEGMENT_DB,
-  buildPumpCode,
-  fieldsFromParts,
-  missingParts,
-  partsFromHints,
-  usesSubSealing,
-  type CodeOption,
-  type CodeParts,
-  type CodeSegmentKey,
-} from "../../lib/pump-code";
+import { EMPTY_PARTS, fieldsFromParts, partsFromHints, type CodeOption, type CodeParts } from "../../lib/pump-code";
 import { listProductPumps } from "../../services/productPumpService";
-import { addPumpCodeOption, listPumpCodeOptions } from "../../services/pumpCodeService";
+import { listPumpCodeOptions } from "../../services/pumpCodeService";
+import { CodeFields, CodeModeToggle, codeError, codeOf, type CodeMode } from "./PumpCodeInput";
 import { saveWizardInput } from "../../services/wizardInputService";
 
 // Commercial step 1 — Pump & Qty: per tag the ERP pump product code and the
@@ -28,27 +16,12 @@ import { saveWizardInput } from "../../services/wizardInputService";
 // built code that isn't in product_pump yet is added on save. Saved to
 // pump_model_qty_input (product_code + the parts).
 
-type Mode = "build" | "pick";
-type Row = { mode: Mode; parts: CodeParts; picked: string; quantity: string };
+type Row = { mode: CodeMode; parts: CodeParts; picked: string; quantity: string };
 
-const ADD = "__add__";
-
-const errorsOf = (r: Row) => {
-  const missing = r.mode === "build" ? missingParts(r.parts) : [];
-  return {
-    code:
-      r.mode === "build"
-        ? missing.length
-          ? `Pick: ${missing.map((k) => CODE_SEGMENTS.find((s) => s.key === k)!.label).join(", ")}.`
-          : ""
-        : r.picked
-          ? ""
-          : "Pick the pump product code.",
-    quantity: /^[1-9]\d*$/.test(r.quantity.trim()) ? "" : "Enter a whole number, 1 or more.",
-  };
-};
-
-const codeOf = (r: Row) => (r.mode === "build" ? buildPumpCode(r.parts) : r.picked);
+const errorsOf = (r: Row) => ({
+  code: codeError(r),
+  quantity: /^[1-9]\d*$/.test(r.quantity.trim()) ? "" : "Enter a whole number, 1 or more.",
+});
 
 const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
@@ -168,22 +141,11 @@ function Editor({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedOnce, setSavedOnce] = useState(false);
-  const [adding, setAdding] = useState<{ tagId: string; segment: CodeSegmentKey; text: string; error: string } | null>(null);
 
   const set = (id: string, patch: Partial<Row>) => {
     setRows((m) => ({ ...m, [id]: { ...rows[id], ...m[id], ...patch } }));
     setSavedOnce(false);
   };
-  const setPart = (id: string, key: CodeSegmentKey, value: string) => {
-    setSavedOnce(false);
-    setRows((m) => {
-      const base = m[id] ?? rows[id];
-      const parts = { ...base.parts, [key]: value };
-      if (key === "sealing" && value !== "MS") parts.subSealing = "";
-      return { ...m, [id]: { ...base, parts } };
-    });
-  };
-
   const ids = tags.map((t) => t.tagId);
   const dirtyIds = ids.filter((id) => {
     const r = rows[id];
@@ -227,21 +189,6 @@ function Editor({
     }
   };
 
-  const addOption = async () => {
-    if (!adding) return;
-    const text = adding.text.trim();
-    if (!text) return;
-    try {
-      const o = await addPumpCodeOption(SEGMENT_DB[adding.segment], text);
-      if (!options.some((x) => x.segment === o.segment && x.code === o.code)) onOptionAdded(o);
-      setPart(adding.tagId, adding.segment, o.code);
-      setAdding(null);
-    } catch (e) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setAdding((a) => (a ? { ...a, error: msg || "Couldn't add it." } : a));
-    }
-  };
-
   return (
     <section className="rounded-xl border border-line bg-paper">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
@@ -267,8 +214,6 @@ function Editor({
         {tags.map((t) => {
           const r = rows[t.tagId];
           const err = errorsOf(r);
-          const code = codeOf(r);
-          const isNew = r.mode === "build" && !err.code && !known.has(code.toUpperCase());
           return (
             <div key={t.tagId} className="flex flex-col gap-3 px-4 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -281,26 +226,8 @@ function Editor({
                       {t.driveGroup ? DRIVE_GROUP_LABEL[t.driveGroup] : "No drive yet"} · Pump type PCP
                     </span>
                   </p>
-                  <div className="mt-1.5 inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
-                    {(
-                      [
-                        ["build", "Build code"],
-                        ["pick", "Pick existing code"],
-                      ] as const
-                    ).map(([m, label]) => (
-                      <button
-                        key={m}
-                        type="button"
-                        role="tab"
-                        aria-selected={r.mode === m}
-                        onClick={() => set(t.tagId, { mode: m })}
-                        className={`rounded-md px-3 py-1 text-[12px] font-semibold ${
-                          r.mode === m ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                  <div className="mt-1.5">
+                    <CodeModeToggle mode={r.mode} onChange={(mode) => set(t.tagId, { mode })} />
                   </div>
                 </div>
                 <label className="flex w-[140px] flex-col gap-1">
@@ -319,100 +246,14 @@ function Editor({
                 </label>
               </div>
 
-              {r.mode === "build" ? (
-                <>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                    {CODE_SEGMENTS.map((seg) => {
-                      const opts = options.filter((o) => o.segment === SEGMENT_DB[seg.key]);
-                      const disabled = seg.key === "subSealing" && !usesSubSealing(r.parts);
-                      const missing = showErrors && !disabled && !r.parts[seg.key] && (seg.required || seg.key === "subSealing");
-                      return (
-                        <label key={seg.key} className="flex min-w-0 flex-col gap-1">
-                          <span className="text-[11.5px] font-semibold text-fg-3">
-                            {seg.label}
-                            {!seg.required && seg.key !== "subSealing" && <span className="font-normal"> (optional)</span>}
-                          </span>
-                          <select
-                            className={`${selectCls} ${missing ? "border-neg" : "border-line"}`}
-                            value={r.parts[seg.key]}
-                            disabled={disabled}
-                            onChange={(e) =>
-                              e.target.value === ADD
-                                ? setAdding({ tagId: t.tagId, segment: seg.key, text: "", error: "" })
-                                : setPart(t.tagId, seg.key, e.target.value)
-                            }
-                          >
-                            <option value="">{disabled ? "MS only" : seg.required ? "Select" : "None"}</option>
-                            {opts.map((o) => (
-                              <option key={o.code} value={o.code}>
-                                {o.label}
-                              </option>
-                            ))}
-                            {seg.addable && <option value={ADD}>+ Add new…</option>}
-                          </select>
-                        </label>
-                      );
-                    })}
-                  </div>
-
-                  {adding?.tagId === t.tagId && (
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunk p-2">
-                      <span className="text-[12px] font-semibold text-fg-2">
-                        New {CODE_SEGMENTS.find((s) => s.key === adding.segment)!.label.toLowerCase()}:
-                      </span>
-                      <input
-                        autoFocus
-                        className={`${selectCls} w-[160px] border-line font-mono uppercase`}
-                        value={adding.text}
-                        maxLength={30}
-                        placeholder={adding.segment === "model" ? "e.g. 95 or H95" : "code"}
-                        onChange={(e) => setAdding({ ...adding, text: e.target.value, error: "" })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            void addOption();
-                          }
-                        }}
-                      />
-                      <button type="button" className={btn} onClick={() => void addOption()} disabled={!adding.text.trim()}>
-                        Add
-                      </button>
-                      <button type="button" className="text-[12px] font-semibold text-fg-3 hover:text-fg" onClick={() => setAdding(null)}>
-                        Cancel
-                      </button>
-                      {adding.error && <span className="text-[12px] text-neg">{adding.error}</span>}
-                      <span className="w-full text-[11px] text-fg-3">Added to the list for everyone.</span>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[12px] text-fg-3">Product code:</span>
-                    <span className="rounded-md bg-sunk px-2.5 py-1 font-mono text-[13.5px] font-semibold tracking-wide text-fg">
-                      {code || "—"}
-                    </span>
-                    {!err.code &&
-                      (isNew ? (
-                        <span className="rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] font-semibold text-warn">
-                          New code (not in the product code list)
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-[var(--pos-soft)] px-2 py-0.5 text-[11px] font-semibold text-pos">
-                          Existing code
-                        </span>
-                      ))}
-                    {showErrors && err.code && <span className="text-[12px] text-neg">{err.code}</span>}
-                  </div>
-                </>
-              ) : (
-                <div className="max-w-[520px]">
-                  <ProductCodeSelect
-                    value={r.picked}
-                    invalid={showErrors && !!err.code}
-                    onChange={(productCode) => set(t.tagId, { picked: productCode })}
-                  />
-                  {showErrors && err.code && <span className="mt-1 block text-[11.5px] text-neg">{err.code}</span>}
-                </div>
-              )}
+              <CodeFields
+                value={r}
+                options={options}
+                known={known}
+                showErrors={showErrors}
+                onChange={(patch) => set(t.tagId, patch)}
+                onOptionAdded={onOptionAdded}
+              />
             </div>
           );
         })}

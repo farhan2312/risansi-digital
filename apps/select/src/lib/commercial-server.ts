@@ -93,6 +93,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       id: projects.id,
       code: projects.projectCode,
       versionNo: projects.versionNo,
+      orderType: projects.orderType,
       isLatest: projects.isLatest,
       name: projects.name,
       customerName: projects.customerName,
