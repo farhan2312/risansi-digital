@@ -88,7 +88,10 @@ export default function EnquiryVersionsModal({
               return (
                 <li key={v.id} className="px-4 py-3">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <span className="rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-[12px] font-bold text-accent">V{v.version_no}</span>
+                    <span className="rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-[12px] font-bold text-accent">
+                      {v.version_no === v.commercial_version_no ? `V${v.version_no}` : `T${v.version_no} · C${v.commercial_version_no}`}
+                    </span>
+                    {v.version_kind === "technical" && <span className="text-[11.5px] font-semibold text-fg-3">Technical only</span>}
                     {v.is_latest && <span className="text-[11.5px] font-semibold text-pos">Latest</span>}
                     {v.order_type !== "spare" && (
                       <span className="inline-flex items-center gap-1.5 text-[12px] text-fg-3">

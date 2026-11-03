@@ -105,6 +105,8 @@ export interface CommercialOfferData {
   clientName: string;
   /** "RIL/EN/26-27/1780, Dt. 24.09.2026" */
   enquiry: string;
+  /** The Techno-Commercial sheet's line: both sides' versions. */
+  technoEnquiry: string;
   mixed: boolean;
   /** Drive group → "RIL/QT/…/PCP/6000[/GM], Dt. …" (groups with a quotation). */
   quotations: Record<string, string>;

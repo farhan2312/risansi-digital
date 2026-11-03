@@ -373,7 +373,7 @@ export async function PUT(
   }
 
   // An item this change took out of the selection loses its price.
-  const removedBoi = await removeBoiNoLongerInSelection(ctx.tagId, tableKey, previous, values);
+  const removedBoi = await removeBoiNoLongerInSelection(ctx.projectId, ctx.tagId, tableKey, previous, values);
   if (removedBoi) {
     await logAudit(req, {
       action: "commercial.update",

@@ -217,7 +217,7 @@ export function priceChangesFor(tag: TagForReview, basis: Record<string, string>
 export function sendToClientBlock(summary: CommercialSummary, group: string): string | null {
   const flagged = summary.tags.filter((t) => t.driveGroup === group && t.priceChanges.length > 0);
   if (flagged.length > 0) return `Answer the price changes first: ${flagged.map((t) => t.tagName).join(", ")}.`;
-  if (summary.project.versionNo > 0 && !summary.project.pricesReviewedAt) return "Tick Prices reviewed first.";
+  if (summary.project.commercialVersionNo > 0 && !summary.project.pricesReviewedAt) return "Tick Prices reviewed first.";
   return null;
 }
 
@@ -228,9 +228,12 @@ export type TagTech = { liquid: string; pumpType: string; pumpSpeed: string; mot
 export type CommercialSummary = {
   project: {
     id: string;
-    /** The enquiry no. with its version ("ENQ-12 V1"). */
+    /** The enquiry no. with its Commercial version ("ENQ-12 V1"). */
     code: string;
     versionNo: number;
+    commercialVersionNo: number;
+    /** "technical": a Technical only version, so the commercial side carries on. */
+    versionKind: string;
     /** "pump" | "spare": a spare has its own Commercial page. */
     orderType: string;
     /** False on an older version of the enquiry, which is view only. */

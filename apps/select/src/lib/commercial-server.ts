@@ -93,6 +93,8 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
       id: projects.id,
       code: projects.projectCode,
       versionNo: projects.versionNo,
+      commercialVersionNo: projects.commercialVersionNo,
+      versionKind: projects.versionKind,
       orderType: projects.orderType,
       isLatest: projects.isLatest,
       name: projects.name,
@@ -326,7 +328,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
   return {
     project: {
       ...project,
-      code: enquiryNoWithVersion(project.code, project.versionNo),
+      code: enquiryNoWithVersion(project.code, project.commercialVersionNo),
       remarks: project.remarks ?? "",
       quoteCurrency: project.quoteCurrency === "USD" ? "USD" : "INR",
       usdInrRate: project.usdInrRate === null ? null : Number(project.usdInrRate),

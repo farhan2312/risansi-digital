@@ -60,6 +60,7 @@ import {
   saveCommercialRemarks,
   setQuoteCurrency,
   answerPriceChange,
+  removeFlaggedPrice,
   dismissRemovedBoi,
   setPricesReviewed,
 } from "../../services/commercialService";
@@ -334,6 +335,23 @@ export default function CommercialSummaryPage() {
   }, [projectId]);
 
   const [reviewError, setReviewError] = useState<Record<string, string>>({});
+  const removeFlagged = async (tagId: string, key: ReviewedLineKey) => {
+    setReviewError((m) => ({ ...m, [tagId]: "" }));
+    try {
+      await removeFlaggedPrice(tagId, key);
+      const patch: Partial<Draft> = { [key]: "" };
+      if (key === "mechSealPrice") patch.mechSealModel = "";
+      if (key === "drpPrice") patch.drpModel = "";
+      if (key === "vfdPrice") patch.vfdModel = "";
+      setSaved((m) => ({ ...m, [tagId]: { ...m[tagId], ...patch } }));
+      setDrafts((m) => ({ ...m, [tagId]: { ...m[tagId], ...patch } }));
+      setPricesVersion((n) => n + 1);
+      await refreshReview();
+    } catch (e) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setReviewError((m) => ({ ...m, [tagId]: msg || "Couldn't remove the price. Try again." }));
+    }
+  };
   const answerChange = async (tagId: string, key: ReviewedLineKey, useNew: boolean) => {
     setReviewError((m) => ({ ...m, [tagId]: "" }));
     try {
@@ -675,7 +693,13 @@ export default function CommercialSummaryPage() {
 
           {/* An older version: the prices show, every control below is off. */}
           <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
-          {data.project.versionNo > 0 && (
+          {data.project.versionKind === "technical" && (
+            <p className="rounded-xl border border-line bg-paper px-4 py-3 text-[13px] text-fg-2">
+              <b className="font-semibold text-fg">Technical only version.</b> Technical is V{data.project.versionNo} and Commercial stays V{data.project.commercialVersionNo}.
+              Prices don&apos;t change by themselves here. If the pump selection affects a price, the tag shows a warning, and it needs an answer before the next Send to client.
+            </p>
+          )}
+          {data.project.commercialVersionNo > 0 && (
             <label className="flex cursor-pointer flex-wrap items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3 text-[13px] text-fg-2">
               <input
                 type="checkbox"
@@ -685,7 +709,7 @@ export default function CommercialSummaryPage() {
                 onChange={(e) => void toggleReviewed(e.target.checked)}
               />
               <span className="min-w-0 flex-1">
-                <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the prices copied from V{data.project.versionNo - 1},
+                <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the prices copied from V{data.project.commercialVersionNo - 1},
                 including Strainer, PRV and Other items. Needed before Send to client.
               </span>
             </label>
@@ -943,6 +967,7 @@ export default function CommercialSummaryPage() {
               errors={showErrors[tag.tagId] ? draftErrors(drafts[tag.tagId]) : {}}
               reviewError={reviewError[tag.tagId] ?? ""}
               onAnswerChange={(key, useNew) => void answerChange(tag.tagId, key, useNew)}
+              onRemoveFlagged={(key) => void removeFlagged(tag.tagId, key)}
               onDismissRemoved={() => {
                 void dismissRemovedBoi(tag.tagId).then(refreshReview);
               }}
@@ -1023,6 +1048,7 @@ function TagCard({
   errors,
   reviewError,
   onAnswerChange,
+  onRemoveFlagged,
   onDismissRemoved,
   onChange,
   onSave,
@@ -1044,6 +1070,7 @@ function TagCard({
   errors: Record<string, string>;
   reviewError: string;
   onAnswerChange: (key: ReviewedLineKey, useNew: boolean) => void;
+  onRemoveFlagged: (key: ReviewedLineKey) => void;
   onDismissRemoved: () => void;
   onChange: (patch: Partial<Draft>) => void;
   onSave: () => void;
@@ -1239,6 +1266,11 @@ function TagCard({
                 {c.newPrice !== null && (
                   <button type="button" className={btnPrimarySm} onClick={() => onAnswerChange(c.key, true)}>
                     Use new price
+                  </button>
+                )}
+                {c.now === "nothing selected" && (
+                  <button type="button" className={btnSm} onClick={() => onRemoveFlagged(c.key)}>
+                    Remove price
                   </button>
                 )}
                 <button type="button" className={btnSm} onClick={() => onAnswerChange(c.key, false)}>

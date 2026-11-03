@@ -222,6 +222,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tagId: s
 // PATCH /api/commercial/[tagId] — answers the review on one tag:
 //   {key, useNew}          a line whose make or model changed: take the new item's
 //                          master price, or keep the old one. Audited.
+//   {key, remove: true}    or take the line off, when the selection no longer has it.
 //   {dismissRemoved: true} the notes about items removed by themselves were seen.
 export async function PATCH(req: Request, { params }: { params: Promise<{ tagId: string }> }) {
   const { tagId } = await params;
@@ -247,6 +248,33 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ tagId:
   const change = current?.priceChanges.find((c) => c.key === body.key);
   const [row] = await db.select({ basis: commercialTagPrice.boiBasis }).from(commercialTagPrice).where(eq(commercialTagPrice.tagId, tagId)).limit(1);
   if (!current || !change || !row) return error("This price no longer needs an answer.", 409);
+
+  if (body.remove === true) {
+    const [line] = await db.select({ adjust: commercialTagPrice.boiAdjust }).from(commercialTagPrice).where(eq(commercialTagPrice.tagId, tagId)).limit(1);
+    const adjust = { ...(line?.adjust ?? {}) };
+    delete adjust[change.key];
+    const basis = { ...row.basis };
+    delete basis[change.key];
+    await db
+      .update(commercialTagPrice)
+      .set({
+        [change.key]: null,
+        ...(change.key === "mechSealPrice" ? { mechSealModel: null } : {}),
+        ...(change.key === "drpPrice" ? { drpModel: null } : {}),
+        ...(change.key === "vfdPrice" ? { vfdModel: null } : {}),
+        boiAdjust: adjust,
+        boiBasis: basis,
+        updatedAt: new Date(),
+      })
+      .where(eq(commercialTagPrice.tagId, tagId));
+    await logAudit(req, {
+      action: "commercial.review",
+      entity: "commercial_tag_price",
+      entityId: tagId,
+      detail: `${(await describeTag(tagId)) ?? "tag"}: ${change.label} ${formatInr(change.price)} removed (now ${change.now})`.slice(0, 2000),
+    });
+    return json({ ok: true, price: null, model: null });
+  }
 
   const useNew = body.useNew === true;
   if (useNew && change.newPrice === null) return error("There is no master price for the new item. Type the price instead.", 400);

@@ -26,7 +26,7 @@ export async function GET(req: Request) {
       driveGroup: quotation.driveGroup,
       clientName: quotation.clientName,
       projectCode: projects.projectCode,
-      versionNo: projects.versionNo,
+      commercialVersionNo: projects.commercialVersionNo,
       enquiryName: projects.name,
     })
     .from(quotation)
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
   const quotations = [];
   for (const r of rows) {
     const info = await loadQuotation(r.projectId, r.driveGroup);
-    if (info) quotations.push({ projectId: r.projectId, projectCode: enquiryNoWithVersion(r.projectCode, r.versionNo), enquiryName: r.enquiryName, info });
+    if (info) quotations.push({ projectId: r.projectId, projectCode: enquiryNoWithVersion(r.projectCode, r.commercialVersionNo), enquiryName: r.enquiryName, info });
   }
 
   const files = code

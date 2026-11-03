@@ -7,7 +7,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "./db";
-import { commercialTagPrice } from "./db/schema";
+import { commercialTagPrice, projects } from "./db/schema";
 import { type BoiKey, type BoiRemoved, boiBasisFor, formatInr } from "./commercial";
 import { loadCommercialSummary } from "./commercial-server";
 
@@ -52,6 +52,7 @@ function itemLeaving(
 /** Removes an item the wizard save took out of the selection. Returns what to
  *  audit, or null when nothing was removed. */
 export async function removeBoiNoLongerInSelection(
+  projectId: string,
   tagId: string,
   tableKey: string,
   previous: Record<string, unknown> | undefined,
@@ -59,6 +60,10 @@ export async function removeBoiNoLongerInSelection(
 ): Promise<string | null> {
   const leaving = itemLeaving(tableKey, previous, values);
   if (!leaving) return null;
+  // A Technical only version leaves the commercial side alone: the line is flagged
+  // on the Commercial page instead (priceChangesFor), with Remove price.
+  const [p] = await db.select({ kind: projects.versionKind }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (p?.kind === "technical") return null;
   const [row] = await db.select().from(commercialTagPrice).where(eq(commercialTagPrice.tagId, tagId)).limit(1);
   const item = REMOVABLE[leaving.key];
   const price = row?.[item.price];

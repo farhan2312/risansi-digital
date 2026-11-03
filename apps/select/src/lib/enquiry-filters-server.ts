@@ -43,13 +43,15 @@ export const enquiryStatusSql = sql<string>`coalesce(CASE WHEN projects.order_ty
 /** Commercial status, automatic: Completed once the Technical status is Completed,
  *  every tag has a saved P&A price and the quotations are sent to the client
  *  (app/api/quotations/[id]/send), In Progress once any tag's prices are saved,
- *  otherwise Pending. */
+ *  otherwise Pending. A send from before this version began is a Technical only
+ *  version carrying it: its commercial side hasn't changed, so Technical isn't
+ *  waited for. */
 export const commercialStatusAutoSql = sql<string>`(
   SELECT CASE
     WHEN projects.order_type = 'spare' THEN ${SPARE_STATUS}
     WHEN COUNT(*) > 0 AND COUNT(k.pa_price) = COUNT(*)
          AND projects.sent_to_client_at IS NOT NULL
-         AND ${enquiryStatusSql} = 'Completed' THEN 'Completed'
+         AND (projects.sent_to_client_at < projects.created_at OR ${enquiryStatusSql} = 'Completed') THEN 'Completed'
     WHEN COUNT(k.tag_id) > 0 THEN 'In Progress'
     ELSE 'Pending'
   END
