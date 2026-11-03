@@ -11,6 +11,10 @@ type Row = Record<string, unknown>;
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 const amount = (v: unknown): number | null => (str(v) && Number.isFinite(Number(v)) ? Number(v) : null);
+const rounded = (v: unknown): number | null => {
+  const n = amount(v);
+  return n === null ? null : Math.round(n);
+};
 
 const toneOf = (c: { color?: unknown }): Tone | null =>
   c.color === C.red ? "red" : c.color === C.green ? "green" : c.color === C.amber ? "amber" : c.color === C.blue ? "blue" : null;
@@ -83,8 +87,8 @@ export function dispatchSheet(rows: Row[], filterLine: string): ReportSheet {
         [amount(o.discount_percent), null],
         [amount(o.packing_forwarding_percent), null],
         [amount(o.gst_percent), null],
-        [amount(o.taxable_value), null],
-        replacement ? ["Replacement", "muted"] : [left ? left.left : null, left && left.left <= 0 ? "green" : null],
+        [rounded(o.taxable_value), null],
+        replacement ? ["Replacement", "muted"] : [left ? Math.round(left.left) : null, left && left.left <= 0 ? "green" : null],
         [left ? left.invoiced : null, null],
         pick(STATUS),
         pick(STAGE),

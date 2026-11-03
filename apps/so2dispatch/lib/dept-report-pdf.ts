@@ -316,6 +316,13 @@ const money = (v: unknown) => {
   return Number.isFinite(n) ? n.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : s;
 };
 const pct = (v: unknown) => (str(v) ? `${money(v)}%` : "—");
+/** Rounded off to the whole unit: the report's gross value and Order in Hand. */
+const whole = (v: unknown) => {
+  const s = str(v);
+  if (!s) return "";
+  const n = Number(s);
+  return Number.isFinite(n) ? n.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : s;
+};
 
 /**
  * What is still to invoice of the SO: its gross value less what is invoiced
@@ -338,7 +345,7 @@ export function orderValueLines(o: Row): [string, string][] {
     ["Discount", pct(o.discount_percent)],
     ["Packing", pct(o.packing_forwarding_percent)],
     ["GST", pct(o.gst_percent)],
-    ["Gross value", money(o.taxable_value) ? `${money(o.taxable_value)}${cur}` : "—"],
+    ["Gross value", whole(o.taxable_value) ? `${whole(o.taxable_value)}${cur}` : "—"],
   ];
 }
 
@@ -398,7 +405,7 @@ export function dispatchReport(rows: Row[], filterLine: string): Report {
       : "replacement" in hand
         ? [{ text: "Replacement", color: C.muted }]
         : [
-            { text: `${money(hand.left)}${cur}`, bold: true, color: hand.left > 0 ? undefined : C.green },
+            { text: `${whole(hand.left)}${cur}`, bold: true, color: hand.left > 0 ? undefined : C.green },
             { text: `Invoiced ${money(hand.invoiced)}`, small: true },
           ];
     return [

@@ -21,7 +21,7 @@ import { isCentral } from "@/lib/roles";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
-import type { OrderListOptions } from "@/lib/orders";
+import type { OrderInHandTotal, OrderListOptions } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import { useFocusRow } from "./use-focus-row";
 import type { PageResult } from "@/lib/pagination";
@@ -64,7 +64,10 @@ export function BillingWorkspace({
   filterOptions,
   kpis = [],
   pendency = {},
+  orderInHand,
 }: {
+  /** Dispatch: the cumulative Order in Hand of every SO the filter bar matches. */
+  orderInHand?: OrderInHandTotal[];
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
   /** Why each SO's PI is still pending (Proforma Invoice), by SO id. */
@@ -134,6 +137,7 @@ export function BillingWorkspace({
             total={queue.total}
             dept={mode}
             hasTarget={DEPT_VIEWS[mode].hasTarget}
+            orderInHand={orderInHand}
             searchPlaceholder="Search SO, client…"
             {...(mode === "billing"
               ? {

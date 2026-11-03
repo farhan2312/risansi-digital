@@ -57,6 +57,7 @@ export default async function DispatchWorkspacePage({
   const [queue, filterOptions] = await Promise.all([
     listOrdersForBillingPage({
       kpis: deptKpiCards("dispatch", [], false),
+      inHand: true,
       page: parsePage(page),
       search: parseQuery(q),
       focusOrderId,
@@ -116,6 +117,7 @@ export default async function DispatchWorkspacePage({
         unreadThreads={unreadThreads}
         queue={queue}
         kpis={queue.kpis}
+        orderInHand={queue.inHand}
         filterOptions={filterOptions}
         canEdit={canEditChild(user.role, "order_invoices")}
         openOrderId={edit}
