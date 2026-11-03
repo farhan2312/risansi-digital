@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { uploadRevenue } from '@/app/actions/risansi-revenue';
 import type { UploadResult } from '@/app/actions/risansi-revenue';
 import { parseMonthYear } from '@/lib/risansi-month-year';
+import { parsePeriod, periodCellToLabel } from '@/lib/risansi-revenue-period';
 import { SortTH, useTableSort } from '@/components/risansi/SortTH';
 import type { SortableColumn } from '@/lib/risansi-table-sort';
 
@@ -58,20 +59,14 @@ type Stage = 'empty' | 'validating' | 'preview' | 'saving' | 'done';
 
 // ── Month parsing ──────────────────────────────────────────────
 
-const MONTHS: Record<string, string> = {
-  Jan:'01', Feb:'02', Mar:'03', Apr:'04',
-  May:'05', Jun:'06', Jul:'07', Aug:'08',
-  Sep:'09', Oct:'10', Nov:'11', Dec:'12',
-};
-
-function parseMonth(raw: string): string | null {
-  const parts = raw?.trim().split('-');
-  if (parts?.length !== 2) return null;
-  const mon = MONTHS[parts[0]];
-  const yr  = parts[1];
-  if (!mon || !/^\d{4}$/.test(yr)) return null;
-  return `${yr}-${mon}-01`;
-}
+// parsePeriod, not a second parser of its own.
+//
+// The one that stood here split on '-' and insisted on exactly two parts, so
+// it rejected "May-2026 H1" — the fortnight format this very page documents
+// and the server has always accepted — and marked the row Invalid month. It
+// also knew nothing about dates, which the old template's date validation
+// made the most likely thing in the column.
+const parseMonth = (raw: string): string | null => parsePeriod(raw)?.month ?? null;
 
 // ── Styles ─────────────────────────────────────────────────────
 
@@ -152,7 +147,12 @@ export function RevenueUploadBox() {
 
       const parsed: UploadRow[] = dataRows.map(row => {
         const code  = row[colCode]?.toString().trim().toUpperCase() ?? '';
-        const month = row[colMonth]?.toString().trim() ?? '';
+        // Normalised here and nowhere else, so the preview, its date sort and
+        // the server all read the same string. A date cell arrives as a serial
+        // (46157) or a Date depending on how the file was written; either way
+        // it leaves this line as "May-2026", which is what the rest expects.
+        const rawMonth = row[colMonth];
+        const month = periodCellToLabel(rawMonth) ?? (rawMonth?.toString().trim() ?? '');
         const pump  = parseFloat(row[colPump]?.toString().replace(/,/g, '')) || 0;
         const spare = parseFloat(row[colSpare]?.toString().replace(/,/g, '')) || 0;
         return {

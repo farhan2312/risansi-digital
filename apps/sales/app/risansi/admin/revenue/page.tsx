@@ -108,11 +108,13 @@ export default async function RevenueAdminPage() {
               }}>
                 Columns: Client Code | Client Name | Month | Pump Value | Spare Value
                 <br />
-                Month format: May-2026 · Values in ₹ INR · No commas or symbols
+                Month: pick from the dropdown, or type May-2026 · May-2026 H1 (1–15) · May-2026 H2 (16 to month end)
+                <br />
+                Values in ₹ INR · No commas or symbols
               </div>
             </div>
             <a
-              href="/revenue_upload_template.xlsx"
+              href="/api/risansi/revenue/template"
               download
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
