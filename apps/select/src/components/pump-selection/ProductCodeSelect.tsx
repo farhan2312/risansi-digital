@@ -10,6 +10,9 @@ type Props = {
   /** Called with the picked product code and its pump type. */
   onChange: (productCode: string, pumpType: string) => void;
   invalid?: boolean;
+  /** One box for both: pick from the list, or what is typed is the code. Nothing is
+   *  added to the list. */
+  freeText?: boolean;
 };
 
 /** Dropdown height cap (px); it opens upward when there's less room below. */
@@ -25,7 +28,7 @@ const squash = (s: string) => s.toUpperCase().replace(/[^A-Z0-9.]/g, "");
  * is fetched once and filtered as the user types. A code that isn't in the
  * master can be added ("+ Add", stored as PCP) so it is there for everyone.
  */
-const ProductCodeSelect = ({ value, onChange, invalid }: Props) => {
+const ProductCodeSelect = ({ value, onChange, invalid, freeText = false }: Props) => {
   const [all, setAll] = useState<ProductPump[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [text, setText] = useState(value);
@@ -84,12 +87,12 @@ const ProductCodeSelect = ({ value, onChange, invalid }: Props) => {
       const t = e.target as Node;
       if (!wrapRef.current?.contains(t) && !listRef.current?.contains(t)) {
         setOpen(false);
-        setText(value);
+        if (!freeText) setText(value);
       }
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [open, value]);
+  }, [open, value, freeText]);
 
   const matches = useMemo(() => {
     if (!all) return [];
@@ -113,13 +116,14 @@ const ProductCodeSelect = ({ value, onChange, invalid }: Props) => {
   // whole code typed without spaces: "rtohv6 8185" is a search, not a new code.
   const typedCode = text.trim().toUpperCase();
   const exact = !!all?.some((p) => p.productCode.toUpperCase() === typedCode);
-  const canAdd = !!all && typed && typedCode.length >= 3 && !/\s/.test(typedCode) && !exact;
+  const canAdd = !freeText && !!all && typed && typedCode.length >= 3 && !/\s/.test(typedCode) && !exact;
   const addIndex = shown.length; // the Add row sits after the matches
 
   useEffect(() => {
-    setActive(0);
+    // Free text: Enter keeps what was typed unless a row was arrowed to.
+    setActive(freeText ? -1 : 0);
     setAddError("");
-  }, [text]);
+  }, [text, freeText]);
 
   const pick = (p: ProductPump) => {
     onChange(p.productCode, p.pumpType);
@@ -158,7 +162,7 @@ const ProductCodeSelect = ({ value, onChange, invalid }: Props) => {
         aria-autocomplete="list"
         aria-invalid={invalid || undefined}
         className={`${control} font-mono`}
-        placeholder={all ? `Search ${all.length} pump product codes…` : "Loading product codes…"}
+        placeholder={freeText ? "Search the list or type the code" : all ? `Search ${all.length} pump product codes…` : "Loading product codes…"}
         value={text}
         onFocus={(e) => {
           setTyped(false);
@@ -166,9 +170,11 @@ const ProductCodeSelect = ({ value, onChange, invalid }: Props) => {
           e.currentTarget.select();
         }}
         onChange={(e) => {
-          setText(e.target.value);
+          const next = freeText ? e.target.value.toUpperCase() : e.target.value;
+          setText(next);
           setTyped(true);
           setOpen(true);
+          if (freeText) onChange(next, "");
         }}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {
@@ -177,7 +183,7 @@ const ProductCodeSelect = ({ value, onChange, invalid }: Props) => {
             setActive((a) => Math.min(a + 1, Math.max(shown.length + (canAdd ? 1 : 0) - 1, 0)));
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            setActive((a) => Math.max(a - 1, 0));
+            setActive((a) => Math.max(a - 1, freeText ? -1 : 0));
           } else if (e.key === "Enter") {
             if (!open) return;
             if (canAdd && active === addIndex) {
@@ -185,12 +191,18 @@ const ProductCodeSelect = ({ value, onChange, invalid }: Props) => {
               if (!adding) void add();
               return;
             }
-            if (!shown[active]) return;
+            if (!shown[active]) {
+              if (freeText) {
+                e.preventDefault();
+                setOpen(false);
+              }
+              return;
+            }
             e.preventDefault();
             pick(shown[active]);
           } else if (e.key === "Escape") {
             setOpen(false);
-            setText(value);
+            if (!freeText) setText(value);
           }
         }}
       />
@@ -206,7 +218,9 @@ const ProductCodeSelect = ({ value, onChange, invalid }: Props) => {
           {!all && !failed && <li className="px-3 py-2 text-[12.5px] text-fg-3">Loading…</li>}
           {failed && <li className="px-3 py-2 text-[12.5px] text-neg">Couldn&apos;t load the product codes.</li>}
           {all && shown.length === 0 && !canAdd && (
-            <li className="px-3 py-2 text-[12.5px] text-fg-3">No product code matches &ldquo;{text}&rdquo;.</li>
+            <li className="px-3 py-2 text-[12.5px] text-fg-3">
+              {freeText ? "Not on the list. It will be used as typed." : <>No product code matches &ldquo;{text}&rdquo;.</>}
+            </li>
           )}
           {shown.map((p, i) => (
             <li

@@ -3,7 +3,7 @@
 // or picked), and per model the parts quoted with quantity and unit price. Stored
 // whole on projects.spare_quote, so a new version copies it. Client-safe.
 import { type CommercialPrices, type QuotationSnapshot } from "./commercial";
-import { partsFromFieldsOrNull, type CodeParts } from "./pump-code";
+import { SPARE_TERM_IDS, type TermsMarket } from "./spare-terms";
 
 export type SpareLine = {
   partNo: string;
@@ -14,18 +14,27 @@ export type SpareLine = {
 
 export type SpareModel = {
   id: string;
+  /** Picked from the product code list, or typed as it is. */
   productCode: string;
-  /** The code's parts when it was built with the code builder, else null. */
-  codeParts: CodeParts | null;
   /** Which parts list this model picks from. */
   pumpKind: "PCP" | "MMP";
   lines: SpareLine[];
 };
 
 export type SpareQuote = {
+  /** Ticked: the reference PO is required and printed. Unticked: neither. */
+  hasPo: boolean;
   poNo: string;
   /** YYYY-MM-DD, or "". */
   poDate: string;
+  /** % off the total of all parts; null = none. */
+  discountPct: number | null;
+  /** Printed under the totals. */
+  note: string;
+  /** Which terms and conditions the document uses (lib/spare-terms.ts). */
+  termsMarket: TermsMarket;
+  /** The terms unticked; all the others print. */
+  termsOff: string[];
   models: SpareModel[];
 };
 
@@ -38,12 +47,16 @@ export type SpareDocEdits = {
   subject?: string;
   opening?: string;
   po?: string;
+  discount?: string;
+  note?: string;
   /** Model id -> the text printed for the model. */
   models?: Record<string, string>;
   /** Line key (spareDocLineKey) -> its cells. */
   lines?: Record<string, { partNo?: string; name?: string; qty?: string; unit?: string }>;
   /** Line keys left off the document. */
   removed?: string[];
+  /** Term id -> its wording on the document. */
+  terms?: Record<string, string>;
 };
 
 export const spareDocLineKey = (modelId: string, l: { partNo: string; partName: string }) => `${modelId}|${l.partNo}|${l.partName}`;
@@ -52,11 +65,11 @@ export function normalizeSpareDocEdits(raw: unknown): SpareDocEdits {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
   const out: SpareDocEdits = {};
-  for (const k of ["client", "enquiry", "quotation", "po"] as const) {
+  for (const k of ["client", "enquiry", "quotation", "po", "discount"] as const) {
     const v = str(r[k], 300);
     if (v !== undefined) out[k] = v;
   }
-  for (const k of ["subject", "opening"] as const) {
+  for (const k of ["subject", "opening", "note"] as const) {
     const v = str(r[k], 2000);
     if (v !== undefined) out[k] = v;
   }
@@ -85,10 +98,18 @@ export function normalizeSpareDocEdits(raw: unknown): SpareDocEdits {
     const removed = r.removed.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 320)).slice(0, 2000);
     if (removed.length) out.removed = removed;
   }
+  if (r.terms && typeof r.terms === "object") {
+    const terms: Record<string, string> = {};
+    for (const [id, v] of Object.entries(r.terms as Record<string, unknown>)) {
+      const s = str(v, 6000);
+      if (s !== undefined && SPARE_TERM_IDS.has(id)) terms[id] = s;
+    }
+    if (Object.keys(terms).length) out.terms = terms;
+  }
   return out;
 }
 
-export const EMPTY_SPARE_QUOTE: SpareQuote = { poNo: "", poDate: "", models: [] };
+export const EMPTY_SPARE_QUOTE: SpareQuote = { hasPo: false, poNo: "", poDate: "", discountPct: null, note: "", termsMarket: "domestic", termsOff: [], models: [] };
 
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const amountOrNull = (v: unknown): number | null => {
@@ -97,21 +118,30 @@ const amountOrNull = (v: unknown): number | null => {
   return Number.isFinite(n) && n >= 0 ? n : null;
 };
 
-/** Always read and save through this: keeps only what the quote should hold. */
-export function normalizeSpareQuote(raw: unknown): SpareQuote {
+/** Always read and save through this: keeps only what the quote should hold.
+ *  defaultMarket: for a quote that hasn't chosen its terms yet. */
+export function normalizeSpareQuote(raw: unknown, defaultMarket: TermsMarket = "domestic"): SpareQuote {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const models = Array.isArray(r.models) ? r.models : [];
   const poDate = text(r.poDate, 10);
+  // Quotes from before the tick: ticked when they have a PO.
+  const hasPo = r.hasPo === undefined ? Boolean(text(r.poNo, 120)) : r.hasPo === true;
+  const discountPct = amountOrNull(r.discountPct);
+  const termsOff = Array.isArray(r.termsOff) ? r.termsOff.filter((x): x is string => typeof x === "string" && SPARE_TERM_IDS.has(x)) : [];
   return {
-    poNo: text(r.poNo, 120),
-    poDate: /^\d{4}-\d{2}-\d{2}$/.test(poDate) ? poDate : "",
+    hasPo,
+    poNo: hasPo ? text(r.poNo, 120) : "",
+    poDate: hasPo && /^\d{4}-\d{2}-\d{2}$/.test(poDate) ? poDate : "",
+    discountPct: discountPct !== null && discountPct <= 100 ? discountPct : null,
+    note: text(r.note, 2000),
+    termsMarket: r.termsMarket === "domestic" || r.termsMarket === "export" ? r.termsMarket : defaultMarket,
+    termsOff: [...new Set(termsOff)].sort(),
     models: models.slice(0, 100).map((m, i) => {
       const x = (m ?? {}) as Record<string, unknown>;
       const lines = Array.isArray(x.lines) ? x.lines : [];
       return {
         id: text(x.id, 60) || `model-${i}`,
         productCode: text(x.productCode, 100),
-        codeParts: partsFromFieldsOrNull(x.codeParts),
         pumpKind: x.pumpKind === "MMP" ? ("MMP" as const) : ("PCP" as const),
         lines: lines.slice(0, 200).map((l) => {
           const y = (l ?? {}) as Record<string, unknown>;
@@ -129,11 +159,15 @@ export function normalizeSpareQuote(raw: unknown): SpareQuote {
 
 export const lineAmount = (l: Pick<SpareLine, "qty" | "unitPrice">): number => (l.qty ?? 0) * (l.unitPrice ?? 0);
 export const modelTotal = (m: SpareModel): number => m.lines.reduce((s, l) => s + lineAmount(l), 0);
-export const quoteTotal = (q: SpareQuote): number => q.models.reduce((s, m) => s + modelTotal(m), 0);
+/** The parts added up, before the discount. */
+export const quoteSubtotal = (q: SpareQuote): number => q.models.reduce((s, m) => s + modelTotal(m), 0);
+export const quoteDiscount = (q: SpareQuote): number => (quoteSubtotal(q) * (q.discountPct ?? 0)) / 100;
+/** The grand total: after the discount. */
+export const quoteTotal = (q: SpareQuote): number => quoteSubtotal(q) - quoteDiscount(q);
 
 /** What stops the quote going to the client, or null. */
 export function spareQuoteProblem(q: SpareQuote): string | null {
-  if (!q.poNo || !q.poDate) return "Enter the reference PO No. and date.";
+  if (q.hasPo && (!q.poNo || !q.poDate)) return "Enter the reference PO No. and date, or untick Reference PO.";
   const parts = q.models.flatMap((m) => m.lines);
   if (parts.length === 0) return "Add a model and its parts first.";
   if (q.models.some((m) => m.lines.length === 0)) return "Every model needs at least one part.";

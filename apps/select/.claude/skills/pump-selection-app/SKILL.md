@@ -568,7 +568,11 @@ never auto-filled from the AI result.
   sub-type; MOC NOT prefilled (wizard stores free-text materials, no code).
   Parts saved in pump_model_qty_input.code_* (null when picked from list). A
   built code is NOT added to product_pump (user, 2026-10-07 — that list is only
-  for picking existing codes); the badge just says Existing / New code. A
+  for picking existing codes), but one EDITED by hand is, on save, unless it or its original
+  is already on the list (user, 2026-11-04:
+  generated -> edited on screen, PumpCodeInput.tsx; product_code holds the edit, the
+  code_* parts still build the original; changing a part drops the edit). The badge
+  says Existing / New code. A
   "Technical" button on the step opens the Technical Data Sheet modal.
   The old V6OF/V5OF part of existing codes is intentionally not built.
 - **Two steps on the page** (user, 2026-10-01): **1 · Pump & Qty**
@@ -972,18 +976,26 @@ never auto-filled from the AI result.
   create (older spares keep theirs, hidden). The order type can't change once a
   quotation exists.
 - /commercial renders screens/commercial/SpareCommercial.tsx: reference PO No., date,
-  TSM and ERP serial, all four mandatory (page + POST /api/quotations) -> Generate; then QuotationPanel, models (code built or picked,
-  PumpCodeInput.tsx, shared with Pump & Qty) and per model parts (PartPicker: lists in
+  TSM and ERP serial mandatory, the PO only when its Reference PO tick is on (unticked: no
+  column on the document) -> Generate; then QuotationPanel, models (one box: ProductCodeSelect
+  freeText, pick from the list or type; typed codes are not added to the list) and per model parts (PartPicker: lists in
   lib/spare-parts.ts copied from SO to Dispatch, plus Others) with qty, unit price and
-  amount. Stored whole in projects.spare_quote (lib/spare-quote.ts, PUT /api/spare-quote).
+  amount; Discount % on the grand total and a Note. Stored whole in projects.spare_quote
+  (lib/spare-quote.ts, PUT /api/spare-quote). quoteTotal = after the discount.
 - No internal or client versions on screen (user, 2026-11-04): a spare is versioned
   through its enquiry versions. Send to client once per enquiry version; after that the
   quote is locked (page + PUT /api/spare-quote) until a new version. Underneath it is a
   normal quotation: drive_group SP (SPARE_GROUP), product type SPR, same serial sequence,
   with its version rows kept. Its snapshot has one row per part
   (spareSnapshot) so version lists and Client Quoted Prices read it as usual. Document:
-  lib/spare-quote-doc.ts in the sample's format (terms not added yet); every row editable
+  lib/spare-quote-doc.ts in the sample's format; every row editable
   or removable for the document only (projects.spare_doc_edits, PUT /api/spare-quote/doc).
+- Terms and conditions: lib/spare-terms.ts, Domestic and Export from the user's Excel, plus
+  the warranty clauses. The quote keeps termsMarket (default from projects.client_market_type
+  until saved) and termsOff (unticked ids, so all print by default); ids are per market, so
+  ticks survive switching. Unticking the "Warranty Clause : As attached" term also drops the
+  warranty clauses. Wording edited on the document only (SpareDocEdits.terms); numbers follow
+  what is printed. Copy doesn't carry them.
 - One status, shown just as Status (table, Edit form), kept in the commercial columns;
   the row's button reads Quotation. Completed when sent to client, In Progress once the quotation
   is generated, else Pending (SPARE_STATUS). "status" in the lists = that status.

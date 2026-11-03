@@ -76,9 +76,9 @@ export async function POST(req: Request) {
   const groups = await projectDriveGroups(projectId);
   if (spare !== (p.orderType === "spare")) return error(spare ? "This enquiry is not a spare order." : "A spare order has its own quotation.", 400);
   if (spare) {
-    // All four are needed: reference PO No. and date, TSM (below) and the ERP serial.
+    // Needed: the TSM (below) and ERP serial, and the PO when its tick is on.
     const quote = normalizeSpareQuote(p.spareQuote);
-    if (!quote.poNo || !quote.poDate) return error("Enter the reference PO No. and date.", 400);
+    if (quote.hasPo && (!quote.poNo || !quote.poDate)) return error("Enter the reference PO No. and date, or untick Reference PO.", 400);
     if (!erpSerial) return error("Enter the Quotation No. serial (ERP).", 400);
   }
   if (!spare && !groups.includes(group as (typeof groups)[number])) return error("This enquiry has no tag on that drive system.", 400);

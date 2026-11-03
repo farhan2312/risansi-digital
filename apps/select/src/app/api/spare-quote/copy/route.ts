@@ -7,6 +7,7 @@ import { projects } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
 import { enquiryNoWithVersion } from "@/lib/roles";
 import { normalizeSpareQuote } from "@/lib/spare-quote";
+import { termsMarketOf } from "@/lib/spare-terms";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ const UUID = /^[0-9a-f-]{36}$/i;
 
 // POST /api/spare-quote/copy {sourceProjectId, targetProjectId} — adds a spare
 // enquiry's models and parts, with quantities and prices, to another spare enquiry.
-// The reference PO and the quotation belong to the enquiry, so they stay. Audited.
+// The reference PO, the terms and the quotation belong to the enquiry, so they stay. Audited.
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
   if (noWork) return noWork;
 
   const rows = await db
-    .select({ id: projects.id, code: projects.projectCode, version: projects.versionNo, orderType: projects.orderType, quote: projects.spareQuote, sentAt: projects.sentToClientAt })
+    .select({ id: projects.id, code: projects.projectCode, version: projects.versionNo, orderType: projects.orderType, quote: projects.spareQuote, sentAt: projects.sentToClientAt, market: projects.clientMarketType })
     .from(projects)
     .where(inArray(projects.id, [sourceId, targetId]));
   const source = rows.find((r) => r.id === sourceId);
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
 
   const from = normalizeSpareQuote(source.quote);
   if (from.models.length === 0) return error("This enquiry has no models to copy yet.", 400);
-  const into = normalizeSpareQuote(target.quote);
+  const into = normalizeSpareQuote(target.quote, termsMarketOf(target.market));
   const quote = { ...into, models: [...into.models, ...from.models.map((m) => ({ ...m, id: crypto.randomUUID() }))] };
   await db.update(projects).set({ spareQuote: quote, updatedAt: new Date() }).where(eq(projects.id, targetId));
 

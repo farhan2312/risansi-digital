@@ -3,33 +3,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
+import ProductCodeSelect from "../../components/pump-selection/ProductCodeSelect";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import PageHeader from "../../components/ui/PageHeader";
 import { SPARE_GROUP, formatInr, type CommercialSummary, type QuotationInfo, type TsmOption } from "../../lib/commercial";
 import { printHtml } from "../../lib/enquiry-print";
-import { EMPTY_PARTS, type CodeOption } from "../../lib/pump-code";
 import { OTHER_PART_SECTION, partListFor } from "../../lib/spare-parts";
-import { lineAmount, spareQuoteProblem, type SpareDocEdits, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
+import { lineAmount, quoteDiscount, quoteSubtotal, spareQuoteProblem, type SpareDocEdits, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
 import {
   SPARE_DOC_OPENING,
   SPARE_DOC_SUBJECT,
   buildSpareQuoteHtml,
   downloadSpareQuoteExcel,
+  spareDiscountAuto,
   spareDocModels,
+  spareDocTerms,
   sparePoAuto,
+  type SpareDocTerm,
   type SpareQuoteSheet,
 } from "../../lib/spare-quote-doc";
+import { SPARE_TERMS, SPARE_WARRANTY, SPARE_WARRANTY_HEADING, TERMS_MARKETS, WARRANTY_TERM, type SpareTerm, type TermsMarket } from "../../lib/spare-terms";
 import { dotDate } from "../../lib/tech-doc";
 import { setPricesReviewed } from "../../services/commercialService";
 import { createQuotation, getQuotation, listTsmOptions } from "../../services/quotationService";
 import { getSpareQuote, saveSpareDocEdits, saveSpareQuote } from "../../services/spareQuoteService";
-import { CodeFields, CodeModeToggle, codeError, codeOf, type CodeValue } from "./PumpCodeInput";
-import { loadPumpQtyLists } from "./PumpQtyStep";
 import QuotationPanel from "./QuotationPanel";
 
 // A spare order's Commercial page (lib/spare-quote.ts): no tags, no technical step
 // and no scope of supply. Reference PO and the quotation first; then pump models,
-// and per model the parts quoted with quantity and unit price.
+// (code picked from the list or typed) and per model the parts quoted with quantity
+// and unit price.
 
 const btn =
   "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
@@ -40,17 +43,22 @@ const inputCls =
 const labelCls = "text-[11.5px] font-semibold text-fg-3";
 
 type LineDraft = { partNo: string; partName: string; qty: string; unitPrice: string };
-type ModelDraft = { id: string; code: CodeValue; pumpKind: "PCP" | "MMP"; lines: LineDraft[] };
-type Draft = { poNo: string; poDate: string; models: ModelDraft[] };
+type ModelDraft = { id: string; code: string; pumpKind: "PCP" | "MMP"; lines: LineDraft[] };
+type Draft = { hasPo: boolean; poNo: string; poDate: string; discountPct: string; note: string; termsMarket: TermsMarket; termsOff: string[]; models: ModelDraft[] };
 
 const numText = (n: number | null) => (n === null ? "" : String(n));
 
 const toDraft = (q: SpareQuote): Draft => ({
+  hasPo: q.hasPo,
   poNo: q.poNo,
   poDate: q.poDate,
+  discountPct: numText(q.discountPct),
+  note: q.note,
+  termsMarket: q.termsMarket,
+  termsOff: q.termsOff,
   models: q.models.map((m) => ({
     id: m.id,
-    code: { mode: m.codeParts || !m.productCode ? "build" : "pick", parts: m.codeParts ?? EMPTY_PARTS, picked: m.productCode },
+    code: m.productCode,
     pumpKind: m.pumpKind,
     lines: m.lines.map((l) => ({ partNo: l.partNo, partName: l.partName, qty: numText(l.qty), unitPrice: numText(l.unitPrice) })),
   })),
@@ -64,13 +72,17 @@ const parseAmount = (s: string): number | null => {
 };
 
 const toQuote = (d: Draft): SpareQuote => ({
-  poNo: d.poNo.trim(),
-  poDate: d.poDate,
+  hasPo: d.hasPo,
+  poNo: d.hasPo ? d.poNo.trim() : "",
+  poDate: d.hasPo ? d.poDate : "",
+  discountPct: parseAmount(d.discountPct),
+  note: d.note.trim(),
+  termsMarket: d.termsMarket,
+  termsOff: [...d.termsOff].sort(),
   models: d.models.map(
     (m): SpareModel => ({
       id: m.id,
-      productCode: codeOf(m.code),
-      codeParts: m.code.mode === "build" ? m.code.parts : null,
+      productCode: m.code.trim(),
       pumpKind: m.pumpKind,
       lines: m.lines.map((l) => ({ partNo: l.partNo, partName: l.partName, qty: parseAmount(l.qty), unitPrice: parseAmount(l.unitPrice) })),
     }),
@@ -110,10 +122,6 @@ export default function SpareCommercial({
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
 
-  // The code builder's choices.
-  const [options, setOptions] = useState<CodeOption[]>([]);
-  const [known, setKnown] = useState<Set<string>>(new Set());
-
   const [pickingFor, setPickingFor] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [preview, setPreview] = useState<SpareQuoteSheet | null>(null);
@@ -130,13 +138,6 @@ export default function SpareCommercial({
         setDocEdits(d.docEdits);
       })
       .catch(() => !cancelled && setLoadError("Couldn't load the spare quotation."));
-    loadPumpQtyLists()
-      .then(([opts, pumps]) => {
-        if (cancelled) return;
-        setOptions(opts);
-        setKnown(new Set(pumps.map((p) => p.productCode.toUpperCase())));
-      })
-      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -182,9 +183,13 @@ export default function SpareCommercial({
 
   const save = async (): Promise<boolean> => {
     if (!draft) return false;
-    if (draft.models.some((m) => codeError(m.code))) {
+    if (draft.models.some((m) => !m.code.trim())) {
       setShowErrors(true);
-      setSaveError("Every model needs a complete code before saving.");
+      setSaveError("Every model needs its code before saving.");
+      return false;
+    }
+    if ((parseAmount(draft.discountPct) ?? 0) > 100) {
+      setSaveError("The discount can't be more than 100%.");
       return false;
     }
     setSaving(true);
@@ -253,7 +258,8 @@ export default function SpareCommercial({
   const sent = Boolean(quotation && !quotation.versions.some((v) => v.track === "internal" && v.live));
   const readOnly = olderVersion || sent;
   const current = draft ? toQuote(draft) : null;
-  const total = current ? current.models.reduce((s, m) => s + m.lines.reduce((x, l) => x + lineAmount(l), 0), 0) : 0;
+  const subtotal = current ? quoteSubtotal(current) : 0;
+  const discount = current ? quoteDiscount(current) : 0;
   const sendBlock = saved
     ? (spareQuoteProblem(saved) ?? (project.versionNo > 0 && !project.pricesReviewedAt ? "Tick Prices reviewed first." : null))
     : null;
@@ -297,6 +303,12 @@ export default function SpareCommercial({
   }
 
   const poFields = (
+    <>
+    <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] font-semibold text-fg">
+      <input type="checkbox" className="accent-accent" checked={draft.hasPo} onChange={(e) => update({ hasPo: e.target.checked })} />
+      Reference PO
+    </label>
+    {draft.hasPo && (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <label className="flex flex-col gap-1">
         <span className={labelCls}>Reference PO No. <span className="text-neg">*</span></span>
@@ -307,6 +319,8 @@ export default function SpareCommercial({
         <input type="date" className={inputCls} value={draft.poDate} onChange={(e) => update({ poDate: e.target.value })} />
       </label>
     </div>
+    )}
+    </>
   );
 
   return (
@@ -324,7 +338,7 @@ export default function SpareCommercial({
         <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-paper p-4">
           <div>
             <h2 className="text-[14px] font-semibold text-fg">Generate the quotation</h2>
-            <p className="text-[12.5px] text-fg-3">All four are needed to generate. Models and parts come next.</p>
+            <p className="text-[12.5px] text-fg-3">The TSM and serial are needed to generate, and the PO if you tick it. Models and parts come next.</p>
           </div>
           {poFields}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -352,7 +366,7 @@ export default function SpareCommercial({
           </div>
           {generateError && <p className="text-[12.5px] text-neg">{generateError}</p>}
           <div>
-            <button type="button" className={btnPrimary} onClick={() => void generate()} disabled={generating || (!clientTsm && !tsmId) || !draft.poNo.trim() || !draft.poDate || !erpSerial.trim()}>
+            <button type="button" className={btnPrimary} onClick={() => void generate()} disabled={generating || (!clientTsm && !tsmId) || (draft.hasPo && (!draft.poNo.trim() || !draft.poDate)) || !erpSerial.trim()}>
               {generating ? "Generating…" : "Generate quotation"}
             </button>
           </div>
@@ -387,7 +401,6 @@ export default function SpareCommercial({
             )}
 
             <section className="flex flex-col gap-3 rounded-xl border border-line bg-paper p-4">
-              <h2 className="text-[14px] font-semibold text-fg">Reference PO</h2>
               {poFields}
             </section>
 
@@ -396,10 +409,7 @@ export default function SpareCommercial({
                 key={m.id}
                 index={index}
                 model={m}
-                options={options}
-                known={known}
                 showErrors={showErrors}
-                onOptionAdded={(o) => setOptions((list) => [...list, o])}
                 onChange={(patch) => updateModel(m.id, patch)}
                 onLineChange={(i, patch) => updateLine(m.id, i, patch)}
                 onPickParts={() => setPickingFor(m.id)}
@@ -413,16 +423,48 @@ export default function SpareCommercial({
                 className={btn}
                 onClick={() =>
                   update({
-                    models: [...draft.models, { id: crypto.randomUUID(), code: { mode: "build", parts: EMPTY_PARTS, picked: "" }, pumpKind: "PCP", lines: [] }],
+                    models: [...draft.models, { id: crypto.randomUUID(), code: "", pumpKind: "PCP", lines: [] }],
                   })
                 }
               >
                 + Add model
               </button>
               <span className="text-[14px] text-fg-2">
-                Grand total <b className="ml-1 font-mono text-[16px] text-fg">{formatInr(total)}</b>
+                Total <b className="ml-1 font-mono text-fg">{formatInr(subtotal)}</b>
               </span>
             </div>
+
+            <section className="flex flex-col gap-3 rounded-xl border border-line bg-paper p-4">
+              <div className="flex flex-wrap items-end justify-end gap-x-6 gap-y-3">
+                <label className="flex w-[130px] flex-col gap-1">
+                  <span className={labelCls}>Discount %</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="any"
+                    inputMode="decimal"
+                    className={`${inputCls} text-right font-mono`}
+                    value={draft.discountPct}
+                    onChange={(e) => update({ discountPct: e.target.value })}
+                  />
+                </label>
+                {discount > 0 && (
+                  <span className="pb-2 text-[13px] text-fg-2">
+                    Discount <b className="font-mono text-fg">-{formatInr(discount)}</b>
+                  </span>
+                )}
+                <span className="pb-1.5 text-[14px] text-fg-2">
+                  Grand total <b className="ml-1 font-mono text-[16px] text-fg">{formatInr(subtotal - discount)}</b>
+                </span>
+              </div>
+              <label className="flex flex-col gap-1">
+                <span className={labelCls}>Note</span>
+                <textarea className={inputCls} rows={2} maxLength={2000} value={draft.note} onChange={(e) => update({ note: e.target.value })} />
+              </label>
+            </section>
+
+            <TermsSection market={draft.termsMarket} off={draft.termsOff} edits={docEdits} onChange={update} />
             {saveError && <p className="text-[12.5px] font-medium text-neg">{saveError}</p>}
           </fieldset>
         </>
@@ -464,10 +506,7 @@ export default function SpareCommercial({
 function ModelCard({
   index,
   model,
-  options,
-  known,
   showErrors,
-  onOptionAdded,
   onChange,
   onLineChange,
   onPickParts,
@@ -475,54 +514,33 @@ function ModelCard({
 }: {
   index: number;
   model: ModelDraft;
-  options: CodeOption[];
-  known: Set<string>;
   showErrors: boolean;
-  onOptionAdded: (o: CodeOption) => void;
   onChange: (patch: Partial<ModelDraft>) => void;
   onLineChange: (i: number, patch: Partial<LineDraft>) => void;
   onPickParts: () => void;
   onRemove: () => void;
 }) {
-  const code = codeOf(model.code);
-  const complete = !codeError(model.code);
-  // Opens on the code until it is complete, then folds to one line.
-  const [editingCode, setEditingCode] = useState(!complete);
   const subtotal = model.lines.reduce((s, l) => s + lineAmount({ qty: parseAmount(l.qty), unitPrice: parseAmount(l.unitPrice) }), 0);
 
   return (
     <section className="rounded-xl border border-line bg-paper">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-[11.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Model {index + 1}</p>
-          <p className="font-mono text-[14px] font-semibold break-all text-fg">{code || "No code yet"}</p>
-        </div>
+        <p className="text-[11.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Model {index + 1}</p>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] text-fg-2">
             Sub-total <b className="font-mono text-fg">{formatInr(subtotal)}</b>
           </span>
-          <button type="button" className={btn} onClick={() => setEditingCode((v) => !v)}>
-            {editingCode ? "Hide code" : "Change code"}
-          </button>
           <button type="button" className={`${btn} text-neg hover:text-neg`} onClick={onRemove}>
             Remove
           </button>
         </div>
       </header>
 
-      {(editingCode || (showErrors && !complete)) && (
-        <div className="flex flex-col gap-3 border-b border-line px-4 py-4">
-          <CodeModeToggle mode={model.code.mode} onChange={(mode) => onChange({ code: { ...model.code, mode } })} />
-          <CodeFields
-            value={model.code}
-            options={options}
-            known={known}
-            showErrors={showErrors}
-            onChange={(patch) => onChange({ code: { ...model.code, ...patch } })}
-            onOptionAdded={onOptionAdded}
-          />
-        </div>
-      )}
+      <div className="flex max-w-[620px] flex-col gap-1 px-4 pt-3">
+        <span className={labelCls}>Model code</span>
+        <ProductCodeSelect freeText value={model.code} invalid={showErrors && !model.code.trim()} onChange={(code) => onChange({ code })} />
+        {showErrors && !model.code.trim() && <span className="text-[11.5px] text-neg">Pick or type the model code.</span>}
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <label className="flex items-center gap-2">
@@ -608,6 +626,72 @@ function ModelCard({
   );
 }
 
+/** Domestic or Export, and which of its terms the document shows. */
+function TermsSection({
+  market,
+  off,
+  edits,
+  onChange,
+}: {
+  market: TermsMarket;
+  off: string[];
+  edits: SpareDocEdits;
+  onChange: (patch: { termsMarket?: TermsMarket; termsOff?: string[] }) => void;
+}) {
+  const row = (t: SpareTerm, n: number, disabled = false) => {
+    const wording = edits.terms?.[t.id] ?? t.text;
+    return (
+      <label key={t.id} className={`flex items-start gap-2.5 rounded-md px-2 py-1.5 text-[12.5px] ${disabled ? "opacity-50" : "cursor-pointer hover:bg-elev"}`}>
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-accent"
+          checked={!off.includes(t.id)}
+          disabled={disabled}
+          onChange={() => onChange({ termsOff: off.includes(t.id) ? off.filter((x) => x !== t.id) : [...off, t.id] })}
+        />
+        <span className="w-5 shrink-0 text-right font-mono text-fg-3">{n}</span>
+        <span className="line-clamp-3 min-w-0 whitespace-pre-line text-fg" title={wording}>
+          {wording}
+        </span>
+      </label>
+    );
+  };
+  const refTicked = !off.includes(WARRANTY_TERM[market]);
+  const noClause = refTicked && SPARE_WARRANTY.every((t) => off.includes(t.id));
+
+  return (
+    <section className="flex flex-col gap-3 rounded-xl border border-line bg-paper p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[14px] font-semibold text-fg">Terms and conditions</h2>
+          <p className="text-[12.5px] text-fg-3">Tick what shows on the quotation document. The wording can be edited on the document.</p>
+        </div>
+        <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
+          {TERMS_MARKETS.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              role="tab"
+              aria-selected={market === m.value}
+              onClick={() => onChange({ termsMarket: m.value })}
+              className={`rounded-md px-3 py-1 text-[12px] font-semibold ${market === m.value ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col">{SPARE_TERMS[market].map((t, i) => row(t, i + 1))}</div>
+      <div className="flex flex-col border-t border-line pt-3">
+        <p className="mb-1 px-2 text-[11.5px] font-semibold tracking-[0.05em] text-fg-3 uppercase">{SPARE_WARRANTY_HEADING}</p>
+        {!refTicked && <p className="px-2 pb-1 text-[12px] text-fg-3">Not printed: the Warranty Clause term above is unticked.</p>}
+        {noClause && <p className="px-2 pb-1 text-[12px] text-warn">The Warranty Clause term says &ldquo;As attached&rdquo;, but no clause is ticked.</p>}
+        {SPARE_WARRANTY.map((t, i) => row(t, i + 1, !refTicked))}
+      </div>
+    </section>
+  );
+}
+
 /** Tick the parts of this model from its parts list, or name others. */
 function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: () => void; onSave: (lines: LineDraft[]) => void }) {
   const list = partListFor(model.pumpKind);
@@ -641,7 +725,7 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
         <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
           <div className="min-w-0">
             <h3 className="text-[15px] font-semibold text-fg">Select parts</h3>
-            <p className="font-mono text-[12.5px] break-all text-fg-3">{codeOf(model.code) || "No code yet"}</p>
+            <p className="font-mono text-[12.5px] break-all text-fg-3">{model.code || "No code yet"}</p>
           </div>
           <span className="shrink-0 text-[12.5px] text-fg-3">{picked.length} picked</span>
         </header>
@@ -736,6 +820,7 @@ function QuotePreview({
   const current = useMemo(() => ({ ...sheet, edits }), [sheet, edits]);
   const html = useMemo(() => buildSpareQuoteHtml(current, `${window.location.origin}/logo.png`), [current]);
   const models = useMemo(() => spareDocModels(sheet.quote, edits), [sheet.quote, edits]);
+  const docTerms = useMemo(() => spareDocTerms(sheet.quote, edits), [sheet.quote, edits]);
 
   const change = (next: SpareDocEdits) => {
     setEdits(next);
@@ -755,15 +840,35 @@ function QuotePreview({
     change({ ...edits, removed: removed.includes(key) ? removed.filter((k) => k !== key) : [...removed, key] });
   };
 
-  const headerFields: { key: "client" | "enquiry" | "quotation" | "po" | "subject" | "opening"; label: string; auto: string }[] = [
+  const headerFields: { key: "client" | "enquiry" | "quotation" | "po" | "subject" | "opening" | "discount" | "note"; label: string; auto: string }[] = [
     { key: "client", label: "Client Name", auto: sheet.header.clientName },
     { key: "enquiry", label: "Enquiry No. & Date", auto: sheet.header.enquiry },
     { key: "quotation", label: "Quotation No. & Date", auto: sheet.header.quotation },
-    { key: "po", label: "Reference PO No. / Date", auto: sparePoAuto(sheet.quote) },
+    ...(sheet.quote.hasPo ? [{ key: "po" as const, label: "Reference PO No. / Date", auto: sparePoAuto(sheet.quote) }] : []),
     { key: "subject", label: "Subject", auto: SPARE_DOC_SUBJECT },
     { key: "opening", label: "Opening line", auto: SPARE_DOC_OPENING },
+    { key: "discount", label: "Discount %", auto: spareDiscountAuto(sheet.quote) },
+    { key: "note", label: "Note", auto: sheet.quote.note },
   ];
   const cell = "w-full rounded border border-line bg-paper px-1.5 py-1 text-[12.5px] text-fg outline-none focus:border-accent";
+  const termEditors = (heading: string, list: SpareDocTerm[]) =>
+    list.length > 0 && (
+      <section className="flex flex-col divide-y divide-line rounded-lg border border-line">
+        <h4 className="bg-sunk px-3 py-2 text-[12.5px] font-semibold text-fg">{heading}</h4>
+        {list.map((t, i) => (
+          <label key={t.id} className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-2 px-3 py-2">
+            <span className="pt-1 text-right font-mono text-[12.5px] text-fg-3">{i + 1}</span>
+            <textarea
+              className={cell}
+              rows={Math.min(10, Math.max(1, Math.ceil(t.text.length / 110) + t.text.split("\n").length - 1))}
+              value={t.text}
+              aria-label={`${heading} ${i + 1}`}
+              onChange={(e) => change({ ...edits, terms: { ...edits.terms, [t.id]: e.target.value } })}
+            />
+          </label>
+        ))}
+      </section>
+    );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
@@ -867,6 +972,8 @@ function QuotePreview({
                 </div>
               </section>
             ))}
+            {termEditors(`Terms and conditions (${TERMS_MARKETS.find((m) => m.value === sheet.quote.termsMarket)?.label})`, docTerms.terms)}
+            {termEditors(SPARE_WARRANTY_HEADING, docTerms.warranty)}
           </div>
         )}
       </div>
