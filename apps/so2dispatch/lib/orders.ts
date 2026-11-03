@@ -4320,7 +4320,9 @@ async function pageOfOrderIds(opts: {
   all?: boolean;
   /** The summary cards to count over this queue. */
   kpis?: KpiRequest;
-}): Promise<{ ids: string[]; total: number; page: number; kpis?: KpiCard[] }> {
+  /** Dispatch: add up what is still to invoice over every matching SO. */
+  inHand?: boolean;
+}): Promise<{ ids: string[]; total: number; page: number; kpis?: KpiCard[]; inHand?: OrderInHandTotal[] }> {
   const search = opts.search ? likePattern(opts.search) : null;
   const kpis = opts.kpis ? await countKpis(opts.kpis, opts.filter, search, opts.searchable) : undefined;
   const facets = opts.filter
@@ -4336,6 +4338,30 @@ async function pageOfOrderIds(opts: {
     [...facets.params, search]
   );
   const total = Number(totals.rows[0]?.count ?? 0);
+
+  // What is left to invoice, SO by SO: under a rupee is nothing left, an SO
+  // invoiced past its gross has nothing left rather than taking from the others,
+  // and a Challan / FR SO or one with no gross has none. By currency: USD is not
+  // added to INR. A blank currency is INR.
+  const inHand = opts.inHand
+    ? (
+        await query<{ currency: string; amount: string }>(
+          `SELECT COALESCE(NULLIF(btrim(o.order_currency), ''), 'INR') AS currency,
+                  sum(CASE WHEN h.diff < 1 THEN 0 ELSE h.diff END)::text AS amount
+             FROM orders o
+             CROSS JOIN LATERAL (
+               SELECT o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))
+                                                    FROM order_invoices iv WHERE iv.order_id = o.id), 0) AS diff
+             ) h
+             ${where}
+              AND o.taxable_value IS NOT NULL
+              AND COALESCE(btrim(o.bill_type), '') <> 'Challan'
+            GROUP BY 1
+            ORDER BY 1`,
+          [...facets.params, search]
+        )
+      ).rows.map((r) => ({ currency: r.currency, amount: Number(r.amount) }))
+    : undefined;
 
   // Rank the target inside this queue's own ordering (sl_no ASC), then
   // convert that position to a page. Rank 0 means it isn't in the queue at
@@ -4361,7 +4387,7 @@ async function pageOfOrderIds(opts: {
     [...facets.params, search, opts.all ? REPORT_LIMIT : PAGE_SIZE, opts.all ? 0 : offsetFor(page)]
   );
 
-  return { ids: ids.rows.map((r) => r.id), total, page, kpis };
+  return { ids: ids.rows.map((r) => r.id), total, page, kpis, inHand };
 }
 
 /**
@@ -5208,6 +5234,9 @@ export async function listBoiVendors(): Promise<string[]> {
   return r.rows.map((x) => x.v);
 }
 
+/** What is still to invoice over a queue as filtered, in one currency. */
+export type OrderInHandTotal = { currency: string; amount: number };
+
 /** Billing and Dispatch queue: one page of SOs, filtered in SQL. */
 export async function listOrdersForBillingPage(opts: {
   page: number;
@@ -5222,15 +5251,18 @@ export async function listOrdersForBillingPage(opts: {
   kpis?: KpiCardDef[];
   /** A further condition on the SO (alias o): the department's own filters. */
   extraRestrict?: string;
-}): Promise<PageResult<BillingQueueRow> & { kpis?: KpiCard[] }> {
+  /** Dispatch: the cumulative Order in Hand, over every matching SO. */
+  inHand?: boolean;
+}): Promise<PageResult<BillingQueueRow> & { kpis?: KpiCard[]; inHand?: OrderInHandTotal[] }> {
   const extra = opts.extraRestrict ? ` AND (${opts.extraRestrict})` : "";
   const restrict = (opts.onlyPacked
     ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
                                          WHERE ps.order_id = o.id AND ps.kind = 'actual'
                                            AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL)`
     : deptQueueSql("billing")) + extra;
-  const { ids, total, page, kpis } = await pageOfOrderIds({
+  const { ids, total, page, kpis, inHand } = await pageOfOrderIds({
     kpis: opts.kpis ? { restrict, cards: opts.kpis } : undefined,
+    inHand: opts.inHand,
     page: opts.page,
     search: opts.search,
     focusOrderId: opts.focusOrderId ?? null,
@@ -5249,7 +5281,7 @@ export async function listOrdersForBillingPage(opts: {
     rows.sort((a, b) => (at.get(String(a.id)) ?? 0) - (at.get(String(b.id)) ?? 0));
   }
 
-  return { ...pageResult(rows, total, page), kpis };
+  return { ...pageResult(rows, total, page), kpis, inHand };
 }
 
 // ---------------------------------------------------------------------------
