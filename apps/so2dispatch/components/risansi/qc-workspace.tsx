@@ -5,6 +5,7 @@ import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ExternalLink, FileCheck2, Link2, Loader2, MessageSquare, X } from "lucide-react";
 import { DEPT_VIEWS, dispatchRowTone } from "@/lib/dept-view";
+import { isWebLink, splitLinks } from "@/lib/doc-links";
 import { given, linksFromRows, qcDocsStatus, requiredQcDocs, type QcLink, type QcTone } from "@/lib/qc-docs";
 import type { OrderListOptions } from "@/lib/orders";
 import type { PageResult } from "@/lib/pagination";
@@ -353,7 +354,7 @@ export function QcWorkspace({
 const input =
   "h-10 w-full rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-background disabled:text-muted";
 
-/** One EC's QC documents: a card for each the SO needs — its link, the day it went in, remarks. */
+/** One EC's QC documents: a card for each the SO needs — its links, the day it went in, remarks. */
 function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onClose: () => void }) {
   const router = useRouter();
   const needed = requiredQcDocs(ec);
@@ -404,7 +405,7 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
         ) : (
           <div className="space-y-3">
             {links.map((l, i) => {
-              const ok = /^https?:\/\//i.test(l.link.trim());
+              const opens = splitLinks(l.link).filter(isWebLink);
               const isIn = given(l);
               return (
                 <section key={l.doc_type} className={`rounded-xl border p-4 ${isIn ?"border-emerald-200 bg-emerald-50/30" : "border-card-border"}`}>
@@ -415,10 +416,14 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
                       </span>
                       {l.doc_type}
                     </p>
-                    {ok ? (
-                      <a href={l.link.trim()} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-                        Open <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
+                    {opens.length > 0 ? (
+                      <span className="flex flex-wrap justify-end gap-x-3 gap-y-1">
+                        {opens.map((href, k) => (
+                          <a key={k} href={href} target="_blank" rel="noopener noreferrer" title={href} className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                            {opens.length > 1 ? `Link ${k + 1}` : "Open"} <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ))}
+                      </span>
                     ) : isIn ? (
                       <span className="text-xs font-semibold text-emerald-700">Submitted · no link</span>
                     ) : (
@@ -427,16 +432,16 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[1fr_11rem]">
                     <label className="block">
-                      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">SharePoint Link</span>
-                      <input
-                        type="url"
+                      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">SharePoint Links, one on each line</span>
+                      <textarea
                         value={l.link}
                         disabled={ro}
+                        rows={2}
                         onChange={(e) =>
                           set(i, { link: e.target.value, submitted_date: l.submitted_date || (e.target.value.trim() ? todayIso() : "") })
                         }
                         placeholder="https://…sharepoint.com/…"
-                        className={input}
+                        className={`${input} h-auto py-2`}
                       />
                     </label>
                     <label className="block">

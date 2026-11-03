@@ -305,7 +305,14 @@ export function OrderChildList({
                         {!applies(f, row) ? (
                           <span className="text-muted-foreground">—</span>
                         ) : !canEdit || !fieldEditable(f) ? (
-                          <span>{valueFor(row, f.column) || "—"}</span>
+                          <span className={f.multiline ? "whitespace-pre-line break-all" : undefined}>{valueFor(row, f.column) || "—"}</span>
+                        ) : f.multiline ? (
+                          <textarea
+                            value={valueFor(row, f.column)}
+                            onChange={(e) => update(row, f.column, e.target.value)}
+                            rows={2}
+                            className={`${inputClass} h-auto py-2`}
+                          />
                         ) : f.type === "select" ? (
                           <select
                             value={valueFor(row, f.column)}
@@ -542,9 +549,16 @@ function RowCard({
                     {f.label}
                   </label>
                   {!canEdit || !fieldEditable(f) ? (
-                    <div className="flex h-10 items-center px-1 text-[14px] text-foreground">
+                    <div className={f.multiline ? "whitespace-pre-line break-all px-1 py-2 text-[14px] text-foreground" : "flex h-10 items-center px-1 text-[14px] text-foreground"}>
                       {valueFor(row, f.column) || "—"}
                     </div>
+                  ) : f.multiline ? (
+                    <textarea
+                      value={valueFor(row, f.column)}
+                      onChange={(e) => update(row, f.column, e.target.value)}
+                      rows={2}
+                      className={`${inputClass} h-auto py-2`}
+                    />
                   ) : f.type === "select" ? (
                     <select
                       value={valueFor(row, f.column)}

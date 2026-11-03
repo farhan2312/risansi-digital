@@ -1,7 +1,9 @@
 // Quality's documents: the SO says which it needs (MTC, IIR, Dimensional
-// Report — each Yes / No on the order), and Quality gives each one per EC as a
-// SharePoint link with the day it was submitted. Shared by the browser and
+// Report — each Yes / No on the order), and Quality gives each one per EC as
+// SharePoint links with the day it was submitted. Shared by the browser and
 // the server.
+
+import { isWebLink, splitLinks } from "@/lib/doc-links";
 
 export const QC_DOC_TYPES = ["MTC", "IIR", "Dimensional Report", "QAP", "Test Report", "Photos", "Packing Details"] as const;
 export type QcDocType = (typeof QC_DOC_TYPES)[number];
@@ -49,8 +51,8 @@ export function qcDocsStatus(required: QcDocType[], links: QcLink[]): { label: s
   return { label: "Pending", tone: "pending", done, total };
 }
 
-/** "https://…" or "" — a link Quality gives must be a web address. */
+/** The links, one on each line, or "" — every link Quality gives must be a web address. */
 export function cleanLink(v: unknown): string {
-  const s = String(v ?? "").trim();
-  return /^https?:\/\/\S+$/i.test(s) ? s.slice(0, 2000) : "";
+  const links = splitLinks(v);
+  return links.every(isWebLink) ? links.map((l) => l.slice(0, 2000)).join("\n") : "";
 }

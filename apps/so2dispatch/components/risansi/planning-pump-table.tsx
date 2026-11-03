@@ -5,6 +5,7 @@ import { Fragment, useState } from "react";
 import { ExternalLink, ListChecks, MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, SORTABLE_DATE_COLUMNS, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
+import { isWebLink, splitLinks } from "@/lib/doc-links";
 import { ecDone, pumpEcStage, pumpLotsFromEcs } from "@/lib/assembly";
 import { boiInHand, drawingDocStatus, drawingVersions, versionLabel } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
@@ -545,7 +546,7 @@ export function EcKindToggle({ value, onChange }: { value: "spare" | "pump"; onC
 
 /**
  * The EC's GAD as Planning needs it: once Drawing issues it to Planning, the
- * date and its SharePoint link; until then, where it stands.
+ * date and its SharePoint links; until then, where it stands.
  */
 function GadCell({ versions }: { versions: Row[] }) {
   const st = drawingDocStatus(versions, "GAD");
@@ -555,23 +556,27 @@ function GadCell({ versions }: { versions: Row[] }) {
   if (!issued) {
     return <span className="text-xs text-muted">{st.version ? `${versionLabel(st.version)} · ` : ""}{st.label}</span>;
   }
-  const link = str(last?.planning_link).trim();
+  const links = splitLinks(last?.planning_link).filter(isWebLink);
   const date = str(last?.issued_to_production_date);
   return (
     <span className="flex flex-col gap-0.5">
       <span className="text-xs font-semibold text-emerald-700">
         {versionLabel(st.version)} · Issued{date ? ` ${shortDate(date)}` : ""}
       </span>
-      {/^https?:\/\//i.test(link) ? (
-        <a
-          href={link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-        >
-          <ExternalLink className="h-3 w-3" />
-          Open GAD
-        </a>
+      {links.length > 0 ? (
+        links.map((href, i) => (
+          <a
+            key={i}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={href}
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            {links.length > 1 ? `GAD link ${i + 1}` : "Open GAD"}
+          </a>
+        ))
       ) : (
         <span className="text-[11px] text-muted">No link</span>
       )}

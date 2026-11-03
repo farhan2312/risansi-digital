@@ -53,6 +53,8 @@ export type OrderField = {
   // department fills that another department needs to see (e.g. EC / Packing
   // Slip No. / Qty copied from the actual packing slip onto its invoice).
   readOnly?: boolean;
+  // Child lists only: several lines, edited in a box that keeps them.
+  multiline?: boolean;
   // Optional visual grouping inside a section — consecutive fields sharing
   // the same `group` label are rendered together under one subheading.
   group?: string;
@@ -1737,7 +1739,7 @@ export const DRAWING_REVISION_FIELDS: OrderField[] = [
     dependsOn: [{ column: "issued_to_client", value: "Yes" }],
   },
   // A GAD's last step: the approved drawing goes to Planning, with its
-  // SharePoint link — Planning sees both under the EC.
+  // SharePoint links — Planning sees them under the EC.
   {
     column: "issued_to_production",
     label: "Issued to Planning",
@@ -1755,8 +1757,9 @@ export const DRAWING_REVISION_FIELDS: OrderField[] = [
   },
   {
     column: "planning_link",
-    label: "SharePoint Link",
+    label: "SharePoint Links (one on each line)",
     type: "text",
+    multiline: true,
     group: "Planning",
     dependsOn: [{ column: "issued_to_production", value: "Yes" }, { column: "doc_type", value: "GAD" }],
   },
