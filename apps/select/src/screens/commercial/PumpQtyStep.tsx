@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { DRIVE_GROUP_LABEL, type CommercialTag } from "../../lib/commercial";
 import { EMPTY_PARTS, fieldsFromParts, partsFromHints, type CodeOption, type CodeParts } from "../../lib/pump-code";
-import { listProductPumps } from "../../services/productPumpService";
 import { listPumpCodeOptions } from "../../services/pumpCodeService";
-import { CodeFields, CodeModeToggle, codeError, codeOf, type CodeMode } from "./PumpCodeInput";
+import { addProductPump, listProductPumps } from "../../services/productPumpService";
+import { CodeFields, CodeModeToggle, codeError, codeOf, editedCodeToAdd, editedFromSaved, type CodeMode } from "./PumpCodeInput";
 import { saveWizardInput } from "../../services/wizardInputService";
 
 // Commercial step 1 — Pump & Qty: per tag the ERP pump product code and the
@@ -16,7 +16,7 @@ import { saveWizardInput } from "../../services/wizardInputService";
 // built code that isn't in product_pump yet is added on save. Saved to
 // pump_model_qty_input (product_code + the parts).
 
-type Row = { mode: CodeMode; parts: CodeParts; picked: string; quantity: string };
+type Row = { mode: CodeMode; parts: CodeParts; picked: string; edited?: string; quantity: string };
 
 const errorsOf = (r: Row) => ({
   code: codeError(r),
@@ -90,6 +90,10 @@ export default function PumpQtyStep({
         lists = null;
         setOptions((list) => [...(list ?? []), o]);
       }}
+      onCodeAdded={(code) => {
+        lists = null;
+        setKnown((s) => new Set(s).add(code.toUpperCase()));
+      }}
       onSaved={onSaved}
       onNext={onNext}
       nextLabel={nextLabel}
@@ -103,6 +107,7 @@ function Editor({
   options,
   known,
   onOptionAdded,
+  onCodeAdded,
   onSaved,
   onNext,
   nextLabel = "Next →",
@@ -112,6 +117,7 @@ function Editor({
   options: CodeOption[];
   known: Set<string>;
   onOptionAdded: (o: CodeOption) => void;
+  onCodeAdded: (code: string) => void;
   onSaved: (tagId: string, productCode: string, quantity: number, codeParts: CodeParts | null) => void;
   onNext: () => void;
   nextLabel?: string;
@@ -133,6 +139,7 @@ function Editor({
     mode: t.codeParts || !t.productCode ? "build" : "pick",
     parts: t.codeParts ?? { ...EMPTY_PARTS, ...partsFromHints(t.codeHints, options) },
     picked: t.productCode ?? "",
+    edited: editedFromSaved(t.productCode, t.codeParts),
     quantity: t.quantity === null ? "1" : String(t.quantity),
   });
   const [rowState, setRows] = useState<Record<string, Row>>(() => Object.fromEntries(tags.map((t) => [t.tagId, startRow(t)])));
@@ -166,9 +173,15 @@ function Editor({
     try {
       for (const id of toSave) {
         const r = rows[id];
-        // A built code is saved on the tag only — never added to the product
-        // code list (that list is for picking existing codes; user 2026-10-07).
+        // A built code is saved on the tag only — not added to the product code
+        // list (user 2026-10-07); one edited by hand is, for next time, unless it or the
+        // code it came from is already there (2026-11-04).
         const code = codeOf(r);
+        const toAdd = editedCodeToAdd(r, known);
+        if (toAdd) {
+          await addProductPump(toAdd);
+          onCodeAdded(toAdd);
+        }
         const parts = r.mode === "build" ? r.parts : null;
         const quantity = r.quantity.trim();
         await saveWizardInput(

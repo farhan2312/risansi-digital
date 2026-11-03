@@ -1,11 +1,13 @@
 // The spare quotation document, in the format of the user's sample (2026-11-04):
 // letterhead, client / enquiry / quotation rows, then Sl. No., Description, Model,
-// Reference PO, Part No., Qty/Unit, Unit Cost, Amount. Every row can be edited for
+// Reference PO, Part No., Qty/Unit, Unit Cost, Amount, then the ticked terms and
+// conditions (lib/spare-terms.ts). Every row can be edited for
 // the document (SpareDocEdits); the saved quote is not changed. Client-safe.
 import { downloadXlsx, type XlsxCell } from "./xlsx";
 import { BAND, ROW_LABEL, sheetHeaderRows } from "./tech-doc-excel";
 import { dotDate, esc, sheetFileStem, sheetHtml, type TechDocHeader } from "./tech-doc";
 import { spareDocLineKey, type SpareDocEdits, type SpareQuote } from "./spare-quote";
+import { SPARE_TERMS, SPARE_WARRANTY, SPARE_WARRANTY_HEADING, WARRANTY_TERM, type SpareTerm } from "./spare-terms";
 
 export type SpareQuoteSheet = {
   projectCode: string;
@@ -18,13 +20,18 @@ export type SpareQuoteSheet = {
 export const SPARE_DOC_SUBJECT = "Sub:- Supply of Risansi make pump spare parts.";
 export const SPARE_DOC_OPENING = "Dear Sir, We thankfully acknowledge having received your above enquiry and herewith submit our lowest possible quotation as follows:";
 const TITLE = "Quotation for Spares";
-const HEADINGS = ["Sl. No.", "Description", "Model", "Reference PO No. / Date", "Part No.", "Qty/Unit", "Unit Cost (INR)", "Amount (INR)"];
+const PO_HEADING = "Reference PO No. / Date";
+const HEADINGS = ["Sl. No.", "Description", "Model", PO_HEADING, "Part No.", "Qty/Unit", "Unit Cost (INR)", "Amount (INR)"];
+const TERMS_HEADING = "TERMS AND CONDITIONS";
 
 const money = (n: number | null) => (n === null ? "-" : n.toLocaleString("en-IN", { maximumFractionDigits: 2 }));
 const toNumber = (s: string): number | null => {
   const n = Number(s.trim());
   return s.trim() !== "" && Number.isFinite(n) ? n : null;
 };
+
+/** "10" or "" as the document's discount box shows it. */
+export const spareDiscountAuto = (q: SpareQuote) => (q.discountPct === null ? "" : String(q.discountPct));
 
 export const sparePoAuto = (q: SpareQuote) => [q.poNo, q.poDate ? `Date ${dotDate(q.poDate)}` : ""].filter(Boolean).join(", ");
 
@@ -50,15 +57,43 @@ export function spareDocModels(quote: SpareQuote, edits: SpareDocEdits): SpareDo
   }));
 }
 
+export type SpareDocTerm = { id: string; auto: string; text: string };
+
+/** The ticked terms with the edits applied. */
+export function spareDocTerms(quote: SpareQuote, edits: SpareDocEdits): { terms: SpareDocTerm[]; warranty: SpareDocTerm[] } {
+  const off = new Set(quote.termsOff);
+  const ticked = (list: SpareTerm[]) => list.filter((t) => !off.has(t.id)).map((t) => ({ id: t.id, auto: t.text, text: edits.terms?.[t.id] ?? t.text }));
+  return {
+    terms: ticked(SPARE_TERMS[quote.termsMarket]),
+    warranty: off.has(WARRANTY_TERM[quote.termsMarket]) ? [] : ticked(SPARE_WARRANTY),
+  };
+}
+
 /** What gets printed: removed lines and empty models left off. */
 function printed(sheet: SpareQuoteSheet) {
   const models = spareDocModels(sheet.quote, sheet.edits)
     .map((m) => ({ ...m, lines: m.lines.filter((l) => !l.removed) }))
     .filter((m) => m.lines.length > 0);
   const { header, edits } = sheet;
+  const subtotal = models.reduce((s, m) => s + m.lines.reduce((x, l) => x + (l.amount ?? 0), 0), 0);
+  const discountPct = toNumber(edits.discount ?? spareDiscountAuto(sheet.quote)) ?? 0;
+  const discount = (subtotal * discountPct) / 100;
+  // No PO: no column for it.
+  const showPo = sheet.quote.hasPo;
+  // A term whose wording was cleared on the document doesn't print.
+  const { terms, warranty } = spareDocTerms(sheet.quote, edits);
+  const printable = (list: SpareDocTerm[]) => list.map((t) => t.text.trim()).filter(Boolean);
   return {
     models,
-    total: models.reduce((s, m) => s + m.lines.reduce((x, l) => x + (l.amount ?? 0), 0), 0),
+    subtotal,
+    discountPct,
+    discount,
+    total: subtotal - discount,
+    note: (edits.note ?? sheet.quote.note).trim(),
+    terms: printable(terms),
+    warranty: printable(warranty),
+    showPo,
+    headings: showPo ? HEADINGS : HEADINGS.filter((h) => h !== PO_HEADING),
     count: models.reduce((s, m) => s + m.lines.length, 0),
     po: edits.po ?? sparePoAuto(sheet.quote),
     subject: edits.subject ?? SPARE_DOC_SUBJECT,
@@ -74,52 +109,95 @@ function printed(sheet: SpareQuoteSheet) {
 
 export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png"): string {
   const d = printed(sheet);
+  const cols = d.headings.length;
   let sl = 0;
   const rows = d.models.flatMap((m) =>
     m.lines.map((l, i) => {
       sl += 1;
       return `<tr><td>${sl}</td><td class="l">${esc(l.name)}</td>${i === 0 ? `<td rowspan="${m.lines.length}" class="m">${esc(m.model)}</td>` : ""}${
-        sl === 1 ? `<td rowspan="${d.count}" class="m">${esc(d.po || "-")}</td>` : ""
+        d.showPo && sl === 1 ? `<td rowspan="${d.count}" class="m">${esc(d.po || "-")}</td>` : ""
       }<td>${esc(l.partNo)}</td><td>${esc(l.qty || "-")}</td><td class="r">${money(toNumber(l.unit))}</td><td class="r">${money(l.amount)}</td></tr>`;
     }),
   );
+  const termRows = (heading: string, list: string[]) =>
+    list.length === 0
+      ? []
+      : [
+          `<tr class="band"><td colspan="${cols}">${esc(heading)}</td></tr>`,
+          ...list.map((t, i) => `<tr class="term"><td>${i + 1}</td><td colspan="${cols - 1}">${esc(t)}</td></tr>`),
+        ];
   const body = [
-    `<tr class="meta"><td colspan="8">${esc(d.subject)}<br>${esc(d.opening)}</td></tr>`,
-    `<tr class="band">${HEADINGS.map((h) => `<td>${esc(h)}</td>`).join("")}</tr>`,
+    `<tr class="meta"><td colspan="${cols}">${esc(d.subject)}<br>${esc(d.opening)}</td></tr>`,
+    `<tr class="band">${d.headings.map((h) => `<td>${esc(h)}</td>`).join("")}</tr>`,
     ...rows,
-    `<tr class="total"><td colspan="7" class="r">Grand Total</td><td class="r">${money(d.total)}</td></tr>`,
+    ...(d.discountPct > 0
+      ? [
+          `<tr class="total"><td colspan="${cols - 1}" class="r">Total</td><td class="r">${money(d.subtotal)}</td></tr>`,
+          `<tr class="total"><td colspan="${cols - 1}" class="r">Discount (${d.discountPct}%)</td><td class="r">-${money(d.discount)}</td></tr>`,
+        ]
+      : []),
+    `<tr class="total"><td colspan="${cols - 1}" class="r">Grand Total</td><td class="r">${money(d.total)}</td></tr>`,
+    ...(d.note ? [`<tr class="meta"><td colspan="${cols}" style="white-space:pre-line"><b>Note:</b> ${esc(d.note)}</td></tr>`] : []),
+    ...termRows(TERMS_HEADING, d.terms),
+    ...termRows(SPARE_WARRANTY_HEADING, d.warranty),
   ].join("\n");
   return sheetHtml({
     projectCode: sheet.projectCode,
     title: TITLE,
     header: d.header,
-    tagCount: 7,
+    tagCount: cols - 1,
     body,
     logoUrl,
     css: `
-      col:nth-child(1), col.lbl { width: 5%; }
+      ${
+        d.showPo
+          ? `col:nth-child(1), col.lbl { width: 5%; }
       col:nth-child(2) { width: 23%; }
       col:nth-child(3) { width: 20%; }
       col:nth-child(4) { width: 14%; }
       col:nth-child(5) { width: 8%; }
       col:nth-child(6) { width: 8%; }
-      col:nth-child(7), col:nth-child(8) { width: 11%; }
+      col:nth-child(7), col:nth-child(8) { width: 11%; }`
+          : `col:nth-child(1), col.lbl { width: 5%; }
+      col:nth-child(2) { width: 29%; }
+      col:nth-child(3) { width: 26%; }
+      col:nth-child(4) { width: 9%; }
+      col:nth-child(5) { width: 9%; }
+      col:nth-child(6), col:nth-child(7) { width: 11%; }`
+      }
       td.l { text-align: left; }
       td.r { text-align: right; }
       td.m { font-weight: bold; }
       tr.total td { font-weight: bold; background: #f4f8fd; }
+      tr.term td { vertical-align: top; }
+      tr.term td:last-child { text-align: left; white-space: pre-line; }
     `,
   });
 }
 
 export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
   const d = printed(sheet);
+  const cols = d.headings.length;
+  const widths = d.showPo ? [8, 30, 34, 22, 10, 10, 14, 14] : [8, 34, 38, 10, 10, 14, 14];
+  // Roughly one character per width unit; 409 is as tall as Excel allows.
+  const heightOf = (text: string, chars: number) => Math.min(409, 14 * text.split("\n").reduce((n, l) => n + Math.max(1, Math.ceil(l.length / chars)), 0));
+  const allWidth = widths.reduce((s, w) => s + w, 0);
+  const termRows = (heading: string, list: string[]): XlsxCell[][] =>
+    list.length === 0
+      ? []
+      : [
+          [{ value: heading, colSpan: cols, ...BAND }],
+          ...list.map((t, i): XlsxCell[] => [
+            { value: String(i + 1), align: "center", wrap: true },
+            { value: t, colSpan: cols - 1, wrap: true, rowHeight: heightOf(t, allWidth - widths[0]) },
+          ]),
+        ];
   let sl = 0;
   const rows: XlsxCell[][] = [
-    ...sheetHeaderRows(TITLE, d.header, 7),
-    [{ value: d.subject, colSpan: 8, wrap: true }],
-    [{ value: d.opening, colSpan: 8, wrap: true }],
-    HEADINGS.map((h) => ({ value: h, ...BAND })),
+    ...sheetHeaderRows(TITLE, d.header, cols - 1),
+    [{ value: d.subject, colSpan: cols, wrap: true }],
+    [{ value: d.opening, colSpan: cols, wrap: true }],
+    d.headings.map((h) => ({ value: h, ...BAND })),
     ...d.models.flatMap((m) =>
       m.lines.map((l, i): XlsxCell[] => {
         sl += 1;
@@ -127,7 +205,7 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
           { value: String(sl) },
           { value: l.name },
           { value: i === 0 ? m.model : "", bold: true },
-          { value: sl === 1 ? d.po : "" },
+          ...(d.showPo ? [{ value: sl === 1 ? d.po : "" }] : []),
           { value: l.partNo },
           { value: l.qty },
           { value: money(toNumber(l.unit)) },
@@ -135,9 +213,18 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
         ];
       }),
     ),
-    [{ value: "Grand Total", colSpan: 7, ...ROW_LABEL }, { value: money(d.total), ...ROW_LABEL }],
+    ...(d.discountPct > 0
+      ? [
+          [{ value: "Total", colSpan: cols - 1, ...ROW_LABEL }, { value: money(d.subtotal), ...ROW_LABEL }],
+          [{ value: `Discount (${d.discountPct}%)`, colSpan: cols - 1, ...ROW_LABEL }, { value: `-${money(d.discount)}`, ...ROW_LABEL }],
+        ]
+      : []),
+    [{ value: "Grand Total", colSpan: cols - 1, ...ROW_LABEL }, { value: money(d.total), ...ROW_LABEL }],
+    ...(d.note ? [[{ value: `Note: ${d.note}`, colSpan: cols, wrap: true, rowHeight: heightOf(`Note: ${d.note}`, allWidth) }]] : []),
+    ...termRows(TERMS_HEADING, d.terms),
+    ...termRows(SPARE_WARRANTY_HEADING, d.warranty),
   ];
   const filename = `${sheetFileStem("Spare-Quotation", { projectCode: sheet.projectCode, header: d.header })}.xlsx`;
-  downloadXlsx(filename, [{ name: TITLE, columnWidths: [8, 30, 34, 22, 10, 10, 14, 14], rows }]);
+  downloadXlsx(filename, [{ name: TITLE, columnWidths: widths, rows }]);
   return filename;
 }

@@ -8,6 +8,7 @@ import { projects } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
 import { enquiryNoWithVersion } from "@/lib/roles";
 import { normalizeSpareDocEdits, normalizeSpareQuote, quoteTotal } from "@/lib/spare-quote";
+import { termsMarketOf } from "@/lib/spare-terms";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ const load = (projectId: string) =>
       quote: projects.spareQuote,
       sentAt: projects.sentToClientAt,
       docEdits: projects.spareDocEdits,
+      market: projects.clientMarketType,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -39,7 +41,7 @@ export async function GET(req: Request) {
   const [p] = await load(projectId);
   if (!p) return error("Enquiry not found", 404);
   return json({
-    quote: normalizeSpareQuote(p.quote),
+    quote: normalizeSpareQuote(p.quote, termsMarketOf(p.market)),
     docEdits: normalizeSpareDocEdits(p.docEdits),
     enquiryNo: p.code,
     enquiryDate: p.enquiryDate,
@@ -66,7 +68,7 @@ export async function PUT(req: Request) {
 
   const quote = normalizeSpareQuote(body.quote);
   if (quote.models.some((m) => !m.productCode)) return error("Every model needs its code.", 400);
-  if (JSON.stringify(normalizeSpareQuote(p.quote)) === JSON.stringify(quote)) return json({ quote, changed: false });
+  if (JSON.stringify(normalizeSpareQuote(p.quote, quote.termsMarket)) === JSON.stringify(quote)) return json({ quote, changed: false });
 
   await db.update(projects).set({ spareQuote: quote, updatedAt: new Date() }).where(eq(projects.id, projectId));
   await logAudit(req, {

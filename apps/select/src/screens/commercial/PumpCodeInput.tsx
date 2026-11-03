@@ -19,14 +19,38 @@ import { addPumpCodeOption } from "../../services/pumpCodeService";
 // existing product_pump list. Shared by Pump & Qty and the spare quotation.
 
 export type CodeMode = "build" | "pick";
-export type CodeValue = { mode: CodeMode; parts: CodeParts; picked: string };
+/** `edited`: the built code as changed by hand (user, 2026-11-04). The parts stay, so
+ *  the original can always be shown beside it. Changing a part drops the edit. */
+export type CodeValue = { mode: CodeMode; parts: CodeParts; picked: string; edited?: string };
 
-export const codeOf = (v: CodeValue) => (v.mode === "build" ? buildPumpCode(v.parts) : v.picked);
+// As POST /api/product-pumps accepts.
+const CODE_RE = /^[A-Z0-9][A-Z0-9.-/]{2,99}$/;
+
+/** The edit, when there is one that really differs from the built code. */
+export const editedCode = (v: CodeValue): string | null => {
+  const e = v.mode === "build" ? (v.edited ?? "").trim() : "";
+  return e && e !== buildPumpCode(v.parts) ? e : null;
+};
+
+/** The edit to add to the product code list: not when it, or the code it was edited
+ *  from, is already there (user, 2026-11-04). */
+export const editedCodeToAdd = (v: CodeValue, known: Set<string>): string | null => {
+  const e = editedCode(v);
+  return e && !known.has(e) && !known.has(buildPumpCode(v.parts).toUpperCase()) ? e : null;
+};
+
+export const codeOf = (v: CodeValue) => (v.mode === "build" ? (editedCode(v) ?? buildPumpCode(v.parts)) : v.picked);
+
+/** A saved code that isn't what its parts build was edited by hand. */
+export const editedFromSaved = (productCode: string | null | undefined, parts: CodeParts | null | undefined): string | undefined =>
+  productCode && parts && productCode !== buildPumpCode(parts) ? productCode : undefined;
 
 export const codeError = (v: CodeValue): string => {
   if (v.mode === "pick") return v.picked ? "" : "Pick the pump product code.";
   const missing = missingParts(v.parts);
-  return missing.length ? `Pick: ${missing.map((k) => CODE_SEGMENTS.find((s) => s.key === k)!.label).join(", ")}.` : "";
+  if (missing.length) return `Pick: ${missing.map((k) => CODE_SEGMENTS.find((s) => s.key === k)!.label).join(", ")}.`;
+  const e = editedCode(v);
+  return e && !CODE_RE.test(e) ? "The edited code: letters, digits, - . / only, 3 to 100 characters." : "";
 };
 
 const ADD = "__add__";
@@ -83,7 +107,7 @@ export function CodeFields({
   const setPart = (key: CodeSegmentKey, part: string) => {
     const parts = { ...value.parts, [key]: part };
     if (key === "sealing" && part !== "MS") parts.subSealing = "";
-    onChange({ parts });
+    onChange({ parts, edited: undefined });
   };
 
   const addOption = async () => {
@@ -111,6 +135,10 @@ export function CodeFields({
   }
 
   const isNew = !error && !known.has(code.toUpperCase());
+  const generated = buildPumpCode(value.parts);
+  // The right-hand box holds the generated code until someone changes it.
+  const complete = missingParts(value.parts).length === 0;
+  const edited = editedCode(value);
   return (
     <>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -173,10 +201,33 @@ export function CodeFields({
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[12px] text-fg-3">Product code:</span>
-        <span className="rounded-md bg-sunk px-2.5 py-1 font-mono text-[13.5px] font-semibold tracking-wide text-fg">{code || "—"}</span>
+        <span className="rounded-md bg-sunk px-2.5 py-1 font-mono text-[13.5px] font-semibold tracking-wide break-all text-fg" title="The generated code">
+          {generated || "—"}
+        </span>
+        {complete && (
+          <>
+            <span className="text-[15px] font-semibold text-fg-3" aria-hidden="true">
+              →
+            </span>
+            <input
+              className={`${selectCls} w-[300px] max-w-full border-accent font-mono font-semibold tracking-wide uppercase`}
+              value={value.edited ?? generated}
+              maxLength={100}
+              aria-label="Edited product code"
+              onChange={(e) => onChange({ edited: e.target.value.toUpperCase().replace(/\s+/g, "") })}
+            />
+            {edited && (
+              <button type="button" className="text-[12px] font-semibold text-fg-3 hover:text-fg" onClick={() => onChange({ edited: undefined })}>
+                Reset
+              </button>
+            )}
+          </>
+        )}
         {!error &&
           (isNew ? (
-            <span className="rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] font-semibold text-warn">New code (not in the product code list)</span>
+            <span className="rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] font-semibold text-warn">
+              {edited && editedCodeToAdd(value, known) ? "New code (added to the list when saved)" : "New code (not in the product code list)"}
+            </span>
           ) : (
             <span className="rounded-full bg-[var(--pos-soft)] px-2 py-0.5 text-[11px] font-semibold text-pos">Existing code</span>
           ))}
