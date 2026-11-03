@@ -217,8 +217,7 @@ export function PartPickerModal({
         </p>
       ) : (
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium text-foreground">GAD</span>
-        <div role="radiogroup" className="inline-flex h-10 rounded-lg border border-input-border p-0.5">
+        <div role="radiogroup" aria-label="Standard or Non Standard" className="inline-flex h-10 rounded-lg border border-input-border p-0.5">
           {(["Standard", "Non Standard"] as const).map((o) => (
             <button
               key={o}
