@@ -228,7 +228,6 @@ export type TagTech = { liquid: string; pumpType: string; pumpSpeed: string; mot
 export type CommercialSummary = {
   project: {
     id: string;
-    /** The enquiry no. with its Commercial version ("ENQ-12 V1"). */
     code: string;
     versionNo: number;
     commercialVersionNo: number;

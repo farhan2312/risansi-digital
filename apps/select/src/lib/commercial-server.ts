@@ -4,7 +4,6 @@
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { enquiryNoWithVersion } from "@/lib/roles";
 import {
   boiDrpPanel,
   boiDrpProbe,
@@ -328,7 +327,6 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
   return {
     project: {
       ...project,
-      code: enquiryNoWithVersion(project.code, project.commercialVersionNo),
       remarks: project.remarks ?? "",
       quoteCurrency: project.quoteCurrency === "USD" ? "USD" : "INR",
       usdInrRate: project.usdInrRate === null ? null : Number(project.usdInrRate),

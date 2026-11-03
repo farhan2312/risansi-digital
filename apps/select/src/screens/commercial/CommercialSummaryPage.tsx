@@ -505,7 +505,7 @@ export default function CommercialSummaryPage() {
         title="Commercial Summary"
         subtitle={
           project
-            ? [project.code, project.name, project.customerName].filter(Boolean).join(" · ")
+            ? [project.code, `Commercial V${project.commercialVersionNo}`, project.name, project.customerName].filter(Boolean).join(" · ")
             : "Pump & Accessories and BOI prices for every tag of the enquiry"
         }
         actions={

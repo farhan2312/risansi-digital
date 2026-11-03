@@ -6,7 +6,6 @@
 import { and, eq, getTableColumns, inArray, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { enquiryNoWithVersion } from "@/lib/roles";
 import {
   driveDirectInput,
   driveGearedInput,
@@ -88,7 +87,6 @@ export async function loadTagInfo(tagId: string): Promise<TagInfo | null> {
       tagName: enquiryTags.name,
       projectId: projects.id,
       enquiryCode: projects.projectCode,
-      versionNo: projects.versionNo,
       projectName: projects.name,
       customerName: projects.customerName,
     })
@@ -96,9 +94,7 @@ export async function loadTagInfo(tagId: string): Promise<TagInfo | null> {
     .innerJoin(projects, eq(projects.id, enquiryTags.projectId))
     .where(eq(enquiryTags.id, tagId))
     .limit(1);
-  if (!row) return null;
-  const { versionNo, ...info } = row;
-  return { ...info, enquiryCode: enquiryNoWithVersion(row.enquiryCode, versionNo) };
+  return row ?? null;
 }
 
 /** "20 m3/hr at 25 MWC" from a tag's values, or "" when either is missing. */

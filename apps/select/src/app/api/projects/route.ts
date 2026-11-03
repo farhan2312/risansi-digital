@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 import { findAssignee } from "@/lib/enquiry-access";
+import type { ClearanceNow } from "@/lib/clearance";
 import { filtersFromParams } from "@/lib/enquiry-filters";
 import { enquiryFilterSql, enquiryStatusColumns, enquiryStatusFields } from "@/lib/enquiry-filters-server";
 import { repScope } from "@/lib/rep-scope";
@@ -100,6 +101,11 @@ export async function GET(req: Request) {
       assignedToName: assignee.name,
       // Commercial opens only once the Quotation step has generated one.
       quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
+      // The newest row of the clearance history.
+      clearance: sql<ClearanceNow | null>`(
+        SELECT jsonb_build_object('status', c.status, 'group', c.reason_group, 'reason', c.reason, 'remarks', c.remarks, 'at', c.created_at)
+        FROM enquiry_clearance c WHERE c.project_id = projects.id ORDER BY c.created_at DESC LIMIT 1
+      )`,
     })
     .from(projects)
     .leftJoin(users, eq(projects.createdBy, users.id))
@@ -117,6 +123,7 @@ export async function GET(req: Request) {
     // list's status gets it.
     ...enquiryStatusFields(r.project, r),
     quotation_count: r.quotationCount,
+    clearance: r.clearance,
   }));
 
   if (!paginated) return json(items);

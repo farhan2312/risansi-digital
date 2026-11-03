@@ -5,7 +5,6 @@ import type { ClientQuoteHistory } from "@/lib/client-quotes";
 import { db } from "@/lib/db";
 import { clientPriceRef, projects, quotation } from "@/lib/db/schema";
 import { loadQuotation } from "@/lib/quotation-server";
-import { enquiryNoWithVersion } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +25,6 @@ export async function GET(req: Request) {
       driveGroup: quotation.driveGroup,
       clientName: quotation.clientName,
       projectCode: projects.projectCode,
-      commercialVersionNo: projects.commercialVersionNo,
       enquiryName: projects.name,
     })
     .from(quotation)
@@ -38,7 +36,7 @@ export async function GET(req: Request) {
   const quotations = [];
   for (const r of rows) {
     const info = await loadQuotation(r.projectId, r.driveGroup);
-    if (info) quotations.push({ projectId: r.projectId, projectCode: enquiryNoWithVersion(r.projectCode, r.commercialVersionNo), enquiryName: r.enquiryName, info });
+    if (info) quotations.push({ projectId: r.projectId, projectCode: r.projectCode, enquiryName: r.enquiryName, info });
   }
 
   const files = code

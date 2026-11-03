@@ -5,7 +5,6 @@ import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { bugReportSelection, projects, users } from "@/lib/db/schema";
-import { enquiryNoWithVersions } from "@/lib/roles";
 
 const assigner = alias(users, "assigner");
 
@@ -114,7 +113,6 @@ export async function GET(req: Request) {
       id: projects.id,
       code: projects.projectCode,
       version: projects.versionNo,
-      commercialVersion: projects.commercialVersionNo,
       client: projects.name,
       orderType: projects.orderType,
       assignedAt: projects.assignedAt,
@@ -132,7 +130,7 @@ export async function GET(req: Request) {
     .orderBy(desc(projects.assignedAt));
   const assignedItems = assigned.map((a) => ({
     id: a.id,
-    title: [enquiryNoWithVersions(a.code, a.version, a.commercialVersion), a.client].filter(Boolean).join(" · "),
+    title: [a.code, a.client, a.version > 0 ? `Version ${a.version}` : null].filter(Boolean).join(" · "),
     status: "Assigned",
     updatedAt: a.assignedAt,
     kind: "assigned" as const,

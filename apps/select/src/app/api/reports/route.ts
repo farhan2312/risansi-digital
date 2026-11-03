@@ -6,7 +6,6 @@ import { repScope } from "@/lib/rep-scope";
 import { db } from "@/lib/db";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 import { enquiryStatusSql } from "@/lib/enquiry-filters-server";
-import { enquiryNoWithVersions } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +46,6 @@ export async function GET(req: Request) {
       assignedTo: projects.assignedTo,
       enquiryStatus: enquiryStatusSql,
       versionNo: projects.versionNo,
-      commercialVersionNo: projects.commercialVersionNo,
       rootProjectId: projects.rootProjectId,
       isLatest: projects.isLatest,
       quotationCount: sql<number>`(SELECT count(*)::int FROM ${quotation} q WHERE q.project_id = ${projects.id})`,
@@ -65,7 +63,7 @@ export async function GET(req: Request) {
       tag_id: r.tagId,
       tag_name: r.tagName,
       project_id: r.projectId,
-      project_code: enquiryNoWithVersions(r.projectCode, r.versionNo, r.commercialVersionNo),
+      project_code: r.projectCode,
       version_no: r.versionNo,
       is_latest: r.isLatest,
       enquiry_root_id: r.rootProjectId ?? r.projectId,

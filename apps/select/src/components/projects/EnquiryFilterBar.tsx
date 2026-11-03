@@ -209,16 +209,26 @@ export default function EnquiryFilterBar({
           />
         </label>
       )}
-      <MultiSelect
-        label="Order type"
-        options={ORDER_TYPE_LABELS}
-        value={value.orderType ?? []}
-        onChange={(next) => {
-          // Only spares picked: the Commercial status filter leaves with its dropdown.
-          const spare = next.length === 1 && next[0] === "Spare";
-          onChange({ ...value, orderType: next.length ? next : undefined, ...(spare ? { commercialStatus: undefined } : {}) });
-        }}
-      />
+      <div className="inline-flex h-9 items-center rounded-lg border border-line bg-sunk p-0.5" role="radiogroup" aria-label="Order type">
+        {["All", ...ORDER_TYPE_LABELS].map((label) => {
+          const on = label === "All" ? value.orderType?.length !== 1 : value.orderType?.length === 1 && value.orderType[0] === label;
+          return (
+            <button
+              key={label}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() =>
+                // Spares only: the Commercial status filter leaves with its dropdown.
+                onChange({ ...value, orderType: label === "All" ? undefined : [label], ...(label === "Spare" ? { commercialStatus: undefined } : {}) })
+              }
+              className={`h-full rounded-md px-3 text-[12.5px] font-semibold transition-colors ${on ? "bg-paper text-accent shadow-sm" : "text-fg-3 hover:text-fg"}`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
       {multi("pumpType", "Pump type", PUMP_TYPE_LABELS)}
       {multi("spareType", "Spare type", SPARE_TYPE_LABELS)}
       {multi("primaryRep", "Primary rep", opts?.primaryReps)}

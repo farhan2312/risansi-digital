@@ -5,7 +5,6 @@ import { enquiryTags, generalInfoInput, projects, stepApproval, users } from "@/
 import type { DashboardListPage, DashboardListQuery } from "@/lib/dashboard-shared";
 import type { EnquiryFilters } from "@/lib/enquiry-filters";
 import { enquiryFilterSql, enquiryStatusSql } from "@/lib/enquiry-filters-server";
-import { enquiryNoWithVersions } from "@/lib/roles";
 
 // The lists behind the Dashboard's KPI cards (GET /api/dashboard/list). Same
 // filters as getDashboardData, so a list always adds up to its card:
@@ -87,7 +86,7 @@ export async function getDashboardList({
       rows: rows.map((r) => ({
         kind: "enquiry" as const,
         id: r.project.id,
-        code: enquiryNoWithVersions(r.project.projectCode, r.project.versionNo, r.project.commercialVersionNo),
+        code: r.project.projectCode,
         client: r.project.name,
         customer: r.project.customerName,
         status: r.status,
@@ -158,7 +157,7 @@ export async function getDashboardList({
       createdAt: r.tag.createdAt ? new Date(r.tag.createdAt).toISOString() : null,
       enquiry: {
         id: r.project.id,
-        code: enquiryNoWithVersions(r.project.projectCode, r.project.versionNo, r.project.commercialVersionNo),
+        code: r.project.projectCode,
         client: r.project.name,
         customer: r.project.customerName,
         status: r.project.status,

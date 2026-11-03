@@ -13,7 +13,6 @@ import { IST_OFFSET_MS } from "@/lib/ist";
 import type { EnquiryFilters } from "@/lib/enquiry-filters";
 import { enquiryFilterSql, enquiryStatusSql } from "@/lib/enquiry-filters-server";
 import { filterKey } from "@/lib/enquiry-filters";
-import { enquiryNoWithVersions } from "@/lib/roles";
 import type { DashboardData, DashboardEnquiry } from "@/lib/dashboard-shared";
 
 // Everything the Dashboard shows, in one call (GET /api/dashboard).
@@ -192,7 +191,7 @@ export async function getDashboardData({
 
   const recent: DashboardEnquiry[] = recentRows.map((r) => ({
     id: r.project.id,
-    code: enquiryNoWithVersions(r.project.projectCode, r.project.versionNo, r.project.commercialVersionNo),
+    code: r.project.projectCode,
     client: r.project.name,
     customer: r.project.customerName,
     clientCode: r.project.clientCode,

@@ -1,4 +1,5 @@
 import apiClient from "./apiClient";
+import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
 import { filterParams, type EnquiryFilters } from "../lib/enquiry-filters";
 
@@ -22,6 +23,8 @@ export interface ProjectRecord {
   created_by_name: string | null;
   created_at: string;
   updated_at: string | null;
+  /** Clear or Hold, the newest of its history (list endpoint only). */
+  clearance?: ClearanceNow | null;
   /** Quotations generated (list endpoint only); Commercial is locked at 0. */
   quotation_count?: number;
   /** "pump" | "spare". */
