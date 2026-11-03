@@ -2725,12 +2725,19 @@ export async function listItemsForSection(
            COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
                              FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings`
         : "";
-  // Quality: each EC's document links.
+  // Quality: each EC's document links, its GAD versions and its part drawings.
   const qcSelect =
     table === "order_qc"
       ? `, COALESCE((SELECT jsonb_agg(jsonb_build_object('doc_type', ql.doc_type, 'link', ql.link,
                      'submitted_date', to_char(ql.submitted_date, 'YYYY-MM-DD'), 'remarks', ql.remarks))
-                     FROM order_qc_doc_links ql WHERE ql.item_id = it.id), '[]'::jsonb) AS qc_links`
+                     FROM order_qc_doc_links ql WHERE ql.item_id = it.id), '[]'::jsonb) AS qc_links,
+         (${spareEcSql("it", "o")}) AS is_spare,
+         COALESCE((SELECT jsonb_agg(to_jsonb(rv) ORDER BY rv.seq)
+                     FROM order_drawing_revisions rv
+                    WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'), '[]'::jsonb) AS gad_versions,
+         (SELECT pl.part_drawing FROM order_planning pl WHERE pl.item_id = it.id) AS part_drawing,
+         COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
+                     FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings`
       : "";
   const soChildSelect =
     section.soChild?.table === "order_packing_slips"

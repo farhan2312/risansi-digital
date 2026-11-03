@@ -18,6 +18,8 @@ import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { OrderThreadModal } from "./order-thread-modal";
+import { GadCell } from "./gad-cell";
+import { PartDrawingCell, PartDrawingView } from "./part-drawing";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { KpiStrip } from "./kpi-strip";
 import { MultiSelectFilter } from "./multi-select-filter";
@@ -29,6 +31,7 @@ import type { EcAssembly } from "@/lib/ec-assembly";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+const rowsOf = (v: unknown) => (Array.isArray(v) ? (v as Row[]) : []);
 
 function formatDate(value: unknown): string {
   const s = str(value).slice(0, 10);
@@ -111,6 +114,7 @@ export function QcWorkspace({
     const row = openThreadId ? rows.find((r) => str(r.order_id) === openThreadId) : null;
     return row && openThreadId ? { orderId: openThreadId, soLabel: str(row.so_no ?? row.sl_no) } : null;
   });
+  const [partsFor, setPartsFor] = useState<string | null>(null);
   const focusClass = useFocusRow([openItemId, focusOrderId], rows.length > 0);
   useConsumeFocusParam(queue.page);
 
@@ -170,11 +174,11 @@ export function QcWorkspace({
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
-          <table className="w-full min-w-[1400px] text-sm">
+          <table className="w-full min-w-[1600px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={11} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={13} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
@@ -187,6 +191,8 @@ export function QcWorkspace({
                 <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
+                <th className="px-3 py-2">GAD</th>
+                <th className="px-3 py-2 whitespace-nowrap">Part Drawing</th>
                 <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Ready</th>
                 <th className="px-3 py-2">Assembled</th>
@@ -199,7 +205,7 @@ export function QcWorkspace({
             <tbody>
               {groups.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={19} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -284,6 +290,25 @@ export function QcWorkspace({
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.model_no) || "—"}</td>
+                          {/* Drawing's work on the EC, to read: a Spare has none. */}
+                          {row.is_spare ? (
+                            <td colSpan={2} className={`${ecCell} text-muted`}>—</td>
+                          ) : (
+                            <>
+                              <td className={`${ecCell} whitespace-nowrap`}>
+                                <GadCell versions={rowsOf(row.gad_versions)} />
+                              </td>
+                              <td className={ecCell}>
+                                {rowsOf(row.part_drawings).length > 0 ? (
+                                  <button type="button" onClick={() => setPartsFor(ecId)} title="See the parts" className="text-left">
+                                    <PartDrawingCell required={row.part_drawing} parts={rowsOf(row.part_drawings)} />
+                                  </button>
+                                ) : (
+                                  <PartDrawingCell required={row.part_drawing} parts={[]} />
+                                )}
+                              </td>
+                            </>
+                          )}
                           {/* Where Assembly has got with the EC, and the last day it assembled any. */}
                           {(() => {
                             const a = assembly[ecId];
@@ -342,6 +367,12 @@ export function QcWorkspace({
         const ec = docsFor ? rows.find((r) => r.id === docsFor) : null;
         if (!ec) return null;
         return <QcDocsModal key={str(ec.id)} ec={ec} canEdit={canEdit} onClose={() => setDocsFor(null)} />;
+      })()}
+
+      {(() => {
+        const ec = partsFor ? rows.find((r) => r.id === partsFor) : null;
+        if (!ec) return null;
+        return <PartDrawingView key={str(ec.id)} itemId={str(ec.id)} label={str(ec.ec_no) || "EC"} parts={rowsOf(ec.part_drawings)} onClose={() => setPartsFor(null)} />;
       })()}
 
       {threadFor && (
