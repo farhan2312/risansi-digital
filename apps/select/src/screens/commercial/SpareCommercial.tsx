@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -9,12 +9,20 @@ import { SPARE_GROUP, formatInr, type CommercialSummary, type QuotationInfo, typ
 import { printHtml } from "../../lib/enquiry-print";
 import { EMPTY_PARTS, type CodeOption } from "../../lib/pump-code";
 import { OTHER_PART_SECTION, partListFor } from "../../lib/spare-parts";
-import { lineAmount, spareQuoteProblem, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
-import { buildSpareQuoteHtml, downloadSpareQuoteExcel, type SpareQuoteSheet } from "../../lib/spare-quote-doc";
+import { lineAmount, spareQuoteProblem, type SpareDocEdits, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
+import {
+  SPARE_DOC_OPENING,
+  SPARE_DOC_SUBJECT,
+  buildSpareQuoteHtml,
+  downloadSpareQuoteExcel,
+  spareDocModels,
+  sparePoAuto,
+  type SpareQuoteSheet,
+} from "../../lib/spare-quote-doc";
 import { dotDate } from "../../lib/tech-doc";
 import { setPricesReviewed } from "../../services/commercialService";
 import { createQuotation, getQuotation, listTsmOptions } from "../../services/quotationService";
-import { getSpareQuote, saveSpareQuote } from "../../services/spareQuoteService";
+import { getSpareQuote, saveSpareDocEdits, saveSpareQuote } from "../../services/spareQuoteService";
 import { CodeFields, CodeModeToggle, codeError, codeOf, type CodeValue } from "./PumpCodeInput";
 import { loadPumpQtyLists } from "./PumpQtyStep";
 import QuotationPanel from "./QuotationPanel";
@@ -80,10 +88,11 @@ export default function SpareCommercial({
   project: CommercialSummary["project"];
   onReviewedChange: (at: string | null) => void;
 }) {
-  const readOnly = !project.isLatest;
+  const olderVersion = !project.isLatest;
   const [loadError, setLoadError] = useState("");
   const [head, setHead] = useState<{ enquiryNo: string; enquiryDate: string | null; clientName: string | null } | null>(null);
   const [saved, setSaved] = useState<SpareQuote | null>(null);
+  const [docEdits, setDocEdits] = useState<SpareDocEdits>({});
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -118,6 +127,7 @@ export default function SpareCommercial({
         setHead({ enquiryNo: d.enquiryNo, enquiryDate: d.enquiryDate, clientName: d.clientName });
         setSaved(d.quote);
         setDraft(toDraft(d.quote));
+        setDocEdits(d.docEdits);
       })
       .catch(() => !cancelled && setLoadError("Couldn't load the spare quotation."));
     loadPumpQtyLists()
@@ -229,6 +239,7 @@ export default function SpareCommercial({
     setPreview({
       projectCode: head.enquiryNo,
       quote: saved,
+      edits: docEdits,
       header: {
         clientName: head.clientName ?? "",
         enquiry: [head.enquiryNo, head.enquiryDate ? `Dt. ${dotDate(head.enquiryDate)}` : ""].filter(Boolean).join(", "),
@@ -238,6 +249,9 @@ export default function SpareCommercial({
     });
   };
 
+  // Sent to the client: a change now takes a new version of the enquiry.
+  const sent = Boolean(quotation && !quotation.versions.some((v) => v.track === "internal" && v.live));
+  const readOnly = olderVersion || sent;
   const current = draft ? toQuote(draft) : null;
   const total = current ? current.models.reduce((s, m) => s + m.lines.reduce((x, l) => x + lineAmount(l), 0), 0) : 0;
   const sendBlock = saved
@@ -299,7 +313,7 @@ export default function SpareCommercial({
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 sm:px-6">
       {header}
 
-      {readOnly && (
+      {olderVersion && (
         <p className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3.5 py-2.5 text-[12.5px] text-fg-2">
           <span className="rounded-md bg-accent px-2 py-0.5 text-[11.5px] font-bold text-white">View only</span>
           This is an older version of the enquiry - nothing here can be changed. Work on the latest version from the Enquiries list.
@@ -351,8 +365,9 @@ export default function SpareCommercial({
             hasUnsavedPrices={dirty}
             pricesVersion={pricesVersion}
             onGenerate={() => {}}
-            readOnly={readOnly}
-            sendBlock={sendBlock}
+            readOnly={olderVersion}
+            sendBlock={sent ? null : sendBlock}
+            onChanged={setQuotation}
           />
 
           <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
@@ -441,7 +456,7 @@ export default function SpareCommercial({
         onClose={() => setRemoving(null)}
       />
 
-      {preview && <QuotePreview sheet={preview} onClose={() => setPreview(null)} />}
+      {preview && <QuotePreview projectId={projectId} sheet={preview} readOnly={readOnly} onClose={() => setPreview(null)} onEdited={setDocEdits} />}
     </div>
   );
 }
@@ -699,18 +714,93 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
   );
 }
 
-function QuotePreview({ sheet, onClose }: { sheet: SpareQuoteSheet; onClose: () => void }) {
-  const html = useMemo(() => buildSpareQuoteHtml(sheet, `${window.location.origin}/logo.png`), [sheet]);
+/** The quotation document: preview, print, Excel, and every row editable for the
+ *  document (saved as you type; the quote itself doesn't change). */
+function QuotePreview({
+  projectId,
+  sheet,
+  readOnly,
+  onClose,
+  onEdited,
+}: {
+  projectId: string;
+  sheet: SpareQuoteSheet;
+  readOnly: boolean;
+  onClose: () => void;
+  onEdited: (edits: SpareDocEdits) => void;
+}) {
+  const [edits, setEdits] = useState<SpareDocEdits>(sheet.edits);
+  const [mode, setMode] = useState<"preview" | "edit">("preview");
+  const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const current = useMemo(() => ({ ...sheet, edits }), [sheet, edits]);
+  const html = useMemo(() => buildSpareQuoteHtml(current, `${window.location.origin}/logo.png`), [current]);
+  const models = useMemo(() => spareDocModels(sheet.quote, edits), [sheet.quote, edits]);
+
+  const change = (next: SpareDocEdits) => {
+    setEdits(next);
+    onEdited(next);
+    setSaveState("saving");
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      saveSpareDocEdits(projectId, next)
+        .then(() => setSaveState("saved"))
+        .catch(() => setSaveState("error"));
+    }, 500);
+  };
+  const setLine = (key: string, patch: Record<string, string>) =>
+    change({ ...edits, lines: { ...edits.lines, [key]: { ...edits.lines?.[key], ...patch } } });
+  const toggleRemoved = (key: string) => {
+    const removed = edits.removed ?? [];
+    change({ ...edits, removed: removed.includes(key) ? removed.filter((k) => k !== key) : [...removed, key] });
+  };
+
+  const headerFields: { key: "client" | "enquiry" | "quotation" | "po" | "subject" | "opening"; label: string; auto: string }[] = [
+    { key: "client", label: "Client Name", auto: sheet.header.clientName },
+    { key: "enquiry", label: "Enquiry No. & Date", auto: sheet.header.enquiry },
+    { key: "quotation", label: "Quotation No. & Date", auto: sheet.header.quotation },
+    { key: "po", label: "Reference PO No. / Date", auto: sparePoAuto(sheet.quote) },
+    { key: "subject", label: "Subject", auto: SPARE_DOC_SUBJECT },
+    { key: "opening", label: "Opening line", auto: SPARE_DOC_OPENING },
+  ];
+  const cell = "w-full rounded border border-line bg-paper px-1.5 py-1 text-[12.5px] text-fg outline-none focus:border-accent";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="flex h-[92vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-xl border border-line bg-paper" onClick={(e) => e.stopPropagation()}>
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-          <h3 className="text-[15px] font-semibold text-fg">Quotation for Spares</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-[15px] font-semibold text-fg">Quotation for Spares</h3>
+            {!readOnly && (
+              <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
+                {(["preview", "edit"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="tab"
+                    aria-selected={mode === m}
+                    onClick={() => setMode(m)}
+                    className={`rounded-md px-3 py-1 text-[12.5px] font-semibold ${mode === m ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"}`}
+                  >
+                    {m === "preview" ? "Preview" : "Edit rows"}
+                  </button>
+                ))}
+              </div>
+            )}
+            <span className="text-[12px] text-fg-3">
+              {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Couldn't save. Try again." : ""}
+            </span>
+          </div>
           <div className="flex items-center gap-2">
+            {!readOnly && Object.keys(edits).length > 0 && (
+              <button type="button" className={`${btn} text-neg hover:text-neg`} onClick={() => change({})} title="Undo every edit on this document">
+                Reset edits
+              </button>
+            )}
             <button type="button" className={btn} onClick={() => void printHtml(html)}>
               Print / PDF
             </button>
-            <button type="button" className={btn} onClick={() => downloadSpareQuoteExcel(sheet)}>
+            <button type="button" className={btn} onClick={() => downloadSpareQuoteExcel(current)}>
               Excel
             </button>
             <button type="button" className={btn} onClick={onClose}>
@@ -718,7 +808,67 @@ function QuotePreview({ sheet, onClose }: { sheet: SpareQuoteSheet; onClose: () 
             </button>
           </div>
         </header>
-        <iframe title="Quotation for Spares" srcDoc={html} className="w-full flex-1 border-0 bg-white" />
+        {mode === "preview" ? (
+          <iframe title="Quotation for Spares" srcDoc={html} className="w-full flex-1 border-0 bg-white" />
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <p className="text-[12.5px] text-fg-3">These edits are for this document only. The parts and prices on the quotation page, and the total sent to the client, don&apos;t change.</p>
+            <section className="flex flex-col divide-y divide-line rounded-lg border border-line">
+              {headerFields.map((f) => (
+                <label key={f.key} className="grid grid-cols-1 items-center gap-2 px-3 py-2 sm:grid-cols-[190px_minmax(0,1fr)]">
+                  <span className="text-[12.5px] font-semibold text-fg">{f.label}</span>
+                  <input className={cell} value={edits[f.key] ?? f.auto} onChange={(e) => change({ ...edits, [f.key]: e.target.value })} aria-label={f.label} />
+                </label>
+              ))}
+            </section>
+            {models.map((m) => (
+              <section key={m.id} className="rounded-lg border border-line">
+                <label className="grid grid-cols-1 items-center gap-2 border-b border-line bg-sunk px-3 py-2 sm:grid-cols-[190px_minmax(0,1fr)]">
+                  <span className="text-[12.5px] font-semibold text-fg">Model</span>
+                  <input className={`${cell} font-mono`} value={m.model} aria-label="Model" onChange={(e) => change({ ...edits, models: { ...edits.models, [m.id]: e.target.value } })} />
+                </label>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-[12.5px]">
+                    <thead>
+                      <tr className="border-b border-line text-left text-[11px] font-semibold tracking-[0.05em] text-fg-3 uppercase">
+                        <th className="w-[90px] px-2 py-1.5">Part No.</th>
+                        <th className="px-2 py-1.5">Description</th>
+                        <th className="w-[80px] px-2 py-1.5">Qty</th>
+                        <th className="w-[110px] px-2 py-1.5">Unit cost</th>
+                        <th className="w-[110px] px-2 py-1.5 text-right">Amount</th>
+                        <th className="w-[76px]" aria-label="Remove" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {m.lines.map((l) => (
+                        <tr key={l.key} className={`border-b border-line last:border-b-0 ${l.removed ? "bg-sunk text-fg-4 line-through" : ""}`}>
+                          {l.removed ? (
+                            <td colSpan={5} className="px-2 py-1.5">
+                              {[l.partNo, l.name].filter(Boolean).join(" · ")}
+                            </td>
+                          ) : (
+                            <>
+                              <td className="px-2 py-1"><input className={`${cell} font-mono`} value={l.partNo} aria-label="Part No." onChange={(e) => setLine(l.key, { partNo: e.target.value })} /></td>
+                              <td className="px-2 py-1"><input className={cell} value={l.name} aria-label="Description" onChange={(e) => setLine(l.key, { name: e.target.value })} /></td>
+                              <td className="px-2 py-1"><input className={`${cell} text-right font-mono`} value={l.qty} aria-label="Quantity" onChange={(e) => setLine(l.key, { qty: e.target.value })} /></td>
+                              <td className="px-2 py-1"><input className={`${cell} text-right font-mono`} value={l.unit} aria-label="Unit cost" onChange={(e) => setLine(l.key, { unit: e.target.value })} /></td>
+                              <td className="px-2 py-1 text-right font-mono">{formatInr(l.amount)}</td>
+                            </>
+                          )}
+                          <td className="px-2 text-right">
+                            <button type="button" className={`text-[11.5px] font-semibold no-underline ${l.removed ? "text-accent" : "text-neg"}`} onClick={() => toggleRemoved(l.key)}>
+                              {l.removed ? "Restore" : "Remove"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

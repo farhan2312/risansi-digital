@@ -29,6 +29,65 @@ export type SpareQuote = {
   models: SpareModel[];
 };
 
+/** Edits typed on the document, row by row; a value left out follows the quote.
+ *  Document only: the saved quote and its prices don't change. */
+export type SpareDocEdits = {
+  client?: string;
+  enquiry?: string;
+  quotation?: string;
+  subject?: string;
+  opening?: string;
+  po?: string;
+  /** Model id -> the text printed for the model. */
+  models?: Record<string, string>;
+  /** Line key (spareDocLineKey) -> its cells. */
+  lines?: Record<string, { partNo?: string; name?: string; qty?: string; unit?: string }>;
+  /** Line keys left off the document. */
+  removed?: string[];
+};
+
+export const spareDocLineKey = (modelId: string, l: { partNo: string; partName: string }) => `${modelId}|${l.partNo}|${l.partName}`;
+
+export function normalizeSpareDocEdits(raw: unknown): SpareDocEdits {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : undefined);
+  const out: SpareDocEdits = {};
+  for (const k of ["client", "enquiry", "quotation", "po"] as const) {
+    const v = str(r[k], 300);
+    if (v !== undefined) out[k] = v;
+  }
+  for (const k of ["subject", "opening"] as const) {
+    const v = str(r[k], 2000);
+    if (v !== undefined) out[k] = v;
+  }
+  if (r.models && typeof r.models === "object") {
+    const models: Record<string, string> = {};
+    for (const [id, v] of Object.entries(r.models as Record<string, unknown>).slice(0, 100)) {
+      const s = str(v, 200);
+      if (s !== undefined) models[id.slice(0, 60)] = s;
+    }
+    if (Object.keys(models).length) out.models = models;
+  }
+  if (r.lines && typeof r.lines === "object") {
+    const lines: NonNullable<SpareDocEdits["lines"]> = {};
+    for (const [key, v] of Object.entries(r.lines as Record<string, unknown>).slice(0, 2000)) {
+      const c = (v ?? {}) as Record<string, unknown>;
+      const cell: { partNo?: string; name?: string; qty?: string; unit?: string } = {};
+      for (const f of ["partNo", "name", "qty", "unit"] as const) {
+        const s = str(c[f], 200);
+        if (s !== undefined) cell[f] = s;
+      }
+      if (Object.keys(cell).length) lines[key.slice(0, 320)] = cell;
+    }
+    if (Object.keys(lines).length) out.lines = lines;
+  }
+  if (Array.isArray(r.removed)) {
+    const removed = r.removed.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 320)).slice(0, 2000);
+    if (removed.length) out.removed = removed;
+  }
+  return out;
+}
+
 export const EMPTY_SPARE_QUOTE: SpareQuote = { poNo: "", poDate: "", models: [] };
 
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");

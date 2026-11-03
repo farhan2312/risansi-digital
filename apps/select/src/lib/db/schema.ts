@@ -115,6 +115,8 @@ export const projects = pgTable("projects", {
   pricesReviewedBy: uuid("prices_reviewed_by"),
   /** A spare order's quotation: reference PO, models and their parts (lib/spare-quote). */
   spareQuote: jsonb("spare_quote").$type<Record<string, unknown>>().notNull().default({}),
+  /** Row edits for its document only (lib/spare-quote SpareDocEdits). */
+  spareDocEdits: jsonb("spare_doc_edits").$type<Record<string, unknown>>().notNull().default({}),
   /** Enquiry versions (lib/enquiry-revision.ts): 0 is the enquiry as created,
    *  each later version is its own row copied from the one before. */
   versionNo: integer("version_no").notNull().default(0),
