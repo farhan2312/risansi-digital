@@ -5,6 +5,7 @@ import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ExternalLink, FileCheck2, Link2, Loader2, MessageSquare, X } from "lucide-react";
 import { DEPT_VIEWS, dispatchRowTone } from "@/lib/dept-view";
+import { isWebLink, splitLinks } from "@/lib/doc-links";
 import { given, linksFromRows, qcDocsStatus, requiredQcDocs, type QcLink, type QcTone } from "@/lib/qc-docs";
 import type { OrderListOptions } from "@/lib/orders";
 import type { PageResult } from "@/lib/pagination";
@@ -17,6 +18,8 @@ import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { OrderThreadModal } from "./order-thread-modal";
+import { GadCell } from "./gad-cell";
+import { PartDrawingCell, PartDrawingView } from "./part-drawing";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { KpiStrip } from "./kpi-strip";
 import { MultiSelectFilter } from "./multi-select-filter";
@@ -28,6 +31,7 @@ import type { EcAssembly } from "@/lib/ec-assembly";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+const rowsOf = (v: unknown) => (Array.isArray(v) ? (v as Row[]) : []);
 
 function formatDate(value: unknown): string {
   const s = str(value).slice(0, 10);
@@ -110,6 +114,7 @@ export function QcWorkspace({
     const row = openThreadId ? rows.find((r) => str(r.order_id) === openThreadId) : null;
     return row && openThreadId ? { orderId: openThreadId, soLabel: str(row.so_no ?? row.sl_no) } : null;
   });
+  const [partsFor, setPartsFor] = useState<string | null>(null);
   const focusClass = useFocusRow([openItemId, focusOrderId], rows.length > 0);
   useConsumeFocusParam(queue.page);
 
@@ -169,11 +174,11 @@ export function QcWorkspace({
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
-          <table className="w-full min-w-[1400px] text-sm">
+          <table className="w-full min-w-[1600px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={11} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={13} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
@@ -186,6 +191,8 @@ export function QcWorkspace({
                 <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
+                <th className="px-3 py-2">GAD</th>
+                <th className="px-3 py-2 whitespace-nowrap">Part Drawing</th>
                 <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Ready</th>
                 <th className="px-3 py-2">Assembled</th>
@@ -198,7 +205,7 @@ export function QcWorkspace({
             <tbody>
               {groups.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={19} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -283,6 +290,25 @@ export function QcWorkspace({
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.model_no) || "—"}</td>
+                          {/* Drawing's work on the EC, to read: a Spare has none. */}
+                          {row.is_spare ? (
+                            <td colSpan={2} className={`${ecCell} text-muted`}>—</td>
+                          ) : (
+                            <>
+                              <td className={`${ecCell} whitespace-nowrap`}>
+                                <GadCell versions={rowsOf(row.gad_versions)} />
+                              </td>
+                              <td className={ecCell}>
+                                {rowsOf(row.part_drawings).length > 0 ? (
+                                  <button type="button" onClick={() => setPartsFor(ecId)} title="See the parts" className="text-left">
+                                    <PartDrawingCell required={row.part_drawing} parts={rowsOf(row.part_drawings)} />
+                                  </button>
+                                ) : (
+                                  <PartDrawingCell required={row.part_drawing} parts={[]} />
+                                )}
+                              </td>
+                            </>
+                          )}
                           {/* Where Assembly has got with the EC, and the last day it assembled any. */}
                           {(() => {
                             const a = assembly[ecId];
@@ -343,6 +369,12 @@ export function QcWorkspace({
         return <QcDocsModal key={str(ec.id)} ec={ec} canEdit={canEdit} onClose={() => setDocsFor(null)} />;
       })()}
 
+      {(() => {
+        const ec = partsFor ? rows.find((r) => r.id === partsFor) : null;
+        if (!ec) return null;
+        return <PartDrawingView key={str(ec.id)} itemId={str(ec.id)} label={str(ec.ec_no) || "EC"} parts={rowsOf(ec.part_drawings)} onClose={() => setPartsFor(null)} />;
+      })()}
+
       {threadFor && (
         <OrderThreadModal orderId={threadFor.orderId} role={role} soLabel={threadFor.soLabel} onClose={() => setThreadFor(null)} />
       )}
@@ -353,7 +385,7 @@ export function QcWorkspace({
 const input =
   "h-10 w-full rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-background disabled:text-muted";
 
-/** One EC's QC documents: a card for each the SO needs — its link, the day it went in, remarks. */
+/** One EC's QC documents: a card for each the SO needs — its links, the day it went in, remarks. */
 function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onClose: () => void }) {
   const router = useRouter();
   const needed = requiredQcDocs(ec);
@@ -404,7 +436,7 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
         ) : (
           <div className="space-y-3">
             {links.map((l, i) => {
-              const ok = /^https?:\/\//i.test(l.link.trim());
+              const opens = splitLinks(l.link).filter(isWebLink);
               const isIn = given(l);
               return (
                 <section key={l.doc_type} className={`rounded-xl border p-4 ${isIn ?"border-emerald-200 bg-emerald-50/30" : "border-card-border"}`}>
@@ -415,10 +447,14 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
                       </span>
                       {l.doc_type}
                     </p>
-                    {ok ? (
-                      <a href={l.link.trim()} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-                        Open <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
+                    {opens.length > 0 ? (
+                      <span className="flex flex-wrap justify-end gap-x-3 gap-y-1">
+                        {opens.map((href, k) => (
+                          <a key={k} href={href} target="_blank" rel="noopener noreferrer" title={href} className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                            {opens.length > 1 ? `Link ${k + 1}` : "Open"} <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ))}
+                      </span>
                     ) : isIn ? (
                       <span className="text-xs font-semibold text-emerald-700">Submitted · no link</span>
                     ) : (
@@ -427,16 +463,16 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[1fr_11rem]">
                     <label className="block">
-                      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">SharePoint Link</span>
-                      <input
-                        type="url"
+                      <span className="mb-1 block text-[11px] font-medium text-muted-foreground">SharePoint Links, one on each line</span>
+                      <textarea
                         value={l.link}
                         disabled={ro}
+                        rows={2}
                         onChange={(e) =>
                           set(i, { link: e.target.value, submitted_date: l.submitted_date || (e.target.value.trim() ? todayIso() : "") })
                         }
                         placeholder="https://…sharepoint.com/…"
-                        className={input}
+                        className={`${input} h-auto py-2`}
                       />
                     </label>
                     <label className="block">

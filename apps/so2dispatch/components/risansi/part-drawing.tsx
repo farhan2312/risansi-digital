@@ -437,6 +437,15 @@ export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts
   );
 }
 
+/** Another department's look at an EC's part drawings: each part and how far it is, read-only. */
+export function PartDrawingView({ itemId, label, parts, onClose }: { itemId: string; label: string; parts: Row[]; onClose: () => void }) {
+  return (
+    <Shell title={`Part drawing · ${label}`} onClose={onClose}>
+      <PartProgress itemId={itemId} parts={parts} canEdit={false} />
+    </Shell>
+  );
+}
+
 /** The parts an EC is short of, on the front: none, or how many and which. */
 export function ShortageCell({ parts }: { parts: Row[] }) {
   if (parts.length === 0) return <span className="text-xs text-muted">None</span>;

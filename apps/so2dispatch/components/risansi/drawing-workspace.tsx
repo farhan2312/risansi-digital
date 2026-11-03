@@ -7,6 +7,7 @@ import { Fragment, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarCheck, CheckCircle2, FileText, Loader2, MessageSquare, PenTool, Plus, Send, Trash2, X } from "lucide-react";
 import { DRAWING_DOC_TYPES, type DrawingDocType } from "@/lib/order-schema";
+import { isWebLink, splitLinks } from "@/lib/doc-links";
 import { DEPT_VIEWS, dispatchRowTone, drawingDocStatus, drawingVersions, versionLabel, type DrawingStatusTone } from "@/lib/dept-view";
 import type { OrderListOptions } from "@/lib/orders";
 import type { PageResult } from "@/lib/pagination";
@@ -696,10 +697,11 @@ function VersionForm({
     if (out.approved === "") out.approved_date = "";
     if (!(sent && out.approved === "Yes") || !gad) Object.assign(out, { issued_to_production: "", issued_to_production_date: "" });
     if (out.issued_to_production !== "Yes") Object.assign(out, { issued_to_production_date: "", planning_link: "" });
-    out.planning_link = out.planning_link.trim();
-    if (out.planning_link && !/^https?:\/\//i.test(out.planning_link)) {
+    const planningLinks = splitLinks(out.planning_link);
+    out.planning_link = planningLinks.join("\n");
+    if (!planningLinks.every(isWebLink)) {
       setSaving(false);
-      setError("The SharePoint link must start with https://");
+      setError("Each SharePoint link must start with https://");
       return;
     }
     const res = dirty || !toAll ? await updateOrderChildAction(str(version.id), "order_drawing_revisions", out, str(ec.id)) : { ok: true as const };
@@ -835,14 +837,14 @@ function VersionForm({
                 )}
                 {v.issued_to_production === "Yes" && (
                   <label className="block w-full">
-                    <span className="mb-1 block text-xs font-medium text-muted-foreground">SharePoint Link</span>
-                    <input
-                      type="url"
+                    <span className="mb-1 block text-xs font-medium text-muted-foreground">SharePoint Links, one on each line</span>
+                    <textarea
                       value={v.planning_link}
                       onChange={(e) => set("planning_link", e.target.value)}
                       disabled={ro}
+                      rows={2}
                       placeholder="https://…sharepoint.com/…"
-                      className={input}
+                      className={`${input} h-auto py-2`}
                     />
                   </label>
                 )}

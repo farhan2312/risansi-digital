@@ -16,7 +16,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Quality's documents on one EC: each needed document's SharePoint link, the
+ * Quality's documents on one EC: each needed document's SharePoint links, the
  * day it was submitted and remarks. Once every needed one is in, the EC's
  * Actual Date of Doc. Submission is the last of those days (what the
  * reminders, escalations and status filters read); until then, none.
@@ -38,7 +38,7 @@ export async function saveQcLinksAction(itemId: string, sent: QcLink[]): Promise
 
   const links = linksFromRows(sent).filter((l) => (QC_DOC_TYPES as readonly string[]).includes(l.doc_type));
   for (const l of links) {
-    if (l.link.trim() && !cleanLink(l.link)) return { ok: false, error: `${l.doc_type}: the link must start with https://` };
+    if (l.link.trim() && !cleanLink(l.link)) return { ok: false, error: `${l.doc_type}: each link must start with https://` };
     if (l.submitted_date && !ISO.test(l.submitted_date)) return { ok: false, error: `${l.doc_type}: enter a valid date.` };
   }
 
