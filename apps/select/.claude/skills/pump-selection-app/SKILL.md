@@ -958,7 +958,9 @@ never auto-filled from the AI result.
   confirmed or quotation generated); Commercial = sent_to_client_at (first
   send). A send clears a hand-set Pending / In Progress on its status.
   "status" in the list APIs = Technical status, so the
-  Dashboard, Reports and the version rule all read Technical. The workload cards
+  Dashboard, Reports and the version rule all read Technical. In the filters a spare goes
+  by commercialStatus alone: the Technical status filter picks only pumps (enquiryFilterSql),
+  and Spare view's one "Status" dropdown is commercialStatus. The workload cards
   (AssigneeKpis, /api/projects/assignee-stats) split by order type: Pump = Technical,
   Commercial and tags; Spare = its one status, no tags. The Dashboard is always Pump or Spare
   (EnquiryFilterBar orderTypeRequired, no All): Spare has enquiry figures only, no tag cards,

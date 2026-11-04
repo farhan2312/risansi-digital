@@ -224,11 +224,11 @@ export default function EnquiryFilterBar({
               role="radio"
               aria-checked={on}
               onClick={() =>
-                // Spares only: the Commercial status filter leaves with its dropdown.
+                // Spares only: the Technical status filter leaves with its dropdown.
                 onChange({
                   ...value,
                   orderType: label === "All" ? undefined : [label],
-                  ...(label === "Spare" ? { commercialStatus: undefined } : {}),
+                  ...(label === "Spare" ? { status: undefined } : {}),
                   // The other type's dropdown is gone, so its picks would match nothing.
                   ...(orderTypeRequired ? (label === "Spare" ? { pumpType: undefined } : { spareType: undefined }) : {}),
                 })
@@ -247,9 +247,9 @@ export default function EnquiryFilterBar({
       {multi("zone", "Zone", opts?.zones)}
       {multi("market", "Market", opts?.markets)}
       {multi("industry", "Industry", opts?.industries)}
-      {/* A spare has just one status, which `status` already filters on. */}
-      {multi("status", onlySpares ? "Status" : "Technical status", ENQUIRY_STATUSES)}
-      {!onlySpares && multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}
+      {/* A spare's one status is its Commercial one; Technical picks only pumps. */}
+      {!onlySpares && multi("status", "Technical status", ENQUIRY_STATUSES)}
+      {multi("commercialStatus", onlySpares ? "Status" : "Commercial status", ENQUIRY_STATUSES)}
       {hasEnquiryFilters({ ...value, orderType: orderTypeRequired ? undefined : value.orderType }) && (
         <button
           type="button"
