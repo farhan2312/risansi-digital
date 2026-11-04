@@ -691,6 +691,7 @@ export async function getOrderDetail(id: string): Promise<OrderDetail | null> {
                  '[]'::jsonb) AS order_invoices,
         COALESCE((SELECT jsonb_agg(to_jsonb(ps) || jsonb_build_object(
                     'ec_no', (SELECT si.ec_no FROM order_items si WHERE si.id = ps.item_id),
+                    'picture_links', ${SLIP_PICTURES_SQL("ps")},
                     'invoice_id', (SELECT l.invoice_id FROM order_invoice_slips l WHERE l.packing_slip_id = ps.id))
                   ORDER BY ps.seq)
                     FROM order_packing_slips ps WHERE ps.order_id = o.id),
@@ -2780,7 +2781,7 @@ export async function listItemsForSection(
   const soChildSelect =
     section.soChild?.table === "order_packing_slips"
       ? `, o.market_type, o.packing_details_required,
-         COALESCE((SELECT jsonb_agg(to_jsonb(ps) ORDER BY ps.seq)
+         COALESCE((SELECT jsonb_agg(to_jsonb(ps) || jsonb_build_object('picture_links', ${SLIP_PICTURES_SQL("ps")}) ORDER BY ps.seq)
                      FROM order_packing_slips ps
                     WHERE ps.order_id = it.order_id
                       AND ps.kind = '${section.soChild.kind === "tentative" ? "tentative" : "actual"}'),
@@ -3008,18 +3009,17 @@ export async function listOrdersForBilling(
             COALESCE((SELECT jsonb_agg((to_jsonb(inv) - 'lr_file_data') || jsonb_build_object(
                         'slips', COALESCE((SELECT jsonb_agg(jsonb_build_object(
                          'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
-                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos)
+                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos,
+                         'picture_links', ${SLIP_PICTURES_SQL("ps")})
                          ORDER BY ps.seq)
                        FROM order_invoice_slips l JOIN order_packing_slips ps ON ps.id = l.packing_slip_id
-                      WHERE l.invoice_id = inv.id), '[]'::jsonb),
-                        -- The order's pictures on this dispatch.
-                        'picture_links', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', pl.id, 'link', pl.link) ORDER BY pl.created_at, pl.id)
-                       FROM order_picture_links pl WHERE pl.invoice_id = inv.id), '[]'::jsonb)) ORDER BY inv.seq)
+                      WHERE l.invoice_id = inv.id), '[]'::jsonb)) ORDER BY inv.seq)
                       FROM order_invoices inv WHERE inv.order_id = o.id),
                      '[]'::jsonb) AS invoices,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(
                         'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos,
+                        'picture_links', ${SLIP_PICTURES_SQL("ps")},
                         'invoice_id', (SELECT l.invoice_id FROM order_invoice_slips l WHERE l.packing_slip_id = ps.id))
                         ORDER BY ps.seq)
                       FROM order_packing_slips ps WHERE ps.order_id = o.id AND ps.kind = 'actual'
@@ -4360,6 +4360,11 @@ export async function listOrders(): Promise<OrderListRow[]> {
  * than taking from the others, and a Challan / FR SO, one with no gross, a
  * cancelled or diverted SO and a test SO have none.
  */
+/** A packing slip's order pictures: its SharePoint links, oldest first. */
+const SLIP_PICTURES_SQL = (ps: string) =>
+  `COALESCE((SELECT jsonb_agg(jsonb_build_object('id', pl.id, 'link', pl.link) ORDER BY pl.created_at, pl.id)
+              FROM order_picture_links pl WHERE pl.packing_slip_id = ${ps}.id), '[]'::jsonb)`;
+
 async function cumulativeInHand(where: string, params: unknown[]): Promise<number> {
   const res = await query<{ amount: string | null }>(
     `SELECT sum(CASE WHEN h.diff < 1 THEN 0 ELSE h.diff END)::text AS amount

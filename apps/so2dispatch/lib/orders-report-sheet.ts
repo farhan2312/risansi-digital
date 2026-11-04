@@ -127,10 +127,10 @@ function docCells(docs: OrderDocs | undefined): [string, string, string, string,
             : "—"
       )
       .join("\n"),
-    invoices
-      .flatMap((v, i) => {
-        const links = ((v.picture_links ?? []) as Row[]).map((p) => str(p.link));
-        return links.length ? [`Dispatch #${i + 1}`, ...links] : [];
+    slips
+      .flatMap((p) => {
+        const links = ((p.picture_links ?? []) as Row[]).map((l) => str(l.link));
+        return links.length ? [`Slip ${str(p.packing_slip_no) || "—"}`, ...links] : [];
       })
       .join("\n"),
   ];

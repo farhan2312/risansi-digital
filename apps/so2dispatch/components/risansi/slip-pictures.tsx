@@ -3,23 +3,23 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Image as ImageIcon, Loader2, Plus, Trash2, X } from "lucide-react";
-import { addDispatchPicturesAction, removeDispatchPictureAction } from "@/app/risansi/orders/picture-actions";
+import { addSlipPicturesAction, removeSlipPictureAction } from "@/app/risansi/orders/picture-actions";
 
 export type PictureLink = { id: string; link: string };
 
 /**
- * The order's pictures on one dispatch: its SharePoint links, each opening
- * directly. Dispatch adds and removes them here; the Orders page shows them
- * as they stand.
+ * The order's pictures on one packing slip: its SharePoint links, each opening
+ * directly. Assembly & Packing adds and removes them here; Dispatch and the
+ * Orders page see them as they stand.
  */
-export function DispatchPictures({
-  invoiceId,
+export function SlipPictures({
+  slipId,
   label,
   links,
   canEdit,
 }: {
-  invoiceId: string;
-  /** What the pop-up says it is for: the SO and the dispatch. */
+  slipId: string;
+  /** What the pop-up says it is for: the SO and the slip. */
   label: string;
   links?: PictureLink[] | null;
   canEdit: boolean;
@@ -57,18 +57,39 @@ export function DispatchPictures({
       ) : (
         list.length === 0 && <span className="text-muted-foreground">—</span>
       )}
-      {open && <PicturesDialog invoiceId={invoiceId} label={label} links={list} onClose={() => setOpen(false)} />}
+      {open && <PicturesDialog slipId={slipId} label={label} links={list} onClose={() => setOpen(false)} />}
+    </span>
+  );
+}
+
+/**
+ * Several slips' pictures, read-only: what Dispatch and the Orders page show.
+ * Each set is named by its slip once more than one slip has pictures.
+ */
+export function SlipsPictures({ slips }: { slips: Record<string, unknown>[] }) {
+  const withLinks = slips.filter((s) => ((s.picture_links as PictureLink[] | undefined) ?? []).length > 0);
+  if (withLinks.length === 0) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="flex flex-col items-start gap-2">
+      {withLinks.map((s) => (
+        <span key={String(s.id)} className="flex flex-col items-start gap-1">
+          {withLinks.length > 1 && (
+            <span className="whitespace-nowrap text-[11px] text-muted">Slip {String(s.packing_slip_no ?? "").trim() || "—"}</span>
+          )}
+          <SlipPictures slipId={String(s.id)} label="" links={s.picture_links as PictureLink[]} canEdit={false} />
+        </span>
+      ))}
     </span>
   );
 }
 
 function PicturesDialog({
-  invoiceId,
+  slipId,
   label,
   links,
   onClose,
 }: {
-  invoiceId: string;
+  slipId: string;
   label: string;
   links: PictureLink[];
   onClose: () => void;
@@ -82,7 +103,7 @@ function PicturesDialog({
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await addDispatchPicturesAction(invoiceId, text);
+    const res = await addSlipPicturesAction(slipId, text);
     setBusy(false);
     if (!res.ok) {
       setError(res.error);
@@ -96,7 +117,7 @@ function PicturesDialog({
     if (!window.confirm(`Remove Picture ${n}?`)) return;
     setBusy(true);
     setError(null);
-    const res = await removeDispatchPictureAction(l.id);
+    const res = await removeSlipPictureAction(l.id);
     setBusy(false);
     if (!res.ok) {
       setError(res.error);

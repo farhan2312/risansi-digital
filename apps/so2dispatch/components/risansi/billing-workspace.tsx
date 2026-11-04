@@ -279,7 +279,6 @@ export function BillingWorkspace({
                           <PumpPackingLines lots={row.pump_lots} />
                           <DispatchInline
                             orderId={row.id}
-                            soLabel={row.so_no ?? `#${row.sl_no}`}
                             slips={(row.packing_slips ?? []) as Row[]}
                             invoices={(row.invoices ?? []) as Row[]}
                             billType={row.bill_type}

@@ -10,6 +10,7 @@ import {
 } from "@/app/risansi/orders/actions";
 import { PACKING_SLIP_FIELDS, dependsOnSatisfied, type OrderField } from "@/lib/order-schema";
 import { LOT_NOS_FIELD, lotNosLabel, parseLotNos } from "@/lib/ready-lots";
+import { SlipPictures, type PictureLink } from "./slip-pictures";
 
 type Row = Record<string, unknown>;
 
@@ -26,7 +27,7 @@ function day(v: unknown): string {
 
 /**
  * Assembly & Packing's packing slips, on the queue row itself: one line per
- * slip — No. and date only — with Edit and Delete, and "+ Packing slip" below.
+ * slip — No., date and the order's pictures — with Edit and Delete, and "+ Packing slip" below.
  * With Packing Details Required, the rest of a slip (box, weights, qty…) opens
  * in a pop-up from the eye icon. Add and Edit open the same pop-up to fill in.
  */
@@ -74,7 +75,8 @@ export function PackingSlipsInline({
   }
 
   async function remove(slip: Row) {
-    if (!confirm(`Delete packing slip ${str(slip.packing_slip_no) || "(blank)"}?`)) return;
+    const pictures = ((slip.picture_links as PictureLink[] | undefined) ?? []).length;
+    if (!confirm(`Delete packing slip ${str(slip.packing_slip_no) || "(blank)"}?${pictures ? ` Its ${pictures === 1 ? "picture goes" : "pictures go"} too.` : ""}`)) return;
     setBusy(str(slip.id));
     setError(null);
     const res = await deleteOrderChildAction(str(slip.id), "order_packing_slips", orderId);
@@ -84,7 +86,7 @@ export function PackingSlipsInline({
   }
 
   return (
-    <div className="w-[18rem]">
+    <div className="w-[24.5rem]">
       {slips.length === 0 ? (
         <p className="text-xs text-muted">No packing slip yet</p>
       ) : (
@@ -92,12 +94,14 @@ export function PackingSlipsInline({
           <colgroup>
             <col />
             <col className="w-[6.5rem]" />
+            <col className="w-[6.5rem]" />
             <col className="w-[4.5rem]" />
           </colgroup>
           <thead>
             <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               <th className="pb-1 pl-1.5 pr-1.5">Slip No.</th>
               <th className="pb-1 pr-1.5">Date</th>
+              <th className="pb-1 pr-1.5 whitespace-nowrap">Pictures</th>
               <th className="pb-1" />
             </tr>
           </thead>
@@ -114,6 +118,14 @@ export function PackingSlipsInline({
                   ) : null}
                 </td>
                 <td className="py-1.5 pr-1.5 whitespace-nowrap">{day(s.packing_slip_date) || "—"}</td>
+                <td className="py-1.5 pr-1.5">
+                  <SlipPictures
+                    slipId={str(s.id)}
+                    label={`SO ${soLabel} · Packing Slip ${str(s.packing_slip_no) || "—"}`}
+                    links={s.picture_links as PictureLink[] | undefined}
+                    canEdit={canEdit}
+                  />
+                </td>
                 <td className="rounded-r-md py-1.5 pr-1 text-right whitespace-nowrap">
                   <span className="inline-flex items-center gap-0.5">
                     {details && (

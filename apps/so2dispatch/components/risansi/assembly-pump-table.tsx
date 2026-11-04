@@ -148,7 +148,7 @@ export function AssemblyPumpTable({
           onClose={() => setAlignFor(null)}
         />
       )}
-      <table className="w-full min-w-[1900px] text-sm">
+      <table className="w-full min-w-[2000px] text-sm">
         <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
             <th colSpan={5} className="px-3 pt-2.5 pb-1">SO</th>

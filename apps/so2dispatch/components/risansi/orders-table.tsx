@@ -8,7 +8,7 @@ import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OrderDetailsModal } from "./order-details-modal";
-import { DispatchPictures, type PictureLink } from "./dispatch-pictures";
+import { SlipsPictures } from "./slip-pictures";
 import { FollowupCell } from "./order-followups";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel } from "@/lib/order-schema";
@@ -358,23 +358,9 @@ function DispatchDocCells({ docs, onOpen }: { docs: SoDispatchDocs | undefined; 
             )
           : none
       )}
-      {/* The order's pictures, dispatch by dispatch: each link opens on its own, so not within the button above. */}
+      {/* The order's pictures, slip by slip: each link opens on its own, so not within the button above. */}
       <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-        {invoices.some((v) => ((v.picture_links as PictureLink[] | undefined) ?? []).length > 0) ? (
-          <span className="flex flex-col items-start gap-2">
-            {invoices.map((v, i) => {
-              const links = (v.picture_links as PictureLink[] | undefined) ?? [];
-              return links.length > 0 ? (
-                <span key={i} className="flex flex-col items-start gap-1">
-                  <span className="whitespace-nowrap text-[11px] text-muted">Dispatch #{i + 1}</span>
-                  <DispatchPictures invoiceId={s(v.id)} label={`Dispatch #${i + 1}`} links={links} canEdit={false} />
-                </span>
-              ) : null;
-            })}
-          </span>
-        ) : (
-          none
-        )}
+        <SlipsPictures slips={slips} />
       </td>
     </>
   );
