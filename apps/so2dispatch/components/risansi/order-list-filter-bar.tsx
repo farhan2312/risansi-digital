@@ -140,6 +140,8 @@ export function OrderListFilterBar({
   // Who the customer is does not change what these departments do: they work
   // to dates and statuses, so the party facets are noise on their queues.
   const showsParty = !dept || !DEPTS_WITHOUT_PARTY.has(dept);
+  // Planning and Assembly & Packing still pick out a rep's SOs.
+  const showsRep = showsParty || dept === "planning" || dept === "assembly";
   const { get, setParams } = useUrlTable();
   // Dispatch no longer dates by, or chases, its dispatch target.
   const hasTarget = hasTargetProp && dept !== "dispatch";
@@ -222,13 +224,15 @@ export function OrderListFilterBar({
         )}
         <UrlSearchInput placeholder={searchPlaceholder} className={searchClassName} />
         {showsParty && (
-        <>
         <MultiSelectFilter
           label="Zone"
           options={options.zones}
           selected={filter.zones}
           onChange={(next) => setParams({ zone: next })}
         />
+        )}
+        {showsRep && (
+        <>
         {options.repScope ? (
           // A Rep or Rep Manager: themself; a Rep has nothing to choose.
           <span className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-input-border bg-background px-3 text-sm text-foreground">
@@ -252,6 +256,10 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ repteam: next })}
           />
         )}
+        </>
+        )}
+        {showsParty && (
+        <>
         <MultiSelectFilter
           label="Market"
           options={options.markets}
