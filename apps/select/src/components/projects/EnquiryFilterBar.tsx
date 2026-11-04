@@ -152,11 +152,14 @@ export default function EnquiryFilterBar({
   value,
   onChange,
   showClient = true,
+  orderTypeRequired = false,
 }: {
   value: EnquiryFilters;
   onChange: (next: EnquiryFilters) => void;
   /** The Enquiries page has its own client name search box. */
   showClient?: boolean;
+  /** The Dashboard: always Pump or Spare, no All, and only that type's dropdowns. */
+  orderTypeRequired?: boolean;
 }) {
   const [opts, setOpts] = useState<EnquiryFilterOptions | null>(null);
   useEffect(() => {
@@ -182,6 +185,8 @@ export default function EnquiryFilterBar({
   );
 
   const onlySpares = value.orderType?.length === 1 && value.orderType[0] === "Spare";
+  // Clear leaves a required order type where it is.
+  const kept = orderTypeRequired ? { orderType: value.orderType } : {};
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -210,7 +215,7 @@ export default function EnquiryFilterBar({
         </label>
       )}
       <div className="inline-flex h-9 items-center rounded-lg border border-line bg-sunk p-0.5" role="radiogroup" aria-label="Order type">
-        {["All", ...ORDER_TYPE_LABELS].map((label) => {
+        {(orderTypeRequired ? ORDER_TYPE_LABELS : ["All", ...ORDER_TYPE_LABELS]).map((label) => {
           const on = label === "All" ? value.orderType?.length !== 1 : value.orderType?.length === 1 && value.orderType[0] === label;
           return (
             <button
@@ -220,7 +225,13 @@ export default function EnquiryFilterBar({
               aria-checked={on}
               onClick={() =>
                 // Spares only: the Commercial status filter leaves with its dropdown.
-                onChange({ ...value, orderType: label === "All" ? undefined : [label], ...(label === "Spare" ? { commercialStatus: undefined } : {}) })
+                onChange({
+                  ...value,
+                  orderType: label === "All" ? undefined : [label],
+                  ...(label === "Spare" ? { commercialStatus: undefined } : {}),
+                  // The other type's dropdown is gone, so its picks would match nothing.
+                  ...(orderTypeRequired ? (label === "Spare" ? { pumpType: undefined } : { spareType: undefined }) : {}),
+                })
               }
               className={`h-full rounded-md px-3 text-[12.5px] font-semibold transition-colors ${on ? "bg-paper text-accent shadow-sm" : "text-fg-3 hover:text-fg"}`}
             >
@@ -229,8 +240,8 @@ export default function EnquiryFilterBar({
           );
         })}
       </div>
-      {multi("pumpType", "Pump type", PUMP_TYPE_LABELS)}
-      {multi("spareType", "Spare type", SPARE_TYPE_LABELS)}
+      {!(orderTypeRequired && onlySpares) && multi("pumpType", "Pump type", PUMP_TYPE_LABELS)}
+      {!(orderTypeRequired && !onlySpares) && multi("spareType", "Spare type", SPARE_TYPE_LABELS)}
       {multi("primaryRep", "Primary rep", opts?.primaryReps)}
       {multi("secondaryRep", "Secondary rep", opts?.secondaryReps)}
       {multi("zone", "Zone", opts?.zones)}
@@ -239,12 +250,12 @@ export default function EnquiryFilterBar({
       {/* A spare has just one status, which `status` already filters on. */}
       {multi("status", onlySpares ? "Status" : "Technical status", ENQUIRY_STATUSES)}
       {!onlySpares && multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}
-      {hasEnquiryFilters(value) && (
+      {hasEnquiryFilters({ ...value, orderType: orderTypeRequired ? undefined : value.orderType }) && (
         <button
           type="button"
           onClick={() => {
             setClient("");
-            onChange({});
+            onChange(kept);
           }}
           className="rounded-md px-2 py-1.5 text-[12.5px] font-semibold text-accent hover:bg-accent-soft"
         >

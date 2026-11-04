@@ -42,6 +42,7 @@ export default function DashboardListModal({
   onClose,
   onOpenEnquiry,
   onOpenTag,
+  hideTagCount = false,
 }: {
   target: DashboardListTarget;
   period: { from?: string; to?: string };
@@ -55,6 +56,8 @@ export default function DashboardListModal({
   onClose: () => void;
   onOpenEnquiry: (row: DashboardListEnquiry) => void;
   onOpenTag: (row: DashboardListTag) => void;
+  /** Spares have no tags. */
+  hideTagCount?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
@@ -213,9 +216,11 @@ export default function DashboardListModal({
                       </span>
                     </span>
                     <span className="text-right text-[11.5px] text-fg-3">
-                      <span className="block">
-                        {r.tagCount} tag{r.tagCount === 1 ? "" : "s"}
-                      </span>
+                      {!hideTagCount && (
+                        <span className="block">
+                          {r.tagCount} tag{r.tagCount === 1 ? "" : "s"}
+                        </span>
+                      )}
                       <span className="block">
                         {r.createdByName || "—"} · {fmtDate(r.createdAt)}
                       </span>

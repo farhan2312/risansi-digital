@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       .select({ who: projects.assignedTo, status: enquiryTags.status, n: sql<number>`count(*)::int` })
       .from(enquiryTags)
       .innerJoin(projects, eq(projects.id, enquiryTags.projectId))
-      // Older spares keep a hidden Default tag; it isn't work.
+      // Only pumps have tags.
       .where(and(where, ne(projects.orderType, "spare")))
       .groupBy(projects.assignedTo, enquiryTags.status),
     listAssignees(claims.sub),

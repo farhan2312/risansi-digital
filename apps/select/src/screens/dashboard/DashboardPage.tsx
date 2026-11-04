@@ -34,7 +34,7 @@ const StatusPill = ({ status }: { status: string }) => (
 
 const greetingFor = (d: Date) => (d.getHours() < 12 ? "Good morning" : d.getHours() < 17 ? "Good afternoon" : "Good evening");
 
-/** A KPI card with two figures side by side - enquiries and tags. */
+/** A KPI card with its figures side by side - enquiries and tags, or a spare's enquiries alone. */
 function KpiSplit({
   label,
   cells,
@@ -53,7 +53,7 @@ function KpiSplit({
         <div className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">{label}</div>
         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
       </div>
-      <div className="grid flex-1 grid-cols-2 gap-1.5">
+      <div className={`grid flex-1 gap-1.5 ${cells.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
         {cells.map((c) => {
           const inner = (
             <>
@@ -149,34 +149,53 @@ function TagRow({ tag, onOpen }: { tag: DashboardTag; onOpen: () => void }) {
   );
 }
 
+/** Enquiry no., status, client and who / when. */
+function EnquiryHeading({ enquiry }: { enquiry: DashboardEnquiry }) {
+  return (
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[13px] font-bold text-title">{enquiry.code}</span>
+        <StatusPill status={enquiry.status} />
+      </div>
+      <div className="mt-0.5 truncate text-[13px] font-medium text-fg">{enquiry.client}</div>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-fg-3">
+        {enquiry.industry && <span>{enquiry.industry}</span>}
+        {enquiry.createdByName && (
+          <>
+            <span>·</span>
+            <span>{enquiry.createdByName}</span>
+          </>
+        )}
+        {enquiry.createdAt && (
+          <>
+            <span>·</span>
+            <span>{new Date(enquiry.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A spare: no tags, the row opens its quotation. */
+function SpareItem({ enquiry }: { enquiry: DashboardEnquiry }) {
+  return (
+    <li>
+      <Link href={`/commercial?projectId=${enquiry.id}`} className="group flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-elev" title="Open its quotation">
+        <EnquiryHeading enquiry={enquiry} />
+        <span className="shrink-0 text-fg-4 transition group-hover:translate-x-0.5 group-hover:text-accent">→</span>
+      </Link>
+    </li>
+  );
+}
+
 function EnquiryItem({ enquiry, onOpenTag }: { enquiry: DashboardEnquiry; onOpenTag: (tag?: DashboardTag) => void }) {
   const done = enquiry.tags.filter((t) => t.status === "Completed").length;
   const total = enquiry.tags.length;
   return (
     <li className="px-4 py-3.5">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[13px] font-bold text-title">{enquiry.code}</span>
-            <StatusPill status={enquiry.status} />
-          </div>
-          <div className="mt-0.5 truncate text-[13px] font-medium text-fg">{enquiry.client}</div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-fg-3">
-            {enquiry.industry && <span>{enquiry.industry}</span>}
-            {enquiry.createdByName && (
-              <>
-                <span>·</span>
-                <span>{enquiry.createdByName}</span>
-              </>
-            )}
-            {enquiry.createdAt && (
-              <>
-                <span>·</span>
-                <span>{new Date(enquiry.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
-              </>
-            )}
-          </div>
-        </div>
+        <EnquiryHeading enquiry={enquiry} />
         <div className="w-[140px] shrink-0 text-right">
           <div className="text-[11.5px] text-fg-3">
             <b className="font-mono text-fg">{done}</b> / {total} tag{total === 1 ? "" : "s"} done
@@ -221,8 +240,10 @@ const DashboardPage = () => {
     }
     setScopeReady(true);
   }, [user, userLoading]);
-  // Client / reps / zone / market / industry / status (same as the Enquiries page).
-  const [filters, setFilters] = useState<EnquiryFilters>({});
+  // Client / reps / zone / market / industry / status (same as the Enquiries page),
+  // always on Pump or Spare: a spare has no tags or approvals, so its figures differ.
+  const [filters, setFilters] = useState<EnquiryFilters>({ orderType: ["Pump"] });
+  const isSpare = filters.orderType?.[0] === "Spare";
   // Rep / Rep Manager: only their own enquiries (scoped by the API); a manager
   // can narrow to one rep.
   const isRep = isRepRole(user?.role);
@@ -283,10 +304,12 @@ const DashboardPage = () => {
   const firstName = user?.name?.split(" ")[0] || "there";
   const windowLabel = dates.label;
 
-  const trendSeries: TrendSeries[] =
-    trendView === "created"
+  const enquirySeries: TrendSeries = { key: "enq", label: "Enquiries", color: "var(--brand-blue)", values: (data?.trend ?? []).map((d) => d.enquiries) };
+  const trendSeries: TrendSeries[] = isSpare
+    ? [enquirySeries]
+    : trendView === "created"
       ? [
-          { key: "enq", label: "Enquiries", color: "var(--brand-blue)", values: (data?.trend ?? []).map((d) => d.enquiries) },
+          enquirySeries,
           { key: "tags", label: "Tags", color: "var(--brand-cyan)", values: (data?.trend ?? []).map((d) => d.tags) },
         ]
       : [{ key: "done", label: "Tags completed (by creation day)", color: "var(--pos)", values: (data?.trend ?? []).map((d) => d.completed) }];
@@ -308,8 +331,8 @@ const DashboardPage = () => {
               {greetingFor(now)}, {firstName}
             </h1>
             <p className="mt-1 text-[13px] text-fg-3">
-              {now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · enquiries, tags and
-              approvals at a glance
+              {now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · {isSpare ? "spare enquiries" : "enquiries, tags and approvals"} at a
+              glance
             </p>
           </div>
           <Link
@@ -338,7 +361,7 @@ const DashboardPage = () => {
           <DateRangeFilter state={dates} />
         </div>
         <div className="relative border-t border-line px-5 py-3">
-          <EnquiryFilterBar value={filters} onChange={setFilters} />
+          <EnquiryFilterBar value={filters} onChange={setFilters} orderTypeRequired />
         </div>
       </div>
 
@@ -347,10 +370,43 @@ const DashboardPage = () => {
       {/* Everything below the filters dims while a reload (scope / period) is loading. */}
       <div className={`transition-opacity ${isLoading && data ? "pointer-events-none opacity-60" : ""}`} aria-busy={isLoading || undefined}>
       {/* KPIs */}
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className={`mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${isSpare ? "xl:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-5"}`}>
         {isLoading && !data
-          ? Array.from({ length: 5 }, (_, i) => <div key={i} className="h-[124px] animate-pulse rounded-xl border border-line bg-paper" />)
-          : k && (
+          ? Array.from({ length: isSpare ? 4 : 5 }, (_, i) => <div key={i} className="h-[124px] animate-pulse rounded-xl border border-line bg-paper" />)
+          : k &&
+            (isSpare ? (
+              <>
+                <KpiSplit
+                  label="Enquiries"
+                  cells={[{ label: "Enquiries", value: fmtNum(k.enquiries), sub: windowLabel, onClick: openList("enquiries", "all", "All spare enquiries"), hint: "Show the enquiries" }]}
+                  icon={Icons.folder}
+                  tone="bg-accent-soft text-accent"
+                />
+                {(
+                  [
+                    ["Pending", "Pending", Icons.clock, "bg-[var(--warn-soft)] text-warn"],
+                    ["In progress", "In Progress", Icons.activity, "bg-accent-soft text-accent"],
+                    ["Completed", "Completed", Icons.check, "bg-[var(--pos-soft)] text-pos"],
+                  ] as const
+                ).map(([label, status, icon, tone]) => (
+                  <KpiSplit
+                    key={status}
+                    label={label}
+                    cells={[
+                      {
+                        label: "Enquiries",
+                        value: fmtNum(enqCount(status)),
+                        sub: `${enqPct(enqCount(status))}% of all`,
+                        onClick: openList("enquiries", status, `${label} spare enquiries`),
+                        hint: `Show the ${label.toLowerCase()} enquiries`,
+                      },
+                    ]}
+                    icon={icon}
+                    tone={tone}
+                  />
+                ))}
+              </>
+            ) : (
               <>
                 <KpiSplit
                   label="Enquiries & Tags"
@@ -416,7 +472,7 @@ const DashboardPage = () => {
                   tone="bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]"
                 />
               </>
-            )}
+            ))}
       </div>
 
       {data && (
@@ -426,10 +482,10 @@ const DashboardPage = () => {
             <Card
               className="xl:col-span-2"
               icon={Icons.activity}
-              title="Enquiries & tags over time"
+              title={isSpare ? "Enquiries over time" : "Enquiries & tags over time"}
               subtitle={`Per IST day · ${windowLabel}`}
               action={
-                <Segmented
+                isSpare ? undefined : <Segmented
                   value={trendView}
                   onChange={setTrendView}
                   options={[
@@ -456,6 +512,15 @@ const DashboardPage = () => {
               )}
             </Card>
 
+            {isSpare ? (
+              <Card icon={Icons.activity} title="Status" subtitle="Where every spare enquiry stands">
+                <DonutChart
+                  items={data.enquiryStatus}
+                  centerLabel="enquiries"
+                  colors={{ Pending: "var(--warn)", "In Progress": "var(--brand-blue)", Completed: "var(--pos)" }}
+                />
+              </Card>
+            ) : (
             <Card icon={Icons.tag} title="Tag status" subtitle="Where every tag stands">
               <DonutChart
                 items={[
@@ -475,9 +540,10 @@ const DashboardPage = () => {
                 ))}
               </div>
             </Card>
+            )}
           </div>
 
-          {/* Client mix: order type, market, zone, primary reps, rep x zone */}
+          {/* Client mix: market, zone, primary reps, rep x zone */}
           <ClientMix mix={data.mix} />
 
           {/* Recent enquiries with tags + side panels */}
@@ -486,7 +552,7 @@ const DashboardPage = () => {
               className="xl:col-span-2"
               icon={Icons.folder}
               title="Recent enquiries"
-              subtitle="Newest first, with every tag · click a tag to open it"
+              subtitle={isSpare ? "Newest first · click one to open its quotation" : "Newest first, with every tag · click a tag to open it"}
               bodyClassName=""
               action={
                 <Link href="/projects" className="text-[12.5px] font-semibold text-accent hover:underline">
@@ -500,14 +566,13 @@ const DashboardPage = () => {
                 </p>
               ) : (
                 <ul className="divide-y divide-line">
-                  {data.recent.map((e) => (
-                    <EnquiryItem key={e.id} enquiry={e} onOpenTag={(t) => openTag(e, t)} />
-                  ))}
+                  {data.recent.map((e) => (isSpare ? <SpareItem key={e.id} enquiry={e} /> : <EnquiryItem key={e.id} enquiry={e} onOpenTag={(t) => openTag(e, t)} />))}
                 </ul>
               )}
             </Card>
 
             <div className="space-y-4">
+              {!isSpare && (
               <Card icon={Icons.shield} title="Approvals" subtitle="Steps sent to selection heads">
                 <div className="grid grid-cols-3 gap-2 text-center">
                   {[
@@ -527,6 +592,7 @@ const DashboardPage = () => {
                   </Link>
                 )}
               </Card>
+              )}
 
               <Card icon={Icons.overview} title="Enquiries by industry">
                 <Bars color="var(--brand-blue)" items={data.industries.map((i) => ({ key: i.label, label: i.label, value: i.count }))} />
@@ -553,7 +619,8 @@ const DashboardPage = () => {
           rep={rep}
           scopeLabel={`${scopeText} · ${windowLabel}`}
           onClose={() => setListTarget(null)}
-          onOpenEnquiry={(r) => openTag(r)}
+          hideTagCount={isSpare}
+          onOpenEnquiry={(r) => (isSpare ? router.push(`/commercial?projectId=${r.id}`) : openTag(r))}
           onOpenTag={(r) => openTag({ ...r.enquiry, status: r.enquiry.status ?? "" }, r)}
         />
       )}

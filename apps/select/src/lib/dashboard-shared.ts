@@ -52,7 +52,6 @@ export interface DashboardData {
    *  that differ only in case, spaces or punctuation count as one, shown in
    *  their most used spelling; blanks are "Not set". */
   mix: {
-    orderTypes: { label: string; count: number }[];
     markets: { label: string; count: number }[];
     zones: { label: string; count: number }[];
     /** Primary reps, busiest first, with their enquiries' rolled-up status. */

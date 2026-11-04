@@ -111,7 +111,6 @@ export async function getDashboardData({
     // value spelt two ways counts once).
     db
       .select({
-        orderType: projects.orderType,
         market: projects.clientMarketType,
         zone: projects.clientZone,
         rep: projects.clientPrimaryRep,
@@ -269,7 +268,7 @@ export async function getDashboardData({
 
 // --- Client mix ---------------------------------------------------------------
 
-type MixRow = { orderType: string | null; market: string | null; zone: string | null; rep: string | null; status: string | null };
+type MixRow = { market: string | null; zone: string | null; rep: string | null; status: string | null };
 
 const NOT_SET = "Not set";
 const MAX_REPS = 10;
@@ -302,14 +301,12 @@ function grouper() {
 }
 
 function clientMix(rows: MixRow[]): DashboardData["mix"] {
-  const order = grouper();
   const market = grouper();
   const zone = grouper();
   const rep = grouper();
   const repStatus = new Map<string, { pending: number; inProgress: number; completed: number }>();
   const cell = new Map<string, number>();
   for (const r of rows) {
-    order.add(r.orderType === "spare" ? "Spare" : "Pump");
     market.add(r.market);
     const z = zone.add(r.zone);
     const p = rep.add(r.rep);
@@ -324,7 +321,6 @@ function clientMix(rows: MixRow[]): DashboardData["mix"] {
   const topReps = rep.counts().slice(0, MAX_REPS);
   const zones = zone.counts();
   return {
-    orderTypes: plain(order),
     markets: plain(market),
     zones: zones.map(({ label, count }) => ({ label, count })),
     reps: topReps.map((r) => ({ label: r.label, total: r.count, ...repStatus.get(r.key)! })),
