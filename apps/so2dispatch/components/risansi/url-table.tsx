@@ -93,10 +93,13 @@ export function UrlSearchInput({
   paramKey = "q",
   placeholder = "Search…",
   className = "",
+  compact = false,
 }: {
   paramKey?: string;
   placeholder?: string;
   className?: string;
+  /** As tall as the filters beside it. */
+  compact?: boolean;
 }) {
   const { get, setParams, pending } = useUrlTable();
   const urlValue = get(paramKey);
@@ -134,7 +137,7 @@ export function UrlSearchInput({
           setValue(e.target.value);
         }}
         placeholder={placeholder}
-        className="h-10 w-full rounded-lg border border-input-border bg-surface pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+        className={`${compact ? "h-8 text-[13px]" : "h-10 text-sm"} w-full rounded-lg border border-input-border bg-surface pl-9 pr-9 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20`}
       />
       {pending && (
         <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />

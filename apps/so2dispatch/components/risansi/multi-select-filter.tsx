@@ -18,6 +18,23 @@ export function useShownValue<T>(value: T, key: string): [T, (next: T) => void] 
   return [shown.value, (next) => setShown({ key, value: next })];
 }
 
+/** A filter's button: small, so a long row of filters takes little room. */
+export const filterChip = (active: boolean) =>
+  `inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 text-[13px] transition-colors ${
+    active
+      ? "border-primary/40 bg-primary/[0.06] text-foreground"
+      : "border-input-border bg-surface text-foreground hover:bg-background"
+  }`;
+
+/** How many are picked, beside the filter's name. */
+export function FilterCount({ n }: { n: number }) {
+  return (
+    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+      {n}
+    </span>
+  );
+}
+
 /**
  * A dropdown filter that accepts several values at once — the table's built-in
  * facets are single-select, so anything needing "these three zones" uses this.
@@ -88,14 +105,8 @@ export function MultiSelectFilter({
   const shownOptions = !searchable
     ? options
     : [...selected.filter((o) => options.includes(o)), ...options.filter((o) => !selected.includes(o) && (!t || o.toLowerCase().includes(t))).slice(0, 200)];
-  const summary =
-    picked.length === 0
-      ? (allLabel ?? `All ${label.toLowerCase()}s`)
-      : picked.length === 1
-        ? picked[0]
-        : selected.length && groupSelected.length
-          ? `${selected.join(", ")} + ${groupSelected.join(", ")}`
-          : `${picked.length} selected`;
+  // The name alone until something is picked; hovering says what is.
+  const hint = picked.length ? picked.join(", ") : (allLabel ?? `All ${label.toLowerCase()}s`);
   const row = (option: string, checked: boolean, onClick: () => void) => (
     <button
       key={option}
@@ -121,15 +132,19 @@ export function MultiSelectFilter({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={`${label} filter`}
-        className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${
-          picked.length > 0
-            ? "border-primary/40 bg-primary/[0.06] text-foreground"
-            : "border-input-border bg-surface text-foreground hover:bg-background"
-        }`}
+        title={hint}
+        className={filterChip(picked.length > 0)}
       >
-        <span className="text-muted">{label}:</span>
-        <span className="max-w-[16rem] truncate font-medium">{summary}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        {picked.length === 1 ? (
+          <>
+            <span className="text-muted">{label}:</span>
+            <span className="max-w-[9rem] truncate font-medium">{picked[0]}</span>
+          </>
+        ) : (
+          <span className={picked.length ? "font-medium" : ""}>{label}</span>
+        )}
+        {picked.length > 1 && <FilterCount n={picked.length} />}
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </button>
 
       {open && (
@@ -203,7 +218,13 @@ export function SingleSelectFilter({
   selected: selectedProp,
   onChange: onChangeProp,
   disabled = false,
+  showDefault = false,
+  active,
 }: {
+  /** Whether it reads as narrowing the list, when its value alone does not say (Date, until a range is set). */
+  active?: boolean;
+  /** Nothing picked still means something (Date: SO date), so say it on the button. */
+  showDefault?: boolean;
   label: string;
   allLabel: string;
   options: { value: string; label: string }[];
@@ -251,15 +272,18 @@ export function SingleSelectFilter({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={`${label} filter`}
-        className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-          current
-            ? "border-primary/40 bg-primary/[0.06] text-foreground"
-            : "border-input-border bg-surface text-foreground hover:bg-background"
-        }`}
+        title={current?.label ?? allLabel}
+        className={`${filterChip(active ?? !!current)} disabled:cursor-not-allowed disabled:opacity-50`}
       >
-        <span className="text-muted">{label}:</span>
-        <span className="font-medium">{current?.label ?? allLabel}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        {current || showDefault ? (
+          <>
+            <span className="text-muted">{label}:</span>
+            <span className="max-w-[11rem] truncate font-medium">{current?.label ?? allLabel}</span>
+          </>
+        ) : (
+          <span>{label}</span>
+        )}
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </button>
 
       {open && !disabled && (

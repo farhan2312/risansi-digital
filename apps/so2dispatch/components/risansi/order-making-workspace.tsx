@@ -475,6 +475,7 @@ export function OrderMakingWorkspace({
       <div className="flex flex-wrap items-center gap-2">
         <SingleSelectFilter
           label="Date"
+          showDefault
           allLabel="PO receiving date"
           options={OM_DATE_FIELDS.filter((d) => d.value !== "po_date").map((d) => ({ value: d.value, label: d.label }))}
           selected={filter.dateField === "po_date" ? null : filter.dateField}

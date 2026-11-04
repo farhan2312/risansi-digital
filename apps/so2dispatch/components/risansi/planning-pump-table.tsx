@@ -513,7 +513,7 @@ export function EcKindToggle({ value, onChange }: { value: "spare" | "pump"; onC
   }
   const shown = asked ?? value;
   return (
-    <div role="group" aria-label="Spare or Pump" className="inline-flex h-9 rounded-lg border border-input-border p-0.5">
+    <div role="group" aria-label="Spare or Pump" className="inline-flex h-8 rounded-lg border border-input-border p-0.5">
       {(["spare", "pump"] as const).map((k) => (
         <button
           key={k}
@@ -524,7 +524,7 @@ export function EcKindToggle({ value, onChange }: { value: "spare" | "pump"; onC
             setAsked(k);
             onChange(k);
           }}
-          className={`rounded-md px-3 text-sm font-semibold transition-colors ${
+          className={`rounded-md px-2.5 text-[13px] font-semibold transition-colors ${
             shown === k ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
           }`}
         >

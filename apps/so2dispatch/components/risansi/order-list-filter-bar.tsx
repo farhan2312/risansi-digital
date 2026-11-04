@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { EcKindToggle } from "./planning-pump-table";
 import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, PauseCircle, Receipt, X } from "lucide-react";
 import { UrlSearchInput, useUrlTable } from "./url-table";
-import { MultiSelectFilter, SingleSelectFilter, useShownValue } from "./multi-select-filter";
+import { FilterCount, MultiSelectFilter, SingleSelectFilter, filterChip, useShownValue } from "./multi-select-filter";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import {
   DEPTS_WITHOUT_PARTY,
@@ -200,8 +200,8 @@ export function OrderListFilterBar({
     <>
     {/* Every SO's chat at a glance, above the filters. */}
     {!noChats && <AllChatsRow />}
-    <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="mb-3 rounded-xl border border-card-border bg-surface p-2 shadow-sm">
+      <div className="flex flex-wrap items-center gap-1.5">
         {/* Proforma Invoice, Accounts, Dispatch: All, Spare or Pump at a click. */}
         {typeToggle && (
           <OrderTypeToggle
@@ -222,7 +222,7 @@ export function OrderListFilterBar({
             onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : null, dstatus: null, page: null })}
           />
         )}
-        <UrlSearchInput placeholder={searchPlaceholder} className={searchClassName} />
+        <UrlSearchInput compact placeholder={searchPlaceholder} className={searchClassName} />
         {showsParty && (
         <MultiSelectFilter
           label="Zone"
@@ -235,7 +235,7 @@ export function OrderListFilterBar({
         <>
         {options.repScope ? (
           // A Rep or Rep Manager: themself; a Rep has nothing to choose.
-          <span className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-input-border bg-background px-3 text-sm text-foreground">
+          <span className="inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-input-border bg-background px-2.5 text-[13px] text-foreground">
             <span className="text-muted">Rep:</span> {options.repScope[0]}
           </span>
         ) : (
@@ -492,6 +492,7 @@ export function OrderListFilterBar({
             <SingleSelectFilter
               label="Is"
               allLabel="Pending"
+              showDefault
               disabled={!filter.field}
               options={FIELD_STATES.filter((s) => s.value !== "pending").map((s) => ({ value: s.value, label: s.label }))}
               selected={filter.field?.state === "filled" ? "filled" : null}
@@ -509,9 +510,6 @@ export function OrderListFilterBar({
           onChange={(next) => setParams({ signoff: next })}
         />
         )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
         {/* Past its own target with work outstanding — only meaningful for a
             department that works to a date. */}
         {activeDept && hasTarget && activeDept !== "dispatch" && (
@@ -519,7 +517,7 @@ export function OrderListFilterBar({
             type="button"
             onClick={() => setParams({ overdue: filter.overdue ? null : "1" })}
             aria-pressed={filter.overdue}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+            className={`inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition-colors ${
               filter.overdue
                 ? "border-danger-border bg-danger-bg text-danger"
                 : "border-input-border text-foreground hover:bg-background"
@@ -534,7 +532,7 @@ export function OrderListFilterBar({
           type="button"
           onClick={() => setParams({ hold: filter.onHold ? null : "1" })}
           aria-pressed={filter.onHold}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+          className={`inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition-colors ${
             filter.onHold
               ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
               : "border-input-border text-foreground hover:bg-background"
@@ -549,7 +547,7 @@ export function OrderListFilterBar({
             type="button"
             onClick={() => setParams({ ob: filter.onlyBilling ? null : "1" })}
             aria-pressed={filter.onlyBilling}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+            className={`inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition-colors ${
               filter.onlyBilling
                 ? "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300"
                 : "border-input-border text-foreground hover:bg-background"
@@ -593,7 +591,7 @@ export function OrderListFilterBar({
             type="button"
             onClick={() => setParams({ noslip: filter.noSlip ? null : "1" })}
             aria-pressed={filter.noSlip}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+            className={`inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition-colors ${
               filter.noSlip
                 ? "border-rose-500/40 bg-rose-500/10 text-rose-700"
                 : "border-input-border text-foreground hover:bg-background"
@@ -610,7 +608,7 @@ export function OrderListFilterBar({
             type="button"
             onClick={() => setParams({ ready: filter.ready ? null : "1" })}
             aria-pressed={filter.ready}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+            className={`inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition-colors ${
               filter.ready
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700"
                 : "border-input-border text-foreground hover:bg-background"
@@ -622,6 +620,8 @@ export function OrderListFilterBar({
         )}
         <SingleSelectFilter
           label="Date"
+          showDefault
+          active={!!(filter.from || filter.to)}
           allLabel={
             dept === "planning"
               ? "Readiness date"
@@ -717,7 +717,7 @@ export function OrderListFilterBar({
           </>
         )}
         {orderInHand !== undefined && (
-          <span className={`${filtered ? "" : "ml-auto "}inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/40 bg-primary/[0.06] px-3 text-sm`}>
+          <span className={`${filtered ? "" : "ml-auto "}inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/40 bg-primary/[0.06] px-2.5 text-[13px]`}>
             <span className="text-muted">Cumulative order in hand:</span>
             <span className="font-semibold tabular-nums text-foreground">
               {orderInHand.toLocaleString("en-IN", { maximumFractionDigits: 0 })} INR
@@ -773,12 +773,8 @@ function DeptStatusMultiFilter({
   const picked = Object.entries(value).filter(([, v]) => v?.length) as [DeptFilterKey, string[]][];
   // The departments opened to show their statuses: those with a status ticked, to start.
   const [opened, setOpened] = useState<DeptFilterKey[]>(() => picked.map(([d]) => d));
-  const summary =
-    picked.length === 0
-      ? "Any"
-      : picked.length === 1
-        ? `${DEPT_FILTER_LABELS[picked[0][0]]}: ${picked[0][1].join(", ")}`
-        : picked.map(([d, v]) => `${DEPT_FILTER_LABELS[d]} (${v.length})`).join(" · ");
+  const summary = picked.length === 0 ? "Any" : picked.map(([d, v]) => `${DEPT_FILTER_LABELS[d]}: ${v.join(", ")}`).join(" · ");
+  const count = picked.reduce((n, [, v]) => n + v.length, 0);
   function toggle(dept: DeptFilterKey, status: string) {
     const cur = value[dept] ?? [];
     const next = cur.includes(status) ? cur.filter((s) => s !== status) : [...cur, status];
@@ -795,13 +791,12 @@ function DeptStatusMultiFilter({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label="Departments filter"
-        className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors ${
-          picked.length ? "border-primary/40 bg-primary/[0.06] text-foreground" : "border-input-border bg-surface text-foreground hover:bg-background"
-        }`}
+        title={summary}
+        className={filterChip(picked.length > 0)}
       >
-        <span className="text-muted">Departments:</span>
-        <span className="max-w-[20rem] truncate font-medium">{summary}</span>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className={picked.length ? "font-medium" : ""}>Departments</span>
+        {count > 0 && <FilterCount n={count} />}
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </button>
       {open && (
         <div className="absolute left-0 z-30 mt-1.5 max-h-[28rem] w-[26rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-card-border bg-surface p-2 shadow-lg">
@@ -872,14 +867,14 @@ function DeptStatusMultiFilter({
 /** All, Spare or Pump: the SOs of either kind, or both. */
 function OrderTypeToggle({ value, onChange }: { value: "all" | "spare" | "pump"; onChange: (v: "all" | "spare" | "pump") => void }) {
   return (
-    <div role="group" aria-label="All, Spare or Pump" className="inline-flex h-9 rounded-lg border border-input-border p-0.5">
+    <div role="group" aria-label="All, Spare or Pump" className="inline-flex h-8 rounded-lg border border-input-border p-0.5">
       {(["all", "spare", "pump"] as const).map((k) => (
         <button
           key={k}
           type="button"
           aria-pressed={value === k}
           onClick={() => value !== k && onChange(k)}
-          className={`rounded-md px-3 text-sm font-semibold transition-colors ${
+          className={`rounded-md px-2.5 text-[13px] font-semibold transition-colors ${
             value === k ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
           }`}
         >
