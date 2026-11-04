@@ -29,7 +29,7 @@ export function DiscussionBell({
 }: {
   role: string;
   initialUnread: number;
-  /** The count as it moves, for All chats in the sidebar: this icon holds the one poll. */
+  /** The count as it moves, for Discussion in the sidebar: this icon holds the one poll. */
   onUnread?: (n: number) => void;
 }) {
   const router = useRouter();

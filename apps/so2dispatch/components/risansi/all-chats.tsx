@@ -30,7 +30,7 @@ function waited(iso: string): string {
 const count = (n: number) => (n > 99 ? "99+" : n);
 
 /**
- * All chats, from the sidebar, over whichever page this is: on the left every
+ * Discussion, from the sidebar, over whichever page this is: on the left every
  * SO conversation the user is in, latest first and grouped by SO; on the right
  * the one picked, with where its SO stands. Searching also finds SOs with no
  * chat yet, to start one on. A page at a time, the next loading as the list is
@@ -180,7 +180,7 @@ export function AllChatsPanel({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="All chats"
+      aria-label="Discussion"
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
       onClick={onClose}
     >
@@ -193,7 +193,7 @@ export function AllChatsPanel({
           <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-3">
             <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-foreground">
               <MessagesSquare className="h-4 w-4 text-primary" />
-              All chats
+              Discussion
             </h2>
             <span className="flex items-center gap-1">
               {loading && <Loader2 className="h-4 w-4 animate-spin text-muted" />}
@@ -342,7 +342,7 @@ export function AllChatsPanel({
           <div className="border-b border-card-border px-4 py-2.5 md:hidden">
             <button type="button" onClick={() => setChat(null)} className="inline-flex items-center gap-1 text-xs font-medium text-primary">
               <ArrowLeft className="h-3.5 w-3.5" />
-              All chats
+              Discussion
             </button>
           </div>
           {chat ? (

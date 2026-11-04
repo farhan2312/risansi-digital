@@ -320,7 +320,7 @@ function chatScope(user: { id: string; role: string; rep_names?: string[] }) {
 
 export type SoSearchResult = { ok: true; sos: SoHit[] } | { ok: false; error: string };
 
-/** The SOs a search finds in All chats, chat or not, to start one on. */
+/** The SOs a search finds in Discussion, chat or not, to start one on. */
 export async function searchSosForChatAction(term: string): Promise<SoSearchResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
@@ -332,7 +332,7 @@ export async function searchSosForChatAction(term: string): Promise<SoSearchResu
   }
 }
 
-/** Everything unread in All chats, read now. Other people's unread stays theirs. */
+/** Everything unread in Discussion, read now. Other people's unread stays theirs. */
 export async function markAllChatsReadAction(): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };

@@ -97,7 +97,7 @@ export function AppShell({
   const mobileTitle = crumbs.length > 0 ? crumbs[crumbs.length - 1].label : "Risansi";
   const headerRef = useRef<HTMLElement>(null);
   useStickyTableHeads(headerRef);
-  // All chats, from the sidebar or the phone's Menu; CRM and 360° View have none.
+  // Discussion, from the sidebar or the phone's Menu; CRM and 360° View have none.
   const canChat = !hasNoChat(user.role);
   const [chatsOpen, setChatsOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(discussionUnread);

@@ -361,7 +361,7 @@ export async function listDiscussionInbox(
   return result.rows;
 }
 
-/** One conversation on one SO, for the All chats list. */
+/** One conversation on one SO, for the Discussion list. */
 export type ChatSummary = {
   order_id: string;
   so_no: string | null;
@@ -380,13 +380,13 @@ export type ChatSummary = {
   waiting: boolean;
 };
 
-/** One page of the All chats list, and the unread and waiting totals across all of it. */
+/** One page of the Discussion list, and the unread and waiting totals across all of it. */
 export type ChatPage = { chats: ChatSummary[]; hasMore: boolean; unread: number; waiting: number };
 
 /** An SO a search found, to start a chat on. */
 export type SoHit = { order_id: string; so_no: string | null; sl_no: number; client_name: string | null };
 
-/** Who the All chats list is narrowed to, for those who see only some SOs. */
+/** Who the Discussion list is narrowed to, for those who see only some SOs. */
 type ChatScope = {
   /** A Rep: only SOs whose Rep is one of these. */
   repNames?: string[];
@@ -405,7 +405,7 @@ function ownSideRoles(role: string): string[] {
 
 /**
  * Every conversation the viewer is in, across all SOs, latest first — the
- * All chats list, a page at a time. Read state is the same as the SO's own
+ * Discussion list, a page at a time. Read state is the same as the SO's own
  * chat. A search matches the SO No., client, the department or any message
  * (or its author); `peerHits` are the departments whose name matched.
  */

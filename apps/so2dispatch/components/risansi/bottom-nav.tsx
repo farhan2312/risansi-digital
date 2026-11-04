@@ -57,7 +57,7 @@ export function BottomNav({
   reminderCount?: number;
   notifUnread?: number;
   chatUnread?: number;
-  /** Opens All chats; absent for those with no chat. */
+  /** Opens Discussion; absent for those with no chat. */
   onOpenChats?: () => void;
 }) {
   const pathname = usePathname();
@@ -201,7 +201,7 @@ export function BottomNav({
                   className="mb-4 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-hover"
                 >
                   <MessagesSquare className="h-5 w-5 shrink-0" />
-                  <span className="flex-1">All chats</span>
+                  <span className="flex-1">Discussion</span>
                   {chatUnread > 0 && (
                     <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[11px] font-semibold text-white">
                       {chatUnread > 99 ? "99+" : chatUnread}

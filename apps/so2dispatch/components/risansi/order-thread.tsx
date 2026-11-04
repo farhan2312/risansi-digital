@@ -68,12 +68,12 @@ export function OrderThread({
   defaultOpen = true,
   onSent,
 }: {
-  /** A message went out (All chats refreshes its list). */
+  /** A message went out (Discussion refreshes its list). */
   onSent?: () => void;
   orderId: string;
   role: string;
   soLabel?: string;
-  /** Open on this conversation (All chats) rather than the one most worth reading. */
+  /** Open on this conversation (Discussion) rather than the one most worth reading. */
   initialPeer?: string;
   className?: string;
   // Adds the expand/collapse control to the header. The modal keeps it off
