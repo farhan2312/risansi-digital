@@ -6,15 +6,34 @@ export function ecLinkHref(v: unknown): string {
   return /^https?:\/\//i.test(s) ? s : "";
 }
 
+/** When the link was attached, in India: 03 Nov 2026, 04:08 pm. "" when not known. */
+export function ecLinkWhen(v: unknown): string {
+  if (!v) return "";
+  const d = new Date(v instanceof Date ? v : String(v));
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 /**
  * The EC's attachment (its SharePoint link, from the Pump Add-On), as a clip
  * beside the EC No. that opens it in a new tab. Nothing when the EC has none.
- * `label` shows the words too, for the EC's own details.
+ * `at` is when it was attached, in small type after the clip. `label` shows the
+ * words too, for the EC's own details.
  */
-export function EcLink({ href, label }: { href: unknown; label?: boolean }) {
+export function EcLink({ href, label, at }: { href: unknown; label?: boolean; at?: unknown }) {
   const url = ecLinkHref(href);
   if (!url) return null;
+  const when = ecLinkWhen(at);
   return (
+    <>
     <a
       href={url}
       target="_blank"
@@ -29,5 +48,7 @@ export function EcLink({ href, label }: { href: unknown; label?: boolean }) {
       <Paperclip className="h-3.5 w-3.5 shrink-0" />
       {label && <span className="text-sm">EC attachment</span>}
     </a>
+    {when && <span title="Attached on" className="ml-1.5 whitespace-nowrap align-middle text-[10px] font-normal text-muted">{when}</span>}
+    </>
   );
 }

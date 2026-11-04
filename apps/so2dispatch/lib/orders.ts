@@ -2857,6 +2857,7 @@ export async function listItemsForSection(
             o.so_no,
             it.ec_no,
             it.ec_link,
+            it.ec_link_at,
             it.item_type,
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
@@ -3047,6 +3048,8 @@ export type PurchaseQueueRow = {
   ec_no: string | null;
   /** The EC's attachment (SharePoint link). */
   ec_link?: string | null;
+  /** When that link was attached. */
+  ec_link_at?: Date | string | null;
   boi: string | null;
   ld: string | null;
   ld_date: string | null;
@@ -3078,6 +3081,7 @@ export async function listItemsForPurchase(
             o.order_type,
             it.ec_no,
             it.ec_link,
+            it.ec_link_at,
             it.item_type, it.model_no, it.pump_type, it.quantity, it.boi AS ec_boi,
             to_char(it.ec_date, 'YYYY-MM-DD') AS ec_date,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
@@ -5009,7 +5013,7 @@ export async function listOrdersForOrderMaking(opts: {
             COALESCE((SELECT jsonb_agg(jsonb_build_object(
                         'id', i.id, 'ec_no', i.ec_no, 'ec_date', to_char(i.ec_date, 'YYYY-MM-DD'),
                         -- Every field of the EC form: one missing here opens blank, and saves blank.
-                        'ec_link', i.ec_link, 'base_plate', i.base_plate,
+                        'ec_link', i.ec_link, 'ec_link_at', i.ec_link_at, 'base_plate', i.base_plate,
                         'pump_type', i.pump_type, 'model_no', i.model_no, 'internal_model', i.internal_model,
                         'quantity', i.quantity, 'suction', i.suction, 'delivery', i.delivery,
                         'pump_sno', i.pump_sno, 'application', i.application, 'version', i.version,
