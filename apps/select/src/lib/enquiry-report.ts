@@ -3,8 +3,8 @@
 import { holdReasonText } from "./clearance";
 import type { TsmOption } from "./commercial";
 import { orderTypeLabel } from "./roles";
-import { LETTERHEAD_CSS, dotDate, esc, letterheadHtml } from "./tech-doc";
-import { BAND, TITLE_BAND } from "./tech-doc-excel";
+import { dotDate, esc } from "./tech-doc";
+import { BAND } from "./tech-doc-excel";
 import { downloadXlsx, type XlsxCell } from "./xlsx";
 import type { ProjectRecord } from "../services/projectService";
 
@@ -92,25 +92,12 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
 export const reportCell = (r: EnquiryReportRow, key: ColumnKey): string =>
   key === "status" ? r.statuses.map((s) => (s.label ? `${s.label}: ${s.value}` : s.value)).join("\n") : r[key];
 
-export const reportCounts = (rows: EnquiryReportRow[]): { label: string; value: number }[] => {
-  const count = (test: (r: EnquiryReportRow) => boolean) => rows.filter(test).length;
-  return [
-    { label: "Enquiries", value: rows.length },
-    { label: "Pump", value: count((r) => r.category === "Pump") },
-    { label: "Spare", value: count((r) => r.category === "Spare") },
-    { label: "Domestic", value: count((r) => /domestic/i.test(r.type)) },
-    { label: "Export", value: count((r) => /export/i.test(r.type)) },
-    { label: "On hold", value: count((r) => r.onHold) },
-  ];
-};
-
 const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
 const statusClass = (s: string) => (s === "Completed" ? "done" : s === "In Progress" ? "going" : "waiting");
 
-/** The printed report: letterhead, title band, counts, then the table, its heading
- *  repeated on every page. */
-export function buildEnquiryReportHtml(rows: EnquiryReportRow[], scope: string, logoUrl = "/logo.png"): string {
+/** The printed report: just the table, its heading repeated on every page. */
+export function buildEnquiryReportHtml(rows: EnquiryReportRow[]): string {
   const cell = (r: EnquiryReportRow, key: ColumnKey): string => {
     if (key === "status")
       return r.statuses
@@ -131,13 +118,7 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], scope: string, 
   body { margin: 0; padding: 12px; background: #fff; font-family: Arial, Helvetica, sans-serif; color: #1f2937; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @media print { body { padding: 0; } }
   .sheet { max-width: 1100px; margin: 0 auto; }
-  ${LETTERHEAD_CSS}
-  .band { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-top: 10px; padding: 11px 14px; border-radius: 6px 6px 0 0; color: #fff; background: linear-gradient(90deg, #06408c, #1e6fd0); }
-  .band h1 { margin: 0; font-size: 15pt; letter-spacing: 0.02em; }
-  .band p { margin: 0; font-size: 8.5pt; color: #dcebfb; text-align: right; }
-  .counts { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 8px 14px; background: #f4f8fd; border: 1px solid #dcebfb; border-top: 0; font-size: 8.5pt; color: #4b5b6e; }
-  .counts b { margin-left: 4px; font-size: 10.5pt; color: #06408c; }
-  table { width: 100%; margin-top: 8px; border-collapse: collapse; table-layout: fixed; font-size: 8pt; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; }
   thead { display: table-header-group; }
   th { padding: 6px 5px; background: #0b2f63; color: #fff; font-size: 7.5pt; font-weight: bold; text-align: left; vertical-align: bottom; border: 1px solid #0b2f63; }
   td { padding: 5px; border: 1px solid #d5deea; vertical-align: top; overflow-wrap: anywhere; white-space: pre-line; }
@@ -155,11 +136,6 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], scope: string, 
   .empty { padding: 28px; text-align: center; color: #6b7a8c; }
 </style></head>
 <body><div class="sheet">
-  ${letterheadHtml(logoUrl)}
-  <div class="band"><h1>Enquiry Report</h1><p>${esc(scope)}<br>Generated ${esc(dotDate(todayIst()))}</p></div>
-  <div class="counts">${reportCounts(rows)
-    .map((c) => `<span>${esc(c.label)}<b>${c.value}</b></span>`)
-    .join("")}</div>
   <table>
     <colgroup>${REPORT_COLUMNS.map((c) => `<col style="width:${c.pct}%">`).join("")}</colgroup>
     <thead><tr>${REPORT_COLUMNS.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr></thead>
@@ -172,13 +148,10 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], scope: string, 
 </div></body></html>`;
 }
 
-export function downloadEnquiryReportExcel(rows: EnquiryReportRow[], scope: string): void {
-  const cols = REPORT_COLUMNS.length;
+export function downloadEnquiryReportExcel(rows: EnquiryReportRow[]): void {
   const sheetRows: XlsxCell[][] = [
-    [{ value: "Enquiry Report", colSpan: cols, ...TITLE_BAND }],
-    [{ value: `${scope} - ${rows.length} enquiries - generated ${dotDate(todayIst())}`, colSpan: cols }],
     REPORT_COLUMNS.map((c) => ({ value: c.label, wrap: true, ...BAND })),
     ...rows.map((r) => REPORT_COLUMNS.map((c): XlsxCell => ({ value: reportCell(r, c.key), wrap: true, bold: c.key === "rilRep" || c.key === "enquiryNo" }))),
   ];
-  downloadXlsx(`Enquiry-Report_${todayIst()}.xlsx`, [{ name: "Enquiry Report", columnWidths: REPORT_COLUMNS.map((c) => c.width), rows: sheetRows }]);
+  downloadXlsx(`Enquiry-Report_${todayIst()}.xlsx`, [{ name: "Enquiry Report", columnWidths: REPORT_COLUMNS.map((c) => c.width), printA3Landscape: true, rows: sheetRows }]);
 }
