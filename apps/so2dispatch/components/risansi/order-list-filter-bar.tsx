@@ -23,7 +23,6 @@ import {
   PAYMENT_STATUS_FILTER_OPTIONS,
   SO_CATEGORY_FILTER_OPTIONS,
   NOT_SET,
-  DATE_PRESETS,
   FIELD_FILTER_FIELDS,
   PAYMENT_FILTER_DEPTS,
   BILL_MODE_FILTER_DEPTS,
@@ -35,7 +34,6 @@ import {
   isOrderListFiltered,
   parseDeptFilter,
   serializeDeptStatusMulti,
-  presetRange,
 } from "@/lib/order-list-filter";
 import type { OrderListOptions } from "@/lib/orders";
 import { SIGN_OFF_ENABLED } from "@/lib/dept-completion";
@@ -103,7 +101,10 @@ export function OrderListFilterBar({
   extraKeys = [],
   noChats = false,
   orderInHand,
+  ordersPage = false,
 }: {
+  /** The Orders page: no Field, Payment status or Only billing filter. */
+  ordersPage?: boolean;
   /** Dispatch: the cumulative Order in Hand of every matching SO, in INR. */
   orderInHand?: number;
   /** The dashboard: no All chats button. */
@@ -192,12 +193,6 @@ export function OrderListFilterBar({
       live = false;
     };
   }, [dept]);
-
-  const activePreset =
-    DATE_PRESETS.find((p) => {
-      const [from, to] = presetRange(p);
-      return from === filter.from && to === filter.to;
-    }) ?? null;
 
   return (
     <>
@@ -405,8 +400,8 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ socat: next })}
           />
         )}
-        {/* The orders list: Accounts' payment status. */}
-        {!dept && (
+        {/* The Dashboard: Accounts' payment status. */}
+        {!dept && !ordersPage && (
           <MultiSelectFilter
             label="Payment status"
             allLabel="Any payment status"
@@ -474,8 +469,8 @@ export function OrderListFilterBar({
             />
           </>
         )}
-        {/* The order list only: one of the SO's own fields, filled or pending. */}
-        {!dept && (
+        {/* The Dashboard: one of the SO's own fields, filled or pending. */}
+        {!dept && !ordersPage && (
           <>
             <SingleSelectFilter
               label="Field"
@@ -540,8 +535,8 @@ export function OrderListFilterBar({
           <PauseCircle className="h-3.5 w-3.5" />
           On hold
         </button>
-        {/* The Orders list: only the SOs sent to Billing alone. */}
-        {!dept && (
+        {/* The Dashboard: only the SOs sent to Billing alone. */}
+        {!dept && !ordersPage && (
           <button
             type="button"
             onClick={() => setParams({ ob: filter.onlyBilling ? null : "1" })}
@@ -677,27 +672,6 @@ export function OrderListFilterBar({
             setParams({ datefield: next === fallback ? null : next });
           }}
         />
-        {DATE_PRESETS.map((label) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => {
-              if (activePreset === label) {
-                setParams({ from: null, to: null });
-                return;
-              }
-              const [from, to] = presetRange(label);
-              setParams({ from, to });
-            }}
-            className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors ${
-              activePreset === label
-                ? "border-primary/40 bg-primary/[0.06] text-foreground"
-                : "border-input-border bg-surface text-muted hover:bg-background hover:text-foreground"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
         <label className="inline-flex items-center gap-1.5 text-xs text-muted">
           From
           <input

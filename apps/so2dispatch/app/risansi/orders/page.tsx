@@ -42,6 +42,13 @@ export default async function OrdersPage({
   const rep = isRep(user.role);
 
   const params = await searchParams;
+  // Filters this page no longer offers: an old link drops them rather than
+  // narrowing the list with nothing on screen saying so.
+  const dropped = ["ob", "pstat", "field", "fstate"];
+  if (dropped.some((k) => params[k] !== undefined)) {
+    const kept = Object.entries(params).filter(([k, v]) => !dropped.includes(k) && v !== undefined) as [string, string][];
+    redirect(`/risansi/orders?${new URLSearchParams(kept)}`);
+  }
   // The central dashboard's filter set, read from the URL so it narrows the
   // whole table in SQL — see lib/order-list-filter.ts.
   // A Rep sees only their own SOs.

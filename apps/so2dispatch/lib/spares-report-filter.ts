@@ -48,21 +48,6 @@ export function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** The quick ranges above the date pickers. */
-export function rangePresets(today = todayIst()): { key: string; label: string; from: string; to: string }[] {
-  const [y, m] = today.split("-").map(Number);
-  const monthStart = `${today.slice(0, 7)}-01`;
-  const lastMonthEnd = addDays(monthStart, -1);
-  const fyStartYear = m >= 4 ? y : y - 1;
-  return [
-    { key: "7d", label: "Last 7 days", from: addDays(today, -6), to: today },
-    { key: "30d", label: "Last 30 days", from: addDays(today, -29), to: today },
-    { key: "month", label: "This month", from: monthStart, to: today },
-    { key: "last_month", label: "Last month", from: `${lastMonthEnd.slice(0, 7)}-01`, to: lastMonthEnd },
-    { key: "fy", label: "This FY", from: `${fyStartYear}-04-01`, to: today },
-  ];
-}
-
 const list = (value: string | undefined | null) =>
   (value ?? "")
     .split(",")

@@ -452,7 +452,7 @@ export function OrdersTable({
   return (
     <div>
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
-      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
+      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">

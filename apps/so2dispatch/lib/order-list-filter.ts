@@ -98,53 +98,6 @@ export const BILL_MODE_FILTER_DEPTS: readonly string[] = ["billing", "accounts",
 /** The queues that filter by the SO's dispatch status beside their own status. */
 export const DISPATCH_STATUS_FILTER_DEPTS: readonly string[] = ["billing", "planning", "assembly"];
 
-export const DATE_PRESETS = [
-  "Today",
-  "Yesterday",
-  "Tomorrow",
-  "Last 7 days",
-  // Readiness, packing and target dates lie ahead: what is coming up.
-  "Next 7 days",
-  "Last 30 days",
-  "This month",
-  "This year",
-] as const;
-
-export type DatePreset = (typeof DATE_PRESETS)[number];
-
-/** Today as an IST calendar date — the dates on an order are IST dates. */
-export function todayIst(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-}
-
-/** A preset's [from, to] as IST calendar dates. */
-export function presetRange(preset: DatePreset): [string, string] {
-  const today = todayIst();
-  const shift = (days: number) => {
-    const d = new Date(`${today}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0, 10);
-  };
-  switch (preset) {
-    case "Today":
-      return [today, today];
-    case "Yesterday":
-      return [shift(-1), shift(-1)];
-    case "Tomorrow":
-      return [shift(1), shift(1)];
-    case "Last 7 days":
-      return [shift(-6), today];
-    case "Next 7 days":
-      return [today, shift(7)];
-    case "Last 30 days":
-      return [shift(-29), today];
-    case "This month":
-      return [`${today.slice(0, 7)}-01`, today];
-    default:
-      return [`${today.slice(0, 4)}-01-01`, today];
-  }
-}
-
 export type OrderListFilter = {
   search: string;
   zones: string[];

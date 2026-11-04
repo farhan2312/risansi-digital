@@ -19,7 +19,6 @@ import { OrderOperationPopup } from "./order-operation-popup";
 import { useSoNoTaken } from "./use-so-no-taken";
 import { OmReportModal } from "./om-report-modal";
 import { OmReportPanel } from "./om-report-panel";
-import { DATE_PRESETS, presetRange } from "@/lib/order-list-filter";
 import {
   BILL_MODE_FILTER_OPTIONS,
   SO_CATEGORY_FILTER_OPTIONS,
@@ -169,11 +168,6 @@ export function OrderMakingWorkspace({
   const router = useRouter();
   const [threadFor, setThreadFor] = useState<{ orderId: string; soLabel: string } | null>(null);
   const missingOnly = filter.missingOnly;
-  const activePreset =
-    DATE_PRESETS.find((p) => {
-      const [from, to] = presetRange(p);
-      return from === filter.from && to === filter.to;
-    }) ?? null;
   const { setParams, pending } = useUrlTable();
   // The Excel report: the list as filtered and searched, every page.
   const urlParams = useSearchParams();
@@ -486,24 +480,6 @@ export function OrderMakingWorkspace({
           selected={filter.dateField === "po_date" ? null : filter.dateField}
           onChange={(next) => setParams({ datefield: next })}
         />
-        {DATE_PRESETS.map((label) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => {
-              if (activePreset === label) return setParams({ from: null, to: null });
-              const [from, to] = presetRange(label);
-              setParams({ from, to });
-            }}
-            className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors ${
-              activePreset === label
-                ? "border-primary/40 bg-primary/[0.06] text-foreground"
-                : "border-input-border bg-surface text-muted hover:bg-background hover:text-foreground"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
         <label className="inline-flex items-center gap-1.5 text-xs text-muted">
           From
           <input

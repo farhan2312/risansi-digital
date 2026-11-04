@@ -3,10 +3,10 @@
 import { Loader2, X } from "lucide-react";
 import { MultiSelectFilter } from "./multi-select-filter";
 import { useUrlTable } from "./url-table";
-import { rangePresets, type SparesReportFilter } from "@/lib/spares-report-filter";
+import type { SparesReportFilter } from "@/lib/spares-report-filter";
 
 /**
- * The Spares report's controls: a quick range or From / To, which SOs it
+ * The Spares report's controls: From / To, which SOs it
  * covers, and the three status selections. Everything lives in the URL, so
  * the PDF link carries the same filter.
  */
@@ -18,8 +18,6 @@ export function SparesReportFilters({
   options: { planning: string[]; assembly: string[]; dispatch: string[] };
 }) {
   const { setParams, pending } = useUrlTable();
-  const presets = rangePresets();
-  const active = presets.find((p) => p.from === filter.from && p.to === filter.to)?.key;
   const narrowed = filter.scope === "created" || filter.planning.length || filter.assembly.length || filter.dispatch.length;
 
   const chip = (on: boolean) =>
@@ -32,17 +30,6 @@ export function SparesReportFilters({
   return (
     <div className="space-y-3 rounded-xl border border-card-border bg-surface p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
-        {presets.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            onClick={() => setParams({ from: p.from, to: p.to })}
-            className={chip(active === p.key)}
-          >
-            {p.label}
-          </button>
-        ))}
-        <span className="mx-1 h-5 w-px bg-card-border" aria-hidden />
         <label className="inline-flex items-center gap-1.5 text-xs text-muted">
           From
           <input
