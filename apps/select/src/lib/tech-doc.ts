@@ -735,7 +735,7 @@ export function sheetHtml(opts: {
 </div></body></html>`;
 }
 
-export const LETTERHEAD_CSS = `
+const LETTERHEAD_CSS = `
   /* Letterhead: the original logo on white, a light-blue swoosh, then the
      deep-blue bar with the company details (user's design, 2026-10-07). */
   .lh { display: flex; align-items: stretch; height: 84px; border: 1.5px solid #1e6fd0; overflow: hidden;
@@ -751,7 +751,7 @@ export const LETTERHEAD_CSS = `
   .lh-info b { font-weight: 700; }
 `;
 
-export function letterheadHtml(logoUrl: string): string {
+function letterheadHtml(logoUrl: string): string {
   const L = LETTERHEAD;
   return `
   <div class="lh">

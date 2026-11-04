@@ -8,7 +8,6 @@ import {
   downloadEnquiryReportExcel,
   enquiryReportRows,
   reportCell,
-  reportCounts,
   type EnquiryReportRow,
 } from "../../lib/enquiry-report";
 import { printHtml } from "../../lib/enquiry-print";
@@ -75,7 +74,7 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
   const scale = zoom === "fit" ? fit : zoom;
   const step = (d: number) => setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((scale + d) * 10) / 10)));
 
-  const html = useMemo(() => (rows ? buildEnquiryReportHtml(rows, scope, `${window.location.origin}/logo.png`) : ""), [rows, scope]);
+  const html = useMemo(() => (rows ? buildEnquiryReportHtml(rows) : ""), [rows]);
   const loading = open && loadedFor !== key && !error;
 
   return (
@@ -133,11 +132,11 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
               </button>
             </div>
             {view === "pdf" ? (
-              <button type="button" className={btn} onClick={() => void printHtml(html, "A4 landscape")}>
+              <button type="button" className={btn} onClick={() => void printHtml(html, "A3 landscape")}>
                 Print / PDF
               </button>
             ) : (
-              <button type="button" className={btn} onClick={() => downloadEnquiryReportExcel(rows, scope)}>
+              <button type="button" className={btn} onClick={() => downloadEnquiryReportExcel(rows)}>
                 Download Excel
               </button>
             )}
@@ -184,13 +183,6 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
 function ExcelSheet({ rows, scale }: { rows: EnquiryReportRow[]; scale: number }) {
   return (
     <div className="mx-auto w-max bg-white text-[#1f2937]" style={{ zoom: scale }}>
-      <div className="flex flex-wrap gap-x-5 gap-y-1 border border-b-0 border-[#c9d3df] px-3 py-2 text-[12px] text-[#4b5b6e]">
-        {reportCounts(rows).map((c) => (
-          <span key={c.label}>
-            {c.label} <b className="ml-0.5 font-mono text-[#06408c]">{c.value}</b>
-          </span>
-        ))}
-      </div>
       <table className="table-fixed border-separate border-spacing-0 text-[12px]" style={{ width: EXCEL_WIDTH }}>
         <colgroup>
           {REPORT_COLUMNS.map((c) => (
