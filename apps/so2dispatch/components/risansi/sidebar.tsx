@@ -12,6 +12,7 @@ import {
   ChevronsUpDown,
   KeyRound,
   LogOut,
+  MessagesSquare,
 } from "lucide-react";
 import { logout } from "@/app/risansi/actions";
 import {
@@ -47,11 +48,16 @@ export function Sidebar({
   alertCount = 0,
   reminderCount = 0,
   notifUnread = 0,
+  chatUnread = 0,
+  onOpenChats,
 }: {
   user: SidebarUser;
   alertCount?: number;
   reminderCount?: number;
   notifUnread?: number;
+  chatUnread?: number;
+  /** Opens All chats; absent for those with no chat. */
+  onOpenChats?: () => void;
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -151,6 +157,21 @@ export function Sidebar({
                 }}
                 badge={notifBadge}
               />
+            )}
+            {onOpenChats && (
+              <button
+                type="button"
+                onClick={onOpenChats}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-hover"
+              >
+                <MessagesSquare className="h-4 w-4 shrink-0" />
+                <span className="flex-1">All chats</span>
+                {chatUnread > 0 && (
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[11px] font-semibold text-white">
+                    {chatUnread > 99 ? "99+" : chatUnread}
+                  </span>
+                )}
+              </button>
             )}
             {/* The admin reaches the whole tracker under Admin; everyone else
                 follows the reports they sent. */}

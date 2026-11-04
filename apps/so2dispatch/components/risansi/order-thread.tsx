@@ -66,7 +66,10 @@ export function OrderThread({
   className = "",
   collapsible = false,
   defaultOpen = true,
+  onSent,
 }: {
+  /** A message went out (All chats refreshes its list). */
+  onSent?: () => void;
   orderId: string;
   role: string;
   soLabel?: string;
@@ -247,6 +250,7 @@ export function OrderThread({
     setAlsoTo([]);
     setMessages(res.messages);
     refreshConversations();
+    onSent?.();
   }
 
   async function saveEdit(id: string) {

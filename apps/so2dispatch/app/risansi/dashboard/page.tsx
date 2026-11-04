@@ -94,7 +94,7 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      <OrderListFilterBar options={data.options} total={data.total} noDispatchTarget noTypeFilter noChats kindToggle={kind} />
+      <OrderListFilterBar options={data.options} total={data.total} noDispatchTarget noTypeFilter kindToggle={kind} />
       <KpiStrip cards={data.kpis} panels />
 
       <div className="mt-5">

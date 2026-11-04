@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUrlTableBusy } from "./url-table";
 import { Bell, ChevronRight, PlayCircle, RotateCw, ZoomOut } from "lucide-react";
 import { ReportBugTrigger } from "./report-bug";
 import { DiscussionBell } from "./discussion-bell";
+import { AllChatsPanel } from "./all-chats";
 import { hasNoChat } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
 import { RoleSwitcher } from "./role-switcher";
@@ -96,6 +97,11 @@ export function AppShell({
   const mobileTitle = crumbs.length > 0 ? crumbs[crumbs.length - 1].label : "Risansi";
   const headerRef = useRef<HTMLElement>(null);
   useStickyTableHeads(headerRef);
+  // All chats, from the sidebar or the phone's Menu; CRM and 360° View have none.
+  const canChat = !hasNoChat(user.role);
+  const [chatsOpen, setChatsOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(discussionUnread);
+  const openChats = canChat ? () => setChatsOpen(true) : undefined;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -104,6 +110,8 @@ export function AppShell({
         alertCount={alertCount}
         reminderCount={reminderCount}
         notifUnread={notifUnread}
+        chatUnread={chatUnread}
+        onOpenChats={openChats}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -194,6 +202,7 @@ export function AppShell({
               <DiscussionBell
                 role={user.role}
                 initialUnread={discussionUnread}
+                onUnread={setChatUnread}
               />
             )}
             {showBugBell && (
@@ -243,7 +252,11 @@ export function AppShell({
         alertCount={alertCount}
         reminderCount={reminderCount}
         notifUnread={notifUnread}
+        chatUnread={chatUnread}
+        onOpenChats={openChats}
       />
+
+      {chatsOpen && <AllChatsPanel role={user.role} liveUnread={chatUnread} onClose={() => setChatsOpen(false)} />}
     </div>
   );
 }

@@ -25,9 +25,12 @@ export function stamp(iso: string): string {
 export function DiscussionBell({
   role,
   initialUnread,
+  onUnread,
 }: {
   role: string;
   initialUnread: number;
+  /** The count as it moves, for All chats in the sidebar: this icon holds the one poll. */
+  onUnread?: (n: number) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -76,6 +79,10 @@ export function DiscussionBell({
       controller.abort();
     };
   }, [initialUnread]);
+
+  useEffect(() => {
+    onUnread?.(unread);
+  }, [unread, onUnread]);
 
   // Close on an outside click or Escape.
   useEffect(() => {

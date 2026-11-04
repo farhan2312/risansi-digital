@@ -39,7 +39,6 @@ import type { OrderListOptions } from "@/lib/orders";
 import { SIGN_OFF_ENABLED } from "@/lib/dept-completion";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
 import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
-import { AllChatsRow } from "./all-chats";
 
 /** Every parameter the filter owns — what "Clear all" empties. */
 const FILTER_KEYS = [
@@ -99,7 +98,6 @@ export function OrderListFilterBar({
   extraFilters,
   searchClassName,
   extraKeys = [],
-  noChats = false,
   orderInHand,
   ordersPage = false,
 }: {
@@ -107,8 +105,6 @@ export function OrderListFilterBar({
   ordersPage?: boolean;
   /** Dispatch: the cumulative Order in Hand of every matching SO, in INR. */
   orderInHand?: number;
-  /** The dashboard: no All chats button. */
-  noChats?: boolean;
   /** A queue with statuses of its own (Drawing) drops the department Status filter… */
   noStatusFilter?: boolean;
   /** …and shows its own filters here, under these URL params. */
@@ -198,8 +194,6 @@ export function OrderListFilterBar({
 
   return (
     <>
-    {/* Every SO's chat at a glance, above the filters. */}
-    {!noChats && <AllChatsRow />}
     <div className="mb-3 rounded-xl border border-card-border bg-surface p-2 shadow-sm">
       <div className="flex flex-wrap items-center gap-1.5">
         {/* Proforma Invoice, Accounts, Dispatch: All, Spare or Pump at a click. */}

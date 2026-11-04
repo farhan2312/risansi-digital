@@ -9,6 +9,7 @@ import {
   Settings,
   KeyRound,
   LogOut,
+  MessagesSquare,
   MoreHorizontal,
   X,
   type LucideIcon,
@@ -48,11 +49,16 @@ export function BottomNav({
   alertCount = 0,
   reminderCount = 0,
   notifUnread = 0,
+  chatUnread = 0,
+  onOpenChats,
 }: {
   user: ShellUser;
   alertCount?: number;
   reminderCount?: number;
   notifUnread?: number;
+  chatUnread?: number;
+  /** Opens All chats; absent for those with no chat. */
+  onOpenChats?: () => void;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -185,6 +191,24 @@ export function BottomNav({
             </div>
 
             <div className="px-3 py-3">
+              {onOpenChats && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    onOpenChats();
+                  }}
+                  className="mb-4 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-hover"
+                >
+                  <MessagesSquare className="h-5 w-5 shrink-0" />
+                  <span className="flex-1">All chats</span>
+                  {chatUnread > 0 && (
+                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[11px] font-semibold text-white">
+                      {chatUnread > 99 ? "99+" : chatUnread}
+                    </span>
+                  )}
+                </button>
+              )}
               {moreDepartments.length > 0 && (
                 <div className="mb-4">
                   <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">

@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, BellRing, Clock } from "lucide-react";
 import type { ReminderRow, ReminderTier } from "@/lib/reminders";
-import { ALL_CHATS_SLOT } from "./all-chats";
 
 const TIER_STYLE: Record<
   ReminderTier,
@@ -121,8 +120,6 @@ export function RemindersPanel({
             {overdue.length}
           </span>
         </button>
-        {/* The page's All chats button lands here, at the right. */}
-        <div id={ALL_CHATS_SLOT} className="ml-auto" />
       </div>
 
       {shown.length > 0 && (

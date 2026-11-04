@@ -1,5 +1,6 @@
 import { query } from "@/lib/db";
-import { ALL_ROLES, hasNoChat, isCentral, type Role } from "@/lib/roles";
+import { ALL_ROLES, hasNoChat, isCentral, isRep, type Role } from "@/lib/roles";
+import { deptQueueSql, deptViewForRole, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
 /**
  * Per-SO discussion, as two-party conversations.
@@ -375,10 +376,32 @@ export type ChatSummary = {
   last_at: string;
   last_body: string;
   last_author: string;
+  /** The last word is the other side's, on an SO still going: the viewer owes a reply. */
+  waiting: boolean;
 };
 
-/** One page of the All chats list, and the unread total across all of it. */
-export type ChatPage = { chats: ChatSummary[]; hasMore: boolean; unread: number };
+/** One page of the All chats list, and the unread and waiting totals across all of it. */
+export type ChatPage = { chats: ChatSummary[]; hasMore: boolean; unread: number; waiting: number };
+
+/** An SO a search found, to start a chat on. */
+export type SoHit = { order_id: string; so_no: string | null; sl_no: number; client_name: string | null };
+
+/** Who the All chats list is narrowed to, for those who see only some SOs. */
+type ChatScope = {
+  /** A Rep: only SOs whose Rep is one of these. */
+  repNames?: string[];
+  /** An Order Making SO member: only the SOs assigned to them. */
+  assigneeId?: string;
+};
+
+/** A search term as ILIKE reads it: % and _ are themselves. */
+const escapeLike = (term: string) => term.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/** The roles on the viewer's own side of a conversation. */
+function ownSideRoles(role: string): string[] {
+  if (isCentral(role)) return ["admin", CENTRAL_PEER];
+  return isRep(role) ? ["rep", "rep_manager"] : [role];
+}
 
 /**
  * Every conversation the viewer is in, across all SOs, latest first — the
@@ -394,14 +417,12 @@ export async function listAllChats(
     search?: string;
     peerHits?: string[];
     unreadOnly?: boolean;
-    /** A Rep: only SOs whose Rep is one of these. */
-    repNames?: string[];
-    /** An Order Making SO member: only the SOs assigned to them. */
-    assigneeId?: string;
-  } = {}
+    /** Only the chats waiting on a reply from the viewer, longest wait first. */
+    waitingOnly?: boolean;
+  } & ChatScope = {}
 ): Promise<ChatPage> {
   const peers = peersFor(viewer.role);
-  if (peers.length === 0) return { chats: [], hasMore: false, unread: 0 };
+  if (peers.length === 0) return { chats: [], hasMore: false, unread: 0, waiting: 0 };
   const limit = Math.min(Math.max(opts.limit ?? 40, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
   const search = (opts.search ?? "").trim();
@@ -410,18 +431,21 @@ export async function listAllChats(
   const scope: string[] = [];
   if (opts.repNames) scope.push(`lower(btrim(COALESCE(o.reps, ''))) = ANY(${add(opts.repNames.map((n) => n.trim().toLowerCase()))}::text[])`);
   if (opts.assigneeId) scope.push(`o.so_assignee_id = ${add(opts.assigneeId)}`);
-  const like = search ? add(`%${search.replace(/[\%_]/g, (c) => `\${c}`)}%`) : "";
+  const like = search ? add(`%${escapeLike(search)}%`) : "";
   const hits = search ? add(opts.peerHits ?? []) : "";
   const outer: string[] = [];
   if (search) {
     outer.push(`(c.hit OR c.so_no ILIKE ${like} OR c.client_name ILIKE ${like} OR c.peer = ANY(${hits}::text[]))`);
   }
   if (opts.unreadOnly) outer.push("c.unread > 0");
+  if (opts.waitingOnly) outer.push("c.waiting");
+  const own = add(ownSideRoles(viewer.role));
+  const ownPeer = add(isCentral(viewer.role) ? CENTRAL_PEER : laneOf(viewer.role));
   const lim = add(limit + 1);
   const off = add(offset);
   const { param, params: all } = withRole(viewer, params);
   const peerOf = peerOfSql(viewer.role, param);
-  const result = await query<ChatSummary & { all_unread: number }>(
+  const result = await query<ChatSummary & { all_unread: number; all_waiting: number }>(
     `WITH c AS (
        SELECT m.order_id, o.so_no, o.sl_no::int AS sl_no, o.client_name, o.reps,
               o.so_assignee_id::text AS so_assignee_id,
@@ -435,6 +459,8 @@ export async function listAllChats(
               to_char(MAX(m.created_at) AT TIME ZONE 'UTC', ${ISO}) AS last_at,
               (ARRAY_AGG(m.body ORDER BY m.created_at DESC))[1] AS last_body,
               (ARRAY_AGG(m.author_name ORDER BY m.created_at DESC))[1] AS last_author,
+              (ARRAY_AGG(m.author_role ORDER BY m.created_at DESC))[1] AS last_role,
+              bool_and(${orderOpenSql("o")} AND ${orderStatusSql("o")} <> 'Fully dispatch') AS so_live,
               ${search ? `bool_or(m.body ILIKE ${like} OR m.author_name ILIKE ${like})` : "false"} AS hit
          FROM order_messages m
          JOIN orders o ON o.id = m.order_id
@@ -447,39 +473,102 @@ export async function listAllChats(
         GROUP BY m.order_id, o.so_no, o.sl_no, o.client_name, o.reps, o.so_assignee_id, 7
      ),
      -- Only conversations the viewer may still open.
-     v AS (SELECT * FROM c WHERE c.peer = ANY($2::text[]))
-     SELECT c.*, (SELECT COALESCE(SUM(unread), 0) FROM v)::int AS all_unread
+     v AS (SELECT c.*, (c.so_live AND c.peer <> ${ownPeer}::text AND NOT (c.last_role = ANY(${own}::text[]))) AS waiting
+             FROM c WHERE c.peer = ANY($2::text[]))
+     SELECT c.*, (SELECT COALESCE(SUM(unread), 0) FROM v)::int AS all_unread,
+            (SELECT COUNT(*) FROM v WHERE v.waiting)::int AS all_waiting
        FROM v c
       ${outer.length ? `WHERE ${outer.join(" AND ")}` : ""}
-      ORDER BY c.last_ts DESC, c.order_id, c.peer
+      ORDER BY c.last_ts ${opts.waitingOnly ? "ASC" : "DESC"}, c.order_id, c.peer
       LIMIT ${lim} OFFSET ${off}`,
     all
   );
   const rows = result.rows;
-  return {
-    chats: rows.slice(0, limit),
-    hasMore: rows.length > limit,
-    // A filtered page may be empty while other chats are unread.
-    unread: rows[0]?.all_unread ?? (outer.length || offset ? await listAllChatsUnread(viewer, opts) : 0),
-  };
+  // A filtered page may be empty while other chats are unread or waiting.
+  const totals = rows[0]
+    ? { unread: rows[0].all_unread, waiting: rows[0].all_waiting }
+    : outer.length || offset
+      ? await listAllChats(viewer, { repNames: opts.repNames, assigneeId: opts.assigneeId, limit: 1 })
+      : { unread: 0, waiting: 0 };
+  return { chats: rows.slice(0, limit), hasMore: rows.length > limit, unread: totals.unread, waiting: totals.waiting };
 }
 
-/** The unread total alone, when a page came back empty. */
-async function listAllChatsUnread(
-  viewer: { id: string; role: string },
-  opts: { repNames?: string[]; assigneeId?: string }
-): Promise<number> {
-  const page = await listAllChats(viewer, { repNames: opts.repNames, assigneeId: opts.assigneeId, limit: 1 });
-  return page.unread;
+/**
+ * The SOs the viewer may find to start a chat on, by SO No., EC No., client or
+ * client code: only those they can already see — a Rep their own, a department
+ * those in its queue.
+ */
+export async function searchSosForChat(viewer: { id: string; role: string }, term: string, scope: ChatScope = {}): Promise<SoHit[]> {
+  const search = term.trim();
+  if (search.length < 2 || peersFor(viewer.role).length === 0) return [];
+  const params: unknown[] = [`%${escapeLike(search)}%`, `${escapeLike(search)}%`];
+  const add = (v: unknown) => `$${params.push(v)}`;
+  const view = deptViewForRole(viewer.role);
+  const reach = scope.repNames
+    ? `lower(btrim(COALESCE(o.reps, ''))) = ANY(${add(scope.repNames.map((n) => n.trim().toLowerCase()))}::text[])`
+    : scope.assigneeId
+      ? `o.so_assignee_id = ${add(scope.assigneeId)}`
+      : isCentral(viewer.role) || viewer.role === "order_making"
+        ? "TRUE"
+        : view
+          ? deptQueueSql(view.key, "o")
+          : releasedSql("o");
+  const result = await query<SoHit>(
+    `SELECT o.id AS order_id, o.so_no, o.sl_no::int AS sl_no, o.client_name
+       FROM orders o
+      WHERE (${reach})
+        AND (o.so_no ILIKE $1 OR o.client_name ILIKE $1 OR o.client_code ILIKE $1
+             OR EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND it.ec_no::text ILIKE $1))
+      ORDER BY (o.so_no ILIKE $2) DESC, o.sl_no DESC
+      LIMIT 8`,
+    params
+  );
+  return result.rows;
 }
 
-/** How many unread discussion entries the viewer has, in total. */
+/** Everything unread in the viewer's chats, read now. How many conversations it took. */
+export async function markAllChatsRead(viewer: { id: string; role: string }, scope: ChatScope = {}): Promise<number> {
+  const peers = peersFor(viewer.role);
+  if (peers.length === 0) return 0;
+  const base: unknown[] = [viewer.id, peers];
+  const { param, params } = withRole(viewer, base);
+  const add = (v: unknown) => `$${params.push(v)}`;
+  const conds: string[] = [];
+  if (scope.repNames) conds.push(`lower(btrim(COALESCE(o.reps, ''))) = ANY(${add(scope.repNames.map((n) => n.trim().toLowerCase()))}::text[])`);
+  if (scope.assigneeId) conds.push(`o.so_assignee_id = ${add(scope.assigneeId)}`);
+  const peerOf = peerOfSql(viewer.role, param);
+  const result = await query(
+    `INSERT INTO order_message_reads (user_id, order_id, dept_role, last_read_at)
+     SELECT DISTINCT $1::uuid, m.order_id, ${peerOf}, now()
+       FROM order_messages m
+       JOIN orders o ON o.id = m.order_id
+       LEFT JOIN order_message_reads r
+              ON r.user_id = $1
+             AND r.order_id = m.order_id
+             AND r.dept_role = ${peerOf}
+      WHERE ${visibleSql(viewer.role, param)}
+        AND ${peerOf} = ANY($2::text[])
+        AND m.author_id <> $1
+        AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
+        ${conds.map((c) => `AND ${c}`).join(" ")}
+     ON CONFLICT (user_id, order_id, dept_role) DO UPDATE SET last_read_at = now()`,
+    params
+  );
+  return result.rowCount ?? 0;
+}
+
+/** How many unread discussion entries the viewer has, in total: for a Rep, on their own SOs only. */
 export async function countDiscussionUnread(viewer: {
   id: string;
   role: string;
+  rep_names?: string[];
 }): Promise<number> {
   if (peersFor(viewer.role).length === 0) return 0;
   const { param, params } = withRole(viewer, [viewer.id]);
+  const repScope = isRep(viewer.role)
+    ? `AND EXISTS (SELECT 1 FROM orders so WHERE so.id = m.order_id
+         AND lower(btrim(COALESCE(so.reps, ''))) = ANY($${params.push((viewer.rep_names ?? []).map((n) => n.trim().toLowerCase()))}::text[]))`
+    : "";
   const result = await query<{ n: string }>(
     `SELECT COUNT(*)::text AS n
        FROM order_messages m
@@ -490,7 +579,8 @@ export async function countDiscussionUnread(viewer: {
       WHERE ${visibleSql(viewer.role, param)}
         AND m.author_id <> $1
         AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
-        ${viewer.role === "order_making_so" ? "AND EXISTS (SELECT 1 FROM orders so WHERE so.id = m.order_id AND so.so_assignee_id = $1)" : ""}`,
+        ${viewer.role === "order_making_so" ? "AND EXISTS (SELECT 1 FROM orders so WHERE so.id = m.order_id AND so.so_assignee_id = $1)" : ""}
+        ${repScope}`,
     params
   );
   return Number(result.rows[0]?.n ?? 0);

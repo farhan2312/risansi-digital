@@ -1,9 +1,11 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/session";
-import { getOrderRep } from "@/lib/orders";
-import { repMatches } from "@/lib/dept-view";
-import { isRep, roleLabel } from "@/lib/roles";
+import { query } from "@/lib/db";
+import { getOrderRep, listOrderDeptStatuses } from "@/lib/orders";
+import { orderStatusOf, acrossEcs } from "@/lib/order-row-view";
+import { orderStatusSql, repMatches } from "@/lib/dept-view";
+import { hasNoChat, isRep, roleLabel } from "@/lib/roles";
 import { logAudit } from "@/lib/audit";
 import { subjectForOrder } from "@/lib/audit-subject";
 
@@ -19,7 +21,9 @@ import {
   listDiscussionInbox,
   listAllChats,
   listMessages,
+  markAllChatsRead,
   markConversationRead,
+  searchSosForChat,
   sidesFor,
   MAX_MESSAGE_LENGTH,
   type ChatPage,
@@ -27,6 +31,7 @@ import {
   type DelayLogReport,
   type InboxEntry,
   type OrderMessage,
+  type SoHit,
 } from "@/lib/order-messages";
 import { isAssignedTo } from "@/lib/so-assignment";
 
@@ -285,7 +290,7 @@ export type AllChatsResult =
  * chats list. `peerHits`: the departments whose name the search matched.
  */
 export async function allChatsAction(
-  opts: { offset?: number; search?: string; peerHits?: string[]; unreadOnly?: boolean } = {}
+  opts: { offset?: number; search?: string; peerHits?: string[]; unreadOnly?: boolean; waitingOnly?: boolean } = {}
 ): Promise<AllChatsResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
@@ -295,13 +300,106 @@ export async function allChatsAction(
       search: String(opts.search ?? "").slice(0, 100),
       peerHits: (opts.peerHits ?? []).filter((p) => typeof p === "string").slice(0, 30),
       unreadOnly: !!opts.unreadOnly,
-      // A Rep: their own SOs only; an Order Making SO member: the SOs assigned to them.
-      repNames: isRep(user.role) ? (user.rep_names ?? []) : undefined,
-      assigneeId: user.role === "order_making_so" ? user.id : undefined,
+      waitingOnly: !!opts.waitingOnly,
+      ...chatScope(user),
     });
     return { ok: true, role: user.role, ...page };
   } catch (error) {
     console.error("allChatsAction failed:", error);
     return { ok: false, error: "Could not load the chats." };
+  }
+}
+
+/** A Rep: their own SOs only; an Order Making SO member: the SOs assigned to them. */
+function chatScope(user: { id: string; role: string; rep_names?: string[] }) {
+  return {
+    repNames: isRep(user.role) ? (user.rep_names ?? []) : undefined,
+    assigneeId: user.role === "order_making_so" ? user.id : undefined,
+  };
+}
+
+export type SoSearchResult = { ok: true; sos: SoHit[] } | { ok: false; error: string };
+
+/** The SOs a search finds in All chats, chat or not, to start one on. */
+export async function searchSosForChatAction(term: string): Promise<SoSearchResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  try {
+    return { ok: true, sos: await searchSosForChat(user, String(term ?? "").slice(0, 100), chatScope(user)) };
+  } catch (error) {
+    console.error("searchSosForChatAction failed:", error);
+    return { ok: false, error: "Could not search the SOs." };
+  }
+}
+
+/** Everything unread in All chats, read now. Other people's unread stays theirs. */
+export async function markAllChatsReadAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  try {
+    await markAllChatsRead(user, chatScope(user));
+    return { ok: true };
+  } catch (error) {
+    console.error("markAllChatsReadAction failed:", error);
+    return { ok: false, error: "Could not mark them as read." };
+  }
+}
+
+/** Where a chat's SO stands: its order status and each department's word, no amounts. */
+export type ChatSoDetails = {
+  status: string;
+  client_name: string | null;
+  reps: string | null;
+  order_type: string | null;
+  depts: { name: string; label: string; done: boolean }[];
+};
+
+export async function chatSoDetailsAction(orderId: string): Promise<{ ok: true; so: ChatSoDetails } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (hasNoChat(user.role) || !UUID_RE.test(orderId) || !(await repOwns(user, orderId))) {
+    return { ok: false, error: "You don't have access to that SO." };
+  }
+  try {
+    const r = await query<{
+      client_name: string | null;
+      reps: string | null;
+      order_type: string | null;
+      dispatch_status: string | null;
+      clearance_status: string | null;
+      om_status: string | null;
+      accounts_hold_status: string | null;
+    }>(
+      `SELECT o.client_name, o.reps, o.order_type, ${orderStatusSql("o")} AS dispatch_status,
+              o.clearance_status, o.om_status, o.accounts_hold_status
+         FROM orders o WHERE o.id = $1`,
+      [orderId]
+    );
+    const row = r.rows[0];
+    if (!row) return { ok: false, error: "SO not found." };
+    const status = (await listOrderDeptStatuses([orderId])).get(orderId);
+    const cells = [
+      ["Drawing", acrossEcs(status, "drawing")],
+      ["Purchase", acrossEcs(status, "purchase")],
+      ["Quality", acrossEcs(status, "quality")],
+      ["Planning", acrossEcs(status, "planning")],
+      ["Assembly & Packing", acrossEcs(status, "assembly")],
+      ["PI", status?.billing ?? null],
+      ["Accounts", status?.accounts ?? null],
+      ["Dispatch", status?.dispatch ?? null],
+    ] as const;
+    return {
+      ok: true,
+      so: {
+        status: orderStatusOf(row),
+        client_name: row.client_name,
+        reps: row.reps,
+        order_type: row.order_type,
+        depts: cells.flatMap(([name, c]) => (c && c.state !== "na" ? [{ name, label: c.label, done: c.state === "done" }] : [])),
+      },
+    };
+  } catch (error) {
+    console.error("chatSoDetailsAction failed:", error);
+    return { ok: false, error: "Could not load the SO." };
   }
 }
