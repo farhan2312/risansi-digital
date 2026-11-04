@@ -685,20 +685,18 @@ function LotStagesModal({
                           })}
                         </div>
                       )}
-                      {/* Why it is not all assembled yet; gone from view once it is. */}
-                      {named && !assembled && (
-                        <div className="mt-3">
-                          <Field label="Assembly pending remarks">
-                            <input
-                              type="text"
-                              value={l.asm_remarks}
-                              disabled={ro || !unlocked}
-                              onChange={(e) => set(i, { asm_remarks: e.target.value })}
-                              className={input}
-                            />
-                          </Field>
-                        </div>
-                      )}
+                      {/* Why it was pending: on every lot, always, whatever else is locked. */}
+                      <div className="mt-3">
+                        <Field label="Assembly pending remarks">
+                          <input
+                            type="text"
+                            value={l.asm_remarks}
+                            disabled={ro}
+                            onChange={(e) => set(i, { asm_remarks: e.target.value })}
+                            className={input}
+                          />
+                        </Field>
+                      </div>
                     </div>
                     <div className={`rounded-lg border border-card-border p-3 ${assembled ? "" : "opacity-60"}`}>
                       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">

@@ -91,7 +91,7 @@ export type PumpLot = {
   assembly_plan_date: string;
   assembly_shift: string;
   assembled_date: string;
-  /** Why it is not all assembled yet: shown only while it is not. */
+  /** Why its assembly was pending: kept and shown even once it is assembled. */
   asm_remarks: string;
   packing_plan_date: string;
   packing_shift: string;

@@ -87,7 +87,7 @@ function pumpLot(l: PumpLot | undefined, slips: Row[]): string {
     label,
     qty > 0 && `Qty ${qty} · Assembled ${assembled} · Packed ${l.packed_date ? qty : 0}`,
     stage(l.assembled_date, l.assembly_plan_date, "Assembly"),
-    !l.assembled_date && l.asm_remarks && `Assembly pending: ${l.asm_remarks}`,
+    l.asm_remarks && `Assembly pending: ${l.asm_remarks}`,
     stage(l.packed_date, l.packing_plan_date, "Packing"),
     l.pack_remarks,
     l.packed_date && !lotOnSlip(l.n, slips) && "No slip",
