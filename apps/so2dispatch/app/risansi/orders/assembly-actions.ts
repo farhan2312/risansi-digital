@@ -199,14 +199,12 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
   }
 }
 
-/** An SO's Alignment as Assembly & Packing tracks it: its base plate and its wooden box. */
-export type Alignment = {
-  base_plate_status: string;
-  /** The day of the base plate's status (YYYY-MM-DD). */
-  base_plate_date: string;
-  base_plate_remarks: string;
-  /** In house, bought out, or both: each way with its own. */
-  wooden_boxes: WoodenBox[];
+/** A pump SO's base plate: a status, the day it reached it, and remarks. */
+export type BasePlate = {
+  status: string;
+  /** YYYY-MM-DD. */
+  date: string;
+  remarks: string;
 };
 
 /** One way the SO's wooden boxes come (In house or Bought out), with its own quantities, status and receipt. */
@@ -222,72 +220,102 @@ export type WoodenBox = {
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/**
- * Assembly & Packing's Alignment on a pump SO. Each item is tracked only when
- * the SO needs it — a base plate when an EC says so, a wooden box when its
- * Packing Requirement is Wooden Box — and the other is cleared. Assembly &
- * Packing, Central Visibility and Admin.
- */
-export async function saveAlignmentAction(orderId: string, a: Alignment): Promise<AssemblyResult> {
+/** Who may fill either form, whether the SO is there, and what it needs. */
+async function alignmentGate(orderId: string): Promise<
+  | { error: string }
+  | { user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>; plate: boolean; box: boolean }
+> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!user) return { error: "You are not signed in." };
   if (!canEditSection(user.role, "order_assembly_dispatch")) {
-    return { ok: false, error: "Only Assembly & Packing can set the alignment." };
+    return { error: "Only Assembly & Packing can set the alignment." };
   }
-  if (!UUID_RE.test(orderId)) return { ok: false, error: "Order not found." };
+  if (!UUID_RE.test(orderId)) return { error: "Order not found." };
   const need = await query<{ plate: string; box: string | null }>(
     `SELECT ${basePlateSql("o")} AS plate, ${woodenBoxSql("o")} AS box FROM orders o WHERE o.id = $1`,
     [orderId]
   );
-  if (!need.rows[0]) return { ok: false, error: "Order not found." };
-  const plate = need.rows[0].plate === "Yes";
-  const box = need.rows[0].box === "Yes";
-  const text = (v: string) => (v ?? "").trim() || null;
+  if (!need.rows[0]) return { error: "Order not found." };
+  return { user, plate: need.rows[0].plate === "Yes", box: need.rows[0].box === "Yes" };
+}
+
+const text = (v: string) => (v ?? "").trim() || null;
+
+/**
+ * Assembly & Packing's base plate on a pump SO, when an EC needs one. Saved on
+ * its own: the wooden boxes, filled by someone else, are not touched.
+ */
+export async function saveBasePlateAction(orderId: string, p: BasePlate): Promise<AssemblyResult> {
+  const gate = await alignmentGate(orderId);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  if (!gate.plate) return { ok: false, error: "This SO needs no base plate: no EC says Yes." };
+
+  // A status, its day once past Pending, and remarks.
+  const status = BASE_PLATE_STATUSES.includes(p.status) ? p.status : "Pending";
+  const date = (p.date ?? "").trim();
+  if (date && !DAY_RE.test(date)) return { ok: false, error: "Enter a valid base plate date." };
+  if (status !== "Pending" && !date) return { ok: false, error: `Enter the date the base plate reached ${status}.` };
+  const remarks = text(p.remarks);
+
+  try {
+    await query(
+      `UPDATE orders SET base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4, updated_at = now()
+        WHERE id = $1`,
+      [orderId, status, date || null, remarks]
+    );
+  } catch (error) {
+    console.error("saveBasePlateAction failed:", error);
+    return { ok: false, error: "Could not save the base plate." };
+  }
+  await logAudit({
+    actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
+    action: "order.update",
+    category: "activity",
+    target: (await getOrderLabel(orderId)) ?? orderId,
+    details: `Base plate: ${status}${date ? ` on ${date}` : ""}${remarks ? ` (${remarks})` : ""}`,
+    subject: await subjectForOrder(orderId),
+  });
+  revalidatePath("/risansi/departments/assembly-dispatch");
+  return { ok: true };
+}
+
+/**
+ * Assembly & Packing's wooden boxes on a pump SO, when its Packing Requirement
+ * is Wooden Box: each way (in house, bought out) with how many, its status, and
+ * what came in. Saved on its own: the base plate, filled by someone else, is
+ * not touched.
+ */
+export async function saveWoodenBoxAction(orderId: string, sent: WoodenBox[]): Promise<AssemblyResult> {
+  const gate = await alignmentGate(orderId);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  if (!gate.box) return { ok: false, error: "This SO needs no wooden box: its Packing Requirement is not Wooden Box." };
   const qty = (v: string): number | null | false => {
     const t = (v ?? "").trim();
     if (!t) return null;
     return /^\d+$/.test(t) ? Number(t) : false;
   };
 
-  // The base plate: a status, its day once past Pending, and remarks.
-  const plateStatus = plate ? (BASE_PLATE_STATUSES.includes(a.base_plate_status) ? a.base_plate_status : "Pending") : null;
-  const plateDate = plate ? (a.base_plate_date ?? "").trim() : "";
-  if (plateDate && !DAY_RE.test(plateDate)) return { ok: false, error: "Enter a valid base plate date." };
-  if (plateStatus && plateStatus !== "Pending" && !plateDate) {
-    return { ok: false, error: `Enter the date the base plate reached ${plateStatus}.` };
-  }
-  const plateRemarks = plate ? text(a.base_plate_remarks) : null;
-
-  // The wooden boxes: each way (in house, bought out) with how many, its
-  // status, and what came in.
   type Box = { source: string; required: number; stock: number | null; status: string; date: string | null; got: number | null; remarks: string | null };
   const boxes: Box[] = [];
-  if (box) {
-    for (const source of WOODEN_BOX_SOURCES) {
-      const w = (a.wooden_boxes ?? []).find((x) => x?.source === source);
-      if (!w) continue;
-      const required = qty(w.required_qty);
-      const stock = qty(w.stock_qty);
-      const status = WOODEN_BOX_STATUSES.includes(w.status) ? w.status : "Pending";
-      const received = status === "Received";
-      const date = received ? (w.received_date ?? "").trim() : "";
-      const got = received ? qty(w.received_qty) : null;
-      if (required === false || stock === false || got === false) return { ok: false, error: `${source}: quantities are whole numbers.` };
-      if (required == null) return { ok: false, error: `${source}: enter the wooden boxes required.` };
-      if (received && !DAY_RE.test(date)) return { ok: false, error: `${source}: enter the date the wooden boxes were received.` };
-      if (received && !got) return { ok: false, error: `${source}: enter the wooden boxes received.` };
-      boxes.push({ source, required, stock, status, date: date || null, got, remarks: text(w.remarks) });
-    }
-    if (boxes.length === 0) return { ok: false, error: "Choose whether the wooden boxes are in house, bought out, or both." };
+  for (const source of WOODEN_BOX_SOURCES) {
+    const w = (sent ?? []).find((x) => x?.source === source);
+    if (!w) continue;
+    const required = qty(w.required_qty);
+    const stock = qty(w.stock_qty);
+    const status = WOODEN_BOX_STATUSES.includes(w.status) ? w.status : "Pending";
+    const received = status === "Received";
+    const date = received ? (w.received_date ?? "").trim() : "";
+    const got = received ? qty(w.received_qty) : null;
+    if (required === false || stock === false || got === false) return { ok: false, error: `${source}: quantities are whole numbers.` };
+    if (required == null) return { ok: false, error: `${source}: enter the wooden boxes required.` };
+    if (received && !DAY_RE.test(date)) return { ok: false, error: `${source}: enter the date the wooden boxes were received.` };
+    if (received && !got) return { ok: false, error: `${source}: enter the wooden boxes received.` };
+    boxes.push({ source, required, stock, status, date: date || null, got, remarks: text(w.remarks) });
   }
+  if (boxes.length === 0) return { ok: false, error: "Choose whether the wooden boxes are in house, bought out, or both." };
 
   try {
     await withTransaction(async (client) => {
-      await client.query(
-        `UPDATE orders SET base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4, updated_at = now()
-          WHERE id = $1`,
-        [orderId, plateStatus, plateDate || null, plateRemarks]
-      );
       // The ways left off go; the rest are as the form leaves them.
       await client.query(`DELETE FROM order_wooden_boxes WHERE order_id = $1 AND NOT (source = ANY($2::text[]))`, [
         orderId,
@@ -306,31 +334,22 @@ export async function saveAlignmentAction(orderId: string, a: Alignment): Promis
       }
     });
   } catch (error) {
-    console.error("saveAlignmentAction failed:", error);
-    return { ok: false, error: "Could not save the alignment." };
+    console.error("saveWoodenBoxAction failed:", error);
+    return { ok: false, error: "Could not save the wooden boxes." };
   }
-  const label = (await getOrderLabel(orderId)) ?? orderId;
-  const parts = [
-    plate
-      ? `Base plate: ${plateStatus}${plateDate ? ` on ${plateDate}` : ""}${plateRemarks ? ` (${plateRemarks})` : ""}`
-      : "Base plate: not needed",
-    box
-      ? `Wooden box: ${boxes
-          .map(
-            (b) =>
-              `${b.source} ${b.required} required${b.stock ? `, ${b.stock} in stock` : ""}, ${b.status}${
-                b.date ? ` ${b.got} on ${b.date}` : ""
-              }${b.remarks ? ` (${b.remarks})` : ""}`
-          )
-          .join(" · ")}`
-      : "Wooden box: not needed",
-  ];
   await logAudit({
-    actor: { id: user.id, email: user.email, role: user.role },
+    actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
     action: "order.update",
     category: "activity",
-    target: label,
-    details: `Alignment — ${parts.join("; ")}`,
+    target: (await getOrderLabel(orderId)) ?? orderId,
+    details: `Wooden box: ${boxes
+      .map(
+        (b) =>
+          `${b.source} ${b.required} required${b.stock ? `, ${b.stock} in stock` : ""}, ${b.status}${
+            b.date ? ` ${b.got} on ${b.date}` : ""
+          }${b.remarks ? ` (${b.remarks})` : ""}`
+      )
+      .join(" · ")}`,
     subject: await subjectForOrder(orderId),
   });
   revalidatePath("/risansi/departments/assembly-dispatch");

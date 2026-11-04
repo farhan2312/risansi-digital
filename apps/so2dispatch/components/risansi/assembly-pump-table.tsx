@@ -26,7 +26,7 @@ import {
 import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
-import { AlignmentForm, AlignmentValue } from "./alignment-cell";
+import { AlignmentValue, BasePlateForm, WoodenBoxForm } from "./alignment-cell";
 import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
@@ -127,9 +127,10 @@ export function AssemblyPumpTable({
     else sos.push({ orderId: id, ecs: [r] });
   }
   const [lotsFor, setLotsFor] = useState<string | null>(null);
-  // The SO whose Alignment is open.
-  const [alignFor, setAlignFor] = useState<string | null>(null);
-  const alignSo = alignFor ? sos.find((x) => x.orderId === alignFor) : null;
+  // The SO and the form open on it: base plate or wooden box, each filled by its own person.
+  const [alignFor, setAlignFor] = useState<{ orderId: string; which: "base_plate" | "wooden_box" } | null>(null);
+  const alignSo = alignFor ? sos.find((x) => x.orderId === alignFor.orderId) : null;
+  const AlignForm = alignFor?.which === "wooden_box" ? WoodenBoxForm : BasePlateForm;
   // Lot 1 to n, each in its own column: as many as any SO here has, at least READY_LOT_LIMIT.
   const lotCols = Array.from(
     { length: Math.max(READY_LOT_LIMIT, ...sos.map((s) => pumpLotsFromEcs(s.ecs).length)) },
@@ -141,7 +142,7 @@ export function AssemblyPumpTable({
   return (
     <>
       {alignSo && (
-        <AlignmentForm
+        <AlignForm
           orderId={alignSo.orderId}
           soLabel={str(alignSo.ecs[0]?.so_no) || `#${str(alignSo.ecs[0]?.sl_no)}`}
           alignment={alignSo.ecs[0]?.alignment}
@@ -262,10 +263,10 @@ export function AssemblyPumpTable({
                           </td>
                           {/* The SO's Alignment: base plate and wooden box. */}
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            <AlignmentValue alignment={head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor(orderId)} />
+                            <AlignmentValue alignment={head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor({ orderId, which: "base_plate" })} />
                           </td>
                           <td rowSpan={span} className={soCell}>
-                            <AlignmentValue alignment={head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor(orderId)} />
+                            <AlignmentValue alignment={head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor({ orderId, which: "wooden_box" })} />
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
                             {cvHeld(head) ? <HoldChip /> : <Chip label={so.assembly} />}

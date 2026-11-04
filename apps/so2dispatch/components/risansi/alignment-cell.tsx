@@ -3,7 +3,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
-import { saveAlignmentAction, type Alignment, type WoodenBox } from "@/app/risansi/orders/assembly-actions";
+import {
+  saveBasePlateAction,
+  saveWoodenBoxAction,
+  type AssemblyResult,
+  type BasePlate,
+  type WoodenBox,
+} from "@/app/risansi/orders/assembly-actions";
 import { BASE_PLATE_STATUSES, WOODEN_BOX_SOURCES, WOODEN_BOX_STATUSES } from "@/lib/assembly";
 
 type Row = Record<string, unknown>;
@@ -65,45 +71,43 @@ function Field({ label, required, group, children }: { label: string; required?:
   );
 }
 
-/**
- * The Alignment form, for one SO: the base plate when an EC needs one, the
- * wooden box when the SO is packed in one.
- */
-export function AlignmentForm({
-  orderId,
+/** A row of choices, one or several on. */
+function Pills({ options, on, pick }: { options: string[]; on: (o: string) => boolean; pick: (o: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => pick(o)}
+          className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+            on(o) ? "border-primary bg-primary text-primary-foreground" : "border-input-border text-muted hover:bg-background"
+          }`}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The pop-up either form sits in: its title, Save and Cancel. */
+function AlignmentDialog({
+  title,
   soLabel,
-  alignment,
+  save,
   onClose,
+  children,
 }: {
-  orderId: string;
+  title: string;
   soLabel: string;
-  alignment: unknown;
+  save: () => Promise<AssemblyResult>;
   onClose: () => void;
+  children: React.ReactNode;
 }) {
   const router = useRouter();
-  const a = (alignment ?? {}) as Row;
-  const plate = str(a.base_plate) === "Yes";
-  const box = str(a.wooden_box) === "Yes";
-  const [v, setV] = useState<Alignment>({
-    base_plate_status: str(a.base_plate_status) || "Pending",
-    base_plate_date: str(a.base_plate_date).slice(0, 10),
-    base_plate_remarks: str(a.base_plate_remarks),
-    wooden_boxes: boxesOf(a).map((b) => ({
-      source: str(b.source),
-      required_qty: str(b.required_qty),
-      stock_qty: str(b.stock_qty),
-      status: str(b.status) || "Pending",
-      received_date: str(b.received_date).slice(0, 10),
-      received_qty: str(b.received_qty),
-      remarks: str(b.remarks),
-    })),
-  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const set = (patch: Partial<Alignment>) => setV((p) => ({ ...p, ...patch }));
-  const boxOf = (source: string) => v.wooden_boxes.find((b) => b.source === source);
-  const setBox = (source: string, patch: Partial<WoodenBox>) =>
-    setV((p) => ({ ...p, wooden_boxes: p.wooden_boxes.map((b) => (b.source === source ? { ...b, ...patch } : b)) }));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
@@ -111,11 +115,11 @@ export function AlignmentForm({
     return () => document.removeEventListener("keydown", onKey);
   }, [saving, onClose]);
 
-  async function save(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    const res = await saveAlignmentAction(orderId, v);
+    const res = await save();
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -125,36 +129,22 @@ export function AlignmentForm({
     onClose();
   }
 
-  const pill = (on: boolean) =>
-    `rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-      on ? "border-primary bg-primary text-primary-foreground" : "border-input-border text-muted hover:bg-background"
-    }`;
-  const pills = (options: string[], on: (o: string) => boolean, pick: (o: string) => void) => (
-    <div className="flex flex-wrap gap-2">
-      {options.map((o) => (
-        <button key={o} type="button" onClick={() => pick(o)} className={pill(on(o))}>
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Alignment"
+      aria-label={title}
       className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
       onClick={() => !saving && onClose()}
     >
       <form
-        onSubmit={save}
+        onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-5 text-left shadow-xl sm:rounded-2xl"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-lg font-semibold text-foreground">Alignment</h2>
+            <h2 className="font-display text-lg font-semibold text-foreground">{title}</h2>
             <p className="text-xs text-muted">SO {soLabel}</p>
           </div>
           <button
@@ -167,75 +157,7 @@ export function AlignmentForm({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-3">
-          {plate && (
-            <section className="space-y-3 rounded-xl border border-card-border p-4">
-              <p className="text-sm font-semibold text-foreground">Base Plate</p>
-              <Field label="Status" required group>
-                {pills(BASE_PLATE_STATUSES, (o) => v.base_plate_status === o, (o) => set({ base_plate_status: o }))}
-              </Field>
-              <Field label="Date" required={v.base_plate_status !== "Pending"}>
-                <input type="date" value={v.base_plate_date} onChange={(e) => set({ base_plate_date: e.target.value })} className={input} />
-              </Field>
-              <Field label="Remarks">
-                <input type="text" value={v.base_plate_remarks} onChange={(e) => set({ base_plate_remarks: e.target.value })} className={input} />
-              </Field>
-            </section>
-          )}
-          {box && (
-            <section className="space-y-3 rounded-xl border border-card-border p-4">
-              <p className="text-sm font-semibold text-foreground">Wooden Box</p>
-              <Field label="In house / Bought out" required group>
-                {pills(
-                  WOODEN_BOX_SOURCES,
-                  (o) => !!boxOf(o),
-                  (o) =>
-                    set({
-                      wooden_boxes: boxOf(o)
-                        ? v.wooden_boxes.filter((b) => b.source !== o)
-                        : WOODEN_BOX_SOURCES.flatMap((s) => (s === o ? [blankBox(s)] : v.wooden_boxes.filter((b) => b.source === s))),
-                    })
-                )}
-              </Field>
-              {/* Each way with its own: some pumps' boxes in house, some bought out. */}
-              {v.wooden_boxes.map((b) => (
-                <div key={b.source} className="space-y-3 rounded-lg border border-card-border/70 bg-background/40 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">{b.source}</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Required Quantity" required>
-                      <input type="number" min={0} step={1} value={b.required_qty} onChange={(e) => setBox(b.source, { required_qty: e.target.value })} className={input} />
-                    </Field>
-                    <Field label="Stock Quantity">
-                      <input type="number" min={0} step={1} value={b.stock_qty} onChange={(e) => setBox(b.source, { stock_qty: e.target.value })} className={input} />
-                    </Field>
-                  </div>
-                  <Field label="Status" required group>
-                    {pills(WOODEN_BOX_STATUSES, (o) => b.status === o, (o) => setBox(b.source, { status: o }))}
-                  </Field>
-                  {/* Received on a day, in a quantity. */}
-                  {b.status === "Received" && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Received Date" required>
-                        <input type="date" value={b.received_date} onChange={(e) => setBox(b.source, { received_date: e.target.value })} className={input} />
-                      </Field>
-                      <Field label="Received Quantity" required>
-                        <input type="number" min={1} step={1} value={b.received_qty} onChange={(e) => setBox(b.source, { received_qty: e.target.value })} className={input} />
-                      </Field>
-                    </div>
-                  )}
-                  <Field label="Remarks">
-                    <input type="text" value={b.remarks} onChange={(e) => setBox(b.source, { remarks: e.target.value })} className={input} />
-                  </Field>
-                </div>
-              ))}
-            </section>
-          )}
-          {!plate && !box && (
-            <p className="rounded-xl border border-card-border p-4 text-sm text-muted">
-              This SO needs neither a base plate (no EC says Yes) nor a wooden box (Packing Requirement is not Wooden Box).
-            </p>
-          )}
-        </div>
+        <div className="space-y-3">{children}</div>
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -246,23 +168,114 @@ export function AlignmentForm({
           >
             Cancel
           </button>
-          {(plate || box) && (
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
-            >
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save
-            </button>
-          )}
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save
+          </button>
         </div>
       </form>
     </div>
   );
 }
 
-/** One Alignment cell on the front (Base Plate or Wooden Box), opening the form when the SO needs it. */
+type FormProps = { orderId: string; soLabel: string; alignment: unknown; onClose: () => void };
+
+/** The base plate's form, for one SO: its own person, its own Save. */
+export function BasePlateForm({ orderId, soLabel, alignment, onClose }: FormProps) {
+  const a = (alignment ?? {}) as Row;
+  const [v, setV] = useState<BasePlate>({
+    status: str(a.base_plate_status) || "Pending",
+    date: str(a.base_plate_date).slice(0, 10),
+    remarks: str(a.base_plate_remarks),
+  });
+  const set = (patch: Partial<BasePlate>) => setV((p) => ({ ...p, ...patch }));
+  return (
+    <AlignmentDialog title="Base Plate" soLabel={soLabel} save={() => saveBasePlateAction(orderId, v)} onClose={onClose}>
+      <Field label="Status" required group>
+        <Pills options={BASE_PLATE_STATUSES} on={(o) => v.status === o} pick={(o) => set({ status: o })} />
+      </Field>
+      <Field label="Date" required={v.status !== "Pending"}>
+        <input type="date" value={v.date} onChange={(e) => set({ date: e.target.value })} className={input} />
+      </Field>
+      <Field label="Remarks">
+        <input type="text" value={v.remarks} onChange={(e) => set({ remarks: e.target.value })} className={input} />
+      </Field>
+    </AlignmentDialog>
+  );
+}
+
+/** The wooden boxes' form, for one SO: its own person, its own Save. */
+export function WoodenBoxForm({ orderId, soLabel, alignment, onClose }: FormProps) {
+  const a = (alignment ?? {}) as Row;
+  const [boxes, setBoxes] = useState<WoodenBox[]>(() =>
+    boxesOf(a).map((b) => ({
+      source: str(b.source),
+      required_qty: str(b.required_qty),
+      stock_qty: str(b.stock_qty),
+      status: str(b.status) || "Pending",
+      received_date: str(b.received_date).slice(0, 10),
+      received_qty: str(b.received_qty),
+      remarks: str(b.remarks),
+    }))
+  );
+  const has = (source: string) => boxes.some((b) => b.source === source);
+  const setBox = (source: string, patch: Partial<WoodenBox>) =>
+    setBoxes((p) => p.map((b) => (b.source === source ? { ...b, ...patch } : b)));
+  return (
+    <AlignmentDialog title="Wooden Box" soLabel={soLabel} save={() => saveWoodenBoxAction(orderId, boxes)} onClose={onClose}>
+      <Field label="In house / Bought out" required group>
+        <Pills
+          options={WOODEN_BOX_SOURCES}
+          on={has}
+          pick={(o) =>
+            setBoxes(
+              has(o)
+                ? boxes.filter((b) => b.source !== o)
+                : WOODEN_BOX_SOURCES.flatMap((s) => (s === o ? [blankBox(s)] : boxes.filter((b) => b.source === s)))
+            )
+          }
+        />
+      </Field>
+      {/* Each way with its own: some pumps' boxes in house, some bought out. */}
+      {boxes.map((b) => (
+        <div key={b.source} className="space-y-3 rounded-lg border border-card-border/70 bg-background/40 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{b.source}</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Required Quantity" required>
+              <input type="number" min={0} step={1} value={b.required_qty} onChange={(e) => setBox(b.source, { required_qty: e.target.value })} className={input} />
+            </Field>
+            <Field label="Stock Quantity">
+              <input type="number" min={0} step={1} value={b.stock_qty} onChange={(e) => setBox(b.source, { stock_qty: e.target.value })} className={input} />
+            </Field>
+          </div>
+          <Field label="Status" required group>
+            <Pills options={WOODEN_BOX_STATUSES} on={(o) => b.status === o} pick={(o) => setBox(b.source, { status: o })} />
+          </Field>
+          {/* Received on a day, in a quantity. */}
+          {b.status === "Received" && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Received Date" required>
+                <input type="date" value={b.received_date} onChange={(e) => setBox(b.source, { received_date: e.target.value })} className={input} />
+              </Field>
+              <Field label="Received Quantity" required>
+                <input type="number" min={1} step={1} value={b.received_qty} onChange={(e) => setBox(b.source, { received_qty: e.target.value })} className={input} />
+              </Field>
+            </div>
+          )}
+          <Field label="Remarks">
+            <input type="text" value={b.remarks} onChange={(e) => setBox(b.source, { remarks: e.target.value })} className={input} />
+          </Field>
+        </div>
+      ))}
+    </AlignmentDialog>
+  );
+}
+
+/** One Alignment cell on the front (Base Plate or Wooden Box), opening its own form when the SO needs it. */
 export function AlignmentValue({
   alignment,
   which,
@@ -282,7 +295,7 @@ export function AlignmentValue({
       type="button"
       disabled={!canEdit || !needed}
       onClick={onOpen}
-      title={canEdit && needed ? "Set the alignment" : undefined}
+      title={canEdit && needed ? (which === "base_plate" ? "Set the base plate" : "Set the wooden box") : undefined}
       className="w-full text-left enabled:hover:opacity-80 disabled:cursor-default"
     >
       {boxes.length ? (
