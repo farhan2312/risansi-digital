@@ -12,7 +12,7 @@ import { DispatchPictures, type PictureLink } from "./dispatch-pictures";
 import { FollowupCell } from "./order-followups";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel } from "@/lib/order-schema";
-import { OrderValueDetails } from "./order-value-details";
+import { OrderInHand, OrderValueDetails } from "./order-value-details";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { canAddFollowup, canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
@@ -393,7 +393,7 @@ export function OrdersTable({
   /** The Pump view: each pump SO's standing in every department (lib/pump-summary). */
   pumpSummaries?: Record<string, PumpSummary>;
   // One server-fetched page; every filter and the paging ran in SQL.
-  result: PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[] };
+  result: PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[]; inHand?: number };
   canDelete?: boolean;
   // The viewer's role — the department pop-ups on a row edit as it.
   role: string;
@@ -439,7 +439,8 @@ export function OrdersTable({
   // Departments, Readiness or Packing Date column, and its department groups.
   // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
   // (+1 Follow Up; the Pump view +1 Quantity.)
-  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 6;
+  // (+1 Order in Hand.)
+  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 7;
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -465,13 +466,13 @@ export function OrdersTable({
   return (
     <div>
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
-      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget kindToggle={ordersKind(getParam("type"))} />
+      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} />
 
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className={`w-full ${pump ? "min-w-[2800px]" : "min-w-[2150px]"} text-sm`}>
+          <table className={`w-full ${pump ? "min-w-[2940px]" : "min-w-[2290px]"} text-sm`}>
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th rowSpan={2} className="w-8 px-2 py-3" />
@@ -488,6 +489,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label="Order Status" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap text-right">Order in Hand</th>
                 {pump && <th rowSpan={2} className="px-4 py-3 text-right">Quantity</th>}
                 <th rowSpan={2} className="px-4 py-3">Departments</th>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
@@ -637,6 +639,10 @@ export function OrdersTable({
                       </td>
                       <td className="px-4 py-3 align-top">
                         <OrderValueDetails row={order} />
+                      </td>
+                      {/* A cancelled or diverted SO has nothing left to invoice. */}
+                      <td className="px-4 py-3 align-top text-right">
+                        {closed ? <span className="text-muted-foreground">—</span> : <OrderInHand row={order} />}
                       </td>
                       {/* A pump SO's quantity: all its ECs' added up. */}
                       {pump && <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{ecQuantityOf(order.items) ?? "—"}</td>}
