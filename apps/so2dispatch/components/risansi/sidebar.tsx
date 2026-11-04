@@ -165,7 +165,7 @@ export function Sidebar({
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-hover"
               >
                 <MessagesSquare className="h-4 w-4 shrink-0" />
-                <span className="flex-1">Discussion</span>
+                <span className="flex-1">Discussions</span>
                 {chatUnread > 0 && (
                   <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[11px] font-semibold text-white">
                     {chatUnread > 99 ? "99+" : chatUnread}

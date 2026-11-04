@@ -180,7 +180,7 @@ export function AllChatsPanel({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Discussion"
+      aria-label="Discussions"
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
       onClick={onClose}
     >
@@ -193,7 +193,7 @@ export function AllChatsPanel({
           <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-3">
             <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-foreground">
               <MessagesSquare className="h-4 w-4 text-primary" />
-              Discussion
+              Discussions
             </h2>
             <span className="flex items-center gap-1">
               {loading && <Loader2 className="h-4 w-4 animate-spin text-muted" />}
@@ -342,7 +342,7 @@ export function AllChatsPanel({
           <div className="border-b border-card-border px-4 py-2.5 md:hidden">
             <button type="button" onClick={() => setChat(null)} className="inline-flex items-center gap-1 text-xs font-medium text-primary">
               <ArrowLeft className="h-3.5 w-3.5" />
-              Discussion
+              Discussions
             </button>
           </div>
           {chat ? (
