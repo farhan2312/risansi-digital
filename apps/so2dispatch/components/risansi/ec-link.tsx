@@ -25,8 +25,8 @@ export function ecLinkWhen(v: unknown): string {
 /**
  * The EC's attachment (its SharePoint link, from the Pump Add-On), as a clip
  * beside the EC No. that opens it in a new tab. Nothing when the EC has none.
- * `at` is when it was attached: on the clip's tooltip and, with `label` (which
- * shows the words too, for the EC's own details), beside it.
+ * `at` is when it was attached, in small type after the clip. `label` shows the
+ * words too, for the EC's own details.
  */
 export function EcLink({ href, label, at }: { href: unknown; label?: boolean; at?: unknown }) {
   const url = ecLinkHref(href);
@@ -40,7 +40,7 @@ export function EcLink({ href, label, at }: { href: unknown; label?: boolean; at
       rel="noopener noreferrer"
       // The row behind it often opens something of its own.
       onClick={(e) => e.stopPropagation()}
-      title={`Open the EC attachment (SharePoint)${when ? ` · attached ${when}` : ""}`}
+      title="Open the EC attachment (SharePoint)"
       aria-label="Open the EC attachment"
       // Set apart from the EC No., and big enough to hit on its own.
       className="ml-3 inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-1.5 py-0.5 align-middle font-medium text-primary transition-colors hover:bg-primary/15"
@@ -48,7 +48,7 @@ export function EcLink({ href, label, at }: { href: unknown; label?: boolean; at
       <Paperclip className="h-3.5 w-3.5 shrink-0" />
       {label && <span className="text-sm">EC attachment</span>}
     </a>
-    {label && when && <span className="ml-2 whitespace-nowrap text-xs font-normal text-muted">Attached {when}</span>}
+    {when && <span title="Attached on" className="ml-1.5 whitespace-nowrap align-middle text-[10px] font-normal text-muted">{when}</span>}
     </>
   );
 }
