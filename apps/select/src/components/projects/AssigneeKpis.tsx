@@ -9,8 +9,8 @@ import type { AssigneeStats, StatusCounts } from "../../lib/assignee-stats";
 
 // Enquiries page, User-Master / system admins: one KPI card per person
 // enquiries go to - the enquiries assigned to them in the period (Daily = today,
-// All time, or a picked range; by assigned date) by status, and those
-// enquiries' tags by status.
+// All time, or a picked range; by assigned date). Pumps by Technical and Commercial
+// status, with their tags by status; spares by their one status.
 
 type Period = "daily" | "all" | "range";
 
@@ -40,7 +40,7 @@ function StatusBar({ counts }: { counts: StatusCounts }) {
   );
 }
 
-/** "Tags 12" over a thin status bar and the three counts, coloured. */
+/** A label over a thin status bar and the three counts, coloured. */
 function StatusRow({ label, counts }: { label: string; counts: StatusCounts }) {
   return (
     <div className="space-y-1">
@@ -59,15 +59,28 @@ function StatusRow({ label, counts }: { label: string; counts: StatusCounts }) {
   );
 }
 
+/** "Pump 8" over its status rows. */
+function OrderSection({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5 border-t border-line pt-2">
+      <div className="flex items-center justify-between gap-2 text-[10.5px] font-semibold tracking-[0.08em] text-fg-2 uppercase">
+        <span>{label}</span>
+        <span className="font-mono text-[13px] tracking-normal text-title">{count}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function AssigneeCard({ s }: { s: AssigneeStats }) {
   const name = s.name || s.email;
   const initials = name
-    .split(/s+/)
+    .split(/\s+/)
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join("");
   return (
-    <div className="min-w-[180px] flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 transition hover:border-[color-mix(in_srgb,var(--brand-blue)_35%,var(--line))] hover:shadow-[0_6px_18px_rgba(10,22,40,0.07)]">
+    <div className="min-w-[200px] flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 transition hover:border-[color-mix(in_srgb,var(--brand-blue)_35%,var(--line))] hover:shadow-[0_6px_18px_rgba(10,22,40,0.07)]">
       <div className="flex items-center gap-2">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[10.5px] font-bold text-white">
           {initials}
@@ -79,12 +92,18 @@ function AssigneeCard({ s }: { s: AssigneeStats }) {
           <div className="truncate text-[10.5px] text-fg-4">{roleLabel(s.role)}</div>
         </div>
         <span className="font-mono text-[20px] leading-none font-bold text-title" title="Enquiries">
-          {s.enquiries.total}
+          {s.enquiries}
         </span>
       </div>
-      <div className="mt-2 space-y-1.5">
-        <StatusRow label="Enquiries" counts={s.enquiries} />
-        <StatusRow label="Tags" counts={s.tags} />
+      <div className="mt-2 space-y-2">
+        <OrderSection label="Pump" count={s.pump.technical.total}>
+          <StatusRow label="Technical" counts={s.pump.technical} />
+          <StatusRow label="Commercial" counts={s.pump.commercial} />
+          <StatusRow label={`Tags ${s.pump.tags.total}`} counts={s.pump.tags} />
+        </OrderSection>
+        <OrderSection label="Spare" count={s.spare.total}>
+          <StatusRow label="Status" counts={s.spare} />
+        </OrderSection>
       </div>
     </div>
   );
@@ -122,7 +141,7 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
 
   const periodText =
     period === "daily" ? "assigned today" : period === "all" ? "assigned, all time" : `assigned ${fromDate || "start"} → ${toDate || "today"}`;
-  const totals = (rows ?? []).reduce((t, r) => ({ e: t.e + r.enquiries.total, g: t.g + r.tags.total }), { e: 0, g: 0 });
+  const totals = (rows ?? []).reduce((t, r) => ({ e: t.e + r.enquiries, p: t.p + r.pump.technical.total, s: t.s + r.spare.total, g: t.g + r.pump.tags.total }), { e: 0, p: 0, s: 0, g: 0 });
 
   return (
     <section className="mt-4 rounded-2xl border border-line bg-[linear-gradient(180deg,color-mix(in_srgb,var(--accent-soft)_55%,var(--bg-paper))_0%,var(--bg-paper)_70%)] px-4 py-3 sm:px-5">
@@ -138,8 +157,8 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
           <p className="mt-0.5 text-[12px] text-fg-3">
             {rows ? (
               <>
-                <b className="font-mono text-fg">{totals.e}</b> enquir{totals.e === 1 ? "y" : "ies"} · <b className="font-mono text-fg">{totals.g}</b> tag
-                {totals.g === 1 ? "" : "s"} {periodText}
+                <b className="font-mono text-fg">{totals.e}</b> enquir{totals.e === 1 ? "y" : "ies"} · <b className="font-mono text-fg">{totals.p}</b> pump (<b className="font-mono text-fg">{totals.g}</b> tag
+                {totals.g === 1 ? "" : "s"}) · <b className="font-mono text-fg">{totals.s}</b> spare {periodText}
               </>
             ) : (
               `Enquiries ${periodText}, by person`
@@ -206,7 +225,7 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
           {!failed && rows === null && (
             <div className={`flex gap-2.5 overflow-x-auto pb-1 ${own ? "max-w-[380px]" : ""}`}>
               {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-[96px] min-w-[180px] flex-1 animate-pulse rounded-xl border border-line bg-paper" />
+                <div key={i} className="h-[210px] min-w-[200px] flex-1 animate-pulse rounded-xl border border-line bg-paper" />
               ))}
             </div>
           )}

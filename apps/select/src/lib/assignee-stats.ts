@@ -8,8 +8,10 @@ export type AssigneeStats = {
   name: string | null;
   email: string;
   role: string | null;
-  /** Enquiries assigned in the period, by their rolled-up status. */
-  enquiries: StatusCounts;
-  /** The tags of those enquiries, by their own status. */
-  tags: StatusCounts;
+  /** Enquiries assigned in the period, pump and spare. */
+  enquiries: number;
+  /** A pump has two statuses, and tags with their own. */
+  pump: { technical: StatusCounts; commercial: StatusCounts; tags: StatusCounts };
+  /** A spare has no tags or technical step: just its one status. */
+  spare: StatusCounts;
 };

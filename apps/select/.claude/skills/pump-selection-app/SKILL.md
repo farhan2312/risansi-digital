@@ -958,7 +958,10 @@ never auto-filled from the AI result.
   confirmed or quotation generated); Commercial = sent_to_client_at (first
   send). A send clears a hand-set Pending / In Progress on its status.
   "status" in the list APIs = Technical status, so the
-  Dashboard, workload cards, Reports and the version rule all read Technical.
+  Dashboard, Reports and the version rule all read Technical. The workload cards
+  (AssigneeKpis, /api/projects/assignee-stats) split by order type: Pump = Technical,
+  Commercial and tags; Spare = its one status, no tags (older spares' hidden Default
+  tag isn't counted).
 
 ## Clearance (user, 2026-11-04)
 - Enquiries column before Assigned To; ClearanceModal: Clear or Hold, remarks on both
