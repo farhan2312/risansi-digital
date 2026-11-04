@@ -29,6 +29,8 @@ import {
   savePiPayment,
   saveTermPayment,
   lockFactsForItem,
+  packedLotNumbers,
+  unpackBlockedBySlip,
   getOrderLabel,
   recomputeDispatchStatus,
   insertQcDocument,
@@ -1003,6 +1005,9 @@ export async function updateOrderSectionAction(
         });
         const problem = packingError(merged);
         if (problem) return { ok: false, error: problem };
+        const soId = String(before?.item?.order_id ?? "");
+        const blocked = await unpackBlockedBySlip(soId, merged.filter((l) => !l.packed_date).map((l) => l.id));
+        if (blocked) return { ok: false, error: blocked };
         packing = merged.map((l) => ({
           id: l.id,
           packed_date: l.packed_date,
@@ -1143,6 +1148,12 @@ export async function updateSectionForSoAction(
     } catch {
       return { ok: false, error: "The packing dates could not be read." };
     }
+    // All the SO's ECs at once, so none is saved before one is refused.
+    const blocked = await unpackBlockedBySlip(
+      orderId,
+      ecs.flatMap((ec) => ec.lot_ids.filter((_, i) => !packed![i]?.packed_date))
+    );
+    if (blocked) return { ok: false, error: blocked };
   }
   for (const ec of ecs) {
     const v = packed
@@ -1488,6 +1499,13 @@ export async function updateOrderChildAction(
     const maxLots = facts.rows[0]?.max_lots ?? 0;
     const bad = slipLots.find((n) => n > maxLots);
     if (bad) return { ok: false, error: `This SO has no Lot ${bad}.` };
+    // A lot goes on a slip once it is packed: Actual Packing Pending is not packed.
+    const soId = facts.rows[0]?.order_id;
+    if (soId && String(slipMeta?.rows[0]?.kind ?? "actual").toLowerCase() !== "tentative") {
+      const packedLots = await packedLotNumbers(soId);
+      const unpacked = slipLots.find((n) => !packedLots.includes(n));
+      if (unpacked) return { ok: false, error: `Lot ${unpacked} is not packed yet, so it cannot go on a packing slip. Pack it on Assembly & Packing, or untick it.` };
+    }
     const slipNo = ("packing_slip_no" in clean ? clean.packing_slip_no : String(rowBefore?.packing_slip_no ?? "")).trim();
     if (maxLots > 0 && slipNo && slipLots.length === 0) {
       return { ok: false, error: "Tick the lot(s) this packing slip carries." };

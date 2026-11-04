@@ -359,31 +359,40 @@ function SlipForm({
                 const on = lots.includes(n);
                 const packed = packedLots.includes(n);
                 const packing = lotPacking?.[String(n)];
+                // Only a packed lot can go on; one already here can still come off.
+                const shut = !packed && !on;
                 return (
                   <label
                     key={n}
-                    className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      on ? "border-primary bg-primary/[0.06] text-foreground" : "border-input-border text-foreground hover:bg-background"
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      shut
+                        ? "cursor-not-allowed border-input-border text-muted opacity-60"
+                        : on
+                          ? "cursor-pointer border-primary bg-primary/[0.06] text-foreground"
+                          : "cursor-pointer border-input-border text-foreground hover:bg-background"
                     }`}
                   >
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-primary"
                       checked={on}
+                      disabled={shut}
                       onChange={() => setLots((cur) => (on ? cur.filter((x) => x !== n) : [...cur, n].sort((a, b) => a - b)))}
                     />
                     Lot {n}
-                    {lotPacking ? (
-                      <span className="text-[11px] text-muted">{packing ?? "no packing status yet"}</span>
+                    {!packed ? (
+                      <span className={`text-[11px] ${on ? "font-semibold text-amber-700" : "text-muted"}`}>
+                        {packing ?? "not packed yet"}{on ? ": untick it to save" : ""}
+                      </span>
                     ) : (
-                      !packed && <span className="text-[11px] text-muted">not packed yet</span>
+                      lotPacking && <span className="text-[11px] text-muted">{packing ?? "Packed"}</span>
                     )}
                   </label>
                 );
               })}
             </div>
             <p className="mt-1.5 text-[11px] text-muted">
-              Lot 1 is Lot 1 of every EC.
+              Lot 1 is Lot 1 of every EC. Only packed lots can go on a slip.
             </p>
           </fieldset>
         )}

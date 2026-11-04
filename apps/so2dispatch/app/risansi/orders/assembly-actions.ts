@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { subjectForOrder } from "@/lib/audit-subject";
 import { emitNotification } from "@/lib/notifications";
-import { getOrderLabel, saveLotPacking, syncPumpPackedDate } from "@/lib/orders";
+import { getOrderLabel, saveLotPacking, syncPumpPackedDate, unpackBlockedBySlip } from "@/lib/orders";
 import { canEditSection } from "@/lib/roles";
 import { PUMP_LIKE } from "@/lib/order-schema";
 import {
@@ -95,6 +95,11 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
     const before = pumpLotsFromEcs(ecs as unknown as Record<string, unknown>[]);
     const problem = lotStagesError(before, clean, sent);
     if (problem) return { ok: false, error: problem };
+    const blocked = await unpackBlockedBySlip(
+      orderId,
+      clean.filter((l) => !l.packed_date).flatMap((l) => ecs.flatMap((ec) => (ec.ready_lots[l.n - 1] ? [String(ec.ready_lots[l.n - 1].id)] : [])))
+    );
+    if (blocked) return { ok: false, error: blocked };
     const was = statusesOf(ecs);
     const actor = { id: user.id, role: user.role };
     const lotOf = (rowId: string) => before.find((l) => l.ecs.some((x) => x.row_id === rowId));

@@ -1233,6 +1233,47 @@ export async function inheritSparePlanning(
   return true;
 }
 
+/** The SO's lot numbers with something packed: the lots a packing slip may carry. */
+export async function packedLotNumbers(orderId: string): Promise<number[]> {
+  const r = await query<{ n: number }>(
+    `SELECT DISTINCT y.n FROM (
+       SELECT (row_number() OVER (PARTITION BY rl.item_id ORDER BY rl.seq))::int AS n, rl.packed_date
+         FROM order_ready_lots rl JOIN order_items it ON it.id = rl.item_id
+        WHERE it.order_id = $1) y
+      WHERE y.packed_date IS NOT NULL`,
+    [orderId]
+  );
+  return r.rows.map((x) => x.n);
+}
+
+/**
+ * What stops these lot rows being un-packed: a lot that would then have nothing
+ * packed while a packing slip names it. Take it off the slip first. Null when
+ * nothing does. A lot not packed to begin with is no business of this.
+ */
+export async function unpackBlockedBySlip(orderId: string, clearingRowIds: string[]): Promise<string | null> {
+  const ids = clearingRowIds.filter((id) => UUID_RE.test(id));
+  if (!UUID_RE.test(orderId) || ids.length === 0) return null;
+  const r = await query<{ n: number; slip: string | null }>(
+    `WITH lots AS (
+       SELECT rl.id, rl.packed_date, (row_number() OVER (PARTITION BY rl.item_id ORDER BY rl.seq))::int AS n
+         FROM order_ready_lots rl JOIN order_items it ON it.id = rl.item_id
+        WHERE it.order_id = $1),
+     going AS (
+       SELECT n FROM lots GROUP BY n
+       HAVING bool_or(id = ANY($2::uuid[]) AND packed_date IS NOT NULL)
+          AND NOT bool_or(packed_date IS NOT NULL AND NOT (id = ANY($2::uuid[]))))
+     SELECT g.n, ps.packing_slip_no AS slip
+       FROM going g
+       JOIN order_packing_slips ps ON ps.order_id = $1 AND ps.kind = 'actual' AND g.n = ANY(ps.lot_nos)
+      ORDER BY g.n, ps.seq
+      LIMIT 1`,
+    [orderId, ids]
+  );
+  const hit = r.rows[0];
+  return hit ? `Lot ${hit.n} is on packing slip ${String(hit.slip ?? "").trim() || "(blank)"}. Take it off the slip before un-packing it.` : null;
+}
+
 /**
  * Record when Assembly & Packing packed each readiness lot of a Spare EC. The
  * packing status follows the lot: Partial ready → Partially packed, Fully
