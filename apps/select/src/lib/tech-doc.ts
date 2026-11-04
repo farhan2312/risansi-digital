@@ -713,6 +713,29 @@ export function sheetHtml(opts: {
   body { margin: 0; padding: 12px; background: #fff; font-family: Arial, Helvetica, sans-serif; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @media print { body { padding: 0; } }
   .sheet { max-width: 1100px; margin: 0 auto; }
+  ${LETTERHEAD_CSS}
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; }
+  col.lbl { width: 22%; }
+  th, td { border: 1px solid #9fb3c8; padding: 3px 6px; vertical-align: middle; word-wrap: break-word; }
+  th[scope="row"] { text-align: left; font-weight: bold; background: #f4f8fd; }
+  td { text-align: center; }
+  tr.title td { background: #06408c; color: #fff; font-weight: bold; text-align: center; font-size: 9.5pt; padding: 5px; }
+  tr.meta td { text-align: left; font-size: 9pt; padding: 5px 6px; }
+  tr.band td { background: #dcebfb; color: #0b3d7e; font-weight: bold; text-align: center; padding: 4px; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  ${opts.css ?? ""}
+</style></head>
+<body><div class="sheet">
+  ${letterheadHtml(logoUrl)}
+  <table>${colgroup}<tbody>
+    <tr class="title"><td colspan="${cols}">${esc(L.company)} - ${esc(opts.title)}</td></tr>
+    ${headerRowsHtml(data.header, cols, leftSpan, rightSpan)}
+    ${body}
+  </tbody></table>
+</div></body></html>`;
+}
+
+export const LETTERHEAD_CSS = `
   /* Letterhead: the original logo on white, a light-blue swoosh, then the
      deep-blue bar with the company details (user's design, 2026-10-07). */
   .lh { display: flex; align-items: stretch; height: 84px; border: 1.5px solid #1e6fd0; overflow: hidden;
@@ -726,18 +749,11 @@ export function sheetHtml(opts: {
   .lh-info .sep { color: #9fc8f2; }
   .lh-info svg { width: 13px; height: 13px; flex-shrink: 0; color: #8fd0ff; }
   .lh-info b { font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; }
-  col.lbl { width: 22%; }
-  th, td { border: 1px solid #9fb3c8; padding: 3px 6px; vertical-align: middle; word-wrap: break-word; }
-  th[scope="row"] { text-align: left; font-weight: bold; background: #f4f8fd; }
-  td { text-align: center; }
-  tr.title td { background: #06408c; color: #fff; font-weight: bold; text-align: center; font-size: 9.5pt; padding: 5px; }
-  tr.meta td { text-align: left; font-size: 9pt; padding: 5px 6px; }
-  tr.band td { background: #dcebfb; color: #0b3d7e; font-weight: bold; text-align: center; padding: 4px; }
-  tr { page-break-inside: avoid; break-inside: avoid; }
-  ${opts.css ?? ""}
-</style></head>
-<body><div class="sheet">
+`;
+
+export function letterheadHtml(logoUrl: string): string {
+  const L = LETTERHEAD;
+  return `
   <div class="lh">
     <div class="lh-logo"><img src="${esc(logoUrl)}" alt="Risansi Industries Ltd" onerror="this.replaceWith(document.createTextNode('Risansi Industries Ltd'))"></div>
     <svg class="lh-swoosh" viewBox="0 0 70 100" preserveAspectRatio="none" aria-hidden="true">
@@ -755,12 +771,7 @@ export function sheetHtml(opts: {
       <span class="it">${LH_ICON.pin}<span>${esc(L.address)}</span></span>
     </div>
   </div>
-  <table>${colgroup}<tbody>
-    <tr class="title"><td colspan="${cols}">${esc(L.company)} - ${esc(opts.title)}</td></tr>
-    ${headerRowsHtml(data.header, cols, leftSpan, rightSpan)}
-    ${body}
-  </tbody></table>
-</div></body></html>`;
+`;
 }
 
 /** Client row + enquiry / quotation row, minus removed lines; a lone

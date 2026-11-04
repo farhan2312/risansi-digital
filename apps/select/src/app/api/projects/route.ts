@@ -106,6 +106,11 @@ export async function GET(req: Request) {
         SELECT jsonb_build_object('status', c.status, 'group', c.reason_group, 'reason', c.reason, 'remarks', c.remarks, 'at', c.created_at)
         FROM enquiry_clearance c WHERE c.project_id = projects.id ORDER BY c.created_at DESC LIMIT 1
       )`,
+      // For the Enquiry Report's RIL Rep. when the client has no rep.
+      quotationTsm: sql<{ initials: string; zone: string | null } | null>`(
+        SELECT jsonb_build_object('initials', q.tsm_initials, 'zone', q.tsm_zone)
+        FROM ${quotation} q WHERE q.project_id = ${projects.id} AND q.tsm_initials IS NOT NULL ORDER BY q.created_at LIMIT 1
+      )`,
     })
     .from(projects)
     .leftJoin(users, eq(projects.createdBy, users.id))
@@ -124,6 +129,7 @@ export async function GET(req: Request) {
     ...enquiryStatusFields(r.project, r),
     quotation_count: r.quotationCount,
     clearance: r.clearance,
+    quotation_tsm: r.quotationTsm,
   }));
 
   if (!paginated) return json(items);

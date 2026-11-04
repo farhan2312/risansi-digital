@@ -1,0 +1,233 @@
+"use client";
+
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+
+import {
+  REPORT_COLUMNS,
+  buildEnquiryReportHtml,
+  downloadEnquiryReportExcel,
+  enquiryReportRows,
+  reportCell,
+  reportCounts,
+  type EnquiryReportRow,
+} from "../../lib/enquiry-report";
+import { printHtml } from "../../lib/enquiry-print";
+import { listProjectsReport, type ProjectListQuery } from "../../services/projectService";
+import { listTsmOptions } from "../../services/quotationService";
+
+// The User Master's report on the Enquiries page: the list as filtered, every page,
+// in a panel that opens and closes. PDF view (what prints) or Excel view (what
+// downloads), zoomed or fitted to the panel's width.
+
+const ZOOM_STEP = 0.1;
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 1.5;
+/** The PDF view's page, and the Excel view's sheet, at 100%. */
+const PDF_WIDTH = 1124;
+const EXCEL_WIDTH = REPORT_COLUMNS.reduce((s, c) => s + c.width, 0) * 6.6;
+
+const btn =
+  "inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 hover:border-accent hover:text-accent";
+const zoomBtn = "inline-flex h-7 w-7 items-center justify-center rounded-md text-[15px] font-semibold text-fg-3 hover:bg-elev hover:text-fg disabled:opacity-40";
+
+export default function EnquiryReportPanel({ query, scope }: { query: ProjectListQuery; scope: string }) {
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<"pdf" | "excel">("pdf");
+  const [rows, setRows] = useState<EnquiryReportRow[] | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // "fit" follows the panel's width; a number is a zoom the viewer chose.
+  const [zoom, setZoom] = useState<number | "fit">("fit");
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [frameWidth, setFrameWidth] = useState(0);
+  const [pdfHeight, setPdfHeight] = useState(700);
+
+  // Read when open, and again whenever the filters change.
+  const key = JSON.stringify(query);
+  useEffect(() => {
+    if (!open || loadedFor === key) return;
+    let live = true;
+    Promise.all([listProjectsReport(query), listTsmOptions().catch(() => [])])
+      .then(([projects, reps]) => {
+        if (!live) return;
+        setRows(enquiryReportRows(projects, reps));
+        setLoadedFor(key);
+        setError(null);
+      })
+      .catch(() => live && setError("Couldn't load the report."));
+    return () => {
+      live = false;
+    };
+    // `key` is the query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, key, loadedFor]);
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const ro = new ResizeObserver(() => setFrameWidth(frame.clientWidth - 24)); // less p-3 each side
+    ro.observe(frame);
+    return () => ro.disconnect();
+  }, [open, rows === null]);
+
+  const sheetWidth = view === "pdf" ? PDF_WIDTH : EXCEL_WIDTH;
+  const fit = frameWidth > 0 ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, frameWidth / sheetWidth)) : 1;
+  const scale = zoom === "fit" ? fit : zoom;
+  const step = (d: number) => setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((scale + d) * 10) / 10)));
+
+  const html = useMemo(() => (rows ? buildEnquiryReportHtml(rows, scope, `${window.location.origin}/logo.png`) : ""), [rows, scope]);
+  const loading = open && loadedFor !== key && !error;
+
+  return (
+    <section className="mt-4 overflow-hidden rounded-xl border border-line bg-paper">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-w-[220px] flex-1 items-center gap-3 text-left">
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${open ? "rotate-90 border-transparent bg-accent text-white" : "border-line text-fg-3"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[14px] font-semibold text-fg">Enquiry Report</span>
+            <span className="block truncate text-[12px] text-fg-3">
+              {open && rows ? `${scope} · ${rows.length} enquiries${loading ? " · updating…" : ""}` : "The list as filtered, every page - PDF or Excel"}
+            </span>
+          </span>
+        </button>
+
+        {open && rows && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="group" aria-label="View">
+              {(
+                [
+                  ["pdf", "PDF"],
+                  ["excel", "Excel"],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={view === v}
+                  onClick={() => setView(v)}
+                  className={`rounded-md px-3 py-1 text-[12px] font-semibold ${view === v ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-0.5 rounded-lg border border-line p-0.5">
+              <button type="button" className={zoomBtn} onClick={() => step(-ZOOM_STEP)} disabled={scale <= ZOOM_MIN} aria-label="Zoom out">
+                −
+              </button>
+              <span className="w-11 text-center font-mono text-[12px] font-semibold text-fg">{Math.round(scale * 100)}%</span>
+              <button type="button" className={zoomBtn} onClick={() => step(ZOOM_STEP)} disabled={scale >= ZOOM_MAX} aria-label="Zoom in">
+                +
+              </button>
+              <button
+                type="button"
+                aria-pressed={zoom === "fit"}
+                onClick={() => setZoom("fit")}
+                className={`ml-0.5 h-7 rounded-md px-2 text-[12px] font-semibold ${zoom === "fit" ? "bg-accent text-white" : "text-fg-3 hover:bg-elev hover:text-fg"}`}
+              >
+                Fit to screen
+              </button>
+            </div>
+            {view === "pdf" ? (
+              <button type="button" className={btn} onClick={() => void printHtml(html, "A4 landscape")}>
+                Print / PDF
+              </button>
+            ) : (
+              <button type="button" className={btn} onClick={() => downloadEnquiryReportExcel(rows, scope)}>
+                Download Excel
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {open && (
+        <div className="border-t border-line">
+          {error ? (
+            <p className="px-4 py-6 text-[13px] text-neg">{error}</p>
+          ) : !rows ? (
+            <p className="px-4 py-6 text-[13px] text-fg-3">Loading the report…</p>
+          ) : (
+            // A light sheet in either theme, as it prints.
+            <div ref={frameRef} className={`max-h-[75vh] overflow-auto bg-sunk p-3 [scrollbar-gutter:stable] transition-opacity ${loading ? "opacity-60" : ""}`}>
+              {view === "pdf" ? (
+                // Scaled as a whole; the box takes its scaled size so nothing is cut or left blank.
+                <div className="mx-auto" style={{ width: PDF_WIDTH * scale, height: pdfHeight * scale }}>
+                  <iframe
+                    title="Enquiry Report"
+                    srcDoc={html}
+                    scrolling="no"
+                    onLoad={(e) => {
+                      const body = e.currentTarget.contentDocument?.body;
+                      if (body) setPdfHeight(body.offsetHeight);
+                    }}
+                    className="pointer-events-none origin-top-left border-0 bg-white shadow-[0_2px_12px_rgba(10,22,40,0.18)]"
+                    style={{ width: PDF_WIDTH, height: pdfHeight, transform: `scale(${scale})` }}
+                  />
+                </div>
+              ) : (
+                <ExcelSheet rows={rows} scale={scale} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** The Excel on screen, as the download has it. */
+function ExcelSheet({ rows, scale }: { rows: EnquiryReportRow[]; scale: number }) {
+  return (
+    <div className="mx-auto w-max bg-white text-[#1f2937]" style={{ zoom: scale }}>
+      <div className="flex flex-wrap gap-x-5 gap-y-1 border border-b-0 border-[#c9d3df] px-3 py-2 text-[12px] text-[#4b5b6e]">
+        {reportCounts(rows).map((c) => (
+          <span key={c.label}>
+            {c.label} <b className="ml-0.5 font-mono text-[#06408c]">{c.value}</b>
+          </span>
+        ))}
+      </div>
+      <table className="table-fixed border-separate border-spacing-0 text-[12px]" style={{ width: EXCEL_WIDTH }}>
+        <colgroup>
+          {REPORT_COLUMNS.map((c) => (
+            <col key={c.key} style={{ width: c.width * 6.6 }} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            {REPORT_COLUMNS.map((c) => (
+              <th key={c.key} className="sticky top-0 border border-[#c9d3df] bg-[#dcebfb] px-2 py-1.5 text-center text-[11.5px] font-bold text-[#0b3d7e]">
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={REPORT_COLUMNS.length} className="border border-[#c9d3df] px-3 py-8 text-center text-[#6b7a8c]">
+                No enquiries match the filters.
+              </td>
+            </tr>
+          )}
+          {rows.map((r) => (
+            <tr key={r.id}>
+              {REPORT_COLUMNS.map((c) => (
+                <td
+                  key={c.key}
+                  className={`border border-[#d9dfe7] px-2 py-1 align-top whitespace-pre-line [overflow-wrap:anywhere] ${c.key === "rilRep" || c.key === "enquiryNo" ? "font-semibold" : ""}`}
+                >
+                  {reportCell(r, c.key)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

@@ -968,6 +968,16 @@ never auto-filled from the AI result.
   change: workDenied (assignee, managers, admin, selection head; not older versions).
   No row reads as Clear (the default); a new version starts Clear.
 
+## Enquiry Report (user, 2026-11-04)
+- User Master / system admins, on the Enquiries page: components/projects/EnquiryReportPanel.tsx,
+  a panel that opens and closes, with the list as filtered, every page (GET /api/projects with
+  no page). PDF view = lib/enquiry-report.ts HTML in a scaled iframe, Print / PDF = printHtml,
+  A4 landscape; Excel view = the same rows, Download Excel. Zoom and Fit to screen on both.
+- RIL Rep. = zone code + _ + initials (WI_SV). ZONE_CODES in lib/enquiry-report.ts; initials from
+  the sales users by the client's primary rep, else the quotation's TSM. Enquiry Status = Technical
+  and Commercial (a spare's one status). Detail Remark = Hold reason, clearance remarks, revision
+  note, enquiry remarks.
+
 ## Spare orders (user, 2026-11-04)
 - order_type spare: no tags, no technical step, no scope of supply. The Enquiries row
   has only Commercial and Copy (no chevron, Quotation or Technical); Copy adds its models
