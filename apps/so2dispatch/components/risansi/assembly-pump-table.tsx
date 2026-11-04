@@ -27,6 +27,7 @@ import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { AlignmentValue, BasePlateForm, WoodenBoxForm } from "./alignment-cell";
+import { dispatchRowTone } from "@/lib/dept-view";
 import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
@@ -217,7 +218,7 @@ export function AssemblyPumpTable({
                   const lastRow = k === ecs.length - 1;
                   const ecCell = `px-3 py-2 ${lastRow ? "border-b border-card-border" : "border-b border-card-border/50"}`;
                   return (
-                    <tr key={e.id} className="text-foreground hover:bg-background/40">
+                    <tr key={e.id} className={`text-foreground transition-colors ${dispatchRowTone(head) ?? "hover:bg-background/40"}`}>
                       {k === 0 && (
                         <>
                           <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>

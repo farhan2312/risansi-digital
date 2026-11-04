@@ -6,7 +6,7 @@ import { MessageSquare, PackageX, Pencil } from "lucide-react";
 import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, SORTABLE_DATE_COLUMNS, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
 import { ecDone, pumpEcStage, pumpLotsFromEcs } from "@/lib/assembly";
-import { boiInHand } from "@/lib/dept-view";
+import { boiInHand, dispatchRowTone } from "@/lib/dept-view";
 import { formatDisplay } from "./editable-section";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
 import { GadCell } from "./gad-cell";
@@ -194,7 +194,7 @@ export function PlanningPumpTable({
                 const last = k === ecs.length - 1;
                 const ecCell = `px-3 py-2 ${last ? "border-b border-card-border" : "border-b border-card-border/50"}`;
                 return (
-                  <tr key={id} className="text-foreground hover:bg-background/40">
+                  <tr key={id} className={`text-foreground transition-colors ${dispatchRowTone(head) ?? "hover:bg-background/40"}`}>
                     {k === 0 && (
                       <>
                         <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
