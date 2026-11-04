@@ -62,6 +62,8 @@ export interface ProjectRecord {
   client_secondary_reps: string | null;
   client_market_type: string | null;
   client_zone: string | null;
+  /** The TSM on its first quotation (list endpoint only). */
+  quotation_tsm?: { initials: string; zone: string | null } | null;
 }
 
 /** Every enquiry, unpaginated. Used where the whole set is genuinely needed:
@@ -83,9 +85,7 @@ export type ProjectPage = {
 /** One page of enquiries, filtered and counted server-side. Filtering has to
  * happen on the server now: the client only holds one page, so filtering
  * there would search 20 rows rather than the whole table. */
-export const listProjectsPage = async (query: {
-  page: number;
-  pageSize?: number;
+export type ProjectListQuery = {
   clientName?: string;
   enquiryCode?: string;
   /** Date window, ISO instants, on `dateField`. */
@@ -99,21 +99,29 @@ export const listProjectsPage = async (query: {
   filters?: EnquiryFilters;
   /** Rep Manager: one of their reps (a sales user id); empty = the team. */
   rep?: string;
-}): Promise<ProjectPage> => {
+};
+
+const listParams = (query: ProjectListQuery) => ({
+  clientName: query.clientName?.trim() || undefined,
+  enquiryCode: query.enquiryCode?.trim() || undefined,
+  from: query.from || undefined,
+  dateField: query.dateField || undefined,
+  to: query.to || undefined,
+  mine: query.mine ? "1" : undefined,
+  ...filterParams(query.filters),
+  rep: query.rep || undefined,
+});
+
+export const listProjectsPage = async (query: ProjectListQuery & { page: number; pageSize?: number }): Promise<ProjectPage> => {
   const { data } = await apiClient.get<ProjectPage>("/projects", {
-    params: {
-      page: query.page,
-      pageSize: query.pageSize,
-      clientName: query.clientName?.trim() || undefined,
-      enquiryCode: query.enquiryCode?.trim() || undefined,
-      from: query.from || undefined,
-      dateField: query.dateField || undefined,
-      to: query.to || undefined,
-      mine: query.mine ? "1" : undefined,
-      ...filterParams(query.filters),
-      rep: query.rep || undefined,
-    },
+    params: { page: query.page, pageSize: query.pageSize, ...listParams(query) },
   });
+  return data;
+};
+
+/** Every enquiry the filters match, for the Enquiry Report. */
+export const listProjectsReport = async (query: ProjectListQuery): Promise<ProjectRecord[]> => {
+  const { data } = await apiClient.get<ProjectRecord[]>("/projects", { params: listParams(query) });
   return data;
 };
 

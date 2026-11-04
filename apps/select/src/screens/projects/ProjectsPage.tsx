@@ -15,6 +15,7 @@ import { holdReasonText } from "../../lib/clearance";
 import EnquiryVersionsModal from "../../components/projects/EnquiryVersionsModal";
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
+import EnquiryReportPanel from "../../components/projects/EnquiryReportPanel";
 import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
@@ -693,6 +694,22 @@ const ProjectsPage = () => {
         <AssigneeKpis />
       ) : (
         (ASSIGNABLE_ROLES as readonly string[]).includes(user?.role ?? "") && <AssigneeKpis own />
+      )}
+
+      {manager && (
+        <EnquiryReportPanel
+          scope={scope === "mine" ? "Assigned to me" : hasFilter ? "As filtered" : "All enquiries"}
+          query={{
+            clientName: debouncedFilters.clientName,
+            enquiryCode: debouncedFilters.enquiryCode,
+            from: dateWindow.from,
+            to: dateWindow.to,
+            dateField,
+            mine: scope === "mine",
+            filters: adv,
+            rep,
+          }}
+        />
       )}
 
       {error && (
