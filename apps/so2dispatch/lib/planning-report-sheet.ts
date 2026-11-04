@@ -103,6 +103,7 @@ export function asmLotText(lot: PumpLot | undefined, slips: Row[]): string {
     label,
     qty > 0 ? `Qty ${qty} · Assembled ${assembled} · Packed ${packed}` : "",
     when(lot.assembled_date, lot.assembly_plan_date, "Assembly"),
+    !lot.assembled_date && lot.asm_remarks ? `Assembly pending: ${lot.asm_remarks}` : "",
     when(lot.packed_date, lot.packing_plan_date, "Packing"),
     lot.pack_remarks,
     lot.packed_date && !lotOnSlip(lot.n, slips) ? "No slip" : "",

@@ -91,6 +91,8 @@ export type PumpLot = {
   assembly_plan_date: string;
   assembly_shift: string;
   assembled_date: string;
+  /** Why it is not all assembled yet: shown only while it is not. */
+  asm_remarks: string;
   packing_plan_date: string;
   packing_shift: string;
   pdi: string;
@@ -139,6 +141,7 @@ export function pumpLotsFromEcs(ecRows: Row[]): PumpLot[] {
       assembly_plan_date: asm.plan_date,
       assembly_shift: asm.shift,
       assembled_date: asm.assembled_date,
+      asm_remarks: pick("assembly_remarks"),
       packing_plan_date: day(pick("packing_plan_date")),
       packing_shift: pick("packing_shift"),
       pdi: pick("pdi"),
@@ -224,8 +227,8 @@ export function soStatuses(ecs: { id: string; quantity: number }[], lots: PumpLo
   };
 }
 
-/** What Assembly & Packing edits on a lot as a whole: its packing. */
-export type LotStages = Pick<PumpLot, "n" | "packing_plan_date" | "packing_shift" | "pdi" | "packed_date" | "pack_status" | "pack_remarks">;
+/** What Assembly & Packing edits on a lot as a whole: its assembly pending remarks and its packing. */
+export type LotStages = Pick<PumpLot, "n" | "asm_remarks" | "packing_plan_date" | "packing_shift" | "pdi" | "packed_date" | "pack_status" | "pack_remarks">;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 

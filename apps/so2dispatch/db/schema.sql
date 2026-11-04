@@ -3173,3 +3173,7 @@ UPDATE order_picture_links pl
 
 CREATE UNIQUE INDEX IF NOT EXISTS order_picture_links_slip_link_uidx
     ON order_picture_links (packing_slip_id, link);
+
+-- 0051  A pump lot's assembly pending remarks: why it is not all assembled yet,
+-- from Assembly & Packing's lot form. Same as migrations/so2dispatch/0033. Idempotent and additive.
+ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS assembly_remarks TEXT;

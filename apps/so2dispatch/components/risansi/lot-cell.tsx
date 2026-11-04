@@ -69,6 +69,9 @@ export function LotCell({ lot, slips }: { lot: PumpLot | undefined; slips: Row[]
         </span>
       )}
       {day(lot.assembled_date, lot.assembly_plan_date, "Assembly")}
+      {!lot.assembled_date && lot.asm_remarks && (
+        <span className="max-w-[14rem] whitespace-normal text-[11px] text-amber-700">Assembly pending: {lot.asm_remarks}</span>
+      )}
       {day(lot.packed_date, lot.packing_plan_date, "Packing")}
       {lot.pack_remarks && <span className="max-w-[14rem] whitespace-normal text-[11px] text-muted">{lot.pack_remarks}</span>}
       {/* Packed, but on no packing slip yet. */}

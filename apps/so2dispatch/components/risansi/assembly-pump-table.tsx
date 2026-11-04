@@ -461,6 +461,7 @@ function LotStagesModal({
   async function save() {
     const stages: LotStages[] = lots.map((l) => ({
       n: l.n,
+      asm_remarks: l.asm_remarks,
       packing_plan_date: l.packing_plan_date,
       packing_shift: l.packing_shift,
       pdi: l.pdi,
@@ -682,6 +683,20 @@ function LotStagesModal({
                               </div>
                             );
                           })}
+                        </div>
+                      )}
+                      {/* Why it is not all assembled yet; gone from view once it is. */}
+                      {named && !assembled && (
+                        <div className="mt-3">
+                          <Field label="Assembly pending remarks">
+                            <input
+                              type="text"
+                              value={l.asm_remarks}
+                              disabled={ro || !unlocked}
+                              onChange={(e) => set(i, { asm_remarks: e.target.value })}
+                              className={input}
+                            />
+                          </Field>
                         </div>
                       )}
                     </div>

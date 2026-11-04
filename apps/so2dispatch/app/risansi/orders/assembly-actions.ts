@@ -71,6 +71,7 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
   const t = (v: unknown) => String(v ?? "").trim();
   const clean: LotStages[] = (Array.isArray(lots) ? lots : []).map((l) => ({
     n: Math.floor(Number(l.n)) || 0,
+    asm_remarks: t(l.asm_remarks),
     packing_plan_date: t(l.packing_plan_date),
     packing_shift: t(l.packing_shift),
     pdi: t(l.pdi),
@@ -159,8 +160,8 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
           pdi: l.pdi,
         });
         await query(
-          `UPDATE order_ready_lots SET pump_packing_status = NULLIF($2, ''), packing_remarks = NULLIF($3, '') WHERE id = $1`,
-          [row.id, l.pack_status, l.pack_remarks]
+          `UPDATE order_ready_lots SET pump_packing_status = NULLIF($2, ''), packing_remarks = NULLIF($3, ''), assembly_remarks = NULLIF($4, '') WHERE id = $1`,
+          [row.id, l.pack_status, l.pack_remarks, l.asm_remarks]
         );
       }
       // The packing columns go through the Spare's own path, so a moved
