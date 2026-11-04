@@ -6,11 +6,11 @@ import { Fragment, useEffect, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import type { BillingQueueRow } from "@/lib/orders";
 import { TermPis } from "./term-pis";
-import { OrderValueDetails } from "./order-value-details";
+import { OrderInHand, OrderValueDetails } from "./order-value-details";
 import { PendencyCell } from "./pendency-cell";
 import { MultiSelectFilter } from "./multi-select-filter";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
-import { billModeLabel, isUsd } from "@/lib/order-schema";
+import { billModeLabel } from "@/lib/order-schema";
 import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchInline } from "./dispatch-inline";
 import { SortHeader } from "./sort-header";
@@ -45,7 +45,6 @@ function formatDate(value: string | null): string {
   });
 }
 
-const numberFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
 export function BillingWorkspace({
   queue,
   mode = "billing",
@@ -394,28 +393,6 @@ function PumpPackingLines({ lots }: { lots: BillingQueueRow["pump_lots"] }) {
         </span>
       ))}
     </div>
-  );
-}
-
-/** What is still to invoice: the gross value less the invoices' (or challans') values. */
-function OrderInHand({ row }: { row: BillingQueueRow }) {
-  // A Challan / FR SO is a replacement, at no value: nothing in hand to invoice.
-  if (row.bill_type === "Challan") return <span className="text-xs text-muted-foreground">Replacement</span>;
-  if (!row.taxable_value || row.taxable_value.trim() === "") return <span className="text-muted-foreground">—</span>;
-  const invoiced = Number(row.invoiced_value ?? 0) || 0;
-  const diff = Number(row.taxable_value) - invoiced;
-  // Invoices are rounded to the rupee: under one either way is all invoiced.
-  const left = Math.abs(diff) < 1 ? 0 : diff;
-  // A USD order's gross here is its INR figure, as its invoices are.
-  const cur = isUsd(row.order_currency) ? " INR" : row.order_currency ? ` ${row.order_currency}` : "";
-  return (
-    <span className="flex flex-col items-end whitespace-nowrap">
-      <span className={`text-sm font-semibold tabular-nums ${left > 0 ? "text-foreground" : "text-emerald-700 dark:text-emerald-400"}`}>
-        {numberFmt.format(left)}
-        {cur}
-      </span>
-      <span className="text-[11px] text-muted">Invoiced {numberFmt.format(invoiced)}</span>
-    </span>
   );
 }
 

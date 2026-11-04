@@ -59,6 +59,7 @@ export default async function OrdersPage({
     // The department summary cards (Spare or Pump); on Pump, the card picked narrows the list.
     kpis: orderListKpiCards(ordersKind(params.type)),
     extraRestrict: ordersKind(params.type) === "pump" ? pumpCardSql(params.pk) : null,
+    inHand: true,
   });
   const canCreate = canCreateOrders(user.role);
   // Every department on each SO of this page, for the row's tags; on the Pump

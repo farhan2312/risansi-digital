@@ -8,7 +8,7 @@ import type { KpiCard, KpiTone } from "@/lib/kpis";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import type { PumpStage as SummaryStage, PumpSummary } from "@/lib/pump-summary";
 import { stageOf as pumpStageOf, type PumpStage } from "@/lib/pump-dashboard";
-import { orderValueLines } from "@/lib/dept-report-pdf";
+import { orderInHand, orderValueLines } from "@/lib/dept-report-pdf";
 
 // The Orders list on paper: the same columns as the list on screen, every SO
 // on one line, with summary cards on top. A3 landscape, so all seventeen
@@ -106,7 +106,7 @@ const PAD = 4;
 
 type Key =
   | "sl" | "so" | "soDate" | "type" | "client" | "code" | "rep" | "zone" | "bill"
-  | "value" | "depts" | "pay" | "readiness" | "planning" | "assembly" | "dispatch" | "ecs"
+  | "value" | "inHand" | "depts" | "pay" | "readiness" | "planning" | "assembly" | "dispatch" | "ecs"
   | "p1" | "p2" | "p3" | "a1" | "a2" | "a3" | "slips" | "invoice" | "sent" | "docket"
   | "gad" | "curve" | "part" | "drgReady" | "boi" | "qc" | "plan" | "planDate" | "align" | "asm" | "pack" | "pslips";
 
@@ -118,14 +118,15 @@ const PUMP_OR_ALL_COLUMNS: Column[] = [
   { key: "so", label: "SO No.", width: 78 },
   { key: "soDate", label: "SO Date", width: 50 },
   { key: "type", label: "Type", width: 34 },
-  { key: "client", label: "Client Name", width: 100 },
+  { key: "client", label: "Client Name", width: 88 },
   { key: "code", label: "Client Code", width: 60 },
   { key: "rep", label: "Rep", width: 64 },
   { key: "zone", label: "Zone", width: 36 },
   { key: "bill", label: "Bill Mode", width: 61 },
   { key: "value", label: "Order Value Details", width: 70 },
-  { key: "depts", label: "Departments", width: 122 },
-  { key: "pay", label: "Payment terms, PIs & payment", width: 165 },
+  { key: "inHand", label: "Order in Hand", width: 46, align: "right" },
+  { key: "depts", label: "Departments", width: 108 },
+  { key: "pay", label: "Payment terms, PIs & payment", width: 145 },
   { key: "readiness", label: "Readiness Date", width: 62 },
   { key: "planning", label: "Planning", width: 62 },
   { key: "assembly", label: "Assembly & Packing", width: 66 },
@@ -141,22 +142,23 @@ const SPARE_COLUMNS: Column[] = [
   { key: "sl", label: "Sl. No.", width: 24 },
   // The SO Date sits under the SO No.
   { key: "so", label: "SO No. & Date", width: 74 },
-  { key: "client", label: "Client Name", width: 86 },
+  { key: "client", label: "Client Name", width: 78 },
   { key: "rep", label: "Rep", width: 48 },
   { key: "zone", label: "Zone", width: 34 },
   { key: "bill", label: "Bill Mode", width: 50 },
   { key: "value", label: "Order Value Details", width: 60 },
-  { key: "pay", label: "Payment terms, PIs & payment", width: 104 },
+  { key: "inHand", label: "Order in Hand", width: 46, align: "right" },
+  { key: "pay", label: "Payment terms, PIs & payment", width: 94 },
   { key: "p1", label: "Lot 1", width: 50, group: "Planning" },
   { key: "p2", label: "Lot 2", width: 50, group: "Planning" },
   { key: "p3", label: "Lot 3", width: 50, group: "Planning" },
   { key: "a1", label: "Lot 1", width: 54, group: "Assembly & Packing" },
   { key: "a2", label: "Lot 2", width: 54, group: "Assembly & Packing" },
   { key: "a3", label: "Lot 3", width: 54, group: "Assembly & Packing" },
-  { key: "slips", label: "Packing Slips", width: 68 },
-  { key: "invoice", label: "Invoice", width: 74 },
-  { key: "sent", label: "Dispatch", width: 72 },
-  { key: "docket", label: "Docket & LR", width: 78 },
+  { key: "slips", label: "Packing Slips", width: 62 },
+  { key: "invoice", label: "Invoice", width: 68 },
+  { key: "sent", label: "Dispatch", width: 64 },
+  { key: "docket", label: "Docket & LR", width: 70 },
   { key: "dispatch", label: "Dispatch Status", width: 51 },
 ];
 
@@ -165,11 +167,12 @@ const PUMP_COLUMNS: Column[] = [
   { key: "sl", label: "Sl. No.", width: 22 },
   // The SO Date sits under the SO No.
   { key: "so", label: "SO No. & Date", width: 70 },
-  { key: "client", label: "Client Name", width: 88 },
+  { key: "client", label: "Client Name", width: 80 },
   { key: "rep", label: "Rep", width: 46 },
   { key: "value", label: "Order Value Details", width: 58 },
-  { key: "pay", label: "Payment terms, PIs & payment", width: 100 },
-  { key: "gad", label: "GAD", width: 64, group: "Drawing" },
+  { key: "inHand", label: "Order in Hand", width: 46, align: "right" },
+  { key: "pay", label: "Payment terms, PIs & payment", width: 90 },
+  { key: "gad", label: "GAD", width: 58, group: "Drawing" },
   { key: "curve", label: "Perf. Curve", width: 54, group: "Drawing" },
   { key: "part", label: "Part Drawing", width: 50, group: "Drawing" },
   { key: "drgReady", label: "Readiness", width: 46, group: "Drawing" },
@@ -177,10 +180,10 @@ const PUMP_COLUMNS: Column[] = [
   { key: "qc", label: "QC Docs", width: 54, group: "Quality" },
   { key: "plan", label: "Status", width: 50, group: "Planning" },
   { key: "planDate", label: "Assembly Readiness", width: 50, group: "Planning" },
-  { key: "align", label: "Alignment", width: 66, group: "Assembly & Packing" },
-  { key: "asm", label: "Assembly", width: 60, group: "Assembly & Packing" },
-  { key: "pack", label: "Packing", width: 60, group: "Assembly & Packing" },
-  { key: "pslips", label: "Packing Slips", width: 70, group: "Dispatch" },
+  { key: "align", label: "Alignment", width: 60, group: "Assembly & Packing" },
+  { key: "asm", label: "Assembly", width: 56, group: "Assembly & Packing" },
+  { key: "pack", label: "Packing", width: 56, group: "Assembly & Packing" },
+  { key: "pslips", label: "Packing Slips", width: 62, group: "Dispatch" },
   { key: "dispatch", label: "Status", width: 54, group: "Dispatch" },
   { key: "ecs", label: "ECs", width: 21, align: "center" },
 ];
@@ -445,6 +448,17 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
       : { text: `${k}: ${v}`, color: C.muted, size: 6.5 }
   );
 
+  // What is still to invoice, as the list shows it; a cancelled or diverted SO has none.
+  const hand = CLOSED.includes(o.dispatch_status ?? "") ? null : orderInHand(o as unknown as Record<string, unknown>);
+  const inHand: Line[] = !hand
+    ? []
+    : "replacement" in hand
+      ? [{ text: "Replacement", color: C.muted, size: 6.5 }]
+      : [
+          { text: money.format(Math.round(hand.left)), bold: true, color: hand.left > 0 ? C.ink : C.green },
+          { text: `Invoiced ${money.format(Math.round(hand.invoiced))}`, color: C.muted, size: 6.5 },
+        ];
+
   // Payment terms, each with its PI and what came in.
   const terms = (o.term_lines ?? []) as Row[];
   const pis = (o.pi_docs ?? []) as Row[];
@@ -503,6 +517,7 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
       zone: [{ text: str(o.zone) }],
       bill: [{ text: billModeLabel(o.bill_mode, o.bill_type) || "" }],
       value,
+      inHand,
       pay,
       readiness: [{ text: readiness, color: C.muted }],
       planning: held ? HOLD : closed || !planning ? [] : [{ text: planning, bold: true, color: READY.includes(planning.toLowerCase()) ? C.green : C.ink }],

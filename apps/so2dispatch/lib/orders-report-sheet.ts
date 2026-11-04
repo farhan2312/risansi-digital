@@ -7,6 +7,7 @@ import { billModeLabel, PAYMENT_HOLD_VALUE, READY_LOT_LIMIT, termPaymentStatus }
 import { CLOSED, assemblyView, ecQuantityOf, orderStatusOf, planningText, reachedAssembly, reachedDepts, reachedDispatch } from "@/lib/order-row-view";
 import { PACKED_FOR, PACKING_IN_PROGRESS, lotOnSlip, type SoLot } from "@/lib/ready-lots";
 import { day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
+import { orderInHand } from "@/lib/dept-report-pdf";
 import type { OrderListRow, SoDeptStatus } from "@/lib/orders";
 import type { PumpSummary } from "@/lib/pump-summary";
 import { LOT_PACKING_PENDING, latestPumpLot, type PumpLot } from "@/lib/assembly";
@@ -167,6 +168,7 @@ export function ordersSheet(opts: {
     Col("GST %", 8, "SO", true),
     Col("Gross Value (USD)", 14, "SO", true),
     Col("Gross Value (INR)", 14, "SO", true),
+    Col("Order in Hand", 14, "SO", true),
     ...(pump ? [Col("Quantity", 9, "SO", true)] : []),
     Col("Departments", 30, "SO"),
     Col("Payment terms, PIs & payment", 40, "SO"),
@@ -210,6 +212,8 @@ export function ordersSheet(opts: {
     const dispatch = o.dispatch_status || "Pending";
     const closed = CLOSED.includes(dispatch);
     const held = !closed && o.clearance_status === "Hold";
+    const hand = closed ? null : orderInHand(o as unknown as Record<string, unknown>);
+    const left = hand && !("replacement" in hand) ? hand : null;
     const onlyBilling = o.only_billing === "Yes";
     const s = pump?.get(o.id);
     const currency = o.order_currency || "INR";
@@ -242,6 +246,8 @@ export function ordersSheet(opts: {
       [amount(o.gst_percent), null],
       [amount(o.gross_value_usd), null],
       [amount(o.taxable_value), null],
+      // A cancelled or diverted SO has nothing left to invoice.
+      "replacement" in (hand ?? {}) ? ["Replacement", "muted"] : [left ? Math.round(left.left) : null, left && left.left <= 0 ? "green" : null],
       ...(pump ? [[ecQuantityOf(o.items), null] as [SheetCell, Tone | null]] : []),
       [depts || null, null],
       [paymentText(o), null],

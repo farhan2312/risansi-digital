@@ -155,6 +155,8 @@ export type OrderListRow = {
   /** A USD order's gross in USD; taxable_value is then that in INR. */
   gross_value_usd: string | null;
   taxable_value: string | null;
+  /** What its invoices and challans come to, for Order in Hand. */
+  invoiced_value?: string | null;
   /** How the order value comes to its gross (Order Value Details). */
   discount_percent: string | null;
   packing_forwarding_percent: string | null;
@@ -4114,7 +4116,9 @@ export async function listOrdersPage(opts: {
   kpis?: KpiCardDef[];
   /** More SQL over o for the list (not the cards): the Pump card picked. */
   extraRestrict?: string | null;
-}): Promise<PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[] }> {
+  /** Add up what is still to invoice over every matching SO. */
+  inHand?: boolean;
+}): Promise<PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[]; inHand?: number }> {
   const listed = orderListWhere(await withRepTeams(opts.filter));
   const params = listed.params;
   const where = opts.extraRestrict
@@ -4134,9 +4138,10 @@ export async function listOrdersPage(opts: {
   const limit = `$${params.length + 1}`;
   const offset = `$${params.length + 2}`;
 
-  const [totals, optionRows] = await Promise.all([
+  const [totals, optionRows, inHand] = await Promise.all([
     query<{ count: string }>(`SELECT count(*) AS count FROM orders o ${where}`, params),
     listOrderListOptions(opts.filter),
+    opts.inHand ? cumulativeInHand(where, params) : undefined,
   ]);
 
   const total = Number(totals.rows[0]?.count ?? 0);
@@ -4165,6 +4170,8 @@ export async function listOrdersPage(opts: {
             o.discount_percent::text AS discount_percent,
             o.packing_forwarding_percent::text AS packing_forwarding_percent,
             o.gst_percent::text AS gst_percent,
+            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
+               FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
             o.boi,
             a.payment_status,
             ${DISPATCH_STATUS} AS dispatch_status,
@@ -4278,6 +4285,7 @@ export async function listOrdersPage(opts: {
     kpis,
     ...pageResult(rows.rows, total, opts.all ? 1 : page),
     options: optionRows,
+    inHand,
   };
 }
 export async function listOrders(): Promise<OrderListRow[]> {
@@ -4303,6 +4311,8 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.discount_percent::text AS discount_percent,
             o.packing_forwarding_percent::text AS packing_forwarding_percent,
             o.gst_percent::text AS gst_percent,
+            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
+               FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
             o.boi,
             a.payment_status,
             ${DISPATCH_STATUS} AS dispatch_status,
@@ -4344,6 +4354,29 @@ export async function listOrders(): Promise<OrderListRow[]> {
 // ---------------------------------------------------------------------------
 
 /** SO ids for one page of a queue, plus how many SOs matched in total. */
+/**
+ * What is left to invoice, in INR, over the SOs a list selects, SO by SO: under
+ * a rupee is nothing left, an SO invoiced past its gross has nothing left rather
+ * than taking from the others, and a Challan / FR SO, one with no gross, a
+ * cancelled or diverted SO and a test SO have none.
+ */
+async function cumulativeInHand(where: string, params: unknown[]): Promise<number> {
+  const res = await query<{ amount: string | null }>(
+    `SELECT sum(CASE WHEN h.diff < 1 THEN 0 ELSE h.diff END)::text AS amount
+       FROM orders o
+       CROSS JOIN LATERAL (
+         SELECT o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))
+                                              FROM order_invoices iv WHERE iv.order_id = o.id), 0) AS diff
+       ) h
+       ${where ? `${where}\n        AND` : "WHERE"} o.taxable_value IS NOT NULL
+        AND COALESCE(btrim(o.bill_type), '') <> 'Challan'
+        AND ${orderOpenSql("o")}
+        AND NOT ${TEST_SO_SQL("o")}`,
+    params
+  );
+  return Number(res.rows[0]?.amount ?? 0);
+}
+
 async function pageOfOrderIds(opts: {
   page: number;
   search: string;
@@ -4392,27 +4425,7 @@ async function pageOfOrderIds(opts: {
   );
   const total = Number(totals.rows[0]?.count ?? 0);
 
-  // What is left to invoice, in INR, SO by SO: under a rupee is nothing left, an
-  // SO invoiced past its gross has nothing left rather than taking from the
-  // others, and a Challan / FR SO or one with no gross has none.
-  const inHand = opts.inHand
-    ? Number(
-        (
-          await query<{ amount: string | null }>(
-            `SELECT sum(CASE WHEN h.diff < 1 THEN 0 ELSE h.diff END)::text AS amount
-             FROM orders o
-             CROSS JOIN LATERAL (
-               SELECT o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))
-                                                    FROM order_invoices iv WHERE iv.order_id = o.id), 0) AS diff
-             ) h
-             ${where}
-              AND o.taxable_value IS NOT NULL
-              AND COALESCE(btrim(o.bill_type), '') <> 'Challan'`,
-            [...facets.params, search]
-          )
-        ).rows[0]?.amount ?? 0
-      )
-    : undefined;
+  const inHand = opts.inHand ? await cumulativeInHand(where, [...facets.params, search]) : undefined;
 
   // Rank the target inside this queue's own ordering (sl_no ASC), then
   // convert that position to a page. Rank 0 means it isn't in the queue at
