@@ -130,7 +130,8 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
   push(anyOf(projects.clientZone, f.zone ?? []));
   push(anyOf(projects.clientMarketType, f.market ?? []));
   push(anyOf(projects.industry, f.industry ?? []));
-  if (f.status?.length) out.push(sql`${enquiryStatusSql} IN (${list(f.status)})`);
+  // A spare has no Technical status: it goes by the Commercial filter alone.
+  if (f.status?.length) out.push(sql`(projects.order_type IS DISTINCT FROM 'spare' AND ${enquiryStatusSql} IN (${list(f.status)}))`);
   if (f.commercialStatus?.length) out.push(sql`${commercialStatusSql} IN (${list(f.commercialStatus)})`);
   return out;
 }

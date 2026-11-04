@@ -18,8 +18,9 @@ export type EnquiryFilters = {
   zone?: string[];
   market?: string[];
   industry?: string[];
-  /** The Technical status. */
+  /** The Technical status: pumps only, a spare has none. */
   status?: string[];
+  /** The Commercial status, which is a spare's one status. */
   commercialStatus?: string[];
 };
 
