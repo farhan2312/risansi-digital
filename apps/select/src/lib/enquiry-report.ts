@@ -55,8 +55,12 @@ function rilRep(p: ProjectRecord, reps: TsmOption[]): string {
   return [zoneCode(p.client_zone || known?.zone || p.quotation_tsm?.zone), initials].filter(Boolean).join("_");
 }
 
+/** Test enquiries stay off the report: "test" as a word in the client name or enquiry
+ *  no. (test, test-spare, RIL/EN/26-27/test). They stay in the Enquiries list. */
+const isTestEnquiry = (p: ProjectRecord): boolean => [p.name, p.project_code].some((v) => /(^|[^a-z])test([^a-z]|$)/i.test(v ?? ""));
+
 export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]): EnquiryReportRow[] {
-  return projects.map((p) => {
+  return projects.filter((p) => !isTestEnquiry(p)).map((p) => {
     const c = p.clearance;
     const onHold = c?.status === "Hold";
     const spare = p.order_type === "spare";

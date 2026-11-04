@@ -124,10 +124,7 @@ export default function ClientMix({ mix }: { mix: DashboardData["mix"] }) {
 
   return (
     <div className="mt-4 space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card icon={Icons.tag} title="Order type" subtitle="Pump vs spare orders">
-          {donut(mix.orderTypes, "enquiries", { Pump: "var(--brand-blue)", Spare: "var(--warn)" })}
-        </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card icon={Icons.globe} title="Market type" subtitle="Domestic vs export clients">
           {donut(mix.markets, "enquiries", { Domestic: "var(--brand-cyan)", Export: "var(--purple)" })}
         </Card>

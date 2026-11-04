@@ -960,8 +960,9 @@ never auto-filled from the AI result.
   "status" in the list APIs = Technical status, so the
   Dashboard, Reports and the version rule all read Technical. The workload cards
   (AssigneeKpis, /api/projects/assignee-stats) split by order type: Pump = Technical,
-  Commercial and tags; Spare = its one status, no tags (older spares' hidden Default
-  tag isn't counted).
+  Commercial and tags; Spare = its one status, no tags. The Dashboard is always Pump or Spare
+  (EnquiryFilterBar orderTypeRequired, no All): Spare has enquiry figures only, no tag cards,
+  tag trend, approvals or tag status, and its rows open /commercial.
 
 ## Clearance (user, 2026-11-04)
 - Enquiries column before Assigned To; ClearanceModal: Clear or Hold, remarks on both
@@ -979,14 +980,14 @@ never auto-filled from the AI result.
 - RIL Rep. = zone code + _ + initials (WI_SV). ZONE_CODES in lib/enquiry-report.ts; initials from
   the sales users by the client's primary rep, else the quotation's TSM. Enquiry Status = Technical
   and Commercial (a spare's one status). Detail Remark = Hold reason, clearance remarks, revision
-  note, enquiry remarks.
+  note, enquiry remarks. Test enquiries (the word test in the client name or enquiry no.) are left off the report only.
 
 ## Spare orders (user, 2026-11-04)
 - order_type spare: no tags, no technical step, no scope of supply. The Enquiries row
   has only Commercial and Copy (no chevron, Quotation or Technical); Copy adds its models
   and parts to another spare or a new enquiry (POST /api/spare-quote/copy; not the PO or
   quotation), and tags can't be copied into a spare. No Default tag on
-  create (older spares keep theirs, hidden). The order type can't change once a
+  create (the 11 left on older spares were deleted, 2026-11-04; they held nothing). The order type can't change once a
   quotation exists.
 - /commercial renders screens/commercial/SpareCommercial.tsx: reference PO No., date,
   TSM and ERP serial mandatory, the PO only when its Reference PO tick is on (unticked: no
