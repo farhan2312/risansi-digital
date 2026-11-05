@@ -6,6 +6,7 @@ import { Ban, Loader2, Shuffle, X } from "lucide-react";
 import { setOrderStatusAction } from "@/app/risansi/orders/actions";
 import { isCentral } from "@/lib/roles";
 import { DispatchStatusPill } from "./dispatch-status-pill";
+import { MakeActiveForm } from "./order-status-pill";
 import { DISPATCH_HOLD_REASONS, joinHoldReason, splitHoldReason } from "@/lib/order-schema";
 
 type Row = Record<string, unknown>;
@@ -55,6 +56,7 @@ export function OrderStatusPanel({
   role: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [reopening, setReopening] = useState(false);
   const override = str(order.status_override);
   const fromInvoices = str(order.invoice_dispatch_status) || str(order.dispatch_status) || "Pending";
   const status = override || fromInvoices;
@@ -98,14 +100,26 @@ export function OrderStatusPanel({
               </p>
             </div>
           </div>
-          {canSet && (
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className="inline-flex h-9 shrink-0 items-center rounded-lg border border-current/30 bg-white/60 px-3 text-sm font-medium transition-colors hover:bg-white"
-            >
-              Change status
-            </button>
+          {canSet && !reopening && (
+            <span className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setReopening(true)}
+                className="inline-flex h-9 items-center rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+              >
+                Make active
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="inline-flex h-9 items-center rounded-lg border border-current/30 bg-white/60 px-3 text-sm font-medium transition-colors hover:bg-white"
+              >
+                Change status
+              </button>
+            </span>
+          )}
+          {reopening && (
+            <MakeActiveForm orderId={orderId} onBack={() => setReopening(false)} onDone={() => setReopening(false)} />
           )}
         </div>
       ) : (
