@@ -41,8 +41,8 @@ export const technicalStatusAutoSql = sql<string>`(
 export const enquiryStatusSql = sql<string>`coalesce(CASE WHEN projects.order_type = 'spare' THEN projects.commercial_status_override ELSE projects.technical_status_override END, ${technicalStatusAutoSql})`;
 
 /** Commercial status, automatic: Completed once the Technical status is Completed,
- *  every tag has a saved P&A price and the quotations are sent to the client
- *  (app/api/quotations/[id]/send), In Progress once any tag's prices are saved,
+ *  every tag has a saved P&A price and the quotations are sent to operation
+ *  (app/api/quotations/[id]/send; sent_to_client_at keeps its old name), In Progress once any tag's prices are saved,
  *  otherwise Pending. A send from before this version began is a Technical only
  *  version carrying it: its commercial side hasn't changed, so Technical isn't
  *  waited for. */

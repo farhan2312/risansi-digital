@@ -28,7 +28,6 @@ export default function EnquiryVersionSection({
   const [assignees, setAssignees] = useState<Assignee[] | null>(null);
   const [pick, setPick] = useState(project.assigned_to ?? "");
   const [note, setNote] = useState("");
-  const [kind, setKind] = useState<"both" | "technical">("both");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -42,7 +41,6 @@ export default function EnquiryVersionSection({
 
   const next = project.version_no + 1;
   const isSpare = project.order_type === "spare";
-  const nextCommercial = kind === "both" ? project.commercial_version_no + 1 : project.commercial_version_no;
   const tooEarly = Boolean(project.enquiry_date && enquiryDate && enquiryDate < project.enquiry_date);
 
   const create = async () => {
@@ -50,7 +48,7 @@ export default function EnquiryVersionSection({
     onBusyChange(true);
     setErr("");
     try {
-      await createEnquiryRevision(project.id, { enquiryDate, assignedTo: pick, note, kind });
+      await createEnquiryRevision(project.id, { enquiryDate, assignedTo: pick, note });
       onCreated();
     } catch (e) {
       setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Couldn't create the new version.");
@@ -70,29 +68,6 @@ export default function EnquiryVersionSection({
         </p>
       ) : (
         <>
-          {!isSpare && (
-            <Field label="Version type" wide group>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {(
-                  [
-                    ["both", "Both", `Technical V${next} and Commercial V${project.commercial_version_no + 1}. Prices are checked again and sent to the client again.`],
-                    ["technical", "Technical only", `Technical V${next}. Commercial stays V${project.commercial_version_no}, with its prices and quotation as they are.`],
-                  ] as const
-                ).map(([value, title, text]) => (
-                  <label
-                    key={value}
-                    className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-[12.5px] ${kind === value ? "border-accent bg-accent-soft" : "border-line bg-paper"}`}
-                  >
-                    <input type="radio" name="version-kind" className="mt-0.5 accent-accent" checked={kind === value} disabled={busy} onChange={() => setKind(value)} />
-                    <span className="min-w-0">
-                      <b className="block font-semibold text-fg">{title}</b>
-                      <span className="text-fg-3">{text}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </Field>
-          )}
           <Field label="Revised enquiry date" required hint={tooEarly ? "Can't be before this version's date." : undefined}>
             <input
               type="date"
@@ -130,7 +105,7 @@ export default function EnquiryVersionSection({
                 ? `Save or cancel your changes above first - V${next} is copied from the saved enquiry.`
                 : isSpare
                   ? `Copies the reference PO, models, parts, prices and quotation number. V${project.version_no} becomes view only.`
-                  : `Copies the tags, pump selection, prices and quotation number. V${project.version_no} becomes view only, and each tag is confirmed again in V${next}. Commercial will be V${nextCommercial}.`}
+                  : `Copies the tags, pump selection, prices and quotation number. V${project.version_no} becomes view only, and each tag is confirmed again in V${next}. Technical will be V${next} and Commercial V${project.commercial_version_no + 1}, so prices are checked and sent to operation again.`}
             </span>
           </div>
           {err && <p className="text-[12.5px] font-medium text-neg sm:col-span-2">{err}</p>}

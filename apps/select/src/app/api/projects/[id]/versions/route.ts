@@ -81,12 +81,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const target = await findAssignee(claims.sub, String(body.assignedTo ?? "").trim());
   if (!target) return error("Pick a worker (or yourself) to assign the new version to", 400);
   const note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
-  // A spare has no technical side, so its version is always both.
-  const kind = body.kind === "technical" && source.orderType !== "spare" ? ("technical" as const) : ("both" as const);
 
   let created;
   try {
-    created = await createRevision(source, { enquiryDate, assignedTo: target.id, note: note || null, createdBy: claims.sub, kind });
+    created = await createRevision(source, { enquiryDate, assignedTo: target.id, note: note || null, createdBy: claims.sub });
   } catch (e) {
     if (e instanceof RevisionError) return error(e.message, e.status);
     if (isUniqueViolation(e)) return error("A newer version of this enquiry already exists.", 409);
@@ -97,7 +95,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     action: "enquiry.revise",
     entity: "projects",
     entityId: created.id,
-    detail: `${enquiryNoWithVersions(source.projectCode, created.versionNo, created.commercialVersionNo)} created from V${source.versionNo} (${kind === "both" ? "Technical and Commercial" : "Technical only"}), assigned to ${target.name || target.email}${note ? ` - ${note.slice(0, 300)}` : ""}`,
+    detail: `${enquiryNoWithVersions(source.projectCode, created.versionNo, created.commercialVersionNo)} created from V${source.versionNo}, assigned to ${target.name || target.email}${note ? ` - ${note.slice(0, 300)}` : ""}`,
   });
   return json(projectToDict(created, null, target.name), 201);
 }

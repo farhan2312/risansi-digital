@@ -220,7 +220,7 @@ export default function CommercialSummaryPage() {
       else next.add(id);
       return next;
     });
-  // Bumped after each price save so the quotation's live version refreshes.
+  // Bumped after each price or document save so the quotation panel refreshes.
   const [pricesVersion, setPricesVersion] = useState(0);
   // "Client Price Ref" viewer (the client's old price sheets on SharePoint).
   const [showPriceRef, setShowPriceRef] = useState(false);
@@ -400,7 +400,7 @@ export default function CommercialSummaryPage() {
   const project = data?.project;
   // An older version of the enquiry: everything can be viewed, nothing changed.
   const readOnly = project?.isLatest === false;
-  // What stops this tab's quotation going to the client.
+  // What stops this tab's quotation being sent.
   const sendBlock = data && tab && tab !== "NONE" ? sendToClientBlock(data, tab) : null;
   const [reviewBusy, setReviewBusy] = useState(false);
   const toggleReviewed = async (reviewed: boolean) => {
@@ -433,6 +433,7 @@ export default function CommercialSummaryPage() {
       const r = await setQuoteCurrency(projectId, currency, refreshRate);
       setData((d) => (d ? { ...d, project: { ...d.project, quoteCurrency: r.quoteCurrency, usdInrRate: r.usdInrRate } } : d));
       if (r.usdInrRate !== null) setRateNow((n) => n ?? r.usdInrRate);
+      setPricesVersion((n) => n + 1);
     } catch (e) {
       setFxError((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Couldn't change the currency.");
     } finally {
@@ -463,7 +464,10 @@ export default function CommercialSummaryPage() {
     setOfferConfigs((m) => ({ ...(m ?? {}), [group]: next }));
     setScopeSave("saving");
     saveCommercialOfferConfig(projectId, group, next)
-      .then(() => setScopeSave("saved"))
+      .then(() => {
+        setScopeSave("saved");
+        setPricesVersion((n) => n + 1);
+      })
       .catch(() => setScopeSave("error"));
   };
   // `saved` holds each tag's last-saved prices (data.tags is only the first
@@ -710,7 +714,7 @@ export default function CommercialSummaryPage() {
               />
               <span className="min-w-0 flex-1">
                 <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the prices copied from V{data.project.commercialVersionNo - 1},
-                including Strainer, PRV and Other items. Needed before Send to client.
+                including Strainer, PRV and Other items. Needed before Send to operation.
               </span>
             </label>
           )}
@@ -957,6 +961,7 @@ export default function CommercialSummaryPage() {
               onToggle={() => toggleTag(tag.tagId)}
               paData={paData}
               draft={drafts[tag.tagId]}
+              otherNames={otherNamesElsewhere(drafts, tag.tagId)}
               prices={prices}
               unit={unit}
               sub={sub}
@@ -1004,6 +1009,7 @@ export default function CommercialSummaryPage() {
           onClose={() => {
             setShowOffer(false);
             loadOfferConfigs();
+            setPricesVersion((n) => n + 1);
           }}
         />
       )}
@@ -1018,6 +1024,7 @@ export default function CommercialSummaryPage() {
           onClose={() => {
             setShowTechno(false);
             loadOfferConfigs();
+            setPricesVersion((n) => n + 1);
           }}
         />
       )}
@@ -1030,6 +1037,20 @@ export default function CommercialSummaryPage() {
       )}
     </div>
   );
+}
+
+/** Other item names on the enquiry's other tags, offered while typing: the Commercial
+ *  Offer puts one name on one row, so picking it keeps a typo from splitting the row. */
+function otherNamesElsewhere(drafts: Record<string, Draft>, tagId: string): string[] {
+  const names = new Map<string, string>();
+  for (const [id, d] of Object.entries(drafts)) {
+    if (id === tagId) continue;
+    for (const o of d.others) {
+      const name = o.name.trim();
+      if (name && !names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+    }
+  }
+  return [...names.values()];
 }
 
 function TagCard({
@@ -1053,6 +1074,7 @@ function TagCard({
   onChange,
   onSave,
   onReset,
+  otherNames,
 }: {
   tag: CommercialTag;
   /** Folded to the header's one-line summary. */
@@ -1075,6 +1097,8 @@ function TagCard({
   onChange: (patch: Partial<Draft>) => void;
   onSave: () => void;
   onReset: () => void;
+  /** Other item names on the enquiry's other tags. */
+  otherNames: string[];
 }) {
   const refs: Partial<Record<BoiKey, CommercialReference | null>> = {
     motorPrice: tag.motorRef,
@@ -1412,6 +1436,11 @@ function TagCard({
                 );
               })}
 
+              <datalist id={`other-names-${tag.tagId}`}>
+                {otherNames.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
               {draft.others.map((o, i) => (
                 <BoiRow
                   key={`other-${i}`}
@@ -1422,6 +1451,7 @@ function TagCard({
                       <input
                         className={`${inputCls} py-1.5`}
                         placeholder="Item name, e.g. Coupling guard"
+                        list={`other-names-${tag.tagId}`}
                         value={o.name}
                         maxLength={100}
                         onChange={(e) => setOther(i, { name: e.target.value })}

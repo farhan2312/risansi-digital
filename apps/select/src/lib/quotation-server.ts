@@ -11,6 +11,7 @@ import { isMarketIntellConfigured, miQuery } from "@/lib/db/market-intell";
 import { projects, quotation, quotationVersion, users } from "@/lib/db/schema";
 import { normalizeOfferConfigs } from "@/lib/commercial-offer";
 import { normalizeSpareQuote, spareSnapshot } from "@/lib/spare-quote";
+import { normalizeTechDocConfig, normalizeTechDocConfigs, sameTechDocSheet } from "@/lib/tech-doc";
 import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import {
   type QuotationInfo,
@@ -88,7 +89,7 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
   }
   const [summary, [p]] = await Promise.all([
     loadCommercialSummary(projectId),
-    db.select({ offer: projects.commercialOfferConfig }).from(projects).where(eq(projects.id, projectId)).limit(1),
+    db.select({ offer: projects.commercialOfferConfig, techDoc: projects.techDocConfig }).from(projects).where(eq(projects.id, projectId)).limit(1),
   ]);
   const tags = (summary?.tags ?? []).filter((t) => t.driveGroup === driveGroup).map((t) => ({
     tagId: t.tagId,
@@ -104,10 +105,12 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
   // The Commercial Offer sheet edits travel with the version, so a frozen
   // version keeps the sheet exactly as it was.
   const offer = normalizeOfferConfigs(p?.offer, [driveGroup])[driveGroup];
+  const techDoc = normalizeTechDocConfigs(p?.techDoc, [driveGroup])[driveGroup];
   return {
     tags,
     grandTotal: tags.reduce((s, t) => s + t.sub, 0),
     offer,
+    ...(sameTechDocSheet(techDoc, normalizeTechDocConfig({})) ? {} : { techDoc }),
     ...(summary?.project.remarks ? { remarks: summary.project.remarks } : {}),
     // Quoted in USD: the version keeps the rate it was made with.
     ...(summary && quoteFxOf(summary.project) ? { fx: quoteFxOf(summary.project) } : {}),
@@ -143,7 +146,7 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
               ),
             )
         ).map((r) => r.id);
-  const [groups, versions, snapshot] = await Promise.all([
+  const [groups, versions, snapshot, [enquiry]] = await Promise.all([
     projectDriveGroups(projectId),
     db
       .select({ v: quotationVersion, createdByName: users.name })
@@ -152,10 +155,13 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
       .where(inArray(quotationVersion.quotationId, quoteIds))
       .orderBy(asc(quotationVersion.createdAt)),
     buildSnapshot(projectId, driveGroup),
+    db.select({ version: projects.commercialVersionNo }).from(projects).where(eq(projects.id, projectId)).limit(1),
   ]);
   const mixed = driveGroup !== SPARE_GROUP && groups.length > 1;
   // The live internal version shows the current saved prices, not its stored copy.
   const liveSnapshot = versions.some(({ v }) => v.frozenAt === null) ? snapshot : null;
+  // What this enquiry version sent (a pump's has one client version per enquiry version).
+  const sentHere = versions.filter(({ v }) => v.quotationId === q.id && v.track === "client").at(-1)?.v ?? null;
   return {
     id: q.id,
     driveGroup: q.driveGroup,
@@ -175,6 +181,9 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
     clientName: q.clientName,
     internalVersion: q.internalVersion,
     clientVersion: q.clientVersion,
+    nextClientVersion: enquiry?.version ?? 0,
+    sentThisVersion: sentHere !== null,
+    changedSinceSent: sentHere !== null && driveGroup !== SPARE_GROUP && !sameTechDocSheet(sentHere.snapshot, snapshot),
     versions: versions
       .map(({ v, createdByName }) => ({
         id: v.id,

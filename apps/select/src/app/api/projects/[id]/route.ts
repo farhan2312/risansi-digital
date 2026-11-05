@@ -1,7 +1,8 @@
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, isNull, ne, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
+import { logAudit } from "@/lib/audit";
 import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enquiryTags, projects, quotation, quotationVersion, users } from "@/lib/db/schema";
@@ -130,14 +131,22 @@ export async function PATCH(
     }
     patch.enquiryDate = d;
   }
+  // Newly marked Technical Completed: a pump other than PCP takes its tags along, as only
+  // PCP tags are worked and confirmed one by one.
+  let completeTags = false;
   if ("technicalStatus" in body || "commercialStatus" in body) {
-    const [auto] = await db.select(enquiryStatusColumns).from(projects).where(eq(projects.id, id)).limit(1);
+    const [auto] = await db
+      .select({ ...enquiryStatusColumns, technicalOverride: projects.technicalStatusOverride })
+      .from(projects)
+      .where(eq(projects.id, id))
+      .limit(1);
     if (!auto) return error("Project not found", 404);
     if ("technicalStatus" in body) {
       const c = statusChoice("technicalStatus", body.technicalStatus, body.completedOn, auto.technicalAuto, auto.technicalDayAuto);
       if (typeof c === "string") return error(c, 400);
       patch.technicalStatusOverride = c.override;
       patch.completedOn = c.date;
+      completeTags = textOrNull(body.technicalStatus) === "Completed" && (auto.technicalOverride ?? auto.technicalAuto) !== "Completed";
     }
     if ("commercialStatus" in body) {
       const c = statusChoice("commercialStatus", body.commercialStatus, body.commercialCompletedOn, auto.commercialAuto, auto.commercialDayAuto);
@@ -181,9 +190,18 @@ export async function PATCH(
   patch.updatedAt = new Date();
 
   let updated: typeof projects.$inferSelect | undefined;
+  let tagsCompleted: string[] = [];
   try {
     updated = await db.transaction(async (tx) => {
       const [row] = await tx.update(projects).set(patch).where(eq(projects.id, id)).returning();
+      if (row && completeTags && row.orderType === "pump" && row.orderSubtype !== "pcp") {
+        const done = await tx
+          .update(enquiryTags)
+          .set({ status: "Completed", updatedAt: new Date() })
+          .where(and(eq(enquiryTags.projectId, id), ne(enquiryTags.status, "Completed")))
+          .returning({ name: enquiryTags.name });
+        tagsCompleted = done.map((t) => t.name);
+      }
       if (row && patch.projectCode) {
         const root = row.rootProjectId ?? row.id;
         await tx
@@ -200,6 +218,14 @@ export async function PATCH(
     throw e;
   }
   if (!updated) return error("Project not found", 404);
+  if (tagsCompleted.length > 0) {
+    await logAudit(req, {
+      action: "enquiry.tags_completed",
+      entity: "projects",
+      entityId: id,
+      detail: `${updated.projectCode}: marked Technical Completed, so ${tagsCompleted.length} tag(s) set to Completed: ${tagsCompleted.join(", ").slice(0, 300)}`,
+    });
+  }
   if (needsDefaultTag) {
     const [tag] = await db.select({ id: enquiryTags.id }).from(enquiryTags).where(eq(enquiryTags.projectId, id)).limit(1);
     if (!tag) await db.insert(enquiryTags).values({ projectId: id, name: "Default" });

@@ -60,7 +60,7 @@ const MASTER_ACTIONS: Record<string, string> = {
   "quotation.create": "Quotation created",
   "quotation.tsm_change": "Quotation TSM changed",
   "quotation.internal_version": "Quotation internal version",
-  "quotation.send": "Quotation sent to client",
+  "quotation.send": "Quotation sent",
   "master.create": "Master added",
   "master.update": "Master edited",
   "master.delete": "Master deleted",

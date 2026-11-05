@@ -1,9 +1,9 @@
-import { and, eq, gte, inArray, isNotNull, lte, ne, sql, type SQL } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lte, type SQL } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { enquiryTags, projects, users } from "@/lib/db/schema";
+import { projects, users } from "@/lib/db/schema";
 import { listAssignees } from "@/lib/enquiry-access";
 import { commercialStatusSql, enquiryStatusSql } from "@/lib/enquiry-filters-server";
 import type { AssigneeStats } from "@/lib/assignee-stats";
@@ -21,7 +21,7 @@ const instant = (v: string | null) => {
  * Enquiries page): the User-Master and system admins get everyone's card, a
  * worker only their own (user, 2026-11-01). The enquiries assigned to
  * them in the window (by assigned_at; open-ended = all time): pumps by Technical
- * and Commercial status with their tags by status, spares by their one status. Only the
+ * and Commercial status, spares by their one status. Only the
  * User-Workers and the User-Master get a card (user, 2026-11-01) - with zeros
  * when they have nothing; enquiries held by anyone else (e.g. old ones a system
  * admin created) are not shown here.
@@ -45,15 +45,8 @@ export async function GET(req: Request) {
   if (to) window.push(lte(projects.assignedAt, to));
   const where = and(...window);
 
-  const [enquiryRows, tagRows, people] = await Promise.all([
+  const [enquiryRows, people] = await Promise.all([
     db.select({ who: projects.assignedTo, orderType: projects.orderType, status: enquiryStatusSql, commercial: commercialStatusSql }).from(projects).where(where),
-    db
-      .select({ who: projects.assignedTo, status: enquiryTags.status, n: sql<number>`count(*)::int` })
-      .from(enquiryTags)
-      .innerJoin(projects, eq(projects.id, enquiryTags.projectId))
-      // Only pumps have tags.
-      .where(and(where, ne(projects.orderType, "spare")))
-      .groupBy(projects.assignedTo, enquiryTags.status),
     listAssignees(claims.sub),
   ]);
 
@@ -68,7 +61,7 @@ export async function GET(req: Request) {
         email: "",
         role: null,
         enquiries: 0,
-        pump: { technical: zero(), commercial: zero(), tags: zero() },
+        pump: { technical: zero(), commercial: zero() },
         spare: zero(),
       };
       cards.set(id, c);
@@ -93,7 +86,6 @@ export async function GET(req: Request) {
       bump(c.pump.commercial, r.commercial, 1);
     }
   }
-  for (const r of tagRows) if (r.who) bump(card(r.who).pump.tags, r.status, Number(r.n));
 
   // Someone holding enquiries who is no longer assignable (deactivated, role
   // changed) still gets a card, named from the users table.

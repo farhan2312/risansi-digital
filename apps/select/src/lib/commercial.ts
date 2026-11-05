@@ -11,6 +11,7 @@
  *   grand total = sum of every tag's sub-total
  */
 
+import type { TechDocConfig } from "./tech-doc";
 import type { OfferConfig } from "./commercial-offer";
 import type { CodeHints, CodeParts } from "./pump-code";
 
@@ -213,7 +214,7 @@ export function priceChangesFor(tag: TagForReview, basis: Record<string, string>
   return out;
 }
 
-/** What stops this drive group's quotation going to the client, or null. */
+/** What stops this drive group's quotation being sent (to operation; a spare's to the client), or null. */
 export function sendToClientBlock(summary: CommercialSummary, group: string): string | null {
   const flagged = summary.tags.filter((t) => t.driveGroup === group && t.priceChanges.length > 0);
   if (flagged.length > 0) return `Answer the price changes first: ${flagged.map((t) => t.tagName).join(", ")}.`;
@@ -245,7 +246,7 @@ export type CommercialSummary = {
     /** Quote in USD toggle: "USD" with the rate fixed for this enquiry. */
     quoteCurrency: "INR" | "USD";
     usdInrRate: number | null;
-    /** The Prices reviewed tick, needed on a new version before Send to client. */
+    /** The Prices reviewed tick, needed on a new version before it is sent. */
     pricesReviewedAt: string | null;
   };
   tags: CommercialTag[];
@@ -630,6 +631,9 @@ export type QuotationSnapshot = {
   /** The Commercial Offer sheet edits for this drive group when the version
    *  was made (lib/commercial-offer). Missing on older snapshots = defaults. */
   offer?: OfferConfig;
+  /** The Technical Data Sheet's edits for this group, when it has any (the
+   *  Techno-Commercial Offer's technical part), so changing them counts as a change. */
+  techDoc?: TechDocConfig;
   /** The Commercial Summary's remarks when the version was made. */
   remarks?: string;
   /** Quoted in USD at this rate when the version was made (absent = INR). */
@@ -678,8 +682,14 @@ export type QuotationInfo = {
   clientCode: string | null;
   clientName: string | null;
   internalVersion: number;
-  /** null until the quotation is first sent to the client. */
+  /** null until the quotation is first sent. */
   clientVersion: number | null;
+  /** The number this enquiry version's send takes (its Commercial version). */
+  nextClientVersion: number;
+  /** Sent in this enquiry version. */
+  sentThisVersion: boolean;
+  /** A pump's prices or documents differ from what was sent: it can be sent again. */
+  changedSinceSent: boolean;
   versions: QuotationVersionInfo[];
 };
 

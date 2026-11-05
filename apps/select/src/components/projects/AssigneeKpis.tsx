@@ -10,7 +10,7 @@ import type { AssigneeStats, StatusCounts } from "../../lib/assignee-stats";
 // Enquiries page, User-Master / system admins: one KPI card per person
 // enquiries go to - the enquiries assigned to them in the period (Daily = today,
 // All time, or a picked range; by assigned date). Pumps by Technical and Commercial
-// status, with their tags by status; spares by their one status.
+// status; spares by their one status.
 
 type Period = "daily" | "all" | "range";
 
@@ -99,7 +99,6 @@ function AssigneeCard({ s }: { s: AssigneeStats }) {
         <OrderSection label="Pump" count={s.pump.technical.total}>
           <StatusRow label="Technical" counts={s.pump.technical} />
           <StatusRow label="Commercial" counts={s.pump.commercial} />
-          <StatusRow label={`Tags ${s.pump.tags.total}`} counts={s.pump.tags} />
         </OrderSection>
         <OrderSection label="Spare" count={s.spare.total}>
           <StatusRow label="Status" counts={s.spare} />
@@ -141,7 +140,7 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
 
   const periodText =
     period === "daily" ? "assigned today" : period === "all" ? "assigned, all time" : `assigned ${fromDate || "start"} → ${toDate || "today"}`;
-  const totals = (rows ?? []).reduce((t, r) => ({ e: t.e + r.enquiries, p: t.p + r.pump.technical.total, s: t.s + r.spare.total, g: t.g + r.pump.tags.total }), { e: 0, p: 0, s: 0, g: 0 });
+  const totals = (rows ?? []).reduce((t, r) => ({ e: t.e + r.enquiries, p: t.p + r.pump.technical.total, s: t.s + r.spare.total }), { e: 0, p: 0, s: 0 });
 
   return (
     <section className="mt-4 rounded-2xl border border-line bg-[linear-gradient(180deg,color-mix(in_srgb,var(--accent-soft)_55%,var(--bg-paper))_0%,var(--bg-paper)_70%)] px-4 py-3 sm:px-5">
@@ -157,8 +156,7 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
           <p className="mt-0.5 text-[12px] text-fg-3">
             {rows ? (
               <>
-                <b className="font-mono text-fg">{totals.e}</b> enquir{totals.e === 1 ? "y" : "ies"} · <b className="font-mono text-fg">{totals.p}</b> pump (<b className="font-mono text-fg">{totals.g}</b> tag
-                {totals.g === 1 ? "" : "s"}) · <b className="font-mono text-fg">{totals.s}</b> spare {periodText}
+                <b className="font-mono text-fg">{totals.e}</b> enquir{totals.e === 1 ? "y" : "ies"} · <b className="font-mono text-fg">{totals.p}</b> pump · <b className="font-mono text-fg">{totals.s}</b> spare {periodText}
               </>
             ) : (
               `Enquiries ${periodText}, by person`
@@ -225,7 +223,7 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
           {!failed && rows === null && (
             <div className={`flex gap-2.5 overflow-x-auto pb-1 ${own ? "max-w-[380px]" : ""}`}>
               {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-[210px] min-w-[200px] flex-1 animate-pulse rounded-xl border border-line bg-paper" />
+                <div key={i} className="h-[180px] min-w-[200px] flex-1 animate-pulse rounded-xl border border-line bg-paper" />
               ))}
             </div>
           )}
