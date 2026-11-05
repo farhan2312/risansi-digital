@@ -168,18 +168,18 @@ export const OFFER_FIELDS: OfferField[] = [
   { key: "t_qty", label: () => "Quantity", value: (t) => (t.quantity === null ? "" : String(t.quantity)) },
   { key: "t_pumpModel", label: () => "Pump Model", value: (t) => t.pumpModel ?? "" },
   { key: "t_motorKw", label: () => "Drive Motor Rating", value: (t) => t.tech?.motorKw ?? "" },
-  { key: "motor", label: () => "Drive Motor Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "motorPrice")) },
-  { key: "gearbox", label: () => "Gear Box Price In Unit (INR)", gearedOnly: true, whenPriced: true, value: (t) => money(boiNet(t.prices, "gearboxPrice")) },
-  { key: "vfd", label: () => "VFD Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "vfdPrice")) },
-  { key: "mechSeal", label: () => "Mechanical Seal Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "mechSealPrice")) },
-  { key: "strainer", label: () => "Strainer Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "strainerPrice")) },
-  { key: "prv", label: () => "PRV Price In Unit (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "prvPrice")) },
-  { key: "drp", label: () => "DRP with Panel (Probe type) IN unit Price", whenPriced: true, value: (t) => money(boiNet(t.prices, "drpPrice")) },
-  // One row per Other BOI item, by its name ("Coupling guard Price In Unit (INR)").
+  { key: "motor", label: () => "Drive Motor Unit Price IN (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "motorPrice")) },
+  { key: "gearbox", label: () => "Gear Box Unit Price IN (INR)", gearedOnly: true, whenPriced: true, value: (t) => money(boiNet(t.prices, "gearboxPrice")) },
+  { key: "vfd", label: () => "VFD Unit Price IN (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "vfdPrice")) },
+  { key: "mechSeal", label: () => "Mechanical Seal Unit Price IN (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "mechSealPrice")) },
+  { key: "strainer", label: () => "Strainer Unit Price IN (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "strainerPrice")) },
+  { key: "prv", label: () => "PRV Unit Price IN (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "prvPrice")) },
+  { key: "drp", label: () => "DRP with Panel (Probe type) Unit Price IN (INR)", whenPriced: true, value: (t) => money(boiNet(t.prices, "drpPrice")) },
+  // One row per Other BOI item, by its name ("Coupling guard Unit Price IN (INR)").
   { key: "others", label: () => "Other Items", perOther: true, value: () => "" },
   {
     key: "x_boi",
-    label: () => "BOI Items Total In Unit (INR)",
+    label: () => "BOI Items Total Unit Price IN (INR)",
     extra: true,
     value: (t) => money(boiTotal({ ...t.prices, others: t.prices.others ?? [] })),
   },
@@ -378,7 +378,7 @@ function offerRows(
   for (const f of OFFER_FIELDS) {
     if (f.perOther) {
       // Only items some tag has a price for.
-      for (const o of otherItemRows(tags)) if (o.values.some(Boolean)) finish(o.key, "fixed", `${o.name} Price In Unit (INR)`, o.values);
+      for (const o of otherItemRows(tags)) if (o.values.some(Boolean)) finish(o.key, "fixed", `${o.name} Unit Price IN (INR)`, o.values);
       continue;
     }
     if (f.extra && !picked.has(f.key)) continue;

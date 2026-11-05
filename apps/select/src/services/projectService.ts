@@ -212,7 +212,7 @@ export const listEnquiryVersions = async (id: string): Promise<ProjectRecord[]> 
 /** The next version of a Completed enquiry (User-Master / system admins only). */
 export const createEnquiryRevision = async (
   id: string,
-  input: { enquiryDate: string; assignedTo: string; note: string; kind: "both" | "technical" },
+  input: { enquiryDate: string; assignedTo: string; note: string },
 ): Promise<ProjectRecord> => {
   const { data } = await apiClient.post<ProjectRecord>(`/projects/${id}/versions`, input);
   return data;

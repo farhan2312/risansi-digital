@@ -1314,7 +1314,7 @@ export const commercialTagPrice = pgTable("commercial_tag_price", {
 // Two version tracks, independent of each other:
 //   internal_version — V0 on create, +1 each time the TSM asks for changes
 //                      (changing WHO the TSM is does not make a version);
-//   client_version   — null until first sent, then V0, V1… per "Send to client".
+//   client_version   — null until first sent, then the enquiry's Commercial version.
 export const quotation = pgTable(
   "quotation",
   {

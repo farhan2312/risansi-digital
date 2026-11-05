@@ -520,6 +520,8 @@ const ProjectsPage = () => {
     setError(null);
     try {
       await updateProject(editing.id, input);
+      // Marking it Completed completes its tags.
+      if (tagsByProject[editing.id]) refreshTags(editing.id);
       setEditing(null);
       // Re-read: the status shown is rolled up on the server, the PATCH reply has the raw row.
       loadProjects();

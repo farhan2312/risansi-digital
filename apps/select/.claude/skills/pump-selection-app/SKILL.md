@@ -820,8 +820,8 @@ never auto-filled from the AI result.
 - User format (photo 2026-10-01): same letterhead/header as the Technical Data
   Sheet ("<company> - Commercial Offer", client, enquiry, quotation), blue
   "Commercial Offer" band, Tag No. row, then per tag: Drive Motor Price In
-  Unit · Gear Box Price In Unit (GM/GB only) · [VFD · Strainer · PRV — only
-  when some tag has that price] · DRP with Panel (Probe type) IN unit Price ·
+  Unit · Gear Box Unit Price IN (INR) (GM/GB only) · [VFD · Strainer · PRV — only
+  when some tag has that price] · DRP with Panel (Probe type) Unit Price IN (INR) ·
   [Other Items — when priced] · Pump with Accessories Unit Price · "Pump With
   Accessories + Motor (+ Gear Box) Unit Price" = unitTotal (ALL priced items)
   · "… Qty. Price" = sub-total; then red "Scope of supply :- …" and "Out Of
@@ -838,7 +838,7 @@ never auto-filled from the AI result.
   Since 2026-10-05: EVERY BOI row (motor, gear box, VFD, mechanical seal,
   strainer, PRV, DRP, others) shows only when some tag on the sheet has a
   price for it (user); Mechanical Seal sits after VFD, and each
-  Other BOI item gets its OWN row "<name> Price In Unit (INR)" (keyed
+  Other BOI item gets its OWN row "<name> Unit Price IN (INR)" (keyed
   o_<name slug>, names merged case-insensitively; normalizeOfferConfig
   accepts o_ keys so renames/edits/removals stick) instead of one total.
   Optional rows: BOI total, Quantity, Total Price (one value across all tags,
@@ -962,7 +962,7 @@ never auto-filled from the AI result.
   by commercialStatus alone: the Technical status filter picks only pumps (enquiryFilterSql),
   and Spare view's one "Status" dropdown is commercialStatus. The workload cards
   (AssigneeKpis, /api/projects/assignee-stats) split by order type: Pump = Technical,
-  Commercial and tags; Spare = its one status, no tags. The Dashboard is always Pump or Spare
+  Commercial; Spare = its one status; no tag counts (user, 2026-11-05). The Dashboard is always Pump or Spare
   (EnquiryFilterBar orderTypeRequired, no All): Spare has enquiry figures only, no tag cards,
   tag trend, approvals or tag status, and its rows open /commercial.
 
@@ -1032,8 +1032,28 @@ never auto-filled from the AI result.
   (projects.prices_reviewed_at, PUT /api/commercial/reviewed), which covers Strainer,
   PRV and Other items. A new version resets the tick.
 
+## Pump Send to operation (user, 2026-11-05)
+- A pump's commercial "Send to client" is now "Send to operation" (POST /quotations/[id]/send;
+  projects.sent_to_client_at keeps its name and still completes the Commercial status). Spares
+  still Send to client.
+- Internal and client versions both show on the panel; the live internal version freezes on send.
+- One client version per drive group per enquiry version: a client row on this quotation id
+  (QuotationInfo.sentThisVersion). createRevision makes a new quotation row, so the next version
+  can send too. The client number IS projects.commercial_version_no (Enquiry V1 = Client V1, also
+  for a drive system added later), with gaps where a version wasn't sent; Send again re-aligns it.
+- Nothing locks after the send. Send again appears once the current snapshot differs from the
+  sent one (changedSinceSent, sameTechDocSheet; prices, offer, remarks, fx, and snapshot.techDoc
+  for the Techno-Commercial's technical part). It OVERWRITES the client row and, when nothing is
+  live, the internal version it names, so the old copy is gone; the audit detail keeps the old total.
+
 ## Technical only versions (user, 2026-11-04)
-- The New version section offers Both or Technical only (spares: always both).
+- Withdrawn 2026-11-05: every new version is now Technical and Commercial, with no choice
+  on the form, and createRevision only makes "both". No technical row was ever made, so the
+  readers of version_kind below (badge, commercial banner, price flags, delete) never fire.
+  Notes kept for when that code is removed.
+- Marking a pump other than PCP (MMP, Barrel, Online blind) Technical Completed (PATCH
+  /projects/[id], on the change only) sets all its tags to Completed, as tags are only worked
+  for PCP. PCP tags still complete one by one, through their reports.
   projects.version_no = Technical version, commercial_version_no = Commercial,
   version_kind = both | technical. Each counts separately (V0/V0 -> T1/C0 -> T2/C1).
 - Technical only (createRevision): carries Commercial status, date, sent_to_client_at

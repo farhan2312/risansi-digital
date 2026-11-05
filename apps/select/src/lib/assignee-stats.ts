@@ -10,8 +10,8 @@ export type AssigneeStats = {
   role: string | null;
   /** Enquiries assigned in the period, pump and spare. */
   enquiries: number;
-  /** A pump has two statuses, and tags with their own. */
-  pump: { technical: StatusCounts; commercial: StatusCounts; tags: StatusCounts };
-  /** A spare has no tags or technical step: just its one status. */
+  /** A pump has two statuses. */
+  pump: { technical: StatusCounts; commercial: StatusCounts };
+  /** A spare has no technical step: just its one status. */
   spare: StatusCounts;
 };

@@ -1,27 +1,31 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion } from "@/lib/db/schema";
-import { SPARE_GROUP, formatInr, quotationNumber, sendToClientBlock } from "@/lib/commercial";
+import { SPARE_GROUP, formatInr, quotationNumber, sendToClientBlock, type QuotationSnapshot } from "@/lib/commercial";
 import { normalizeSpareQuote, spareQuoteProblem } from "@/lib/spare-quote";
 import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, freezeLiveInternal, loadQuotation } from "@/lib/quotation-server";
+import { sameTechDocSheet } from "@/lib/tech-doc";
 import { workDenied } from "@/lib/enquiry-access";
 
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-// POST /api/quotations/[id]/send — records that the quotation was sent to the
-// client: the next CLIENT version (V0 the first time) with a frozen copy of the
-// prices. What is sent is the live internal version, which freezes with it (its
-// number doesn't change). Needs a live internal version: after a send, further
-// changes start a new internal version first. Nothing is e-mailed. When every
-// drive group in use has gone from this version of the enquiry, the commercial
-// step is done (projects.sent_to_client_at, lib/enquiry-filters-server.ts).
+// POST /api/quotations/[id]/send — records the send: to operation for a pump, to
+// the client for a spare. It makes the CLIENT version numbered as the enquiry's
+// Commercial version (Enquiry V1 = Client V1, gaps where a version wasn't sent), with
+// a frozen copy of the prices. What is sent is the live internal version, which
+// freezes with it. A pump has one client version per enquiry version: sending again
+// (only once the prices or documents have changed) overwrites it and the internal
+// version it names, so mistakes can be corrected; the audit trail keeps the old total.
+// A spare goes once per enquiry version. Nothing is e-mailed. When every drive group
+// in use has gone from this version of the enquiry,
+// the commercial step is done (projects.sent_to_client_at, lib/enquiry-filters-server.ts).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) return error("Invalid quotation id", 400);
@@ -46,21 +50,51 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const result = await db.transaction(async (tx) => {
     const [q] = await tx.select().from(quotation).where(eq(quotation.id, id)).for("update");
-    const internal = await freezeLiveInternal(tx, id, snapshot);
-    if (internal === null) return null;
-    const v = q.clientVersion === null ? 0 : q.clientVersion + 1;
+    // A pump's send in this enquiry version, if there was one.
+    const [earlier] = spare
+      ? []
+      : await tx
+          .select({ id: quotationVersion.id, version: quotationVersion.version, snapshot: quotationVersion.snapshot })
+          .from(quotationVersion)
+          .where(and(eq(quotationVersion.quotationId, id), eq(quotationVersion.track, "client")))
+          .orderBy(desc(quotationVersion.version))
+          .limit(1);
+    if (earlier && sameTechDocSheet(earlier.snapshot, snapshot)) return "unchanged" as const;
+    const frozen = await freezeLiveInternal(tx, id, snapshot);
+    if (frozen === null && spare) return null;
+    // Nothing live: a pump's was frozen by its send (or a newer version was made, then deleted).
+    const internal = frozen ?? q.internalVersion;
+    const reason = `Sent to ${spare ? "client" : "operation"} (internal V${internal})`;
+    // The client version is the enquiry's Commercial version: Enquiry V1 = Client V1.
+    const [enquiry] = await tx.select({ version: projects.commercialVersionNo }).from(projects).where(eq(projects.id, current.projectId));
+    const v = enquiry.version;
     await tx.update(quotation).set({ clientVersion: v, updatedAt: sql`now()` }).where(eq(quotation.id, id));
-    await tx.insert(quotationVersion).values({
-      quotationId: id,
-      track: "client",
-      version: v,
-      reason: `Sent to client (internal V${internal})`,
-      tsmName: q.tsmName,
-      tsmInitials: q.tsmInitials,
-      snapshot,
-      frozenAt: new Date(),
-      createdBy,
-    });
+    if (earlier) {
+      // Overwrites what was sent, and the internal version it was sent as.
+      if (frozen === null) {
+        await tx
+          .update(quotationVersion)
+          .set({ snapshot })
+          .where(and(eq(quotationVersion.quotationId, id), eq(quotationVersion.track, "internal"), eq(quotationVersion.version, internal)));
+      }
+      const now = new Date();
+      await tx
+        .update(quotationVersion)
+        .set({ version: v, snapshot, reason, tsmName: q.tsmName, tsmInitials: q.tsmInitials, frozenAt: now, createdAt: now, createdBy })
+        .where(eq(quotationVersion.id, earlier.id));
+    } else {
+      await tx.insert(quotationVersion).values({
+        quotationId: id,
+        track: "client",
+        version: v,
+        reason,
+        tsmName: q.tsmName,
+        tsmInitials: q.tsmInitials,
+        snapshot,
+        frozenAt: new Date(),
+        createdBy,
+      });
+    }
     const sent = await tx
       .selectDistinct({ group: quotation.driveGroup })
       .from(quotation)
@@ -78,19 +112,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         })
         .where(eq(projects.id, current.projectId));
     }
-    return { v, internal };
+    return { v, internal, replacedTotal: earlier ? (earlier.snapshot as QuotationSnapshot).grandTotal : null };
   });
-  if (!result) {
-    return error("The latest internal version was already sent. Start a new internal version for further changes.", 409);
-  }
+  if (result === "unchanged") return error("Nothing has changed since this quotation was last sent.", 409);
+  if (!result) return error("This quotation was already sent to the client. For changes, create a new version.", 409);
 
   await logAudit(req, {
     action: "quotation.send",
     entity: "quotation",
     entityId: id,
-    detail: `Quotation ${quotationNumber(current, true)} sent to client — client V${result.v} (internal V${result.internal}), grand total ${formatInr(
+    detail: `Quotation ${quotationNumber(current, true)} ${result.replacedTotal === null ? "sent" : "sent again"} to ${spare ? "client" : "operation"} — client V${result.v} (internal V${result.internal}), grand total ${formatInr(
       snapshot.grandTotal,
-    )}`,
+    )}${result.replacedTotal === null ? "" : `, replacing ${formatInr(result.replacedTotal)}`}`,
   });
   return json(await loadQuotation(current.projectId, current.driveGroup));
 }
