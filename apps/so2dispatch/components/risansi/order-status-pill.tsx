@@ -23,10 +23,71 @@ export function OrderStatusPill({ status }: { status: OrderStatus }) {
   );
 }
 
+const FIELD =
+  "h-9 w-full rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20";
+
+/**
+ * Make a cancelled or diverted order active again: it goes back to the
+ * departments, and its dispatch status follows the invoices. The reason is
+ * optional.
+ */
+export function MakeActiveForm({
+  orderId,
+  onBack,
+  onDone,
+}: {
+  orderId: string;
+  onBack: () => void;
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    const res = await setOrderStatusAction(orderId, "auto", reason, "");
+    setSaving(false);
+    if (!res.ok) return setError(res.error);
+    router.refresh();
+    onDone();
+  }
+
+  return (
+    <span className="flex w-full max-w-md flex-col gap-2 rounded-xl border border-card-border bg-surface p-3 text-foreground">
+      <span className="text-xs font-semibold">Make this order active</span>
+      <span className="text-xs text-muted">It goes back to the departments&apos; work, and they are told.</span>
+      <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (optional)" className={FIELD} />
+      {error && <span className="text-xs text-rose-600">{error}</span>}
+      <span className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={saving}
+          className="inline-flex h-8 items-center rounded-lg border border-input-border px-3 text-xs font-medium text-foreground hover:bg-background"
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Make active
+        </button>
+      </span>
+    </span>
+  );
+}
+
 /**
  * The order's status in its details pop-up. It follows the order by itself;
- * the one thing done by hand is to cancel or divert it, with the reason (and
- * where it went). Central Visibility and Admin.
+ * done by hand: cancel or divert it, with the reason (and where it went), or
+ * make a cancelled or diverted order active again. Central Visibility and Admin.
  */
 export function OrderStatusControl({
   orderId,
@@ -43,8 +104,10 @@ export function OrderStatusControl({
   const [picking, setPicking] = useState<"Canceled" | "Diverted" | null>(null);
   const [reason, setReason] = useState("");
   const [divertedTo, setDivertedTo] = useState("");
+  const [reopening, setReopening] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const closed = status === "Canceled" || status === "Diverted";
   // Cancel or divert: whichever it is not already.
   const choices = (["Canceled", "Diverted"] as const).filter((c) => c !== status);
 
@@ -69,15 +132,23 @@ export function OrderStatusControl({
     onChanged();
   }
 
-  const field =
-    "h-9 w-full rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20";
   return (
     <span className="inline-flex flex-col items-start gap-1.5">
       <span className="inline-flex items-center gap-1.5">
         <span className="text-[11px] font-medium text-muted-foreground">Order status</span>
         <OrderStatusPill status={status} />
+        {canSet && closed && !picking && !reopening && (
+          <button
+            type="button"
+            onClick={() => setReopening(true)}
+            className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+          >
+            Make active
+          </button>
+        )}
         {canSet &&
           !picking &&
+          !reopening &&
           choices.map((c) => (
             <button
               key={c}
@@ -92,12 +163,22 @@ export function OrderStatusControl({
             </button>
           ))}
       </span>
+      {reopening && (
+        <MakeActiveForm
+          orderId={orderId}
+          onBack={() => setReopening(false)}
+          onDone={() => {
+            setReopening(false);
+            onChanged();
+          }}
+        />
+      )}
       {picking && (
         <span className="flex w-full max-w-md flex-col gap-2 rounded-xl border border-card-border bg-background/60 p-3">
           <span className="text-xs font-semibold text-foreground">{picking === "Canceled" ? "Cancel this order" : "Divert this order"}</span>
-          <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason" className={field} />
+          <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason" className={FIELD} />
           {picking === "Diverted" && (
-            <input value={divertedTo} onChange={(e) => setDivertedTo(e.target.value)} placeholder="Diverted to (SO / client)" className={field} />
+            <input value={divertedTo} onChange={(e) => setDivertedTo(e.target.value)} placeholder="Diverted to (SO / client)" className={FIELD} />
           )}
           {error && <span className="text-xs text-rose-600">{error}</span>}
           <span className="flex justify-end gap-2">
