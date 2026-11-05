@@ -297,7 +297,7 @@ export function assemblyReport(rows: Row[], filterLine: string, title = "Assembl
       { label: "Type", width: 34 },
       { label: "ECs", width: 22 },
       { label: "Status", width: 78 },
-      { label: "Packing date", width: 56 },
+      { label: "Packing plan date", width: 56 },
       { label: "Overdue", width: 40 },
       { label: "Lots (plan · packed)", width: 202 },
       { label: "Packing slips", width: 126 },

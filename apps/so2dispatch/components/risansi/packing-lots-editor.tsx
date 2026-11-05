@@ -109,7 +109,7 @@ export function PackingLotsEditor({
                 </span>
                 {editing ? (
                   <input
-                    aria-label={`Lot ${i + 1} packing date`}
+                    aria-label={`Lot ${i + 1} packing plan date`}
                     type="date"
                     value={lot.packing_plan_date}
                     onChange={(e) => set(i, { packing_plan_date: e.target.value })}

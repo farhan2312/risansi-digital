@@ -192,7 +192,7 @@ export function ordersSheet(opts: {
       ]
     : [
         Col("Readiness Date", 14, "Planning"),
-        Col("Packing Date", 13, "Assembly & Packing"),
+        Col("Packing Plan Date", 15, "Assembly & Packing"),
         ...LOTS.map((n) => Col(`Planning Lot ${n}`, 20, "Planning")),
         ...LOTS.map((n) => Col(`Assembly & Packing Lot ${n}`, 24, "Assembly & Packing")),
       ];
