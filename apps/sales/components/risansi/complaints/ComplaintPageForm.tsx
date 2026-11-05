@@ -229,6 +229,7 @@ export function ComplaintPageForm({ complaintId, clientId, page, initial, lookup
                   looking={looking} />
               )}
               {(locked ? costReason : f.hint) && <div style={HINT}>{locked ? costReason : f.hint}</div>}
+              {folded(page.fields, f.name, values)}
             </div>
           );
         })}
@@ -498,6 +499,31 @@ export function Field({ f, value, onChange, disabled, lookups, cascades, values,
     }
   }
 }
+
+/**
+ * What this answer is currently hiding.
+ *
+ * A page whose fields are gated by an earlier answer looks finished when it
+ * is merely folded up, and nothing on screen says so. Page 7 is the one
+ * people ask about — answer No to "Material to be returned" and the ten
+ * fields under it go, "Responsible for returnable" among them, so the page
+ * reads as if assigning somebody were not possible at all. This says what the
+ * other answer would open, under the answer that closed it.
+ */
+function folded(fields: ComplaintField[], name: string, values: ComplaintValues) {
+  const hidden = fields.filter(g => g.showWhen?.field === name && !isFieldShown(g, values));
+  if (!hidden.length) return null;
+  const answers = [...new Set(hidden.flatMap(g => g.showWhen!.equals.map(answerWord)))];
+  const shown = hidden.slice(0, 2).map(g => g.label);
+  const rest = hidden.length - shown.length;
+  return (
+    <div style={{ ...HINT, fontStyle: 'italic' }}>
+      {answers.slice(0, 3).join(' or ')} opens {shown.join(', ')}{rest > 0 ? ` and ${rest} more` : ''}.
+    </div>
+  );
+}
+
+const answerWord = (e: string | boolean) => (e === true ? 'Yes' : e === false ? 'No' : String(e));
 
 function Choices({ value, onChange, disabled, options }: { value: string; onChange: (v: unknown) => void; disabled: boolean; options: string[] }) {
   return (
