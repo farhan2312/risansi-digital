@@ -17,6 +17,7 @@ import {
   LOT_PACKING_STATUSES,
   lotAssembly,
   lotStagesError,
+  pendingRemarks,
   pumpLotsFromEcs,
   soStatuses,
   type AsmEntry,
@@ -91,6 +92,7 @@ function PlannedCell({
                 <span className="font-semibold">L{l.n}</span> {shortDate(date)}
                 {shift === "Night" ? <Moon className="h-3 w-3" /> : shift ? <Sun className="h-3 w-3" /> : null}
                 {stage === "packing" && l.pdi ? <span className="text-muted">PDI {l.pdi}</span> : null}
+                {stage === "packing" && l.final_alignment ? <span className="text-muted">Final alignment {l.final_alignment}</span> : null}
                 {done ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-label="Done" /> : null}
               </span>
             );
@@ -98,6 +100,21 @@ function PlannedCell({
         </span>
       }
     />
+  );
+}
+
+/** Why a stage is pending, lot by lot, under its Status: gone once the lot is done. */
+function PendingRemarks({ lots, stage }: { lots: PumpLot[]; stage: "assembly" | "packing" }) {
+  const list = pendingRemarks(lots, stage);
+  if (list.length === 0) return null;
+  return (
+    <span className="mt-1 flex max-w-[14rem] flex-col gap-0.5">
+      {list.map((r) => (
+        <span key={r.n} className="whitespace-normal text-[11px] text-amber-700">
+          <span className="font-semibold">L{r.n}</span> {r.text}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -255,12 +272,12 @@ export function AssemblyPumpTable({
                           {/* Each lot's work, a column per lot. */}
                           {lotCols.map((n, i) => (
                             <td key={n} rowSpan={span} className={`${soCell} ${i === 0 ? "border-l border-card-border" : ""}`}>
-                              <LotCell lot={lots.find((l) => l.n === n)} slips={(head.so_child_rows ?? []) as Row[]} />
+                              <LotCell lot={lots.find((l) => l.n === n)} slips={(head.so_child_rows ?? []) as Row[]} noRemarks />
                             </td>
                           ))}
                           {/* However many lots there are: the latest, whichever it is. */}
                           <td rowSpan={span} className={soCell}>
-                            <LatestLot lot={latestPumpLot(lots)} slips={(head.so_child_rows ?? []) as Row[]} />
+                            <LatestLot lot={latestPumpLot(lots)} slips={(head.so_child_rows ?? []) as Row[]} noRemarks />
                           </td>
                           {/* The SO's Alignment: base plate and wooden box. */}
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
@@ -271,12 +288,14 @@ export function AssemblyPumpTable({
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
                             {cvHeld(head) ? <HoldChip /> : <Chip label={so.assembly} />}
+                            <PendingRemarks lots={lots} stage="assembly" />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                             <PlannedCell lots={lots} stage="assembly" orderId={orderId} soLabel={soLabel} />
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
                             {cvHeld(head) ? <HoldChip /> : <Chip label={so.packing} />}
+                            <PendingRemarks lots={lots} stage="packing" />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                             <PlannedCell lots={lots} stage="packing" orderId={orderId} soLabel={soLabel} />
@@ -466,6 +485,7 @@ function LotStagesModal({
       packing_plan_date: l.packing_plan_date,
       packing_shift: l.packing_shift,
       pdi: l.pdi,
+      final_alignment: l.final_alignment,
       packed_date: l.packed_date,
       pack_status: l.pack_status,
       pack_remarks: l.pack_remarks,
@@ -723,7 +743,15 @@ function LotStagesModal({
                             ))}
                           </select>
                         </Field>
-                        <div className="col-span-3 grid grid-cols-2 gap-2">
+                        <div className="col-span-3 grid grid-cols-3 gap-2">
+                          <Field label="Final alignment">
+                            <select value={l.final_alignment} disabled={ro || !named} onChange={(e) => set(i, { final_alignment: e.target.value })} className={input}>
+                              <option value="">—</option>
+                              {PDI_CHOICES.map((s) => (
+                                <option key={s}>{s}</option>
+                              ))}
+                            </select>
+                          </Field>
                           <Field label="Packing status">
                             <select
                               value={l.pack_status}

@@ -3177,3 +3177,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS order_picture_links_slip_link_uidx
 -- 0051  A pump lot's assembly pending remarks: why it is not all assembled yet,
 -- from Assembly & Packing's lot form. Same as migrations/so2dispatch/0033. Idempotent and additive.
 ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS assembly_remarks TEXT;
+
+-- 0052  Assembly & Packing says Yes or No for an SO's base plate and wooden box, and a pump lot's
+-- final alignment. Same as migrations/so2dispatch/0034. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS base_plate_override TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS wooden_box_override TEXT;
+ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS final_alignment TEXT;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_base_plate_override_check;
+ALTER TABLE orders ADD CONSTRAINT orders_base_plate_override_check CHECK (base_plate_override IS NULL OR base_plate_override IN ('Yes', 'No'));
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_wooden_box_override_check;
+ALTER TABLE orders ADD CONSTRAINT orders_wooden_box_override_check CHECK (wooden_box_override IS NULL OR wooden_box_override IN ('Yes', 'No'));
+ALTER TABLE order_ready_lots DROP CONSTRAINT IF EXISTS order_ready_lots_final_alignment_check;
+ALTER TABLE order_ready_lots ADD CONSTRAINT order_ready_lots_final_alignment_check CHECK (final_alignment IS NULL OR final_alignment IN ('Yes', 'No'));

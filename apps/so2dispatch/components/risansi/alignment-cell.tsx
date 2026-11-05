@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Pencil, X } from "lucide-react";
 import {
   saveBasePlateAction,
   saveWoodenBoxAction,
@@ -90,6 +90,8 @@ function Pills({ options, on, pick }: { options: string[]; on: (o: string) => bo
     </div>
   );
 }
+
+const YES_NO = ["Yes", "No"];
 
 /** The pop-up either form sits in: its title, Save and Cancel. */
 function AlignmentDialog({
@@ -188,6 +190,7 @@ type FormProps = { orderId: string; soLabel: string; alignment: unknown; onClose
 export function BasePlateForm({ orderId, soLabel, alignment, onClose }: FormProps) {
   const a = (alignment ?? {}) as Row;
   const [v, setV] = useState<BasePlate>({
+    required: str(a.base_plate),
     status: str(a.base_plate_status) || "Pending",
     date: str(a.base_plate_date).slice(0, 10),
     remarks: str(a.base_plate_remarks),
@@ -195,15 +198,22 @@ export function BasePlateForm({ orderId, soLabel, alignment, onClose }: FormProp
   const set = (patch: Partial<BasePlate>) => setV((p) => ({ ...p, ...patch }));
   return (
     <AlignmentDialog title="Base Plate" soLabel={soLabel} save={() => saveBasePlateAction(orderId, v)} onClose={onClose}>
-      <Field label="Status" required group>
-        <Pills options={BASE_PLATE_STATUSES} on={(o) => v.status === o} pick={(o) => set({ status: o })} />
+      <Field label="Base Plate" required group>
+        <Pills options={YES_NO} on={(o) => v.required === o} pick={(o) => set({ required: o })} />
       </Field>
-      <Field label="Date" required={v.status !== "Pending"}>
-        <input type="date" value={v.date} onChange={(e) => set({ date: e.target.value })} className={input} />
-      </Field>
-      <Field label="Remarks">
-        <input type="text" value={v.remarks} onChange={(e) => set({ remarks: e.target.value })} className={input} />
-      </Field>
+      {v.required === "Yes" && (
+        <>
+          <Field label="Status" required group>
+            <Pills options={BASE_PLATE_STATUSES} on={(o) => v.status === o} pick={(o) => set({ status: o })} />
+          </Field>
+          <Field label="Date" required={v.status !== "Pending"}>
+            <input type="date" value={v.date} onChange={(e) => set({ date: e.target.value })} className={input} />
+          </Field>
+          <Field label="Remarks">
+            <input type="text" value={v.remarks} onChange={(e) => set({ remarks: e.target.value })} className={input} />
+          </Field>
+        </>
+      )}
     </AlignmentDialog>
   );
 }
@@ -211,6 +221,7 @@ export function BasePlateForm({ orderId, soLabel, alignment, onClose }: FormProp
 /** The wooden boxes' form, for one SO: its own person, its own Save. */
 export function WoodenBoxForm({ orderId, soLabel, alignment, onClose }: FormProps) {
   const a = (alignment ?? {}) as Row;
+  const [required, setRequired] = useState(str(a.wooden_box));
   const [boxes, setBoxes] = useState<WoodenBox[]>(() =>
     boxesOf(a).map((b) => ({
       source: str(b.source),
@@ -226,22 +237,27 @@ export function WoodenBoxForm({ orderId, soLabel, alignment, onClose }: FormProp
   const setBox = (source: string, patch: Partial<WoodenBox>) =>
     setBoxes((p) => p.map((b) => (b.source === source ? { ...b, ...patch } : b)));
   return (
-    <AlignmentDialog title="Wooden Box" soLabel={soLabel} save={() => saveWoodenBoxAction(orderId, boxes)} onClose={onClose}>
-      <Field label="In house / Bought out" required group>
-        <Pills
-          options={WOODEN_BOX_SOURCES}
-          on={has}
-          pick={(o) =>
-            setBoxes(
-              has(o)
-                ? boxes.filter((b) => b.source !== o)
-                : WOODEN_BOX_SOURCES.flatMap((s) => (s === o ? [blankBox(s)] : boxes.filter((b) => b.source === s)))
-            )
-          }
-        />
+    <AlignmentDialog title="Wooden Box" soLabel={soLabel} save={() => saveWoodenBoxAction(orderId, required, boxes)} onClose={onClose}>
+      <Field label="Wooden Box" required group>
+        <Pills options={YES_NO} on={(o) => required === o} pick={setRequired} />
       </Field>
+      {required === "Yes" && (
+        <Field label="In house / Bought out" required group>
+          <Pills
+            options={WOODEN_BOX_SOURCES}
+            on={has}
+            pick={(o) =>
+              setBoxes(
+                has(o)
+                  ? boxes.filter((b) => b.source !== o)
+                  : WOODEN_BOX_SOURCES.flatMap((s) => (s === o ? [blankBox(s)] : boxes.filter((b) => b.source === s)))
+              )
+            }
+          />
+        </Field>
+      )}
       {/* Each way with its own: some pumps' boxes in house, some bought out. */}
-      {boxes.map((b) => (
+      {required === "Yes" && boxes.map((b) => (
         <div key={b.source} className="space-y-3 rounded-lg border border-card-border/70 bg-background/40 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{b.source}</p>
           <div className="grid grid-cols-2 gap-3">
@@ -275,7 +291,7 @@ export function WoodenBoxForm({ orderId, soLabel, alignment, onClose }: FormProp
   );
 }
 
-/** One Alignment cell on the front (Base Plate or Wooden Box), opening its own form when the SO needs it. */
+/** One Alignment cell on the front (Base Plate or Wooden Box), opening its own form: Yes or No is theirs to change. */
 export function AlignmentValue({
   alignment,
   which,
@@ -293,9 +309,9 @@ export function AlignmentValue({
   return (
     <button
       type="button"
-      disabled={!canEdit || !needed}
+      disabled={!canEdit}
       onClick={onOpen}
-      title={canEdit && needed ? (which === "base_plate" ? "Set the base plate" : "Set the wooden box") : undefined}
+      title={canEdit ? (which === "base_plate" ? "Set the base plate" : "Set the wooden box") : undefined}
       className="w-full text-left enabled:hover:opacity-80 disabled:cursor-default"
     >
       {boxes.length ? (
@@ -328,7 +344,10 @@ export function AlignmentValue({
           })}
         </span>
       ) : (
-        <Value yes={str(a[which])} status={str(a[`${which}_status`])} done={DONE[which]} date={which === "base_plate" ? str(a.base_plate_date) : ""} />
+        <span className="inline-flex items-center gap-1">
+          <Value yes={str(a[which])} status={str(a[`${which}_status`])} done={DONE[which]} date={which === "base_plate" ? str(a.base_plate_date) : ""} />
+          {canEdit && !needed && <Pencil className="h-3 w-3 text-muted" aria-hidden />}
+        </span>
       )}
     </button>
   );

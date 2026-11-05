@@ -12,15 +12,19 @@ export type Stage = "assembly" | "packing";
 /**
  * The Alignment on a pump SO. It needs a base plate when an EC says so (Base
  * Plate on the EC form), and a wooden box when its Packing Requirement is
- * Wooden Box; Assembly & Packing tracks each.
+ * Wooden Box; Assembly & Packing tracks each, and its own Yes or No stands
+ * over either (base_plate_override, wooden_box_override).
  */
 export const BASE_PLATE_STATUSES = ["Pending", "Fabrication", "Marking", "Drilling", "Painting", "Manufactured"];
 export const WOODEN_BOX_SOURCES = ["In house", "Bought out"];
 export const WOODEN_BOX_STATUSES = ["Pending", "In plan", "Received"];
 
-/** Yes when an EC of the SO (alias o) needs a base plate, else No. */
-export const basePlateSql = (o: string) =>
+/** What the ECs say: Yes when an EC of the SO (alias o) needs a base plate, else No. */
+export const basePlateFromEcsSql = (o: string) =>
   `CASE WHEN EXISTS (SELECT 1 FROM order_items bpi WHERE bpi.order_id = ${o}.id AND bpi.base_plate = 'Yes') THEN 'Yes' ELSE 'No' END`;
+
+/** Whether the SO (alias o) has a base plate: Assembly & Packing's word, else the ECs'. */
+export const basePlateSql = (o: string) => `COALESCE(${o}.base_plate_override, ${basePlateFromEcsSql(o)})`;
 
 /**
  * The SO's (alias o) wooden boxes taken together: Received once every way
@@ -37,9 +41,12 @@ export const woodenBoxReceivedSql = (o: string) =>
   `(SELECT to_char(max(wb.received_date), 'YYYY-MM-DD') FROM order_wooden_boxes wb
      WHERE wb.order_id = ${o}.id HAVING bool_and(wb.status = 'Received'))`;
 
-/** Yes when the SO (alias o) is packed in a wooden box, No for other packing, null before it is said. */
-export const woodenBoxSql = (o: string) =>
+/** What the Packing Requirement says: Yes for a wooden box, No for other packing, null before it is said. */
+export const woodenBoxFromPackingSql = (o: string) =>
   `CASE WHEN ${o}.packing_requirement = 'Wooden Box' THEN 'Yes' WHEN NULLIF(btrim(${o}.packing_requirement), '') IS NOT NULL THEN 'No' END`;
+
+/** Whether the SO (alias o) has a wooden box: Assembly & Packing's word, else the Packing Requirement's. */
+export const woodenBoxSql = (o: string) => `COALESCE(${o}.wooden_box_override, ${woodenBoxFromPackingSql(o)})`;
 
 export const ASSEMBLY_SHIFTS = ["Day", "Night"];
 export const PDI_CHOICES = ["Yes", "No"];
@@ -96,6 +103,8 @@ export type PumpLot = {
   packing_plan_date: string;
   packing_shift: string;
   pdi: string;
+  /** Yes or No, from the lot form's packing; blank until said. */
+  final_alignment: string;
   packed_date: string;
   /** What Assembly & Packing chose for it (LOT_PACKING_STATUSES); blank until then. */
   pack_status: string;
@@ -145,6 +154,7 @@ export function pumpLotsFromEcs(ecRows: Row[]): PumpLot[] {
       packing_plan_date: day(pick("packing_plan_date")),
       packing_shift: pick("packing_shift"),
       pdi: pick("pdi"),
+      final_alignment: pick("final_alignment"),
       packed_date: day(pick("packed_date")),
       pack_status: pick("pump_packing_status") || (pick("packed_date") ? LOT_PACKED : ""),
       pack_remarks: pick("packing_remarks"),
@@ -227,8 +237,17 @@ export function soStatuses(ecs: { id: string; quantity: number }[], lots: PumpLo
   };
 }
 
+/** The remarks of the lots still pending in a stage, for its Status column; none once the lot is done. */
+export function pendingRemarks(lots: PumpLot[], stage: Stage): { n: number; text: string }[] {
+  return lots.flatMap((l) => {
+    const done = stage === "assembly" ? l.assembled_date : l.packed_date;
+    const text = (stage === "assembly" ? l.asm_remarks : l.pack_remarks).trim();
+    return !done && text ? [{ n: l.n, text }] : [];
+  });
+}
+
 /** What Assembly & Packing edits on a lot as a whole: its assembly pending remarks and its packing. */
-export type LotStages = Pick<PumpLot, "n" | "asm_remarks" | "packing_plan_date" | "packing_shift" | "pdi" | "packed_date" | "pack_status" | "pack_remarks">;
+export type LotStages = Pick<PumpLot, "n" | "asm_remarks" | "packing_plan_date" | "packing_shift" | "pdi" | "final_alignment" | "packed_date" | "pack_status" | "pack_remarks">;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -269,6 +288,7 @@ export function lotStagesError(
     }
     if (s.packing_shift && !ASSEMBLY_SHIFTS.includes(s.packing_shift)) return `${n}: choose the packing shift.`;
     if (s.pdi && !PDI_CHOICES.includes(s.pdi)) return `${n}: choose PDI Yes or No.`;
+    if (s.final_alignment && !PDI_CHOICES.includes(s.final_alignment)) return `${n}: choose Final alignment Yes or No.`;
     const assembled = lotAssembly(l.ecs, mine).assembled_date;
     if (s.pack_status && !LOT_PACKING_STATUSES.includes(s.pack_status)) return `${n}: choose the packing status.`;
     if (s.pack_status === LOT_PACKED && !s.packed_date) return `${n}: enter the day it was packed.`;

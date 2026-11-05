@@ -27,16 +27,17 @@ export function Chip({ label }: { label: string }) {
  * Assembly & Packing's Pump view and Planning's show it alike.
  */
 /** The Latest Lot column: which lot it is, then its assembly and packing as any lot's. */
-export function LatestLot({ lot, slips }: { lot: PumpLot | undefined; slips: Row[] }) {
+export function LatestLot({ lot, slips, noRemarks = false }: { lot: PumpLot | undefined; slips: Row[]; noRemarks?: boolean }) {
   return (
     <span className="flex flex-col items-start gap-0.5">
       {lot && <span className="text-[11px] font-semibold text-muted">Lot {lot.n}</span>}
-      <LotCell lot={lot} slips={slips} />
+      <LotCell lot={lot} slips={slips} noRemarks={noRemarks} />
     </span>
   );
 }
 
-export function LotCell({ lot, slips }: { lot: PumpLot | undefined; slips: Row[] }) {
+/** noRemarks: Assembly & Packing's own table reads them under its Status columns instead. */
+export function LotCell({ lot, slips, noRemarks = false }: { lot: PumpLot | undefined; slips: Row[]; noRemarks?: boolean }) {
   if (!lot) return <span className="text-muted">—</span>;
   const qty = lot.ecs.reduce((t, e) => t + e.qty, 0);
   const assembled = lot.ecs.reduce((t, e) => t + e.assembled, 0);
@@ -69,13 +70,13 @@ export function LotCell({ lot, slips }: { lot: PumpLot | undefined; slips: Row[]
         </span>
       )}
       {day(lot.assembled_date, lot.assembly_plan_date, "Assembly")}
-      {lot.asm_remarks && (
+      {!noRemarks && lot.asm_remarks && (
         <span className={`max-w-[14rem] whitespace-normal text-[11px] ${lot.assembled_date ? "text-muted" : "text-amber-700"}`}>
           Assembly pending: {lot.asm_remarks}
         </span>
       )}
       {day(lot.packed_date, lot.packing_plan_date, "Packing")}
-      {lot.pack_remarks && <span className="max-w-[14rem] whitespace-normal text-[11px] text-muted">{lot.pack_remarks}</span>}
+      {!noRemarks && lot.pack_remarks && <span className="max-w-[14rem] whitespace-normal text-[11px] text-muted">{lot.pack_remarks}</span>}
       {/* Packed, but on no packing slip yet. */}
       {lot.packed_date && !lotOnSlip(lot.n, slips) && (
         <span className="rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>
