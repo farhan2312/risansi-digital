@@ -489,7 +489,7 @@ export function OrdersTable({
                   <>
                     <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Readiness Date" sortKey="readiness" /></th>
                     {/* Assembly & Packing's planned packing date: the SO's next among its unpacked lots. */}
-                    <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Date" sortKey="packing" /></th>
+                    <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Plan Date" sortKey="packing" /></th>
                     {/* A Spare's readiness lots, one column each, under each department. */}
                     <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">
                       <ColumnFilter column="dept:planning" label="Planning" align="center" />

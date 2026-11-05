@@ -195,7 +195,7 @@ export type SoLot = {
 export function packingError(lots: PackingLot[]): string | null {
   for (let i = 0; i < lots.length; i++) {
     const l = lots[i];
-    if (l.packing_plan_date && !ISO.test(l.packing_plan_date)) return `Lot ${i + 1}: enter a valid packing date.`;
+    if (l.packing_plan_date && !ISO.test(l.packing_plan_date)) return `Lot ${i + 1}: enter a valid packing plan date.`;
     if (l.packing_shift && !PACKING_SHIFTS.includes(l.packing_shift)) return `Lot ${i + 1}: choose Day or Night shift.`;
     if (l.pdi && !PDI_OPTIONS.includes(l.pdi)) return `Lot ${i + 1}: choose PDI Yes or No.`;
     if (!l.packed_date) continue;

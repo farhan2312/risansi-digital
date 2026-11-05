@@ -262,7 +262,7 @@ export function lotStagesError(
     const s = stages.find((st) => st.n === l.n);
     if (!s) continue;
     for (const [k, label] of [
-      ["packing_plan_date", "packing date"],
+      ["packing_plan_date", "packing plan date"],
       ["packed_date", "packed date"],
     ] as const) {
       if (s[k] && !ISO.test(s[k])) return `${n}: enter a valid ${label}.`;

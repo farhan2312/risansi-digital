@@ -102,14 +102,14 @@ export function PackingLotsEditor({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-[12px] font-medium text-brand-label">
-                  Packing date
+                  Packing plan date
                   {(lot.plan_moves ?? 0) > 0 && (
                     <span className="ml-1.5 font-semibold text-amber-700">· moved {lot.plan_moves}×</span>
                   )}
                 </span>
                 {editing ? (
                   <input
-                    aria-label={`Lot ${i + 1} packing date`}
+                    aria-label={`Lot ${i + 1} packing plan date`}
                     type="date"
                     value={lot.packing_plan_date}
                     onChange={(e) => set(i, { packing_plan_date: e.target.value })}

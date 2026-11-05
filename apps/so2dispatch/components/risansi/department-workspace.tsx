@@ -912,7 +912,7 @@ export function DepartmentWorkspace({
                             {LOT_COLUMNS.map((n) => (
                               <th key={n} className="px-4 py-3 whitespace-nowrap">Lot {n}</th>
                             ))}
-                            <th className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Date" sortKey="packing" /></th>
+                            <th className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Plan Date" sortKey="packing" /></th>
                             <th className="px-4 py-3">Shift</th>
                             <th className="px-4 py-3">PDI</th>
                           </>
