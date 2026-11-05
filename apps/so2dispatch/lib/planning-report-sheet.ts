@@ -91,7 +91,7 @@ const fieldText = (f: OrderField, v: unknown) => (f.type === "date" ? day(v) : s
 const LOTS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
 
 /** An A&P lot, as its cell reads: where it stands, the counts, the days. */
-export function asmLotText(lot: PumpLot | undefined, slips: Row[]): string {
+export function asmLotText(lot: PumpLot | undefined, slips: Row[], noRemarks = false): string {
   if (!lot) return "";
   const qty = lot.ecs.reduce((t, e) => t + e.qty, 0);
   const assembled = lot.ecs.reduce((t, e) => t + e.assembled, 0);
@@ -103,9 +103,9 @@ export function asmLotText(lot: PumpLot | undefined, slips: Row[]): string {
     label,
     qty > 0 ? `Qty ${qty} · Assembled ${assembled} · Packed ${packed}` : "",
     when(lot.assembled_date, lot.assembly_plan_date, "Assembly"),
-    lot.asm_remarks ? `Assembly pending: ${lot.asm_remarks}` : "",
+    !noRemarks && lot.asm_remarks ? `Assembly pending: ${lot.asm_remarks}` : "",
     when(lot.packed_date, lot.packing_plan_date, "Packing"),
-    lot.pack_remarks,
+    noRemarks ? "" : lot.pack_remarks,
     lot.packed_date && !lotOnSlip(lot.n, slips) ? "No slip" : "",
   ]
     .filter(Boolean)

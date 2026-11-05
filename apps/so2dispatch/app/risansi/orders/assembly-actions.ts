@@ -16,14 +16,14 @@ import {
   STAGE_WORDS,
   WOODEN_BOX_SOURCES,
   WOODEN_BOX_STATUSES,
-  basePlateSql,
+  basePlateFromEcsSql,
   lotAssembly,
   lotStagesError,
   pumpLotsFromEcs,
   soStatuses,
   type AsmEntry,
   type LotStages,
-  woodenBoxSql,
+  woodenBoxFromPackingSql,
 } from "@/lib/assembly";
 
 export type AssemblyResult = { ok: true } | { ok: false; error: string };
@@ -75,6 +75,7 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
     packing_plan_date: t(l.packing_plan_date),
     packing_shift: t(l.packing_shift),
     pdi: t(l.pdi),
+    final_alignment: t(l.final_alignment),
     // Actual Packing Pending is not packed, and a packed day is Packed.
     packed_date: t(l.pack_status) === LOT_PACKING_PENDING ? "" : t(l.packed_date),
     pack_status: t(l.pack_status) || (t(l.packed_date) ? LOT_PACKED : ""),
@@ -165,8 +166,8 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
           pdi: l.pdi,
         });
         await query(
-          `UPDATE order_ready_lots SET pump_packing_status = NULLIF($2, ''), packing_remarks = NULLIF($3, ''), assembly_remarks = NULLIF($4, '') WHERE id = $1`,
-          [row.id, l.pack_status, l.pack_remarks, l.asm_remarks]
+          `UPDATE order_ready_lots SET pump_packing_status = NULLIF($2, ''), packing_remarks = NULLIF($3, ''), assembly_remarks = NULLIF($4, ''), final_alignment = NULLIF($5, '') WHERE id = $1`,
+          [row.id, l.pack_status, l.pack_remarks, l.asm_remarks, l.final_alignment]
         );
       }
       // The packing columns go through the Spare's own path, so a moved
@@ -205,8 +206,9 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
   }
 }
 
-/** A pump SO's base plate: a status, the day it reached it, and remarks. */
+/** A pump SO's base plate: Yes or No, then a status, the day it reached it, and remarks. */
 export type BasePlate = {
+  required: string;
   status: string;
   /** YYYY-MM-DD. */
   date: string;
@@ -226,10 +228,10 @@ export type WoodenBox = {
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Who may fill either form, whether the SO is there, and what it needs. */
+/** Who may fill either form, whether the SO is there, and what its ECs and Packing Requirement say. */
 async function alignmentGate(orderId: string): Promise<
   | { error: string }
-  | { user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>; plate: boolean; box: boolean }
+  | { user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>; plate: string; box: string | null }
 > {
   const user = await getCurrentUser();
   if (!user) return { error: "You are not signed in." };
@@ -238,23 +240,46 @@ async function alignmentGate(orderId: string): Promise<
   }
   if (!UUID_RE.test(orderId)) return { error: "Order not found." };
   const need = await query<{ plate: string; box: string | null }>(
-    `SELECT ${basePlateSql("o")} AS plate, ${woodenBoxSql("o")} AS box FROM orders o WHERE o.id = $1`,
+    `SELECT ${basePlateFromEcsSql("o")} AS plate, ${woodenBoxFromPackingSql("o")} AS box FROM orders o WHERE o.id = $1`,
     [orderId]
   );
   if (!need.rows[0]) return { error: "Order not found." };
-  return { user, plate: need.rows[0].plate === "Yes", box: need.rows[0].box === "Yes" };
+  return { user, plate: need.rows[0].plate, box: need.rows[0].box };
 }
+
+/** Assembly & Packing's word, kept only when it differs from what the SO says on its own. */
+const overrideOf = (required: string, natural: string | null) => (required === natural ? null : required);
 
 const text = (v: string) => (v ?? "").trim() || null;
 
 /**
- * Assembly & Packing's base plate on a pump SO, when an EC needs one. Saved on
- * its own: the wooden boxes, filled by someone else, are not touched.
+ * Assembly & Packing's base plate on a pump SO: Yes or No, and with Yes where
+ * it stands. Saved on its own: the wooden boxes, filled by someone else, are
+ * not touched. No keeps what was filled in, for a later Yes.
  */
 export async function saveBasePlateAction(orderId: string, p: BasePlate): Promise<AssemblyResult> {
   const gate = await alignmentGate(orderId);
   if ("error" in gate) return { ok: false, error: gate.error };
-  if (!gate.plate) return { ok: false, error: "This SO needs no base plate: no EC says Yes." };
+  if (p.required !== "Yes" && p.required !== "No") return { ok: false, error: "Choose Yes or No for the base plate." };
+  const override = overrideOf(p.required, gate.plate);
+  if (p.required === "No") {
+    try {
+      await query(`UPDATE orders SET base_plate_override = $2, updated_at = now() WHERE id = $1`, [orderId, override]);
+    } catch (error) {
+      console.error("saveBasePlateAction failed:", error);
+      return { ok: false, error: "Could not save the base plate." };
+    }
+    await logAudit({
+      actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
+      action: "order.update",
+      category: "activity",
+      target: (await getOrderLabel(orderId)) ?? orderId,
+      details: "Base plate: No",
+      subject: await subjectForOrder(orderId),
+    });
+    revalidatePath("/risansi/departments/assembly-dispatch");
+    return { ok: true };
+  }
 
   // A status, its day once past Pending, and remarks.
   const status = BASE_PLATE_STATUSES.includes(p.status) ? p.status : "Pending";
@@ -265,9 +290,9 @@ export async function saveBasePlateAction(orderId: string, p: BasePlate): Promis
 
   try {
     await query(
-      `UPDATE orders SET base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4, updated_at = now()
+      `UPDATE orders SET base_plate_override = $5, base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4, updated_at = now()
         WHERE id = $1`,
-      [orderId, status, date || null, remarks]
+      [orderId, status, date || null, remarks, override]
     );
   } catch (error) {
     console.error("saveBasePlateAction failed:", error);
@@ -286,15 +311,34 @@ export async function saveBasePlateAction(orderId: string, p: BasePlate): Promis
 }
 
 /**
- * Assembly & Packing's wooden boxes on a pump SO, when its Packing Requirement
- * is Wooden Box: each way (in house, bought out) with how many, its status, and
- * what came in. Saved on its own: the base plate, filled by someone else, is
- * not touched.
+ * Assembly & Packing's wooden boxes on a pump SO: Yes or No, and with Yes each
+ * way (in house, bought out) with how many, its status, and what came in. Saved
+ * on its own: the base plate, filled by someone else, is not touched. No keeps
+ * what was filled in, for a later Yes.
  */
-export async function saveWoodenBoxAction(orderId: string, sent: WoodenBox[]): Promise<AssemblyResult> {
+export async function saveWoodenBoxAction(orderId: string, required: string, sent: WoodenBox[]): Promise<AssemblyResult> {
   const gate = await alignmentGate(orderId);
   if ("error" in gate) return { ok: false, error: gate.error };
-  if (!gate.box) return { ok: false, error: "This SO needs no wooden box: its Packing Requirement is not Wooden Box." };
+  if (required !== "Yes" && required !== "No") return { ok: false, error: "Choose Yes or No for the wooden box." };
+  const override = overrideOf(required, gate.box);
+  if (required === "No") {
+    try {
+      await query(`UPDATE orders SET wooden_box_override = $2, updated_at = now() WHERE id = $1`, [orderId, override]);
+    } catch (error) {
+      console.error("saveWoodenBoxAction failed:", error);
+      return { ok: false, error: "Could not save the wooden boxes." };
+    }
+    await logAudit({
+      actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
+      action: "order.update",
+      category: "activity",
+      target: (await getOrderLabel(orderId)) ?? orderId,
+      details: "Wooden box: No",
+      subject: await subjectForOrder(orderId),
+    });
+    revalidatePath("/risansi/departments/assembly-dispatch");
+    return { ok: true };
+  }
   const qty = (v: string): number | null | false => {
     const t = (v ?? "").trim();
     if (!t) return null;
@@ -322,6 +366,7 @@ export async function saveWoodenBoxAction(orderId: string, sent: WoodenBox[]): P
 
   try {
     await withTransaction(async (client) => {
+      await client.query(`UPDATE orders SET wooden_box_override = $2, updated_at = now() WHERE id = $1`, [orderId, override]);
       // The ways left off go; the rest are as the form leaves them.
       await client.query(`DELETE FROM order_wooden_boxes WHERE order_id = $1 AND NOT (source = ANY($2::text[]))`, [
         orderId,

@@ -2,7 +2,7 @@ import "server-only";
 import { C, assemblyReport, type Cell } from "@/lib/dept-report-pdf";
 import { alignmentText, asmLotText, day, statusTone, type ReportSheet, type SheetCell, type Tone } from "@/lib/planning-report-sheet";
 import { PUMP_LIKE, READY_LOT_LIMIT } from "@/lib/order-schema";
-import { ecDone, ecReadyLots, ecStageStatus, latestPumpLot, pumpLotsFromEcs, soStatuses, type PumpLot } from "@/lib/assembly";
+import { ecDone, ecReadyLots, ecStageStatus, latestPumpLot, pendingRemarks, pumpLotsFromEcs, soStatuses, type PumpLot } from "@/lib/assembly";
 import { lotNosLabel } from "@/lib/ready-lots";
 import type { PumpSummary } from "@/lib/pump-summary";
 
@@ -56,6 +56,7 @@ function plannedText(lots: PumpLot[], stage: "assembly" | "packing"): string {
         `L${l.n} ${day(date)}`,
         shift,
         stage === "packing" && l.pdi ? `PDI ${l.pdi}` : "",
+        stage === "packing" && l.final_alignment ? `Final alignment ${l.final_alignment}` : "",
         done ? `${stage === "assembly" ? "Assembled" : "Packed"} ${day(done)}` : "",
       ]
         .filter(Boolean)
@@ -64,6 +65,10 @@ function plannedText(lots: PumpLot[], stage: "assembly" | "packing"): string {
     .filter(Boolean)
     .join("\n");
 }
+
+/** A stage's status, then why it is pending, lot by lot. */
+const withPending = (status: string, lots: PumpLot[], stage: "assembly" | "packing") =>
+  [status, ...pendingRemarks(lots, stage).map((r) => `L${r.n} ${r.text}`)].join("\n");
 
 const stageTone = (s: string): Tone | null =>
   /^hold/i.test(s) ? "red" : /^(fully|assembled|packed)/i.test(s) ? "green" : /^partial/i.test(s) ? "blue" : s ? "amber" : null;
@@ -144,21 +149,21 @@ export function assemblyPumpSheet(rows: Row[], filterLine: string): ReportSheet 
       [ppc || null, ppc ? statusTone(ppc) : null],
       [day(head.planning_readiness_date) || null, null],
       ...lotNs.map((n): [SheetCell, Tone | null] => {
-        const t = asmLotText(lots.find((l) => l.n === n), slips);
+        const t = asmLotText(lots.find((l) => l.n === n), slips, true);
         return [t || null, t ? (t.endsWith("No slip") ? "red" : statusTone(t)) : null];
       }),
       ((): [SheetCell, Tone | null] => {
         const last = latestPumpLot(lots);
-        const t = asmLotText(last, slips);
+        const t = asmLotText(last, slips, true);
         return [t && last ? `Lot ${last.n}\n${t}` : null, t ? (t.endsWith("No slip") ? "red" : statusTone(t)) : null];
       })(),
       ...(["base_plate", "wooden_box"] as const).map((w): [SheetCell, Tone | null] => {
         const t = alignmentText(head.alignment as PumpSummary["alignment"] | undefined, w);
         return [t || null, t && t !== "No" ? statusTone(t.replace(/^[^:]*: /, "")) : null];
       }),
-      [asm, stageTone(asm)],
+      [withPending(asm, lots, "assembly"), stageTone(asm)],
       [plannedText(lots, "assembly") || null, null],
-      [pack, stageTone(pack)],
+      [withPending(pack, lots, "packing"), stageTone(pack)],
       [plannedText(lots, "packing") || null, null],
       [
         numbered.length
