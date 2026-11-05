@@ -486,7 +486,10 @@ export const PAGES: ComplaintPage[] = [
         name: f.key as string, label: f.label, type: 'bool' as FieldType, required: f.required,
         hint: 'One Yes here makes the complaint High criticality.',
       })),
-      { name: 'capa_needed', label: 'CAPA required', type: 'bool', hint: 'Does this need a corrective and preventive action raised? Yes routes it to the departments below.' },
+      // Named "(internal)" because page 6 asks its own "CAPA required from
+      // vendor" and the two were indistinguishable on screen. They are
+      // different columns and the quality team's filter reads this one.
+      { name: 'capa_needed', label: 'CAPA required (internal)', type: 'bool', hint: 'Does this need a corrective and preventive action raised here? Yes routes it to the departments below. The CAPA asked of a vendor is a separate question, on page 6.' },
       // Several may be ticked, and that is the point: a BOI failure is QC's to
       // investigate and Purchase's to take up with the vendor, and making one
       // of them the single owner is how the other one stops reading it.
@@ -556,7 +559,7 @@ export const PAGES: ComplaintPage[] = [
       // Still asked, no longer compulsory (decision 12). Most complaints never
       // reach a vendor at all, and a mandatory Yes/No about one was holding up
       // the page for a question that did not apply.
-      { name: 'capa_required', label: 'CAPA required from vendor', type: 'bool' },
+      { name: 'capa_required', label: 'CAPA required from vendor', type: 'bool', hint: 'Asked of the vendor. The internal corrective action is a separate question, on page 3.' },
       { name: 'capa_received_date', label: 'CAPA received date', type: 'date', showWhen: { field: 'capa_required', equals: [true] } },
       // The two halves of a CAPA in words: what was done about this complaint,
       // and what stops the next one. Kept apart because they are written by
@@ -1118,4 +1121,79 @@ export function dwellByHolder(d: Dwell[]): { key: string; label: string; days: n
     cur.days += x.days; cur.stretches++; m.set(key, cur);
   }
   return [...m.values()].sort((a, b) => b.days - a.days);
+}
+
+// ── The CAPA filter, as two questions ──────────────────────────
+//
+// Quality asked for this: the first question is whether a CAPA was asked for
+// at all, Yes or No, because that is the division of labour — the Yes pile is
+// theirs to work. Whether each one is still live is the second question, and
+// only has an answer inside the Yes pile.
+//
+// WHICH CAPA. There are two "CAPA required" questions on a complaint and they
+// are different things:
+//
+//   capa_needed    page 3 — a corrective action raised INTERNALLY, routed to
+//                  QC or Purchase. 36 complaints, 24 of them still live.
+//   capa_required  page 6 — a CAPA wanted FROM THE VENDOR. 2 complaints.
+//
+// This filter is the internal one, because that is the quality team's pile.
+// Every CAPA filter and tile before this read the vendor column, so picking
+// CAPA returned 2 complaints out of 409 and the panel counted the wrong work.
+//
+// The old flat values (raised, pending, review, closed, none) are still read,
+// so a saved link keeps selecting what it always did — and the three that
+// named a vendor stage still filter on the vendor, not on this.
+
+/** Within the Yes pile: is the complaint still being worked? */
+export type CapaProgress = 'live' | 'done';
+
+/** How far a CAPA asked of the vendor has got. Reachable from an old link. */
+export type VendorCapaStage = 'open' | 'review' | 'closed';
+
+export const CAPA_PROGRESS: CapaProgress[] = ['live', 'done'];
+
+export const CAPA_PROGRESS_LABEL: Record<CapaProgress, string> = {
+  live: 'Still open',
+  done: 'Complaint finished',
+};
+
+export const VENDOR_CAPA_LABEL: Record<VendorCapaStage, string> = {
+  open:   'Vendor CAPA — nothing back',
+  review: 'Vendor CAPA — came back, to read',
+  closed: 'Vendor CAPA — came back, finished',
+};
+
+const PROGRESS = new Set<string>(CAPA_PROGRESS);
+const VENDOR = new Set<string>(['open', 'review', 'closed']);
+
+/**
+ * The two CAPA filter params as one answer.
+ *
+ * `needed` is the Yes/No question. `progress` narrows the Yes pile and is only
+ * ever set alongside it. `vendor` is the separate page-6 question, which no
+ * dropdown offers any more but an old link can still carry.
+ */
+export function capaFilter(f: { capa?: string; capastage?: string }): {
+  needed: boolean | null; progress: CapaProgress | null; vendor: VendorCapaStage | null;
+} {
+  const st = f.capastage;
+  const progress = st && PROGRESS.has(st) ? (st as CapaProgress) : null;
+  const vendor   = st && VENDOR.has(st)   ? (st as VendorCapaStage) : null;
+  switch (f.capa) {
+    case 'yes':
+    case 'raised':  return { needed: true,  progress, vendor };
+    case 'no':
+    case 'none':    return { needed: false, progress: null, vendor: null };
+    // The three old slice values each named a vendor stage in one word. They
+    // keep meaning the vendor, not the internal CAPA this filter now asks
+    // about — an old link that returned 1 complaint must not start returning
+    // 36 without anybody choosing that.
+    case 'pending': return { needed: null, progress: null, vendor: 'open' };
+    case 'review':  return { needed: null, progress: null, vendor: 'review' };
+    case 'closed':  return { needed: null, progress: null, vendor: 'closed' };
+    default:        return progress || vendor
+      ? { needed: progress ? true : null, progress, vendor }
+      : { needed: null, progress: null, vendor: null };
+  }
 }

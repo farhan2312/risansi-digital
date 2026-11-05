@@ -4,7 +4,7 @@ import {
 } from '@/lib/risansi-complaint-flow';
 import {
   preventiveActionPending, visitPending,
-  type ComplaintListRow, type HolderDwell, type CapaState,
+  type ComplaintListRow, type HolderDwell,
 } from '@/lib/risansi-complaint-rows';
 
 // The numbers above the complaints list: how many are open and late, how old
@@ -63,17 +63,27 @@ export interface DrillNode {
   children: DrillNode[];
 }
 
+/**
+ * The CAPA panel counts the INTERNAL corrective action of page 3
+ * (`capa_needed`), which is the quality team's pile and the thing their
+ * filter selects. It used to count `capa_required`, the separate page-6
+ * question about a CAPA asked of a VENDOR — two complaints out of 409 — so
+ * the panel reported almost nothing while 36 internal CAPAs went unshown.
+ *
+ * `vendor` keeps that page-6 figure visible rather than dropping it, because
+ * it is still a real question somebody answers.
+ */
 export interface CapaCounts {
-  /** A CAPA was asked for at all. Requirement (H)'s "raised". */
+  /** A corrective action was raised internally. */
   raised: number;
-  /** Asked for, nothing back. Requirement (H)'s "pending", and the Open bucket. */
-  open: number;
-  /** Came back, complaint still live — somebody has to read it. */
-  review: number;
-  /** Came back, complaint finished. */
-  closed: number;
-  /** Nothing was asked for. Page 6 lost its mandatory flag, so this is most of them. */
+  /** Raised, and the complaint is still being worked. */
+  live: number;
+  /** Raised, and the complaint has finished. */
+  done: number;
+  /** No corrective action raised. */
   none: number;
+  /** Page 6: a CAPA was asked of the vendor. A different question. */
+  vendor: number;
 }
 
 export interface ComplaintSummary {
@@ -362,10 +372,13 @@ export function summariseComplaints(rows: ComplaintListRow[], dwells: HolderDwel
   const repeatBase = wf.filter(r => r.repeat_complaint != null);
   const repeatCount = wf.filter(r => r.repeat_complaint === true).length;
 
-  const capaOf = (s: CapaState) => rows.filter(r => r.capa_state === s).length;
+  const needed = rows.filter(r => r.capa_needed === true);
   const capa: CapaCounts = {
-    raised: rows.filter(r => r.capa_required === true).length,
-    open: capaOf('open'), review: capaOf('review'), closed: capaOf('closed'), none: capaOf('none'),
+    raised: needed.length,
+    live: needed.filter(r => isOpenStatus(r.status)).length,
+    done: needed.filter(r => !isOpenStatus(r.status)).length,
+    none: rows.length - needed.length,
+    vendor: rows.filter(r => r.capa_required === true).length,
   };
 
   return {

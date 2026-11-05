@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { ChartPanel, StageKpi, NoData } from '@/components/risansi/StageCharts';
 import { StatusChart } from './StatusChart';
-import { SEVERITY_TONE, type Severity } from '@/lib/risansi-complaint-flow';
+import { SEVERITY_TONE, capaFilter, CAPA_PROGRESS_LABEL, type Severity, type CapaProgress } from '@/lib/risansi-complaint-flow';
 import type { ComplaintSummary, Bar, CategoryBar, DrillNode, HolderBar, ClientBar } from '@/lib/risansi-complaint-stats';
 
 // The dashboard above the complaints list.
@@ -21,10 +21,12 @@ import type { ComplaintSummary, Bar, CategoryBar, DrillNode, HolderBar, ClientBa
 const fmtDays = (d: number | null | undefined) => (d == null ? '—' : d < 1 ? '<1d' : `${d.toFixed(d >= 10 ? 0 : 1)}d`);
 const pct = (x: number | null) => (x == null ? '—' : `${Math.round(x * 100)}%`);
 
-export function ComplaintStats({ s, href, sel }: {
+export function ComplaintStats({ s, href, hrefPatch, sel }: {
   s: ComplaintSummary;
   /** Build the URL that toggles a filter key to a value. */
   href: (key: string, value: string) => string;
+  /** Build the URL that sets several filter keys at once — CAPA takes two. */
+  hrefPatch: (patch: Record<string, string | undefined>) => string;
   /** The current value of each filter, to light the chosen bar. */
   sel: Record<string, string | undefined>;
 }) {
@@ -115,7 +117,7 @@ export function ComplaintStats({ s, href, sel }: {
           <Bars rows={s.byAction} href={v => href('action', v)} selected={sel.action} empty="No action recorded yet." />
         </ChartPanel>
         <ChartPanel title="CAPA tracking" note="Raised, and where it has got to. Pending means asked for with nothing back. Click to filter.">
-          <Capa s={s} href={href} sel={sel} />
+          <Capa s={s} href={href} hrefPatch={hrefPatch} sel={sel} />
         </ChartPanel>
         <ChartPanel title="Responsible department" sub="who caused it" note="Derived from the root cause at investigation. Click to filter.">
           <Bars rows={s.byResponsible} href={v => href('resp', v)} selected={sel.resp} empty="Not recorded yet." />
@@ -250,29 +252,46 @@ function Categories({ rows, href, selected }: { rows: CategoryBar[]; href: (v: s
 
 // ── CAPA: raised, and where each one has got to ────────────────
 
-function Capa({ s, href, sel }: { s: ComplaintSummary; href: (k: string, v: string) => string; sel: Record<string, string | undefined> }) {
-  const lines: [string, string, number, string][] = [
-    ['Raised', 'raised', s.capa.raised, 'A CAPA was asked for'],
-    ['Open · pending', 'pending', s.capa.open, 'Asked for, nothing back yet'],
-    ['Under review', 'review', s.capa.review, 'Came back, complaint still live'],
-    ['Closed', 'closed', s.capa.closed, 'Came back, complaint finished'],
+function Capa({ s, href, hrefPatch, sel }: {
+  s: ComplaintSummary; href: (k: string, v: string) => string;
+  hrefPatch: (patch: Record<string, string | undefined>) => string;
+  sel: Record<string, string | undefined>;
+}) {
+  // The internal corrective action of page 3 — the quality team's pile — not
+  // the vendor CAPA of page 6, which this panel used to count and which is
+  // true on two complaints. The top row is the whole Yes pile and the two
+  // under it are slices of it. Each link writes the same two params the
+  // filter bar writes, so a tile clicked here lights up in the bar.
+  const lines: [string, CapaProgress | null, number, string][] = [
+    ['Raised', null, s.capa.raised, 'A corrective action was raised on this complaint'],
+    [CAPA_PROGRESS_LABEL.live, 'live', s.capa.live, 'Raised, and the complaint is still being worked'],
+    [CAPA_PROGRESS_LABEL.done, 'done', s.capa.done, 'Raised, and the complaint has finished'],
   ];
+  const cur = capaFilter(sel);
   const max = Math.max(s.capa.raised, 1);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {lines.map(([label, v, n, why]) => {
-        const on = sel.capa === v;
+      {lines.map(([label, stage, n, why]) => {
+        const on = cur.needed === true && cur.progress === stage;
         return (
-          <a key={v} href={href('capa', v)} title={why}
-            style={{ ...ROW, opacity: sel.capa && !on ? 0.4 : 1, outline: on ? '2px solid var(--accent)' : 'none' }}>
+          <a key={label} title={why}
+            href={hrefPatch(on ? { capa: undefined, capastage: undefined } : { capa: 'yes', capastage: stage ?? undefined })}
+            style={{ ...ROW, opacity: cur.needed != null && !on ? 0.4 : 1, outline: on ? '2px solid var(--accent)' : 'none' }}>
             <span style={{ ...LBL, flex: '0 1 120px' }}>{label}</span>
             <div style={{ flex: 1, minWidth: 40, height: 12, background: 'var(--bg-sunk)', borderRadius: 4, overflow: 'hidden' }}>
-              <div style={{ width: `${(n / max) * 100}%`, height: '100%', background: v === 'pending' ? 'var(--neg)' : 'color-mix(in oklab, var(--accent) 60%, transparent)' }} />
+              <div style={{ width: `${(n / max) * 100}%`, height: '100%', background: stage === 'live' ? 'var(--warn)' : 'color-mix(in oklab, var(--accent) 60%, transparent)' }} />
             </div>
             <span style={NUM}>{n}</span>
           </a>
         );
       })}
+      {s.capa.vendor > 0 && (
+        <div style={{ ...ROW, cursor: 'default', fontSize: 11, color: 'var(--fg-3)' }}
+          title="Page 6 asks separately whether a CAPA is wanted from the vendor. Counted here so the figure is not lost, but it is not what the CAPA filter selects.">
+          <span style={{ ...LBL, flex: 1, color: 'var(--fg-3)' }}>Asked of a vendor (page 6)</span>
+          <span style={{ ...NUM, color: 'var(--fg-3)' }}>{s.capa.vendor}</span>
+        </div>
+      )}
       <div style={{ borderTop: '1px solid var(--line-2)', marginTop: 4, paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <a href={href('pa', 'pending')} title="Live complaints that owe a preventive action — a root cause recorded, a corrective action required, or a CAPA asked for — and have nothing written in either preventive-action field"
           style={{ ...ROW, opacity: sel.pa && sel.pa !== 'pending' ? 0.4 : 1, outline: sel.pa === 'pending' ? '2px solid var(--accent)' : 'none' }}>

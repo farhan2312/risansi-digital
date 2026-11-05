@@ -2,7 +2,7 @@ import risansiPool from '@/lib/db-risansi';
 import { complaintVisibilitySql, type CurrentUser } from '@/lib/risansi-auth';
 import {
   HEADLINE_STATUSES, headlineStatus, isOpenStatus, statusesFor, statusesUnderHeadline,
-  overdueFor, isImmediateResponse,
+  overdueFor, isImmediateResponse, capaFilter,
   type HeadlineStatus, type OverdueKind, type Severity,
 } from '@/lib/risansi-complaint-flow';
 // The thresholds have one loader, in the module that owns the three
@@ -93,6 +93,9 @@ export interface ComplaintListRow {
   /** Commercial flag from page 5. Not `risk_cost_impact`, which grades severity. */
   cost_impact: boolean | null;
   /** CAPA: what was asked for, what came back, and the derived state the dashboard filters on. */
+  /** Page 3 — a corrective action raised internally. The quality team's pile. */
+  capa_needed: boolean | null;
+  /** Page 6 — a CAPA wanted from the vendor. A different question. */
   capa_required: boolean | null; capa_received_date: string | null;
   capa_departments: string[] | null;
   corrective_action_required: boolean | null;
@@ -141,8 +144,17 @@ export interface ComplaintFilters {
   ind?: string;         // the client's industry
   ctype?: string;       // client_type: Direct / OEM
   action?: string;      // action_category ("Action Taken")
-  /** Derived CAPA state: 'open' | 'review' | 'closed' | 'raised' | 'pending' | 'none'. */
+  /**
+   * Was a CAPA raised internally: 'yes' | 'no', on `capa_needed`. The old flat
+   * values 'raised', 'pending', 'review', 'closed' and 'none' are still read
+   * — see capaFilter, which also says why this is not `capa_required`.
+   */
   capa?: string;
+  /**
+   * Within the Yes pile: 'live' | 'done'. Also carries the three vendor-CAPA
+   * stages 'open' | 'review' | 'closed' when an old link names one.
+   */
+  capastage?: string;
   /** 'pending' — nothing written in either preventive-action field. */
   pa?: string;
   /** 'pending' — Visit Planned and the complaint is still live. */
@@ -171,7 +183,7 @@ export interface ComplaintFilters {
 export const FILTER_KEYS: (keyof ComplaintFilters)[] = [
   'state', 'headline', 'status', 'sev', 'dept', 'holder', 'cat', 'subcat', 'dcat', 'resp', 'rep', 'era', 'q',
   'overdue', 'from', 'to', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'client', 'ind', 'ctype', 'action',
-  'capa', 'pa', 'visit', 'severe', 'unregistered', 'linked', 'mver', 'mseries',
+  'capa', 'capastage', 'pa', 'visit', 'severe', 'unregistered', 'linked', 'mver', 'mseries',
 ];
 
 /*
@@ -423,7 +435,7 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
              c.complaint_date::text AS complaint_date, c.created_at::text AS created_at,
              c.resolved_at::text AS resolved_at, c.closed_at::text AS closed_at,
              c.details, c.contact_person,
-             c.cost_impact, c.capa_required, c.capa_received_date::text AS capa_received_date,
+             c.cost_impact, c.capa_needed, c.capa_required, c.capa_received_date::text AS capa_received_date,
              c.capa_departments, c.corrective_action_required,
              c.corrective_action_remarks, c.preventive_action_remarks, c.preventive_action,
              c.risk_safety, c.risk_shutdown, c.risk_penalty, c.risk_repeat_failure,
@@ -489,9 +501,15 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
   if (f.overdue === '1') rows = rows.filter(r => r.overdue);
   else if (f.overdue === 'no-action') rows = rows.filter(r => r.overdue_kind === 'no-action');
   else if (f.overdue === 'acted') rows = rows.filter(r => r.overdue_kind === 'acted');
-  if (f.capa === 'raised') rows = rows.filter(r => r.capa_required === true);
-  else if (f.capa === 'pending') rows = rows.filter(r => r.capa_state === 'open');
-  else if (f.capa) rows = rows.filter(r => r.capa_state === f.capa);
+  // Yes/No on the internal CAPA first, then still-open or finished inside the
+  // Yes pile. `vendor` is the page-6 question and only ever arrives from an
+  // old link, so it filters on its own column alongside rather than instead.
+  const capa = capaFilter(f);
+  if (capa.needed === true) rows = rows.filter(r => r.capa_needed === true);
+  else if (capa.needed === false) rows = rows.filter(r => r.capa_needed !== true);
+  if (capa.progress === 'live') rows = rows.filter(r => isOpenStatus(r.status));
+  else if (capa.progress === 'done') rows = rows.filter(r => !isOpenStatus(r.status));
+  if (capa.vendor) rows = rows.filter(r => r.capa_state === capa.vendor);
   if (f.pa === 'pending') rows = rows.filter(preventiveActionPending);
   if (f.visit === 'pending') rows = rows.filter(visitPending);
   else if (f.visit === 'planned') rows = rows.filter(r => r.action_category === 'Visit Planned');

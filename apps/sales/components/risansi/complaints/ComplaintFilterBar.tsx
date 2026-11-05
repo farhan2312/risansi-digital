@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DEPARTMENTS_LIST, SEVERITY_LABEL, SEVERITIES, HEADLINE_STATUSES, statusesFor, statusesUnderHeadline,
-  STATE_LABEL, type HeadlineStatus,
+  STATE_LABEL, capaFilter, CAPA_PROGRESS, CAPA_PROGRESS_LABEL, VENDOR_CAPA_LABEL, type HeadlineStatus,
 } from '@/lib/risansi-complaint-flow';
 
 // The filters over the complaints list. Every control writes the URL, so the
@@ -66,8 +66,11 @@ export function ComplaintFilterBar({ value, options, basePath }: {
   // The second row: everything that is not the question people open the page
   // with. Opened automatically when one of its filters is already in force, so
   // a shared link never hides the filter that is shaping the table.
-  const MORE = ['dept', 'holder', 'dcat', 'resp', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'ctype', 'action', 'capa', 'pa', 'visit', 'mver', 'mseries', 'era', 'client', 'rep', 'linked'];
+  const MORE = ['dept', 'holder', 'dcat', 'resp', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'ctype', 'action', 'capa', 'capastage', 'pa', 'visit', 'mver', 'mseries', 'era', 'client', 'rep', 'linked'];
   const moreOn = MORE.filter(k => value[k]).length;
+  // Read through the old flat values too, so a link carrying ?capa=pending
+  // shows as Yes + Nothing back rather than as an unrecognised choice.
+  const capa = capaFilter(value);
   const [more, setMore] = useState(false);
   useEffect(() => { if (moreOn) setMore(true); }, [moreOn]);
 
@@ -136,8 +139,29 @@ export function ComplaintFilterBar({ value, options, basePath }: {
             <Sel label="Holder" v={value.holder} onChange={v => set({ holder: v })} opts={options.holders.map(h => [String(h.id), h.name])} />
           )}
           <Sel label="Action taken" v={value.action} onChange={v => set({ action: v })} opts={options.actions.map(t => [t, t])} />
-          <Sel label="CAPA" v={value.capa} onChange={v => set({ capa: v })}
-            opts={[['raised', 'CAPA raised'], ['pending', 'CAPA pending — nothing back'], ['review', 'CAPA under review'], ['closed', 'CAPA closed'], ['none', 'No CAPA asked for']]} />
+          {/* CAPA is two questions, like Status above it. Quality works the
+              Yes pile, so Yes/No is asked first and on its own; still-open or
+              finished narrows it afterwards. This is the internal CAPA of
+              page 3, not the vendor one of page 6 — see capaFilter. */}
+          <Sel label="CAPA" v={capa.needed == null ? undefined : capa.needed ? 'yes' : 'no'}
+            onChange={v => set({ capa: v, capastage: v === 'yes' ? value.capastage : undefined })}
+            opts={[['yes', 'CAPA — yes'], ['no', 'CAPA — no']]}
+            title="Whether a corrective action was raised on this complaint (page 3), not the CAPA asked of a vendor on page 6" />
+          {capa.needed === true && (
+            <Sel label="CAPA state" v={capa.progress ?? undefined}
+              onChange={v => set({ capa: 'yes', capastage: v })}
+              opts={CAPA_PROGRESS.map(st => [st, CAPA_PROGRESS_LABEL[st]] as [string, string])}
+              joined />
+          )}
+          {/* No dropdown offers the vendor stages any more — two complaints
+              carry one. Shown only while an old link is holding one in force,
+              so the filter shaping the table is never invisible. */}
+          {capa.vendor && (
+            <Sel label="Vendor CAPA" v={capa.vendor}
+              onChange={() => set({ capastage: undefined, capa: undefined })}
+              opts={[[capa.vendor, VENDOR_CAPA_LABEL[capa.vendor]]]}
+              title="From an older link — clear it to leave the vendor CAPA out of this" />
+          )}
           <Sel label="Preventive action" v={value.pa} onChange={v => set({ pa: v })} opts={[['pending', 'Preventive action pending']]} title="Owed — a root cause, a corrective action or a CAPA — and not yet written" />
           <Sel label="Visit" v={value.visit} onChange={v => set({ visit: v })} opts={[['pending', 'Visit pending'], ['planned', 'Visit planned — any']]} />
           <Sel label="Responsible" v={value.resp} onChange={v => set({ resp: v })} opts={options.responsibles.map(t => [t, t])} />

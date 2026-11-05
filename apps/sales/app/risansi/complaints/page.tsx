@@ -112,6 +112,8 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
     return q ? `${path}?${q}` : path;
   };
   const href = (key: string, v: string) => urlFor('/risansi/complaints', { [key]: value[key] === v ? undefined : v });
+  // CAPA is asked as two params, so its tiles set both in one go.
+  const hrefPatch = (patch: Record<string, string | undefined>) => urlFor('/risansi/complaints', patch);
   const exportHref = urlFor('/api/risansi/complaints/export', {});
 
   return (
@@ -139,7 +141,7 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
             header that ignored the filters. Order is the whole fix here. */}
         <ComplaintFilterBar value={{ ...value, sort: sortParam }} options={options} basePath="/risansi/complaints" />
 
-        <ComplaintStats s={s} href={href} sel={value} />
+        <ComplaintStats s={s} href={href} hrefPatch={hrefPatch} sel={value} />
 
         <ComplaintTable rows={rows} />
       </div>
