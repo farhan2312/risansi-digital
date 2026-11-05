@@ -25,6 +25,8 @@ const STATUS = [
   { key: "pending", label: "Pending", color: "var(--warn)" },
   { key: "inProgress", label: "In progress", color: "var(--brand-blue)" },
   { key: "completed", label: "Completed", color: "var(--pos)" },
+  { key: "sentToClient", label: "Sent to client", color: "var(--brand-cyan)" },
+  { key: "notQuoted", label: "Not quoted", color: "var(--fg-4)" },
 ] as const;
 
 function StatusBar({ counts }: { counts: StatusCounts }) {
@@ -40,18 +42,20 @@ function StatusBar({ counts }: { counts: StatusCounts }) {
   );
 }
 
-/** A label over a thin status bar and the three counts, coloured. */
+/** A label over a thin status bar and the counts, coloured: the last two only when there are any. */
 function StatusRow({ label, counts }: { label: string; counts: StatusCounts }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <span className="font-medium text-fg-3">{label}</span>
         <span className="flex items-center gap-2 font-mono font-semibold">
-          {STATUS.map((s) => (
-            <span key={s.key} style={{ color: s.color }} title={`${s.label}: ${counts[s.key]}`}>
-              {counts[s.key]}
-            </span>
-          ))}
+          {STATUS.map((s, i) =>
+            i < 3 || counts[s.key] > 0 ? (
+              <span key={s.key} style={{ color: s.color }} title={`${s.label}: ${counts[s.key]}`}>
+                {counts[s.key]}
+              </span>
+            ) : null,
+          )}
         </span>
       </div>
       <StatusBar counts={counts} />

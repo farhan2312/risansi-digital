@@ -54,7 +54,7 @@ export async function GET(req: Request) {
   const card = (id: string): AssigneeStats => {
     let c = cards.get(id);
     if (!c) {
-      const zero = () => ({ total: 0, pending: 0, inProgress: 0, completed: 0 });
+      const zero = () => ({ total: 0, pending: 0, inProgress: 0, completed: 0, notQuoted: 0, sentToClient: 0 });
       c = {
         userId: id,
         name: null,
@@ -72,6 +72,8 @@ export async function GET(req: Request) {
     b.total += n;
     if (status === "Completed") b.completed += n;
     else if (status === "In Progress") b.inProgress += n;
+    else if (status === "Not Quoted") b.notQuoted += n;
+    else if (status === "Sent to client") b.sentToClient += n;
     else b.pending += n;
   };
 

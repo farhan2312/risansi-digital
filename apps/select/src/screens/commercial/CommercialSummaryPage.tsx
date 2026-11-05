@@ -509,7 +509,7 @@ export default function CommercialSummaryPage() {
         title="Commercial Summary"
         subtitle={
           project
-            ? [project.code, `Commercial V${project.commercialVersionNo}`, project.name, project.customerName].filter(Boolean).join(" · ")
+            ? [project.code, project.name, project.customerName].filter(Boolean).join(" · ")
             : "Pump & Accessories and BOI prices for every tag of the enquiry"
         }
         actions={
@@ -700,7 +700,7 @@ export default function CommercialSummaryPage() {
           {data.project.versionKind === "technical" && (
             <p className="rounded-xl border border-line bg-paper px-4 py-3 text-[13px] text-fg-2">
               <b className="font-semibold text-fg">Technical only version.</b> Technical is V{data.project.versionNo} and Commercial stays V{data.project.commercialVersionNo}.
-              Prices don&apos;t change by themselves here. If the pump selection affects a price, the tag shows a warning, and it needs an answer before the next Send to client.
+              Prices don&apos;t change by themselves here. If the pump selection affects a price, the tag shows a warning, and it needs an answer before the next Save Version.
             </p>
           )}
           {data.project.commercialVersionNo > 0 && (
@@ -714,7 +714,7 @@ export default function CommercialSummaryPage() {
               />
               <span className="min-w-0 flex-1">
                 <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the prices copied from V{data.project.commercialVersionNo - 1},
-                including Strainer, PRV and Other items. Needed before Send to operation.
+                including Strainer, PRV and Other items. Needed before Save Version.
               </span>
             </label>
           )}

@@ -14,6 +14,10 @@
 // read-only: Dashboard, Enquiries, Pump Selection and Reports for their own
 // enquiries only - the clients they cover in the sales portal, live (see
 // lib/rep-scope.ts); a Rep Manager also sees the reps under them.
+//
+// operation (user, 2026-11-05; migrations/identity/0014) has two pages only,
+// Pump Docs and Spare Docs: the saved documents of the enquiries reviewed and
+// sent to operation, read-only. middleware.ts closes every other page and API.
 
 export type AppRole =
   | "user_master"
@@ -21,6 +25,7 @@ export type AppRole =
   | "user"
   | "rep"
   | "rep_manager"
+  | "operation"
   | "selection_head"
   | "pulley_owner"
   | "admin"
@@ -35,6 +40,7 @@ export const ROLE_LABELS: Record<string, string> = {
   user_worker: "User-Worker",
   rep: "Rep",
   rep_manager: "Rep Manager",
+  operation: "Operation",
   user: "User",
 };
 
@@ -63,19 +69,23 @@ export const canWorkOn = (
 ): boolean =>
   Boolean(user) && enquiry.is_latest !== false && (worksOnAnyEnquiry(user!.role) || (enquiry.assigned_to ?? enquiry.assignedTo ?? null) === user!.id);
 
-/** The enquiry no. with its version, as shown and printed: "ENQ-12 V1". */
-export const enquiryNoWithVersion = (code: string, version: number | null | undefined): string => `${code} V${version ?? 0}`;
-
-/** Both sides' versions: "ENQ-12 V1" when level, else "ENQ-12 Technical V1 / Commercial V0". */
-export const enquiryNoWithVersions = (code: string, technical: number | null | undefined, commercial: number | null | undefined): string =>
-  (technical ?? 0) === (commercial ?? 0) ? enquiryNoWithVersion(code, technical) : `${code} Technical V${technical ?? 0} / Commercial V${commercial ?? 0}`;
-
 /** Rep / Rep Manager: read-only, and only their own enquiries. */
 export const REP_ROLES = ["rep", "rep_manager"] as const;
 export const isRepRole = (role: string | null | undefined): boolean => (REP_ROLES as readonly string[]).includes(role ?? "");
 
 /** The only pages a rep can open. */
 export const REP_PAGES = ["/dashboard", "/projects", "/pump-selection", "/selection-summary", "/my-bug-reports"] as const;
+
+/** Operation's only pages. */
+export const OPERATION_PAGES = ["/pump-docs", "/spare-docs"] as const;
+export const isOperationRole = (role: string | null | undefined): boolean => role === "operation";
+
+/** Client Operation Docs replaces Reports for these (a leftover "user" reads as a worker).
+ *  Reps, selection heads and pulley owners keep Reports. */
+export const CLIENT_OPERATION_DOCS_ROLES = ["system_admin", "admin", "user_master", "user_worker", "user"] as const;
+export const hasClientOperationDocs = (role: string | null | undefined): boolean => (CLIENT_OPERATION_DOCS_ROLES as readonly string[]).includes(role ?? "");
+/** Who may read the documents sent to operation. */
+export const canSeeOperationDocs = (role: string | null | undefined): boolean => isOperationRole(role) || hasClientOperationDocs(role);
 
 /** Who an enquiry can be assigned to: the workers and the master. */
 export const ASSIGNABLE_ROLES = ["user_worker", "user_master", "user"] as const;

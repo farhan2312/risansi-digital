@@ -3,6 +3,7 @@ import { AuthError, decodeToken } from "@/lib/auth";
 import { filtersFromParams } from "@/lib/enquiry-filters";
 import { repScope } from "@/lib/rep-scope";
 import { getDashboardList } from "@/lib/dashboard-list";
+import type { DashboardListStatus } from "@/lib/dashboard-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 //   from / to, mine=1 : same meaning as GET /api/dashboard
 
 const KINDS = new Set(["enquiries", "tags"]);
-const STATUSES = new Set(["all", "Pending", "In Progress", "Completed", "awaiting"]);
+const STATUSES = new Set(["all", "Pending", "In Progress", "Completed", "Not Quoted", "Sent to client", "awaiting"]);
 
 const parseInstant = (v: string | null): Date | null => {
   if (!v) return null;
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
   return json(
     await getDashboardList({
       kind: kind as "enquiries" | "tags",
-      status: status as "all" | "Pending" | "In Progress" | "Completed" | "awaiting",
+      status: status as DashboardListStatus,
       q: p.get("q") ?? "",
       offset: parseInt(p.get("offset") ?? "0", 10) || 0,
       limit: parseInt(p.get("limit") ?? "20", 10) || 20,

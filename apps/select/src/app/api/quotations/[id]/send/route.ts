@@ -11,13 +11,14 @@ import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-serv
 import { buildSnapshot, freezeLiveInternal, loadQuotation } from "@/lib/quotation-server";
 import { sameTechDocSheet } from "@/lib/tech-doc";
 import { workDenied } from "@/lib/enquiry-access";
+import { REVIEW_CLEARED } from "@/lib/enquiry-filters-server";
 
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-// POST /api/quotations/[id]/send — records the send: to operation for a pump, to
-// the client for a spare. It makes the CLIENT version numbered as the enquiry's
+// POST /api/quotations/[id]/send — "Save Version Vn", on a pump's quotation and a
+// spare's. It makes the CLIENT version numbered as the enquiry's
 // Commercial version (Enquiry V1 = Client V1, gaps where a version wasn't sent), with
 // a frozen copy of the prices. What is sent is the live internal version, which
 // freezes with it. A pump has one client version per enquiry version: sending again
@@ -64,7 +65,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (frozen === null && spare) return null;
     // Nothing live: a pump's was frozen by its send (or a newer version was made, then deleted).
     const internal = frozen ?? q.internalVersion;
-    const reason = `Sent to ${spare ? "client" : "operation"} (internal V${internal})`;
+    const reason = `Saved (internal V${internal})`;
     // The client version is the enquiry's Commercial version: Enquiry V1 = Client V1.
     const [enquiry] = await tx.select({ version: projects.commercialVersionNo }).from(projects).where(eq(projects.id, current.projectId));
     const v = enquiry.version;
@@ -95,6 +96,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         createdBy,
       });
     }
+    await tx.update(projects).set(REVIEW_CLEARED).where(eq(projects.id, current.projectId));
     const sent = await tx
       .selectDistinct({ group: quotation.driveGroup })
       .from(quotation)
@@ -102,26 +104,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .where(and(eq(quotation.projectId, current.projectId), eq(quotationVersion.track, "client")));
     const needed: string[] = spare ? [SPARE_GROUP] : groups;
     if (needed.every((g) => sent.some((s) => s.group === g))) {
-      // The first time sets the completion date; sending again keeps it. A status
-      // changed by hand to not done gives way to the send.
+      // The first time sets the completion date; saving again keeps it. A status
+      // changed by hand to not done, or to Not Quoted, gives way to the save.
       await tx
         .update(projects)
         .set({
           sentToClientAt: sql`coalesce(${projects.sentToClientAt}, now())`,
-          commercialStatusOverride: sql`nullif(nullif(${projects.commercialStatusOverride}, 'Pending'), 'In Progress')`,
+          commercialStatusOverride: sql`nullif(nullif(nullif(${projects.commercialStatusOverride}, 'Pending'), 'In Progress'), 'Not Quoted')`,
         })
         .where(eq(projects.id, current.projectId));
     }
     return { v, internal, replacedTotal: earlier ? (earlier.snapshot as QuotationSnapshot).grandTotal : null };
   });
-  if (result === "unchanged") return error("Nothing has changed since this quotation was last sent.", 409);
-  if (!result) return error("This quotation was already sent to the client. For changes, create a new version.", 409);
+  if (result === "unchanged") return error("Nothing has changed since this quotation was last saved.", 409);
+  if (!result) return error("This version of the quotation is already saved. For changes, create a new version.", 409);
 
   await logAudit(req, {
     action: "quotation.send",
     entity: "quotation",
     entityId: id,
-    detail: `Quotation ${quotationNumber(current, true)} ${result.replacedTotal === null ? "sent" : "sent again"} to ${spare ? "client" : "operation"} — client V${result.v} (internal V${result.internal}), grand total ${formatInr(
+    detail: `Quotation ${quotationNumber(current, true)} ${result.replacedTotal === null ? "saved" : "saved again"} — client V${result.v} (internal V${result.internal}), grand total ${formatInr(
       snapshot.grandTotal,
     )}${result.replacedTotal === null ? "" : `, replacing ${formatInr(result.replacedTotal)}`}`,
   });

@@ -16,6 +16,8 @@ export type EnquiryReportRow = {
   /** Technical and Commercial; a spare has just its one status, with no label. */
   statuses: { label: string | null; value: string }[];
   date: string;
+  /** YYYY-MM-DD, or "" when there is none: what the date sort goes by. */
+  sortDate: string;
   category: string;
   enquiryNo: string;
   assignee: string;
@@ -76,6 +78,7 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
             { label: "Commercial", value: p.commercial_status ?? "Pending" },
           ],
       date: dotDate(p.enquiry_date),
+      sortDate: p.enquiry_date ?? "",
       category: orderTypeLabel(p.order_type),
       enquiryNo: p.project_code,
       assignee: p.assigned_to_name ?? "",
@@ -93,12 +96,30 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
   });
 }
 
+export type ReportSortBy = "list" | "assignee" | "date";
+export type ReportSortDir = "asc" | "desc";
+
+/** The report in the order picked ("list" = as the Enquiries list has it). Blanks go last
+ *  either way, and one person's enquiries run newest first. */
+export function sortReportRows(rows: EnquiryReportRow[], by: ReportSortBy, dir: ReportSortDir): EnquiryReportRow[] {
+  if (by === "list") return rows;
+  const sign = dir === "asc" ? 1 : -1;
+  const byDate = (a: EnquiryReportRow, b: EnquiryReportRow, s: number) =>
+    !a.sortDate || !b.sortDate ? Number(!a.sortDate) - Number(!b.sortDate) : s * a.sortDate.localeCompare(b.sortDate);
+  return [...rows].sort((a, b) => {
+    if (by === "date") return byDate(a, b, sign);
+    const [x, y] = [a.assignee.trim(), b.assignee.trim()];
+    if (!x || !y) return Number(!x) - Number(!y) || byDate(a, b, -1);
+    return sign * x.localeCompare(y, undefined, { sensitivity: "base" }) || byDate(a, b, -1);
+  });
+}
+
 export const reportCell = (r: EnquiryReportRow, key: ColumnKey): string =>
   key === "status" ? r.statuses.map((s) => (s.label ? `${s.label}: ${s.value}` : s.value)).join("\n") : r[key];
 
 const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
-const statusClass = (s: string) => (s === "Completed" ? "done" : s === "In Progress" ? "going" : "waiting");
+const statusClass = (s: string) => (s === "Completed" || s === "Sent to client" ? "done" : s === "In Progress" ? "going" : s === "Not Quoted" ? "closed" : "waiting");
 
 /** The printed report: just the table, its heading repeated on every page. */
 export function buildEnquiryReportHtml(rows: EnquiryReportRow[]): string {
@@ -137,6 +158,7 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[]): string {
   .done { background: #dcf5e6; color: #11703d; }
   .going { background: #dcebfb; color: #0b4ea2; }
   .waiting { background: #fdf0d5; color: #9a6400; }
+  .closed { background: #e9edf2; color: #4b5a6b; }
   .empty { padding: 28px; text-align: center; color: #6b7a8c; }
 </style></head>
 <body><div class="sheet">

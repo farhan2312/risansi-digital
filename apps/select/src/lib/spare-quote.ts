@@ -45,6 +45,7 @@ export type SpareDocEdits = {
   enquiry?: string;
   quotation?: string;
   subject?: string;
+  greeting?: string;
   opening?: string;
   po?: string;
   discount?: string;
@@ -69,7 +70,7 @@ export function normalizeSpareDocEdits(raw: unknown): SpareDocEdits {
     const v = str(r[k], 300);
     if (v !== undefined) out[k] = v;
   }
-  for (const k of ["subject", "opening", "note"] as const) {
+  for (const k of ["subject", "greeting", "opening", "note"] as const) {
     const v = str(r[k], 2000);
     if (v !== undefined) out[k] = v;
   }

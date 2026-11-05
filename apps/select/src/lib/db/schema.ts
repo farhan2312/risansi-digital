@@ -110,6 +110,16 @@ export const projects = pgTable("projects", {
    *  commercial step is done. Enquiries already commercially Completed when this
    *  came in were backfilled as sent. */
   sentToClientAt: timestamp("sent_to_client_at", { withTimezone: true }),
+  /** Review on the Enquiries list (app/api/projects/[id]/review): the saved versions were
+   *  looked over, then sent to operation. Not sent_to_operation_at, which is the Technical
+   *  Save Version. A Save Version clears these four, and a new version starts without them. */
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy: uuid("reviewed_by"),
+  releasedToOperationAt: timestamp("released_to_operation_at", { withTimezone: true }),
+  releasedToOperationBy: uuid("released_to_operation_by"),
+  /** Operation confirmed it was mailed to the client (the portal sends no mail). Cleared with them. */
+  mailedAt: timestamp("mailed_at", { withTimezone: true }),
+  mailedBy: uuid("mailed_by"),
   /** The Prices reviewed tick, needed on a new version before Send to client. */
   pricesReviewedAt: timestamp("prices_reviewed_at", { withTimezone: true }),
   pricesReviewedBy: uuid("prices_reviewed_by"),

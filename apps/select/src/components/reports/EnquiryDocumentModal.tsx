@@ -60,7 +60,7 @@ const EnquiryDocumentModal = ({
 }: {
   source: EnquiryDocumentSource;
   /** View only - for someone who may not work on this enquiry (a worker it is
-   *  not assigned to, or an older version): no edits, no Send to operation. */
+   *  not assigned to, or an older version): no edits, no Save Version. */
   readOnly?: boolean;
   onClose: () => void;
 }) => {
@@ -77,7 +77,7 @@ const EnquiryDocumentModal = ({
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const [printing, setPrinting] = useState(false);
   const [pageSize, setPageSize] = usePrintPageSize();
-  // Every send to operation, of every group, newest first.
+  // Every Save Version, of every group, newest first.
   const [versions, setVersions] = useState<TechDocVersion[] | null>(null);
   const [sendNote, setSendNote] = useState("");
   const [sending, setSending] = useState(false);
@@ -187,7 +187,7 @@ const EnquiryDocumentModal = ({
   );
   const groupSends = (versions ?? []).filter((v) => v.group === group);
   const lastSent = groupSends[0] ?? null;
-  // It can go again once the sheet has changed since the last send.
+  // It can be saved again once the sheet has changed since the last save.
   const editedSinceSent = Boolean(lastSent && doc && !sameTechDocSheet(lastSent.sheet, doc));
   const sendToOperation = async () => {
     if (!group || sending) return;
@@ -199,11 +199,12 @@ const EnquiryDocumentModal = ({
       setSendNote("");
     } catch (e) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setSendError(msg || "Couldn't send — try again.");
+      setSendError(msg || "Couldn't save the version — try again.");
     } finally {
       setSending(false);
     }
   };
+  const versionText = data ? `V${data.versionNo}` : "";
   const isLoading = data === null && error === null;
   const hasTags = (doc?.tags.length ?? 0) > 0;
 
@@ -283,18 +284,18 @@ const EnquiryDocumentModal = ({
                   })}
                 </div>
               )}
-              {/* Send to operation: again whenever the sheet has changed */}
+              {/* Save Version: again whenever the sheet has changed */}
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px]">
-                <span className="font-semibold text-fg-2">Operation:</span>
+                <span className="font-semibold text-fg-2">Version {versionText}:</span>
                 {versions === null ? (
                   <span className="text-fg-3">Loading…</span>
                 ) : !lastSent ? (
-                  <span className="text-fg-3">Not sent yet</span>
+                  <span className="text-fg-3">Not saved yet</span>
                 ) : (
                   <span className="text-fg-2" title={lastSent.note || undefined}>
-                    Sent {lastSent.createdAt ? new Date(lastSent.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : ""}
+                    Saved {lastSent.createdAt ? new Date(lastSent.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : ""}
                     {lastSent.createdByName ? ` by ${lastSent.createdByName}` : ""}
-                    {groupSends.length > 1 ? ` · sent ${groupSends.length} times` : ""}
+                    {groupSends.length > 1 ? ` · saved ${groupSends.length} times` : ""}
                   </span>
                 )}
                 {editedSinceSent && <span className="font-semibold text-warn">Edited since then</span>}
@@ -305,16 +306,16 @@ const EnquiryDocumentModal = ({
                     value={sendNote}
                     maxLength={1000}
                     onChange={(e) => setSendNote(e.target.value)}
-                    aria-label="Note for this send"
+                    aria-label="Note for this version"
                   />
                   <button
                     type="button"
                     onClick={() => void sendToOperation()}
                     disabled={sending || saveState === "saving" || !hasTags || (Boolean(lastSent) && !editedSinceSent)}
                     className="rounded-md bg-accent px-3 py-1 font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                    title={lastSent && !editedSinceSent ? "Nothing has changed since the last send" : "Record this sheet as sent to operation"}
+                    title={lastSent && !editedSinceSent ? "Nothing has changed since it was saved" : `Save this sheet as Version ${versionText}`}
                   >
-                    {sending ? "Sending…" : lastSent ? "Send again to operation" : "Send to operation"}
+                    {sending ? "Saving…" : lastSent && !editedSinceSent ? `Version ${versionText} saved` : `Save Version ${versionText}`}
                   </button>
                 </span>
                 {sendError && <span className="w-full text-neg">{sendError}</span>}

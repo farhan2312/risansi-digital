@@ -40,7 +40,7 @@ export const technicalStatusAutoSql = sql<string>`(
  *  is its Commercial one): what was picked on the Edit form, else automatic. */
 export const enquiryStatusSql = sql<string>`coalesce(CASE WHEN projects.order_type = 'spare' THEN projects.commercial_status_override ELSE projects.technical_status_override END, ${technicalStatusAutoSql})`;
 
-/** Commercial status, automatic: Completed once the Technical status is Completed,
+/** Commercial status, automatic: Completed once the Technical status is Completed (or Sent to client),
  *  every tag has a saved P&A price and the quotations are sent to operation
  *  (app/api/quotations/[id]/send; sent_to_client_at keeps its old name), In Progress once any tag's prices are saved,
  *  otherwise Pending. A send from before this version began is a Technical only
@@ -51,7 +51,7 @@ export const commercialStatusAutoSql = sql<string>`(
     WHEN projects.order_type = 'spare' THEN ${SPARE_STATUS}
     WHEN COUNT(*) > 0 AND COUNT(k.pa_price) = COUNT(*)
          AND projects.sent_to_client_at IS NOT NULL
-         AND (projects.sent_to_client_at < projects.created_at OR ${enquiryStatusSql} = 'Completed') THEN 'Completed'
+         AND (projects.sent_to_client_at < projects.created_at OR ${enquiryStatusSql} IN ('Completed', 'Sent to client')) THEN 'Completed'
     WHEN COUNT(k.tag_id) > 0 THEN 'In Progress'
     ELSE 'Pending'
   END
@@ -59,7 +59,8 @@ export const commercialStatusAutoSql = sql<string>`(
   WHERE t.project_id = projects.id
 )`;
 
-/** The status shown: what was picked on the Edit form, else the automatic one. */
+/** The status shown: what was picked on the Edit form, else the automatic one. Not Quoted
+ *  and Sent to client are only ever picked, never automatic. */
 export const commercialStatusSql = sql<string>`coalesce(projects.commercial_status_override, ${commercialStatusAutoSql})`;
 
 /** The automatic completion day (YYYY-MM-DD, IST): when the sheets went to
@@ -94,6 +95,9 @@ export const enquiryStatusFields = (
     commercial_completed_on: commercialDay,
   };
 };
+
+/** A Save Version changes what was reviewed, so it has to be reviewed, sent and mailed again. */
+export const REVIEW_CLEARED = { reviewedAt: null, reviewedBy: null, releasedToOperationAt: null, releasedToOperationBy: null, mailedAt: null, mailedBy: null };
 
 /** A value as filterKey() sees it: lower case, letters and digits only. */
 const keyOf = (expr: SQL | AnyColumn) => sql`regexp_replace(lower(coalesce(${expr}, '')), '[^a-z0-9]', '', 'g')`;

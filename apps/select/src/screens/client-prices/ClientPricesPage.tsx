@@ -236,7 +236,7 @@ function History({
             onChange={(e) => onSentOnly(e.target.checked)}
             className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
           />
-          Sent to client only
+          Saved versions only
         </label>
       </div>
 
@@ -274,7 +274,7 @@ function History({
                 </Link>
               </header>
               {versions.length === 0 ? (
-                <p className="px-4 py-3 text-[12.5px] text-fg-3">Not sent to the client yet.</p>
+                <p className="px-4 py-3 text-[12.5px] text-fg-3">No version saved yet.</p>
               ) : (
                 <div className="flex flex-col divide-y divide-line">
                   {versions.map((v) => (
