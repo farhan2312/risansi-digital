@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { todayYmd } from "./CreateProjectModal";
 import { Field, Section, btnPrimary, inputCls } from "./EnquiryFields";
+import { versionReady } from "../../lib/enquiry-filters";
 import { roleLabel } from "../../lib/roles";
 import { createEnquiryRevision, listAssignees, type Assignee, type ProjectRecord } from "../../services/projectService";
 
@@ -31,7 +32,7 @@ export default function EnquiryVersionSection({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const completed = project.status === "Completed";
+  const completed = versionReady(project.status);
   useEffect(() => {
     if (!completed) return;
     listAssignees()
@@ -63,7 +64,7 @@ export default function EnquiryVersionSection({
       {!completed ? (
         <p className="text-[12.5px] text-fg-3 sm:col-span-2">
           {project.order_type === "spare"
-            ? `V${next} can be created once this version's quotation is sent to the client.`
+            ? `V${next} can be created once this version's quotation is saved.`
             : `V${next} can be created once this version's Technical status is Completed and saved.`}
         </p>
       ) : (
@@ -105,7 +106,7 @@ export default function EnquiryVersionSection({
                 ? `Save or cancel your changes above first - V${next} is copied from the saved enquiry.`
                 : isSpare
                   ? `Copies the reference PO, models, parts, prices and quotation number. V${project.version_no} becomes view only.`
-                  : `Copies the tags, pump selection, prices and quotation number. V${project.version_no} becomes view only, and each tag is confirmed again in V${next}. Technical will be V${next} and Commercial V${project.commercial_version_no + 1}, so prices are checked and sent to operation again.`}
+                  : `Copies the tags, pump selection, prices and quotation number. V${project.version_no} becomes view only, and each tag is confirmed again in V${next}. Technical will be V${next} and Commercial V${project.commercial_version_no + 1}, so prices are checked and saved again.`}
             </span>
           </div>
           {err && <p className="text-[12.5px] font-medium text-neg sm:col-span-2">{err}</p>}

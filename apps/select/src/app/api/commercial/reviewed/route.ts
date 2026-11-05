@@ -6,7 +6,6 @@ import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { workDenied } from "@/lib/enquiry-access";
-import { enquiryNoWithVersion } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +26,7 @@ export async function PUT(req: Request) {
   if (noWork) return noWork;
   const reviewed = body.reviewed === true;
 
-  const [p] = await db.select({ code: projects.projectCode, version: projects.versionNo }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  const [p] = await db.select({ code: projects.projectCode }).from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!p) return error("Enquiry not found", 404);
 
   const claims = await tryDecodeToken(req);
@@ -40,7 +39,7 @@ export async function PUT(req: Request) {
     action: "commercial.reviewed",
     entity: "projects",
     entityId: projectId,
-    detail: `${enquiryNoWithVersion(p.code, p.version)}: prices ${reviewed ? "marked as reviewed" : "no longer marked as reviewed"}`,
+    detail: `${p.code}: prices ${reviewed ? "marked as reviewed" : "no longer marked as reviewed"}`,
   });
   return json({ pricesReviewedAt: reviewed ? now.toISOString() : null });
 }

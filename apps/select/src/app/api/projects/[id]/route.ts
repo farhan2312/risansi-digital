@@ -7,7 +7,7 @@ import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from 
 import { db } from "@/lib/db";
 import { enquiryTags, projects, quotation, quotationVersion, users } from "@/lib/db/schema";
 import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
-import { ENQUIRY_STATUSES } from "@/lib/enquiry-filters";
+import { ENQUIRY_STATUSES, versionReady } from "@/lib/enquiry-filters";
 import { enquiryStatusColumns } from "@/lib/enquiry-filters-server";
 import { versionLocked, viewDenied } from "@/lib/enquiry-access";
 
@@ -131,7 +131,7 @@ export async function PATCH(
     }
     patch.enquiryDate = d;
   }
-  // Newly marked Technical Completed: a pump other than PCP takes its tags along, as only
+  // Newly marked Technical Completed or Sent to client: a pump other than PCP takes its tags along, as only
   // PCP tags are worked and confirmed one by one.
   let completeTags = false;
   if ("technicalStatus" in body || "commercialStatus" in body) {
@@ -146,7 +146,7 @@ export async function PATCH(
       if (typeof c === "string") return error(c, 400);
       patch.technicalStatusOverride = c.override;
       patch.completedOn = c.date;
-      completeTags = textOrNull(body.technicalStatus) === "Completed" && (auto.technicalOverride ?? auto.technicalAuto) !== "Completed";
+      completeTags = versionReady(textOrNull(body.technicalStatus)) && !versionReady(auto.technicalOverride ?? auto.technicalAuto);
     }
     if ("commercialStatus" in body) {
       const c = statusChoice("commercialStatus", body.commercialStatus, body.commercialCompletedOn, auto.commercialAuto, auto.commercialDayAuto);

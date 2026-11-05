@@ -24,6 +24,7 @@ import { commercialTagPrice, enquiryTags, projects, quotation, quotationVersion 
 import { IST_OFFSET_MS } from "./ist";
 import { buildSnapshot, freezeLiveInternal } from "./quotation-server";
 import { WIZARD_TABLES, copyTagRows } from "./tag-copy";
+import { REVIEW_CLEARED } from "./enquiry-filters-server";
 
 type ProjectRow = typeof projects.$inferSelect;
 
@@ -84,6 +85,7 @@ export async function createRevision(
         sentToClientAt: null,
         pricesReviewedAt: null,
         pricesReviewedBy: null,
+        ...REVIEW_CLEARED,
         createdBy: input.createdBy,
         createdAt: now,
         updatedAt: now,

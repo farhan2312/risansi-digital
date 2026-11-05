@@ -61,7 +61,7 @@ const Sidebar = () => {
         )}
 
         {/* Their own bug reports, read-only — system admins use the Bug Tracker. */}
-        {user && user.role !== "system_admin" && (
+        {user && user.role !== "system_admin" && user.role !== "operation" && (
           <>
             <p className="sidebar-group-label">Help</p>
             {MY_BUG_LINKS.map((l) => navLink(l.href, l.label, navIcons[l.icon]))}

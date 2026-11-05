@@ -5,7 +5,6 @@ import { logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
-import { enquiryNoWithVersion } from "@/lib/roles";
 import { normalizeSpareQuote } from "@/lib/spare-quote";
 import { termsMarketOf } from "@/lib/spare-terms";
 
@@ -33,7 +32,7 @@ export async function POST(req: Request) {
   if (noWork) return noWork;
 
   const rows = await db
-    .select({ id: projects.id, code: projects.projectCode, version: projects.versionNo, orderType: projects.orderType, quote: projects.spareQuote, sentAt: projects.sentToClientAt, market: projects.clientMarketType })
+    .select({ id: projects.id, code: projects.projectCode, orderType: projects.orderType, quote: projects.spareQuote, sentAt: projects.sentToClientAt, market: projects.clientMarketType })
     .from(projects)
     .where(inArray(projects.id, [sourceId, targetId]));
   const source = rows.find((r) => r.id === sourceId);
@@ -41,7 +40,7 @@ export async function POST(req: Request) {
   if (!source || !target) return error("Enquiry not found", 404);
   if (source.orderType !== "spare" || target.orderType !== "spare") return error("Both enquiries must be spare orders.", 400);
 
-  if (target.sentAt) return error("That enquiry's quotation was already sent to the client.", 409);
+  if (target.sentAt) return error("That enquiry's quotation version is already saved.", 409);
 
   const from = normalizeSpareQuote(source.quote);
   if (from.models.length === 0) return error("This enquiry has no models to copy yet.", 400);
@@ -53,7 +52,7 @@ export async function POST(req: Request) {
     action: "spare_quote.copy",
     entity: "projects",
     entityId: targetId,
-    detail: `${enquiryNoWithVersion(target.code, target.version)}: copied ${from.models.length} model(s) and their parts from ${enquiryNoWithVersion(source.code, source.version)}`,
+    detail: `${target.code}: copied ${from.models.length} model(s) and their parts from ${source.code}`,
   });
   return json({ ok: true, models: from.models.length });
 }

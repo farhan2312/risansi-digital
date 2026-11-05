@@ -111,6 +111,8 @@ export type TechDocGroup = DriveGroup | "NONE";
  *  techDocSheet(). */
 export interface TechDocData {
   projectCode: string;
+  /** The enquiry's Technical version, which "Save Version Vn" saves. */
+  versionNo: number;
   clientName: string;
   /** "RIL/EN/26-27/1780, Dt. 24.09.2026" */
   enquiry: string;

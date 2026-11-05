@@ -22,6 +22,7 @@ import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderSubtyp
 import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import EnquiryReviewModal from "../../components/projects/EnquiryReviewModal";
 import Pagination from "../../components/ui/Pagination";
 import PageHeader from "../../components/ui/PageHeader";
 import StatusPill, { lifecycleStyle } from "../../components/ui/StatusPill";
@@ -131,6 +132,7 @@ const ProjectsPage = () => {
   // Technical Quotation for a whole enquiry - the same document the Reports
   // page shows, reachable from here too.
   const [viewingDocFor, setViewingDocFor] = useState<ProjectRecord | null>(null);
+  const [reviewFor, setReviewFor] = useState<ProjectRecord | null>(null);
   // Quotation step (between Technical and Commercial) for one enquiry.
   const [quotationFor, setQuotationFor] = useState<ProjectRecord | null>(null);
 
@@ -902,6 +904,25 @@ const ProjectsPage = () => {
                           {doneCount}/{tags.length} tag{tags.length === 1 ? "" : "s"} done
                         </span>
                       )}
+                      {project.released_to_operation_at ? (
+                        <span className="text-[11px] font-semibold text-pos">Sent to operation on {shortDay(project.released_to_operation_at)}</span>
+                      ) : (
+                        project.reviewed_at && (
+                          <>
+                            <span className="text-[11px] font-semibold text-pos">Reviewed on {shortDay(project.reviewed_at)}</span>
+                            {workable(project) && (
+                              <button
+                                type="button"
+                                onClick={() => setReviewFor(project)}
+                                className="rounded-md bg-accent px-2 py-0.5 text-[11px] font-semibold text-white hover:opacity-90"
+                                title="Opens the reviewed versions, to send them to operation"
+                              >
+                                Send to operation
+                              </button>
+                            )}
+                          </>
+                        )
+                      )}
                     </span>
 
                     <span className="min-w-0">
@@ -1018,6 +1039,25 @@ const ProjectsPage = () => {
                         <RupeeIcon />
                         <span className="hidden 2xl:inline">{isSpare ? "Quotation" : "Commercial"}</span>
                       </button>
+                      {!isRep && (
+                      <button
+                        type="button"
+                        className={btn}
+                        onClick={() => setReviewFor(project)}
+                        disabled={!workable(project)}
+                        title={
+                          !workable(project)
+                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can review it`
+                            : isSpare
+                            ? "Review the saved quotation"
+                            : "Review the saved Technical, Commercial and Techno-Commercial"
+                        }
+                        aria-label={`Review ${project.project_code}`}
+                      >
+                        <ReviewIcon />
+                        <span className="hidden 2xl:inline">Review</span>
+                      </button>
+                      )}
                       {!isRep && isSpare && (
                       <button
                         type="button"
@@ -1297,6 +1337,17 @@ const ProjectsPage = () => {
         />
       )}
 
+      {reviewFor && (
+        <EnquiryReviewModal
+          project={reviewFor}
+          onChanged={(patch) => {
+            setProjects((prev) => prev.map((p) => (p.id === reviewFor.id ? { ...p, ...patch } : p)));
+            setReviewFor((p) => (p ? { ...p, ...patch } : p));
+          }}
+          onClose={() => setReviewFor(null)}
+        />
+      )}
+
       {viewingDocFor && (
         <EnquiryDocumentModal
           source={{
@@ -1538,6 +1589,14 @@ const QuoteIcon = () => (
 );
 
 // Rupee sign — the Commercial Summary.
+const shortDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+const ReviewIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 3h6l1 2h3v16H5V5h3zM9 13l2 2 4-4" />
+  </svg>
+);
+
 const RupeeIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 4h12M6 9h12M14.5 20 7 13h2.5a4.5 4.5 0 0 0 0-9" />

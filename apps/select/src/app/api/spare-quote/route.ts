@@ -6,7 +6,6 @@ import { formatInr } from "@/lib/commercial";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
-import { enquiryNoWithVersion } from "@/lib/roles";
 import { normalizeSpareDocEdits, normalizeSpareQuote, quoteTotal } from "@/lib/spare-quote";
 import { termsMarketOf } from "@/lib/spare-terms";
 
@@ -18,7 +17,6 @@ const load = (projectId: string) =>
   db
     .select({
       code: projects.projectCode,
-      version: projects.versionNo,
       name: projects.name,
       enquiryDate: projects.enquiryDate,
       orderType: projects.orderType,
@@ -64,7 +62,7 @@ export async function PUT(req: Request) {
   const [p] = await load(projectId);
   if (!p) return error("Enquiry not found", 404);
   if (p.orderType !== "spare") return error("This enquiry is not a spare order.", 400);
-  if (p.sentAt) return error("This quotation was sent to the client. To change it, create a new version.", 409);
+  if (p.sentAt) return error("This quotation's version is saved. To change it, create a new version.", 409);
 
   const quote = normalizeSpareQuote(body.quote);
   if (quote.models.some((m) => !m.productCode)) return error("Every model needs its code.", 400);
@@ -75,7 +73,7 @@ export async function PUT(req: Request) {
     action: "spare_quote.update",
     entity: "projects",
     entityId: projectId,
-    detail: `${enquiryNoWithVersion(p.code, p.version)}: spare quotation saved - ${quote.models.length} model(s), ${quote.models.reduce(
+    detail: `${p.code}: spare quotation saved - ${quote.models.length} model(s), ${quote.models.reduce(
       (s, m) => s + m.lines.length,
       0,
     )} part(s), total ${formatInr(quoteTotal(quote))}`,

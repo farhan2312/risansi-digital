@@ -8,6 +8,7 @@ import { enquiryTags, projects, quotation, techDocVersion, users } from "@/lib/d
 import { sameTechDocSheet, techDocGroups, techDocSheet, type TechDocGroup, type TechDocSheet, type TechDocVersion } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
 import { workDenied, viewDenied } from "@/lib/enquiry-access";
+import { REVIEW_CLEARED } from "@/lib/enquiry-filters-server";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ async function listSends(projectId: string): Promise<TechDocVersion[]> {
 }
 
 // GET /api/enquiry-document/versions?projectId=… — every time the enquiry's
-// Technical Data Sheets (all drive groups) went to operation, newest first.
+// Technical Data Sheets (all drive groups) were saved (Save Version), newest first.
 export async function GET(req: Request) {
   const projectId = new URL(req.url).searchParams.get("projectId") ?? "";
   if (!UUID.test(projectId)) return error("'projectId' query param is required", 400);
@@ -41,10 +42,10 @@ export async function GET(req: Request) {
   return json(await listSends(projectId));
 }
 
-// POST /api/enquiry-document/versions {projectId, group, note?} — "Send to
-// operation": records the group's sheet as it is now (built on the server from
-// the current data + saved edits). Nothing is e-mailed. It can go again once the
-// sheet has changed. When every sheet of the enquiry has gone, the technical
+// POST /api/enquiry-document/versions {projectId, group, note?} — "Save Version":
+// records the group's sheet as it is now (built on the server from
+// the current data + saved edits). Nothing is e-mailed. It can be saved again once the
+// sheet has changed. When every sheet of the enquiry is saved, the technical
 // step is done (projects.sent_to_operation_at, lib/enquiry-filters-server.ts).
 // Audited.
 export async function POST(req: Request) {
@@ -72,8 +73,8 @@ export async function POST(req: Request) {
     db.select({ status: enquiryTags.status }).from(enquiryTags).where(eq(enquiryTags.projectId, projectId)),
     db.select({ id: quotation.id }).from(quotation).where(eq(quotation.projectId, projectId)).limit(1),
   ]);
-  if (tags.some((t) => t.status !== "Completed")) return error("Complete every tag of the enquiry before sending to operation.", 409);
-  if (!quote) return error("Generate the quotation before sending to operation.", 409);
+  if (tags.some((t) => t.status !== "Completed")) return error("Complete every tag of the enquiry before saving the version.", 409);
+  if (!quote) return error("Generate the quotation before saving the version.", 409);
 
   const claims = await tryDecodeToken(req);
   const createdBy = claims?.sub && UUID.test(claims.sub) ? claims.sub : null;
@@ -105,31 +106,32 @@ export async function POST(req: Request) {
         snapshot: sheet as unknown as Record<string, unknown>,
         createdBy,
       });
+      await tx.update(projects).set(REVIEW_CLEARED).where(eq(projects.id, projectId));
       const sent = await tx.selectDistinct({ group: techDocVersion.driveGroup }).from(techDocVersion).where(eq(techDocVersion.projectId, projectId));
       if (needed.every((g) => sent.some((s) => s.group === g))) {
-        // The first time sets the completion date; sending again after an edit
-        // keeps it. A status changed by hand to not done gives way to the send.
+        // The first time sets the completion date; saving again after an edit
+        // keeps it. A status changed by hand to not done, or to Not Quoted, gives way to the save.
         await tx
           .update(projects)
           .set({
             sentToOperationAt: sql`coalesce(${projects.sentToOperationAt}, now())`,
-            technicalStatusOverride: sql`nullif(nullif(${projects.technicalStatusOverride}, 'Pending'), 'In Progress')`,
+            technicalStatusOverride: sql`nullif(nullif(nullif(${projects.technicalStatusOverride}, 'Pending'), 'In Progress'), 'Not Quoted')`,
           })
           .where(eq(projects.id, projectId));
       }
     });
   } catch (err) {
-    if (isUniqueViolation(err)) return error("Someone sent this sheet at the same moment — try again.", 409);
+    if (isUniqueViolation(err)) return error("Someone saved this sheet at the same moment — try again.", 409);
     throw err;
   }
-  if (unchanged) return error("Nothing has changed on this sheet since it was last sent.", 409);
+  if (unchanged) return error("Nothing has changed on this sheet since it was last saved.", 409);
 
   const [p] = await db.select({ code: projects.projectCode }).from(projects).where(eq(projects.id, projectId)).limit(1);
   await logAudit(req, {
     action: "tech_doc.send",
     entity: "tech_doc_version",
     entityId: projectId,
-    detail: `${p?.code ?? "Enquiry"}: Technical Data Sheet${data.mixed && group !== "NONE" ? ` (${group})` : ""} sent to operation${note ? ` — ${note}` : ""}`,
+    detail: `${p?.code ?? "Enquiry"}: Technical Data Sheet${data.mixed && group !== "NONE" ? ` (${group})` : ""} saved as V${data.versionNo}${note ? ` — ${note}` : ""}`,
   });
   return json(await listSends(projectId), 201);
 }

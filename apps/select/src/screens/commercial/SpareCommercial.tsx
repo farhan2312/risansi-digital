@@ -11,7 +11,7 @@ import { printHtml } from "../../lib/enquiry-print";
 import { OTHER_PART_SECTION, partListFor } from "../../lib/spare-parts";
 import { lineAmount, quoteDiscount, quoteSubtotal, spareQuoteProblem, type SpareDocEdits, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
 import {
-  SPARE_DOC_OPENING,
+  SPARE_DOC_GREETING, SPARE_DOC_OPENING,
   SPARE_DOC_SUBJECT,
   buildSpareQuoteHtml,
   downloadSpareQuoteExcel,
@@ -254,7 +254,7 @@ export default function SpareCommercial({
     });
   };
 
-  // Sent to the client: a change now takes a new version of the enquiry.
+  // Version saved: a change now takes a new version of the enquiry.
   const sent = Boolean(quotation && !quotation.versions.some((v) => v.track === "internal" && v.live));
   const readOnly = olderVersion || sent;
   const current = draft ? toQuote(draft) : null;
@@ -268,7 +268,7 @@ export default function SpareCommercial({
     <PageHeader
       icon={<PartsIcon />}
       title="Spare Quotation"
-      subtitle={[project.code, `V${project.commercialVersionNo}`, project.name].filter(Boolean).join(" · ")}
+      subtitle={[project.code, project.name].filter(Boolean).join(" · ")}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           {dirty && <span className="text-[12.5px] font-medium text-warn">Unsaved changes</span>}
@@ -395,7 +395,7 @@ export default function SpareCommercial({
                   onChange={(e) => void toggleReviewed(e.target.checked)}
                 />
                 <span className="min-w-0 flex-1">
-                  <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the parts and prices copied from V{project.versionNo - 1}. Needed before Send to client.
+                  <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the parts and prices copied from V{project.versionNo - 1}. Needed before Save Version.
                 </span>
               </label>
             )}
@@ -840,12 +840,13 @@ function QuotePreview({
     change({ ...edits, removed: removed.includes(key) ? removed.filter((k) => k !== key) : [...removed, key] });
   };
 
-  const headerFields: { key: "client" | "enquiry" | "quotation" | "po" | "subject" | "opening" | "discount" | "note"; label: string; auto: string }[] = [
+  const headerFields: { key: "client" | "enquiry" | "quotation" | "po" | "subject" | "greeting" | "opening" | "discount" | "note"; label: string; auto: string }[] = [
     { key: "client", label: "Client Name", auto: sheet.header.clientName },
     { key: "enquiry", label: "Enquiry No. & Date", auto: sheet.header.enquiry },
     { key: "quotation", label: "Quotation No. & Date", auto: sheet.header.quotation },
     ...(sheet.quote.hasPo ? [{ key: "po" as const, label: "Reference PO No. / Date", auto: sparePoAuto(sheet.quote) }] : []),
     { key: "subject", label: "Subject", auto: SPARE_DOC_SUBJECT },
+    { key: "greeting", label: "Greeting", auto: SPARE_DOC_GREETING },
     { key: "opening", label: "Opening line", auto: SPARE_DOC_OPENING },
     { key: "discount", label: "Discount %", auto: spareDiscountAuto(sheet.quote) },
     { key: "note", label: "Note", auto: sheet.quote.note },
@@ -917,7 +918,7 @@ function QuotePreview({
           <iframe title="Quotation for Spares" srcDoc={html} className="w-full flex-1 border-0 bg-white" />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-            <p className="text-[12.5px] text-fg-3">These edits are for this document only. The parts and prices on the quotation page, and the total sent to the client, don&apos;t change.</p>
+            <p className="text-[12.5px] text-fg-3">These edits are for this document only. The parts and prices on the quotation page, and the quotation total, don&apos;t change.</p>
             <section className="flex flex-col divide-y divide-line rounded-lg border border-line">
               {headerFields.map((f) => (
                 <label key={f.key} className="grid grid-cols-1 items-center gap-2 px-3 py-2 sm:grid-cols-[190px_minmax(0,1fr)]">

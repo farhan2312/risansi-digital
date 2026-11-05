@@ -3,11 +3,15 @@ import type { JWTPayload } from "jose";
 
 import { SHARED_COOKIE, sharedSessionPayload } from "@/lib/effective-role";
 import { sessionVerdict } from "@/lib/session-guard";
-import { REP_PAGES, isRepRole } from "@/lib/roles";
+import { OPERATION_PAGES, REP_PAGES, hasClientOperationDocs, isOperationRole, isRepRole } from "@/lib/roles";
 
 /** APIs a Rep / Rep Manager has no business with (outside their read-only
  *  Dashboard / Enquiries / Pump Selection / Reports): the client price pages. */
 const REP_BLOCKED_API = ["/api/client-quotes", "/api/client-price-refs"];
+
+/** All Operation can call: their documents, their session, and the top bar's bug
+ *  report and bell. Everything else is closed, so a new route stays closed to them. */
+const OPERATION_API = ["/api/operation-docs", "/api/auth", "/api/bug-reports"];
 
 /** Server-side gate for pages AND the API. Runs before any protected page is
  * served, so direct URL entry, client-side navigation, and the back button are
@@ -55,6 +59,9 @@ const PROTECTED_PREFIXES = [
   "/my-bug-reports",
   "/approvals",
   "/usd-inr",
+  "/pump-docs",
+  "/spare-docs",
+  "/client-operation-docs",
   "/admin",
 ];
 
@@ -132,6 +139,10 @@ async function guardApi(req: NextRequest, pathname: string) {
     return apiError("Not available for your role.", 403);
   }
 
+  if (isOperationRole(payload.role as string | undefined) && !OPERATION_API.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return apiError("Not available for your role.", 403);
+  }
+
   if (payload.mustChangePassword === true && !MUST_CHANGE_PASSWORD_API_PATHS.has(pathname)) {
     return apiError("Change your password before continuing.", 403);
   }
@@ -204,6 +215,20 @@ export async function middleware(req: NextRequest) {
     const allowed = REP_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
     return allowed ? NextResponse.next() : NextResponse.redirect(new URL("/dashboard", req.url));
   }
+  // Operation: Pump Docs and Spare Docs only; everything else goes to Pump Docs.
+  const onOperationPage = OPERATION_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (isOperationRole(role as string | undefined)) {
+    return onOperationPage ? NextResponse.next() : NextResponse.redirect(new URL("/pump-docs", req.url));
+  }
+  // Client Operation Docs replaces Reports for its roles; Operation's own pages are theirs.
+  const hasDocs = hasClientOperationDocs(role as string | undefined);
+  const isReports = pathname === "/selection-summary" || pathname.startsWith("/selection-summary/");
+  if (onOperationPage || (isReports && hasDocs)) {
+    return NextResponse.redirect(new URL(hasDocs ? "/client-operation-docs" : "/dashboard", req.url));
+  }
+  if ((pathname === "/client-operation-docs" || pathname.startsWith("/client-operation-docs/")) && !hasDocs) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
   const isAdminLevel = role === "admin" || role === "system_admin";
   // Approvals: selection heads and system admins (APPROVER_ROLES).
   if (pathname === "/approvals" || pathname.startsWith("/approvals/")) {
@@ -247,6 +272,9 @@ export const config = {
     "/client-prices/:path*",
     "/my-bug-reports/:path*",
     "/usd-inr/:path*",
+    "/pump-docs/:path*",
+    "/spare-docs/:path*",
+    "/client-operation-docs/:path*",
     "/approvals/:path*",
     "/admin/:path*",
   ],

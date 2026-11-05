@@ -18,7 +18,8 @@ export type SpareQuoteSheet = {
 };
 
 export const SPARE_DOC_SUBJECT = "Sub:- Supply of Risansi make pump spare parts.";
-export const SPARE_DOC_OPENING = "Dear Sir, We thankfully acknowledge having received your above enquiry and herewith submit our lowest possible quotation as follows:";
+export const SPARE_DOC_GREETING = "Dear Sir,";
+export const SPARE_DOC_OPENING = "We thankfully acknowledge having received your above enquiry and herewith submit our lowest possible quotation as follows:";
 const TITLE = "Quotation for Spares";
 const PO_HEADING = "Reference PO No. / Date";
 const HEADINGS = ["Sl. No.", "Description", "Model", PO_HEADING, "Part No.", "Qty/Unit", "Unit Cost (INR)", "Amount (INR)"];
@@ -97,6 +98,7 @@ function printed(sheet: SpareQuoteSheet) {
     count: models.reduce((s, m) => s + m.lines.length, 0),
     po: edits.po ?? sparePoAuto(sheet.quote),
     subject: edits.subject ?? SPARE_DOC_SUBJECT,
+    greeting: edits.greeting ?? SPARE_DOC_GREETING,
     opening: edits.opening ?? SPARE_DOC_OPENING,
     header: {
       ...header,
@@ -127,7 +129,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
           ...list.map((t, i) => `<tr class="term"><td>${i + 1}</td><td colspan="${cols - 1}">${esc(t)}</td></tr>`),
         ];
   const body = [
-    `<tr class="meta"><td colspan="${cols}">${esc(d.subject)}<br>${esc(d.opening)}</td></tr>`,
+    `<tr class="meta"><td colspan="${cols}">${esc(d.subject)}<br>${esc(d.greeting)}<br>${esc(d.opening)}</td></tr>`,
     `<tr class="band">${d.headings.map((h) => `<td>${esc(h)}</td>`).join("")}</tr>`,
     ...rows,
     ...(d.discountPct > 0
@@ -196,6 +198,7 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
   const rows: XlsxCell[][] = [
     ...sheetHeaderRows(TITLE, d.header, cols - 1),
     [{ value: d.subject, colSpan: cols, wrap: true }],
+    [{ value: d.greeting, colSpan: cols, wrap: true }],
     [{ value: d.opening, colSpan: cols, wrap: true }],
     d.headings.map((h) => ({ value: h, ...BAND })),
     ...d.models.flatMap((m) =>

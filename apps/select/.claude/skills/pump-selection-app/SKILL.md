@@ -956,7 +956,10 @@ never auto-filled from the AI result.
   the automatic status again returns to updating by itself. Automatic completion
   day: Technical = sent_to_operation_at (first send; old enquiries = last tag
   confirmed or quotation generated); Commercial = sent_to_client_at (first
-  send). A send clears a hand-set Pending / In Progress on its status.
+  send). A send clears a hand-set Pending / In Progress / Not Quoted on its status.
+  Both statuses can also be picked as Not Quoted or Sent to client (ENQUIRY_STATUSES; hand-picked only,
+  no date; user, 2026-11-05). They have their own counts on the workload cards and Dashboard. Sent to client
+  counts as done (versionReady: a new version can be made; non-PCP tags complete; Commercial's auto can complete).
   "status" in the list APIs = Technical status, so the
   Dashboard, Reports and the version rule all read Technical. In the filters a spare goes
   by commercialStatus alone: the Technical status filter picks only pumps (enquiryFilterSql),
@@ -1032,6 +1035,41 @@ never auto-filled from the AI result.
   (projects.prices_reviewed_at, PUT /api/commercial/reviewed), which covers Strainer,
   PRV and Other items. A new version resets the tick.
 
+## Review and Send to operation (user, 2026-11-05)
+- Review button on every enquiry row (components/projects/EnquiryReviewModal, not for reps; disabled for
+  anyone who can't work on it, so a worker reviews only their own). A toggle of the saved documents, no
+  edits: Technical (latest tech_doc_version.sheet), Commercial (client version's snapshot on this quotation
+  row), Techno-Commercial (those two), per drive group; a spare's quotation (live quote, which locks when
+  saved). lib/saved-docs-server loadSavedDocs builds them; components/projects/SavedDocsViewer shows them.
+- Mark as reviewed needs every sheet and quotation saved (GET/POST /api/projects/[id]/review, notSaved).
+  Send to operation then appears on the row and in the popup. projects.reviewed_at/_by and
+  released_to_operation_at/_by (NOT sent_to_operation_at, the Technical save). Nothing is e-mailed and no
+  status changes. Any Save Version clears all four (REVIEW_CLEARED), which also takes it off Operation's list
+  until it is sent again; a new version starts without them, and the older version's send stays.
+- Role **operation** (migrations/identity/0014, applied; granted at the hub): sidebar Pump Docs and Spare Docs
+  only (/pump-docs, /spare-docs, screens/operation-docs). middleware closes every other page and API
+  (OPERATION_API); GET /api/operation-docs lists sent enquiries, /api/operation-docs/[id] gives one sent
+  version's docs. Read and print only.
+- **Client Operation Docs** (/client-operation-docs, same screen, user 2026-11-05) replaces Reports for
+  system_admin, admin, user_master, user_worker and legacy user (CLIENT_OPERATION_DOCS_ROLES): the same list,
+  with toggles Pump Docs / Spare Docs and All enquiries / Created by me (mine=1: V0's created_by). middleware
+  sends their /selection-summary here. Reps, selection heads and pulley owners keep Reports.
+- All three are one table (screens/operation-docs, user 2026-11-05), one row per sent version: Enq No./Date, Quotation No./Date (as the saved
+  document prints it, typed erpText first; one per drive group), Client Name/Code, Reps/Zone, Reviewed by, Sent to Operation/Date, then Technical, Commercial, Techno-Commercial (a spare:
+  Quotation) and Mailed. Mailed: only Operation can press it, with a confirm (POST /api/operation-docs/[id]/mailed;
+  projects.mailed_at/_by; it only records, no e-mail, no undo); others see Mailed / Not mailed. REVIEW_CLEARED clears it.
+
+## No version with the enquiry no. (user, 2026-11-05)
+- The enquiry isn't versioned to the user, the quotation is, and its version is typed by hand in the quotation no.
+  (".../PCP/1864_V1"; the system adds nothing). NEVER show a version beside the enquiry no.: not on documents, page
+  headings, popup titles or audit details. Fine in a status (Technical V1), on Save Version and on View docs V1.
+
+## Save Version (user, 2026-11-05)
+- The button is "Save Version Vn" on the Technical Data Sheet (Vn = version_no), pump commercials and the
+  spare quotation (Vn = commercial_version_no), "Version Vn saved" when nothing has changed. The behaviour
+  below is unchanged; only the wording moved, so code names (send, sent_to_client_at, sent_to_operation_at,
+  sendQuotationToClient, tech_doc.send, quotation.send) and older notes in this file still say send.
+
 ## Pump Send to operation (user, 2026-11-05)
 - A pump's commercial "Send to client" is now "Send to operation" (POST /quotations/[id]/send;
   projects.sent_to_client_at keeps its name and still completes the Commercial status). Spares
@@ -1101,5 +1139,5 @@ never auto-filled from the AI result.
   2026-11-03). The Commercial page's Scope card still saves on change.
 - The enquiry no. never carries the version on screen or on documents (user,
   2026-11-04). It shows on the status: "Technical V1" / "Commercial V0" on the Enquiries
-  list, V1 beside Reports' status, Commercial page subtitle. `enquiryNoWithVersion`
-  (lib/roles.ts) is only for audit details.
+  list and V1 beside Reports' status. Not in page headings or audit details either
+  (user, 2026-11-05).

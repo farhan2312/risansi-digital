@@ -38,7 +38,7 @@ const BottomNav = () => {
 
   const adminLinks = adminLinksFor(user?.role);
   // Their own bug reports (read-only) — system admins have the Bug Tracker.
-  const helpLinks = user && user.role !== "system_admin" ? MY_BUG_LINKS : [];
+  const helpLinks = user && user.role !== "system_admin" && user.role !== "operation" ? MY_BUG_LINKS : [];
 
   // Close the sheet on navigation — otherwise it stays over the new page.
   useEffect(() => {

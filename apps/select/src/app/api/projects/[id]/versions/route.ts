@@ -7,9 +7,9 @@ import { AuthError, decodeToken, requireEnquiryManager } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
 import { findAssignee, viewDenied } from "@/lib/enquiry-access";
+import { versionReady } from "@/lib/enquiry-filters";
 import { enquiryStatusColumns, enquiryStatusFields, enquiryStatusSql } from "@/lib/enquiry-filters-server";
 import { RevisionError, createRevision } from "@/lib/enquiry-revision";
-import { enquiryNoWithVersions } from "@/lib/roles";
 
 const assignee = alias(users, "assignee");
 
@@ -69,7 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!found) return error("Project not found", 404);
   const { source, status } = found;
   if (!source.isLatest) return error("Only the latest version of an enquiry can be revised.", 409);
-  if (status !== "Completed") return error("The Technical status of the latest version has to be Completed before it can be revised.", 409);
+  if (!versionReady(status)) return error("The Technical status of the latest version has to be Completed before it can be revised.", 409);
 
   const enquiryDate = String(body.enquiryDate ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(enquiryDate) || Number.isNaN(Date.parse(`${enquiryDate}T00:00:00Z`))) {
@@ -95,7 +95,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     action: "enquiry.revise",
     entity: "projects",
     entityId: created.id,
-    detail: `${enquiryNoWithVersions(source.projectCode, created.versionNo, created.commercialVersionNo)} created from V${source.versionNo}, assigned to ${target.name || target.email}${note ? ` - ${note.slice(0, 300)}` : ""}`,
+    detail: `${source.projectCode}: new version created, assigned to ${target.name || target.email}${note ? ` - ${note.slice(0, 300)}` : ""}`,
   });
   return json(projectToDict(created, null, target.name), 201);
 }

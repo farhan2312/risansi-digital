@@ -22,6 +22,11 @@ const STATUS_STYLE: Record<string, { pill: string; dot: string; color: string }>
   Pending: { pill: "bg-[var(--warn-soft)] text-warn", dot: "bg-warn", color: "var(--warn)" },
   "In Progress": { pill: "bg-accent-soft text-accent", dot: "bg-[var(--brand-blue)]", color: "var(--brand-blue)" },
   Completed: { pill: "bg-[var(--pos-soft)] text-pos", dot: "bg-pos", color: "var(--pos)" },
+  "Sent to client": {
+    pill: "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[color-mix(in_srgb,var(--brand-cyan)_65%,var(--fg))]",
+    dot: "bg-[var(--brand-cyan)]",
+    color: "var(--brand-cyan)",
+  },
 };
 const statusStyle = (s: string) => STATUS_STYLE[s] ?? { pill: "bg-sunk text-fg-2", dot: "bg-fg-4", color: "var(--fg-4)" };
 
@@ -370,9 +375,9 @@ const DashboardPage = () => {
       {/* Everything below the filters dims while a reload (scope / period) is loading. */}
       <div className={`transition-opacity ${isLoading && data ? "pointer-events-none opacity-60" : ""}`} aria-busy={isLoading || undefined}>
       {/* KPIs */}
-      <div className={`mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${isSpare ? "xl:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-5"}`}>
+      <div className={`mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${isSpare ? "lg:grid-cols-3" : "lg:grid-cols-3 xl:grid-cols-5"}`}>
         {isLoading && !data
-          ? Array.from({ length: isSpare ? 4 : 5 }, (_, i) => <div key={i} className="h-[124px] animate-pulse rounded-xl border border-line bg-paper" />)
+          ? Array.from({ length: isSpare ? 6 : 5 }, (_, i) => <div key={i} className="h-[124px] animate-pulse rounded-xl border border-line bg-paper" />)
           : k &&
             (isSpare ? (
               <>
@@ -387,6 +392,8 @@ const DashboardPage = () => {
                     ["Pending", "Pending", Icons.clock, "bg-[var(--warn-soft)] text-warn"],
                     ["In progress", "In Progress", Icons.activity, "bg-accent-soft text-accent"],
                     ["Completed", "Completed", Icons.check, "bg-[var(--pos-soft)] text-pos"],
+                    ["Sent to client", "Sent to client", Icons.file, "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[color-mix(in_srgb,var(--brand-cyan)_65%,var(--fg))]"],
+                    ["Not quoted", "Not Quoted", Icons.alert, "bg-sunk text-fg-2"],
                   ] as const
                 ).map(([label, status, icon, tone]) => (
                   <KpiSplit
@@ -517,7 +524,7 @@ const DashboardPage = () => {
                 <DonutChart
                   items={data.enquiryStatus}
                   centerLabel="enquiries"
-                  colors={{ Pending: "var(--warn)", "In Progress": "var(--brand-blue)", Completed: "var(--pos)" }}
+                  colors={{ Pending: "var(--warn)", "In Progress": "var(--brand-blue)", Completed: "var(--pos)", "Sent to client": "var(--brand-cyan)", "Not Quoted": "var(--fg-4)" }}
                 />
               </Card>
             ) : (

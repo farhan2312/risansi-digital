@@ -1,4 +1,5 @@
 import apiClient from "./apiClient";
+import type { SavedDocs } from "../lib/saved-docs";
 import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
 import { filterParams, type EnquiryFilters } from "../lib/enquiry-filters";
@@ -35,6 +36,9 @@ export interface ProjectRecord {
    *  tag has a P&A price and the quotations are sent to the client, or what was
    *  picked on the Edit form. */
   commercial_status?: string;
+  /** Review: the saved versions were looked over, then sent to operation. */
+  reviewed_at: string | null;
+  released_to_operation_at: string | null;
   /** Changed on the Edit form; null = updating by itself. */
   technical_status_override: string | null;
   commercial_status_override: string | null;
@@ -243,5 +247,20 @@ export const assignProject = async (
   assignedTo: string,
 ): Promise<{ assigned_to: string; assigned_to_name: string | null }> => {
   const { data } = await apiClient.post(`/projects/${id}/assign`, { assignedTo });
+  return data;
+};
+
+/** The saved documents, and what still needs Save Version before this enquiry can be reviewed (or null). */
+export const getReviewState = async (projectId: string): Promise<{ missing: string | null; docs: SavedDocs }> => {
+  const { data } = await apiClient.get<{ missing: string | null; docs: SavedDocs }>(`/projects/${projectId}/review`);
+  return data;
+};
+
+/** Marks the saved versions as reviewed, then records them as sent to operation. */
+export const reviewEnquiry = async (
+  projectId: string,
+  action: "reviewed" | "send",
+): Promise<Pick<ProjectRecord, "reviewed_at" | "released_to_operation_at">> => {
+  const { data } = await apiClient.post(`/projects/${projectId}/review`, { action });
   return data;
 };

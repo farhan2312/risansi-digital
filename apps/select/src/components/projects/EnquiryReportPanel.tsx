@@ -8,7 +8,10 @@ import {
   downloadEnquiryReportExcel,
   enquiryReportRows,
   reportCell,
+  sortReportRows,
   type EnquiryReportRow,
+  type ReportSortBy,
+  type ReportSortDir,
 } from "../../lib/enquiry-report";
 import { printHtml } from "../../lib/enquiry-print";
 import { listProjectsReport, type ProjectListQuery } from "../../services/projectService";
@@ -16,7 +19,8 @@ import { listTsmOptions } from "../../services/quotationService";
 
 // The User Master's report on the Enquiries page: the list as filtered, every page,
 // in a panel that opens and closes. PDF view (what prints) or Excel view (what
-// downloads), zoomed or fitted to the panel's width.
+// downloads), zoomed or fitted to the panel's width, sorted by assign person or
+// enquiry date if picked; both print and download in that order.
 
 const ZOOM_STEP = 0.1;
 const ZOOM_MIN = 0.4;
@@ -32,7 +36,10 @@ const zoomBtn = "inline-flex h-7 w-7 items-center justify-center rounded-md text
 export default function EnquiryReportPanel({ query, scope }: { query: ProjectListQuery; scope: string }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"pdf" | "excel">("pdf");
-  const [rows, setRows] = useState<EnquiryReportRow[] | null>(null);
+  const [loaded, setLoaded] = useState<EnquiryReportRow[] | null>(null);
+  const [sortBy, setSortBy] = useState<ReportSortBy>("list");
+  const [sortDir, setSortDir] = useState<ReportSortDir>("asc");
+  const rows = useMemo(() => (loaded ? sortReportRows(loaded, sortBy, sortDir) : null), [loaded, sortBy, sortDir]);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // "fit" follows the panel's width; a number is a zoom the viewer chose.
@@ -49,7 +56,7 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
     Promise.all([listProjectsReport(query), listTsmOptions().catch(() => [])])
       .then(([projects, reps]) => {
         if (!live) return;
-        setRows(enquiryReportRows(projects, reps));
+        setLoaded(enquiryReportRows(projects, reps));
         setLoadedFor(key);
         setError(null);
       })
@@ -96,6 +103,34 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
 
         {open && rows && (
           <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center rounded-lg border border-line bg-sunk p-0.5" role="group" aria-label="Sort">
+              <span className="px-2 text-[12px] font-semibold text-fg-3">Sort</span>
+              {(
+                [
+                  ["list", "List order", "asc"],
+                  ["assignee", "Assign Person", "asc"],
+                  ["date", "Enquiry Date", "desc"],
+                ] as const
+              ).map(([by, label, firstDir]) => (
+                <button
+                  key={by}
+                  type="button"
+                  aria-pressed={sortBy === by}
+                  onClick={() => {
+                    setSortBy(by);
+                    setSortDir(firstDir);
+                  }}
+                  className={`rounded-md px-3 py-1 text-[12px] font-semibold ${sortBy === by ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {sortBy !== "list" && (
+              <button type="button" className={btn} onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Reverse the order">
+                {sortBy === "assignee" ? (sortDir === "asc" ? "A to Z" : "Z to A") : sortDir === "desc" ? "Newest first" : "Oldest first"}
+              </button>
+            )}
             <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="group" aria-label="View">
               {(
                 [

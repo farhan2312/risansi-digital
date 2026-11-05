@@ -12,6 +12,8 @@ const STATUS = [
   { key: "pending", label: "Pending", color: "var(--warn)" },
   { key: "inProgress", label: "In progress", color: "var(--brand-blue)" },
   { key: "completed", label: "Completed", color: "var(--pos)" },
+  { key: "sentToClient", label: "Sent to client", color: "var(--brand-cyan)" },
+  { key: "notQuoted", label: "Not quoted", color: "var(--fg-4)" },
 ] as const;
 
 const NOT_SET = "Not set";
