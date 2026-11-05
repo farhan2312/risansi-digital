@@ -962,7 +962,7 @@ never auto-filled from the AI result.
   counts as done (versionReady: a new version can be made; non-PCP tags complete; Commercial's auto can complete).
   "status" in the list APIs = Technical status, so the
   Dashboard, Reports and the version rule all read Technical. In the filters a spare goes
-  by commercialStatus alone: the Technical status filter picks only pumps (enquiryFilterSql),
+  by commercialStatus alone: the Technical status filter picks only pumps, but with a Commercial status picked too spares are kept and go by that (enquiryFilterSql),
   and Spare view's one "Status" dropdown is commercialStatus. The workload cards
   (AssigneeKpis, /api/projects/assignee-stats) split by order type: Pump = Technical,
   Commercial; Spare = its one status; no tag counts (user, 2026-11-05). The Dashboard is always Pump or Spare
