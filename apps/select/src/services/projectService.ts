@@ -2,7 +2,7 @@ import apiClient from "./apiClient";
 import type { SavedDocs } from "../lib/saved-docs";
 import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
-import { filterParams, type EnquiryFilters } from "../lib/enquiry-filters";
+import { filterParams, type EnquiryFilters, sortParam, type EnquirySort } from "../lib/enquiry-filters";
 
 // Matches projectToDict() in lib/api.ts — raw snake_case columns plus the
 // joined creator display name.
@@ -103,6 +103,8 @@ export type ProjectListQuery = {
   filters?: EnquiryFilters;
   /** Rep Manager: one of their reps (a sales user id); empty = the team. */
   rep?: string;
+  /** Column sorts, in order of priority; none = newest created first. */
+  sort?: EnquirySort;
 };
 
 const listParams = (query: ProjectListQuery) => ({
@@ -114,6 +116,7 @@ const listParams = (query: ProjectListQuery) => ({
   mine: query.mine ? "1" : undefined,
   ...filterParams(query.filters),
   rep: query.rep || undefined,
+  sort: sortParam(query.sort),
 });
 
 export const listProjectsPage = async (query: ProjectListQuery & { page: number; pageSize?: number }): Promise<ProjectPage> => {

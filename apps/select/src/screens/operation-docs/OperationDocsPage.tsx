@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Segmented } from "../admin/audit/auditUi";
+import { MultiSelect } from "../../components/projects/EnquiryFilterBar";
+import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
 import SavedDocsViewer, { type SavedDocKind } from "../../components/projects/SavedDocsViewer";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import PageHeader from "../../components/ui/PageHeader";
@@ -20,14 +22,28 @@ import { getOperationDocs, listOperationDocs, markOperationDocMailed } from "../
 
 type DocType = "pump" | "spare";
 
+/** The dropdown filters, each matching any of its picks. */
+type Picks = { subtype: string[]; zone: string[]; rep: string[]; market: string[]; reviewer: string[]; sender: string[] };
+const NO_PICKS: Picks = { subtype: [], zone: [], rep: [], market: [], reviewer: [], sender: [] };
+
+/** Primary and secondary reps ("A, B" is stored as one text). */
+const repsOf = (r: OperationDoc): string[] => [r.primaryRep ?? "", ...(r.secondaryReps ?? "").split(",")].map((x) => x.trim()).filter(Boolean);
+const uniqueSorted = (values: (string | null)[]): string[] =>
+  [...new Set(values.map((v) => (v ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 /** An enquiry date (YYYY-MM-DD), read as that day wherever the browser is. */
 const fmtDate = (ymd: string | null) => (ymd ? fmtDay(`${ymd}T00:00:00`) : "—");
 
-/** "RIL/QT/AA/26-27/PCP/1864_V1, Dt. 05.11.2026" as its no. and date; typed ones vary. */
+/** "RIL/QT/AA/26-27/PCP/1864_V1, Dt. 05.11.2026" (the document's "Quotation No. & Date"
+ *  line) as its no. and date, the date shown like the enquiry's. Typed lines vary: a date
+ *  that doesn't read as one is shown as typed. */
 const splitQuotationLine = (line: string): { no: string; date: string } => {
-  const m = line.match(/^(.*?)[s,_]*Dt.?s*(.*)$/i);
-  return m ? { no: m[1], date: m[2] } : { no: line, date: "" };
+  const m = line.match(/^(.*?)[\s,_]*\bDt\b\.?\s*(.*)$/i);
+  if (!m) return { no: line, date: "" };
+  const d = m[2].match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  const ok = d && Number(d[1]) >= 1 && Number(d[1]) <= 31 && Number(d[2]) >= 1 && Number(d[2]) <= 12;
+  return { no: m[1], date: ok ? fmtDate(`${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}`) : m[2] };
 };
 
 const DocsIcon = () => (
@@ -111,6 +127,18 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
   const [rows, setRows] = useState<OperationDoc[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [search, setSearch] = useState("");
+  const [picks, setPicks] = useState<Picks>(NO_PICKS);
+  const [mailedFilter, setMailedFilter] = useState<"all" | "mailed" | "not">("all");
+  // By the day it was sent to operation.
+  const dates = useDateRange("all");
+  const pick = (key: keyof Picks) => (next: string[]) => setPicks((p) => ({ ...p, [key]: next }));
+  const filtering = search.trim() !== "" || Object.values(picks).some((v) => v.length > 0) || mailedFilter !== "all" || dates.active;
+  const clearFilters = () => {
+    setSearch("");
+    setPicks(NO_PICKS);
+    setMailedFilter("all");
+    dates.reset();
+  };
   const [opened, setOpened] = useState<Opened | null>(null);
   const [mailing, setMailing] = useState<OperationDoc | null>(null);
   const [busy, setBusy] = useState(false);
@@ -130,13 +158,39 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
     };
   }, [type, mine]);
 
+  // Each dropdown offers what the list has.
+  const options = useMemo(() => {
+    const list = rows ?? [];
+    return {
+      subtype: uniqueSorted(list.map((r) => r.subtype)),
+      zone: uniqueSorted(list.map((r) => r.zone)),
+      rep: uniqueSorted(list.flatMap(repsOf)),
+      market: uniqueSorted(list.map((r) => r.market)),
+      reviewer: uniqueSorted(list.map((r) => r.reviewedByName)),
+      sender: uniqueSorted(list.map((r) => r.sentByName)),
+    };
+  }, [rows]);
+
   const shown = useMemo(() => {
     const words = search.toLowerCase().split(/\s+/).filter(Boolean);
+    const one = (picked: string[], v: string | null) => picked.length === 0 || picked.includes((v ?? "").trim());
+    const { from, to } = dates.window;
     return (rows ?? []).filter((r) => {
-      const text = `${r.projectCode} ${r.quotations.join(" ")} ${r.clientName} ${r.clientCode ?? ""} ${r.primaryRep ?? ""} ${r.secondaryReps ?? ""} ${r.zone ?? ""}`.toLowerCase();
-      return words.every((w) => text.includes(w));
+      const text = `${r.projectCode} V${r.version} ${r.quotations.join(" ")} ${r.clientName} ${r.clientCode ?? ""} ${r.primaryRep ?? ""} ${r.secondaryReps ?? ""} ${r.zone ?? ""}`.toLowerCase();
+      return (
+        words.every((w) => text.includes(w)) &&
+        one(picks.subtype, r.subtype) &&
+        one(picks.zone, r.zone) &&
+        one(picks.market, r.market) &&
+        one(picks.reviewer, r.reviewedByName) &&
+        one(picks.sender, r.sentByName) &&
+        (picks.rep.length === 0 || repsOf(r).some((x) => picks.rep.includes(x))) &&
+        (mailedFilter === "all" || (mailedFilter === "mailed") === Boolean(r.mailedAt)) &&
+        (!from || r.sentAt >= from) &&
+        (!to || r.sentAt <= to)
+      );
     });
-  }, [rows, search]);
+  }, [rows, search, picks, mailedFilter, dates.window]);
 
   const confirmMailed = async () => {
     if (!mailing) return;
@@ -166,17 +220,22 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search enquiry, quotation, client, rep or zone"
-            aria-label="Search enquiry, quotation, client, rep or zone"
+            placeholder="Search enquiry, quotation no., client, rep or zone"
+            aria-label="Search enquiry, quotation no., client, rep or zone"
             className="h-9 w-[320px] max-w-full rounded-lg border border-line bg-paper px-3 text-[13px] text-fg outline-none focus:border-accent"
           />
         }
       >
+        <div className="flex flex-col gap-2.5">
         {!fixedType && (
           <div className="flex flex-wrap items-center gap-2">
             <Segmented
               value={pickedType}
-              onChange={setPickedType}
+              onChange={(t) => {
+                setPickedType(t);
+                // Pump and spare types differ.
+                setPicks((p) => ({ ...p, subtype: [] }));
+              }}
               options={[
                 { key: "pump", label: "Pump Docs" },
                 { key: "spare", label: "Spare Docs" },
@@ -192,6 +251,37 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
             />
           </div>
         )}
+        <div className="flex flex-wrap items-center gap-2">
+          <MultiSelect label={type === "pump" ? "Pump type" : "Spare type"} options={options.subtype} value={picks.subtype} onChange={pick("subtype")} />
+          <MultiSelect label="Rep" options={options.rep} value={picks.rep} onChange={pick("rep")} />
+          <MultiSelect label="Zone" options={options.zone} value={picks.zone} onChange={pick("zone")} />
+          <MultiSelect label="Market" options={options.market} value={picks.market} onChange={pick("market")} />
+          <MultiSelect label="Reviewed by" options={options.reviewer} value={picks.reviewer} onChange={pick("reviewer")} />
+          <MultiSelect label="Sent by" options={options.sender} value={picks.sender} onChange={pick("sender")} />
+          <Segmented
+            value={mailedFilter}
+            onChange={setMailedFilter}
+            options={[
+              { key: "all", label: "All" },
+              { key: "mailed", label: "Mailed" },
+              { key: "not", label: "Not mailed" },
+            ]}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <DateRangeFilter state={dates} fromLabel="Sent from" toLabel="Sent to" />
+          {rows !== null && (
+            <span className="text-[12px] text-fg-3">
+              {filtering ? `${shown.length} of ${rows.length}` : rows.length} version{rows.length === 1 ? "" : "s"}
+            </span>
+          )}
+          {filtering && (
+            <button type="button" onClick={clearFilters} className="rounded-md px-2 py-1 text-[12.5px] font-semibold text-accent hover:bg-accent-soft">
+              Clear filters
+            </button>
+          )}
+        </div>
+        </div>
       </PageHeader>
 
       {mailError && <p className="mt-3 rounded-lg bg-[var(--neg-soft)] px-4 py-2.5 text-[13px] font-medium text-neg">{mailError}</p>}
@@ -201,14 +291,15 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
         {!failed && rows === null && <p className="px-4 py-8 text-center text-[13px] text-fg-3">Loading…</p>}
         {rows !== null && shown.length === 0 && (
           <p className="px-4 py-8 text-center text-[13px] text-fg-3">
-            {rows.length > 0 ? "No enquiry matches that search." : mine ? "Nothing you created has been sent to operation yet." : "Nothing has been sent to operation yet."}
+            {rows.length > 0 ? "No enquiry matches these filters." : mine ? "Nothing you created has been sent to operation yet." : "Nothing has been sent to operation yet."}
           </p>
         )}
         {shown.length > 0 && (
-          <table className="w-full min-w-[1300px] border-collapse">
+          <table className="w-full min-w-[1380px] border-collapse">
             <thead className="border-b border-line bg-sunk">
               <tr>
                 <th className={th}>Enq No. / Date</th>
+                <th className={th}>Version</th>
                 <th className={th}>Quotation No. / Date</th>
                 <th className={th}>Client Name / Code</th>
                 <th className={th}>Reps / Zone</th>
@@ -229,6 +320,10 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
                   <tr key={r.id}>
                     <td className={td}>
                       <TwoLines top={<span className="font-mono font-semibold break-all">{r.projectCode}</span>} below={fmtDate(r.enquiryDate)} />
+                    </td>
+                    {/* Its own column: a version never goes beside the enquiry no. */}
+                    <td className={td}>
+                      <span className="font-mono text-[12.5px] font-semibold text-fg">V{r.version}</span>
                     </td>
                     <td className={td}>
                       {r.quotations.length === 0 && <span className="text-[12.5px] text-fg-4">—</span>}
@@ -265,7 +360,7 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
                             aria-label={`${c.label} V${r.version} of ${r.projectCode}`}
                             className="rounded-lg border border-line bg-paper px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap text-fg-2 hover:border-accent hover:text-accent"
                           >
-                            View V{r.version}
+                            View
                           </button>
                         )}
                       </td>
