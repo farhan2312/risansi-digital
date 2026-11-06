@@ -5042,6 +5042,9 @@ export async function listOrdersForOrderMaking(opts: {
       ? `o.${f.sort.replace("-", "")} ${dir} NULLS LAST, o.sl_no DESC`
       : f.sort === "ecs" || f.sort === "-ecs"
         ? `(SELECT count(*) FROM order_items i WHERE i.order_id = o.id) ${dir}, o.sl_no DESC`
+      : f.sort === "assignee" || f.sort === "-assignee"
+        ? // By the member's name; unassigned SOs last either way.
+          `(SELECT lower(COALESCE(NULLIF(btrim(su.full_name), ''), su.email)) FROM users su WHERE su.id = o.so_assignee_id) ${dir} NULLS LAST, o.sl_no DESC`
       : f.sort === "sl"
         ? "o.sl_no ASC"
         : "o.sl_no DESC";

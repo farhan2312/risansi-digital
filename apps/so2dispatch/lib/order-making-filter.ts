@@ -26,13 +26,15 @@ export const OM_DATE_FIELDS = [
 ] as const;
 export type OmDateField = (typeof OM_DATE_FIELDS)[number]["value"];
 
-/** Sl. No., SO date or number of ECs, either way ("-" = latest / most first). Default: newest Sl. No. first. */
+/** Sl. No., SO date, number of ECs or who it is assigned to (by name), either way ("-" = latest / most first). Default: newest Sl. No. first. */
 export type OmSort =
   | "sl" | "-sl" | "so_date" | "-so_date" | "ecs" | "-ecs"
-  | "po_received_date" | "-po_received_date" | "ec_sent_operation_date" | "-ec_sent_operation_date";
+  | "po_received_date" | "-po_received_date" | "ec_sent_operation_date" | "-ec_sent_operation_date"
+  | "assignee" | "-assignee";
 const SORTS: OmSort[] = [
   "sl", "-sl", "so_date", "-so_date", "ecs", "-ecs",
   "po_received_date", "-po_received_date", "ec_sent_operation_date", "-ec_sent_operation_date",
+  "assignee", "-assignee",
 ];
 
 export type OrderMakingFilter = {
