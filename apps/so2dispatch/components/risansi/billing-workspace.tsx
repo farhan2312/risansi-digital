@@ -299,7 +299,7 @@ export function BillingWorkspace({
                         <td className="px-4 py-3 whitespace-nowrap">
                           {cvHeld(row) ? (
                             <HoldChip />
-                          ) : ["Pending", "Partially raised"].includes((row.billing_state ?? "").trim() || "Pending") ? (
+                          ) : ["Pending", "Readiness date awaited", "Partially raised"].includes((row.billing_state ?? "").trim() || "Pending") ? (
                             // Still a PI to raise: why, with remarks.
                             <PendencyCell
                               orderId={String(row.id)}

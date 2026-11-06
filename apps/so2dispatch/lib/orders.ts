@@ -36,6 +36,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
   NOT_APPLICABLE,
   NOT_AT_DISPATCH,
   PENDING,
+  READINESS_AWAITED,
   statusesFor,
   type DeptFilterKey,
 } from "@/lib/dept-status";
@@ -3044,7 +3045,7 @@ export async function listOrdersForBilling(
               WHERE ri.order_id = o.id) AS readiness_to,
             (SELECT CASE WHEN count(DISTINCT st) = 1 AND count(st) = count(*) THEN max(st) END
                FROM (SELECT COALESCE(NULLIF(rp.actual_spare_status, ''), NULLIF(rp.actual_pump_status, ''),
-                                     NULLIF(rp.planning_status, '')) AS st
+                                     NULLIF(rp.planning_status, ''), 'Date awaited') AS st
                        FROM order_items ri LEFT JOIN order_planning rp ON rp.item_id = ri.id
                       WHERE ri.order_id = o.id) s) AS readiness_status,
             COALESCE((SELECT jsonb_agg((to_jsonb(inv) - 'lr_file_data') || jsonb_build_object(
@@ -3216,9 +3217,10 @@ const BILLING_RAISED = `(EXISTS (SELECT 1 FROM order_billing_docs d
  *   N/A               every term line is After Receipt — no PI is due
  * After Receipt lines are not counted. An SO with no term lines yet reads
  * Fully raised once any PI has a number, else Pending. A Challan order is
- * Challan filed once its challan has a number.
+ * Challan filed once its challan has a number. A Pending SO whose Planning
+ * status is Date awaited (no readiness date yet) reads Readiness date awaited.
  */
-export const BILLING_STATE = `(CASE
+const PI_RAISE_STATE = `(CASE
     WHEN btrim(COALESCE(o.bill_type, '')) = 'Challan' THEN
       CASE WHEN EXISTS (SELECT 1 FROM order_billing bl WHERE bl.order_id = o.id AND COALESCE(bl.challan_no, '') <> '')
            THEN 'Challan filed' ELSE 'Pending' END
@@ -3236,6 +3238,17 @@ export const BILLING_STATE = `(CASE
                    AND EXISTS (SELECT 1 FROM order_billing_docs d
                                 WHERE d.payment_term_id = bt.id AND COALESCE(d.pi_no, '') <> '')) THEN 'Partially raised'
     ELSE 'Pending' END)`;
+
+export const BILLING_STATE = `(CASE
+    WHEN btrim(COALESCE(o.bill_type, '')) <> 'Challan'
+     AND ${PI_RAISE_STATE} = 'Pending'
+     AND EXISTS (SELECT 1 FROM order_items bi WHERE bi.order_id = o.id)
+     AND COALESCE((SELECT NULLIF(bpl.actual_spare_status, '')
+                     FROM order_items bs JOIN order_planning bpl ON bpl.item_id = bs.id
+                    WHERE bs.order_id = o.id AND NULLIF(bpl.actual_spare_status, '') IS NOT NULL
+                    ORDER BY bs.seq NULLS LAST LIMIT 1), 'Date awaited') = 'Date awaited'
+    THEN 'Readiness date awaited'
+    ELSE ${PI_RAISE_STATE} END)`;
 
 // ---------------------------------------------------------------------------
 // Master SO list
@@ -4639,6 +4652,7 @@ export function pumpOrderCards(): KpiCardDef[] {
     card("Proforma Invoice", "pi_full", "PI raised", deptStatusPredicate("billing", "Fully raised"), "done"),
     card("Proforma Invoice", "pi_part", "PI partial", deptStatusPredicate("billing", "Partially raised"), "part"),
     card("Proforma Invoice", "pi_pending", "PI pending", deptStatusPredicate("billing", PENDING), "pending"),
+    card("Proforma Invoice", "pi_ready_awaited", "Readiness date awaited", deptStatusPredicate("billing", READINESS_AWAITED), "pending"),
     card("Drawing", "drg_open", "Drawing open", drgOpen, "pending"),
     card("Drawing", "drg_closed", "Drawing closed", `${pumps("TRUE")} AND NOT ${drgOpen}`, "done"),
     card("Purchase", "boi_open", "BOI open", `o.boi = 'Yes' AND ${soPurchaseStateSql("o")} = 'Open'`, "pending"),
@@ -4727,6 +4741,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
     card("Proforma Invoice", "billing", "Fully raised", "PI raised"),
     card("Proforma Invoice", "billing", "Partially raised", "PI partial"),
     card("Proforma Invoice", "billing", PENDING, "PI pending"),
+    card("Proforma Invoice", "billing", READINESS_AWAITED, "Readiness date awaited"),
     card("Planning", "planning", "Date awaited", "Date awaited"),
     card("Planning", "planning", "In plan", "In plan"),
     card("Planning", "planning", "Partial ready", "Partly ready"),
@@ -5616,7 +5631,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
           ? NA
           : head.billing_state === "Fully raised" || head.billing_state === "Challan filed"
             ? done(head.billing_state)
-            : pending(head.billing_state === "Partially raised" ? "Partially raised" : undefined),
+            : pending(head.billing_state === "Partially raised" || head.billing_state === READINESS_AWAITED ? head.billing_state : undefined),
       // Accounts is skipped for Challan orders (no A/R), matching the workspace.
       accounts: isChallan || paidAfterReceipt
         ? NA
