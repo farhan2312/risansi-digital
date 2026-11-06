@@ -185,6 +185,7 @@ export default function EnquiryFilterBar({
   );
 
   const onlySpares = value.orderType?.length === 1 && value.orderType[0] === "Spare";
+  const onlyPumps = value.orderType?.length === 1 && value.orderType[0] === "Pump";
   // Clear leaves a required order type where it is.
   const kept = orderTypeRequired ? { orderType: value.orderType } : {};
 
@@ -224,11 +225,12 @@ export default function EnquiryFilterBar({
               role="radio"
               aria-checked={on}
               onClick={() =>
-                // Spares only: the Technical status filter leaves with its dropdown.
+                // The other type's status filters leave with their dropdowns.
                 onChange({
                   ...value,
                   orderType: label === "All" ? undefined : [label],
-                  ...(label === "Spare" ? { status: undefined } : {}),
+                  ...(label === "Spare" ? { status: undefined, commercialStatus: undefined } : {}),
+                  ...(label === "Pump" ? { spareStatus: undefined } : {}),
                   // The other type's dropdown is gone, so its picks would match nothing.
                   ...(orderTypeRequired ? (label === "Spare" ? { pumpType: undefined } : { spareType: undefined }) : {}),
                 })
@@ -247,9 +249,10 @@ export default function EnquiryFilterBar({
       {multi("zone", "Zone", opts?.zones)}
       {multi("market", "Market", opts?.markets)}
       {multi("industry", "Industry", opts?.industries)}
-      {/* A spare's one status is its Commercial one; Technical picks only pumps. */}
+      {/* Pumps and spares filter by status independently. */}
       {!onlySpares && multi("status", "Technical status", ENQUIRY_STATUSES)}
-      {multi("commercialStatus", onlySpares ? "Status" : "Commercial status", ENQUIRY_STATUSES)}
+      {!onlySpares && multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}
+      {!onlyPumps && multi("spareStatus", onlySpares ? "Status" : "Spare status", ENQUIRY_STATUSES)}
       {hasEnquiryFilters({ ...value, orderType: orderTypeRequired ? undefined : value.orderType }) && (
         <button
           type="button"

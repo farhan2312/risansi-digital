@@ -18,13 +18,15 @@ export type EnquiryFilters = {
   zone?: string[];
   market?: string[];
   industry?: string[];
-  /** The Technical status: pumps only, a spare has none. */
+  /** A pump's Technical status. */
   status?: string[];
-  /** The Commercial status, which is a spare's one status. */
+  /** A pump's Commercial status. */
   commercialStatus?: string[];
+  /** A spare's one status, independent of the pump ones (user, 2026-11-06). */
+  spareStatus?: string[];
 };
 
-export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus"] as const;
+export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus", "spareStatus"] as const;
 export type MultiFilterKey = (typeof MULTI_FILTER_KEYS)[number];
 
 /** Not Quoted and Sent to client are only ever picked by hand on the Edit form. */
