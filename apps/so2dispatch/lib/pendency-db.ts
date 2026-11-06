@@ -13,7 +13,7 @@ const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 /** The department still has the SO (alias o; Billing's state reads o itself) pending: a PI to raise, or the SO Open. */
 export function stillPendingSql(dept: PendencyDept, o = "o"): string {
-  if (dept === "billing") return `${BILLING_STATE} IN ('Pending', 'Partially raised')`;
+  if (dept === "billing") return `${BILLING_STATE} IN ('Pending', 'Readiness date awaited', 'Partially raised')`;
   if (dept === "drawing") return drawingFilterSql({ so: ["Open"], gad: [], curve: [], part: [] }, o);
   if (dept === "qc") return `${soQcStateSql(o)} = 'Open'`;
   return `${soPurchaseStateSql(o)} = 'Open'`;

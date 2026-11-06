@@ -93,6 +93,8 @@ export function planningPackingOptions(types: string[]): string[] {
 }
 /** An SO Dispatch does not have yet: no numbered packing slip. The Orders list's, not Dispatch's own. */
 export const NOT_AT_DISPATCH = "Not at Dispatch yet";
+/** Proforma Invoice: no PI raised yet and Planning has no readiness date for the SO (Date awaited). */
+export const READINESS_AWAITED = "Readiness date awaited";
 /** The department has nothing to do on this order at all. */
 export const NOT_APPLICABLE = "N/A";
 
@@ -123,7 +125,8 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   // N/A is the paid-after-receipt case: no PI is due at all.
   // PIs raised against the SO's payment terms — After Receipt lines are not
   // counted (no PI is raised for them); N/A when every line is After Receipt.
-  billing: ["Fully raised", "Partially raised", PENDING, NOT_APPLICABLE],
+  // Readiness date awaited: Pending while Planning still says Date awaited.
+  billing: ["Fully raised", "Partially raised", PENDING, READINESS_AWAITED, NOT_APPLICABLE],
   accounts: [...values(PAYMENT_STATUS_OPTIONS), PENDING, NOT_APPLICABLE],
   // "Pending" is itself a stored dispatch status, so it covers both a blank
   // column and an explicit Pending rather than appearing twice.
