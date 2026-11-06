@@ -7,11 +7,14 @@ import {
   buildEnquiryReportHtml,
   downloadEnquiryReportExcel,
   enquiryReportRows,
+  firstSortDir,
+  isSortable,
   reportCell,
   sortReportRows,
+  type ColumnKey,
   type EnquiryReportRow,
+  type ReportSort,
   type ReportSortBy,
-  type ReportSortDir,
 } from "../../lib/enquiry-report";
 import { printHtml } from "../../lib/enquiry-print";
 import { listProjectsReport, type ProjectListQuery } from "../../services/projectService";
@@ -19,8 +22,9 @@ import { listTsmOptions } from "../../services/quotationService";
 
 // The User Master's report on the Enquiries page: the list as filtered, every page,
 // in a panel that opens and closes. PDF view (what prints) or Excel view (what
-// downloads), zoomed or fitted to the panel's width, sorted by assign person or
-// enquiry date if picked; both print and download in that order.
+// downloads), zoomed or fitted to the panel's width. Clicking the RIL Rep., Client Name,
+// Assign Person or Enquiry Date heading sorts by it (again: the other way; a third time:
+// back to the list's order); it prints and downloads in that order.
 
 const ZOOM_STEP = 0.1;
 const ZOOM_MIN = 0.4;
@@ -37,9 +41,12 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"pdf" | "excel">("pdf");
   const [loaded, setLoaded] = useState<EnquiryReportRow[] | null>(null);
-  const [sortBy, setSortBy] = useState<ReportSortBy>("list");
-  const [sortDir, setSortDir] = useState<ReportSortDir>("asc");
-  const rows = useMemo(() => (loaded ? sortReportRows(loaded, sortBy, sortDir) : null), [loaded, sortBy, sortDir]);
+  const [sort, setSort] = useState<ReportSort>(null);
+  const rows = useMemo(() => (loaded ? sortReportRows(loaded, sort) : null), [loaded, sort]);
+  const sortOn = (by: ReportSortBy) =>
+    setSort((s) => (s?.by !== by ? { by, dir: firstSortDir(by) } : s.dir === firstSortDir(by) ? { by, dir: s.dir === "asc" ? "desc" : "asc" } : null));
+  // Where the PDF view's sortable headings sit in its page, to lay buttons over them.
+  const [headings, setHeadings] = useState<{ key: ReportSortBy; left: number; top: number; width: number; height: number }[]>([]);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // "fit" follows the panel's width; a number is a zoom the viewer chose.
@@ -81,7 +88,8 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
   const scale = zoom === "fit" ? fit : zoom;
   const step = (d: number) => setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((scale + d) * 10) / 10)));
 
-  const html = useMemo(() => (rows ? buildEnquiryReportHtml(rows) : ""), [rows]);
+  // On screen the headings show the sort; the printed copy doesn't.
+  const html = useMemo(() => (rows ? buildEnquiryReportHtml(rows, sort) : ""), [rows, sort]);
   const loading = open && loadedFor !== key && !error;
 
   return (
@@ -103,33 +111,14 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
 
         {open && rows && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center rounded-lg border border-line bg-sunk p-0.5" role="group" aria-label="Sort">
-              <span className="px-2 text-[12px] font-semibold text-fg-3">Sort</span>
-              {(
-                [
-                  ["list", "List order", "asc"],
-                  ["assignee", "Assign Person", "asc"],
-                  ["date", "Enquiry Date", "desc"],
-                ] as const
-              ).map(([by, label, firstDir]) => (
-                <button
-                  key={by}
-                  type="button"
-                  aria-pressed={sortBy === by}
-                  onClick={() => {
-                    setSortBy(by);
-                    setSortDir(firstDir);
-                  }}
-                  className={`rounded-md px-3 py-1 text-[12px] font-semibold ${sortBy === by ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"}`}
-                >
-                  {label}
+            {sort && (
+              <span className="flex items-center gap-1.5 text-[12px] text-fg-3">
+                Sorted by <b className="font-semibold text-fg">{REPORT_COLUMNS.find((c) => c.key === sort.by)?.label}</b>
+                {sort.by === "date" ? (sort.dir === "desc" ? "· newest first" : "· oldest first") : sort.dir === "asc" ? "· A to Z" : "· Z to A"}
+                <button type="button" onClick={() => setSort(null)} className="rounded-md px-1.5 py-0.5 font-semibold text-accent hover:bg-accent-soft">
+                  Clear
                 </button>
-              ))}
-            </div>
-            {sortBy !== "list" && (
-              <button type="button" className={btn} onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Reverse the order">
-                {sortBy === "assignee" ? (sortDir === "asc" ? "A to Z" : "Z to A") : sortDir === "desc" ? "Newest first" : "Oldest first"}
-              </button>
+              </span>
             )}
             <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="group" aria-label="View">
               {(
@@ -167,7 +156,7 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
               </button>
             </div>
             {view === "pdf" ? (
-              <button type="button" className={btn} onClick={() => void printHtml(html, "A3 landscape")}>
+              <button type="button" className={btn} onClick={() => void printHtml(buildEnquiryReportHtml(rows), "A3 landscape")}>
                 Print / PDF
               </button>
             ) : (
@@ -190,21 +179,40 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
             <div ref={frameRef} className={`max-h-[75vh] overflow-auto bg-sunk p-3 [scrollbar-gutter:stable] transition-opacity ${loading ? "opacity-60" : ""}`}>
               {view === "pdf" ? (
                 // Scaled as a whole; the box takes its scaled size so nothing is cut or left blank.
-                <div className="mx-auto" style={{ width: PDF_WIDTH * scale, height: pdfHeight * scale }}>
+                <div className="relative mx-auto" style={{ width: PDF_WIDTH * scale, height: pdfHeight * scale }}>
                   <iframe
                     title="Enquiry Report"
                     srcDoc={html}
                     scrolling="no"
                     onLoad={(e) => {
-                      const body = e.currentTarget.contentDocument?.body;
-                      if (body) setPdfHeight(body.offsetHeight);
+                      const doc = e.currentTarget.contentDocument;
+                      if (!doc?.body) return;
+                      setPdfHeight(doc.body.offsetHeight);
+                      setHeadings(
+                        [...doc.querySelectorAll<HTMLElement>("th[data-col]")].map((th) => {
+                          const r = th.getBoundingClientRect();
+                          return { key: th.dataset.col as ReportSortBy, left: r.left, top: r.top, width: r.width, height: r.height };
+                        }),
+                      );
                     }}
                     className="pointer-events-none origin-top-left border-0 bg-white shadow-[0_2px_12px_rgba(10,22,40,0.18)]"
                     style={{ width: PDF_WIDTH, height: pdfHeight, transform: `scale(${scale})` }}
                   />
+                  {/* The page is a picture; these lie over its sortable headings. */}
+                  {headings.map((h) => (
+                    <button
+                      key={h.key}
+                      type="button"
+                      onClick={() => sortOn(h.key)}
+                      title={`Sort by ${REPORT_COLUMNS.find((c) => c.key === h.key)?.label}`}
+                      aria-label={`Sort by ${REPORT_COLUMNS.find((c) => c.key === h.key)?.label}`}
+                      className="absolute cursor-pointer hover:bg-white/15"
+                      style={{ left: h.left * scale, top: h.top * scale, width: h.width * scale, height: h.height * scale }}
+                    />
+                  ))}
                 </div>
               ) : (
-                <ExcelSheet rows={rows} scale={scale} />
+                <ExcelSheet rows={rows} scale={scale} sort={sort} onSort={sortOn} />
               )}
             </div>
           )}
@@ -215,7 +223,17 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
 }
 
 /** The Excel on screen, as the download has it. */
-function ExcelSheet({ rows, scale }: { rows: EnquiryReportRow[]; scale: number }) {
+function ExcelSheet({ rows, scale, sort, onSort }: { rows: EnquiryReportRow[]; scale: number; sort: ReportSort; onSort: (by: ReportSortBy) => void }) {
+  const heading = (key: ColumnKey, label: string) => {
+    if (!isSortable(key)) return label;
+    const on = sort?.by === key;
+    return (
+      <button type="button" onClick={() => onSort(key)} className="inline-flex w-full items-center justify-center gap-1 hover:underline" title={`Sort by ${label}`}>
+        {label}
+        <span className={on ? "" : "opacity-40"}>{on ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}</span>
+      </button>
+    );
+  };
   return (
     <div className="mx-auto w-max bg-white text-[#1f2937]" style={{ zoom: scale }}>
       <table className="table-fixed border-separate border-spacing-0 text-[12px]" style={{ width: EXCEL_WIDTH }}>
@@ -228,7 +246,7 @@ function ExcelSheet({ rows, scale }: { rows: EnquiryReportRow[]; scale: number }
           <tr>
             {REPORT_COLUMNS.map((c) => (
               <th key={c.key} className="sticky top-0 border border-[#c9d3df] bg-[#dcebfb] px-2 py-1.5 text-center text-[11.5px] font-bold text-[#0b3d7e]">
-                {c.label}
+                {heading(c.key, c.label)}
               </th>
             ))}
           </tr>

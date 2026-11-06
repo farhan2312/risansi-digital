@@ -26,7 +26,7 @@ export type EnquiryReportRow = {
 };
 
 type TextKey = "rilRep" | "client" | "type" | "date" | "category" | "enquiryNo" | "assignee" | "remark";
-type ColumnKey = TextKey | "status";
+export type ColumnKey = TextKey | "status";
 
 /** pct: share of the printed sheet's width. width: the Excel's, in characters. */
 export const REPORT_COLUMNS: { key: ColumnKey; label: string; pct: number; width: number }[] = [
@@ -96,19 +96,25 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
   });
 }
 
-export type ReportSortBy = "list" | "assignee" | "date";
+/** The columns the report sorts on, by clicking their heading (user, 2026-11-06). */
+export const SORTABLE_COLUMNS = ["rilRep", "client", "assignee", "date"] as const;
+export type ReportSortBy = (typeof SORTABLE_COLUMNS)[number];
 export type ReportSortDir = "asc" | "desc";
+export type ReportSort = { by: ReportSortBy; dir: ReportSortDir } | null;
+export const isSortable = (key: ColumnKey): key is ReportSortBy => (SORTABLE_COLUMNS as readonly string[]).includes(key);
+/** A first click: names A to Z, dates newest first. */
+export const firstSortDir = (by: ReportSortBy): ReportSortDir => (by === "date" ? "desc" : "asc");
 
-/** The report in the order picked ("list" = as the Enquiries list has it). Blanks go last
- *  either way, and one person's enquiries run newest first. */
-export function sortReportRows(rows: EnquiryReportRow[], by: ReportSortBy, dir: ReportSortDir): EnquiryReportRow[] {
-  if (by === "list") return rows;
-  const sign = dir === "asc" ? 1 : -1;
+/** The report in the order picked (null = as the Enquiries list has it). Blanks go last
+ *  either way, and rows that tie run newest first. */
+export function sortReportRows(rows: EnquiryReportRow[], sort: ReportSort): EnquiryReportRow[] {
+  if (!sort) return rows;
+  const sign = sort.dir === "asc" ? 1 : -1;
   const byDate = (a: EnquiryReportRow, b: EnquiryReportRow, s: number) =>
     !a.sortDate || !b.sortDate ? Number(!a.sortDate) - Number(!b.sortDate) : s * a.sortDate.localeCompare(b.sortDate);
   return [...rows].sort((a, b) => {
-    if (by === "date") return byDate(a, b, sign);
-    const [x, y] = [a.assignee.trim(), b.assignee.trim()];
+    if (sort.by === "date") return byDate(a, b, sign);
+    const [x, y] = [a[sort.by].trim(), b[sort.by].trim()];
     if (!x || !y) return Number(!x) - Number(!y) || byDate(a, b, -1);
     return sign * x.localeCompare(y, undefined, { sensitivity: "base" }) || byDate(a, b, -1);
   });
@@ -121,8 +127,14 @@ const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/
 
 const statusClass = (s: string) => (s === "Completed" || s === "Sent to client" ? "done" : s === "In Progress" ? "going" : s === "Not Quoted" ? "closed" : "waiting");
 
-/** The printed report: just the table, its heading repeated on every page. */
-export function buildEnquiryReportHtml(rows: EnquiryReportRow[]): string {
+/** The printed report: just the table, its heading repeated on every page. On screen
+ *  (`sort` given) the sortable headings carry an arrow; what prints has none. */
+export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSort): string {
+  const heading = (key: ColumnKey, label: string) => {
+    if (sort === undefined || !isSortable(key)) return `<th>${esc(label)}</th>`;
+    const on = sort?.by === key;
+    return `<th data-col="${key}">${esc(label)} <span class="arrow${on ? " on" : ""}">${on ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}</span></th>`;
+  };
   const cell = (r: EnquiryReportRow, key: ColumnKey): string => {
     if (key === "status")
       return r.statuses
@@ -160,11 +172,13 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[]): string {
   .waiting { background: #fdf0d5; color: #9a6400; }
   .closed { background: #e9edf2; color: #4b5a6b; }
   .empty { padding: 28px; text-align: center; color: #6b7a8c; }
+  .arrow { font-size: 7pt; opacity: 0.45; }
+  .arrow.on { opacity: 1; color: #ffd166; }
 </style></head>
 <body><div class="sheet">
   <table>
     <colgroup>${REPORT_COLUMNS.map((c) => `<col style="width:${c.pct}%">`).join("")}</colgroup>
-    <thead><tr>${REPORT_COLUMNS.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr></thead>
+    <thead><tr>${REPORT_COLUMNS.map((c) => heading(c.key, c.label)).join("")}</tr></thead>
     <tbody>${
       rows.length
         ? rows.map((r) => `<tr>${REPORT_COLUMNS.map((c) => `<td>${cell(r, c.key)}</td>`).join("")}</tr>`).join("\n")

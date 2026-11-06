@@ -958,12 +958,13 @@ never auto-filled from the AI result.
   confirmed or quotation generated); Commercial = sent_to_client_at (first
   send). A send clears a hand-set Pending / In Progress / Not Quoted on its status.
   Both statuses can also be picked as Not Quoted or Sent to client (ENQUIRY_STATUSES; hand-picked only,
-  no date; user, 2026-11-05). They have their own counts on the workload cards and Dashboard. Sent to client
+  no date; user, 2026-11-05). The DB CHECK projects_status_override_check must list the same five
+  values (widened 2026-11-06; it refused Not Quoted until then). They have their own counts on the workload cards and Dashboard. Sent to client
   counts as done (versionReady: a new version can be made; non-PCP tags complete; Commercial's auto can complete).
   "status" in the list APIs = Technical status, so the
-  Dashboard, Reports and the version rule all read Technical. In the filters a spare goes
-  by commercialStatus alone: the Technical status filter picks only pumps, but with a Commercial status picked too spares are kept and go by that (enquiryFilterSql),
-  and Spare view's one "Status" dropdown is commercialStatus. The workload cards
+  Dashboard, Reports and the version rule all read Technical. In the filters pumps and spares
+  are independent (user, 2026-11-06): status + commercialStatus pick pumps, spareStatus picks spares (Spare view's one
+  "Status", "Spare status" under All); once any is picked, a type with none of its own is left off (enquiryFilterSql). The workload cards
   (AssigneeKpis, /api/projects/assignee-stats) split by order type: Pump = Technical,
   Commercial; Spare = its one status; no tag counts (user, 2026-11-05). The Dashboard is always Pump or Spare
   (EnquiryFilterBar orderTypeRequired, no All): Spare has enquiry figures only, no tag cards,

@@ -134,13 +134,16 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
   push(anyOf(projects.clientZone, f.zone ?? []));
   push(anyOf(projects.clientMarketType, f.market ?? []));
   push(anyOf(projects.industry, f.industry ?? []));
-  // A spare has no Technical status, so it goes by the Commercial filter alone: with both
-  // picked it isn't held back by Technical; with only Technical picked it isn't on the list.
-  if (f.status?.length) {
-    const technical = sql`${enquiryStatusSql} IN (${list(f.status)})`;
-    out.push(f.commercialStatus?.length ? sql`(projects.order_type = 'spare' OR ${technical})` : sql`(projects.order_type IS DISTINCT FROM 'spare' AND ${technical})`);
-  }
-  if (f.commercialStatus?.length) out.push(sql`${commercialStatusSql} IN (${list(f.commercialStatus)})`);
+  // Pumps and spares filter by status independently (user, 2026-11-06): Technical and
+  // Commercial pick pumps, Spare status picks spares. Once any is picked, a type with
+  // none of its own picked is left off.
+  const pump: SQL[] = [];
+  if (f.status?.length) pump.push(sql`${enquiryStatusSql} IN (${list(f.status)})`);
+  if (f.commercialStatus?.length) pump.push(sql`${commercialStatusSql} IN (${list(f.commercialStatus)})`);
+  const byType: SQL[] = [];
+  if (pump.length) byType.push(sql`(projects.order_type IS DISTINCT FROM 'spare' AND ${sql.join(pump, sql` AND `)})`);
+  if (f.spareStatus?.length) byType.push(sql`(projects.order_type = 'spare' AND ${commercialStatusSql} IN (${list(f.spareStatus)}))`);
+  if (byType.length) out.push(sql`(${sql.join(byType, sql` OR `)})`);
   return out;
 }
 
