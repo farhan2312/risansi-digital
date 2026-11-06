@@ -6,7 +6,7 @@ import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { erpQuotationNumber, quotationNumber } from "@/lib/commercial";
 import { projects, quotation, quotationVersion, techDocVersion, users } from "@/lib/db/schema";
-import { canSeeOperationDocs } from "@/lib/roles";
+import { canSeeOperationDocs, orderSubtypeLabel } from "@/lib/roles";
 import type { OperationDoc } from "@/lib/saved-docs";
 import { dotDate } from "@/lib/tech-doc";
 
@@ -65,6 +65,8 @@ export async function GET(req: Request) {
       primaryRep: projects.clientPrimaryRep,
       secondaryReps: projects.clientSecondaryReps,
       zone: projects.clientZone,
+      market: projects.clientMarketType,
+      subtype: projects.orderSubtype,
       typedOnSpareDoc: sql<string | null>`${projects.spareDocEdits}->>'quotation'`,
       version: projects.versionNo,
       commercialVersion: projects.commercialVersionNo,
@@ -91,8 +93,9 @@ export async function GET(req: Request) {
     .orderBy(desc(projects.releasedToOperationAt));
 
   const quotations = await savedQuotationLines(rows.map((r) => r.id));
-  const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, ...r }) => ({
+  const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, subtype, ...r }) => ({
     ...r,
+    subtype: orderSubtypeLabel(subtype),
     quotations: typedOnSpareDoc ? [typedOnSpareDoc] : (quotations.get(r.id) ?? []),
     version: type === "spare" ? commercialVersion : version,
     reviewedAt: reviewedAt?.toISOString() ?? null,

@@ -16,7 +16,7 @@ import EnquiryVersionsModal from "../../components/projects/EnquiryVersionsModal
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import EnquiryReportPanel from "../../components/projects/EnquiryReportPanel";
-import { hasEnquiryFilters, type EnquiryFilters } from "../../lib/enquiry-filters";
+import { hasEnquiryFilters, type EnquiryFilters, type EnquirySort, type EnquirySortKey } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
@@ -157,6 +157,35 @@ const ProjectsPage = () => {
   const [scope, setScope] = useState<"all" | "mine">("all");
   // Reps / zone / market / industry / status (the same filters as the Dashboard).
   const [adv, setAdv] = useState<EnquiryFilters>({});
+  // Column sorts, several at once, in the order they were clicked. A click adds a column
+  // (dates newest first, names A to Z), the next reverses it, the next takes it off.
+  const [sort, setSort] = useState<EnquirySort>([]);
+  const toggleSort = (key: EnquirySortKey) => {
+    const first = key === "date" ? "desc" : "asc";
+    setSort((cur) => {
+      const at = cur.find((s) => s.key === key);
+      if (!at) return [...cur, { key, dir: first }];
+      if (at.dir === first) return cur.map((s) => (s.key === key ? { key, dir: first === "asc" ? "desc" : "asc" } : s));
+      return cur.filter((s) => s.key !== key);
+    });
+    setPage(1);
+  };
+  const sortHead = (key: EnquirySortKey, label: string) => {
+    const i = sort.findIndex((s) => s.key === key);
+    const on = i >= 0 ? sort[i] : null;
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(key)}
+        title={on ? `Sorted ${on.dir === "asc" ? (key === "date" ? "oldest first" : "A to Z") : key === "date" ? "newest first" : "Z to A"} - click to ${on.dir === (key === "date" ? "desc" : "asc") ? "reverse" : "remove"}` : `Sort by ${label}`}
+        className={`inline-flex items-center gap-1 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] hover:text-fg ${on ? "text-accent" : "text-fg-3"}`}
+      >
+        {label}
+        <span className={on ? "" : "opacity-50"}>{on ? (on.dir === "asc" ? "▲" : "▼") : "↕"}</span>
+        {on && sort.length > 1 && <span className="rounded-full bg-accent px-1 text-[9.5px] leading-[14px] tracking-normal text-white">{i + 1}</span>}
+      </button>
+    );
+  };
   // A worker opens on "Assigned to me" (they can still switch to All). Nothing
   // loads until the role is known - otherwise an "All" request fired first
   // could land after the "mine" one and show every enquiry under "Assigned to me".
@@ -214,6 +243,7 @@ const ProjectsPage = () => {
       mine: scope === "mine",
       filters: adv,
       rep,
+      sort,
     })
       .then((res) => {
         if (seq !== loadSeq.current) return;
@@ -227,7 +257,7 @@ const ProjectsPage = () => {
       })
       .catch(() => seq === loadSeq.current && setError("Couldn't load enquiries."))
       .finally(() => seq === loadSeq.current && setIsLoading(false));
-  }, [page, debouncedFilters, dateWindow, dateField, scope, adv, scopeReady, rep]);
+  }, [page, debouncedFilters, dateWindow, dateField, scope, adv, scopeReady, rep, sort]);
 
   useEffect(() => {
     loadProjects();
@@ -712,6 +742,7 @@ const ProjectsPage = () => {
             mine: scope === "mine",
             filters: adv,
             rep,
+            sort,
           }}
         />
       )}
@@ -777,15 +808,29 @@ const ProjectsPage = () => {
           <div>
           <div className={`hidden border-b border-line bg-elev px-4 py-2.5 xl:grid ${ROW_COLS} items-center gap-x-2 [&>*]:min-w-0`}>
             <span />
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Enquiry No. / Date</span>
+            <span>{sortHead("date", "Enquiry No. / Date")}</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Order Type</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Client / Code</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Reps / Zone</span>
+            <span>{sortHead("client", "Client / Code")}</span>
+            <span>{sortHead("rep", "Reps / Zone")}</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry / Market</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Clearance</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Assigned To</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Actions</span>
+            <span>{sortHead("assignee", "Assigned To")}</span>
+            <span className="flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">
+              Actions
+              {sort.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSort([]);
+                    setPage(1);
+                  }}
+                  className="rounded px-1 tracking-normal normal-case text-accent hover:bg-accent-soft"
+                >
+                  Clear sort
+                </button>
+              )}
+            </span>
           </div>
           <ul className="divide-y divide-line">
             {filteredProjects.map((project) => {

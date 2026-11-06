@@ -27,6 +27,10 @@ export type OperationDoc = {
   primaryRep: string | null;
   secondaryReps: string | null;
   zone: string | null;
+  /** Domestic / Export. */
+  market: string | null;
+  /** PCP / MMP / … or Spare / Retrofit spare. */
+  subtype: string;
   /** The quotation no. & date as its saved document prints it, typed by hand or not; one
    *  per drive group. */
   quotations: string[];

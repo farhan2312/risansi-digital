@@ -36,6 +36,28 @@ export const ENQUIRY_STATUSES = ["Pending", "In Progress", "Completed", "Not Quo
  *  the work is done, and Sent to client comes after Completed. */
 export const versionReady = (status: string | null | undefined): boolean => status === "Completed" || status === "Sent to client";
 
+/** The Enquiries list's column sorts, in order of priority (user, 2026-11-06): client
+ *  name, primary rep, enquiry date, assigned person. Empty = newest created first. */
+export const ENQUIRY_SORT_KEYS = ["client", "rep", "date", "assignee"] as const;
+export type EnquirySortKey = (typeof ENQUIRY_SORT_KEYS)[number];
+export type EnquirySort = { key: EnquirySortKey; dir: "asc" | "desc" }[];
+
+/** "date:desc,client:asc" as the `sort` query param. */
+export const sortParam = (sort: EnquirySort | undefined): string | undefined =>
+  sort?.length ? sort.map((s) => `${s.key}:${s.dir}`).join(",") : undefined;
+
+/** Read back; anything unknown or repeated is dropped. */
+export function sortFromParam(raw: string | null): EnquirySort {
+  const out: EnquirySort = [];
+  for (const part of (raw ?? "").split(",").slice(0, ENQUIRY_SORT_KEYS.length)) {
+    const [key, dir] = part.split(":");
+    if ((ENQUIRY_SORT_KEYS as readonly string[]).includes(key) && (dir === "asc" || dir === "desc") && !out.some((s) => s.key === key)) {
+      out.push({ key: key as EnquirySortKey, dir });
+    }
+  }
+  return out;
+}
+
 /** Picked values travel as one param joined by this (no value contains it). */
 const SEP = "|";
 

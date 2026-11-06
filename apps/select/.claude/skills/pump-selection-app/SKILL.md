@@ -1057,13 +1057,21 @@ never auto-filled from the AI result.
   sends their /selection-summary here. Reps, selection heads and pulley owners keep Reports.
 - All three are one table (screens/operation-docs, user 2026-11-05), one row per sent version: Enq No./Date, Quotation No./Date (as the saved
   document prints it, typed erpText first; one per drive group), Client Name/Code, Reps/Zone, Reviewed by, Sent to Operation/Date, then Technical, Commercial, Techno-Commercial (a spare:
-  Quotation) and Mailed. Mailed: only Operation can press it, with a confirm (POST /api/operation-docs/[id]/mailed;
+  Quotation) and Mailed. Filters, in the browser over the loaded list: search (enquiry, quotation no., client, rep,
+  zone), Pump/Spare type, Rep (primary or secondary), Zone, Market, Reviewed by, Sent by, Mailed / Not mailed, and a
+  sent-to-operation date range. Mailed: only Operation can press it, with a confirm (POST /api/operation-docs/[id]/mailed;
   projects.mailed_at/_by; it only records, no e-mail, no undo); others see Mailed / Not mailed. REVIEW_CLEARED clears it.
 
 ## No version with the enquiry no. (user, 2026-11-05)
 - The enquiry isn't versioned to the user, the quotation is, and its version is typed by hand in the quotation no.
   (".../PCP/1864_V1"; the system adds nothing). NEVER show a version beside the enquiry no.: not on documents, page
   headings, popup titles or audit details. Fine in a status (Technical V1), on Save Version and on View docs V1.
+
+## Enquiries list column sort (user, 2026-11-06)
+- Click Enquiry No. / Date, Client / Code, Reps / Zone or Assigned To to sort; several at once, in click order
+  (numbered). A click adds (date newest first, names A to Z), the next reverses, the next removes. Server-side:
+  GET /api/projects ?sort=date:desc,client:asc (sortFromParam, lib/enquiry-filters), blanks last, then newest
+  created. The Enquiry Report's list order follows it. Desktop headings only.
 
 ## Save Version (user, 2026-11-05)
 - The button is "Save Version Vn" on the Technical Data Sheet (Vn = version_no), pump commercials and the

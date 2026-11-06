@@ -8,13 +8,21 @@ import { logAudit } from "@/lib/audit";
 import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
 import { findAssignee } from "@/lib/enquiry-access";
 import type { ClearanceNow } from "@/lib/clearance";
-import { filtersFromParams } from "@/lib/enquiry-filters";
+import { filtersFromParams, sortFromParam, type EnquirySortKey } from "@/lib/enquiry-filters";
 import { enquiryFilterSql, enquiryStatusColumns, enquiryStatusFields } from "@/lib/enquiry-filters-server";
 import { repScope } from "@/lib/rep-scope";
 import { orderSubtypeLabel, orderTypeLabel } from "@/lib/roles";
 import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 
 const assignee = alias(users, "assignee");
+
+/** What each column sort orders by: names without case, blanks treated as none. */
+const SORT_BY: Record<EnquirySortKey, SQL> = {
+  client: sql`lower(nullif(trim(${projects.name}), ''))`,
+  rep: sql`lower(nullif(trim(${projects.clientPrimaryRep}), ''))`,
+  date: sql`${projects.enquiryDate}`,
+  assignee: sql`lower(nullif(trim(${assignee.name}), ''))`,
+};
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +124,8 @@ export async function GET(req: Request) {
     .leftJoin(users, eq(projects.createdBy, users.id))
     .leftJoin(assignee, eq(projects.assignedTo, assignee.id))
     .where(where)
-    .orderBy(desc(projects.createdAt));
+    // The columns picked on the list, in that order (blanks last either way), then newest first.
+    .orderBy(...sortFromParam(params.get("sort")).map((s) => sql`${SORT_BY[s.key]} ${sql.raw(s.dir)} nulls last`), desc(projects.createdAt));
 
   const rows = paginated
     ? await base.limit(pageSize).offset((page - 1) * pageSize)

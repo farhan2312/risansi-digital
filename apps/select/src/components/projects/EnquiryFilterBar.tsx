@@ -32,7 +32,8 @@ const loadOptions = () =>
       throw e;
     }));
 
-function MultiSelect({
+/** A multi-select dropdown, also used by Client Operation Docs' filters. */
+export function MultiSelect({
   label,
   options,
   value,
