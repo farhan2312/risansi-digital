@@ -467,9 +467,12 @@ function deptOwnInvolvementSql(dept: DeptKey, alias: string): string {
     case "quality":
       return `lower(coalesce(${alias}.qc_required, '')) = 'yes'`;
     // A Challan order has no PI and no A/R: its challan is filed by Dispatch.
+    // Nor is an SO theirs before it has payment terms and an EC.
     case "billing":
     case "accounts":
-      return `lower(coalesce(${alias}.bill_type, '')) <> 'challan'`;
+      return `lower(coalesce(${alias}.bill_type, '')) <> 'challan'
+              AND EXISTS (SELECT 1 FROM order_payment_terms dpt WHERE dpt.order_id = ${alias}.id)
+              AND EXISTS (SELECT 1 FROM order_items dit WHERE dit.order_id = ${alias}.id)`;
     default:
       return "TRUE";
   }
