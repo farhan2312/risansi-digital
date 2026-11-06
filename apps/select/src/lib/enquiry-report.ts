@@ -2,7 +2,7 @@
 // enquiry, in the user's column order, as a sheet to print or as an Excel. Client-safe.
 import { holdReasonText } from "./clearance";
 import type { TsmOption } from "./commercial";
-import { orderTypeLabel } from "./roles";
+import { orderSubtypeLabel, orderTypeLabel } from "./roles";
 import { dotDate, esc } from "./tech-doc";
 import { BAND } from "./tech-doc-excel";
 import { downloadXlsx, type XlsxCell } from "./xlsx";
@@ -79,7 +79,8 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
           ],
       date: dotDate(p.enquiry_date),
       sortDate: p.enquiry_date ?? "",
-      category: orderTypeLabel(p.order_type),
+      // A retrofit spare says so; a plain spare and every pump keep Spare / Pump.
+      category: spare && p.order_subtype === "retrofit_spare" ? orderSubtypeLabel(p.order_subtype) : orderTypeLabel(p.order_type),
       enquiryNo: p.project_code,
       assignee: p.assigned_to_name ?? "",
       remark: [

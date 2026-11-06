@@ -987,6 +987,7 @@ never auto-filled from the AI result.
   the sales users by the client's primary rep, else the quotation's TSM. Enquiry Status = Technical
   and Commercial (a spare's one status). Detail Remark = Hold reason, clearance remarks, revision
   note, enquiry remarks. Test enquiries (the word test in the client name or enquiry no.) are left off the report only.
+- Product Category = Pump or Spare, but Retrofit spare when a spare's type is retrofit_spare (user, 2026-11-06).
 
 ## Spare orders (user, 2026-11-04)
 - order_type spare: no tags, no technical step, no scope of supply. The Enquiries row
