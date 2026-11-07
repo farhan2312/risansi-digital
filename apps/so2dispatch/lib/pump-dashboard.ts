@@ -363,7 +363,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     }
   }
 
-  // The departments on the open SOs: done, under way, not started, or no work for them.
+  // The departments on every SO but the cancelled and diverted: done, under way, not started, or no work for them.
   const depts: DeptRow[] = DEPTS.map((d) => ({
     key: d.key,
     label: d.label,
@@ -377,11 +377,14 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
   const gad = new Map<string, number>();
   const boi = { received: 0, pending: 0 };
   const qc = { submitted: 0, pending: 0 };
+  for (const s of live) {
+    const sum = summaries[s.id];
+    if (sum) for (const [k, v] of Object.entries(standings(sum, s.dispatch))) depts.find((d) => d.key === k)![v]++;
+  }
+  // Drawing's GAD stages, BOI and Quality documents: on the open SOs.
   for (const s of open) {
     const sum = summaries[s.id];
     if (!sum) continue;
-    const st = standings(sum, s.dispatch);
-    for (const d of depts) d[st[d.key]]++;
     // An SO with no pump EC yet has no GAD to stand at.
     if (!sum.drawing.closed && sum.drawing.gad.total > 0) gad.set(sum.drawing.gad.label, (gad.get(sum.drawing.gad.label) ?? 0) + 1);
     if (sum.purchase.required) {

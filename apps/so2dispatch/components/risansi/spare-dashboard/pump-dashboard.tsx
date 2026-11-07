@@ -71,8 +71,8 @@ const STANDING = [
   { key: "na", label: "Not needed", color: "var(--viz-gray)" },
 ] as const;
 
-/** Each department on the open SOs: a bar of where they stand, and the counts. */
-function DeptProgress({ depts, open }: { depts: DeptRow[]; open: number }) {
+/** Each department on every SO but the cancelled and diverted: a bar of where they stand, and the counts. */
+function DeptProgress({ depts, total }: { depts: DeptRow[]; total: number }) {
   const th = "px-2 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-muted";
   return (
     <div className="overflow-x-auto">
@@ -88,7 +88,7 @@ function DeptProgress({ depts, open }: { depts: DeptRow[]; open: number }) {
         <thead>
           <tr className="border-b border-card-border">
             <th className={`${th} text-left`}>Department</th>
-            <th className={`${th} w-[38%] text-left`}>Open SOs</th>
+            <th className={`${th} w-[38%] text-left`}>SOs</th>
             {STANDING.map((s) => (
               <th key={s.key} className={th}>{s.label}</th>
             ))}
@@ -119,7 +119,7 @@ function DeptProgress({ depts, open }: { depts: DeptRow[]; open: number }) {
         </tbody>
       </table>
       <p className="mt-2 text-[11px] text-muted">
-        The {open} SOs not yet fully dispatched (cancelled and diverted left out), each department read as on its own page. Purchase and Quality have no work on an SO
+        All {total} SOs, fully dispatched included (cancelled and diverted left out), each department read as on its own page. Purchase and Quality have no work on an SO
         without BOI or Quality.
       </p>
     </div>
@@ -165,9 +165,9 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
         <Metric icon={<IndianRupee className="h-5 w-5" />} label="Order value" value={money(m.value)} sub="all SOs, cancelled included, in INR" />
       </div>
 
-      {/* Every department on the open SOs. */}
-      <ChartCard title="Department progress" sub="Where each department stands on the open pump SOs">
-        <DeptProgress depts={data.depts} open={m.open} />
+      {/* Every department on all SOs but the cancelled and diverted. */}
+      <ChartCard title="Department progress" sub="Where each department stands on all pump SOs">
+        <DeptProgress depts={data.depts} total={m.sos - m.closed} />
       </ChartCard>
 
       {/* Where the SOs stand, and how dispatch has gone. */}
