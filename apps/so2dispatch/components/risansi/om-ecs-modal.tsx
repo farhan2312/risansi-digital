@@ -138,7 +138,7 @@ export function OmEcsModal({
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-card-border px-4 py-3">
                 <span className="font-semibold text-foreground">
                   {str(current.ec_no) || "EC"}
-                  <EcLink href={current.ec_link} at={current.ec_link_at} />
+                  <EcLink href={current.ec_link} at={current.ec_link_at} links={current.ec_links} />
                 </span>
                 {canManage && (
                   <span className="flex items-center gap-2">
@@ -174,7 +174,7 @@ export function OmEcsModal({
                       <dt className="text-[12px] text-muted">{f.label}</dt>
                       <dd className="break-all font-medium text-foreground">
                         {f.column === "ec_link" ? (
-                          str(current.ec_link) ? <EcLink href={current.ec_link} at={current.ec_link_at} label /> : "—"
+                          str(current.ec_link) ? <EcLink href={current.ec_link} at={current.ec_link_at} links={current.ec_links} label /> : "—"
                         ) : (
                           formatDisplay(f, current[f.column]) || "—"
                         )}

@@ -269,6 +269,17 @@ export function AddOnForm({
                       </option>
                     ))}
                   </select>
+                ) : field.column === "ec_link" ? (
+                  // As many attachments as there are: one SharePoint link per line.
+                  <textarea
+                    id={`addon-${field.column}`}
+                    required={!isAddOnOptional(orderType, field.column)}
+                    rows={Math.min(6, Math.max(2, (values.ec_link ?? "").split("\n").length + 1))}
+                    placeholder={"Paste the SharePoint links, one per line (https://…sharepoint.com/…)"}
+                    value={values.ec_link ?? ""}
+                    onChange={(e) => setValues((v) => ({ ...v, ec_link: e.target.value }))}
+                    className={`${inputClass} h-auto py-2`}
+                  />
                 ) : (
                   <input
                     id={`addon-${field.column}`}
