@@ -145,7 +145,8 @@ function standings(s: PumpSummary, dispatch: string): Record<string, Standing> {
     planning: s.planning.status === "Fully ready" ? "done" : ["Partial ready", "In plan"].includes(s.planning.status) ? "progress" : "pending",
     assembly: s.assembly.status === "Fully assembled" ? "done" : s.assembly.status === "Partial assembled" ? "progress" : "pending",
     packing: s.packing.status === "Fully packed" ? "done" : s.packing.status === "Partially packed" ? "progress" : "pending",
-    dispatch: dispatch === "Fully dispatch" ? "done" : dispatch === "LOT dispatch" ? "progress" : "pending",
+    // Dispatch's own hold is Hold on its row, as on its page.
+    dispatch: dispatch === "Hold" ? "hold" : dispatch === "Fully dispatch" ? "done" : dispatch === "LOT dispatch" ? "progress" : "pending",
   };
   // Held by Central Visibility: Hold wherever the department has work on it.
   return s.held ? Object.fromEntries(Object.entries(own).map(([k, v]) => [k, v === "na" ? "na" : "hold"])) : own;
