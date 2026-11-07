@@ -10,14 +10,23 @@
  * The document itself sets no `@page { size: … }`. A page size picked beside
  * the Print button (A4 / A3, portrait or landscape) is added here; "" leaves
  * it to the dialog. The sheet then fills the page width.
+ *
+ * No page link / date / title on the printout (user, 2026-11-07): Chrome leaves out
+ * its own header and footer (the page's URL, date and title) once the document
+ * gives a page margin box any content, so an empty-looking one (a no-break space)
+ * is added to every print.
  */
 
 export type PrintPageSize = "" | "A4" | "A4 landscape" | "A3" | "A3 landscape";
 
-/** The document with the chosen page size (unchanged for ""). */
+/** Turns off the browser's own header and footer (URL, date, title). */
+const NO_BROWSER_HEADER = `@page { @bottom-center { content: "\\00a0"; } }`;
+
+/** The document with the chosen page size, and without the browser's header and footer. */
 function withPageSize(html: string, size: PrintPageSize): string {
-  if (!size) return html;
-  const css = `<style>@page { size: ${size}; } @media print { .sheet { max-width: none; } }</style>`;
+  const css = size
+    ? `<style>@page { size: ${size}; } @media print { .sheet { max-width: none; } } ${NO_BROWSER_HEADER}</style>`
+    : `<style>${NO_BROWSER_HEADER}</style>`;
   return html.includes("</head>") ? html.replace("</head>", `${css}</head>`) : css + html;
 }
 
