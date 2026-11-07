@@ -23,8 +23,12 @@ type Props = {
   project: ProjectRecord | null;
   isSaving?: boolean;
   onClose: () => void;
+  /** Why the last save failed (e.g. the enquiry no. is taken); shown on the form. */
+  saveError?: string | null;
   onSave: (
     input: {
+      /** Sent only when it changed. */
+      projectCode?: string;
       enquiryDate: string;
       technicalStatus?: string;
       completedOn?: string;
@@ -98,8 +102,9 @@ const clientOf = (project: ProjectRecord): ClientForm => ({
 const subtypeOf = (project: ProjectRecord, t: OrderType): OrderSubtype =>
   ORDER_SUBTYPES[t].find((o) => o.value === project.order_subtype)?.value ?? defaultSubtype(t);
 
-const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersionCreated }: Props) => {
+const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSave, onVersionCreated }: Props) => {
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
+  const [enquiryNo, setEnquiryNo] = useState("");
   const [enquiryDate, setEnquiryDate] = useState("");
   const [technicalStatus, setTechnicalStatus] = useState("Pending");
   const [completedOn, setCompletedOn] = useState("");
@@ -113,6 +118,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
   useEffect(() => {
     if (!project) return;
     setClient(clientOf(project));
+    setEnquiryNo(project.project_code ?? "");
     setEnquiryDate(project.enquiry_date ?? "");
     setTechnicalStatus(savedStatus(project.status));
     setCompletedOn(savedDay(project.status, project.completed_on));
@@ -135,7 +141,11 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
 
   const savedType: OrderType = project.order_type === "spare" ? "spare" : "pump";
   const savedClient = clientOf(project);
+  const savedNo = project.project_code ?? "";
+  const newNo = enquiryNo.trim();
+  const noChanged = newNo !== savedNo;
   const unsaved =
+    noChanged ||
     enquiryDate !== (project.enquiry_date ?? "") ||
     (!isSpare && technicalStatus !== savedStatus(project.status)) ||
     (!isSpare && technicalStatus === "Completed" && completedOn !== savedTechnicalDay) ||
@@ -153,15 +163,21 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
       onClose={onClose}
       footer={
         <>
+          {saveError && (
+            <p className="mr-auto text-[12.5px] font-medium text-neg" role="alert">
+              {saveError}
+            </p>
+          )}
           <button type="button" className={btnSecondary} onClick={onClose} disabled={isSaving || creatingVersion}>
             Cancel
           </button>
           <button
             type="button"
             className={btnPrimary}
-            disabled={isSaving || creatingVersion || !client.name.trim() || datesBad}
+            disabled={isSaving || creatingVersion || !client.name.trim() || !newNo || datesBad}
             onClick={() =>
               onSave({
+                ...(noChanged ? { projectCode: newNo } : {}),
                 enquiryDate,
                 ...(isSpare ? {} : { technicalStatus, completedOn: technicalStatus === "Completed" ? completedOn : "" }),
                 commercialStatus,
@@ -177,7 +193,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
         </>
       }
     >
-      <Section step={1} title="Enquiry" subtitle="Order type, date received and statuses">
+      <Section step={1} title="Enquiry" subtitle="Order type, number, date received and statuses">
         <Field label="Order type" wide group>
           <OrderTypePicker
             value={orderType}
@@ -187,6 +203,13 @@ const EditProjectModal = ({ isOpen, project, isSaving, onClose, onSave, onVersio
               setOrderSubtype(s);
             }}
           />
+        </Field>
+        <Field
+          label="Enquiry no."
+          required
+          hint={!newNo ? "Enquiry no. is required." : noChanged ? `Was ${savedNo}. Every version of the enquiry takes the new number.` : undefined}
+        >
+          <input className={`${inputCls} font-mono`} value={enquiryNo} onChange={(e) => setEnquiryNo(e.target.value)} />
         </Field>
         <Field label="Enquiry date">
           <input type="date" className={inputCls} value={enquiryDate} onChange={(e) => setEnquiryDate(e.target.value)} />

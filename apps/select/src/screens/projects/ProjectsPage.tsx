@@ -93,6 +93,8 @@ const ProjectsPage = () => {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The Edit Enquiry form's last save error.
+  const [editError, setEditError] = useState<string | null>(null);
 
   // Per-project tag state. Tags load lazily on first expansion so the projects
   // list itself stays a single round-trip; once loaded, they're cached in this
@@ -549,7 +551,7 @@ const ProjectsPage = () => {
   const handleEditSave = async (input: UpdateProjectInput) => {
     if (!editing) return;
     setIsSaving(true);
-    setError(null);
+    setEditError(null);
     try {
       await updateProject(editing.id, input);
       // Marking it Completed completes its tags.
@@ -557,8 +559,9 @@ const ProjectsPage = () => {
       setEditing(null);
       // Re-read: the status shown is rolled up on the server, the PATCH reply has the raw row.
       loadProjects();
-    } catch {
-      setError("Couldn't save the project changes. Please try again.");
+    } catch (err) {
+      // Shown on the form, which stays open (e.g. the enquiry no. is already taken).
+      setEditError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Couldn't save the enquiry changes. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -1144,7 +1147,10 @@ const ProjectsPage = () => {
                           <button
                             type="button"
                             className={btn}
-                            onClick={() => setEditing(project)}
+                            onClick={() => {
+                              setEditError(null);
+                              setEditing(project);
+                            }}
                             aria-label={`Edit enquiry ${project.project_code}`}
                             title="Edit enquiry"
                           >
@@ -1485,6 +1491,7 @@ const ProjectsPage = () => {
         project={editing}
         isSaving={isSaving}
         onClose={() => !isSaving && setEditing(null)}
+        saveError={editError}
         onSave={handleEditSave}
         onVersionCreated={() => {
           setEditing(null);

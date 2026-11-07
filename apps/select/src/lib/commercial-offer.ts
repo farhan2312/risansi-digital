@@ -9,6 +9,10 @@
  *     [Strainer · PRV] · DRP with Panel · one row per Other BOI item (by name)
  *     · Pump with Accessories · Unit Price INR (as per scope of supply) ·
  *     Sub-Total Price INR (as per scope of supply)
+ *     · with a discount (user, 2026-11-07): Pump with Accessories Final Discounted
+ *     (Discount n%) · [BOI Items Final Discounted, when BOI total is ticked] ·
+ *     Final Discounted No Regret Each Set Unit Price · Sub-Total Price INR (As Per
+ *     Required Quantity)
  *   Scope of supply :- …   (red)
  *   Out Of Scope :- …
  *
@@ -22,7 +26,26 @@
  *
  * Client-safe (no DB / DOM): the modal, print and Excel all build from here.
  */
-import { boiNet, boiTotal, otherNet, scalePrices, subTotal, unitTotal, type CommercialPrices, type DriveGroup, type QuoteFx, type TagTech } from "./commercial";
+import {
+  boiNet,
+  boiTotal,
+  finalBoi,
+  finalPa,
+  finalSub,
+  finalUnit,
+  hasDiscount,
+  otherNet,
+  parsePct,
+  scalePrices,
+  subTotal,
+  unitTotal,
+  MAX_DISCOUNT_PCT,
+  type CommercialPrices,
+  type DriveGroup,
+  type QuoteDiscount,
+  type QuoteFx,
+  type TagTech,
+} from "./commercial";
 import { SCOPE_CSS, esc, headerHiddenList, hiddenTagList, scopeRowsHtml, sheetHtml, type HeaderKey, type TechDocHeader, type TechDocRow } from "./tech-doc";
 
 export const OFFER_TITLE = "Commercial Offer";
@@ -72,7 +95,8 @@ export interface OfferTag {
   tech?: TagTech;
   /** The product code (else the pump model) — the "Pump Model" row. */
   pumpModel?: string | null;
-  /** Unit price (P&A + all BOI). */
+  /** Unit price (after the discount, when the sheet has one). The sheet's rows
+   *  work from `prices`. */
   unit: number;
   /** unit × quantity. */
   sub: number;
@@ -124,7 +148,7 @@ const money = (n: number | null | undefined): string => (n === null || n === und
 
 interface OfferField {
   key: string;
-  label: (geared: boolean) => string;
+  label: (geared: boolean, d?: QuoteDiscount) => string;
   /** Optional row — only when ticked. */
   extra?: boolean;
   /** Only on a geared sheet (Gear Box). */
@@ -133,12 +157,17 @@ interface OfferField {
   whenPriced?: boolean;
   /** One value for the whole sheet, across the tag columns. */
   span?: boolean;
-  value: (t: OfferTag) => string;
+  value: (t: OfferTag, d: QuoteDiscount) => string;
   /** span rows: the sheet value from all tags. */
-  sheetValue?: (tags: OfferTag[]) => string;
+  sheetValue?: (tags: OfferTag[], d: QuoteDiscount) => string;
   /** Expands into one row per named Other BOI item. */
   perOther?: boolean;
+  /** Only when this holds (the discount rows). */
+  when?: (d: QuoteDiscount, picked: Set<string>) => boolean;
 }
+
+/** "10" / "7.5" — a discount % as the labels write it. */
+const pctText = (n: number | undefined) => String(n ?? 0);
 
 // BOI rows show the QUOTED price (after vendor discount and markup).
 
@@ -184,15 +213,42 @@ export const OFFER_FIELDS: OfferField[] = [
     value: (t) => money(boiTotal({ ...t.prices, others: t.prices.others ?? [] })),
   },
   { key: "pa", label: () => "Pump with Accessories Unit Price (INR)", value: (t) => money(t.prices.paPrice) },
-  { key: "unit", label: () => "Unit Price INR (as per scope of supply)", value: (t) => money(t.unit) },
-  { key: "qtyPrice", label: () => "Sub-Total Price INR (as per scope of supply)", value: (t) => money(t.sub) },
+  // Before any discount.
+  { key: "unit", label: () => "Unit Price INR (as per scope of supply)", value: (t) => money(unitTotal(t.prices)) },
+  { key: "qtyPrice", label: () => "Sub-Total Price INR (as per scope of supply)", value: (t) => money(subTotal(t.prices, t.quantity)) },
+  // The discount (Summary table headings): the values after it.
+  {
+    key: "paDisc",
+    label: (_g, d) => `Pump with Accessories Final Discounted (Discount ${pctText(d?.paPct)}%) No Regret Unit Price (INR)`,
+    when: (d) => d.paPct > 0,
+    value: (t, d) => money(finalPa(t.prices, d)),
+  },
+  {
+    // With the BOI total row (Add parameters) only.
+    key: "boiDisc",
+    label: (_g, d) => `BOI Items Final Discounted (Discount ${pctText(d?.boiPct)}%) No Regret Unit Price (INR)`,
+    when: (d, picked) => d.boiPct > 0 && picked.has("x_boi"),
+    value: (t, d) => money(finalBoi(t.prices, d)),
+  },
+  {
+    key: "unitDisc",
+    label: () => "Final Discounted No Regret Each Set Unit Price (INR)",
+    when: (d) => hasDiscount(d),
+    value: (t, d) => money(finalUnit(t.prices, d)),
+  },
+  {
+    key: "subDisc",
+    label: () => "Sub-Total Price INR (As Per Required Quantity)",
+    when: (d) => hasDiscount(d),
+    value: (t, d) => money(finalSub(t.prices, t.quantity, d)),
+  },
   {
     key: "x_total",
-    label: () => "Total Price (INR)",
+    label: (_g, d) => (hasDiscount(d) ? "Final Discounted Total Price (INR)" : "Total Price (INR)"),
     extra: true,
     span: true,
     value: () => "",
-    sheetValue: (tags) => money(tags.reduce((s, t) => s + t.sub, 0)),
+    sheetValue: (tags, d) => money(tags.reduce((s, t) => s + finalSub(t.prices, t.quantity, d), 0)),
   },
 ];
 
@@ -234,7 +290,27 @@ export interface OfferConfig {
   headerHidden?: HeaderKey[];
   /** Tags left off this sheet (tagIds). */
   hiddenTags?: string[];
+  /** The quotation discount on P&A / on the BOI total, in percent (absent = none).
+   *  Set from the Summary table's headings only (PUT /api/commercial-offer/discount). */
+  paDiscountPct?: number;
+  boiDiscountPct?: number;
 }
+
+/** A sheet's discount (0 when none). */
+export const discountOf = (c: Pick<OfferConfig, "paDiscountPct" | "boiDiscountPct"> | null | undefined): QuoteDiscount => ({
+  paPct: c?.paDiscountPct ?? 0,
+  boiPct: c?.boiDiscountPct ?? 0,
+});
+
+/** The discount fields of a config, only when set (an unset one stays absent, so a
+ *  config without a discount reads exactly as before). */
+export const discountFields = (d: QuoteDiscount): Pick<OfferConfig, "paDiscountPct" | "boiDiscountPct"> => ({
+  ...(d.paPct > 0 ? { paDiscountPct: d.paPct } : {}),
+  ...(d.boiPct > 0 ? { boiDiscountPct: d.boiPct } : {}),
+});
+
+/** A discount % as stored or sent: 0 for none or anything invalid. */
+export const discountPct = (raw: unknown): number => parsePct(raw, MAX_DISCOUNT_PCT) ?? 0;
 
 export const EMPTY_OFFER_CONFIG: OfferConfig = {
   extras: [],
@@ -304,6 +380,7 @@ export function normalizeOfferConfig(raw: unknown): OfferConfig {
     erpText: text(r.erpText),
     headerHidden: headerHiddenList(r.headerHidden),
     hiddenTags: hiddenTagList(r.hiddenTags),
+    ...discountFields({ paPct: discountPct(r.paDiscountPct), boiPct: discountPct(r.boiDiscountPct) }),
   };
 }
 
@@ -322,9 +399,9 @@ export interface OfferBlock {
 
 /** An offer tag in USD: prices divided by the rate, totals recomputed from
  *  them (whole USD, so the columns add up). */
-function usdTag(t: OfferTag, rate: number): OfferTag {
+function usdTag(t: OfferTag, rate: number, d: QuoteDiscount): OfferTag {
   const prices = scalePrices(t.prices, rate);
-  return { ...t, prices, unit: unitTotal(prices), sub: subTotal(prices, t.quantity) };
+  return { ...t, prices, unit: finalUnit(prices, d), sub: finalSub(prices, t.quantity, d) };
 }
 
 /** The sheet's rows with the customisation applied (TechDocEditor reads the
@@ -353,7 +430,8 @@ function offerRows(
   // rate and "INR" read as "USD" in the automatic labels (a renamed label or
   // an edited cell stays as typed).
   const fx = opts.fx;
-  if (fx) tags = tags.map((t) => usdTag(t, fx.rate));
+  const d = discountOf(config);
+  if (fx) tags = tags.map((t) => usdTag(t, fx.rate, d));
   const cur = (label: string) => (fx ? label.replace(/\bINR\b/g, "USD") : label);
   const picked = new Set(config.extras);
   const hidden = new Set(config.hidden);
@@ -383,9 +461,10 @@ function offerRows(
     }
     if (f.extra && !picked.has(f.key)) continue;
     if (f.gearedOnly && !geared) continue;
-    const auto = f.span ? [f.sheetValue?.(tags) ?? ""] : tags.map(f.value);
+    if (f.when && !f.when(d, picked)) continue;
+    const auto = f.span ? [f.sheetValue?.(tags, d) ?? ""] : tags.map((t) => f.value(t, d));
     if (f.whenPriced && auto.every((v) => !v)) continue;
-    finish(f.key, f.extra ? "extra" : "fixed", f.label(geared), auto, f.span);
+    finish(f.key, f.extra ? "extra" : "fixed", f.label(geared, d), auto, f.span);
   }
   for (const c of config.custom) finish(offerCustomKey(c.id), "custom", c.label, tags.map((t) => c.values[t.tagId] ?? ""));
   return [{ title: OFFER_TITLE, rows: opts.includeHidden ? rows : rows.filter((r) => !r.hidden) }];

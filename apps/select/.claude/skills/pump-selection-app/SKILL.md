@@ -1068,6 +1068,26 @@ never auto-filled from the AI result.
   (".../PCP/1864_V1"; the system adds nothing). NEVER show a version beside the enquiry no.: not on documents, page
   headings, popup titles or audit details. Fine in a status (Technical V1), on Save Version and on View docs V1.
 
+## Edit the enquiry no. (user, 2026-11-07)
+- Edit Enquiry form (EditProjectModal) has an Enquiry no. field; sent as projectCode only when it changed.
+  PATCH /api/projects/[id] gives the new number to every version, 409 if taken, audited enquiry.renumber
+  ("Enquiry no. old → new"). Save errors show on the form's footer (saveError), which stays open.
+  Documents (also of saved versions) read the live number.
+
+## Quotation discount (user, 2026-11-07)
+- Pump Commercial Summary table: a Disc. % box under the P&A and BOI Items headings, one % each for every tag of
+  the open drive group (none on the No drive yet tab). Saved on Enter / blur by PUT /api/commercial-offer/discount
+  (audited commercial.discount) into the group's OfferConfig as paDiscountPct / boiDiscountPct (absent = none, so
+  a config without a discount reads as before). The full sheet PUT keeps the stored discount; only that route
+  changes it. Cells show the value after the discount with "base ..." underneath; TagCard totals add "less n%" lines.
+- Maths in lib/commercial.ts: finalPa / finalBoi (each less its %, whole rupees), finalUnit = their sum, finalSub,
+  usdGrandTotal(tags, rate, d). Quotation snapshots: tags unit / sub and grandTotal are AFTER the discount; the %
+  travels in snapshot.offer (discountOf). QuotationPanel and Client Prices read it from there.
+- Commercial Offer / Techno-Commercial: Unit Price and Sub-Total stay before the discount; then "Pump with
+  Accessories Final Discounted (Discount n%) No Regret Unit Price", "BOI Items Final Discounted (Discount n%) ..."
+  (only with the BOI total add-parameter ticked), "Final Discounted No Regret Each Set Unit Price" and "Sub-Total
+  Price INR (As Per Required Quantity)"; Total Price (add-parameter) becomes the discounted total.
+
 ## Enquiries list column sort (user, 2026-11-06)
 - Click Enquiry No. / Date, Client / Code, Reps / Zone or Assigned To to sort; several at once, in click order
   (numbered). A click adds (date newest first, names A to Z), the next reverses, the next removes. Server-side:

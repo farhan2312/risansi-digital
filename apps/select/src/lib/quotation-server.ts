@@ -9,7 +9,7 @@ import { and, asc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { isMarketIntellConfigured, miQuery } from "@/lib/db/market-intell";
 import { projects, quotation, quotationVersion, users } from "@/lib/db/schema";
-import { normalizeOfferConfigs } from "@/lib/commercial-offer";
+import { discountOf, normalizeOfferConfigs } from "@/lib/commercial-offer";
 import { normalizeSpareQuote, spareSnapshot } from "@/lib/spare-quote";
 import { normalizeTechDocConfig, normalizeTechDocConfigs, sameTechDocSheet } from "@/lib/tech-doc";
 import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
@@ -22,8 +22,8 @@ import {
   erpQuotationNumber,
   quotationNumber,
   quoteFxOf,
-  subTotal,
-  unitTotal,
+  finalSub,
+  finalUnit,
 } from "@/lib/commercial";
 
 type MiUserRow = { id: number; name: string; initials: string | null; zone: string | null; role: string };
@@ -91,6 +91,11 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
     loadCommercialSummary(projectId),
     db.select({ offer: projects.commercialOfferConfig, techDoc: projects.techDocConfig }).from(projects).where(eq(projects.id, projectId)).limit(1),
   ]);
+  // The Commercial Offer sheet edits travel with the version, so a frozen
+  // version keeps the sheet exactly as it was - its discount too.
+  const offer = normalizeOfferConfigs(p?.offer, [driveGroup])[driveGroup];
+  const discount = discountOf(offer);
+  // unit / sub / grand total are what is quoted: after the discount, when there is one.
   const tags = (summary?.tags ?? []).filter((t) => t.driveGroup === driveGroup).map((t) => ({
     tagId: t.tagId,
     tagName: t.tagName,
@@ -99,12 +104,9 @@ export async function buildSnapshot(projectId: string, driveGroup: string): Prom
     tech: t.tech,
     quantity: t.quantity,
     prices: t.prices,
-    unit: unitTotal(t.prices),
-    sub: subTotal(t.prices, t.quantity),
+    unit: finalUnit(t.prices, discount),
+    sub: finalSub(t.prices, t.quantity, discount),
   }));
-  // The Commercial Offer sheet edits travel with the version, so a frozen
-  // version keeps the sheet exactly as it was.
-  const offer = normalizeOfferConfigs(p?.offer, [driveGroup])[driveGroup];
   const techDoc = normalizeTechDocConfigs(p?.techDoc, [driveGroup])[driveGroup];
   return {
     tags,

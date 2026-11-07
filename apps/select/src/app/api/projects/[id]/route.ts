@@ -191,8 +191,14 @@ export async function PATCH(
 
   let updated: typeof projects.$inferSelect | undefined;
   let tagsCompleted: string[] = [];
+  // The enquiry no. before a change, for the audit log.
+  let oldCode = null as string | null;
   try {
     updated = await db.transaction(async (tx) => {
+      if (patch.projectCode) {
+        const [before] = await tx.select({ code: projects.projectCode }).from(projects).where(eq(projects.id, id)).limit(1);
+        oldCode = before?.code ?? null;
+      }
       const [row] = await tx.update(projects).set(patch).where(eq(projects.id, id)).returning();
       if (row && completeTags && row.orderType === "pump" && row.orderSubtype !== "pcp") {
         const done = await tx
@@ -218,6 +224,14 @@ export async function PATCH(
     throw e;
   }
   if (!updated) return error("Project not found", 404);
+  if (oldCode !== null && oldCode !== updated.projectCode) {
+    await logAudit(req, {
+      action: "enquiry.renumber",
+      entity: "projects",
+      entityId: id,
+      detail: `Enquiry no. ${oldCode} → ${updated.projectCode}`,
+    });
+  }
   if (tagsCompleted.length > 0) {
     await logAudit(req, {
       action: "enquiry.tags_completed",

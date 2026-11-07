@@ -30,15 +30,15 @@ export type ColumnKey = TextKey | "status";
 
 /** pct: share of the printed sheet's width. width: the Excel's, in characters. */
 export const REPORT_COLUMNS: { key: ColumnKey; label: string; pct: number; width: number }[] = [
-  { key: "rilRep", label: "RIL Rep.", pct: 7, width: 11 },
-  { key: "client", label: "Client Name", pct: 21, width: 38 },
-  { key: "type", label: "Enquiry Type (Domestic / Export)", pct: 8, width: 13 },
-  { key: "status", label: "Enquiry Status", pct: 14, width: 24 },
-  { key: "date", label: "Enquiry Date", pct: 7, width: 12 },
-  { key: "category", label: "Product Category", pct: 7, width: 11 },
-  { key: "enquiryNo", label: "Enq. No.", pct: 12, width: 22 },
-  { key: "assignee", label: "Assign Person", pct: 9, width: 18 },
-  { key: "remark", label: "Detail Remark", pct: 15, width: 40 },
+  { key: "rilRep", label: "RIL REP.", pct: 7, width: 11 },
+  { key: "client", label: "CLIENT", pct: 21, width: 38 },
+  { key: "type", label: "ENQUIRY TYPE", pct: 8, width: 13 },
+  { key: "status", label: "ENQUIRY STATUS", pct: 14, width: 24 },
+  { key: "date", label: "ENQUIRY DATE", pct: 7, width: 12 },
+  { key: "category", label: "TYPE", pct: 7, width: 11 },
+  { key: "enquiryNo", label: "ENQ. NO.", pct: 12, width: 22 },
+  { key: "assignee", label: "ASSIGNED TO", pct: 9, width: 18 },
+  { key: "remark", label: "REMARKS", pct: 15, width: 40 },
 ];
 
 const ZONE_CODES: Record<string, string> = { north: "NI", south: "SI", east: "EI", west: "WI", central: "CI", export: "EX" };
@@ -128,9 +128,10 @@ const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/
 
 const statusClass = (s: string) => (s === "Completed" || s === "Sent to client" ? "done" : s === "In Progress" ? "going" : s === "Not Quoted" ? "closed" : "waiting");
 
-/** The printed report: just the table, its heading repeated on every page. On screen
- *  (`sort` given) the sortable headings carry an arrow; what prints has none. */
-export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSort): string {
+/** The printed report: a title band (styled like the Order Making report), then the
+ *  table, its heading repeated on every page. On screen (`sort` given) the sortable
+ *  headings carry an arrow; what prints has none. `scope`: "As filtered" etc. */
+export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSort, scope?: string): string {
   const heading = (key: ColumnKey, label: string) => {
     if (sort === undefined || !isSortable(key)) return `<th>${esc(label)}</th>`;
     const on = sort?.by === key;
@@ -155,14 +156,20 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSo
   html { color-scheme: light; }
   body { margin: 0; padding: 12px; background: #fff; font-family: Arial, Helvetica, sans-serif; color: #1f2937; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @media print { body { padding: 0; } }
-  .sheet { max-width: 1100px; margin: 0 auto; }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; }
+  .sheet { max-width: 1100px; margin: 0 auto; overflow: hidden; border-radius: 10px; border: 1px solid #e2e8f0; }
+  @media print { .sheet { border-radius: 0; border: 0; } }
+  .band { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 14px 18px; color: #fff; background: linear-gradient(90deg, #1F3864, #2F5496); }
+  .eyebrow { margin: 0; font-size: 7.5pt; font-weight: bold; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+  .title { margin: 2px 0 0; font-size: 13pt; font-weight: bold; }
+  .meta { margin: 0; text-align: right; font-size: 8pt; color: rgba(255,255,255,0.8); line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8pt; color: #334155; }
   thead { display: table-header-group; }
-  th { padding: 6px 5px; background: #0b2f63; color: #fff; font-size: 7.5pt; font-weight: bold; text-align: left; vertical-align: bottom; border: 1px solid #0b2f63; }
-  td { padding: 5px; border: 1px solid #d5deea; vertical-align: top; overflow-wrap: anywhere; white-space: pre-line; }
+  th { padding: 8px 6px; background: #f8fafc; color: #64748b; font-size: 7pt; font-weight: bold; letter-spacing: 0.04em; text-align: left; vertical-align: middle; border-bottom: 1px solid #e2e8f0; }
+  td { padding: 7px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: top; overflow-wrap: anywhere; white-space: pre-line; }
   tr { break-inside: avoid; page-break-inside: avoid; }
-  tbody tr:nth-child(even) td { background: #f8fafd; }
-  .rep, .no { color: #06408c; }
+  tbody tr:nth-child(even) td { background: #f8fafc; }
+  td b { color: #0f172a; }
+  .rep, .no { color: #1F3864; }
   .no { font-family: Consolas, Menlo, monospace; font-weight: bold; }
   .st { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
   .st + .st { margin-top: 3px; }
@@ -173,10 +180,14 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSo
   .waiting { background: #fdf0d5; color: #9a6400; }
   .closed { background: #e9edf2; color: #4b5a6b; }
   .empty { padding: 28px; text-align: center; color: #6b7a8c; }
-  .arrow { font-size: 7pt; opacity: 0.45; }
-  .arrow.on { opacity: 1; color: #ffd166; }
+  .arrow { font-size: 7pt; opacity: 0.5; white-space: nowrap; }
+  .arrow.on { opacity: 1; color: #1F3864; }
 </style></head>
 <body><div class="sheet">
+  <div class="band">
+    <div><p class="eyebrow">Risansi · Enquiries</p><p class="title">Enquiry report</p></div>
+    <div><p class="meta">${scope ? `${esc(scope)} · ` : ""}${esc(dotDate(todayIst()))}</p><p class="meta">${rows.length} enquiries</p></div>
+  </div>
   <table>
     <colgroup>${REPORT_COLUMNS.map((c) => `<col style="width:${c.pct}%">`).join("")}</colgroup>
     <thead><tr>${REPORT_COLUMNS.map((c) => heading(c.key, c.label)).join("")}</tr></thead>

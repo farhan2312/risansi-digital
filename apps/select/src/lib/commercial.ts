@@ -9,6 +9,13 @@
  *   unit price = Pump & Accessories + every BOI item (fixed rows + Others)
  *   sub-total  = unit price × quantity (quantity from the wizard's Pump Model & Qty step)
  *   grand total = sum of every tag's sub-total
+ *
+ * Quotation discount (user, 2026-11-07): one P&A % and one BOI % per drive group,
+ * typed in the Summary table's headings, for every tag of the group. Stored with
+ * the group's Commercial Offer edits (OfferConfig.paDiscountPct / boiDiscountPct),
+ * so each saved version freezes it. The quoted (final) unit price is
+ *   P&A × (1 − P&A %) + BOI total × (1 − BOI %), each in whole rupees,
+ * and the sub-total / grand total follow it. No discount = the prices as they are.
  */
 
 import type { TechDocConfig } from "./tech-doc";
@@ -548,11 +555,36 @@ export const subTotal = (p: CommercialPrices, quantity: number | null): number =
 export const grandTotal = (tags: { prices: CommercialPrices; quantity: number | null }[]): number =>
   tags.reduce((s, t) => s + subTotal(t.prices, t.quantity), 0);
 
+// --- Quotation discount -------------------------------------------------------
+
+/** A drive group's discount, in percent (0 = none). */
+export type QuoteDiscount = { paPct: number; boiPct: number };
+export const NO_DISCOUNT: QuoteDiscount = { paPct: 0, boiPct: 0 };
+export const hasDiscount = (d: QuoteDiscount | null | undefined): boolean => !!d && (d.paPct > 0 || d.boiPct > 0);
+/** n less pct %, in whole rupees. */
+export const lessPct = (n: number, pct: number): number => rupees(n * (1 - (pct > 0 ? pct : 0) / 100));
+/** P&A after the discount (null when there is no P&A price). */
+export const finalPa = (p: CommercialPrices, d: QuoteDiscount | null | undefined): number | null =>
+  p.paPrice === null || p.paPrice === undefined ? null : lessPct(rupees(p.paPrice), d?.paPct ?? 0);
+/** The BOI total after the discount. */
+export const finalBoi = (p: CommercialPrices, d: QuoteDiscount | null | undefined): number =>
+  lessPct(boiTotal({ ...p, others: p.others ?? [] }), d?.boiPct ?? 0);
+/** The quoted unit price: discounted P&A + discounted BOI. */
+export const finalUnit = (p: CommercialPrices, d: QuoteDiscount | null | undefined): number =>
+  (finalPa(p, d) ?? 0) + finalBoi(p, d);
+/** The quoted unit price × quantity (a missing quantity counts as 0). */
+export const finalSub = (p: CommercialPrices, quantity: number | null, d: QuoteDiscount | null | undefined): number =>
+  finalUnit(p, d) * (quantity ?? 0);
+
 /** The totals in USD exactly as the Commercial Offer shows them (each price
- *  converted, then rounded and added up - so they match the sheet). */
-export const usdUnitTotal = (p: CommercialPrices, rate: number): number => unitTotal(scalePrices(p, rate));
-export const usdGrandTotal = (tags: { prices: CommercialPrices; quantity: number | null }[], rate: number): number =>
-  tags.reduce((s, t) => s + subTotal(scalePrices(t.prices, rate), t.quantity), 0);
+ *  converted, then rounded and added up - so they match the sheet), after the
+ *  discount when there is one. */
+export const usdUnitTotal = (p: CommercialPrices, rate: number, d?: QuoteDiscount | null): number => finalUnit(scalePrices(p, rate), d);
+export const usdGrandTotal = (
+  tags: { prices: CommercialPrices; quantity: number | null }[],
+  rate: number,
+  d?: QuoteDiscount | null,
+): number => tags.reduce((s, t) => s + finalSub(scalePrices(t.prices, rate), t.quantity, d), 0);
 
 /** Whole number ≥ 1, else null. */
 export function parseQuantity(raw: unknown): number | null {
@@ -614,6 +646,8 @@ export type EnquiryQuotations = {
 
 /** Frozen copy of the prices when a version was made. */
 export type QuotationSnapshot = {
+  /** unit / sub / grandTotal are after the group's discount (offer.paDiscountPct /
+   *  boiDiscountPct), when it has one. */
   tags: {
     /** Missing on snapshots made before the Commercial Offer (2026-10-01). */
     tagId?: string;

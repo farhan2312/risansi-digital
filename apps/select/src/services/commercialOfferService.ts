@@ -13,6 +13,16 @@ export const saveCommercialOfferConfig = async (projectId: string, group: string
   return data.config;
 };
 
+/** The quotation discount of one drive group (Summary table headings), in percent. */
+export const saveOfferDiscount = async (
+  projectId: string,
+  group: string,
+  discount: { paPct: number; boiPct: number },
+): Promise<{ paPct: number; boiPct: number }> => {
+  const { data } = await apiClient.put<{ paPct: number; boiPct: number }>("/commercial-offer/discount", { projectId, group, ...discount });
+  return data;
+};
+
 /** The Scope of supply / Out of scope lines typed on a document ("" = from
  *  the scope pickers); nothing else of the group's offer config changes. */
 export const saveOfferScopeText = async (
