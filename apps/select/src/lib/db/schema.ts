@@ -1487,7 +1487,7 @@ export const pumpShaftDia = pgTable("pump_shaft_dia", {
 // (Sr. No., Pump Model No as written, e.g. "H-48/50/52", "H60L-3") with each
 // list's MOC columns (L2 and L4 have no ACCN). pa_rubber_addon = "Viton AND
 // HNBR — ADDED TO P&A" per family. The sheet's notes (bucket/auger %, EPDM,
-// food grade, SS304 base plate, size ±3 %, CI casing, AABN = ABBN) are the
+// food grade, SS304 base plate, size ±3 %, CI casing, AABN = AAAN = ABBN) are the
 // rules in lib/pa-price.ts. Used by the Commercial Summary's P&A suggestion.
 export const paPriceLevel = pgTable("pa_price_level", {
   level: varchar("level", { length: 4 }).primaryKey(),
