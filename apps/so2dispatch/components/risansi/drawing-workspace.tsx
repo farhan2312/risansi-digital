@@ -325,7 +325,7 @@ export function DrawingWorkspace({
                           )}
                           <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
                             {str(row.ec_no) || "—"}
-                            <EcLink href={row.ec_link} at={row.ec_link_at} />
+                            <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} />
                           </td>
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>

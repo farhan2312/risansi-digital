@@ -421,6 +421,15 @@ export function EditableSection({
                                 </option>
                               ))}
                             </select>
+                          ) : field.column === "ec_link" ? (
+                            // The EC's attachments: one SharePoint link per line.
+                            <textarea
+                              rows={Math.min(6, Math.max(2, (values.ec_link ?? "").split("\n").length + 1))}
+                              placeholder="One SharePoint link per line"
+                              value={values.ec_link ?? ""}
+                              onChange={(e) => setValues((prev) => withValueRules(prev, field.column, e.target.value))}
+                              className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                            />
                           ) : (
                             <input
                               type={
@@ -452,7 +461,7 @@ export function EditableSection({
                                       : lotsLead.date
                                   )
                                 : field.column === "ec_link" && ecLinkHref(data?.ec_link)
-                                  ? <EcLink href={data?.ec_link} at={data?.ec_link_at} label />
+                                  ? <EcLink href={data?.ec_link} at={data?.ec_link_at} links={data?.ec_links} label />
                                   : formatDisplay(field, liveGross ? values[field.column] : data?.[field.column] ?? field.defaultValue)}
                             </span>
                             {fieldExtra?.(field)}

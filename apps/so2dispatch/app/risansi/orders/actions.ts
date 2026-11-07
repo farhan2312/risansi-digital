@@ -145,12 +145,21 @@ import { getUsdInrRate } from "@/lib/settings";
 import { lockReason } from "@/lib/order-lock";
 import { normaliseDocLink } from "@/lib/drawing-docs";
 
-/** The EC attachment as saved: a web link, or blank; null when it is not one. */
+/**
+ * The EC attachments as saved: web links, one per line (each once), or blank;
+ * null when a line is not one. The database stamps each new link's time.
+ */
 function cleanEcLink(raw: unknown): string | null {
-  const text = String(raw ?? "").trim();
-  return text ? normaliseDocLink(text) : "";
+  const lines = String(raw ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const out: string[] = [];
+  for (const l of lines) {
+    const link = normaliseDocLink(l);
+    if (!link) return null;
+    if (!out.includes(link)) out.push(link);
+  }
+  return out.join("\n");
 }
-const EC_LINK_BAD = "EC Attachment must be a web link (the SharePoint link, https://…).";
+const EC_LINK_BAD = "EC Attachment: each line must be a web link (the SharePoint link, https://…).";
 import {
   checkFieldBounds,
   cleanBoiRows,

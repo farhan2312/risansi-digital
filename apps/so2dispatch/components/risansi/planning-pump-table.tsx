@@ -335,7 +335,7 @@ export function PlanningPumpTable({
                         >
                           {v ? (unit && str(ec[unit]) ? `${v} ${str(ec[unit])}` : v) : <span className="text-muted">—</span>}
                           {/* The EC's attachment, beside its EC No. */}
-                          {i === 0 && <EcLink href={r.ec_link} at={r.ec_link_at} />}
+                          {i === 0 && <EcLink href={r.ec_link} at={r.ec_link_at} links={r.ec_links} />}
                         </td>
                       );
                     })}

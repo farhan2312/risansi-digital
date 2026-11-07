@@ -684,7 +684,7 @@ export const ORDER_SECTIONS: OrderSection[] = [
       { column: "ec_no", label: "EC No.", type: "text" },
       { column: "ec_date", label: "EC Date", type: "date" },
       // A pump EC's attachment (SharePoint link).
-      { column: "ec_link", label: "EC Attachment (SharePoint link)", type: "text", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
+      { column: "ec_link", label: "EC Attachments (SharePoint links, one per line)", type: "text", dependsOn: [{ column: "item_type", value: PUMP_LIKE }] },
       {
         column: "item_type",
         label: "Type",
