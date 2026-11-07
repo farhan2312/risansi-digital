@@ -2877,6 +2877,13 @@ export async function listItemsForSection(
                  to_jsonb(it) - 'order_copy_file_data' AS ec,
                  (SELECT rpl.ready_qty FROM order_planning rpl WHERE rpl.item_id = it.id) AS ready_qty,
                  (SELECT rpl.actual_spare_status FROM order_planning rpl WHERE rpl.item_id = it.id) AS ppc_status,
+                 -- Drawing, as Planning reads it: the GAD versions, and the part drawings.
+                 COALESCE((SELECT jsonb_agg(to_jsonb(rv) ORDER BY rv.seq)
+                             FROM order_drawing_revisions rv
+                            WHERE rv.item_id = it.id AND rv.doc_type = 'GAD'), '[]'::jsonb) AS gad_versions,
+                 (SELECT rpl.part_drawing FROM order_planning rpl WHERE rpl.item_id = it.id) AS part_drawing,
+                 COALESCE((SELECT jsonb_agg(to_jsonb(pd) ORDER BY pd.seq)
+                             FROM order_part_drawings pd WHERE pd.item_id = it.id), '[]'::jsonb) AS part_drawings,
                  -- The SO's Alignment: base plate and wooden box, whether needed and where each stands.
                  (SELECT jsonb_build_object('base_plate', ${basePlateSql("oa")}, 'base_plate_status', oa.base_plate_status,
                                             'base_plate_date', to_char(oa.base_plate_date, 'YYYY-MM-DD'),

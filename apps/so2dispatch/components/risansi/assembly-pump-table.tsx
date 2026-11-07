@@ -33,6 +33,8 @@ import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
 import { SortHeader } from "./sort-header";
+import { GadCell } from "./gad-cell";
+import { PartDrawingCell, PartDrawingView } from "./part-drawing";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -146,6 +148,8 @@ export function AssemblyPumpTable({
     else sos.push({ orderId: id, ecs: [r] });
   }
   const [lotsFor, setLotsFor] = useState<string | null>(null);
+  // The EC whose part drawings are open to read, as on Planning.
+  const [partsFor, setPartsFor] = useState<string | null>(null);
   // The SO and the form open on it: base plate or wooden box, each filled by its own person.
   const [alignFor, setAlignFor] = useState<{ orderId: string; which: "base_plate" | "wooden_box" } | null>(null);
   const alignSo = alignFor ? sos.find((x) => x.orderId === alignFor.orderId) : null;
@@ -179,6 +183,7 @@ export function AssemblyPumpTable({
             <th colSpan={1} className={group} />
             <th colSpan={1} className={group}>Dispatch</th>
             <th colSpan={9} className={group}>EC</th>
+            <th colSpan={2} className={group}>Drawing</th>
           </tr>
           <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
             <th className={th}><SortHeader label="Sl." sortKey="sl" /></th>
@@ -208,12 +213,14 @@ export function AssemblyPumpTable({
             <th className={th}>Assembly</th>
             <th className={th}>Packed</th>
             <th className={th}>Packing</th>
+            <th className={`${th} border-l border-card-border`}>GAD</th>
+            <th className={th}>Part Drawing</th>
           </tr>
         </thead>
         <tbody>
           {sos.length === 0 && (
             <tr>
-              <td colSpan={24 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
+              <td colSpan={26 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
                 No pump SO is ready to assemble.
               </td>
             </tr>
@@ -368,6 +375,19 @@ export function AssemblyPumpTable({
                       <td className={ecCell}>
                         {cvHeld(head) ? <HoldChip /> : <Chip label={ecStageStatus(d.packed, e.quantity, "packing")} />}
                       </td>
+                      {/* Drawing, as on Planning: the GAD, and the part drawings to read. */}
+                      <td className={`${ecCell} whitespace-nowrap border-l border-card-border`}>
+                        <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} />
+                      </td>
+                      <td className={ecCell}>
+                        {str(r.part_drawing).toLowerCase() === "yes" ? (
+                          <button type="button" onClick={() => setPartsFor(e.id)} title="See the parts" className="text-left">
+                            <PartDrawingCell required={r.part_drawing} parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []} />
+                          </button>
+                        ) : (
+                          <PartDrawingCell required={r.part_drawing} parts={[]} />
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -376,6 +396,19 @@ export function AssemblyPumpTable({
           })}
         </tbody>
       </table>
+      {(() => {
+        const r = partsFor ? pumps.find((x) => str(x.id) === partsFor) : null;
+        if (!r) return null;
+        return (
+          <PartDrawingView
+            key={str(r.id)}
+            itemId={str(r.id)}
+            label={[str(r.so_no), `EC ${str(r.ec_no) || "—"}`].filter(Boolean).join(" · ")}
+            parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []}
+            onClose={() => setPartsFor(null)}
+          />
+        );
+      })()}
       {(() => {
         const so = lotsFor ? sos.find((s) => s.orderId === lotsFor) : null;
         if (!so) return null;
