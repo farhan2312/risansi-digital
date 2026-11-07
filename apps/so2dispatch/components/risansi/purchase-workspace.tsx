@@ -357,7 +357,7 @@ export function PurchaseWorkspace({
                           )}
                           <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
                             {row.ec_no ?? "—"}
-                            <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} />
+                            <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} latest />
                           </td>
                           <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date ?? null)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.pump_type ?? "—"}</td>
@@ -801,7 +801,7 @@ function BoiListTable({
               <td className="whitespace-nowrap px-3 py-2">
                 <div className="font-medium">
                   {ec.ec_no ?? "—"}
-                  <EcLink href={ec.ec_link} at={ec.ec_link_at} links={ec.ec_links} />
+                  <EcLink href={ec.ec_link} at={ec.ec_link_at} links={ec.ec_links} latest />
                 </div>
                 <div className="text-xs text-muted">{formatDate(ec.ec_date ?? null)}</div>
               </td>

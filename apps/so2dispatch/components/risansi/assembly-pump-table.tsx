@@ -340,7 +340,7 @@ export function AssemblyPumpTable({
                       )}
                       <td className={`${ecCell} whitespace-nowrap border-l border-card-border font-semibold`}>
                         {e.label}
-                        <EcLink href={e.link} at={e.linkAt} links={e.links} />
+                        <EcLink href={e.link} at={e.linkAt} links={e.links} latest />
                         {e.model && <div className="text-xs font-normal text-muted">{e.model}</div>}
                       </td>
                       <td className={`${ecCell} whitespace-nowrap text-muted`}>{shortDate(((r.ec ?? {}) as Row).ec_date)}</td>

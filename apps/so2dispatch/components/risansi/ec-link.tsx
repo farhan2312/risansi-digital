@@ -36,14 +36,22 @@ export function ecLinksOf(href: unknown, at?: unknown, links?: unknown): { url: 
   return lines.map((url) => ({ url, at: lines.length === 1 ? at : undefined }));
 }
 
+/** The newest attachment: the latest time, else the last line. */
+function newest(list: { url: string; at: unknown }[]): { url: string; at: unknown } {
+  const t = (v: unknown) => (v ? new Date(String(v)).getTime() || 0 : 0);
+  return list.reduce((best, l) => (t(l.at) >= t(best.at) ? l : best), list[0]);
+}
+
 /**
  * The EC's attachments (SharePoint links, from the Pump Add-On), each a clip
  * beside the EC No. that opens it in a new tab, with when it was attached in
  * small type after it. Nothing when the EC has none. `label` shows the words
- * too, for the EC's own details, each on its own line.
+ * too, for the EC's own details, each on its own line. `latest`: only the
+ * newest one — what the departments work from.
  */
-export function EcLink({ href, label, at, links }: { href: unknown; label?: boolean; at?: unknown; links?: unknown }) {
-  const list = ecLinksOf(href, at, links);
+export function EcLink({ href, label, at, links, latest }: { href: unknown; label?: boolean; at?: unknown; links?: unknown; latest?: boolean }) {
+  const all = ecLinksOf(href, at, links);
+  const list = latest && all.length > 1 ? [newest(all)] : all;
   if (list.length === 0) return null;
   const many = list.length > 1;
   const one = (l: { url: string; at: unknown }, i: number) => {
