@@ -10,8 +10,8 @@ import ClientPriceRefModal from "./ClientPriceRefModal";
 import CommercialOfferModal from "./CommercialOfferModal";
 import TechnoCommercialModal from "./TechnoCommercialModal";
 import ScopeControls, { ScopeLines } from "./ScopeControls";
-import { EMPTY_OFFER_CONFIG, isGearedGroup, type OfferConfig } from "../../lib/commercial-offer";
-import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
+import { EMPTY_OFFER_CONFIG, discountFields, discountOf, isGearedGroup, type OfferConfig } from "../../lib/commercial-offer";
+import { getCommercialOffer, saveCommercialOfferConfig, saveOfferDiscount } from "../../services/commercialOfferService";
 import {
   isStandardMechSeal,
   paBasisText,
@@ -47,6 +47,13 @@ import {
   scalePrices,
   subTotal,
   unitTotal,
+  finalBoi,
+  finalPa,
+  finalSub,
+  finalUnit,
+  hasDiscount,
+  NO_DISCOUNT,
+  type QuoteDiscount,
   DRIVE_GROUP_LABEL,
   groupsIn,
   type DriveGroup,
@@ -375,13 +382,28 @@ export default function CommercialSummaryPage() {
     for (const id of dirtyIds) await saveTag(id);
   };
 
+  // Each group's Commercial Offer edits — the page sets its scope lists and the
+  // discount; the modal edits the rest. Re-read after the modal closes so the two
+  // never overwrite each other with a stale copy.
+  const [offerConfigs, setOfferConfigs] = useState<Record<string, OfferConfig> | null>(null);
+  // unit / sub are what is quoted: after the tag's drive group discount (Summary
+  // table headings), when it has one; baseUnit / baseSub before it.
   const rows = useMemo(
     () =>
       (data?.tags ?? []).map((t) => {
         const p = drafts[t.tagId] ? parseDraft(drafts[t.tagId]) : t.prices;
-        return { tag: t, prices: p, unit: unitTotal(p), sub: subTotal(p, t.quantity) };
+        const discount = t.driveGroup ? discountOf(offerConfigs?.[t.driveGroup]) : NO_DISCOUNT;
+        return {
+          tag: t,
+          prices: p,
+          discount,
+          unit: finalUnit(p, discount),
+          sub: finalSub(p, t.quantity, discount),
+          baseUnit: unitTotal(p),
+          baseSub: subTotal(p, t.quantity),
+        };
       }),
-    [data, drafts],
+    [data, drafts, offerConfigs],
   );
   // Quoted per drive system: one tab (quotation, summary, grand total) per
   // group, plus one for tags whose drive isn't chosen yet.
@@ -395,6 +417,9 @@ export default function CommercialSummaryPage() {
   const groupDirty = groupRows.some((r) => dirtyIds.includes(r.tag.tagId));
   const tabLabel = (t: DriveGroup | "NONE") => (t === "NONE" ? "No drive yet" : DRIVE_GROUP_LABEL[t]);
   const grand = groupRows.reduce((s, r) => s + r.sub, 0);
+  // The open drive group's discount (none on the No drive yet tab).
+  const discount = tab && tab !== "NONE" ? discountOf(offerConfigs?.[tab]) : NO_DISCOUNT;
+  const discounted = hasDiscount(discount);
   const missingQty = groupRows.filter((r) => r.tag.quantity === null).length;
 
   const project = data?.project;
@@ -446,10 +471,6 @@ export default function CommercialSummaryPage() {
   const [showOffer, setShowOffer] = useState(false);
   // Technical Data Sheet + Commercial Offer of the open drive group as one sheet.
   const [showTechno, setShowTechno] = useState(false);
-  // Each group's Commercial Offer edits — the page sets its scope lists; the
-  // modal edits the rest. Re-read after the modal closes so the two never
-  // overwrite each other with a stale copy.
-  const [offerConfigs, setOfferConfigs] = useState<Record<string, OfferConfig> | null>(null);
   const [scopeSave, setScopeSave] = useState<"" | "saving" | "saved" | "error">("");
   const loadOfferConfigs = useCallback(() => {
     if (!projectId) return;
@@ -470,6 +491,23 @@ export default function CommercialSummaryPage() {
       })
       .catch(() => setScopeSave("error"));
   };
+  // The discount typed in the P&A / BOI Items headings: every tag of the group.
+  const [discountError, setDiscountError] = useState("");
+  const saveDiscount = async (group: DriveGroup, next: QuoteDiscount) => {
+    setDiscountError("");
+    try {
+      const r = await saveOfferDiscount(projectId, group, next);
+      setOfferConfigs((m) => {
+        const { paDiscountPct: _pa, boiDiscountPct: _boi, ...rest } = m?.[group] ?? EMPTY_OFFER_CONFIG;
+        return { ...(m ?? {}), [group]: { ...rest, ...discountFields(r) } };
+      });
+      setPricesVersion((n) => n + 1);
+    } catch (e) {
+      setDiscountError((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Couldn't save the discount.");
+      throw e;
+    }
+  };
+
   // `saved` holds each tag's last-saved prices (data.tags is only the first
   // load), so a Save shows up in the sheet straight away.
   const offerTags = useMemo(
@@ -478,6 +516,7 @@ export default function CommercialSummaryPage() {
         .filter((t) => (t.driveGroup ?? "NONE") === tab)
         .map((t) => {
           const prices = saved[t.tagId] ? parseDraft(saved[t.tagId]) : t.prices;
+          const d = t.driveGroup ? discountOf(offerConfigs?.[t.driveGroup]) : NO_DISCOUNT;
           return {
             tagId: t.tagId,
             tagName: t.tagName,
@@ -485,11 +524,11 @@ export default function CommercialSummaryPage() {
             pumpModel: t.productCode ?? t.model,
             prices,
             quantity: t.quantity,
-            unit: unitTotal(prices),
-            sub: subTotal(prices, t.quantity),
+            unit: finalUnit(prices, d),
+            sub: finalSub(prices, t.quantity, d),
           };
         }),
-    [data, saved, tab],
+    [data, saved, tab, offerConfigs],
   );
 
   if (project?.orderType === "spare") {
@@ -832,21 +871,42 @@ export default function CommercialSummaryPage() {
               </div>
             </header>
             {fxError && <p className="border-b border-line px-4 py-2 text-[12.5px] text-neg">{fxError}</p>}
+            {discountError && <p className="border-b border-line px-4 py-2 text-[12.5px] text-neg">{discountError}</p>}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-[13px]">
                 <thead>
                   <tr className="border-b border-line text-left text-[11.5px] font-semibold tracking-[0.06em] text-fg-3 uppercase">
-                    <th className="px-4 py-2.5">Tag</th>
-                    <th className="px-4 py-2.5">Pump Model</th>
-                    <th className="px-4 py-2.5 text-right">P&amp;A</th>
-                    <th className="px-4 py-2.5 text-right">BOI Items</th>
-                    <th className="px-4 py-2.5 text-right">Unit Price</th>
-                    <th className="px-4 py-2.5 text-right">Qty</th>
-                    <th className="px-4 py-2.5 text-right">Sub-total</th>
+                    <th className="px-4 py-2.5 align-top">Tag</th>
+                    <th className="px-4 py-2.5 align-top">Pump Model</th>
+                    <th className="px-4 py-2.5 text-right align-top">
+                      P&amp;A
+                      {tab && tab !== "NONE" && (
+                        <DiscountInput
+                          label="P&A"
+                          value={discount.paPct}
+                          disabled={readOnly || offerConfigs === null}
+                          onCommit={(pct) => saveDiscount(tab, { ...discount, paPct: pct })}
+                        />
+                      )}
+                    </th>
+                    <th className="px-4 py-2.5 text-right align-top">
+                      BOI Items
+                      {tab && tab !== "NONE" && (
+                        <DiscountInput
+                          label="BOI items"
+                          value={discount.boiPct}
+                          disabled={readOnly || offerConfigs === null}
+                          onCommit={(pct) => saveDiscount(tab, { ...discount, boiPct: pct })}
+                        />
+                      )}
+                    </th>
+                    <th className="px-4 py-2.5 text-right align-top">Unit Price</th>
+                    <th className="px-4 py-2.5 text-right align-top">Qty</th>
+                    <th className="px-4 py-2.5 text-right align-top">Sub-total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {groupRows.map(({ tag, prices, unit, sub }) => (
+                  {groupRows.map(({ tag, prices, unit, sub, baseUnit, baseSub }) => (
                     <tr key={tag.tagId} className="border-b border-line last:border-b-0">
                       <td className="px-4 py-2.5">
                         <a href={`#tag-${tag.tagId}`} className="font-semibold text-accent hover:underline">
@@ -862,19 +922,23 @@ export default function CommercialSummaryPage() {
                           <span className="block text-[11.5px] text-fg-3">{tag.model}</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono">{formatInr(prices.paPrice)}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">{formatInr(boiTotal(prices))}</td>
                       <td className="px-4 py-2.5 text-right font-mono">
-                        {formatInr(unit)}
-                        {fx && <span className="block text-[11.5px] text-accent">{formatUsd(unitTotal(usd(prices)))}</span>}
+                        <WithBase final={formatInr(finalPa(prices, discount))} base={formatInr(prices.paPrice)} show={discount.paPct > 0 && prices.paPrice !== null} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        <WithBase final={formatInr(finalBoi(prices, discount))} base={formatInr(boiTotal(prices))} show={discount.boiPct > 0} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        <WithBase final={formatInr(unit)} base={formatInr(baseUnit)} show={discounted} />
+                        {fx && <span className="block text-[11.5px] text-accent">{formatUsd(finalUnit(usd(prices), discount))}</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
                         {tag.quantity ?? <span className="text-neg">not set</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono font-semibold text-fg">
-                        {formatInr(sub)}
+                        <WithBase final={formatInr(sub)} base={formatInr(baseSub)} show={discounted} />
                         {fx && (
-                          <span className="block text-[11.5px] text-accent">{formatUsd(subTotal(usd(prices), tag.quantity))}</span>
+                          <span className="block text-[11.5px] text-accent">{formatUsd(finalSub(usd(prices), tag.quantity, discount))}</span>
                         )}
                       </td>
                     </tr>
@@ -887,18 +951,32 @@ export default function CommercialSummaryPage() {
                       Grand Total
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
-                      {formatInr(groupRows.reduce((s, r) => s + (r.prices.paPrice ?? 0), 0))}
+                      <WithBase
+                        final={formatInr(groupRows.reduce((s, r) => s + (finalPa(r.prices, discount) ?? 0), 0))}
+                        base={formatInr(groupRows.reduce((s, r) => s + (r.prices.paPrice ?? 0), 0))}
+                        show={discount.paPct > 0}
+                      />
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
-                      {formatInr(groupRows.reduce((s, r) => s + boiTotal(r.prices), 0))}
+                      <WithBase
+                        final={formatInr(groupRows.reduce((s, r) => s + finalBoi(r.prices, discount), 0))}
+                        base={formatInr(groupRows.reduce((s, r) => s + boiTotal(r.prices), 0))}
+                        show={discount.boiPct > 0}
+                      />
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
-                      {formatInr(groupRows.reduce((s, r) => s + r.unit, 0))}
+                      <WithBase
+                        final={formatInr(groupRows.reduce((s, r) => s + r.unit, 0))}
+                        base={formatInr(groupRows.reduce((s, r) => s + r.baseUnit, 0))}
+                        show={discounted}
+                      />
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
                       {groupRows.reduce((s, r) => s + (r.tag.quantity ?? 0), 0)}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-[15px] font-bold text-fg">{formatInr(grand)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-[15px] font-bold text-fg">
+                      <WithBase final={formatInr(grand)} base={formatInr(groupRows.reduce((s, r) => s + r.baseSub, 0))} show={discounted} />
+                    </td>
                   </tr>
                   {fx && (
                     // The same sums in USD, as the Commercial Offer shows them.
@@ -907,17 +985,17 @@ export default function CommercialSummaryPage() {
                         Grand Total (USD)
                       </td>
                       <td className="px-4 pb-3 text-right font-mono text-[13px] font-semibold">
-                        {formatUsd(groupRows.reduce((s, r) => s + rupees(usd(r.prices).paPrice ?? 0), 0))}
+                        {formatUsd(groupRows.reduce((s, r) => s + (finalPa(usd(r.prices), discount) ?? 0), 0))}
                       </td>
                       <td className="px-4 pb-3 text-right font-mono text-[13px] font-semibold">
-                        {formatUsd(groupRows.reduce((s, r) => s + boiTotal(usd(r.prices)), 0))}
+                        {formatUsd(groupRows.reduce((s, r) => s + finalBoi(usd(r.prices), discount), 0))}
                       </td>
                       <td className="px-4 pb-3 text-right font-mono text-[13px] font-semibold">
-                        {formatUsd(groupRows.reduce((s, r) => s + unitTotal(usd(r.prices)), 0))}
+                        {formatUsd(groupRows.reduce((s, r) => s + finalUnit(usd(r.prices), discount), 0))}
                       </td>
                       <td />
                       <td className="px-4 pb-3 text-right font-mono text-[15px] font-bold">
-                        {formatUsd(groupRows.reduce((s, r) => s + subTotal(usd(r.prices), r.tag.quantity), 0))}
+                        {formatUsd(groupRows.reduce((s, r) => s + finalSub(usd(r.prices), r.tag.quantity, discount), 0))}
                       </td>
                     </tr>
                   )}
@@ -963,6 +1041,7 @@ export default function CommercialSummaryPage() {
               draft={drafts[tag.tagId]}
               otherNames={otherNamesElsewhere(drafts, tag.tagId)}
               prices={prices}
+              discount={discount}
               unit={unit}
               sub={sub}
               dirty={dirtyIds.includes(tag.tagId)}
@@ -1053,6 +1132,87 @@ function otherNamesElsewhere(drafts: Record<string, Draft>, tagId: string): stri
   return [...names.values()];
 }
 
+/** A value after the discount, with the value before it underneath. */
+function WithBase({ final, base, show }: { final: string; base: string; show: boolean }) {
+  if (!show) return <>{base}</>;
+  return (
+    <>
+      {final}
+      <span className="block text-[11.5px] font-normal text-fg-3" title="Before the discount">
+        base {base}
+      </span>
+    </>
+  );
+}
+
+/** The discount % box in a Summary heading: saved on Enter or leaving the box. */
+function DiscountInput({
+  label,
+  value,
+  disabled,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  disabled: boolean;
+  onCommit: (pct: number) => Promise<void>;
+}) {
+  const shown = value > 0 ? String(value) : "";
+  const [text, setText] = useState(shown);
+  const [bad, setBad] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setText(shown), [shown]);
+  const commit = async () => {
+    const raw = text.replace(/%/g, "").trim();
+    const n = raw === "" ? 0 : Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n >= MAX_DISCOUNT_PCT) {
+      setBad(true);
+      return;
+    }
+    setBad(false);
+    const pct = Math.round(n * 100) / 100;
+    if (pct === value) {
+      setText(shown);
+      return;
+    }
+    setBusy(true);
+    try {
+      await onCommit(pct);
+    } catch {
+      setBad(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="mt-1 flex items-center justify-end gap-1 font-medium tracking-normal normal-case">
+      <span className="text-[11px] text-fg-3">Disc.</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={text}
+        placeholder="0"
+        disabled={disabled || busy}
+        aria-label={`${label} discount %, for every tag`}
+        title={`${label} discount for every tag of this drive group (below 100%)`}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            setText(shown);
+            setBad(false);
+          }
+        }}
+        className={`w-14 rounded border bg-paper px-1.5 py-0.5 text-right font-mono text-[12px] text-fg outline-none focus:border-accent disabled:opacity-60 ${
+          bad ? "border-neg" : "border-line"
+        }`}
+      />
+      <span className="text-[11px] text-fg-3">%</span>
+    </span>
+  );
+}
+
 function TagCard({
   tag,
   collapsed,
@@ -1060,6 +1220,7 @@ function TagCard({
   paData,
   draft,
   prices,
+  discount,
   unit,
   sub,
   dirty,
@@ -1083,6 +1244,9 @@ function TagCard({
   paData: PaPriceData | "error" | null;
   draft: Draft;
   prices: CommercialPrices;
+  /** The drive group's discount (Summary table headings). */
+  discount: QuoteDiscount;
+  /** After the discount. */
   unit: number;
   sub: number;
   dirty: boolean;
@@ -1502,7 +1666,13 @@ function TagCard({
         {/* Totals */}
         <aside className="flex h-fit flex-col gap-2 rounded-lg border border-line bg-sunk p-4 text-[13px]">
           <TotalRow label="Pump & Accessories" value={formatInr(prices.paPrice ?? 0)} />
+          {discount.paPct > 0 && (
+            <TotalRow label={`P&A less ${discount.paPct}% discount`} value={formatInr(finalPa(prices, discount) ?? 0)} />
+          )}
           <TotalRow label="BOI items" value={formatInr(boiTotal(prices))} />
+          {discount.boiPct > 0 && (
+            <TotalRow label={`BOI less ${discount.boiPct}% discount`} value={formatInr(finalBoi(prices, discount))} />
+          )}
           <div className="my-1 border-t border-line" />
           <TotalRow label="Unit price" value={formatInr(unit)} strong />
           <TotalRow

@@ -23,7 +23,7 @@ import { listTsmOptions } from "../../services/quotationService";
 // The User Master's report on the Enquiries page: the list as filtered, every page,
 // in a panel that opens and closes. PDF view (what prints) or Excel view (what
 // downloads), zoomed or fitted to the panel's width. Clicking the RIL Rep., Client Name,
-// Assign Person or Enquiry Date heading sorts by it (again: the other way; a third time:
+// Assigned To or Enquiry Date heading sorts by it (again: the other way; a third time:
 // back to the list's order); it prints and downloads in that order.
 
 const ZOOM_STEP = 0.1;
@@ -89,7 +89,7 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
   const step = (d: number) => setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((scale + d) * 10) / 10)));
 
   // On screen the headings show the sort; the printed copy doesn't.
-  const html = useMemo(() => (rows ? buildEnquiryReportHtml(rows, sort) : ""), [rows, sort]);
+  const html = useMemo(() => (rows ? buildEnquiryReportHtml(rows, sort, scope) : ""), [rows, sort, scope]);
   const loading = open && loadedFor !== key && !error;
 
   return (
@@ -156,7 +156,7 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
               </button>
             </div>
             {view === "pdf" ? (
-              <button type="button" className={btn} onClick={() => void printHtml(buildEnquiryReportHtml(rows), "A3 landscape")}>
+              <button type="button" className={btn} onClick={() => void printHtml(buildEnquiryReportHtml(rows, undefined, scope), "A3 landscape")}>
                 Print / PDF
               </button>
             ) : (
@@ -206,7 +206,7 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
                       onClick={() => sortOn(h.key)}
                       title={`Sort by ${REPORT_COLUMNS.find((c) => c.key === h.key)?.label}`}
                       aria-label={`Sort by ${REPORT_COLUMNS.find((c) => c.key === h.key)?.label}`}
-                      className="absolute cursor-pointer hover:bg-white/15"
+                      className="absolute cursor-pointer hover:bg-[#1F3864]/5"
                       style={{ left: h.left * scale, top: h.top * scale, width: h.width * scale, height: h.height * scale }}
                     />
                   ))}

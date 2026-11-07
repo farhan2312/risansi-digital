@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import CommercialOfferModal from "./CommercialOfferModal";
-import { normalizeOfferConfig } from "../../lib/commercial-offer";
+import { discountOf, normalizeOfferConfig } from "../../lib/commercial-offer";
 import {
   BOI_ITEMS,
   type DriveGroup,
@@ -19,6 +19,9 @@ import {
   usdGrandTotal,
   otherNet,
   versionLabel,
+  finalBoi,
+  finalPa,
+  type QuoteDiscount,
 } from "../../lib/commercial";
 import { SPARE_GROUP } from "../../lib/commercial";
 import {
@@ -529,7 +532,7 @@ function VersionList({
                   {fmtDate(v.createdAt)}
                   {v.createdByName ? ` · ${v.createdByName}` : ""} · TSM {v.tsmInitials ?? "—"} ·{" "}
                   {formatInr(v.snapshot.grandTotal)}
-                  {v.snapshot.fx ? ` · ${formatUsd(usdGrandTotal(v.snapshot.tags, v.snapshot.fx.rate))}` : ""}
+                  {v.snapshot.fx ? ` · ${formatUsd(usdGrandTotal(v.snapshot.tags, v.snapshot.fx.rate, discountOf(v.snapshot.offer)))}` : ""}
                 </p>
               </div>
               <button type="button" className={btnSm} onClick={() => onView(v)}>
@@ -660,7 +663,7 @@ function SnapshotModal({
                     Quoted in USD · 1 USD = ₹{s.fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}
                   </td>
                   <td className="px-4 pb-2.5 text-right font-mono font-bold text-accent">
-                    {formatUsd(usdGrandTotal(s.tags, s.fx.rate))}
+                    {formatUsd(usdGrandTotal(s.tags, s.fx.rate, discountOf(s.offer)))}
                   </td>
                 </tr>
               )}
@@ -676,7 +679,7 @@ function SnapshotModal({
             )}
             <h4 className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">Details by tag</h4>
             {s.tags.map((t, i) => (
-              <TagBreakdown key={i} tag={t} />
+              <TagBreakdown key={i} tag={t} discount={discountOf(s.offer)} />
             ))}
           </div>
         </div>
@@ -698,7 +701,8 @@ const BOI_NOTE: Partial<Record<string, (p: SnapshotTag["prices"]) => string | nu
 const pctNote = (base: number | null, d?: number | null, m?: number | null) =>
   base === null ? null : `base ${formatInr(base)}${d ? ` −${d}%` : ""} +${m ?? 0}%`;
 
-function TagBreakdown({ tag }: { tag: SnapshotTag }) {
+/** unit / sub on the version are after its discount (frozen with its sheet edits). */
+function TagBreakdown({ tag, discount }: { tag: SnapshotTag; discount: QuoteDiscount }) {
   const p = tag.prices;
   const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ") || null;
   const line = (label: string, value: number | null | undefined, note?: string | null, key?: string) => (
@@ -754,6 +758,18 @@ function TagBreakdown({ tag }: { tag: SnapshotTag }) {
             <td className="px-3 py-1.5 text-right text-fg-3">BOI total</td>
             <td className="px-3 py-1.5 text-right font-mono text-fg-2">{formatInr(boiTotal({ ...p, others: p.others ?? [] }))}</td>
           </tr>
+          {discount.paPct > 0 && (
+            <tr>
+              <td className="px-3 py-1.5 text-right text-fg-3">P&amp;A less {discount.paPct}% discount</td>
+              <td className="px-3 py-1.5 text-right font-mono text-fg-2">{formatInr(finalPa(p, discount))}</td>
+            </tr>
+          )}
+          {discount.boiPct > 0 && (
+            <tr>
+              <td className="px-3 py-1.5 text-right text-fg-3">BOI less {discount.boiPct}% discount</td>
+              <td className="px-3 py-1.5 text-right font-mono text-fg-2">{formatInr(finalBoi(p, discount))}</td>
+            </tr>
+          )}
           <tr>
             <td className="px-3 py-1.5 text-right font-semibold text-fg">Unit price</td>
             <td className="px-3 py-1.5 text-right font-mono font-semibold text-fg">{formatInr(tag.unit)}</td>

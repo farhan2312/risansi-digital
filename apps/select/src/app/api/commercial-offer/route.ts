@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { DRIVE_GROUPS, erpQuotationNumber, isDriveGroup, quotationNumber } from "@/lib/commercial";
-import { normalizeOfferConfig, normalizeOfferConfigs, type CommercialOfferData } from "@/lib/commercial-offer";
+import { normalizeOfferConfig, normalizeOfferConfigs, type CommercialOfferData, discountFields, discountOf } from "@/lib/commercial-offer";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
 import { projects, quotation } from "@/lib/db/schema";
@@ -76,7 +76,10 @@ export async function PUT(req: Request) {
       .for("update");
     if (!row) return false;
     const all = normalizeOfferConfigs(row.config, [...DRIVE_GROUPS]);
-    all[group] = config;
+    // The discount is set from the Summary headings only (…/discount): a sheet
+    // save keeps what is stored, whatever copy the sheet had.
+    const { paDiscountPct: _pa, boiDiscountPct: _boi, ...sheet } = config;
+    all[group] = { ...sheet, ...discountFields(discountOf(all[group])) };
     await tx
       .update(projects)
       .set({ commercialOfferConfig: { groups: all } as unknown as Record<string, unknown> })

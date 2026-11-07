@@ -17,6 +17,8 @@ import {
   type OfferConfig,
   type OfferSheet,
   type OfferTag,
+  discountFields,
+  discountOf,
 } from "../../lib/commercial-offer";
 import { downloadOfferExcel } from "../../lib/commercial-offer-excel";
 import { printHtml } from "../../lib/enquiry-print";
@@ -234,7 +236,7 @@ export default function CommercialOfferModal({
                   {customised && (
                     <button
                       type="button"
-                      onClick={() => update({ ...EMPTY_OFFER_CONFIG, extras: config.extras })}
+                      onClick={() => update({ ...EMPTY_OFFER_CONFIG, extras: config.extras, ...discountFields(discountOf(config)) })}
                       className="rounded-lg px-2 py-1.5 text-[12px] font-semibold text-neg hover:bg-[var(--neg-soft)]"
                       title="Undo every removal, rename, edited value, manual row and scope change"
                     >

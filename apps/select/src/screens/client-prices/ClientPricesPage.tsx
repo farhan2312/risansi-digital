@@ -9,10 +9,13 @@ import { listClientPriceRefs, type ClientPriceRef } from "../../services/clientP
 import {
   DRIVE_GROUP_LABEL,
   boiTotal,
+  finalBoi,
+  finalPa,
   formatInr,
   isDriveGroup,
   type QuotationVersionInfo,
 } from "../../lib/commercial";
+import { discountOf } from "../../lib/commercial-offer";
 import type { ClientQuoteHistory, ClientQuoteHit } from "../../lib/client-quotes";
 import { getClientQuotes, searchClientQuotes } from "../../services/clientQuotesService";
 
@@ -324,6 +327,8 @@ function VersionRow({ v }: { v: QuotationVersionInfo }) {
   const [open, setOpen] = useState(false);
   const sent = v.track === "client";
   const tags = useMemo(() => v.snapshot.tags ?? [], [v]);
+  // The version's discount: P&A / BOI shown after it, like its unit price and sub-total.
+  const discount = discountOf(v.snapshot.offer);
   return (
     <div className="px-4 py-2.5">
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full flex-wrap items-center gap-2 text-left">
@@ -363,8 +368,22 @@ function VersionRow({ v }: { v: QuotationVersionInfo }) {
                   <td className="py-1.5 pr-2 font-semibold text-fg">{t.tagName}</td>
                   <td className="py-1.5 pr-2 font-mono text-[11.5px] text-fg-2">{t.productCode ?? t.model ?? "—"}</td>
                   <td className="py-1.5 pr-2 text-right font-mono">{t.quantity ?? "—"}</td>
-                  <td className="py-1.5 pr-2 text-right font-mono">{formatInr(t.prices.paPrice)}</td>
-                  <td className="py-1.5 pr-2 text-right font-mono">{formatInr(boiTotal({ ...t.prices, others: t.prices.others ?? [] }))}</td>
+                  <td className="py-1.5 pr-2 text-right font-mono">
+                    {formatInr(finalPa(t.prices, discount))}
+                    {discount.paPct > 0 && t.prices.paPrice !== null && (
+                      <span className="block text-[11px] text-fg-3">
+                        {formatInr(t.prices.paPrice)} −{discount.paPct}%
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 pr-2 text-right font-mono">
+                    {formatInr(finalBoi(t.prices, discount))}
+                    {discount.boiPct > 0 && (
+                      <span className="block text-[11px] text-fg-3">
+                        {formatInr(boiTotal({ ...t.prices, others: t.prices.others ?? [] }))} −{discount.boiPct}%
+                      </span>
+                    )}
+                  </td>
                   <td className="py-1.5 pr-2 text-right font-mono">{formatInr(t.unit)}</td>
                   <td className="py-1.5 text-right font-mono font-semibold">{formatInr(t.sub)}</td>
                 </tr>
