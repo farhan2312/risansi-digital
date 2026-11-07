@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Maximize2, Minus, Plus, Printer, X } from "lucide-react";
-import { blocksOf, type SoBlock } from "@/lib/order-making-blocks";
+import { blocksOf, sortBlocks, type ReportSortKey, type SoBlock } from "@/lib/order-making-blocks";
 
 type Line = { cells: (string | number | null)[]; filled: boolean };
 type Report = { scope: string; columns: { header: string; date?: boolean }[]; lines: Line[] };
@@ -10,6 +10,9 @@ type Report = { scope: string; columns: { header: string; date?: boolean }[]; li
 const ZOOM_STEP = 0.1;
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 1.5;
+
+/** The headings that sort the report, and by what. */
+const SORT_BY: Record<string, ReportSortKey> = { "PO Received": "po", Client: "client", "Assigned to": "assigned", "Sales Order": "so_date" };
 
 const HEADS = ["PO Received", "Client", "Type", "Sales Order", "ECs", "Sent to Operation", "Assigned to", "Reason for Delay", "Remarks"];
 
@@ -74,7 +77,9 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
 
   // The report as a PDF, in its pop-up: to print or download.
   const [showPdf, setShowPdf] = useState(false);
-  const blocks = report ? blocksOf(report) : [];
+  // Sorted by a heading (PO Received, Client, Sales Order's SO date, Assigned to): the PDF the same.
+  const [sort, setSort] = useState<string | null>(null);
+  const blocks = report ? sortBlocks(blocksOf(report), sort) : [];
   const ecCount = blocks.reduce((t, b) => t + b.ecs.length, 0);
 
   const zoomButton =
@@ -82,7 +87,7 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
 
   return (
     <section className="mb-4 overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm">
-      {showPdf && <ReportPdfDialog query={query} onClose={() => setShowPdf(false)} />}
+      {showPdf && <ReportPdfDialog query={sort ? `${query ? `${query}&` : ""}rsort=${sort}` : query} onClose={() => setShowPdf(false)} />}
       <div className="flex items-center gap-3 px-4 py-3">
         <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-3 text-left">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15">
@@ -149,7 +154,7 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
               {/* Scaled as a whole; the box beneath takes its scaled size so nothing is cut or left blank. */}
               <div style={{ width: sheet.w * scale || undefined, height: sheet.h * scale || undefined }}>
                 <div ref={sheetRef} style={{ transform: `scale(${scale})`, transformOrigin: "top left" }} className="w-max">
-                  <Sheet scope={report.scope} blocks={blocks} ecCount={ecCount} hideSentToOps={hideSentToOps} />
+                  <Sheet scope={report.scope} blocks={blocks} ecCount={ecCount} hideSentToOps={hideSentToOps} sort={sort} onSort={setSort} />
                 </div>
               </div>
             </div>
@@ -161,7 +166,21 @@ export function OmReportPanel({ query, hideSentToOps = false }: { query: string;
 }
 
 /** The report itself: a title, then one card-row per SO. */
-function Sheet({ scope, blocks, ecCount, hideSentToOps }: { scope: string; blocks: SoBlock[]; ecCount: number; hideSentToOps: boolean }) {
+function Sheet({
+  scope,
+  blocks,
+  ecCount,
+  hideSentToOps,
+  sort,
+  onSort,
+}: {
+  scope: string;
+  blocks: SoBlock[];
+  ecCount: number;
+  hideSentToOps: boolean;
+  sort: string | null;
+  onSort: (next: string | null) => void;
+}) {
   // An Order Making SO member does not see Sent to Operation.
   const heads = hideSentToOps ? HEADS.filter((h) => h !== "Sent to Operation") : HEADS;
   return (
@@ -192,11 +211,30 @@ function Sheet({ scope, blocks, ecCount, hideSentToOps }: { scope: string; block
         </colgroup>
         <thead>
           <tr>
-            {heads.map((h) => (
-              <th key={h} className="border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">
-                {h}
-              </th>
-            ))}
+            {heads.map((h) => {
+              const key = SORT_BY[h];
+              // First click ascending, then descending, then the list's own order.
+              const state = key && sort === key ? "asc" : key && sort === `-${key}` ? "desc" : null;
+              return (
+                <th key={h} className="border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-[10.5px] font-semibold uppercase tracking-wide text-slate-500">
+                  {key ? (
+                    <button
+                      type="button"
+                      onClick={() => onSort(state === "asc" ? `-${key}` : state === "desc" ? null : key)}
+                      aria-label={`Sort by ${h === "Sales Order" ? "SO date" : h}`}
+                      className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-slate-800 ${state ? "text-slate-800" : ""}`}
+                    >
+                      {h}
+                      <span aria-hidden className="text-[9px]">
+                        {state === "asc" ? "▲" : state === "desc" ? "▼" : "↕"}
+                      </span>
+                    </button>
+                  ) : (
+                    h
+                  )}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>

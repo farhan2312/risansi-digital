@@ -5,7 +5,7 @@ import "server-only";
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { sanitize, wrap } from "@/lib/pdf-text";
-import { blocksOf, type ReportShape, type SoBlock } from "@/lib/order-making-blocks";
+import { blocksOf, sortBlocks, type ReportShape, type SoBlock } from "@/lib/order-making-blocks";
 
 const W = 842;
 const H = 595;
@@ -25,8 +25,9 @@ const ROSE = rgb(0.75, 0.13, 0.2);
 const SIZE = 7.6;
 const LINE = 9.6;
 
-export async function buildOrderMakingReportPdf(report: ReportShape & { scope: string }): Promise<Uint8Array> {
-  const blocks = blocksOf(report);
+/** sort: as the on-page report sorts it (rsort), or null for the list's order. */
+export async function buildOrderMakingReportPdf(report: ReportShape & { scope: string }, sort: string | null = null): Promise<Uint8Array> {
+  const blocks = sortBlocks(blocksOf(report), sort);
   const withOps = report.columns.some((c) => c.header === "SO Sent to Operation");
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);

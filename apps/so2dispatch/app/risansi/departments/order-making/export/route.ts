@@ -4,6 +4,7 @@ import { mayOpenPage } from "@/lib/view-pages";
 import { canViewOrderMaking, isOrderMakingSo } from "@/lib/roles";
 import { buildOrderMakingWorkbook, loadOrderMakingReport, orderMakingReport } from "@/lib/order-making-export";
 import { buildOrderMakingReportPdf } from "@/lib/order-making-report-pdf";
+import { parseReportSort } from "@/lib/order-making-blocks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   }
   // As a PDF, laid out as the on-page report: shown in its pop-up, or saved with download=1.
   if (params.get("pdf")) {
-    const bytes = await buildOrderMakingReportPdf({ scope, ...orderMakingReport(rows, omit) });
+    const bytes = await buildOrderMakingReportPdf({ scope, ...orderMakingReport(rows, omit) }, parseReportSort(params.get("rsort")));
     return new Response(bytes as unknown as ArrayBuffer, {
       headers: {
         "Content-Type": "application/pdf",
