@@ -318,10 +318,10 @@ export function soStageStatusSql(stage: Stage, o = "o"): string {
              ELSE '${partial}' END)`;
 }
 
-/** The Pump view's SOs: those Planning has Partial or Fully ready. */
+/** The Pump view's SOs: those Planning has In plan, Partial or Fully ready. */
 export const PUMP_VIEW_READY_SQL = `EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
                  WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')
-                   AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`;
+                   AND (pl.actual_spare_status IN ('In plan', 'Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`;
 
 /** The SO status filters' values under `key`, those that are statuses. */
 export function pickStageStatuses(get: (key: string) => string | undefined, stage: Stage): string[] {

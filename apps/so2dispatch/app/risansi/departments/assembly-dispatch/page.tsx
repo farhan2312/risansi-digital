@@ -61,7 +61,7 @@ export default async function AssemblyDispatchWorkspacePage({
   // This department's own filter bar, with the department pinned.
   // A Rep sees only their own SOs.
   // Spare or Pump, as on Planning: the Pump view is assembly (then packing)
-  // of the SOs Planning has Partial or Fully ready.
+  // of the SOs Planning has In plan, Partial or Fully ready.
   const focusOrderId = await resolveFocusOrderId(params.focus ?? thread ?? edit);
   // Spare or Pump: as asked, else — following a link to an SO — the side it is on.
   const ecKind: "spare" | "pump" = params.type
@@ -125,7 +125,7 @@ export default async function AssemblyDispatchWorkspacePage({
     // Each SO card also counts the pumps on its SOs — as Planning's.
     return cards.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } }));
   };
-  // The Pump view's SOs: those Planning has Partial or Fully ready.
+  // The Pump view's SOs: those Planning has In plan, Partial or Fully ready.
   // …and the base plate and wooden box asked for (cards too: the filter bar's, not a card's).
   const alignment = alignmentRestrict(pickAlignment((key) => params[key]));
   const pumpRestrict = ecKind === "pump" ? `${pumpViewRestrict(assemblyStatuses, packingStatuses)} AND ${alignment}` : undefined;

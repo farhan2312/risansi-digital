@@ -1,6 +1,7 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/session";
+import { PUMP_VIEW_READY_SQL } from "@/lib/assembly";
 import {
   canEditChild,
   canEditQcDocuments,
@@ -108,13 +109,8 @@ export async function orderDeptViewAction(
             ? PLANNING_CONTEXT_FIELDS
             : ASSEMBLY_CONTEXT_FIELDS;
     const typed = dept === "planning" || dept === "assembly";
-    // Assembly & Packing's Pump view: the SO only once Planning has something ready on it.
-    const pumpReady =
-      dept === "assembly" && ecKind === "pump"
-        ? `EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
-                    WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')
-                      AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))`
-        : "TRUE";
+    // Assembly & Packing's Pump view: the SO once Planning has it In plan, Partial or Fully ready.
+    const pumpReady = dept === "assembly" && ecKind === "pump" ? PUMP_VIEW_READY_SQL : "TRUE";
     queue = await listItemsForSectionPage(table, context(fields), {
       ...page,
       filter: typed ? { ...parseDeptFilter(() => undefined, dept), types } : undefined,
