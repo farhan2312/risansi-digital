@@ -16,7 +16,7 @@ const STAGE_COLOR: Record<PumpStage, string> = {
   "Assembly on": "var(--viz-seq-5)",
   "Assembled, not packed": "var(--viz-seq-6)",
   "Packing on": "var(--viz-seq-7)",
-  "Not at Dispatch yet": "var(--viz-seq-7)",
+  "Packed, no slip yet": "var(--viz-seq-7)",
   "On hold": "var(--viz-red)",
   "Packed, to dispatch": "var(--viz-seq-8)",
   "Dispatch hold": "var(--viz-orange)",

@@ -32,7 +32,7 @@ export const PUMP_STAGES = [
   "Assembly on",
   "Assembled, not packed",
   "Packing on",
-  "Not at Dispatch yet",
+  "Packed, no slip yet",
   "On hold",
   "Packed, to dispatch",
   "Dispatch hold",
@@ -184,12 +184,12 @@ const STAGE_CARDS = [
 const DISPATCH_STAGES: readonly PumpStage[] = ["Fully dispatched", "Lot dispatched", "Dispatch hold", "Packed, to dispatch", "Cancelled / Diverted"];
 
 /** An SO no stage card takes: closed, with no EC yet, on hold, or none of these (packed, no slip yet). */
-function restStage(o: OrderListRow): "Cancelled / Diverted" | "No EC yet" | "On hold" | "Not at Dispatch yet" {
+function restStage(o: OrderListRow): "Cancelled / Diverted" | "No EC yet" | "On hold" | "Packed, no slip yet" {
   if (CLOSED.includes(o.dispatch_status ?? "")) return "Cancelled / Diverted";
   if (Number(o.ec_count ?? 0) === 0) return "No EC yet";
   // The Orders page's SO hold: Central Visibility's, Order Making's, Dispatch's or Accounts'.
   if (o.clearance_status === "Hold" || o.om_status === "Hold" || o.dispatch_status === "Hold" || o.accounts_hold_status === "Hold") return "On hold";
-  return "Not at Dispatch yet";
+  return "Packed, no slip yet";
 }
 
 /** The Pump dashboard for the Orders list's filter (types pinned to Pump / ROLB by the caller). */

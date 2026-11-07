@@ -288,7 +288,7 @@ function pumpOwnCells(s: PumpSummary, today: string): Partial<Record<Key, Line[]
 /** A pump SO's stage, as its Rep's card names it: the earlier ones in pairs, the later ones a row each. */
 const PUMP_REP_LABEL: Record<PumpStage, string | null> = {
   "No EC yet": null,
-  "Not at Dispatch yet": null,
+  "Packed, no slip yet": null,
   "On hold": null,
   "Date awaited": "Date awaited",
   "In plan": "In plan",

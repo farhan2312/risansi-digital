@@ -12,7 +12,7 @@ const STAGE_COLOR: Record<Stage, string> = {
   "In plan": "var(--viz-seq-2)",
   "Partial ready": "var(--viz-seq-3)",
   "Ready, not packed": "var(--viz-seq-4)",
-  "Not at Dispatch yet": "var(--viz-seq-5)",
+  "Packed, no slip yet": "var(--viz-seq-5)",
   "On hold": "var(--viz-red)",
   "Packed, to dispatch": "var(--viz-seq-6)",
   "Dispatch hold": "var(--viz-orange)",
