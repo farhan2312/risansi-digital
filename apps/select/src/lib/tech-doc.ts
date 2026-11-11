@@ -692,11 +692,13 @@ export function sheetHtml(opts: {
   logoUrl?: string;
   /** Extra CSS for the sheet's own row kinds. */
   css?: string;
+  /** Columns the Enquiry No. & Date cell spans; default the label column + half the rest. */
+  enquirySpan?: number;
 }): string {
   const n = Math.max(opts.tagCount, 1);
   const cols = n + 1;
   // Enquiry takes the label column + half the tag columns; quotation the rest.
-  const leftSpan = 1 + Math.floor(n / 2);
+  const leftSpan = opts.enquirySpan ?? 1 + Math.floor(n / 2);
   const rightSpan = cols - leftSpan;
   const L = LETTERHEAD;
   const logoUrl = opts.logoUrl ?? "/logo.png";

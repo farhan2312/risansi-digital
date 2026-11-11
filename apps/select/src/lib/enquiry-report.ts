@@ -126,7 +126,7 @@ export const reportCell = (r: EnquiryReportRow, key: ColumnKey): string =>
 
 const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
-const statusClass = (s: string) => (s === "Completed" || s === "Sent to client" ? "done" : s === "In Progress" ? "going" : s === "Not Quoted" ? "closed" : "waiting");
+const statusClass = (s: string) => (s === "Completed" || s === "Sent to client" ? "done" : s === "In Progress" ? "going" : s === "Not Quoted" ? "closed" : s === "Regret" ? "regret" : "waiting");
 
 /** The printed report: a title band (styled like the Order Making report), then the
  *  table, its heading repeated on every page. On screen (`sort` given) the sortable
@@ -179,6 +179,7 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSo
   .going { background: #dcebfb; color: #0b4ea2; }
   .waiting { background: #fdf0d5; color: #9a6400; }
   .closed { background: #e9edf2; color: #4b5a6b; }
+  .regret { background: #fde4e4; color: #b42318; }
   .empty { padding: 28px; text-align: center; color: #6b7a8c; }
   .arrow { font-size: 7pt; opacity: 0.5; white-space: nowrap; }
   .arrow.on { opacity: 1; color: #1F3864; }

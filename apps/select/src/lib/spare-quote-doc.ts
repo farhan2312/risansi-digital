@@ -1,5 +1,6 @@
 // The spare quotation document, in the format of the user's sample (2026-11-04):
-// letterhead, client / enquiry / quotation rows, then Sl. No., Description, Model,
+// letterhead, client / enquiry / quotation rows (no Sub / Dear Sir lines since
+// 2026-11-11; a narrower enquiry cell), then Sl. No., Description, Model,
 // Reference PO, Part No., Qty/Unit, Unit Cost, Amount, then the ticked terms and
 // conditions (lib/spare-terms.ts). Every row can be edited for
 // the document (SpareDocEdits); the saved quote is not changed. Client-safe.
@@ -24,6 +25,9 @@ const TITLE = "Quotation for Spares";
 const PO_HEADING = "Reference PO No. / Date";
 const HEADINGS = ["Sl. No.", "Description", "Model", PO_HEADING, "Part No.", "Qty/Unit", "Unit Cost (INR)", "Amount (INR)"];
 const TERMS_HEADING = "TERMS AND CONDITIONS";
+/** The Enquiry No. & Date cell: Sl. No. + Description + Model with the PO column
+ *  (about half), Sl. No. + Description without (about a third). */
+const enquirySpan = (showPo: boolean) => (showPo ? 3 : 2);
 
 const money = (n: number | null) => (n === null ? "-" : n.toLocaleString("en-IN", { maximumFractionDigits: 2 }));
 const toNumber = (s: string): number | null => {
@@ -34,9 +38,10 @@ const toNumber = (s: string): number | null => {
 /** "10" or "" as the document's discount box shows it. */
 export const spareDiscountAuto = (q: SpareQuote) => (q.discountPct === null ? "" : String(q.discountPct));
 
-export const sparePoAuto = (q: SpareQuote) => [q.poNo, q.poDate ? `Date ${dotDate(q.poDate)}` : ""].filter(Boolean).join(", ");
+/** A part's reference PO as printed: "2025-26/106, Date 04.11.2026". */
+export const sparePoAuto = (l: { poNo: string; poDate: string }) => [l.poNo, l.poDate ? `Date ${dotDate(l.poDate)}` : ""].filter(Boolean).join(", ");
 
-export type SpareDocLine = { key: string; partNo: string; name: string; qty: string; unit: string; amount: number | null; removed: boolean };
+export type SpareDocLine = { key: string; partNo: string; name: string; po: string; qty: string; unit: string; amount: number | null; removed: boolean };
 export type SpareDocModel = { id: string; auto: string; model: string; lines: SpareDocLine[] };
 
 /** The document's rows with the edits applied; removed lines are kept, flagged. */
@@ -53,7 +58,7 @@ export function spareDocModels(quote: SpareQuote, edits: SpareDocEdits): SpareDo
       const unit = e.unit ?? (l.unitPrice === null ? "" : String(l.unitPrice));
       const q = toNumber(qty);
       const u = toNumber(unit);
-      return { key, partNo: e.partNo ?? l.partNo, name: e.name ?? l.partName, qty, unit, amount: q === null || u === null ? null : q * u, removed: removed.has(key) };
+      return { key, partNo: e.partNo ?? l.partNo, name: e.name ?? l.partName, po: e.po ?? sparePoAuto(l), qty, unit, amount: q === null || u === null ? null : q * u, removed: removed.has(key) };
     }),
   }));
 }
@@ -79,7 +84,7 @@ function printed(sheet: SpareQuoteSheet) {
   const subtotal = models.reduce((s, m) => s + m.lines.reduce((x, l) => x + (l.amount ?? 0), 0), 0);
   const discountPct = toNumber(edits.discount ?? spareDiscountAuto(sheet.quote)) ?? 0;
   const discount = (subtotal * discountPct) / 100;
-  // No PO: no column for it.
+  // No PO tick: no column for it. Each row prints its own part's PO.
   const showPo = sheet.quote.hasPo;
   // A term whose wording was cleared on the document doesn't print.
   const { terms, warranty } = spareDocTerms(sheet.quote, edits);
@@ -96,7 +101,6 @@ function printed(sheet: SpareQuoteSheet) {
     showPo,
     headings: showPo ? HEADINGS : HEADINGS.filter((h) => h !== PO_HEADING),
     count: models.reduce((s, m) => s + m.lines.length, 0),
-    po: edits.po ?? sparePoAuto(sheet.quote),
     subject: edits.subject ?? SPARE_DOC_SUBJECT,
     greeting: edits.greeting ?? SPARE_DOC_GREETING,
     opening: edits.opening ?? SPARE_DOC_OPENING,
@@ -117,7 +121,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
     m.lines.map((l, i) => {
       sl += 1;
       return `<tr><td>${sl}</td><td class="l">${esc(l.name)}</td>${i === 0 ? `<td rowspan="${m.lines.length}" class="m">${esc(m.model)}</td>` : ""}${
-        d.showPo && sl === 1 ? `<td rowspan="${d.count}" class="m">${esc(d.po || "-")}</td>` : ""
+        d.showPo ? `<td>${esc(l.po || "-")}</td>` : ""
       }<td>${esc(l.partNo)}</td><td>${esc(l.qty || "-")}</td><td class="r">${money(toNumber(l.unit))}</td><td class="r">${money(l.amount)}</td></tr>`;
     }),
   );
@@ -129,7 +133,6 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
           ...list.map((t, i) => `<tr class="term"><td>${i + 1}</td><td colspan="${cols - 1}">${esc(t)}</td></tr>`),
         ];
   const body = [
-    `<tr class="meta"><td colspan="${cols}">${esc(d.subject)}<br>${esc(d.greeting)}<br>${esc(d.opening)}</td></tr>`,
     `<tr class="band">${d.headings.map((h) => `<td>${esc(h)}</td>`).join("")}</tr>`,
     ...rows,
     ...(d.discountPct > 0
@@ -148,6 +151,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
     title: TITLE,
     header: d.header,
     tagCount: cols - 1,
+    enquirySpan: enquirySpan(d.showPo),
     body,
     logoUrl,
     css: `
@@ -196,10 +200,7 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
         ];
   let sl = 0;
   const rows: XlsxCell[][] = [
-    ...sheetHeaderRows(TITLE, d.header, cols - 1),
-    [{ value: d.subject, colSpan: cols, wrap: true }],
-    [{ value: d.greeting, colSpan: cols, wrap: true }],
-    [{ value: d.opening, colSpan: cols, wrap: true }],
+    ...sheetHeaderRows(TITLE, d.header, cols - 1, enquirySpan(d.showPo)),
     d.headings.map((h) => ({ value: h, ...BAND })),
     ...d.models.flatMap((m) =>
       m.lines.map((l, i): XlsxCell[] => {
@@ -208,7 +209,7 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
           { value: String(sl) },
           { value: l.name },
           { value: i === 0 ? m.model : "", bold: true },
-          ...(d.showPo ? [{ value: sl === 1 ? d.po : "" }] : []),
+          ...(d.showPo ? [{ value: l.po || "-" }] : []),
           { value: l.partNo },
           { value: l.qty },
           { value: money(toNumber(l.unit)) },

@@ -36,7 +36,7 @@ import {
 // Quotation header on the Commercial Summary page: the self-generated number,
 // the TSM, "New internal version" (the TSM asked for changes → next internal
 // version) and "Save Version Vn" (→ the enquiry version's client version; saving
-// again overwrites it once the prices or documents change). Reassigning the TSM
+// again overwrites it; the button stays after a save, as "Save again Version Vn"). Reassigning the TSM
 // makes no version. The serial (6000, 6001, …) is issued when the quotation is created.
 
 const selectCls =
@@ -238,10 +238,11 @@ export default function QuotationPanel({
   const liveInternal = quotation.versions.find((v) => v.track === "internal" && v.live) ?? null;
   const internal = quotation.versions.filter((v) => v.track === "internal");
   const client = quotation.versions.filter((v) => v.track === "client");
-  // A pump's can be saved again after a change; a spare's only once.
-  const sent = isSpare ? !liveInternal : quotation.sentThisVersion;
-  const sendAgain = !isSpare && sent && quotation.changedSinceSent;
-  const saveLabel = `Save Version V${quotation.nextClientVersion}`;
+  // Once saved, the button stays (user, 2026-11-11): "Save again" replaces the saved
+  // copy; with nothing changed the server says so.
+  const sent = quotation.sentThisVersion || (isSpare && !liveInternal);
+  const sendAgain = sent && quotation.changedSinceSent;
+  const saveLabel = sent ? `Save again Version V${quotation.nextClientVersion}` : `Save Version V${quotation.nextClientVersion}`;
 
   return (
     <section className="rounded-xl border border-line bg-paper">
@@ -279,28 +280,26 @@ export default function QuotationPanel({
           <button
             type="button"
             className={btnPrimarySm}
-            disabled={busy || hasUnsavedPrices || (sent && !sendAgain) || Boolean(sendBlock)}
+            disabled={busy || hasUnsavedPrices || Boolean(sendBlock)}
             title={
-              sent && !sendAgain
-                ? isSpare
-                  ? "Already saved. For changes, create a new version from Edit on the Enquiries list."
-                  : "Nothing has changed since this version was saved"
-                : sendBlock
-                  ? sendBlock
-                  : hasUnsavedPrices
-                    ? "Save the price changes first"
+              sendBlock
+                ? sendBlock
+                : hasUnsavedPrices
+                  ? "Save the price changes first"
+                  : sent
+                    ? `Replaces the saved Version V${quotation.nextClientVersion}`
                     : undefined
             }
             onClick={() => setConfirm("send")}
           >
-            {sent && !sendAgain ? `Version V${quotation.nextClientVersion} saved` : saveLabel}
+            {saveLabel}
           </button>
           </>
           )}
         </div>
       </header>
 
-      <fieldset disabled={readOnly || (isSpare && !liveInternal)} className="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <fieldset disabled={readOnly} className="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No.</span>
           <span className="flex flex-wrap items-center gap-1.5">
@@ -351,17 +350,18 @@ export default function QuotationPanel({
         </div>
       </fieldset>
 
-      {sendBlock && (!sent || sendAgain) && !readOnly && <p className="px-4 pb-2 text-[12px] font-semibold text-warn">{saveLabel} is waiting: {sendBlock}</p>}
+      {sendBlock && !readOnly && <p className="px-4 pb-2 text-[12px] font-semibold text-warn">{saveLabel} is waiting: {sendBlock}</p>}
       {sent && !sendAgain && !readOnly && (
         <p className="px-4 pb-3 text-[12.5px] font-semibold text-pos">
           {isSpare
-            ? `Version V${quotation.nextClientVersion} saved. To change anything, create a new version from Edit on the Enquiries list.`
+            ? `Version V${quotation.nextClientVersion} saved. If anything is corrected, Save again replaces it.`
             : `Version V${quotation.nextClientVersion} saved. If a price or document is corrected, saving again replaces client ${versionLabel(quotation.clientVersion)}.`}
         </p>
       )}
       {sendAgain && !readOnly && (
         <p className="px-4 pb-3 text-[12.5px] font-semibold text-warn">
-          Prices or documents have changed since this version was saved. Save again to replace client {versionLabel(quotation.clientVersion)}.
+          {isSpare ? "The quotation or its document has" : "Prices or documents have"} changed since this version was saved. Save again to replace{" "}
+          {isSpare ? `Version V${quotation.nextClientVersion}` : `client ${versionLabel(quotation.clientVersion)}`}.
         </p>
       )}
       {hasUnsavedPrices && (
@@ -438,13 +438,17 @@ export default function QuotationPanel({
       </ConfirmModal>
       <ConfirmModal
         open={confirm === "send"}
-        title={sendAgain ? `${saveLabel} again?` : `${saveLabel}?`}
+        title={`${saveLabel}?`}
         description={
           isSpare ? (
-            <>
-              Saves this quotation ({formatInr(liveInternal?.snapshot.grandTotal ?? 0)}) as Version V{quotation.nextClientVersion}. After this, changes need a new version of the enquiry. Nothing is e-mailed.
-            </>
-          ) : sendAgain ? (
+            sent ? (
+              <>Replaces the saved Version V{quotation.nextClientVersion} with the quotation and its document as they are now. The copy saved earlier is not kept. Nothing is e-mailed.</>
+            ) : (
+              <>
+                Saves this quotation ({formatInr(liveInternal?.snapshot.grandTotal ?? 0)}) as Version V{quotation.nextClientVersion}. If anything is corrected later, it can be saved again. Nothing is e-mailed.
+              </>
+            )
+          ) : sent ? (
             <>
               Replaces <b>client {versionLabel(quotation.clientVersion)}</b> with the current prices, Commercial Offer and Techno-Commercial Offer. The copy saved earlier is not kept. Nothing is e-mailed.
             </>

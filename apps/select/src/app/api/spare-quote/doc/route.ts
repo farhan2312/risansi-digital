@@ -30,7 +30,7 @@ export async function PUT(req: Request) {
     .limit(1);
   if (!p) return error("Enquiry not found", 404);
   if (p.orderType !== "spare") return error("This enquiry is not a spare order.", 400);
-  if (p.sentAt) return error("This quotation's version is saved. To change it, create a new version.", 409);
+  // Saved versions stay editable: Save Version again replaces the saved copy (user, 2026-11-11).
 
   const edits = normalizeSpareDocEdits(body.edits);
   if (JSON.stringify(normalizeSpareDocEdits(p.was)) === JSON.stringify(edits)) return json({ edits, changed: false });

@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 import { isMarketIntellConfigured, miQuery } from "@/lib/db/market-intell";
 import { projects, quotation, quotationVersion, users } from "@/lib/db/schema";
 import { discountOf, normalizeOfferConfigs } from "@/lib/commercial-offer";
-import { normalizeSpareQuote, spareSnapshot } from "@/lib/spare-quote";
+import { normalizeSpareDocEdits, normalizeSpareQuote, spareSnapshot } from "@/lib/spare-quote";
 import { normalizeTechDocConfig, normalizeTechDocConfigs, sameTechDocSheet } from "@/lib/tech-doc";
 import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import {
@@ -84,8 +84,8 @@ export async function suggestedTsm(clientCode: string | null): Promise<TsmOption
  *  with every version of that group's quotation. */
 export async function buildSnapshot(projectId: string, driveGroup: string): Promise<QuotationSnapshot> {
   if (driveGroup === SPARE_GROUP) {
-    const [row] = await db.select({ quote: projects.spareQuote }).from(projects).where(eq(projects.id, projectId)).limit(1);
-    return spareSnapshot(normalizeSpareQuote(row?.quote));
+    const [row] = await db.select({ quote: projects.spareQuote, edits: projects.spareDocEdits }).from(projects).where(eq(projects.id, projectId)).limit(1);
+    return spareSnapshot(normalizeSpareQuote(row?.quote), normalizeSpareDocEdits(row?.edits));
   }
   const [summary, [p]] = await Promise.all([
     loadCommercialSummary(projectId),
@@ -185,7 +185,7 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
     clientVersion: q.clientVersion,
     nextClientVersion: enquiry?.version ?? 0,
     sentThisVersion: sentHere !== null,
-    changedSinceSent: sentHere !== null && driveGroup !== SPARE_GROUP && !sameTechDocSheet(sentHere.snapshot, snapshot),
+    changedSinceSent: sentHere !== null && !sameTechDocSheet(sentHere.snapshot, snapshot),
     versions: versions
       .map(({ v, createdByName }) => ({
         id: v.id,

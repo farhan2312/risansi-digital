@@ -1,5 +1,6 @@
 // Loads what lib/saved-docs.ts describes: frozen copies only, never the live prices
-// or sheet edits. A spare's quote is read live, as it locks when its version is saved.
+// or sheet edits. A spare's quote and document edits are read from its saved copy
+// (older copies didn't keep them: then live).
 // Server-only.
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
@@ -42,6 +43,8 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
 
   if (p.orderType === "spare") {
     const q = quotes.find((x) => x.driveGroup === SPARE_GROUP);
+    // As saved: the copy in the version (older ones didn't keep it - then the live quote).
+    const kept = q ? (savedOn(q.id)?.snapshot as QuotationSnapshot | undefined)?.spare : undefined;
     return {
       orderType: "spare",
       groups: [],
@@ -49,8 +52,8 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
         q && savedOn(q.id)
           ? {
               projectCode: p.code,
-              quote: normalizeSpareQuote(p.quote, termsMarketOf(p.market)),
-              edits: normalizeSpareDocEdits(p.docEdits),
+              quote: normalizeSpareQuote(kept?.quote ?? p.quote, termsMarketOf(p.market)),
+              edits: normalizeSpareDocEdits(kept?.quote ? kept.edits : p.docEdits),
               header: {
                 clientName: p.name ?? "",
                 enquiry,

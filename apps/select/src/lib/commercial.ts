@@ -672,8 +672,9 @@ export type QuotationSnapshot = {
   remarks?: string;
   /** Quoted in USD at this rate when the version was made (absent = INR). */
   fx?: QuoteFx;
-  /** A spare quotation's reference PO (its `tags` are its parts). */
-  spare?: { poNo: string; poDate: string };
+  /** A spare quotation's reference PO (its `tags` are its parts), and since
+   *  2026-11-11 the quote and document edits as saved (older copies: absent). */
+  spare?: { poNo?: string; poDate?: string; quote?: unknown; edits?: unknown };
 };
 
 export type QuotationVersionInfo = {

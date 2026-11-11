@@ -42,7 +42,7 @@ type Props = {
   onVersionCreated: () => void;
 };
 
-const STATUS_OPTIONS = ["In Progress", "Completed", "Pending", "Not Quoted", "Sent to client"];
+const STATUS_OPTIONS = ["In Progress", "Completed", "Pending", "Not Quoted", "Regret", "Sent to client"];
 
 /** Shows the enquiry's status as it is now; it can be changed by hand, and
  *  Completed shows its date, which can be changed too. */

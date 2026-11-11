@@ -14,10 +14,11 @@ export const ROW_LABEL: Partial<XlsxCell> = { fill: "F4F8FD", bold: true };
 
 /** The letterhead, "<company> - <title>" band and client / enquiry /
  *  quotation rows shared by the Risansi sheets' Excel exports. */
-export function sheetHeaderRows(title: string, header: TechDocHeader, tagCount: number): XlsxCell[][] {
+/** enquirySpan: columns the Enquiry No. & Date cell spans (default: half). */
+export function sheetHeaderRows(title: string, header: TechDocHeader, tagCount: number, enquirySpan?: number): XlsxCell[][] {
   const n = Math.max(tagCount, 1);
   const width = n + 1;
-  const leftSpan = 1 + Math.floor(n / 2);
+  const leftSpan = enquirySpan ?? 1 + Math.floor(n / 2);
   const L = LETTERHEAD;
   return [
     [{ value: `${L.company.toUpperCase()}`, bold: true, colSpan: width }],

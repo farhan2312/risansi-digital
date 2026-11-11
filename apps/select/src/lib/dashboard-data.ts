@@ -237,7 +237,7 @@ export async function getDashboardData({
     completed: tagByDay.get(day)?.completed ?? 0,
   }));
 
-  const order = ["Pending", "In Progress", "Completed", "Sent to client", "Not Quoted"];
+  const order = ["Pending", "In Progress", "Completed", "Sent to client", "Not Quoted", "Regret"];
   const data: DashboardData = {
     kpis: {
       enquiries: projectCounts?.enquiries ?? 0,
@@ -304,16 +304,17 @@ function clientMix(rows: MixRow[]): DashboardData["mix"] {
   const market = grouper();
   const zone = grouper();
   const rep = grouper();
-  const repStatus = new Map<string, { pending: number; inProgress: number; completed: number; notQuoted: number; sentToClient: number }>();
+  const repStatus = new Map<string, { pending: number; inProgress: number; completed: number; notQuoted: number; regret: number; sentToClient: number }>();
   const cell = new Map<string, number>();
   for (const r of rows) {
     market.add(r.market);
     const z = zone.add(r.zone);
     const p = rep.add(r.rep);
-    const st = repStatus.get(p) ?? { pending: 0, inProgress: 0, completed: 0, notQuoted: 0, sentToClient: 0 };
+    const st = repStatus.get(p) ?? { pending: 0, inProgress: 0, completed: 0, notQuoted: 0, regret: 0, sentToClient: 0 };
     if (r.status === "Completed") st.completed += 1;
     else if (r.status === "In Progress") st.inProgress += 1;
     else if (r.status === "Not Quoted") st.notQuoted += 1;
+    else if (r.status === "Regret") st.regret += 1;
     else if (r.status === "Sent to client") st.sentToClient += 1;
     else st.pending += 1;
     repStatus.set(p, st);

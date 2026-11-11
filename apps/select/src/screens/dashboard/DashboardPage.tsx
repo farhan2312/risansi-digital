@@ -394,6 +394,7 @@ const DashboardPage = () => {
                     ["Completed", "Completed", Icons.check, "bg-[var(--pos-soft)] text-pos"],
                     ["Sent to client", "Sent to client", Icons.file, "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[color-mix(in_srgb,var(--brand-cyan)_65%,var(--fg))]"],
                     ["Not quoted", "Not Quoted", Icons.alert, "bg-sunk text-fg-2"],
+                    ["Regret", "Regret", Icons.alert, "bg-[var(--neg-soft)] text-neg"],
                   ] as const
                 ).map(([label, status, icon, tone]) => (
                   <KpiSplit
@@ -524,7 +525,7 @@ const DashboardPage = () => {
                 <DonutChart
                   items={data.enquiryStatus}
                   centerLabel="enquiries"
-                  colors={{ Pending: "var(--warn)", "In Progress": "var(--brand-blue)", Completed: "var(--pos)", "Sent to client": "var(--brand-cyan)", "Not Quoted": "var(--fg-4)" }}
+                  colors={{ Pending: "var(--warn)", "In Progress": "var(--brand-blue)", Completed: "var(--pos)", "Sent to client": "var(--brand-cyan)", "Not Quoted": "var(--fg-4)", Regret: "var(--neg)" }}
                 />
               </Card>
             ) : (

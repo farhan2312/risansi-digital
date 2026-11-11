@@ -110,12 +110,12 @@ export async function POST(req: Request) {
       const sent = await tx.selectDistinct({ group: techDocVersion.driveGroup }).from(techDocVersion).where(eq(techDocVersion.projectId, projectId));
       if (needed.every((g) => sent.some((s) => s.group === g))) {
         // The first time sets the completion date; saving again after an edit
-        // keeps it. A status changed by hand to not done, or to Not Quoted, gives way to the save.
+        // keeps it. A status changed by hand to not done, or to Not Quoted / Regret, gives way to the save.
         await tx
           .update(projects)
           .set({
             sentToOperationAt: sql`coalesce(${projects.sentToOperationAt}, now())`,
-            technicalStatusOverride: sql`nullif(nullif(nullif(${projects.technicalStatusOverride}, 'Pending'), 'In Progress'), 'Not Quoted')`,
+            technicalStatusOverride: sql`nullif(nullif(nullif(nullif(${projects.technicalStatusOverride}, 'Pending'), 'In Progress'), 'Not Quoted'), 'Regret')`,
           })
           .where(eq(projects.id, projectId));
       }

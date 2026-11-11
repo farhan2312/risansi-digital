@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 //   from / to, mine=1 : same meaning as GET /api/dashboard
 
 const KINDS = new Set(["enquiries", "tags"]);
-const STATUSES = new Set(["all", "Pending", "In Progress", "Completed", "Not Quoted", "Sent to client", "awaiting"]);
+const STATUSES = new Set(["all", "Pending", "In Progress", "Completed", "Not Quoted", "Regret", "Sent to client", "awaiting"]);
 
 const parseInstant = (v: string | null): Date | null => {
   if (!v) return null;
