@@ -11,7 +11,7 @@ type Props = {
   onChange: (productCode: string, pumpType: string) => void;
   invalid?: boolean;
   /** One box for both: pick from the list, or what is typed is the code. Nothing is
-   *  added to the list. */
+   *  added here (the Spare Quotation adds a typed code, without pump type, on save). */
   freeText?: boolean;
 };
 

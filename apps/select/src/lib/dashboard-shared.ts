@@ -55,7 +55,7 @@ export interface DashboardData {
     markets: { label: string; count: number }[];
     zones: { label: string; count: number }[];
     /** Primary reps, busiest first, with their enquiries' rolled-up status. */
-    reps: { label: string; total: number; pending: number; inProgress: number; completed: number; notQuoted: number; sentToClient: number }[];
+    reps: { label: string; total: number; pending: number; inProgress: number; completed: number; notQuoted: number; regret: number; sentToClient: number }[];
     /** Primary rep x zone counts (the reps above, the zones above). */
     repZone: { rep: string; zone: string; count: number }[];
   };
@@ -67,7 +67,7 @@ export interface DashboardData {
 
 export type DashboardListKind = "enquiries" | "tags";
 /** Enquiry (rolled-up) or tag status; "awaiting" = tags with a step awaiting approval. */
-export type DashboardListStatus = "all" | "Pending" | "In Progress" | "Completed" | "Not Quoted" | "Sent to client" | "awaiting";
+export type DashboardListStatus = "all" | "Pending" | "In Progress" | "Completed" | "Not Quoted" | "Regret" | "Sent to client" | "awaiting";
 
 export interface DashboardListQuery {
   kind: DashboardListKind;

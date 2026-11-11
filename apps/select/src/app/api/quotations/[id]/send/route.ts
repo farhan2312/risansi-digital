@@ -21,10 +21,10 @@ const UUID = /^[0-9a-f-]{36}$/i;
 // spare's. It makes the CLIENT version numbered as the enquiry's
 // Commercial version (Enquiry V1 = Client V1, gaps where a version wasn't sent), with
 // a frozen copy of the prices. What is sent is the live internal version, which
-// freezes with it. A pump has one client version per enquiry version: sending again
-// (only once the prices or documents have changed) overwrites it and the internal
+// freezes with it. Pump and spare have one client version per enquiry version: saving
+// again (only once the prices or documents have changed) overwrites it and the internal
 // version it names, so mistakes can be corrected; the audit trail keeps the old total.
-// A spare goes once per enquiry version. Nothing is e-mailed. When every drive group
+// (A spare could be saved only once until 2026-11-11.) Nothing is e-mailed. When every drive group
 // in use has gone from this version of the enquiry,
 // the commercial step is done (projects.sent_to_client_at, lib/enquiry-filters-server.ts).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -51,18 +51,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const result = await db.transaction(async (tx) => {
     const [q] = await tx.select().from(quotation).where(eq(quotation.id, id)).for("update");
-    // A pump's send in this enquiry version, if there was one.
-    const [earlier] = spare
-      ? []
-      : await tx
-          .select({ id: quotationVersion.id, version: quotationVersion.version, snapshot: quotationVersion.snapshot })
-          .from(quotationVersion)
-          .where(and(eq(quotationVersion.quotationId, id), eq(quotationVersion.track, "client")))
-          .orderBy(desc(quotationVersion.version))
-          .limit(1);
+    // The save in this enquiry version, if there was one.
+    const [earlier] = await tx
+      .select({ id: quotationVersion.id, version: quotationVersion.version, snapshot: quotationVersion.snapshot })
+      .from(quotationVersion)
+      .where(and(eq(quotationVersion.quotationId, id), eq(quotationVersion.track, "client")))
+      .orderBy(desc(quotationVersion.version))
+      .limit(1);
     if (earlier && sameTechDocSheet(earlier.snapshot, snapshot)) return "unchanged" as const;
     const frozen = await freezeLiveInternal(tx, id, snapshot);
-    if (frozen === null && spare) return null;
+    if (frozen === null && spare && !earlier) return null;
     // Nothing live: a pump's was frozen by its send (or a newer version was made, then deleted).
     const internal = frozen ?? q.internalVersion;
     const reason = `Saved (internal V${internal})`;
@@ -105,12 +103,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const needed: string[] = spare ? [SPARE_GROUP] : groups;
     if (needed.every((g) => sent.some((s) => s.group === g))) {
       // The first time sets the completion date; saving again keeps it. A status
-      // changed by hand to not done, or to Not Quoted, gives way to the save.
+      // changed by hand to not done, or to Not Quoted / Regret, gives way to the save.
       await tx
         .update(projects)
         .set({
           sentToClientAt: sql`coalesce(${projects.sentToClientAt}, now())`,
-          commercialStatusOverride: sql`nullif(nullif(nullif(${projects.commercialStatusOverride}, 'Pending'), 'In Progress'), 'Not Quoted')`,
+          commercialStatusOverride: sql`nullif(nullif(nullif(nullif(${projects.commercialStatusOverride}, 'Pending'), 'In Progress'), 'Not Quoted'), 'Regret')`,
         })
         .where(eq(projects.id, current.projectId));
     }

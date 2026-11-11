@@ -1,13 +1,19 @@
 // A spare order's quotation (user, 2026-11-04). A spare has no tags or technical
-// step: on the Commercial page it has a reference PO, then pump models (code built
-// or picked), and per model the parts quoted with quantity and unit price. Stored
+// step: on the Commercial page it has pump models (code built or picked), and per
+// model the parts quoted with quantity, unit price and (ticked) reference PO. Stored
 // whole on projects.spare_quote, so a new version copies it. Client-safe.
 import { type CommercialPrices, type QuotationSnapshot } from "./commercial";
+import type { SparePumpKind } from "./spare-parts";
 import { SPARE_TERM_IDS, type TermsMarket } from "./spare-terms";
 
 export type SpareLine = {
   partNo: string;
   partName: string;
+  /** The part's reference PO (with the Reference PO tick; user, 2026-11-11 - was one
+   *  for the whole quote). "" when none. */
+  poNo: string;
+  /** YYYY-MM-DD, or "". */
+  poDate: string;
   qty: number | null;
   unitPrice: number | null;
 };
@@ -16,17 +22,14 @@ export type SpareModel = {
   id: string;
   /** Picked from the product code list, or typed as it is. */
   productCode: string;
-  /** Which parts list this model picks from. */
-  pumpKind: "PCP" | "MMP";
+  /** Which parts list this model picks from (OTHER: none, parts typed by hand). */
+  pumpKind: SparePumpKind;
   lines: SpareLine[];
 };
 
 export type SpareQuote = {
-  /** Ticked: the reference PO is required and printed. Unticked: neither. */
+  /** Ticked: each part has its reference PO No. / date, printed per row. Unticked: none. */
   hasPo: boolean;
-  poNo: string;
-  /** YYYY-MM-DD, or "". */
-  poDate: string;
   /** % off the total of all parts; null = none. */
   discountPct: number | null;
   /** Printed under the totals. */
@@ -47,13 +50,14 @@ export type SpareDocEdits = {
   subject?: string;
   greeting?: string;
   opening?: string;
+  /** Before 2026-11-11: one PO text for every row (now per row, lines[key].po). Unused. */
   po?: string;
   discount?: string;
   note?: string;
   /** Model id -> the text printed for the model. */
   models?: Record<string, string>;
   /** Line key (spareDocLineKey) -> its cells. */
-  lines?: Record<string, { partNo?: string; name?: string; qty?: string; unit?: string }>;
+  lines?: Record<string, { partNo?: string; name?: string; po?: string; qty?: string; unit?: string }>;
   /** Line keys left off the document. */
   removed?: string[];
   /** Term id -> its wording on the document. */
@@ -86,8 +90,8 @@ export function normalizeSpareDocEdits(raw: unknown): SpareDocEdits {
     const lines: NonNullable<SpareDocEdits["lines"]> = {};
     for (const [key, v] of Object.entries(r.lines as Record<string, unknown>).slice(0, 2000)) {
       const c = (v ?? {}) as Record<string, unknown>;
-      const cell: { partNo?: string; name?: string; qty?: string; unit?: string } = {};
-      for (const f of ["partNo", "name", "qty", "unit"] as const) {
+      const cell: { partNo?: string; name?: string; po?: string; qty?: string; unit?: string } = {};
+      for (const f of ["partNo", "name", "po", "qty", "unit"] as const) {
         const s = str(c[f], 200);
         if (s !== undefined) cell[f] = s;
       }
@@ -110,7 +114,7 @@ export function normalizeSpareDocEdits(raw: unknown): SpareDocEdits {
   return out;
 }
 
-export const EMPTY_SPARE_QUOTE: SpareQuote = { hasPo: false, poNo: "", poDate: "", discountPct: null, note: "", termsMarket: "domestic", termsOff: [], models: [] };
+export const EMPTY_SPARE_QUOTE: SpareQuote = { hasPo: false, discountPct: null, note: "", termsMarket: "domestic", termsOff: [], models: [] };
 
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const amountOrNull = (v: unknown): number | null => {
@@ -124,15 +128,19 @@ const amountOrNull = (v: unknown): number | null => {
 export function normalizeSpareQuote(raw: unknown, defaultMarket: TermsMarket = "domestic"): SpareQuote {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const models = Array.isArray(r.models) ? r.models : [];
-  const poDate = text(r.poDate, 10);
-  // Quotes from before the tick: ticked when they have a PO.
+  const ymd = (v: unknown) => {
+    const s = text(v, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+  };
+  // Quotes from before the tick: ticked when they have a PO. Quotes from before the
+  // PO went per part: the quote's one PO goes on every part.
   const hasPo = r.hasPo === undefined ? Boolean(text(r.poNo, 120)) : r.hasPo === true;
+  const oldPoNo = text(r.poNo, 120);
+  const oldPoDate = ymd(r.poDate);
   const discountPct = amountOrNull(r.discountPct);
   const termsOff = Array.isArray(r.termsOff) ? r.termsOff.filter((x): x is string => typeof x === "string" && SPARE_TERM_IDS.has(x)) : [];
   return {
     hasPo,
-    poNo: hasPo ? text(r.poNo, 120) : "",
-    poDate: hasPo && /^\d{4}-\d{2}-\d{2}$/.test(poDate) ? poDate : "",
     discountPct: discountPct !== null && discountPct <= 100 ? discountPct : null,
     note: text(r.note, 2000),
     termsMarket: r.termsMarket === "domestic" || r.termsMarket === "export" ? r.termsMarket : defaultMarket,
@@ -143,12 +151,14 @@ export function normalizeSpareQuote(raw: unknown, defaultMarket: TermsMarket = "
       return {
         id: text(x.id, 60) || `model-${i}`,
         productCode: text(x.productCode, 100),
-        pumpKind: x.pumpKind === "MMP" ? ("MMP" as const) : ("PCP" as const),
+        pumpKind: x.pumpKind === "MMP" || x.pumpKind === "OTHER" ? x.pumpKind : ("PCP" as const),
         lines: lines.slice(0, 200).map((l) => {
           const y = (l ?? {}) as Record<string, unknown>;
           return {
             partNo: text(y.partNo, 40),
             partName: text(y.partName, 200),
+            poNo: !hasPo ? "" : y.poNo === undefined ? oldPoNo : text(y.poNo, 120),
+            poDate: !hasPo ? "" : y.poDate === undefined ? oldPoDate : ymd(y.poDate),
             qty: amountOrNull(y.qty),
             unitPrice: amountOrNull(y.unitPrice),
           };
@@ -168,8 +178,8 @@ export const quoteTotal = (q: SpareQuote): number => quoteSubtotal(q) - quoteDis
 
 /** What stops the quote going to the client, or null. */
 export function spareQuoteProblem(q: SpareQuote): string | null {
-  if (q.hasPo && (!q.poNo || !q.poDate)) return "Enter the reference PO No. and date, or untick Reference PO.";
   const parts = q.models.flatMap((m) => m.lines);
+  if (q.hasPo && parts.some((l) => Boolean(l.poNo) !== Boolean(l.poDate))) return "Enter both the reference PO No. and date of a part, or neither.";
   if (parts.length === 0) return "Add a model and its parts first.";
   if (q.models.some((m) => m.lines.length === 0)) return "Every model needs at least one part.";
   if (parts.some((l) => !l.qty || l.unitPrice === null)) return "Enter the quantity and unit price of every part.";
@@ -193,7 +203,7 @@ const NO_PRICES: CommercialPrices = {
 
 /** The quote as a quotation version's frozen copy: one row per part, so version
  *  lists and Client Quoted Prices read it like any other quotation. */
-export function spareSnapshot(q: SpareQuote): QuotationSnapshot {
+export function spareSnapshot(q: SpareQuote, edits?: SpareDocEdits): QuotationSnapshot {
   const tags = q.models.flatMap((m) =>
     m.lines.map((l) => ({
       tagName: [l.partNo, l.partName].filter(Boolean).join(" · "),
@@ -205,5 +215,5 @@ export function spareSnapshot(q: SpareQuote): QuotationSnapshot {
       sub: lineAmount(l),
     })),
   );
-  return { tags, grandTotal: quoteTotal(q), spare: { poNo: q.poNo, poDate: q.poDate } };
+  return { tags, grandTotal: quoteTotal(q), spare: { quote: q, edits: edits ?? {} } };
 }

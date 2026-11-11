@@ -11,8 +11,8 @@
  *     Sub-Total Price INR (as per scope of supply)
  *     · with a discount (user, 2026-11-07): Pump with Accessories Final Discounted
  *     (Discount n%) · [BOI Items Final Discounted, when BOI total is ticked] ·
- *     Final Discounted No Regret Each Set Unit Price · Sub-Total Price INR (As Per
- *     Required Quantity)
+ *     Final Discounted Unit Price · Sub-Total Discounted Price ("No Regret" dropped,
+ *     user 2026-11-11)
  *   Scope of supply :- …   (red)
  *   Out Of Scope :- …
  *
@@ -219,26 +219,26 @@ export const OFFER_FIELDS: OfferField[] = [
   // The discount (Summary table headings): the values after it.
   {
     key: "paDisc",
-    label: (_g, d) => `Pump with Accessories Final Discounted (Discount ${pctText(d?.paPct)}%) No Regret Unit Price (INR)`,
+    label: (_g, d) => `Pump with Accessories Final Discounted (Discount ${pctText(d?.paPct)}%) Unit Price (INR)`,
     when: (d) => d.paPct > 0,
     value: (t, d) => money(finalPa(t.prices, d)),
   },
   {
     // With the BOI total row (Add parameters) only.
     key: "boiDisc",
-    label: (_g, d) => `BOI Items Final Discounted (Discount ${pctText(d?.boiPct)}%) No Regret Unit Price (INR)`,
+    label: (_g, d) => `BOI Items Final Discounted (Discount ${pctText(d?.boiPct)}%) Unit Price (INR)`,
     when: (d, picked) => d.boiPct > 0 && picked.has("x_boi"),
     value: (t, d) => money(finalBoi(t.prices, d)),
   },
   {
     key: "unitDisc",
-    label: () => "Final Discounted No Regret Each Set Unit Price (INR)",
+    label: () => "Final Discounted Unit Price (INR)",
     when: (d) => hasDiscount(d),
     value: (t, d) => money(finalUnit(t.prices, d)),
   },
   {
     key: "subDisc",
-    label: () => "Sub-Total Price INR (As Per Required Quantity)",
+    label: () => "Sub-Total Discounted Price (INR)",
     when: (d) => hasDiscount(d),
     value: (t, d) => money(finalSub(t.prices, t.quantity, d)),
   },

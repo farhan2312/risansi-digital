@@ -14,6 +14,7 @@ const STATUS = [
   { key: "completed", label: "Completed", color: "var(--pos)" },
   { key: "sentToClient", label: "Sent to client", color: "var(--brand-cyan)" },
   { key: "notQuoted", label: "Not quoted", color: "var(--fg-4)" },
+  { key: "regret", label: "Regret", color: "var(--neg)" },
 ] as const;
 
 const NOT_SET = "Not set";

@@ -1041,8 +1041,8 @@ never auto-filled from the AI result.
 - Review button on every enquiry row (components/projects/EnquiryReviewModal, not for reps; disabled for
   anyone who can't work on it, so a worker reviews only their own). A toggle of the saved documents, no
   edits: Technical (latest tech_doc_version.sheet), Commercial (client version's snapshot on this quotation
-  row), Techno-Commercial (those two), per drive group; a spare's quotation (live quote, which locks when
-  saved). lib/saved-docs-server loadSavedDocs builds them; components/projects/SavedDocsViewer shows them.
+  row), Techno-Commercial (those two), per drive group; a spare's quotation (the quote + doc edits kept in
+  its client snapshot.spare since 2026-11-11; older copies: live). lib/saved-docs-server loadSavedDocs builds them; components/projects/SavedDocsViewer shows them.
 - Mark as reviewed needs every sheet and quotation saved (GET/POST /api/projects/[id]/review, notSaved).
   Send to operation then appears on the row and in the popup. projects.reviewed_at/_by and
   released_to_operation_at/_by (NOT sent_to_operation_at, the Technical save). Nothing is e-mailed and no
@@ -1068,6 +1068,35 @@ never auto-filled from the AI result.
   (".../PCP/1864_V1"; the system adds nothing). NEVER show a version beside the enquiry no.: not on documents, page
   headings, popup titles or audit details. Fine in a status (Technical V1), on Save Version and on View docs V1.
 
+## Spare quotation: save again, terms (user, 2026-11-11)
+- The Spare Quotation page stays editable after Save Version (spare-quote PUT / doc PUT no longer refuse once
+  sent_to_client_at is set). QuotationPanel keeps the button as "Save again Version Vn" (pump and spare): it
+  replaces the client version and the internal one it names; with nothing changed the send route says so (409).
+  spareSnapshot keeps quote + edits in snapshot.spare, so changedSinceSent works for spares and saved docs read the
+  saved copy.
+- Terms card: a ticked term's wording is a textarea, saved as you type into spare_doc_edits.terms (same as
+  editing it on the document), "Reset to the standard wording". Domestic / Export terms 8 and 9 swapped (Delivery /
+  Dispatch time now 8); ids kept so ticks and edits follow the wording.
+
+## Spare models: Others list, editable description, typed codes (user, 2026-11-11)
+- Parts list dropdown: Screw Pump (PCP) / Rota Pump (MMP) / Others (pumpKind OTHER, SparePumpKind in
+  lib/spare-parts.ts): no list, the picker only adds parts by part no. + part name.
+- Model table: Description (partName) is an input; rows keyed by index so typing keeps focus.
+- Spare quote PUT adds a typed model code that product_pump lacks (upper case, no spaces, valid code) with
+  pump_type "" (no type; the column is NOT NULL default PCP), audited product_pump.add.
+
+## Spare reference PO per part (user, 2026-11-11)
+- SpareQuote.hasPo (the Reference PO tick) stays; poNo / poDate moved onto each SpareLine. normalizeSpareQuote
+  puts an old quote's one PO on every part. A part needs both or neither (spareQuoteProblem); generating no longer
+  needs a PO. Model table shows Ref. PO No. / PO date columns when ticked; the document prints each row's PO
+  (sparePoAuto(line)), editable per row (SpareDocEdits.lines[key].po; the old common edits.po is unused).
+
+## Regret status (user, 2026-11-07)
+- Regret is a hand-picked status (Edit Enquiry Technical / Commercial / spare Status), in ENQUIRY_STATUSES
+  (lib/enquiry-filters.ts), so filters and PATCH accept it. Red pill (StatusPill, Enquiry Report .regret).
+  Counted on its own (regret in StatusCounts, dashboard repStatus / tiles / donut), never as Pending. Like Not
+  Quoted it gives way to a later Save to operation / Send to client.
+
 ## Edit the enquiry no. (user, 2026-11-07)
 - Edit Enquiry form (EditProjectModal) has an Enquiry no. field; sent as projectCode only when it changed.
   PATCH /api/projects/[id] gives the new number to every version, 409 if taken, audited enquiry.renumber
@@ -1084,9 +1113,9 @@ never auto-filled from the AI result.
   usdGrandTotal(tags, rate, d). Quotation snapshots: tags unit / sub and grandTotal are AFTER the discount; the %
   travels in snapshot.offer (discountOf). QuotationPanel and Client Prices read it from there.
 - Commercial Offer / Techno-Commercial: Unit Price and Sub-Total stay before the discount; then "Pump with
-  Accessories Final Discounted (Discount n%) No Regret Unit Price", "BOI Items Final Discounted (Discount n%) ..."
-  (only with the BOI total add-parameter ticked), "Final Discounted No Regret Each Set Unit Price" and "Sub-Total
-  Price INR (As Per Required Quantity)"; Total Price (add-parameter) becomes the discounted total.
+  Accessories Final Discounted (Discount n%) Unit Price", "BOI Items Final Discounted (Discount n%) ..."
+  (only with the BOI total add-parameter ticked), "Final Discounted Unit Price" and "Sub-Total
+  Discounted Price (INR)" (no "No Regret", 2026-11-11); Total Price (add-parameter) becomes the discounted total.
 
 ## Enquiries list column sort (user, 2026-11-06)
 - Click Enquiry No. / Date, Client / Code, Reps / Zone or Assigned To to sort; several at once, in click order

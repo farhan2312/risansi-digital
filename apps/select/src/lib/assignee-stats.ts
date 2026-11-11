@@ -1,7 +1,7 @@
 // One KPI card per person enquiries are assigned to (GET
 // /api/projects/assignee-stats). Client-safe.
 
-export type StatusCounts = { total: number; pending: number; inProgress: number; completed: number; notQuoted: number; sentToClient: number };
+export type StatusCounts = { total: number; pending: number; inProgress: number; completed: number; notQuoted: number; regret: number; sentToClient: number };
 
 export type AssigneeStats = {
   userId: string;

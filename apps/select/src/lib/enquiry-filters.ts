@@ -29,8 +29,9 @@ export type EnquiryFilters = {
 export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus", "spareStatus"] as const;
 export type MultiFilterKey = (typeof MULTI_FILTER_KEYS)[number];
 
-/** Not Quoted and Sent to client are only ever picked by hand on the Edit form. */
-export const ENQUIRY_STATUSES = ["Pending", "In Progress", "Completed", "Not Quoted", "Sent to client"] as const;
+/** Not Quoted, Regret and Sent to client are only ever picked by hand on the Edit form
+ *  (Regret: user, 2026-11-07). */
+export const ENQUIRY_STATUSES = ["Pending", "In Progress", "Completed", "Not Quoted", "Regret", "Sent to client"] as const;
 
 /** A new version can be made from this "status" (Technical, or a spare's one status):
  *  the work is done, and Sent to client comes after Completed. */

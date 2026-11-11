@@ -84,7 +84,12 @@ export const SCREW_PUMP_PARTS: PartListItem[] = [
   { section: "Parts", part_no: "250", part_name: "Bolt" },
 ];
 
-export const partListFor = (pumpKind: "PCP" | "MMP"): PartListItem[] => (pumpKind === "MMP" ? ROTA_PUMP_PARTS : SCREW_PUMP_PARTS);
+/** Which parts list a spare model picks from; OTHER has none - every part is typed
+ *  with its part no. and name (user, 2026-11-11). */
+export type SparePumpKind = "PCP" | "MMP" | "OTHER";
+
+export const partListFor = (pumpKind: SparePumpKind): PartListItem[] =>
+  pumpKind === "MMP" ? ROTA_PUMP_PARTS : pumpKind === "OTHER" ? [] : SCREW_PUMP_PARTS;
 
 /** Parts named by hand rather than picked from a list. */
 export const OTHER_PART_SECTION = "Others";
