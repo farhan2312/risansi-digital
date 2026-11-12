@@ -19,9 +19,10 @@ export const STAGES = [
   "Partial ready",
   "Ready, not packed",
   "Packed, no slip yet",
-  "Packed, to dispatch",
-  "Lot dispatched",
   "On hold",
+  "Packed, to dispatch",
+  "Dispatch hold",
+  "Lot dispatched",
   "Fully dispatched",
   "Cancelled / Diverted",
 ] as const;
@@ -50,17 +51,6 @@ function restStage(o: OrderListRow): "Cancelled / Diverted" | "No EC yet" | "On 
   return "Packed, no slip yet";
 }
 export type Stage = (typeof STAGES)[number];
-/** Where an SO stands before its holds are counted: Dispatch's own hold is a stage of its own there (the Dispatch status chart). */
-type Flow = Stage | "Dispatch hold";
-/**
- * Where an SO shows in the pipeline and By Rep: closed and fully dispatched as
- * they are; any other SO on any hold (Order Making, CV, Accounts or Dispatch)
- * in the one On hold bar, as the hold cards count it; the rest at its stage.
- */
-function pipelineStage<T extends string>(flow: T, held: boolean): T | "On hold" {
-  if (flow === "Cancelled / Diverted" || flow === "Fully dispatched") return flow;
-  return held || flow === "Dispatch hold" ? "On hold" : flow;
-}
 
 export type DashboardSo = {
   id: string;
@@ -72,8 +62,6 @@ export type DashboardSo = {
   zone: string;
   value_inr: number;
   stage: Stage;
-  /** Its stage leaving holds aside: what the Dispatch status chart reads. */
-  flow: Flow;
   dispatch: string;
   delivery_date: string | null;
   first_dispatch: string | null;
@@ -132,7 +120,7 @@ export type SpareDashboard = {
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 const DAY = 86400000;
 const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);/** The stages Dispatch has the SO at (a numbered packing slip), or closed. */
-const DISPATCH_STAGES: readonly Flow[] = ["Fully dispatched", "Lot dispatched", "Dispatch hold", "Packed, to dispatch", "Cancelled / Diverted"];
+const DISPATCH_STAGES: readonly Stage[] = ["Fully dispatched", "Lot dispatched", "Dispatch hold", "Packed, to dispatch", "Cancelled / Diverted"];
 
 /** The Spare dashboard for the Orders list's filter (types pinned to Spare by the caller). */
 export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareDashboard> {
@@ -206,8 +194,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
       reps: str(o.reps).split(",").map((r) => r.trim()).filter(Boolean),
       zone: str(o.zone) || "No zone",
       value_inr: inr,
-      flow: (staged.get(o.id) ?? restStage(o)) as Flow,
-      stage: pipelineStage((staged.get(o.id) ?? restStage(o)) as Flow, holds.length > 0) as Stage,
+      stage: staged.get(o.id) ?? restStage(o),
       dispatch: o.clearance_status === "Hold" && !CLOSED.includes(str(o.dispatch_status)) ? "Hold" : str(o.dispatch_status) || "Pending",
       delivery_date: f?.delivery ?? null,
       first_dispatch: f?.first ?? null,
@@ -225,13 +212,12 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
   // Dispatch: the SO's own status, closed ones included.
   const mix = (label: string, test: (s: DashboardSo) => boolean) => ({ label, count: sos.filter(test).length });
   const dispatchMix = [
-    // Dispatch's view, holds aside: its own Hold is a slice here.
-    mix("Fully dispatched", (s) => s.flow === "Fully dispatched"),
-    mix("Lot dispatched", (s) => s.flow === "Lot dispatched"),
-    mix("Dispatch hold", (s) => s.flow === "Dispatch hold"),
-    mix("To dispatch", (s) => s.flow === "Packed, to dispatch"),
-    mix("Not at Dispatch yet", (s) => !DISPATCH_STAGES.includes(s.flow)),
-    mix("Cancelled / Diverted", (s) => s.flow === "Cancelled / Diverted"),
+    mix("Fully dispatched", (s) => s.stage === "Fully dispatched"),
+    mix("Lot dispatched", (s) => s.stage === "Lot dispatched"),
+    mix("Dispatch hold", (s) => s.stage === "Dispatch hold"),
+    mix("To dispatch", (s) => s.stage === "Packed, to dispatch"),
+    mix("Not at Dispatch yet", (s) => !DISPATCH_STAGES.includes(s.stage)),
+    mix("Cancelled / Diverted", (s) => s.stage === "Cancelled / Diverted"),
   ];
 
   // The last twelve months of intake, by SO date.

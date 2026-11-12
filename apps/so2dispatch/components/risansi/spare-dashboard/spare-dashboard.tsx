@@ -15,6 +15,7 @@ const STAGE_COLOR: Record<Stage, string> = {
   "Packed, no slip yet": "var(--viz-seq-5)",
   "On hold": "var(--viz-red)",
   "Packed, to dispatch": "var(--viz-seq-6)",
+  "Dispatch hold": "var(--viz-orange)",
   "Lot dispatched": "var(--viz-seq-6)",
   "Fully dispatched": "var(--viz-aqua)",
   "Cancelled / Diverted": "var(--viz-gray)",
@@ -32,11 +33,10 @@ const REP_GROUPS: RepGroup<Stage>[] = [
     ],
   },
   { title: "Assembly & Packing", cols: [{ stage: "Packed, to dispatch", label: "Packed, to dispatch" }], noSlip: true },
-  // Every hold — Order Making, CV, Accounts or Dispatch — as the hold cards count it.
-  { title: "Hold", cols: [{ stage: "On hold", label: "On hold", tone: "rose" }] },
   {
     title: "Dispatch",
     cols: [
+      { stage: "Dispatch hold", label: "Hold", tone: "orange" },
       { stage: "Lot dispatched", label: "Lot" },
       { stage: "Fully dispatched", label: "Fully", tone: "aqua" },
       { stage: "Cancelled / Diverted", label: "Cancelled", tone: "rose" },
