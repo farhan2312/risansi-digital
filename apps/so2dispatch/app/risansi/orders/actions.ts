@@ -1775,13 +1775,13 @@ async function autoFillTargets(
     const filled = await fillFirstTargets(orderId, user);
     if (filled.length === 0) return;
     const label = (await getOrderLabel(orderId)) ?? orderId;
-    for (const { target, date, reason } of filled) {
+    for (const { target, date, reason, revised } of filled) {
       await logAudit({
         actor: { id: user.id, email: user.email, role: user.role },
         action: "order.target_date",
         category: "activity",
         target: label,
-        details: `Set ${target.label} to ${formatTargetDate(date)} — ${reason}`,
+        details: `${revised ? "Revised" : "Set"} ${target.label} to ${formatTargetDate(date)} — ${reason}`,
         subject: { orderId, soNo: label },
       });
       const recipients = await targetRecipientsFor(target.column, orderId);
@@ -1790,7 +1790,7 @@ async function autoFillTargets(
           roles: recipients.roles,
           orderId,
           type: "target_date",
-          message: `${recipients.label} set for ${label} — ${formatTargetDate(date)} · ${reason}`,
+          message: `${recipients.label} ${revised ? "revised" : "set"} for ${label} — ${formatTargetDate(date)} · ${reason}`,
         });
       }
     }
