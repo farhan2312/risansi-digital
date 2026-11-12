@@ -14,6 +14,11 @@ import {
   type TargetRevision,
 } from "@/lib/target-dates";
 
+/** Fired on window when a target date is set or removed, so an open Order details form sees it at once. */
+export const TARGET_SET_EVENT = "so-target-set";
+export type TargetSetDetail = { orderId: string; column: string; date: string };
+const announce = (detail: TargetSetDetail) => window.dispatchEvent(new CustomEvent<TargetSetDetail>(TARGET_SET_EVENT, { detail }));
+
 function formatDate(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
@@ -89,6 +94,7 @@ export function TargetDateControl({
     setDate("");
     setReason("");
     setShowHistory(true);
+    announce({ orderId, column: target.column, date });
     router.refresh();
   }
 
@@ -114,6 +120,7 @@ export function TargetDateControl({
       setError(result.error);
       return;
     }
+    announce({ orderId, column: target.column, date: previous ? String(previous.target_date).slice(0, 10) : "" });
     router.refresh();
   }
 

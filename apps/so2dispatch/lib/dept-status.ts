@@ -46,20 +46,34 @@ export const PENDING = "Pending";
  */
 export const HOLD = "Hold";
 
-/** The departments whose SO hold is every hold: Dispatch's, Central Visibility's, Order Making's and Accounts'. */
-const ALL_HOLD_DEPTS: readonly string[] = ["dispatch", "billing", "accounts"];
+/**
+ * Who put an SO on hold, as its hold cards and the hold filter name them.
+ * Order Making's ("om") only on the Orders list and Order Making's page; the
+ * departments show the other three (HOLD_BY).
+ */
+export type HoldBy = "om" | "cv" | "accounts" | "dispatch";
+export const HOLD_BY: readonly HoldBy[] = ["cv", "accounts", "dispatch"];
+export const HOLD_BY_LABEL: Record<HoldBy, string> = { om: "Order Making hold", cv: "CV hold", accounts: "Accounts hold", dispatch: "Dispatch hold" };
+
+/** The SO (alias o) on one kind of hold. */
+export function holdBySql(by: HoldBy, o = "o"): string {
+  if (by === "om") return `COALESCE(${o}.om_status, '') = 'Hold'`;
+  if (by === "cv") return `COALESCE(${o}.clearance_status, '') = 'Hold'`;
+  if (by === "accounts") return `COALESCE(${o}.accounts_hold_status, '') = 'Hold'`;
+  return `COALESCE(${o}.status_override, '') = 'Hold'`;
+}
 
 /**
- * The SO is on hold (alias o) — by Central Visibility or Order Making; and on
- * the Orders list and in Dispatch, Proforma Invoice and Accounts by anyone,
- * Dispatch (its dispatch status Hold) and Accounts included. The SO hold
- * card and filter; a held SO counts as no department's Open or Pending.
+ * The SO is on hold (alias o). In every department: by Central Visibility,
+ * Accounts or Dispatch (its dispatch status Hold). Order Making's own hold
+ * counts only on the Orders list and Order Making's page — no department sees
+ * an SO Order Making holds. The SO hold card and filter; a held SO counts as
+ * no department's Open or Pending.
  */
 export function soHoldSql(o = "o", dept?: string | null): string {
-  const all = !!dept && ALL_HOLD_DEPTS.includes(dept);
-  const dispatch = !dept || all ? ` OR COALESCE(${o}.status_override, '') = 'Hold'` : "";
-  const accounts = !dept || all ? ` OR COALESCE(${o}.accounts_hold_status, '') = 'Hold'` : "";
-  return `(COALESCE(${o}.clearance_status, '') = 'Hold' OR COALESCE(${o}.om_status, '') = 'Hold'${dispatch}${accounts})`;
+  const om = !dept || dept === "order_making";
+  const others = dept === "order_making" ? "" : ` OR ${holdBySql("accounts", o)} OR ${holdBySql("dispatch", o)}`;
+  return `(${holdBySql("cv", o)}${om ? ` OR COALESCE(${o}.om_status, '') = 'Hold'` : ""}${others})`;
 }
 
 /** `expr IN values`, a held SO (alias o) left out of the open words. */

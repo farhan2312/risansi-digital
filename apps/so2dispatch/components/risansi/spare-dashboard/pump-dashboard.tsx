@@ -129,8 +129,16 @@ function DeptProgress({ depts, total }: { depts: DeptRow[]; total: number }) {
 export function PumpDashboardView({ data }: { data: PumpDashboard }) {
   const m = data.metrics;
   const stages: Datum[] = data.stages.map((s) => ({ ...s, color: STAGE_COLOR[s.label as PumpStage] }));
-  const GAD_COLORS = ["var(--viz-yellow)", "var(--viz-orange)", "var(--viz-blue)", "var(--viz-violet)", "var(--viz-aqua)"];
-  const gad: Datum[] = data.gad.map((g, i) => ({ ...g, color: GAD_COLORS[Math.min(i, GAD_COLORS.length - 1)] }));
+  // Each GAD stage keeps its colour, whichever stages are present.
+  const GAD_COLORS: Record<string, string> = {
+    Pending: "var(--viz-yellow)",
+    Resubmit: "var(--viz-red)",
+    "Sent to client – approval pending": "var(--viz-orange)",
+    "Approved by client": "var(--viz-blue)",
+    "Issued to planning": "var(--viz-violet)",
+    "Closed by Drawing": "var(--viz-aqua)",
+  };
+  const gad: Datum[] = data.gad.map((g) => ({ ...g, color: GAD_COLORS[g.label] ?? "var(--viz-gray)" }));
   const boi: Datum[] = [
     { label: "Received", count: data.boi.received, color: "var(--viz-aqua)" },
     { label: "To come", count: data.boi.pending, color: "var(--viz-yellow)" },
@@ -161,7 +169,7 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
         />
         <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Late vs delivery date" value={String(m.late)} sub="dispatched late, or past it and not out" tone={m.late ? "bad" : "good"} />
         <Metric icon={<CalendarClock className="h-5 w-5" />} label="Due in 7 days" value={String(m.dueThisWeek)} sub="delivery date this week" tone={m.dueThisWeek ? "warn" : "default"} />
-        <Metric icon={<PauseCircle className="h-5 w-5" />} label="On hold" value={String(m.holds)} sub="Clearance, Accounts or Dispatch" tone={m.holds ? "warn" : "good"} />
+        <Metric icon={<PauseCircle className="h-5 w-5" />} label="On hold" value={String(m.holds)} sub="Order Making, CV, Accounts or Dispatch" tone={m.holds ? "warn" : "good"} />
         <Metric icon={<IndianRupee className="h-5 w-5" />} label="Order value" value={money(m.value)} sub="all SOs, cancelled included, in INR" />
       </div>
 
@@ -182,13 +190,13 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
 
       {/* Before Planning: drawings, bought-out items and Quality's documents. */}
       <div className="grid gap-5 lg:grid-cols-3">
-        <ChartCard title="Drawing" sub="Open SOs not closed by Drawing, by the GAD stage holding them back">
-          {gad.length === 0 ? <p className="py-6 text-center text-sm text-muted">Every open SO&apos;s drawings are done.</p> : <HBars data={gad} />}
+        <ChartCard title="Drawing" sub="All SOs: closed by Drawing, or the GAD stage holding them back">
+          {gad.length === 0 ? <p className="py-6 text-center text-sm text-muted">No SO has a pump EC yet.</p> : <HBars data={gad} />}
         </ChartCard>
-        <ChartCard title="Purchase · BOI items" sub="Bought-out items on the open SOs with BOI">
+        <ChartCard title="Purchase · BOI items" sub="Bought-out items on all SOs with BOI">
           <Donut data={boi} centerLabel="items" />
         </ChartCard>
-        <ChartCard title="Quality · documents" sub="Pump ECs on the open SOs needing Quality">
+        <ChartCard title="Quality · documents" sub="Pump ECs on all SOs needing Quality">
           <Donut data={qc} centerLabel="ECs" />
         </ChartCard>
       </div>

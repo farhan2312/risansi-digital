@@ -120,7 +120,7 @@ export default async function AssemblyDispatchWorkspacePage({
         tone: toneFor(st),
       })),
       // Its SOs on any hold.
-      totalHoldCard("assembly", clear),
+      ...totalHoldCard("assembly", clear),
     ];
     // Each SO card also counts the pumps on its SOs — as Planning's.
     return cards.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } }));

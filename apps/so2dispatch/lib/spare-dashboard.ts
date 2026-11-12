@@ -67,7 +67,7 @@ export type DashboardSo = {
   first_dispatch: string | null;
   /** Packed but on no packing slip yet. */
   no_slip: boolean;
-  holds: { by: "Clearance" | "Accounts" | "Dispatch"; reason: string }[];
+  holds: { by: "Order Making" | "CV" | "Accounts" | "Dispatch"; reason: string }[];
 };
 
 export type Bucket = { label: string; count: number; value?: number };
@@ -180,7 +180,8 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
   const sos: DashboardSo[] = rows.map((o) => {
     const f = facts.get(o.id);
     const holds: DashboardSo["holds"] = [];
-    if (o.clearance_status === "Hold") holds.push({ by: "Clearance", reason: str(o.clearance_hold_reason) });
+    if (o.om_status === "Hold") holds.push({ by: "Order Making", reason: str(o.om_hold_reason) });
+    if (o.clearance_status === "Hold") holds.push({ by: "CV", reason: str(o.clearance_hold_reason) });
     if (o.accounts_hold_status === "Hold") holds.push({ by: "Accounts", reason: str(o.accounts_hold_reason) });
     if (str(o.dispatch_status) === "Hold") holds.push({ by: "Dispatch", reason: str(f?.hold_reason) });
     const inr = Number(o.order_value_inr ?? ((o.order_currency ?? "INR").toUpperCase() === "INR" ? o.order_value : 0)) || 0;
