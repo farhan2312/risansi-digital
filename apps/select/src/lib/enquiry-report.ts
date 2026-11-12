@@ -21,6 +21,8 @@ export type EnquiryReportRow = {
   category: string;
   enquiryNo: string;
   assignee: string;
+  /** When it was (re)assigned, dd.mm.yyyy in IST; "" when not known. */
+  assignedOn: string;
   remark: string;
   onHold: boolean;
 };
@@ -84,6 +86,8 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
       category: spare && p.order_subtype === "retrofit_spare" ? orderSubtypeLabel(p.order_subtype) : orderTypeLabel(p.order_type),
       enquiryNo: p.project_code,
       assignee: p.assigned_to_name ?? "",
+      // The (re)assigned date under the name, as on the Enquiries list (user, 2026-11-12).
+      assignedOn: p.assigned_to_name && p.assigned_at ? dotDate(new Date(p.assigned_at).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })) : "",
       remark: [
         onHold ? `Hold: ${holdReasonText(c?.group, c?.reason) || "no reason given"}` : null,
         c?.remarks,
@@ -123,7 +127,11 @@ export function sortReportRows(rows: EnquiryReportRow[], sort: ReportSort): Enqu
 }
 
 export const reportCell = (r: EnquiryReportRow, key: ColumnKey): string =>
-  key === "status" ? r.statuses.map((s) => (s.label ? `${s.label}: ${s.value}` : s.value)).join("\n") : r[key];
+  key === "status"
+    ? r.statuses.map((s) => (s.label ? `${s.label}: ${s.value}` : s.value)).join("\n")
+    : key === "assignee" && r.assignedOn
+      ? `${r.assignee}\nAssigned ${r.assignedOn}`
+      : r[key];
 
 const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
@@ -146,6 +154,7 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSo
     if (key === "client") return `<b>${esc(r.client)}</b>`;
     if (key === "enquiryNo") return `<span class="no">${esc(r.enquiryNo)}</span>`;
     if (key === "rilRep") return `<b class="rep">${esc(r.rilRep) || "-"}</b>`;
+    if (key === "assignee" && r.assignedOn) return `${esc(r.assignee)}<span class="on">Assigned ${esc(r.assignedOn)}</span>`;
     return esc(r[key]) || (key === "remark" ? "" : "-");
   };
   return `<!doctype html>
@@ -181,6 +190,7 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSo
   .waiting { background: #fdf0d5; color: #9a6400; }
   .closed { background: #e9edf2; color: #4b5a6b; }
   .regret { background: #fde4e4; color: #b42318; }
+  .on { display: block; margin-top: 1px; font-size: 6.8pt; color: #6b7a8c; }
   .empty { padding: 28px; text-align: center; color: #6b7a8c; }
   .arrow { font-size: 7pt; opacity: 0.5; white-space: nowrap; }
   .arrow.on { opacity: 1; color: #1F3864; }
