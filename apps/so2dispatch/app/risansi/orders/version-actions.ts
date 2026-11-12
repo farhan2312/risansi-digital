@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { query, withTransaction } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { isOrderMaking } from "@/lib/roles";
+import { canMakeVersions } from "@/lib/roles";
 import { isClosedStatus } from "@/lib/dept-view";
 import type { DeptKey } from "@/lib/dept-completion";
 import { deptInvolvedInOrder } from "@/lib/orders";
@@ -14,14 +14,14 @@ import { freezeVersion, isVersionedType, VERSION_DEPT_ROLES } from "@/lib/order-
 export type NewVersionResult = { ok: true; version: number } | { ok: false; error: string };
 
 /**
- * Order Making PO saves a Pump SO as it stands as a read-only version; the SO
+ * Order Making PO, Central Visibility or Admin saves a Pump SO as it stands as a read-only version; the SO
  * goes on as the next version, a copy of it, which they then edit as usual.
  * The departments working on it hear of the new version.
  */
 export async function createOrderVersionAction(orderId: string, reason: string): Promise<NewVersionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!isOrderMaking(user.role)) return { ok: false, error: "Only Order Making PO makes a new version of an SO." };
+  if (!canMakeVersions(user.role)) return { ok: false, error: "Only Order Making PO, Central Visibility or Admin makes a new version of an SO." };
   const why = reason.trim().slice(0, 1000);
   if (!why) return { ok: false, error: "Say why the new version is made." };
 
@@ -60,7 +60,7 @@ export async function createOrderVersionAction(orderId: string, reason: string):
         roles,
         orderId,
         type: "dept_update",
-        message: `${label} revised to v${current} by Order Making · ${why} · v${frozen} is kept read-only under the SO's Versions`,
+        message: `${label} revised to v${current} · ${why} · v${frozen} is kept read-only under the SO's Versions`,
       }),
     ]);
     revalidatePath("/risansi/departments/order-making");

@@ -8,12 +8,12 @@ import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Ban, CheckCircle2, CopyPlus, Download, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import Link from "next/link";
-import { createOrderVersionAction } from "@/app/risansi/orders/version-actions";
+import { NewVersionDialog } from "./new-version-dialog";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { HoldBadge } from "./hold-badge";
 import { OnlyBillingBadge } from "./order-popups";
-import { canManageEcs } from "@/lib/roles";
+import { canMakeVersions, canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
 import { OmEcsModal } from "./om-ecs-modal";
 import { OrderOperationPopup } from "./order-operation-popup";
@@ -222,9 +222,9 @@ export function OrderMakingWorkspace({
   const [showAssignPdf, setShowAssignPdf] = useState(false);
   // The SO being cancelled (its reason asked first).
   const [cancelling, setCancelling] = useState<OrderMakingRow | null>(null);
-  // The Pump SO a new version is being made of (its reason asked first): Order Making PO only.
+  // The Pump SO a new version is being made of (its reason asked first): Order Making PO, Central, Admin.
   const [versioning, setVersioning] = useState<OrderMakingRow | null>(null);
-  const makesVersions = role === "order_making";
+  const makesVersions = canMakeVersions(role);
   // The assigned SO whose Reassign is open.
   const [reassigning, setReassigning] = useState<string | null>(null);
   async function assign(row: OrderMakingRow, assigneeId: string) {
@@ -793,7 +793,7 @@ export function OrderMakingWorkspace({
                         <Pencil className="h-3.5 w-3.5" />
                         {mode === "so" ? "SO details" : "Edit"}
                       </button>
-                      {/* Order Making PO: a new version of a Pump SO, the current one kept read-only. */}
+                      {/* A new version of a Pump SO, the current one kept read-only. */}
                       {mode === "po" && makesVersions && PUMP_LIKE.includes(str(row.order_type)) && !isClosedStatus(row.status_override) && (
                         <button
                           type="button"
@@ -830,7 +830,14 @@ export function OrderMakingWorkspace({
           </table>
         </div>
         {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
-        {versioning && <NewVersionDialog row={versioning} onClose={() => setVersioning(null)} />}
+        {versioning && (
+          <NewVersionDialog
+            orderId={versioning.id}
+            soLabel={str(versioning.so_no) || `#${versioning.sl_no}`}
+            versionNo={Number(versioning.version_no ?? 1) || 1}
+            onClose={() => setVersioning(null)}
+          />
+        )}
         {showAssignPdf && (
           <AssignmentPdfDialog range={period === "range" ? assignRange : null} onClose={() => setShowAssignPdf(false)} />
         )}
@@ -1327,113 +1334,6 @@ function CancelSoDialog({ row, onClose }: { row: OrderMakingRow; onClose: () => 
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             Cancel SO
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-/** Order Making PO makes a new version of a Pump SO: why, then the current one is kept read-only. */
-function NewVersionDialog({ row, onClose }: { row: OrderMakingRow; onClose: () => void }) {
-  const router = useRouter();
-  const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const now = Number(row.version_no ?? 1) || 1;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [saving, onClose]);
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    if (!reason.trim()) {
-      setError("Say why the new version is made.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    const res = await createOrderVersionAction(row.id, reason);
-    setSaving(false);
-    if (!res.ok) {
-      setError(res.error);
-      return;
-    }
-    router.refresh();
-    onClose();
-  }
-
-  const so = str(row.so_no) || `#${row.sl_no}`;
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`New version of ${so}`}
-      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
-      onClick={() => !saving && onClose()}
-    >
-      <form
-        onSubmit={save}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-2xl bg-surface p-5 text-left shadow-xl sm:rounded-2xl"
-      >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-lg font-semibold text-foreground">New version of {so}</h2>
-            <p className="text-xs text-muted">
-              v{now} is kept read-only: the SO and every department&apos;s work as they are now. The SO becomes v{now + 1}, a copy
-              of it, which you then edit as usual. The departments on it are told.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            aria-label="Close"
-            className="rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <label className="block text-sm">
-          <span className="mb-1 block text-[13px] font-medium text-brand-label">
-            Reason <span className="text-danger">*</span>
-          </span>
-          <textarea
-            autoFocus
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            placeholder="e.g. Client revised PO: qty 4 to 6"
-            className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-          />
-        </label>
-        {now > 1 && (
-          <Link href={`/risansi/orders/${row.id}/versions`} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            <History className="h-3.5 w-3.5" />
-            See the earlier versions
-          </Link>
-        )}
-        {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="inline-flex h-10 items-center rounded-lg border border-input-border px-4 text-sm font-medium text-foreground hover:bg-background"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save v{now} and make v{now + 1}
           </button>
         </div>
       </form>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ChevronRight,
+  CopyPlus,
   History,
   LayoutGrid,
   Loader2,
@@ -14,7 +15,8 @@ import {
 } from "lucide-react";
 import { deleteItemAction } from "@/app/risansi/orders/actions";
 import { OrderStatusPanel } from "./order-status-panel";
-import { canManageEcs, canSeeClient } from "@/lib/roles";
+import { canMakeVersions, canManageEcs, canSeeClient } from "@/lib/roles";
+import { NewVersionDialog } from "./new-version-dialog";
 import type { ItemDetail, OrderDetail as OrderDetailData, SoDeptStatus } from "@/lib/orders";
 import { EcDeptGrid } from "./ec-dept-grid";
 import { AddOnForm } from "./add-on-form";
@@ -67,6 +69,8 @@ export function OrderDetail({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const soLabel = str(order.so_no) || `#${str(order.sl_no) || "—"}`;
+  // The New version pop-up (Pump SOs; Order Making PO, Central, Admin).
+  const [versioning, setVersioning] = useState(false);
 
   const items = (detail.items ?? []) as Row[];
 
@@ -229,6 +233,20 @@ export function OrderDetail({
         {/* This page is the forms; the overview is the whole order on one
             page, its ECs and every department's state included. */}
         <div className="flex flex-wrap items-center gap-2">
+        {PUMP_LIKE.includes(str(order.order_type)) && canMakeVersions(role) && !["Cancelled by client", "Diverted"].includes(str(order.status_override)) && (
+          <button
+            type="button"
+            onClick={() => setVersioning(true)}
+            title="Save the SO as it is as a read-only version, and go on editing the next one"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-background"
+          >
+            <CopyPlus className="h-3.5 w-3.5" />
+            New version
+          </button>
+        )}
+        {versioning && (
+          <NewVersionDialog orderId={orderId} soLabel={soLabel} versionNo={Number(order.version_no ?? 1) || 1} onClose={() => setVersioning(false)} />
+        )}
         {PUMP_LIKE.includes(str(order.order_type)) && (
           <Link
             href={`/risansi/orders/${orderId}/versions`}
