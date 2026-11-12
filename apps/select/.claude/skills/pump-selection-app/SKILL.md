@@ -1108,6 +1108,8 @@ never auto-filled from the AI result.
   (lib/enquiry-filters.ts), so filters and PATCH accept it. Red pill (StatusPill, Enquiry Report .regret).
   Counted on its own (regret in StatusCounts, dashboard repStatus / tiles / donut), never as Pending. Like Not
   Quoted it gives way to a later Save to operation / Send to client.
+- The live DB has projects_status_override_check listing the allowed override values: a new status must be
+  added there too (Regret: 2026-11-12, scratchpad regret_check.cjs). Without it the PATCH fails with a 500.
 
 ## Edit the enquiry no. (user, 2026-11-07)
 - Edit Enquiry form (EditProjectModal) has an Enquiry no. field; sent as projectCode only when it changed.
