@@ -1,7 +1,9 @@
 "use client";
 
 import { EcLink, ecLinkHref } from "./ec-link";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { TARGET_SET_EVENT, type TargetSetDetail } from "./target-date-control";
+import { TARGET_DATES } from "@/lib/target-dates";
 import { useRouter } from "next/navigation";
 import { Loader2, Paperclip, Pencil } from "lucide-react";
 import { updateOrderSectionAction, updateSectionForSoAction } from "@/app/risansi/orders/actions";
@@ -167,8 +169,20 @@ export function EditableSection({
     toInput(data?.item_type).trim().toLowerCase() === "spare";
   const [packLots, setPackLots] = useState<PackingLot[]>(() => packingLotsFromRows(data?.ready_lots));
 
-  // A field's value as the form stands: typed, else as saved.
-  const readNow = (c: string) => (c in values ? values[c] : toInput(data?.[c]));
+  // Target dates set from their own Set button while this form is open (the
+  // page's data catches up on its next load).
+  const [targetsSet, setTargetsSet] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (section.table !== "orders") return;
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<TargetSetDetail>).detail;
+      if (d?.orderId === targetId) setTargetsSet((prev) => ({ ...prev, [d.column]: d.date }));
+    };
+    window.addEventListener(TARGET_SET_EVENT, on);
+    return () => window.removeEventListener(TARGET_SET_EVENT, on);
+  }, [section.table, targetId]);
+  // A field's value as the form stands: typed, else set just now, else as saved.
+  const readNow = (c: string) => (c in values ? values[c] : c in targetsSet ? targetsSet[c] : toInput(data?.[c]));
   // Gone to Operation: the fields Central must fill (marked *).
   const afterOps =
     section.table === "orders" && readNow("ec_sent_operation_date").trim()
@@ -218,7 +232,12 @@ export function EditableSection({
     if (section.table === "orders") {
       const missing = firstAfterOperationMissing(readNow, true);
       if (missing) {
-        setError(`Sent to Operation: ${missing.label} is required.`);
+        setError(
+          TARGET_DATES.some((t) => t.column === missing.column)
+            ? `Sent to Operation: ${missing.label} is required — set it with the Set button beside it under Target Dates, then save.`
+            : `Sent to Operation: ${missing.label} is required.`
+        );
+        document.querySelector(`[data-field="${missing.column}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
     }
@@ -369,7 +388,7 @@ export function EditableSection({
                         : lotsFromRows(data?.ready_lots).length > 0);
                     return (
                       <Fragment key={field.column}>
-                      <div>
+                      <div data-field={field.column}>
                         <div className="mb-1 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
                           {grossLabel(field.column, field.label, editing ? values.order_currency : data?.order_currency)}
                           {editing && afterOps.has(field.column) && <span className="text-danger">*</span>}
@@ -462,7 +481,14 @@ export function EditableSection({
                                   )
                                 : field.column === "ec_link" && ecLinkHref(data?.ec_link)
                                   ? <EcLink href={data?.ec_link} at={data?.ec_link_at} links={data?.ec_links} label />
-                                  : formatDisplay(field, liveGross ? values[field.column] : data?.[field.column] ?? field.defaultValue)}
+                                  : formatDisplay(
+                                      field,
+                                      liveGross
+                                        ? values[field.column]
+                                        : field.column in targetsSet
+                                          ? targetsSet[field.column]
+                                          : data?.[field.column] ?? field.defaultValue
+                                    )}
                             </span>
                             {fieldExtra?.(field)}
                           </div>
