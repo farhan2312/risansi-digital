@@ -13,12 +13,14 @@ import type { SavedDocs, SavedGroupDocs } from "./saved-docs";
 import { normalizeSpareDocEdits, normalizeSpareQuote } from "./spare-quote";
 import { termsMarketOf } from "./spare-terms";
 import { dotDate, visibleTags, type TechDocGroup, type TechDocSheet } from "./tech-doc";
+import { docClientName } from "@/lib/client-place";
 
 export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null> {
   const [p] = await db
     .select({
       code: projects.projectCode,
       name: projects.name,
+      clientCode: projects.clientCode,
       enquiryDate: projects.enquiryDate,
       orderType: projects.orderType,
       market: projects.clientMarketType,
@@ -40,6 +42,8 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
     : [];
   const savedOn = (quotationId: string) => clientRows.filter((v) => v.quotationId === quotationId).at(-1) ?? null;
   const enquiry = [p.code, p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", ");
+  // The Client Name box: with the city and country from sales.
+  const clientName = await docClientName(p.name, p.clientCode);
 
   if (p.orderType === "spare") {
     const q = quotes.find((x) => x.driveGroup === SPARE_GROUP);
@@ -55,7 +59,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
               quote: normalizeSpareQuote(kept?.quote ?? p.quote, termsMarketOf(p.market)),
               edits: normalizeSpareDocEdits(kept?.quote ? kept.edits : p.docEdits),
               header: {
-                clientName: p.name ?? "",
+                clientName,
                 enquiry,
                 quotation: `${erpQuotationNumber(q, false) ?? quotationNumber(q, false)}, Dt. ${dotDate(q.quoteDate)}`,
                 hidden: [],
@@ -107,7 +111,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
       offer: {
         projectCode: p.code,
         header: {
-          clientName: p.name,
+          clientName,
           enquiry: config.enquiryText || enquiry,
           quotation: config.erpText || (erp ? `${erp}, Dt. ${dotDate(q.quoteDate)}` : ""),
           hidden: config.headerHidden ?? [],
