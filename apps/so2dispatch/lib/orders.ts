@@ -39,6 +39,9 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
   READINESS_AWAITED,
   statusesFor,
   type DeptFilterKey,
+  HOLD_BY,
+  HOLD_BY_LABEL,
+  holdBySql,
 } from "@/lib/dept-status";
 import { BILL_MODE_FILTER_OPTIONS, FIELD_FILTER_FIELDS, NOT_SET, ORDER_STATUS_OPTIONS, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
 import { sharedFacets, UNASSIGNED, type OrderMakingFilter } from "@/lib/order-making-filter";
@@ -3744,16 +3747,26 @@ export function onHoldSql(dept?: string | null): string {
   return soHoldSql("o", dept);
 }
 
-/** A department's SO hold card: its open SOs on hold (the `hold` filter). */
-export function totalHoldCard(dept: string, clear: Record<string, string | null>, group?: string): KpiCardDef {
-  return {
-    key: "hold",
-    label: "SO hold",
-    ...(group ? { group } : {}),
-    sql: `${onHoldSql(dept)} AND ${orderOpenSql("o")}`,
-    params: { ...clear, hold: "1" },
-    tone: "danger",
-  };
+/**
+ * A department's hold cards: its open SOs on any hold (the `hold` filter),
+ * then on each kind — Central Visibility's, Accounts', Dispatch's. Dispatch's
+ * own page already has its Dispatch hold card (its status), so not twice there.
+ */
+export function totalHoldCard(dept: string, clear: Record<string, string | null>, group?: string): KpiCardDef[] {
+  const g = group ? { group } : {};
+  return [
+    { key: "hold", label: "SO hold", ...g, sql: `${onHoldSql(dept)} AND ${orderOpenSql("o")}`, params: { ...clear, hold: "1" }, tone: "danger" },
+    ...HOLD_BY.filter((by) => !(dept === "dispatch" && by === "dispatch")).map(
+      (by): KpiCardDef => ({
+        key: `hold:${by}`,
+        label: HOLD_BY_LABEL[by],
+        ...g,
+        sql: `${holdBySql(by)} AND ${orderOpenSql("o")}`,
+        params: { ...clear, hold: by },
+        tone: "danger",
+      })
+    ),
+  ];
 }
 
 function orderListClauses(
@@ -3890,7 +3903,7 @@ function orderListClauses(
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // On hold, by Central Visibility or by Accounts.
   // A cancelled or diverted SO is on no hold that matters.
-  if (f.onHold) clauses.push(`${onHoldSql(f.dept)} AND ${orderOpenSql("o")}`);
+  if (f.onHold) clauses.push(`${f.holdBy ? holdBySql(f.holdBy) : onHoldSql(f.dept)} AND ${orderOpenSql("o")}`);
   // Only Billing: sent to Billing alone.
   if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
   // One SO field, filled or pending. Pending is blank where the field applies.
@@ -4555,6 +4568,7 @@ async function countKpis(
         dispatchStatuses: kf.dispatchStatuses,
         overdue: kf.overdue,
         onHold: kf.onHold,
+        holdBy: kf.holdBy ?? null,
         accountsHold: kf.accountsHold,
       })
     : filter
@@ -4567,6 +4581,7 @@ async function countKpis(
         overdue: false,
         // The SO hold and Accounts hold cards are cards too, not the bar.
         onHold: false,
+        holdBy: null,
         accountsHold: [],
       })
     : { clauses: [], params: [] };
@@ -4798,6 +4813,8 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
       by("Clear", "Clear", "done"),
       by("Hold", "Hold", "danger"),
       by(NOT_SET, "Not set", "pending"),
+      // The SO hold cards, as every department has them; Accounts hold is its own Hold card above.
+      ...totalHoldCard("accounts", clear).filter((k) => k.key !== "hold:accounts"),
     ];
   }
   // Hold is no status card: the SO hold card counts it (Dispatch keeps its own).
@@ -4876,8 +4893,8 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
     ...(withOverdue
       ? [{ key: "overdue", label: "Overdue", sql: `(${deptOverduePredicate(dept)}) AND ${orderOpenSql("o")}`, params: { ...clear, overdue: "1" }, tone: "danger" as const }]
       : []),
-    // Every department: its SOs on any hold.
-    totalHoldCard(dept, clear),
+    // Every department: its SOs on any hold, and on each kind.
+    ...totalHoldCard(dept, clear),
   ];
   return pumpPlanning ? cards.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } })) : cards;
 }
@@ -6298,7 +6315,7 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
   if (f.noSlip) clauses.push(`EXISTS (${PACKED_LOT_WITHOUT_SLIP_SQL("o")})`);
   // On hold, by Central Visibility or by Accounts.
   // A cancelled or diverted SO is on no hold that matters.
-  if (f.onHold) clauses.push(`${onHoldSql(f.dept)} AND ${orderOpenSql("o")}`);
+  if (f.onHold) clauses.push(`${f.holdBy ? holdBySql(f.holdBy) : onHoldSql(f.dept)} AND ${orderOpenSql("o")}`);
   // Only Billing: sent to Billing alone.
   if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
 

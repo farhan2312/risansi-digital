@@ -26,6 +26,9 @@ import {
   PLANNING_PUMP_ASSEMBLY_OPTIONS,
   PLANNING_PUMP_PACKING_OPTIONS,
   type DeptFilterKey,
+  HOLD_BY,
+  HOLD_BY_LABEL,
+  type HoldBy,
 } from "@/lib/dept-status";
 
 export const ORDER_DATE_FIELDS = [
@@ -148,6 +151,8 @@ export type OrderListFilter = {
   kpiFilter?: OrderListFilter;
   /** Only SOs on hold — by Central Visibility, by Accounts or by Dispatch. */
   onHold: boolean;
+  /** …and only that kind of hold, when one is picked (a hold card). */
+  holdBy?: HoldBy | null;
   /** The Orders list: only the SOs Central sent to Billing alone. */
   onlyBilling: boolean;
   /**
@@ -289,7 +294,8 @@ export function parseOrderListFilter(
     overdue: get("overdue") === "1" && dept !== "dispatch",
     ready: get("ready") === "1",
     noSlip: get("noslip") === "1" && (!dept || dept === "planning" || dept === "assembly"),
-    onHold: get("hold") === "1",
+    onHold: get("hold") === "1" || HOLD_BY.includes(get("hold") as HoldBy),
+    holdBy: HOLD_BY.includes(get("hold") as HoldBy) ? (get("hold") as HoldBy) : null,
     onlyBilling: get("ob") === "1" && !dept,
     field,
     // Only where the controls are shown — a hidden filter would narrow
@@ -426,7 +432,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.overdue) p.set("overdue", "1");
   if (f.ready) p.set("ready", "1");
   if (f.noSlip) p.set("noslip", "1");
-  if (f.onHold) p.set("hold", "1");
+  if (f.onHold) p.set("hold", f.holdBy ?? "1");
   if (f.onlyBilling) p.set("ob", "1");
   if (f.clearance.length) p.set("clear", f.clearance.join(","));
   if (f.holdReasons.length) p.set("hreason", f.holdReasons.join(","));
@@ -466,7 +472,7 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.overdue) parts.push("Overdue only");
   if (f.ready) parts.push("Ready to dispatch");
   if (f.noSlip) parts.push("Packed, no slip");
-  if (f.onHold) parts.push("On hold");
+  if (f.onHold) parts.push(f.holdBy ? HOLD_BY_LABEL[f.holdBy] : "On hold");
   if (f.onlyBilling) parts.push("Only billing");
   if (f.field) {
     const label = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column)?.label ?? f.field.column;
