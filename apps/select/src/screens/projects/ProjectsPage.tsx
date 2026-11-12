@@ -735,6 +735,7 @@ const ProjectsPage = () => {
 
       {manager && (
         <EnquiryReportPanel
+          stamp={projects}
           scope={scope === "mine" ? "Assigned to me" : hasFilter ? "As filtered" : "All enquiries"}
           query={{
             clientName: debouncedFilters.clientName,

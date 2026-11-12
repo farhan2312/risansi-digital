@@ -37,7 +37,9 @@ const btn =
   "inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 hover:border-accent hover:text-accent";
 const zoomBtn = "inline-flex h-7 w-7 items-center justify-center rounded-md text-[15px] font-semibold text-fg-3 hover:bg-elev hover:text-fg disabled:opacity-40";
 
-export default function EnquiryReportPanel({ query, scope }: { query: ProjectListQuery; scope: string }) {
+/** `stamp` changes whenever the Enquiries list is re-read or edited (a reassign, a
+ *  status...), so the report reads again rather than keep what it first loaded. */
+export default function EnquiryReportPanel({ query, scope, stamp }: { query: ProjectListQuery; scope: string; stamp?: unknown }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"pdf" | "excel">("pdf");
   const [loaded, setLoaded] = useState<EnquiryReportRow[] | null>(null);
@@ -55,7 +57,8 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
   const [frameWidth, setFrameWidth] = useState(0);
   const [pdfHeight, setPdfHeight] = useState(700);
 
-  // Read when open, and again whenever the filters change.
+  // Read when open, and again whenever the filters or the list change, or it is reopened.
+  useEffect(() => setLoadedFor(null), [stamp]);
   const key = JSON.stringify(query);
   useEffect(() => {
     if (!open || loadedFor === key) return;
@@ -95,7 +98,10 @@ export default function EnquiryReportPanel({ query, scope }: { query: ProjectLis
   return (
     <section className="mt-4 overflow-hidden rounded-xl border border-line bg-paper">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-w-[220px] flex-1 items-center gap-3 text-left">
+        <button type="button" onClick={() => {
+            if (open) setLoadedFor(null);
+            setOpen(!open);
+          }} aria-expanded={open} className="flex min-w-[220px] flex-1 items-center gap-3 text-left">
           <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${open ? "rotate-90 border-transparent bg-accent text-white" : "border-line text-fg-3"}`}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
               <path d="m9 6 6 6-6 6" />
