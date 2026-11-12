@@ -5096,6 +5096,8 @@ export async function listOrdersForOrderMaking(opts: {
             -- The row colour, as in the departments: the SO's dispatch status, a Dispatch hold included.
             ${DISPATCH_STATUS} AS so_dispatch_status,
             o.dispatch_status, o.status_override,
+            -- A Pump SO's current version (1 until Order Making makes another).
+            o.version_no,
             (SELECT count(*)::int FROM order_items i WHERE i.order_id = o.id) AS ec_count,
             o.boi,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(

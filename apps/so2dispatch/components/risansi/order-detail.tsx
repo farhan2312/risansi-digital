@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ChevronRight,
+  History,
   LayoutGrid,
   Loader2,
   Plus,
@@ -21,7 +22,7 @@ import { OrderThread } from "./order-thread";
 import type { TargetRevision } from "@/lib/target-dates";
 import { SoSections } from "./so-sections";
 import { HoldBanner } from "./hold-badge";
-import { isOnlyBilling } from "@/lib/order-schema";
+import { isOnlyBilling, PUMP_LIKE } from "@/lib/order-schema";
 
 export { invoiceRowHeader } from "./so-sections";
 
@@ -211,12 +212,32 @@ export function OrderDetail({
           <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
             SO · {soLabel}
           </span>
+          {/* A Pump SO's version, opening its history (each earlier one read-only). */}
+          {PUMP_LIKE.includes(str(order.order_type)) && Number(order.version_no ?? 1) > 1 && (
+            <Link
+              href={`/risansi/orders/${orderId}/versions`}
+              title="See the SO's versions"
+              className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
+            >
+              <History className="h-3.5 w-3.5" />v{Number(order.version_no)}
+            </Link>
+          )}
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground">
             {(canSeeClient(role) && str(order.client_name)) || "Order"}
           </h1>
         </div>
         {/* This page is the forms; the overview is the whole order on one
             page, its ECs and every department's state included. */}
+        <div className="flex flex-wrap items-center gap-2">
+        {PUMP_LIKE.includes(str(order.order_type)) && (
+          <Link
+            href={`/risansi/orders/${orderId}/versions`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-background"
+          >
+            <History className="h-3.5 w-3.5" />
+            Versions
+          </Link>
+        )}
         {role !== "planning" && (
         <Link
           href={`/risansi/orders/${orderId}/overview`}
@@ -226,6 +247,7 @@ export function OrderDetail({
           Full overview
         </Link>
         )}
+        </div>
       </div>
 
       {/* The order status — a banner once it is cancelled or diverted — and,
