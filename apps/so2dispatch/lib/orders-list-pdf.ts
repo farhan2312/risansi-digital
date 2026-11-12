@@ -7,7 +7,7 @@ import type { BillingQueueRow, DeptCell, OrderListRow, SoDeptStatus } from "@/li
 import type { KpiCard, KpiTone } from "@/lib/kpis";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import type { PumpStage as SummaryStage, PumpSummary } from "@/lib/pump-summary";
-import { stageOf as pumpStageOf, type PumpStage } from "@/lib/pump-dashboard";
+import { stageOf as pumpStageOf, type PumpFlow } from "@/lib/pump-dashboard";
 import { orderInHand, orderValueLines } from "@/lib/dept-report-pdf";
 
 // The Orders list on paper: the same columns as the list on screen, every SO
@@ -286,7 +286,7 @@ function pumpOwnCells(s: PumpSummary, today: string): Partial<Record<Key, Line[]
 }
 
 /** A pump SO's stage, as its Rep's card names it: the earlier ones in pairs, the later ones a row each. */
-const PUMP_REP_LABEL: Record<PumpStage, string | null> = {
+const PUMP_REP_LABEL: Record<PumpFlow, string | null> = {
   "No EC yet": null,
   "Packed, no slip yet": null,
   "On hold": null,

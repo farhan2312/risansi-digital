@@ -34,14 +34,15 @@ export const PUMP_STAGES = [
   "Assembled, not packed",
   "Packing on",
   "Packed, no slip yet",
-  "On hold",
   "Packed, to dispatch",
-  "Dispatch hold",
   "Lot dispatched",
+  "On hold",
   "Fully dispatched",
   "Cancelled / Diverted",
 ] as const;
 export type PumpStage = (typeof PUMP_STAGES)[number];
+/** Where an SO stands before its holds are counted: Dispatch's own hold is a stage of its own there (the Dispatch status chart). */
+export type PumpFlow = PumpStage | "Dispatch hold";
 
 export type PumpSo = {
   id: string;
@@ -53,6 +54,8 @@ export type PumpSo = {
   zone: string;
   value_inr: number;
   stage: PumpStage;
+  /** Its stage leaving holds aside: what the Dispatch status chart reads. */
+  flow: PumpFlow;
   dispatch: string;
   delivery_date: string | null;
   first_dispatch: string | null;
@@ -116,7 +119,7 @@ const DAY = 86400000;
 const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 
 /** Where a pump SO stands: dispatch first (it overrides), then packing, assembly and planning. */
-export function stageOf(dispatchStatus: string, s: PumpSummary | undefined): PumpStage {
+export function stageOf(dispatchStatus: string, s: PumpSummary | undefined): PumpFlow {
   const dispatch = dispatchStatus || "Pending";
   if (CLOSED.includes(dispatch)) return "Cancelled / Diverted";
   // Held by Central Visibility: Hold in every department, Dispatch's too.
@@ -186,7 +189,17 @@ const STAGE_CARDS = [
 ] as const;
 
 /** The stages Dispatch has the SO at (a numbered packing slip), or closed. */
-const DISPATCH_STAGES: readonly PumpStage[] = ["Fully dispatched", "Lot dispatched", "Dispatch hold", "Packed, to dispatch", "Cancelled / Diverted"];
+const DISPATCH_STAGES: readonly PumpFlow[] = ["Fully dispatched", "Lot dispatched", "Dispatch hold", "Packed, to dispatch", "Cancelled / Diverted"];
+
+/**
+ * Where an SO shows in the pipeline and By Rep: closed and fully dispatched as
+ * they are; any other SO on any hold (Order Making, CV, Accounts or Dispatch)
+ * in the one On hold bar, as the hold cards count it; the rest at its stage.
+ */
+function pipelineStage<T extends string>(flow: T, held: boolean): T | "On hold" {
+  if (flow === "Cancelled / Diverted" || flow === "Fully dispatched") return flow;
+  return held || flow === "Dispatch hold" ? "On hold" : flow;
+}
 
 /** An SO no stage card takes: closed, with no EC yet, on hold, or none of these (packed, no slip yet). */
 function restStage(o: OrderListRow): "Cancelled / Diverted" | "No EC yet" | "On hold" | "Packed, no slip yet" {
@@ -276,7 +289,8 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
       reps: str(o.reps).split(",").map((r) => r.trim()).filter(Boolean),
       zone: str(o.zone) || "No zone",
       value_inr: inr,
-      stage: staged.get(o.id) ?? restStage(o),
+      flow: (staged.get(o.id) ?? restStage(o)) as PumpFlow,
+      stage: pipelineStage((staged.get(o.id) ?? restStage(o)) as PumpFlow, holds.length > 0) as PumpStage,
       dispatch: o.clearance_status === "Hold" && !CLOSED.includes(str(o.dispatch_status)) ? "Hold" : str(o.dispatch_status) || "Pending",
       delivery_date: f?.delivery ?? null,
       first_dispatch: f?.first ?? null,
@@ -291,12 +305,13 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
 
   const mix = (label: string, test: (s: PumpSo) => boolean) => ({ label, count: sos.filter(test).length });
   const dispatchMix = [
-    mix("Fully dispatched", (s) => s.stage === "Fully dispatched"),
-    mix("Lot dispatched", (s) => s.stage === "Lot dispatched"),
-    mix("Dispatch hold", (s) => s.stage === "Dispatch hold"),
-    mix("To dispatch", (s) => s.stage === "Packed, to dispatch"),
-    mix("Not at Dispatch yet", (s) => !DISPATCH_STAGES.includes(s.stage)),
-    mix("Cancelled / Diverted", (s) => s.stage === "Cancelled / Diverted"),
+    // Dispatch's view, holds aside: its own Hold is a slice here.
+    mix("Fully dispatched", (s) => s.flow === "Fully dispatched"),
+    mix("Lot dispatched", (s) => s.flow === "Lot dispatched"),
+    mix("Dispatch hold", (s) => s.flow === "Dispatch hold"),
+    mix("To dispatch", (s) => s.flow === "Packed, to dispatch"),
+    mix("Not at Dispatch yet", (s) => !DISPATCH_STAGES.includes(s.flow)),
+    mix("Cancelled / Diverted", (s) => s.flow === "Cancelled / Diverted"),
   ];
 
   // The last twelve months of intake, by SO date.
