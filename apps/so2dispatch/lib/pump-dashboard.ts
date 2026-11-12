@@ -59,7 +59,7 @@ export type PumpSo = {
   holds: { by: "Clearance" | "Accounts" | "Dispatch"; reason: string }[];
 };
 
-/** A department's standing across the open SOs. */
+/** A department's standing across all SOs but the cancelled and diverted. */
 export type DeptRow = {
   key: string;
   label: string;
@@ -88,9 +88,9 @@ export type PumpDashboard = {
   depts: DeptRow[];
   /** Open SOs by the GAD stage holding them back. */
   gad: Bucket[];
-  /** Bought-out items on the open SOs, received or not. */
+  /** Bought-out items on all SOs but the cancelled and diverted, received or not. */
   boi: { received: number; pending: number };
-  /** Pump ECs on the open SOs whose Quality documents are in, or not (Quality needed). */
+  /** Pump ECs on all SOs but the cancelled and diverted whose Quality documents are in, or not (Quality needed). */
   qc: { submitted: number; pending: number };
   metrics: {
     sos: number;
@@ -151,6 +151,9 @@ function standings(s: PumpSummary, dispatch: string): Record<string, Standing> {
   // Held by Central Visibility: Hold wherever the department has work on it.
   return s.held ? Object.fromEntries(Object.entries(own).map(([k, v]) => [k, v === "na" ? "na" : "hold"])) : own;
 }
+
+/** The Drawing chart's last bar: SOs Drawing has closed. */
+export const GAD_CLOSED = "Closed by Drawing";
 
 /** The departments, in the order a pump passes them, each with its page. */
 const DEPTS: { key: string; label: string; href: string }[] = [
@@ -381,12 +384,13 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     const sum = summaries[s.id];
     if (sum) for (const [k, v] of Object.entries(standings(sum, s.dispatch))) depts.find((d) => d.key === k)![v]++;
   }
-  // Drawing's GAD stages, BOI and Quality documents: on the open SOs.
-  for (const s of open) {
+  // Drawing's GAD stages, BOI and Quality documents: on every SO but the cancelled and diverted, as Department progress.
+  for (const s of live) {
     const sum = summaries[s.id];
     if (!sum) continue;
-    // An SO with no pump EC yet has no GAD to stand at.
-    if (!sum.drawing.closed && sum.drawing.gad.total > 0) gad.set(sum.drawing.gad.label, (gad.get(sum.drawing.gad.label) ?? 0) + 1);
+    // Closed by Drawing, or the GAD stage holding it back. An SO with no pump EC yet has no GAD to stand at.
+    if (sum.drawing.closed) gad.set(GAD_CLOSED, (gad.get(GAD_CLOSED) ?? 0) + 1);
+    else if (sum.drawing.gad.total > 0) gad.set(sum.drawing.gad.label, (gad.get(sum.drawing.gad.label) ?? 0) + 1);
     if (sum.purchase.required) {
       boi.received += sum.purchase.received;
       boi.pending += sum.purchase.items - sum.purchase.received;
@@ -396,7 +400,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
       qc.pending += sum.quality.total - sum.quality.submitted;
     }
   }
-  const GAD_ORDER = ["Pending", "Resubmit", "Sent to client – approval pending", "Approved by client", "Issued to planning"];
+  const GAD_ORDER = ["Pending", "Resubmit", "Sent to client – approval pending", "Approved by client", "Issued to planning", GAD_CLOSED];
 
   return {
     total: result.total,
