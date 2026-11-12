@@ -293,6 +293,11 @@ const USD_FMT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 export const formatUsd = (n: number | null | undefined): string =>
   n === null || n === undefined ? "—" : `$${USD_FMT.format(n)}`;
 
+const USD_CENTS_FMT = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** "$12.50" - spare parts are small, so cents show (pumps use formatUsd). */
+export const formatUsdCents = (n: number | null | undefined): string =>
+  n === null || n === undefined ? "—" : `$${USD_CENTS_FMT.format(n)}`;
+
 /** A USD -> INR rate as typed: > 0 and <= 1000, 4 decimals; undefined when invalid. */
 export function parseUsdRate(raw: unknown): number | undefined {
   const n = typeof raw === "number" ? raw : Number(String(raw ?? "").trim());

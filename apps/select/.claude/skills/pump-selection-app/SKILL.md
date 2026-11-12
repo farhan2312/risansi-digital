@@ -1097,6 +1097,12 @@ never auto-filled from the AI result.
   "Name, City, Country". Used by tech-doc-server, commercial-offer GET, spare-quote GET, saved-docs-server. No code /
   MI down: name only. sameSavedTechDocSheet keeps a sheet saved before this from counting as changed.
 
+## Spare quote in USD (user, 2026-11-12)
+- Spare Quotation page has the Quote in USD toggle (screens/commercial/UsdToggle.tsx, same PUT /api/commercial/currency
+  and projects.quote_currency / usd_inr_rate as pumps). Prices stay INR; page totals, model sub-totals and line
+  amounts also show USD with cents (formatUsdCents). SpareQuoteSheet.fx: Unit Cost / Amount / totals print in USD,
+  headings (USD). spareSnapshot keeps fx; saved docs use the saved fx; QuotationPanel versions: grandTotal / rate.
+
 ## Regret status (user, 2026-11-07)
 - Regret is a hand-picked status (Edit Enquiry Technical / Commercial / spare Status), in ENQUIRY_STATUSES
   (lib/enquiry-filters.ts), so filters and PATCH accept it. Red pill (StatusPill, Enquiry Report .regret).

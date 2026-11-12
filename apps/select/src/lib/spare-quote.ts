@@ -2,7 +2,7 @@
 // step: on the Commercial page it has pump models (code built or picked), and per
 // model the parts quoted with quantity, unit price and (ticked) reference PO. Stored
 // whole on projects.spare_quote, so a new version copies it. Client-safe.
-import { type CommercialPrices, type QuotationSnapshot } from "./commercial";
+import { type CommercialPrices, type QuoteFx, type QuotationSnapshot } from "./commercial";
 import type { SparePumpKind } from "./spare-parts";
 import { SPARE_TERM_IDS, type TermsMarket } from "./spare-terms";
 
@@ -203,7 +203,7 @@ const NO_PRICES: CommercialPrices = {
 
 /** The quote as a quotation version's frozen copy: one row per part, so version
  *  lists and Client Quoted Prices read it like any other quotation. */
-export function spareSnapshot(q: SpareQuote, edits?: SpareDocEdits): QuotationSnapshot {
+export function spareSnapshot(q: SpareQuote, edits?: SpareDocEdits, fx?: QuoteFx): QuotationSnapshot {
   const tags = q.models.flatMap((m) =>
     m.lines.map((l) => ({
       tagName: [l.partNo, l.partName].filter(Boolean).join(" · "),
@@ -215,5 +215,5 @@ export function spareSnapshot(q: SpareQuote, edits?: SpareDocEdits): QuotationSn
       sub: lineAmount(l),
     })),
   );
-  return { tags, grandTotal: quoteTotal(q), spare: { quote: q, edits: edits ?? {} } };
+  return { tags, grandTotal: quoteTotal(q), spare: { quote: q, edits: edits ?? {} }, ...(fx ? { fx } : {}) };
 }

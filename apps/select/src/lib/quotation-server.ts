@@ -84,8 +84,14 @@ export async function suggestedTsm(clientCode: string | null): Promise<TsmOption
  *  with every version of that group's quotation. */
 export async function buildSnapshot(projectId: string, driveGroup: string): Promise<QuotationSnapshot> {
   if (driveGroup === SPARE_GROUP) {
-    const [row] = await db.select({ quote: projects.spareQuote, edits: projects.spareDocEdits }).from(projects).where(eq(projects.id, projectId)).limit(1);
-    return spareSnapshot(normalizeSpareQuote(row?.quote), normalizeSpareDocEdits(row?.edits));
+    const [row] = await db
+      .select({ quote: projects.spareQuote, edits: projects.spareDocEdits, currency: projects.quoteCurrency, rate: projects.usdInrRate })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+    // Quoted in USD: the version keeps the rate it was made with.
+    const fx = row ? quoteFxOf({ quoteCurrency: row.currency, usdInrRate: row.rate === null ? null : Number(row.rate) }) : undefined;
+    return spareSnapshot(normalizeSpareQuote(row?.quote), normalizeSpareDocEdits(row?.edits), fx);
   }
   const [summary, [p]] = await Promise.all([
     loadCommercialSummary(projectId),

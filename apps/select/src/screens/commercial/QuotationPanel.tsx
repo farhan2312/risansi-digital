@@ -16,6 +16,7 @@ import {
   boiTotal,
   formatInr,
   formatUsd,
+  formatUsdCents,
   usdGrandTotal,
   otherNet,
   versionLabel,
@@ -45,6 +46,11 @@ const btnSm =
   "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
 const btnPrimarySm =
   "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+
+/** A version's grand total in USD: a spare's is its total (after its discount) at the
+ *  rate, with cents; a pump's as the Commercial Offer sums it. */
+const snapshotUsd = (s: QuotationSnapshot, rate: number) =>
+  s.spare ? formatUsdCents(s.grandTotal / rate) : formatUsd(usdGrandTotal(s.tags, rate, discountOf(s.offer)));
 
 const errMsg = (e: unknown, fallback: string) =>
   (e as { response?: { data?: { error?: string } } })?.response?.data?.error || fallback;
@@ -536,7 +542,7 @@ function VersionList({
                   {fmtDate(v.createdAt)}
                   {v.createdByName ? ` · ${v.createdByName}` : ""} · TSM {v.tsmInitials ?? "—"} ·{" "}
                   {formatInr(v.snapshot.grandTotal)}
-                  {v.snapshot.fx ? ` · ${formatUsd(usdGrandTotal(v.snapshot.tags, v.snapshot.fx.rate, discountOf(v.snapshot.offer)))}` : ""}
+                  {v.snapshot.fx ? ` · ${snapshotUsd(v.snapshot, v.snapshot.fx.rate)}` : ""}
                 </p>
               </div>
               <button type="button" className={btnSm} onClick={() => onView(v)}>
@@ -667,7 +673,7 @@ function SnapshotModal({
                     Quoted in USD · 1 USD = ₹{s.fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}
                   </td>
                   <td className="px-4 pb-2.5 text-right font-mono font-bold text-accent">
-                    {formatUsd(usdGrandTotal(s.tags, s.fx.rate, discountOf(s.offer)))}
+                    {snapshotUsd(s, s.fx.rate)}
                   </td>
                 </tr>
               )}

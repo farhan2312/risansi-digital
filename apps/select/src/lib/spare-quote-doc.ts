@@ -8,9 +8,13 @@ import { downloadXlsx, type XlsxCell } from "./xlsx";
 import { BAND, ROW_LABEL, sheetHeaderRows } from "./tech-doc-excel";
 import { dotDate, esc, sheetFileStem, sheetHtml, type TechDocHeader } from "./tech-doc";
 import { spareDocLineKey, type SpareDocEdits, type SpareQuote } from "./spare-quote";
+import type { QuoteFx } from "./commercial";
 import { SPARE_TERMS, SPARE_WARRANTY, SPARE_WARRANTY_HEADING, WARRANTY_TERM, type SpareTerm } from "./spare-terms";
 
 export type SpareQuoteSheet = {
+  /** Quoted in USD at this rate (user, 2026-11-12): Unit Cost / Amount / totals print in
+   *  USD (prices are entered in INR). Absent = INR. */
+  fx?: QuoteFx;
   projectCode: string;
   /** The automatic header lines; edits apply over them. */
   header: TechDocHeader;
@@ -77,8 +81,16 @@ export function spareDocTerms(quote: SpareQuote, edits: SpareDocEdits): { terms:
 
 /** What gets printed: removed lines and empty models left off. */
 function printed(sheet: SpareQuoteSheet) {
+  // In USD: every amount divided by the rate, two decimals.
+  const fx = sheet.fx;
+  const conv = (n: number | null) => (n === null ? null : fx ? n / fx.rate : n);
+  const usdFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (n: number | null) => (n === null ? "-" : fx ? usdFmt.format(n) : money(n));
   const models = spareDocModels(sheet.quote, sheet.edits)
-    .map((m) => ({ ...m, lines: m.lines.filter((l) => !l.removed) }))
+    .map((m) => ({
+      ...m,
+      lines: m.lines.filter((l) => !l.removed).map((l) => ({ ...l, unitNum: conv(toNumber(l.unit)), amount: conv(l.amount) })),
+    }))
     .filter((m) => m.lines.length > 0);
   const { header, edits } = sheet;
   const subtotal = models.reduce((s, m) => s + m.lines.reduce((x, l) => x + (l.amount ?? 0), 0), 0);
@@ -99,7 +111,8 @@ function printed(sheet: SpareQuoteSheet) {
     terms: printable(terms),
     warranty: printable(warranty),
     showPo,
-    headings: showPo ? HEADINGS : HEADINGS.filter((h) => h !== PO_HEADING),
+    headings: (showPo ? HEADINGS : HEADINGS.filter((h) => h !== PO_HEADING)).map((h) => (fx ? h.replace("(INR)", "(USD)") : h)),
+    fmt,
     count: models.reduce((s, m) => s + m.lines.length, 0),
     subject: edits.subject ?? SPARE_DOC_SUBJECT,
     greeting: edits.greeting ?? SPARE_DOC_GREETING,
@@ -122,7 +135,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
       sl += 1;
       return `<tr><td>${sl}</td><td class="l">${esc(l.name)}</td>${i === 0 ? `<td rowspan="${m.lines.length}" class="m">${esc(m.model)}</td>` : ""}${
         d.showPo ? `<td>${esc(l.po || "-")}</td>` : ""
-      }<td>${esc(l.partNo)}</td><td>${esc(l.qty || "-")}</td><td class="r">${money(toNumber(l.unit))}</td><td class="r">${money(l.amount)}</td></tr>`;
+      }<td>${esc(l.partNo)}</td><td>${esc(l.qty || "-")}</td><td class="r">${d.fmt(l.unitNum)}</td><td class="r">${d.fmt(l.amount)}</td></tr>`;
     }),
   );
   const termRows = (heading: string, list: string[]) =>
@@ -137,11 +150,11 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
     ...rows,
     ...(d.discountPct > 0
       ? [
-          `<tr class="total"><td colspan="${cols - 1}" class="r">Total</td><td class="r">${money(d.subtotal)}</td></tr>`,
-          `<tr class="total"><td colspan="${cols - 1}" class="r">Discount (${d.discountPct}%)</td><td class="r">-${money(d.discount)}</td></tr>`,
+          `<tr class="total"><td colspan="${cols - 1}" class="r">Total</td><td class="r">${d.fmt(d.subtotal)}</td></tr>`,
+          `<tr class="total"><td colspan="${cols - 1}" class="r">Discount (${d.discountPct}%)</td><td class="r">-${d.fmt(d.discount)}</td></tr>`,
         ]
       : []),
-    `<tr class="total"><td colspan="${cols - 1}" class="r">Grand Total</td><td class="r">${money(d.total)}</td></tr>`,
+    `<tr class="total"><td colspan="${cols - 1}" class="r">Grand Total</td><td class="r">${d.fmt(d.total)}</td></tr>`,
     ...(d.note ? [`<tr class="meta"><td colspan="${cols}" style="white-space:pre-line"><b>Note:</b> ${esc(d.note)}</td></tr>`] : []),
     ...termRows(TERMS_HEADING, d.terms),
     ...termRows(SPARE_WARRANTY_HEADING, d.warranty),
@@ -212,18 +225,18 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
           ...(d.showPo ? [{ value: l.po || "-" }] : []),
           { value: l.partNo },
           { value: l.qty },
-          { value: money(toNumber(l.unit)) },
-          { value: money(l.amount) },
+          { value: d.fmt(l.unitNum) },
+          { value: d.fmt(l.amount) },
         ];
       }),
     ),
     ...(d.discountPct > 0
       ? [
-          [{ value: "Total", colSpan: cols - 1, ...ROW_LABEL }, { value: money(d.subtotal), ...ROW_LABEL }],
-          [{ value: `Discount (${d.discountPct}%)`, colSpan: cols - 1, ...ROW_LABEL }, { value: `-${money(d.discount)}`, ...ROW_LABEL }],
+          [{ value: "Total", colSpan: cols - 1, ...ROW_LABEL }, { value: d.fmt(d.subtotal), ...ROW_LABEL }],
+          [{ value: `Discount (${d.discountPct}%)`, colSpan: cols - 1, ...ROW_LABEL }, { value: `-${d.fmt(d.discount)}`, ...ROW_LABEL }],
         ]
       : []),
-    [{ value: "Grand Total", colSpan: cols - 1, ...ROW_LABEL }, { value: money(d.total), ...ROW_LABEL }],
+    [{ value: "Grand Total", colSpan: cols - 1, ...ROW_LABEL }, { value: d.fmt(d.total), ...ROW_LABEL }],
     ...(d.note ? [[{ value: `Note: ${d.note}`, colSpan: cols, wrap: true, rowHeight: heightOf(`Note: ${d.note}`, allWidth) }]] : []),
     ...termRows(TERMS_HEADING, d.terms),
     ...termRows(SPARE_WARRANTY_HEADING, d.warranty),
