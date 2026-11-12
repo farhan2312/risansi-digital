@@ -214,6 +214,9 @@ function date(value: string | undefined): string | null {
     : value;
 }
 
+/** A hold the filter takes: the three every page has, and Order Making's on the Orders list (no department). */
+const listHold = (v: string | undefined, dept: unknown) => HOLD_BY.includes(v as HoldBy) || (v === "om" && !dept);
+
 /**
  * Read the filter out of the URL. Anything unrecognised is dropped rather than
  * trusted — the values end up in SQL, and a status only counts when it is one
@@ -294,8 +297,8 @@ export function parseOrderListFilter(
     overdue: get("overdue") === "1" && dept !== "dispatch",
     ready: get("ready") === "1",
     noSlip: get("noslip") === "1" && (!dept || dept === "planning" || dept === "assembly"),
-    onHold: get("hold") === "1" || HOLD_BY.includes(get("hold") as HoldBy),
-    holdBy: HOLD_BY.includes(get("hold") as HoldBy) ? (get("hold") as HoldBy) : null,
+    onHold: get("hold") === "1" || listHold(get("hold"), dept),
+    holdBy: listHold(get("hold"), dept) ? (get("hold") as HoldBy) : null,
     onlyBilling: get("ob") === "1" && !dept,
     field,
     // Only where the controls are shown — a hidden filter would narrow

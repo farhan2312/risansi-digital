@@ -4680,7 +4680,7 @@ export function pumpOrderCards(): KpiCardDef[] {
       tone: "neutral",
       measure: `(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}))`,
     },
-    soHoldCard(clear),
+    ...soHoldCard(clear),
     // Proforma Invoice, as on the Spare cards: raised, partly, or not yet.
     card("Proforma Invoice", "pi_full", "PI raised", deptStatusPredicate("billing", "Fully raised"), "done"),
     card("Proforma Invoice", "pi_part", "PI partial", deptStatusPredicate("billing", "Partially raised"), "part"),
@@ -4734,9 +4734,16 @@ const PUMP_CARD_DEPT: Record<string, DeptFilterKey> = {
   Dispatch: "dispatch",
 };
 
-/** The Orders list's SO hold card: its open SOs on hold (the On hold filter). */
-function soHoldCard(clear: Record<string, string | null>): KpiCardDef {
-  return { key: "hold", label: "SO hold", group: "Orders", sql: `${onHoldSql(null)} AND ${orderOpenSql("o")}`, params: { ...clear, hold: "1" }, tone: "danger" };
+/** The Orders list's hold cards: its open SOs on each kind of hold, Order Making's included (no card for all together). */
+function soHoldCard(clear: Record<string, string | null>): KpiCardDef[] {
+  return (["om", ...HOLD_BY] as HoldBy[]).map((by) => ({
+    key: `hold:${by}`,
+    label: HOLD_BY_LABEL[by],
+    group: "Orders",
+    sql: `${holdBySql(by)} AND ${orderOpenSql("o")}`,
+    params: { ...clear, hold: by },
+    tone: "danger" as const,
+  }));
 }
 
 /** The SQL a Pump card picks its SOs by, for the list (null for an unknown key). */
@@ -4770,7 +4777,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
       tone: "neutral",
       measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${spareEcSql("s", "o")})`,
     },
-    soHoldCard(clear),
+    ...soHoldCard(clear),
     card("Proforma Invoice", "billing", "Fully raised", "PI raised"),
     card("Proforma Invoice", "billing", "Partially raised", "PI partial"),
     card("Proforma Invoice", "billing", PENDING, "PI pending"),
