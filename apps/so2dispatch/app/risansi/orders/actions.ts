@@ -1692,17 +1692,25 @@ export async function updateOrderChildAction(
       // without going looking.
       if (soOrderId) {
         const soLabel = (await getOrderLabel(soOrderId)) ?? soOrderId;
+        // The EC from the row's subject: rowAfter holds only the schema's columns, not item_id.
+        const ec = subject?.itemId ? { id: subject.itemId, ec_no: subject.ecNo ?? null } : null;
+        const item = !rowAfter
+          ? "BOI item"
+          : String(rowAfter.boi_item ?? "") === "Others"
+            ? String(rowAfter.boi_item_other ?? "") || "Others"
+            : String(rowAfter.boi_item ?? "") || "BOI item";
+        // Planning: which item of which EC, and where it stands now.
         await emitNotification({
           roles: ["planning"],
           orderId: soOrderId,
-          type: "dept_update",
-          message: `Purchase BOI updated for ${soLabel}`,
+          itemId: ec?.id ?? null,
+          type: "boi_status",
+          message: rowAfter
+            ? `BOI — ${soLabel} · EC ${ec?.ec_no ?? "—"}: ${item} ${boiStatus(rowAfter).label}`
+            : `BOI — ${soLabel} · EC ${ec?.ec_no ?? "—"}: a BOI item removed`,
         });
         // Central Visibility: which item of which EC, and its status now.
         if (!notifyMuted && rowAfter) {
-          // The EC from the row's subject: rowAfter holds only the schema's columns, not item_id.
-          const ec = subject?.itemId ? { id: subject.itemId, ec_no: subject.ecNo ?? null } : null;
-          const item = String(rowAfter.boi_item ?? "") === "Others" ? String(rowAfter.boi_item_other ?? "") || "Others" : String(rowAfter.boi_item ?? "") || "BOI item";
           await emitNotification({
             roles: ["central_visibility"],
             orderId: soOrderId,

@@ -4,6 +4,7 @@ import { canSeeEscalations, isRep } from "@/lib/roles";
 import { countAlerts } from "@/lib/alerts";
 import { countRemindersForRole } from "@/lib/reminders";
 import { countUnread, recipientRolesForUser } from "@/lib/notifications";
+import { ensurePlanningAlerts } from "@/lib/planning-alerts";
 import { countOpenBugReports } from "@/lib/bug-reports";
 import { countDiscussionUnread } from "@/lib/order-messages";
 import { AppShell } from "@/components/risansi/app-shell";
@@ -25,6 +26,8 @@ export default async function RisansiLayout({
   // Department roles see a reminder count on their own department nav item;
   // everyone gets an unread-notifications badge on the Notifications nav item.
   // Central/admin's Notifications page also shows live escalations (alertCount).
+  // Planning's daily alerts (delays, LD dates coming up), raised once a day before its count is read.
+  if (user.role === "planning") await ensurePlanningAlerts();
   const [alertCount, reminderCount, notifUnread, openBugCount, discussionUnread] =
     await Promise.all([
       canSeeEscalations(user.role) ? countAlerts() : Promise.resolve(0),

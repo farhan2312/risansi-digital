@@ -18,7 +18,14 @@ export type NotificationType =
   | "bug_status"
   // No longer emitted — department saves are all reported as "dept_update"
   // now. Kept so notifications already stored still render.
-  | "dept_complete";
+  | "dept_complete"
+  // Planning's own: a readiness date passed, an LD date coming up, a BOI item's status.
+  | "delay"
+  | "ld_due"
+  | "boi_status";
+
+/** All Planning hears: its delays, LD dates coming up, and BOI status. */
+const PLANNING_TYPES = new Set<NotificationType>(["delay", "ld_due", "boi_status"]);
 
 export type NotificationRow = {
   id: string;
@@ -240,6 +247,8 @@ async function emit(
   }
 ): Promise<void> {
   let unique = [...new Set(roles)];
+  // Planning hears only its delays, LD dates coming up and BOI status.
+  if (!PLANNING_TYPES.has(input.type)) unique = unique.filter((r) => r !== "planning");
   if (unique.length === 0) return;
   // An SO Central Visibility has not yet cleared or held is no department's
   // business: only Central, Admin and Order Making hear about it.
