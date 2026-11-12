@@ -74,7 +74,8 @@ export function NewVersionDialog({
             <h2 className="font-display text-lg font-semibold text-foreground">New version of {so}</h2>
             <p className="text-xs text-muted">
               v{now} is kept read-only: the SO and every department&apos;s work as they are now. The SO becomes v{now + 1}, a copy
-              of it, which you then edit as usual. The departments on it are told.
+              of it, which you then edit as usual. Its SO Sent to Operation and SO Sent to PPC dates are cleared, to fill again —
+              Drawing&apos;s target is then revised from the new PPC date. The departments on it are told.
             </p>
           </div>
           <button

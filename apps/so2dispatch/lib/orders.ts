@@ -3907,6 +3907,9 @@ function orderListClauses(
   if (f.onHold) clauses.push(`${f.holdBy ? holdBySql(f.holdBy) : onHoldSql(f.dept)} AND ${orderOpenSql("o")}`);
   // Only Billing: sent to Billing alone.
   if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
+  // SO Sent to PPC: Yes once its date is entered; blank is No.
+  if (f.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
+  if (f.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
   // One SO field, filled or pending. Pending is blank where the field applies.
   if (f.field) {
     const def = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column);
@@ -4999,6 +5002,9 @@ export async function listOrdersForOrderMaking(opts: {
     if (ff.sentOps === "yes") clauses.push(`o.ec_sent_operation_date IS NOT NULL`);
     if (ff.sentOps === "no")
       clauses.push(`o.ec_sent_operation_date IS NULL AND COALESCE(o.bill_mode, '') <> ${lit(ONLY_BILLING)}`);
+    // SO Sent to PPC: Yes once its date is entered; blank is No.
+    if (ff.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
+    if (ff.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
     if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);
@@ -6037,13 +6043,21 @@ export async function addTargetRevision(input: {
  * has never been set — no current value and no history. A target someone has
  * set, even once, is theirs: it is revised by hand, never recomputed. Returns
  * what was filled, so the caller can tell the departments.
+ *
+ * Except Drawing's on a new version (v1 on): its SO Sent to PPC Date is
+ * cleared then, and once filled again Drawing's target is revised from it —
+ * unless someone has revised that target by hand since the version was made.
  */
 export async function fillFirstTargets(
   orderId: string,
   actor: { id: string; role: string }
-): Promise<{ target: TargetDate; date: string; reason: string }[]> {
+): Promise<{ target: TargetDate; date: string; reason: string; revised?: boolean }[]> {
   if (!UUID_RE.test(orderId)) return [];
   const r = await query<{
+    version_no: number;
+    drg_date: string | null;
+    /** Drawing's target revised by hand since the current version was made. */
+    drg_manual_since: boolean;
     so_date: string | null;
     order_type: string | null;
     delivery: string | null;
@@ -6061,6 +6075,12 @@ export async function fillFirstTargets(
     created_on: string | null;
   }>(
     `SELECT to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
+            COALESCE(o.version_no, 0)::int AS version_no,
+            to_char(o.drg_target_date, 'YYYY-MM-DD') AS drg_date,
+            EXISTS (SELECT 1 FROM order_target_revisions dr
+                     WHERE dr.order_id = o.id AND dr.target_key = 'drawing'
+                       AND COALESCE(dr.reason, '') NOT LIKE 'Auto:%'
+                       AND dr.created_at > (SELECT max(v.created_at) FROM order_versions v WHERE v.order_id = o.id)) AS drg_manual_since,
             o.order_type,
             to_char(o.created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS created_on,
             to_char(o.delivery_date_as_per_so, 'YYYY-MM-DD') AS delivery,
@@ -6105,7 +6125,7 @@ export async function fillFirstTargets(
     dispatch: o.dispatch,
   };
 
-  const filled: { target: TargetDate; date: string; reason: string }[] = [];
+  const filled: { target: TargetDate; date: string; reason: string; revised?: boolean }[] = [];
   for (const auto of autoTargets({
     so_date: o.so_date,
     order_type: o.order_type,
@@ -6117,9 +6137,13 @@ export async function fillFirstTargets(
     drawing_involved: o.drawing_involved,
     created_on: o.created_on,
   })) {
-    if (already.has(auto.key) || columnSet[auto.key]) continue;
+    // A new version's Drawing target, from its SO Sent to PPC Date afresh.
+    const revise =
+      auto.key === "drawing" && o.version_no > 0 && (already.has(auto.key) || columnSet[auto.key]) && !o.drg_manual_since && o.drg_date !== auto.date;
+    if (!revise && (already.has(auto.key) || columnSet[auto.key])) continue;
     const target = TARGET_BY_KEY.get(auto.key);
     if (!target) continue;
+    if (revise) auto.reason = `${auto.reason} — v${o.version_no}`;
     await addTargetRevision({
       orderId,
       target,
@@ -6128,7 +6152,7 @@ export async function fillFirstTargets(
       actorId: actor.id,
       actorRole: actor.role,
     });
-    filled.push({ target, date: auto.date, reason: auto.reason });
+    filled.push({ target, date: auto.date, reason: auto.reason, revised: revise });
   }
   return filled;
 }
