@@ -196,7 +196,7 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
         <ChartCard title="Purchase · BOI items" sub="Bought-out items on all SOs with BOI">
           <Donut data={boi} centerLabel="items" />
         </ChartCard>
-        <ChartCard title="Quality · documents" sub="Pump ECs on all SOs needing Quality">
+        <ChartCard title="Quality · documents" sub="Assembled pump ECs on SOs with Quality Required = Yes">
           <Donut data={qc} centerLabel="ECs" />
         </ChartCard>
       </div>
