@@ -15,6 +15,7 @@ import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
 import { PumpAfterPlanningCells } from "./pump-dept-cells";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { VersionTag } from "./version-tag";
 import { SortHeader } from "./sort-header";
 import type { PumpSummary } from "@/lib/pump-summary";
 
@@ -204,7 +205,8 @@ export function PlanningPumpTable({
                           <span className="block text-[11px] font-normal text-muted">
                             {span} EC{span === 1 ? "" : "s"} · {pumpQty} pump{pumpQty === 1 ? "" : "s"}
                           </span>
-                          <HoldBadge order={head} />
+                          <VersionTag order={head} />
+<HoldBadge order={head} />
                         </td>
                         <td rowSpan={span} className={soCell}>
                           <button

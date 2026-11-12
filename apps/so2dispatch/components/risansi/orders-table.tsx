@@ -13,9 +13,10 @@ import { FollowupCell } from "./order-followups";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
 import { billModeLabel, PUMP_LIKE } from "@/lib/order-schema";
 import { VersionsModal } from "./versions-modal";
+import { VersionTag } from "./version-tag";
 import { OrderInHand, OrderValueDetails } from "./order-value-details";
 import { dispatchRowTone } from "@/lib/dept-view";
-import { canAddFollowup, canMakeVersions, canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
+import { canAddFollowup, canMakeVersions, canManageEcs, canOpenVersions, isCentral, isReadOnlyViewer } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -590,7 +591,10 @@ export function OrdersTable({
                       <td className="sticky-so px-4 py-3 whitespace-nowrap align-top">
                         <div className="font-medium">{cell(order.so_no)}</div>
                         {/* A Pump SO's version: its versions in a pop-up, New version in it. */}
-                        {PUMP_LIKE.includes(String(order.order_type ?? "")) && (
+                        {PUMP_LIKE.includes(String(order.order_type ?? "")) && Number(order.version_no ?? 0) > 0 && !canOpenVersions(role) && (
+                          <VersionTag order={order as unknown as Record<string, unknown>} />
+                        )}
+                        {PUMP_LIKE.includes(String(order.order_type ?? "")) && Number(order.version_no ?? 0) > 0 && canOpenVersions(role) && (
                           <button
                             type="button"
                             onClick={(e) => {

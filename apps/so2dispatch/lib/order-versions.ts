@@ -3,8 +3,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 import { query } from "@/lib/db";
 import { PUMP_LIKE } from "@/lib/order-schema";
-import { isOrderMakingAny } from "@/lib/roles";
-import { roleSeesOrder } from "@/lib/dept-view";
+import { canOpenVersions } from "@/lib/roles";
 
 type Row = Record<string, unknown>;
 
@@ -175,22 +174,18 @@ export type VersionsData = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * An SO's versions as the viewer may see them — Order Making's, and everyone
- * else's as they see the SO — at the version asked (the current one when not
- * asked). Null when there is no such SO or it is not theirs to see.
+ * An SO's versions, for Order Making, Central Visibility and Admin (the
+ * departments see only its number), at the version asked (the current one
+ * when not asked). Null when there is no such SO or it is not theirs to open.
  */
 export async function getVersionsData(
   orderId: string,
   asked: number | null,
   viewer: { role: string; rep_names?: readonly string[] | null }
 ): Promise<VersionsData | null> {
-  if (!UUID_RE.test(orderId)) return null;
+  if (!UUID_RE.test(orderId) || !canOpenVersions(viewer.role)) return null;
   const [current, versions] = await Promise.all([readSnapshot(orderId), listOrderVersions(orderId)]);
   if (!current) return null;
-  const seen =
-    isOrderMakingAny(viewer.role) ||
-    roleSeesOrder(viewer.role, { ...current.order, ec_types: current.items.map((i) => i.item_type) }, viewer.rep_names);
-  if (!seen) return null;
   // An SO starts at v0.
   const currentNo = Number(current.order.version_no ?? 0) || 0;
   const picked = Math.min(Math.max(asked ?? currentNo, 0), currentNo);

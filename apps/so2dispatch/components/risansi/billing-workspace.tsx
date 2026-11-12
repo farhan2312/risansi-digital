@@ -15,6 +15,7 @@ import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchInline } from "./dispatch-inline";
 import { SortHeader } from "./sort-header";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { VersionTag } from "./version-tag";
 import { DispatchStatusPill, NotAtDispatch, atDispatch } from "./dispatch-status-pill";
 import { DispatchStatusControl } from "./order-status-panel";
 import { isCentral } from "@/lib/roles";
@@ -207,7 +208,8 @@ export function BillingWorkspace({
                     >
                       <td className="px-4 py-3 font-medium tabular-nums">{row.sl_no}</td>
                       <td className="sticky-so px-4 py-3 whitespace-nowrap">{row.so_no ?? "—"}
-                        <HoldBadge order={row} />
+                        <VersionTag order={row} />
+<HoldBadge order={row} />
                       </td>
                       <td className="px-4 py-3">
                         <button

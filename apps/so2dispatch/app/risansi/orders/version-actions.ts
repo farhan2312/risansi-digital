@@ -22,7 +22,7 @@ export async function loadOrderVersionsAction(
   if (!user) return { ok: false, error: "You are not signed in." };
   try {
     const data = await getVersionsData(orderId, version === null ? null : Math.trunc(version), user);
-    return data ? { ok: true, data } : { ok: false, error: "This SO is not yours to see." };
+    return data ? { ok: true, data } : { ok: false, error: "Only Order Making, Central Visibility or Admin opens an SO's versions." };
   } catch (error) {
     console.error("loadOrderVersions failed:", error);
     return { ok: false, error: "Could not load the versions." };

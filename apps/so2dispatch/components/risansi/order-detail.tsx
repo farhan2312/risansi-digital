@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { deleteItemAction } from "@/app/risansi/orders/actions";
 import { OrderStatusPanel } from "./order-status-panel";
-import { canMakeVersions, canManageEcs, canSeeClient } from "@/lib/roles";
+import { canMakeVersions, canManageEcs, canOpenVersions, canSeeClient } from "@/lib/roles";
+import { VersionTag } from "./version-tag";
 import { NewVersionDialog } from "./new-version-dialog";
 import { VersionsModal } from "./versions-modal";
 import type { ItemDetail, OrderDetail as OrderDetailData, SoDeptStatus } from "@/lib/orders";
@@ -220,7 +221,8 @@ export function OrderDetail({
             SO · {soLabel}
           </span>
           {/* A Pump SO's version, opening its history (each earlier one read-only). */}
-          {PUMP_LIKE.includes(str(order.order_type)) && Number(order.version_no ?? 0) > 0 && (
+          {PUMP_LIKE.includes(str(order.order_type)) && Number(order.version_no ?? 0) > 0 && !canOpenVersions(role) && <VersionTag order={order} />}
+          {PUMP_LIKE.includes(str(order.order_type)) && Number(order.version_no ?? 0) > 0 && canOpenVersions(role) && (
             <button
               type="button"
               onClick={() => setVersionsOpen(true)}
@@ -251,7 +253,7 @@ export function OrderDetail({
         {versioning && (
           <NewVersionDialog orderId={orderId} soLabel={soLabel} versionNo={Number(order.version_no ?? 0) || 0} onClose={() => setVersioning(false)} />
         )}
-        {PUMP_LIKE.includes(str(order.order_type)) && (
+        {PUMP_LIKE.includes(str(order.order_type)) && Number(order.version_no ?? 0) > 0 && canOpenVersions(role) && (
           <button
             type="button"
             onClick={() => setVersionsOpen(true)}

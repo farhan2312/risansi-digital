@@ -31,6 +31,7 @@ import { AlignmentValue, BasePlateForm, WoodenBoxForm } from "./alignment-cell";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { VersionTag } from "./version-tag";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
 import { SortHeader } from "./sort-header";
 import { GadCell } from "./gad-cell";
@@ -253,7 +254,8 @@ export function AssemblyPumpTable({
                             <span className="block text-[11px] font-normal text-muted">
                               {span} EC{span === 1 ? "" : "s"} · {pumpQty} pump{pumpQty === 1 ? "" : "s"}
                             </span>
-                            <HoldBadge order={head} />
+                            <VersionTag order={head} />
+<HoldBadge order={head} />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{shortDate(head.so_date)}</td>
                           <td rowSpan={span} className={soCell}>

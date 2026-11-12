@@ -170,6 +170,11 @@ export function canImportOrders(role: string): boolean {
   return role === "admin" || role === "central_visibility";
 }
 
+/** Who opens an SO's versions: Order Making, Central Visibility and Admin. The departments see the number only. */
+export function canOpenVersions(role: string): boolean {
+  return isCentral(role) || role === "order_making" || role === "order_making_so";
+}
+
 /** Who makes a new version of a Pump SO: Order Making PO, Central Visibility and Admin. */
 export function canMakeVersions(role: string): boolean {
   return role === "order_making" || isCentral(role);

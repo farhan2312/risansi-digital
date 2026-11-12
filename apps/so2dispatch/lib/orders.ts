@@ -2698,7 +2698,7 @@ export async function listOrdersForSection(
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
-            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
+            o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             -- The order value's currency, shown beside it (Accounts).
             o.order_currency,
             -- Accounts: the payment term lines and the PI raised against each.
@@ -2917,7 +2917,7 @@ export async function listItemsForSection(
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
-            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks
+            o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks
             ${childSelect}${qcSelect}${soChildSelect}${readyLotsSelect}${detailSelects ? `,\n            ${detailSelects}` : ""}${contextSelects}
        FROM order_items it
        JOIN orders o ON o.id = it.order_id
@@ -3003,7 +3003,7 @@ export async function listOrdersForBilling(
             ${DISPATCH_STATUS} AS so_dispatch_status,
             ${dispatchStageSql("o")} AS dispatch_stage,
             ${BILLING_STATE} AS billing_state,
-            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
+            o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             o.bill_type,
             ${PAYMENT_TERMS_SQL("o")} AS payment_terms,
             ${AFTER_RECEIPT_ONLY} AS after_receipt_only,
@@ -3143,7 +3143,7 @@ export async function listItemsForPurchase(
             to_char(it.ec_date, 'YYYY-MM-DD') AS ec_date,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
-            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
+            o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             o.boi,
             o.ld,
             to_char(o.ld_date, 'YYYY-MM-DD') AS ld_date,
