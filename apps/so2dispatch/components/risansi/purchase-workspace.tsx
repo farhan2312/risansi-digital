@@ -11,6 +11,7 @@ import { isCentral } from "@/lib/roles";
 import { BoiItemForm } from "./boi-item-form";
 import { SortHeader } from "./sort-header";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { VersionTag } from "./version-tag";
 import { boiInHand, boiStatus, dispatchRowTone } from "@/lib/dept-view";
 import { UrlPagination, UrlSearchInput, UrlTabs, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
@@ -310,7 +311,8 @@ export function PurchaseWorkspace({
                               </td>
                               <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap font-semibold`}>
                                 {g.head.so_no ?? "—"}
-                                <HoldBadge order={g.head} />
+                                <VersionTag order={g.head} />
+<HoldBadge order={g.head} />
                               </td>
                               <td rowSpan={span} className={soCell}>
                                 <button

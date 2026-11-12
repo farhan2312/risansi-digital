@@ -48,6 +48,7 @@ import {
 import { OrderChildList } from "./order-children";
 import { SortHeader } from "./sort-header";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { VersionTag } from "./version-tag";
 import { AccountsClearBadge, AccountsHoldButton } from "./accounts-hold";
 import { TermPis } from "./term-pis";
 import { OrderValueDetails } from "./order-value-details";
@@ -983,7 +984,8 @@ export function DepartmentWorkspace({
                       style={acctPinned ? { boxShadow: "none" } : undefined}
                     >
                       {toInput(order.so_no) || "—"}
-                      <HoldBadge order={order} />
+                      <VersionTag order={order} />
+<HoldBadge order={order} />
                       {/* Accounts can hold the SO for a payment reason. */}
                       {/* Accounts: an SO it has cleared says so, here only. */}
                       {table === "order_accounts" && <AccountsClearBadge order={order} />}
@@ -1115,7 +1117,8 @@ export function DepartmentWorkspace({
                         </td>
                         <td className="sticky-so px-4 py-3 whitespace-nowrap">
                           {toInput(g.head.so_no) || "—"}
-                          <HoldBadge order={g.head} />
+                          <VersionTag order={g.head} />
+<HoldBadge order={g.head} />
                         </td>
                         <td className="px-4 py-3">
                           <ChatButton

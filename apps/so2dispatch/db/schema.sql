@@ -3235,3 +3235,33 @@ UPDATE order_items
          'at', to_char(COALESCE(ec_link_at, created_at, now()) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))
  WHERE NULLIF(btrim(ec_link), '') IS NOT NULL
    AND ec_links = '[]'::jsonb;
+
+-- 0054  SO versions (Pump SOs): orders.version_no is the current version; order_versions holds
+-- the frozen ones, each the SO, its ECs and every department's data as it stood.
+-- Same as migrations/so2dispatch/0036. Idempotent and additive.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS version_no INT NOT NULL DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS order_versions (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id        UUID        NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    -- The version frozen here.
+    version_no      INT         NOT NULL,
+    -- Why the next version was made (a client's revised PO, say).
+    reason          TEXT        NOT NULL,
+    -- The SO as it stood: { order, items, tables: { <table>: [rows] } }.
+    snapshot        JSONB       NOT NULL,
+    created_by      UUID        REFERENCES users(id) ON DELETE SET NULL,
+    -- Kept as written, so the history names them after they leave.
+    created_by_name TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (order_id, version_no)
+);
+
+-- 0055  SO versions start at v0: a new SO is v0, its first new version v1; SOs with no version yet move to 0.
+-- Same as migrations/so2dispatch/0037. Idempotent.
+ALTER TABLE orders ALTER COLUMN version_no SET DEFAULT 0;
+
+UPDATE orders o
+   SET version_no = 0
+ WHERE o.version_no = 1
+   AND NOT EXISTS (SELECT 1 FROM order_versions v WHERE v.order_id = o.id);

@@ -12,6 +12,8 @@ import {
   OctagonAlert,
   PauseCircle,
   Pencil,
+  Package,
+  Scale,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { canSeeEscalations, departmentHrefForRole, canSeeClient, getsNotifications, isRep } from "@/lib/roles";
@@ -40,6 +42,9 @@ const NOTIF_ICON = {
   dept_complete: CheckCircle2,
   dept_update: Pencil,
   bug_status: Bug,
+  delay: AlertTriangle,
+  ld_due: Scale,
+  boi_status: Package,
 } as const;
 
 const NOTIF_TONE = {
@@ -48,6 +53,9 @@ const NOTIF_TONE = {
   dept_complete: "bg-emerald-50 text-emerald-600",
   dept_update: "bg-slate-100 text-slate-600",
   bug_status: "bg-rose-50 text-rose-600",
+  delay: "bg-rose-50 text-rose-600",
+  ld_due: "bg-amber-50 text-amber-600",
+  boi_status: "bg-blue-50 text-blue-600",
 } as const;
 
 function timeAgo(iso: string): string {
@@ -126,6 +134,9 @@ const NOTIF_LABEL = {
   dept_complete: "Completed",
   dept_update: "Update",
   bug_status: "Bug report",
+  delay: "Delay",
+  ld_due: "LD date",
+  boi_status: "BOI",
 } as const;
 
 /** "2026-10-21" in India, for grouping by day. */

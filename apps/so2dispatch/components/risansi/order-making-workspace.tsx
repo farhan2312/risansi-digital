@@ -6,12 +6,14 @@ import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Ban, CheckCircle2, Download, FileSpreadsheet, FileText, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, CopyPlus, Download, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { NewVersionDialog } from "./new-version-dialog";
+import { VersionsModal } from "./versions-modal";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { HoldBadge } from "./hold-badge";
 import { OnlyBillingBadge } from "./order-popups";
-import { canManageEcs } from "@/lib/roles";
+import { canMakeVersions, canManageEcs } from "@/lib/roles";
 import { AddOnForm } from "./add-on-form";
 import { OmEcsModal } from "./om-ecs-modal";
 import { OrderOperationPopup } from "./order-operation-popup";
@@ -52,6 +54,7 @@ import {
   withoutBarePrefix,
   ONLY_BILLING,
   isOnlyBilling,
+  PUMP_LIKE,
   type OrderField,
 } from "@/lib/order-schema";
 import type { OrderMakingRow } from "@/lib/orders";
@@ -219,6 +222,11 @@ export function OrderMakingWorkspace({
   const [showAssignPdf, setShowAssignPdf] = useState(false);
   // The SO being cancelled (its reason asked first).
   const [cancelling, setCancelling] = useState<OrderMakingRow | null>(null);
+  // The Pump SO a new version is being made of (its reason asked first): Order Making PO, Central, Admin.
+  const [versioning, setVersioning] = useState<OrderMakingRow | null>(null);
+  const makesVersions = canMakeVersions(role);
+  // The SO whose versions are open in the pop-up.
+  const [versionsFor, setVersionsFor] = useState<OrderMakingRow | null>(null);
   // The assigned SO whose Reassign is open.
   const [reassigning, setReassigning] = useState<string | null>(null);
   async function assign(row: OrderMakingRow, assigneeId: string) {
@@ -586,6 +594,17 @@ export function OrderMakingWorkspace({
                         {/* As in every department: Central's and Accounts' holds, and Only Billing. */}
                         {c.column === "so_no" && (
                           <>
+                            {/* A Pump SO past its first version: which it is, and its history. */}
+                            {Number(row.version_no ?? 0) > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setVersionsFor(row)}
+                                title="See the SO's versions"
+                                className="mt-1 flex w-fit items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                              >
+                                <History className="h-3 w-3" />v{Number(row.version_no)}
+                              </button>
+                            )}
                             <HoldBadge order={row} />
                             {isOnlyBilling(row) && <OnlyBillingBadge order={row} />}
                           </>
@@ -777,6 +796,18 @@ export function OrderMakingWorkspace({
                         <Pencil className="h-3.5 w-3.5" />
                         {mode === "so" ? "SO details" : "Edit"}
                       </button>
+                      {/* A new version of a Pump SO, the current one kept read-only. */}
+                      {mode === "po" && makesVersions && PUMP_LIKE.includes(str(row.order_type)) && !isClosedStatus(row.status_override) && (
+                        <button
+                          type="button"
+                          onClick={() => setVersioning(row)}
+                          title="Save the SO as it is as a read-only version, and go on editing the next one"
+                          className="ml-1.5 inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
+                        >
+                          <CopyPlus className="h-3.5 w-3.5" />
+                          New version
+                        </button>
+                      )}
                       {/* Order Making PO cancels an SO; it stays on the list, red. */}
                       {mode === "po" && canCreate &&
                         (isClosedStatus(row.status_override) ? (
@@ -802,6 +833,22 @@ export function OrderMakingWorkspace({
           </table>
         </div>
         {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
+        {versionsFor && (
+          <VersionsModal
+            orderId={versionsFor.id}
+            soLabel={str(versionsFor.so_no) || `#${versionsFor.sl_no}`}
+            canMake={makesVersions}
+            onClose={() => setVersionsFor(null)}
+          />
+        )}
+        {versioning && (
+          <NewVersionDialog
+            orderId={versioning.id}
+            soLabel={str(versioning.so_no) || `#${versioning.sl_no}`}
+            versionNo={Number(versioning.version_no ?? 0) || 0}
+            onClose={() => setVersioning(null)}
+          />
+        )}
         {showAssignPdf && (
           <AssignmentPdfDialog range={period === "range" ? assignRange : null} onClose={() => setShowAssignPdf(false)} />
         )}

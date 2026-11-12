@@ -137,6 +137,8 @@ const LOT_PACKING_SQL = `CASE WHEN EXISTS (SELECT 1 FROM order_items pe WHERE pe
 
 /** A row in the master SO list — one per sales order, with its EC items. */
 export type OrderListRow = {
+  /** A Pump SO's current version (0 until a new one is made). */
+  version_no?: number | null;
   /** The SO's latest follow-up, and how many it has. */
   last_followup?: { followup_date: string; remarks: string; next_followup_date: string; count: number } | null;
   id: string;
@@ -2696,7 +2698,7 @@ export async function listOrdersForSection(
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
-            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
+            o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             -- The order value's currency, shown beside it (Accounts).
             o.order_currency,
             -- Accounts: the payment term lines and the PI raised against each.
@@ -2915,7 +2917,7 @@ export async function listItemsForSection(
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
-            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks
+            o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks
             ${childSelect}${qcSelect}${soChildSelect}${readyLotsSelect}${detailSelects ? `,\n            ${detailSelects}` : ""}${contextSelects}
        FROM order_items it
        JOIN orders o ON o.id = it.order_id
@@ -3001,7 +3003,7 @@ export async function listOrdersForBilling(
             ${DISPATCH_STATUS} AS so_dispatch_status,
             ${dispatchStageSql("o")} AS dispatch_stage,
             ${BILLING_STATE} AS billing_state,
-            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
+            o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             o.bill_type,
             ${PAYMENT_TERMS_SQL("o")} AS payment_terms,
             ${AFTER_RECEIPT_ONLY} AS after_receipt_only,
@@ -3141,7 +3143,7 @@ export async function listItemsForPurchase(
             to_char(it.ec_date, 'YYYY-MM-DD') AS ec_date,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
-            o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
+            o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             o.boi,
             o.ld,
             to_char(o.ld_date, 'YYYY-MM-DD') AS ld_date,
@@ -4227,6 +4229,8 @@ export async function listOrdersPage(opts: {
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
+            -- A Pump SO's version (v0 until a new one is made).
+            o.version_no,
             o.order_value::text AS order_value,
             o.order_currency,
             o.order_value_inr::text AS order_value_inr,
@@ -4368,6 +4372,8 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
+            -- A Pump SO's version (v0 until a new one is made).
+            o.version_no,
             o.order_value::text AS order_value,
             o.order_currency,
             o.order_value_inr::text AS order_value_inr,
@@ -5096,6 +5102,8 @@ export async function listOrdersForOrderMaking(opts: {
             -- The row colour, as in the departments: the SO's dispatch status, a Dispatch hold included.
             ${DISPATCH_STATUS} AS so_dispatch_status,
             o.dispatch_status, o.status_override,
+            -- A Pump SO's current version (0 until a new one is made).
+            o.version_no,
             (SELECT count(*)::int FROM order_items i WHERE i.order_id = o.id) AS ec_count,
             o.boi,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(

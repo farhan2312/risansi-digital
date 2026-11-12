@@ -14,6 +14,7 @@ import type { PageResult } from "@/lib/pagination";
 import type { DeptCompletion } from "@/lib/dept-completion";
 import { addOrderChildAction, deleteOrderChildAction, updateOrderChildAction } from "@/app/risansi/orders/actions";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { VersionTag } from "./version-tag";
 import { SortHeader } from "./sort-header";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
@@ -252,7 +253,8 @@ export function DrawingWorkspace({
                               </td>
                               <td rowSpan={span} className={`${soCell} sticky-so ${SO_W}`} style={{ boxShadow: "none" }}>
                                 <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
-                                <HoldBadge order={g.head} />
+                                <VersionTag order={g.head} />
+<HoldBadge order={g.head} />
                                 <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>
                               </td>
                               {/* Pinned beside the SO No. as the table scrolls. */}
