@@ -48,7 +48,8 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
   if (p.orderType === "spare") {
     const q = quotes.find((x) => x.driveGroup === SPARE_GROUP);
     // As saved: the copy in the version (older ones didn't keep it - then the live quote).
-    const kept = q ? (savedOn(q.id)?.snapshot as QuotationSnapshot | undefined)?.spare : undefined;
+    const keptSnap = q ? (savedOn(q.id)?.snapshot as QuotationSnapshot | undefined) : undefined;
+    const kept = keptSnap?.spare;
     return {
       orderType: "spare",
       groups: [],
@@ -56,6 +57,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
         q && savedOn(q.id)
           ? {
               projectCode: p.code,
+              ...(keptSnap?.fx ? { fx: keptSnap.fx } : {}),
               quote: normalizeSpareQuote(kept?.quote ?? p.quote, termsMarketOf(p.market)),
               edits: normalizeSpareDocEdits(kept?.quote ? kept.edits : p.docEdits),
               header: {

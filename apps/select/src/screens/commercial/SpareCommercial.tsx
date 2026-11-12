@@ -6,7 +6,10 @@ import Link from "next/link";
 import ProductCodeSelect from "../../components/pump-selection/ProductCodeSelect";
 import ConfirmModal from "../../components/ui/ConfirmModal";
 import PageHeader from "../../components/ui/PageHeader";
-import { SPARE_GROUP, formatInr, type CommercialSummary, type QuotationInfo, type TsmOption } from "../../lib/commercial";
+import { SPARE_GROUP, formatInr, formatUsdCents, quoteFxOf, type CommercialSummary, type QuoteFx, type QuotationInfo, type TsmOption } from "../../lib/commercial";
+import { setQuoteCurrency } from "../../services/commercialService";
+import { getUsdInrSetting } from "../../services/settingsService";
+import UsdToggle from "./UsdToggle";
 import { printHtml } from "../../lib/enquiry-print";
 import { OTHER_PART_SECTION, partListFor, type SparePumpKind } from "../../lib/spare-parts";
 import { lineAmount, quoteDiscount, quoteSubtotal, spareQuoteProblem, type SpareDocEdits, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
@@ -125,6 +128,34 @@ export default function SpareCommercial({
   const [pickingFor, setPickingFor] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [preview, setPreview] = useState<SpareQuoteSheet | null>(null);
+
+  // Quote in USD (user, 2026-11-12): prices stay in INR; the totals and the document
+  // also show USD at the rate fixed on the enquiry when it was switched on.
+  const [fx, setFx] = useState<QuoteFx | undefined>(() => quoteFxOf(project));
+  const [rateNow, setRateNow] = useState<number | null | undefined>(undefined);
+  const [fxBusy, setFxBusy] = useState(false);
+  const [fxError, setFxError] = useState("");
+  useEffect(() => {
+    getUsdInrSetting()
+      .then((s) => setRateNow(s.rate))
+      .catch(() => setRateNow(null));
+  }, []);
+  const changeCurrency = async (currency: "INR" | "USD", refreshRate = false) => {
+    setFxBusy(true);
+    setFxError("");
+    try {
+      const r = await setQuoteCurrency(projectId, currency, refreshRate);
+      setFx(quoteFxOf(r));
+      if (r.usdInrRate !== null) setRateNow((n) => n ?? r.usdInrRate);
+      // The saved version compares against it: refresh "changed since saved".
+      setPricesVersion((n) => n + 1);
+    } catch (e) {
+      setFxError((e as { response?: { data?: { error?: string } } })?.response?.data?.error || "Couldn't change the currency.");
+    } finally {
+      setFxBusy(false);
+    }
+  };
+  const inUsd = (inr: number) => (fx ? formatUsdCents(inr / fx.rate) : "");
   const [reviewBusy, setReviewBusy] = useState(false);
 
   useEffect(() => {
@@ -265,6 +296,7 @@ export default function SpareCommercial({
     if (!saved || !head) return;
     const q = await loadQuotation().catch(() => quotation);
     setPreview({
+      ...(fx ? { fx } : {}),
       projectCode: head.enquiryNo,
       quote: saved,
       edits: docEdits,
@@ -427,6 +459,7 @@ export default function SpareCommercial({
                 model={m}
                 showErrors={showErrors}
                 hasPo={draft.hasPo}
+                fx={fx}
                 onChange={(patch) => updateModel(m.id, patch)}
                 onLineChange={(i, patch) => updateLine(m.id, i, patch)}
                 onPickParts={() => setPickingFor(m.id)}
@@ -448,10 +481,15 @@ export default function SpareCommercial({
               </button>
               <span className="text-[14px] text-fg-2">
                 Total <b className="ml-1 font-mono text-fg">{formatInr(subtotal)}</b>
+                {fx && <span className="ml-1.5 font-mono text-[12.5px] text-accent">{inUsd(subtotal)}</span>}
               </span>
             </div>
 
             <section className="flex flex-col gap-3 rounded-xl border border-line bg-paper p-4">
+              <div className="flex flex-col items-end gap-1">
+                <UsdToggle fx={fx} rateNow={rateNow} busy={fxBusy} onChange={(c, r) => void changeCurrency(c, r)} />
+                {fxError && <p className="text-[12px] text-neg">{fxError}</p>}
+              </div>
               <div className="flex flex-wrap items-end justify-end gap-x-6 gap-y-3">
                 <label className="flex w-[130px] flex-col gap-1">
                   <span className={labelCls}>Discount %</span>
@@ -469,10 +507,12 @@ export default function SpareCommercial({
                 {discount > 0 && (
                   <span className="pb-2 text-[13px] text-fg-2">
                     Discount <b className="font-mono text-fg">-{formatInr(discount)}</b>
+                    {fx && <span className="ml-1.5 font-mono text-[12px] text-accent">-{inUsd(discount)}</span>}
                   </span>
                 )}
                 <span className="pb-1.5 text-[14px] text-fg-2">
                   Grand total <b className="ml-1 font-mono text-[16px] text-fg">{formatInr(subtotal - discount)}</b>
+                  {fx && <span className="ml-1.5 font-mono text-[13px] font-semibold text-accent">{inUsd(subtotal - discount)}</span>}
                 </span>
               </div>
               <label className="flex flex-col gap-1">
@@ -524,6 +564,7 @@ function ModelCard({
   index,
   model,
   hasPo,
+  fx,
   showErrors,
   onChange,
   onLineChange,
@@ -534,6 +575,8 @@ function ModelCard({
   model: ModelDraft;
   /** Reference PO ticked: each part has its PO No. and date. */
   hasPo: boolean;
+  /** Quoted in USD: amounts also in USD. */
+  fx: QuoteFx | undefined;
   showErrors: boolean;
   onChange: (patch: Partial<ModelDraft>) => void;
   onLineChange: (i: number, patch: Partial<LineDraft>) => void;
@@ -549,6 +592,7 @@ function ModelCard({
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] text-fg-2">
             Sub-total <b className="font-mono text-fg">{formatInr(subtotal)}</b>
+            {fx && <span className="ml-1.5 font-mono text-[12px] text-accent">{formatUsdCents(subtotal / fx.rate)}</span>}
           </span>
           <button type="button" className={`${btn} text-neg hover:text-neg`} onClick={onRemove}>
             Remove
@@ -658,7 +702,10 @@ function ModelCard({
                         onChange={(e) => onLineChange(i, { unitPrice: e.target.value })}
                       />
                     </td>
-                    <td className="px-4 py-1.5 text-right font-mono text-fg">{formatInr(lineAmount({ qty, unitPrice: price }))}</td>
+                    <td className="px-4 py-1.5 text-right font-mono text-fg">
+                      {formatInr(lineAmount({ qty, unitPrice: price }))}
+                      {fx && <span className="block text-[11.5px] text-accent">{formatUsdCents(lineAmount({ qty, unitPrice: price }) / fx.rate)}</span>}
+                    </td>
                     <td className="pr-3 text-right">
                       <button
                         type="button"
