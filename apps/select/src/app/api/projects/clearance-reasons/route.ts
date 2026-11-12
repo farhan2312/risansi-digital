@@ -3,7 +3,7 @@ import { logAudit } from "@/lib/audit";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { clearanceReason } from "@/lib/db/schema";
-import { isRepRole } from "@/lib/roles";
+import { isViewOnlyRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     if (e instanceof AuthError) return error(e.message, e.statusCode);
     throw e;
   }
-  if (isRepRole(claims.role)) return error("Reps can view enquiries only.", 403);
+  if (isViewOnlyRole(claims.role)) return error("Your role can view enquiries only.", 403);
   let body: Record<string, unknown>;
   try {
     body = await req.json();

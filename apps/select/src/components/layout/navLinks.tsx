@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { REP_PAGES, hasClientOperationDocs, isOperationRole, isRepRole } from "../../lib/roles";
+import { CRM_PAGES, REP_PAGES, hasClientOperationDocs, isCrmRole, isOperationRole, isRepRole } from "../../lib/roles";
 
 /**
  * Single source of truth for the app's navigation, shared by the desktop
@@ -114,6 +114,9 @@ const CLIENT_OPERATION_DOCS_LINK: NavLink = { href: "/client-operation-docs", la
 export const mainLinksFor = (role: string | undefined): NavLink[] => {
   if (isOperationRole(role)) return OPERATION_LINKS;
   if (isRepRole(role)) return MAIN_LINKS.filter((l) => (REP_PAGES as readonly string[]).includes(l.href));
+  // CRM: Dashboard, Enquiries, Pump Selection and Client Operation Docs.
+  if (isCrmRole(role))
+    return MAIN_LINKS.map((l) => (l.href === "/selection-summary" ? CLIENT_OPERATION_DOCS_LINK : l)).filter((l) => (CRM_PAGES as readonly string[]).includes(l.href));
   // Client Operation Docs takes Reports' place.
   return hasClientOperationDocs(role) ? MAIN_LINKS.map((l) => (l.href === "/selection-summary" ? CLIENT_OPERATION_DOCS_LINK : l)) : MAIN_LINKS;
 };

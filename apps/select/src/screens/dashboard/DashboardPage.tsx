@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { DonutChart, fmtDay, fmtNum, TrendChart, type TrendSeries } from "../../components/charts/charts";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { canApprove } from "../../lib/approval";
-import { isRepRole, worksOnAnyEnquiry } from "../../lib/roles";
+import { isRepRole, isViewOnlyRole, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
 import { getDashboard, type DashboardData, type DashboardEnquiry, type DashboardTag } from "../../services/dashboardService";
 import { Card, Icons, Segmented } from "../admin/audit/auditUi";
@@ -240,7 +240,7 @@ const DashboardPage = () => {
     if (scopeDefaulted.current) return;
     if (!user && userLoading) return;
     scopeDefaulted.current = true;
-    if (user && !worksOnAnyEnquiry(user.role) && !isRepRole(user.role)) {
+    if (user && !worksOnAnyEnquiry(user.role) && !isViewOnlyRole(user.role)) {
       setScope("mine");
     }
     setScopeReady(true);

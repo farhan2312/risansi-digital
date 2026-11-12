@@ -19,7 +19,7 @@ import LivePumpRecommendation from "../../components/pump-selection/LivePumpReco
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 import { getProject, type ProjectRecord } from "../../services/projectService";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { canWorkOn, isRepRole } from "../../lib/roles";
+import { canWorkOn, isViewOnlyRole } from "../../lib/roles";
 import { STEP_NAMES } from "../../components/pump-selection/Stepper";
 import {
   getWizardInput,
@@ -198,7 +198,7 @@ const PumpSelectionPage = () => {
   // only bar instead of each step's own Next / Previous. An older version of
   // an enquiry is the same for everyone.
   const olderVersion = liveProject?.is_latest === false;
-  const readOnly = isRepRole(currentUser?.role) || olderVersion;
+  const readOnly = isViewOnlyRole(currentUser?.role) || olderVersion;
 
   useEffect(() => {
     const raw = sessionStorage.getItem(SELECTED_PROJECT_KEY);
