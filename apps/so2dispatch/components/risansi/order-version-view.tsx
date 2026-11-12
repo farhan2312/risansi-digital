@@ -10,6 +10,8 @@ import { History, Lock } from "lucide-react";
 import {
   CHILD_FIELDS,
   ORDER_SECTIONS,
+  PUMP_LIKE,
+  PUMP_SO_PLANNING_FIELDS,
   canonicalSelectValue,
   splitMulti,
   type ChildTable,
@@ -157,33 +159,92 @@ function Sub({ title, children }: { title: string; children: React.ReactNode }) 
 
 const section = (table: string) => ORDER_SECTIONS.find((s) => s.table === table) as OrderSection;
 
-/** The EC tables with no section of their own, shown under the EC as they are. */
+/**
+ * The EC tables with no section of their own, shown under the EC as they are.
+ * Left out, as the portal no longer uses them: drawing documents and Quality
+ * file uploads (SharePoint links now), and the old lot table.
+ */
 const EC_EXTRA: [string, string][] = [
   ["order_part_drawings", "Part drawings"],
-  ["order_drawing_documents", "Drawing documents"],
   ["order_qc_doc_links", "Quality document links"],
-  ["order_qc_documents", "Quality documents"],
-  ["order_qc_requirement_documents", "Quality requirement documents"],
   ["order_part_shortages", "Part shortages"],
-  ["order_lot_assembly", "Lot assembly entries"],
   ["order_ready_lot_history", "Readiness lot history"],
   ["order_packing_plan_history", "Packing plan history"],
 ];
 
-/** …and the SO's. */
+/** …and the SO's. Left out: sign-offs (switched off), the old assembly plans, and the invoice ↔ slip links (shown on both). */
 const SO_EXTRA: [string, string][] = [
   ["order_wooden_boxes", "Wooden boxes"],
   ["order_target_revisions", "Target date history"],
-  ["order_assembly_plans", "Assembly plans"],
-  ["order_dept_completions", "Department sign-offs"],
   ["order_drawing_readiness_history", "Drawing readiness history"],
   ["order_followups", "Follow-ups"],
   ["order_om_status_history", "Order Making clear / hold history"],
   ["order_pendency", "Pendency"],
-  ["order_invoice_slips", "Invoice ↔ packing slip links"],
   ["order_picture_links", "Picture links"],
   ["order_boi_expected_history", "BOI expected date history"],
 ];
+
+/**
+ * A department's fields on a pump EC, as its page shows them today: Planning's
+ * Status, Assembly Readiness Date, Remarks and Ready Qty (the pump status is
+ * worked out from the lots); Assembly & Packing's packed date. The older
+ * per-EC fields (assembly and packing dates, remarks, delay reason) are left out.
+ */
+function ecFields(s: OrderSection, pump: boolean): OrderField[] {
+  if (!pump) return s.fields;
+  if (s.table === "order_planning") {
+    const readyQty = s.fields.find((f) => f.column === "ready_qty");
+    return [...PUMP_SO_PLANNING_FIELDS, ...(readyQty ? [readyQty] : [])];
+  }
+  if (s.table === "order_assembly_dispatch") return s.fields.filter((f) => f.column === "actual_packing_date");
+  return s.fields;
+}
+
+const shift = (v: unknown) => (str(v) ? ` (${str(v)})` : "");
+
+/** A pump EC's readiness lots, as Planning and Assembly & Packing work them. */
+function LotsTable({ lots, assembly }: { lots: Row[]; assembly: Row[] }) {
+  const cols = [
+    { key: "lot", label: "Lot" },
+    { key: "status", label: "Status" },
+    { key: "ready", label: "Ready Date" },
+    { key: "qty", label: "Qty" },
+    { key: "assembly", label: "Assembly" },
+    { key: "packing", label: "Packing Plan" },
+    { key: "pdi", label: "PDI" },
+    { key: "packed", label: "Packed" },
+    { key: "packStatus", label: "Packing Status" },
+    { key: "alignment", label: "Final Alignment" },
+    { key: "remarks", label: "Remarks" },
+  ];
+  const d = (v: unknown) => (str(v) ? day(str(v).slice(0, 10)) : "");
+  const rows = lots.map((l, i) => {
+    const entries = assembly.filter((a) => str(a.lot_row_id) === str(l.id)).sort(bySeq);
+    return {
+      lot: `L${i + 1}`,
+      status: str(l.status),
+      ready: d(l.ready_date),
+      qty: str(l.qty),
+      assembly: entries.length
+        ? entries
+            .map((a) => `${str(a.qty) || "—"} · plan ${d(a.plan_date) || "—"}${shift(a.shift)}${str(a.assembled_date) ? ` · done ${d(a.assembled_date)}` : ""}`)
+            .join("\n")
+        : [d(l.assembly_plan_date) && `plan ${d(l.assembly_plan_date)}${shift(l.assembly_shift)}`, d(l.assembled_date) && `done ${d(l.assembled_date)}`]
+            .filter(Boolean)
+            .join(" · "),
+      packing: d(l.packing_plan_date) ? `${d(l.packing_plan_date)}${shift(l.packing_shift)}` : "",
+      pdi: str(l.pdi),
+      packed: d(l.packed_date),
+      packStatus: str(l.pump_packing_status) || str(l.packing_status),
+      alignment: str(l.final_alignment),
+      remarks: [str(l.assembly_remarks) && `Assembly: ${str(l.assembly_remarks)}`, str(l.packing_remarks) && `Packing: ${str(l.packing_remarks)}`]
+        .filter(Boolean)
+        .join("\n"),
+    };
+  });
+  const shown = cols.filter((c) => rows.some((r) => r[c.key as keyof typeof r] !== ""));
+  return <Grid cols={shown} rows={rows} />;
+}
 
 const bySeq = (a: Row, b: Row) => (Number(a.seq ?? 0) - Number(b.seq ?? 0)) || str(a.created_at).localeCompare(str(b.created_at));
 
@@ -207,16 +268,26 @@ export function OrderVersionView({ snap }: { snap: VersionSnapshot }) {
       {snap.items.map((it) => {
         const id = str(it.id);
         const ec = section("order_items");
+        const pump = PUMP_LIKE.includes(str(it.item_type));
+        const lots = ofEc("order_ready_lots", id);
         return (
           <Block key={id} title={`EC ${str(it.ec_no) || "—"}${str(it.item_type) ? ` · ${str(it.item_type)}` : ""}`}>
             <Fields fields={ec.fields} row={it} />
             {ORDER_SECTIONS.filter((s) => s.scope === "item" && s.table !== "order_items").map((s) => {
               const row = one(s.table, "item_id", id);
               const child = s.childTable && s.childTable !== "order_packing_slips" ? ofEc(s.childTable, id) : [];
-              if (!row && child.length === 0) return null;
+              // Planning's readiness lots go under Planning.
+              const withLots = s.table === "order_planning" && lots.length > 0;
+              if (!row && child.length === 0 && !withLots) return null;
               return (
                 <Sub key={s.key} title={s.title}>
-                  {row && <Fields fields={s.fields} row={row} />}
+                  {row && <Fields fields={ecFields(s, pump)} row={row} />}
+                  {withLots && (
+                    <div className="mt-2">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Readiness lots</p>
+                      <LotsTable lots={lots} assembly={ofEc("order_lot_assembly", id)} />
+                    </div>
+                  )}
                   {child.length > 0 && (
                     <div className="mt-2">
                       <FieldTable fields={CHILD_FIELDS[s.childTable as ChildTable]} rows={child} />
@@ -253,18 +324,12 @@ export function OrderVersionView({ snap }: { snap: VersionSnapshot }) {
         );
       })}
 
+      {/* Assembly & Packing's packing slips (Planning's tentative ones are no longer used). */}
       <Block title="Packing slips">
-        {(["tentative", "actual"] as const).map((kind) => {
-          const rows = t("order_packing_slips").filter((r) => str(r.kind) === kind);
-          return rows.length ? (
-            <Sub key={kind} title={kind === "actual" ? "Actual (Assembly & Packing)" : "Tentative (Planning)"}>
-              <FieldTable fields={[{ column: "lot_nos", label: "Lots", type: "text" }, ...CHILD_FIELDS.order_packing_slips]} rows={rows} />
-            </Sub>
-          ) : (
-            <Fragment key={kind} />
-          );
-        })}
-        {t("order_packing_slips").length === 0 && <p className="text-xs text-muted">Nothing recorded.</p>}
+        <FieldTable
+          fields={[{ column: "lot_nos", label: "Lots", type: "text" }, ...CHILD_FIELDS.order_packing_slips]}
+          rows={t("order_packing_slips").filter((r) => str(r.kind) === "actual")}
+        />
       </Block>
 
       <Block title="Other records">
@@ -412,14 +477,23 @@ export function diffVersions(a: VersionSnapshot, b: VersionSnapshot): VersionCha
     }
   };
   fieldDiff("SO", section("orders").fields, a.order, b.order);
+  // Each department's fields on an EC, as shown.
+  for (const s of ORDER_SECTIONS.filter((x) => x.scope === "item" && x.table !== "order_items")) {
+    const rowOf = (snap: VersionSnapshot, id: string) => (snap.tables[s.table] ?? []).find((r) => str(r.item_id) === id) ?? null;
+    for (const it of b.items) {
+      const id = str(it.id);
+      const fields = ecFields(s, PUMP_LIKE.includes(str(it.item_type)));
+      fieldDiff(`EC ${str(it.ec_no) || "—"} · ${s.title}`, fields, rowOf(a, id), rowOf(b, id));
+    }
+  }
 
-  const ecFields = section("order_items").fields;
+  const itemFields = section("order_items").fields;
   const ecName = (r: Row) => `EC ${str(r.ec_no) || "—"}`;
   const aItems = new Map(a.items.map((r) => [str(r.id), r]));
   const bItems = new Map(b.items.map((r) => [str(r.id), r]));
   for (const [id, r] of bItems) {
     if (!aItems.has(id)) out.push({ where: ecName(r), field: "EC", from: "—", to: "Added" });
-    else fieldDiff(ecName(r), ecFields, aItems.get(id)!, r);
+    else fieldDiff(ecName(r), itemFields, aItems.get(id)!, r);
   }
   for (const [id, r] of aItems) if (!bItems.has(id)) out.push({ where: ecName(r), field: "EC", from: "Present", to: "Removed" });
 
@@ -433,12 +507,15 @@ export function diffVersions(a: VersionSnapshot, b: VersionSnapshot): VersionCha
     ["order_drawing_revisions", "Drawing (GAD revisions)"],
     ["order_boi_items", "Purchase (BOI items)"],
     ["order_ready_lots", "Planning (readiness lots)"],
+    ["order_lot_assembly", "Assembly (lot entries)"],
     ["order_billing_docs", "Proforma Invoice (PIs)"],
     ["order_invoices", "Dispatch (invoices)"],
     ["order_packing_slips", "Packing slips"],
     ...EC_EXTRA,
     ...SO_EXTRA,
   ]);
+  // Their fields are compared above, one by one.
+  for (const s of ORDER_SECTIONS) if (s.scope === "item" && s.table !== "order_items") delete TITLES[s.table];
   const clean = (r: Row) => JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k]) => !SKIP_DIFF.has(k)).sort()));
   for (const name of Object.keys(TITLES)) {
     if (name === "orders" || name === "order_items" || name === "order_payment_terms") continue;
