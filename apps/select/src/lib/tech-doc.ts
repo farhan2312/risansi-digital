@@ -827,6 +827,16 @@ const canonicalText = (sheet: unknown) => JSON.stringify(canonical(JSON.parse(JS
 /** Is this sheet the same as one sent earlier? */
 export const sameTechDocSheet = (a: unknown, b: unknown): boolean => canonicalText(a) === canonicalText(b);
 
+/** A saved Technical Data Sheet against the sheet now. A sheet saved before the Client Name
+ *  box carried the city and country (2026-11-12) still counts as the same when only those
+ *  were added ("X" then "X, Chennai, India"). */
+export const sameSavedTechDocSheet = (saved: unknown, now: TechDocSheet): boolean => {
+  const was = (saved as TechDocSheet | null)?.header?.clientName;
+  if (typeof was === "string" && was && now.header.clientName.startsWith(`${was}, `))
+    return sameTechDocSheet(saved, { ...now, header: { ...now.header, clientName: was } });
+  return sameTechDocSheet(saved, now);
+};
+
 /** One send of a drive group's sheet to operation (tech_doc_version). */
 export interface TechDocVersion {
   id: string;

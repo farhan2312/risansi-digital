@@ -1091,6 +1091,12 @@ never auto-filled from the AI result.
   needs a PO. Model table shows Ref. PO No. / PO date columns when ticked; the document prints each row's PO
   (sparePoAuto(line)), editable per row (SpareDocEdits.lines[key].po; the old common edits.po is unused).
 
+## Client city and country on documents (user, 2026-11-12)
+- Market Intell clients has country (all), city (~89%), state, address (~46%), google_maps_url. lib/client-place.ts
+  docClientName(name, client_code) reads city + country (read only, deleted_at IS NULL) each time a document opens:
+  "Name, City, Country". Used by tech-doc-server, commercial-offer GET, spare-quote GET, saved-docs-server. No code /
+  MI down: name only. sameSavedTechDocSheet keeps a sheet saved before this from counting as changed.
+
 ## Regret status (user, 2026-11-07)
 - Regret is a hand-picked status (Edit Enquiry Technical / Commercial / spare Status), in ENQUIRY_STATUSES
   (lib/enquiry-filters.ts), so filters and PATCH accept it. Red pill (StatusPill, Enquiry Report .regret).

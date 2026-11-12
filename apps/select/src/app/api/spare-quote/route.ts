@@ -8,6 +8,7 @@ import { productPump, projects } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
 import { normalizeSpareDocEdits, normalizeSpareQuote, quoteTotal } from "@/lib/spare-quote";
 import { termsMarketOf } from "@/lib/spare-terms";
+import { docClientName } from "@/lib/client-place";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,7 @@ const load = (projectId: string) =>
     .select({
       code: projects.projectCode,
       name: projects.name,
+      clientCode: projects.clientCode,
       enquiryDate: projects.enquiryDate,
       orderType: projects.orderType,
       quote: projects.spareQuote,
@@ -65,7 +67,8 @@ export async function GET(req: Request) {
     docEdits: normalizeSpareDocEdits(p.docEdits),
     enquiryNo: p.code,
     enquiryDate: p.enquiryDate,
-    clientName: p.name,
+    // The document's Client Name box: with the city and country from sales.
+    clientName: await docClientName(p.name, p.clientCode),
   });
 }
 

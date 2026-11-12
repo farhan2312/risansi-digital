@@ -9,7 +9,7 @@ import {
   buildTechDoc,
   buildTechDocHtml,
   techDocGroupLabel,
-  sameTechDocSheet,
+  sameSavedTechDocSheet,
   techDocExtrasFor,
   techDocGroups,
   techDocSheet,
@@ -188,7 +188,7 @@ const EnquiryDocumentModal = ({
   const groupSends = (versions ?? []).filter((v) => v.group === group);
   const lastSent = groupSends[0] ?? null;
   // It can be saved again once the sheet has changed since the last save.
-  const editedSinceSent = Boolean(lastSent && doc && !sameTechDocSheet(lastSent.sheet, doc));
+  const editedSinceSent = Boolean(lastSent && doc && !sameSavedTechDocSheet(lastSent.sheet, doc));
   const sendToOperation = async () => {
     if (!group || sending) return;
     setSending(true);

@@ -5,7 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enquiryTags, projects, quotation, techDocVersion, users } from "@/lib/db/schema";
-import { sameTechDocSheet, techDocGroups, techDocSheet, type TechDocGroup, type TechDocSheet, type TechDocVersion } from "@/lib/tech-doc";
+import { sameSavedTechDocSheet, techDocGroups, techDocSheet, type TechDocGroup, type TechDocSheet, type TechDocVersion } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
 import { workDenied, viewDenied } from "@/lib/enquiry-access";
 import { REVIEW_CLEARED } from "@/lib/enquiry-filters-server";
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
         .where(here)
         .orderBy(desc(techDocVersion.version))
         .limit(1);
-      if (last && sameTechDocSheet(last.snapshot, sheet)) {
+      if (last && sameSavedTechDocSheet(last.snapshot, sheet)) {
         unchanged = true;
         return;
       }

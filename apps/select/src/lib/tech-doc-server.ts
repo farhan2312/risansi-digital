@@ -26,6 +26,7 @@ import { DRIVE_GROUPS, erpQuotationNumber, quotationNumber } from "@/lib/commerc
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { normalizeOfferConfigs, offerOutOfScope, offerScope, pickedOutOfScope, pickedScope } from "@/lib/commercial-offer";
 import { dotDate, normalizeTechDocConfigs, type TechDocData, type TechDocForm, type TechDocPump } from "@/lib/tech-doc";
+import { docClientName } from "@/lib/client-place";
 
 // Every wizard table a tag's data lives in. Their columns merge into one flat
 // object (the wizard's formData shape), which lib/tech-doc reads.
@@ -58,6 +59,7 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
       code: projects.projectCode,
       versionNo: projects.versionNo,
       name: projects.name,
+      clientCode: projects.clientCode,
       enquiryDate: projects.enquiryDate,
       config: projects.techDocConfig,
       offerConfig: projects.commercialOfferConfig,
@@ -131,7 +133,8 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
   const data: TechDocData = {
     projectCode: p.code,
     versionNo: p.versionNo,
-    clientName: p.name,
+    // With the city and country from sales.
+    clientName: await docClientName(p.name, p.clientCode),
     enquiry: [p.code, p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
     tags: tagRows.map((t) => {
       const form = forms.get(t.id) ?? {};

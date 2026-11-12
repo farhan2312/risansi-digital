@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { projects, quotation } from "@/lib/db/schema";
 import { dotDate } from "@/lib/tech-doc";
 import { workDenied, viewDenied } from "@/lib/enquiry-access";
+import { docClientName } from "@/lib/client-place";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export async function GET(req: Request) {
       .select({
         code: projects.projectCode,
         name: projects.name,
+        clientCode: projects.clientCode,
         enquiryDate: projects.enquiryDate,
         config: projects.commercialOfferConfig,
       })
@@ -37,7 +39,8 @@ export async function GET(req: Request) {
   const mixed = groups.length > 1;
   const data: CommercialOfferData = {
     projectCode: p.code,
-    clientName: p.name,
+    // With the city and country from sales.
+    clientName: await docClientName(p.name, p.clientCode),
     enquiry: [p.code, p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
     mixed,
     quotations: Object.fromEntries(quotes.map((q) => [q.driveGroup, `${quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`])),
