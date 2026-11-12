@@ -461,6 +461,17 @@ export function OrderMakingWorkspace({
             onChange={(next) => setParams({ sops: next, page: null })}
           />
         )}
+        {/* SO Sent to PPC: its date entered, or blank (No). */}
+        <SingleSelectFilter
+          label="Sent to PPC"
+          allLabel="Any"
+          options={[
+            { value: "yes", label: "Yes" },
+            { value: "no", label: "No" },
+          ]}
+          selected={filter.sentPpc}
+          onChange={(next) => setParams({ ppc: next, page: null })}
+        />
         <button
           type="button"
           onClick={() => setParams({ missing: missingOnly ? null : "1" })}

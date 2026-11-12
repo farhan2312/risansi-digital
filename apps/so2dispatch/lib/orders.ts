@@ -3907,6 +3907,9 @@ function orderListClauses(
   if (f.onHold) clauses.push(`${f.holdBy ? holdBySql(f.holdBy) : onHoldSql(f.dept)} AND ${orderOpenSql("o")}`);
   // Only Billing: sent to Billing alone.
   if (f.onlyBilling) clauses.push(`COALESCE(o.only_billing, '') = 'Yes'`);
+  // SO Sent to PPC: Yes once its date is entered; blank is No.
+  if (f.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
+  if (f.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
   // One SO field, filled or pending. Pending is blank where the field applies.
   if (f.field) {
     const def = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column);
@@ -4999,6 +5002,9 @@ export async function listOrdersForOrderMaking(opts: {
     if (ff.sentOps === "yes") clauses.push(`o.ec_sent_operation_date IS NOT NULL`);
     if (ff.sentOps === "no")
       clauses.push(`o.ec_sent_operation_date IS NULL AND COALESCE(o.bill_mode, '') <> ${lit(ONLY_BILLING)}`);
+    // SO Sent to PPC: Yes once its date is entered; blank is No.
+    if (ff.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
+    if (ff.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
     if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);

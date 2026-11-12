@@ -61,6 +61,8 @@ export type OrderMakingFilter = {
   soState: "pending" | "filled" | null;
   /** SO Sent to Operation: its date entered (yes) or not (no). */
   sentOps: "yes" | "no" | null;
+  /** SO Sent to PPC: its date entered (yes) or blank (no). */
+  sentPpc: "yes" | "no" | null;
   sort: OmSort | null;
 };
 
@@ -69,7 +71,7 @@ export const UNASSIGNED = "none";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Every parameter the filter owns — what "Clear all" empties. */
-export const OM_FILTER_KEYS = ["zone", "rep", "market", "type", "bmode", "btype", "socat", "datefield", "from", "to", "missing", "asg", "sos", "omhold", "sops"];
+export const OM_FILTER_KEYS = ["zone", "rep", "market", "type", "bmode", "btype", "socat", "datefield", "from", "to", "missing", "asg", "sos", "omhold", "sops", "ppc"];
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const list = (v: string | undefined) => [...new Set((v ?? "").split(",").map((x) => x.trim()).filter(Boolean))];
@@ -96,6 +98,7 @@ export function parseOrderMakingFilter(get: (key: string) => string | undefined)
     assignees: list(get("asg")).filter((v) => v === UNASSIGNED || UUID.test(v)),
     soState: get("sos") === "pending" || get("sos") === "filled" ? (get("sos") as "pending" | "filled") : null,
     sentOps: get("sops") === "yes" || get("sops") === "no" ? (get("sops") as "yes" | "no") : null,
+    sentPpc: get("ppc") === "yes" || get("ppc") === "no" ? (get("ppc") as "yes" | "no") : null,
     sort: SORTS.includes(sort as OmSort) ? (sort as OmSort) : null,
   };
 }
@@ -115,7 +118,8 @@ export function isOrderMakingFiltered(f: OrderMakingFilter): boolean {
     f.hold ||
     f.assignees.length ||
     f.soState ||
-    f.sentOps
+    f.sentOps ||
+    f.sentPpc
   );
 }
 
