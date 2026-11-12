@@ -9,9 +9,25 @@ import type { DeptKey } from "@/lib/dept-completion";
 import { deptInvolvedInOrder } from "@/lib/orders";
 import { logAudit } from "@/lib/audit";
 import { emitNotification } from "@/lib/notifications";
-import { freezeVersion, isVersionedType, VERSION_DEPT_ROLES } from "@/lib/order-versions";
+import { freezeVersion, getVersionsData, isVersionedType, VERSION_DEPT_ROLES, type VersionsData } from "@/lib/order-versions";
 
 export type NewVersionResult = { ok: true; version: number } | { ok: false; error: string };
+
+/** The SO's versions for the pop-up, at the version asked (the current one when null). */
+export async function loadOrderVersionsAction(
+  orderId: string,
+  version: number | null
+): Promise<{ ok: true; data: VersionsData } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  try {
+    const data = await getVersionsData(orderId, version === null ? null : Math.trunc(version), user);
+    return data ? { ok: true, data } : { ok: false, error: "This SO is not yours to see." };
+  } catch (error) {
+    console.error("loadOrderVersions failed:", error);
+    return { ok: false, error: "Could not load the versions." };
+  }
+}
 
 /**
  * Order Making PO, Central Visibility or Admin saves a Pump SO as it stands as a read-only version; the SO

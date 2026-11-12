@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Layers, Loader2, MessageSquare, Trash2 } from "lucide-react";
+import { History, Layers, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
@@ -11,10 +11,11 @@ import { OrderDetailsModal } from "./order-details-modal";
 import { SlipsPictures } from "./slip-pictures";
 import { FollowupCell } from "./order-followups";
 import { clearOrderPrefetch, loadOrderCore } from "./order-prefetch";
-import { billModeLabel } from "@/lib/order-schema";
+import { billModeLabel, PUMP_LIKE } from "@/lib/order-schema";
+import { VersionsModal } from "./versions-modal";
 import { OrderInHand, OrderValueDetails } from "./order-value-details";
 import { dispatchRowTone } from "@/lib/dept-view";
-import { canAddFollowup, canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
+import { canAddFollowup, canMakeVersions, canManageEcs, isCentral, isReadOnlyViewer } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -398,6 +399,8 @@ export function OrdersTable({
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [ecsFor, setEcsFor] = useState<OrderListRow | null>(null);
+  // The Pump SO whose versions are open in the pop-up.
+  const [versionsFor, setVersionsFor] = useState<OrderListRow | null>(null);
   const [addFor, setAddFor] = useState<OrderListRow | null>(null);
   // The one department pop-up open, and the one discussion.
   const [popup, setPopup] = useState<{ order: OrderListRow; what: PopupKind } | null>(null);
@@ -586,6 +589,20 @@ export function OrdersTable({
                       {/* The SO and its holds; Clear / Hold is changed from the badge. */}
                       <td className="sticky-so px-4 py-3 whitespace-nowrap align-top">
                         <div className="font-medium">{cell(order.so_no)}</div>
+                        {/* A Pump SO's version: its versions in a pop-up, New version in it. */}
+                        {PUMP_LIKE.includes(String(order.order_type ?? "")) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVersionsFor(order);
+                            }}
+                            title="Versions"
+                            className="mt-1 inline-flex w-fit items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                          >
+                            <History className="h-3 w-3" />v{Number(order.version_no ?? 0)}
+                          </button>
+                        )}
                         <span onClick={(e) => e.stopPropagation()}>
                           <ClearanceBadge order={order as unknown as Record<string, unknown>} readOnly={readOnly} />
                           {/* Held by Order Making: no department has it yet. */}
@@ -900,6 +917,14 @@ export function OrdersTable({
       </div>
 
       {ecsFor && <EcsPopup order={ecsFor} canManage={!readOnly && canManageEcs(role)} onClose={() => setEcsFor(null)} />}
+      {versionsFor && (
+        <VersionsModal
+          orderId={versionsFor.id}
+          soLabel={versionsFor.so_no ?? `#${versionsFor.sl_no}`}
+          canMake={!readOnly && canMakeVersions(role)}
+          onClose={() => setVersionsFor(null)}
+        />
+      )}
       {popup && (
         <OrderPopupHost
           orderId={popup.order.id}

@@ -5,6 +5,8 @@
  * edits anything.
  */
 import { Fragment } from "react";
+import Link from "next/link";
+import { History, Lock } from "lucide-react";
 import {
   CHILD_FIELDS,
   ORDER_SECTIONS,
@@ -14,7 +16,7 @@ import {
   type OrderField,
   type OrderSection,
 } from "@/lib/order-schema";
-import type { VersionSnapshot } from "@/lib/order-versions";
+import type { VersionSnapshot, VersionsData } from "@/lib/order-versions";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
@@ -281,6 +283,115 @@ export function OrderVersionView({ snap }: { snap: VersionSnapshot }) {
         })}
       </Block>
     </div>
+  );
+}
+
+const when = (v: string) =>
+  new Date(v).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
+
+/**
+ * An SO's versions: one to pick (a link on the page, a button in the pop-up),
+ * the picked one read-only — or the current one — and what changed in it.
+ */
+export function VersionsBody({
+  data,
+  hrefFor,
+  onPick,
+}: {
+  data: VersionsData;
+  hrefFor?: (n: number) => string;
+  onPick?: (n: number) => void;
+}) {
+  const { currentNo, picked, frozen, versions, snap, before } = data;
+  const changes = before ? diffVersions(before, snap) : [];
+  const madeBy = picked > 0 ? versions.find((x) => x.version_no === picked - 1) : undefined;
+  const pill = (n: number) =>
+    `inline-flex h-8 items-center gap-1 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+      n === picked ? "border-primary bg-primary text-primary-foreground" : "border-input-border text-foreground hover:bg-background"
+    }`;
+  return (
+    <>
+      <nav aria-label="Versions" className="mb-4 flex flex-wrap gap-1.5">
+        {Array.from({ length: currentNo + 1 }, (_, i) => i).map((n) => {
+          const inner = (
+            <>
+              {n < currentNo && <Lock className="h-3 w-3" />}v{n}
+              {n === currentNo && <span className="font-normal opacity-80">· current</span>}
+            </>
+          );
+          return hrefFor ? (
+            <Link key={n} href={hrefFor(n)} aria-current={n === picked ? "page" : undefined} className={pill(n)}>
+              {inner}
+            </Link>
+          ) : (
+            <button key={n} type="button" onClick={() => onPick?.(n)} aria-pressed={n === picked} className={pill(n)}>
+              {inner}
+            </button>
+          );
+        })}
+      </nav>
+
+      {frozen ? (
+        <div role="status" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <p className="font-semibold">Version {picked} · read-only</p>
+          <p className="mt-0.5 text-xs">
+            Saved {when(frozen.created_at)}
+            {frozen.created_by_name ? ` by ${frozen.created_by_name}` : ""}, when v{picked + 1} was made — {frozen.reason}
+          </p>
+          <p className="mt-0.5 text-xs opacity-80">The SO and every department&apos;s work as they stood then. The departments work on v{currentNo}.</p>
+        </div>
+      ) : (
+        <div role="status" className="mb-4 rounded-xl border border-card-border bg-surface px-4 py-3 text-sm text-foreground">
+          <p className="font-semibold">Version {currentNo} · current</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {currentNo === 0 ? "No earlier version yet." : "Where the departments work. The earlier versions are kept read-only."}
+          </p>
+        </div>
+      )}
+
+      {picked > 0 && (
+        <section className="mb-4 rounded-xl border border-card-border bg-surface p-4">
+          <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+            <History className="h-4 w-4 text-primary" />
+            What changed in v{picked}
+          </h2>
+          {madeBy && (
+            <p className="mb-3 text-xs text-muted">
+              Made {when(madeBy.created_at)}
+              {madeBy.created_by_name ? ` by ${madeBy.created_by_name}` : ""} — {madeBy.reason}
+            </p>
+          )}
+          {changes.length === 0 ? (
+            <p className="text-xs text-muted">Nothing changed from v{picked - 1} yet.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-card-border">
+              <table className="w-full text-xs">
+                <thead className="bg-background/60 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  <tr>
+                    <th className="px-2.5 py-1.5">Where</th>
+                    <th className="px-2.5 py-1.5">What</th>
+                    <th className="px-2.5 py-1.5">v{picked - 1}</th>
+                    <th className="px-2.5 py-1.5">v{picked}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-card-border">
+                  {changes.map((c, i) => (
+                    <tr key={i}>
+                      <td className="whitespace-nowrap px-2.5 py-1.5 text-muted">{c.where}</td>
+                      <td className="whitespace-nowrap px-2.5 py-1.5 font-medium text-foreground">{c.field}</td>
+                      <td className="whitespace-pre-wrap px-2.5 py-1.5 text-muted line-through decoration-rose-400/60">{c.from}</td>
+                      <td className="whitespace-pre-wrap px-2.5 py-1.5 font-medium text-foreground">{c.to}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      <OrderVersionView snap={snap} />
+    </>
   );
 }
 

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { History, Loader2, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { createOrderVersionAction } from "@/app/risansi/orders/version-actions";
 
 /**
@@ -16,11 +15,14 @@ export function NewVersionDialog({
   soLabel,
   versionNo,
   onClose,
+  onDone,
 }: {
   orderId: string;
   soLabel: string;
   versionNo: number;
   onClose: () => void;
+  /** After the new version is made (the pop-up reloads). */
+  onDone?: () => void;
 }) {
   const router = useRouter();
   const [reason, setReason] = useState("");
@@ -49,6 +51,7 @@ export function NewVersionDialog({
       return;
     }
     router.refresh();
+    onDone?.();
     onClose();
   }
 
@@ -97,12 +100,6 @@ export function NewVersionDialog({
             className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
           />
         </label>
-        {now > 0 && (
-          <Link href={`/risansi/orders/${orderId}/versions`} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-            <History className="h-3.5 w-3.5" />
-            See the earlier versions
-          </Link>
-        )}
         {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button

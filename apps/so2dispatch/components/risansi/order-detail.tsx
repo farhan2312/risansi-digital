@@ -17,6 +17,7 @@ import { deleteItemAction } from "@/app/risansi/orders/actions";
 import { OrderStatusPanel } from "./order-status-panel";
 import { canMakeVersions, canManageEcs, canSeeClient } from "@/lib/roles";
 import { NewVersionDialog } from "./new-version-dialog";
+import { VersionsModal } from "./versions-modal";
 import type { ItemDetail, OrderDetail as OrderDetailData, SoDeptStatus } from "@/lib/orders";
 import { EcDeptGrid } from "./ec-dept-grid";
 import { AddOnForm } from "./add-on-form";
@@ -71,6 +72,8 @@ export function OrderDetail({
   const soLabel = str(order.so_no) || `#${str(order.sl_no) || "—"}`;
   // The New version pop-up (Pump SOs; Order Making PO, Central, Admin).
   const [versioning, setVersioning] = useState(false);
+  // The SO's versions, in a pop-up.
+  const [versionsOpen, setVersionsOpen] = useState(false);
 
   const items = (detail.items ?? []) as Row[];
 
@@ -218,13 +221,14 @@ export function OrderDetail({
           </span>
           {/* A Pump SO's version, opening its history (each earlier one read-only). */}
           {PUMP_LIKE.includes(str(order.order_type)) && Number(order.version_no ?? 0) > 0 && (
-            <Link
-              href={`/risansi/orders/${orderId}/versions`}
+            <button
+              type="button"
+              onClick={() => setVersionsOpen(true)}
               title="See the SO's versions"
               className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/20"
             >
               <History className="h-3.5 w-3.5" />v{Number(order.version_no)}
-            </Link>
+            </button>
           )}
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground">
             {(canSeeClient(role) && str(order.client_name)) || "Order"}
@@ -248,13 +252,17 @@ export function OrderDetail({
           <NewVersionDialog orderId={orderId} soLabel={soLabel} versionNo={Number(order.version_no ?? 0) || 0} onClose={() => setVersioning(false)} />
         )}
         {PUMP_LIKE.includes(str(order.order_type)) && (
-          <Link
-            href={`/risansi/orders/${orderId}/versions`}
+          <button
+            type="button"
+            onClick={() => setVersionsOpen(true)}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-background"
           >
             <History className="h-3.5 w-3.5" />
             Versions
-          </Link>
+          </button>
+        )}
+        {versionsOpen && (
+          <VersionsModal orderId={orderId} soLabel={soLabel} canMake={canMakeVersions(role)} onClose={() => setVersionsOpen(false)} />
         )}
         {role !== "planning" && (
         <Link

@@ -3,6 +3,8 @@ import "server-only";
 import type { PoolClient } from "pg";
 import { query } from "@/lib/db";
 import { PUMP_LIKE } from "@/lib/order-schema";
+import { isOrderMakingAny } from "@/lib/roles";
+import { roleSeesOrder } from "@/lib/dept-view";
 
 type Row = Record<string, unknown>;
 
@@ -152,6 +154,63 @@ export async function freezeVersion(
   );
   await client.query(`UPDATE orders SET version_no = version_no + 1, updated_at = now() WHERE id = $1`, [input.orderId]);
   return { frozen, current: frozen + 1 };
+}
+
+/** What a versions view shows: the version picked, the one before it, and the list. */
+export type VersionsData = {
+  orderId: string;
+  soLabel: string;
+  client: string;
+  orderType: string;
+  currentNo: number;
+  picked: number;
+  versions: OrderVersion[];
+  snap: VersionSnapshot;
+  /** The version before the one picked, to say what changed in it. */
+  before: VersionSnapshot | null;
+  /** The version picked, when it is a frozen one. */
+  frozen: OrderVersion | null;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * An SO's versions as the viewer may see them — Order Making's, and everyone
+ * else's as they see the SO — at the version asked (the current one when not
+ * asked). Null when there is no such SO or it is not theirs to see.
+ */
+export async function getVersionsData(
+  orderId: string,
+  asked: number | null,
+  viewer: { role: string; rep_names?: readonly string[] | null }
+): Promise<VersionsData | null> {
+  if (!UUID_RE.test(orderId)) return null;
+  const [current, versions] = await Promise.all([readSnapshot(orderId), listOrderVersions(orderId)]);
+  if (!current) return null;
+  const seen =
+    isOrderMakingAny(viewer.role) ||
+    roleSeesOrder(viewer.role, { ...current.order, ec_types: current.items.map((i) => i.item_type) }, viewer.rep_names);
+  if (!seen) return null;
+  // An SO starts at v0.
+  const currentNo = Number(current.order.version_no ?? 0) || 0;
+  const picked = Math.min(Math.max(asked ?? currentNo, 0), currentNo);
+  const [frozenRow, beforeRow] = await Promise.all([
+    picked < currentNo ? getOrderVersion(orderId, picked) : null,
+    picked > 0 ? getOrderVersion(orderId, picked - 1) : null,
+  ]);
+  const { snapshot: frozenSnap, ...frozen } = frozenRow ?? { snapshot: null };
+  return {
+    orderId,
+    soLabel: String(current.order.so_no ?? `#${current.order.sl_no}`),
+    client: String(current.order.client_name ?? ""),
+    orderType: String(current.order.order_type ?? ""),
+    currentNo,
+    picked,
+    versions,
+    snap: frozenSnap ?? current,
+    before: beforeRow?.snapshot ?? null,
+    frozen: frozenRow ? (frozen as OrderVersion) : null,
+  };
 }
 
 /** The departments a version change is told to, by the role that reads it. */

@@ -7,8 +7,8 @@ import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Ban, CheckCircle2, CopyPlus, Download, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
-import Link from "next/link";
 import { NewVersionDialog } from "./new-version-dialog";
+import { VersionsModal } from "./versions-modal";
 import { OrderThreadModal } from "./order-thread-modal";
 import { OmHoldBadge } from "./om-hold";
 import { HoldBadge } from "./hold-badge";
@@ -225,6 +225,8 @@ export function OrderMakingWorkspace({
   // The Pump SO a new version is being made of (its reason asked first): Order Making PO, Central, Admin.
   const [versioning, setVersioning] = useState<OrderMakingRow | null>(null);
   const makesVersions = canMakeVersions(role);
+  // The SO whose versions are open in the pop-up.
+  const [versionsFor, setVersionsFor] = useState<OrderMakingRow | null>(null);
   // The assigned SO whose Reassign is open.
   const [reassigning, setReassigning] = useState<string | null>(null);
   async function assign(row: OrderMakingRow, assigneeId: string) {
@@ -594,13 +596,14 @@ export function OrderMakingWorkspace({
                           <>
                             {/* A Pump SO past its first version: which it is, and its history. */}
                             {Number(row.version_no ?? 0) > 0 && (
-                              <Link
-                                href={`/risansi/orders/${row.id}/versions`}
+                              <button
+                                type="button"
+                                onClick={() => setVersionsFor(row)}
                                 title="See the SO's versions"
                                 className="mt-1 flex w-fit items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/20"
                               >
                                 <History className="h-3 w-3" />v{Number(row.version_no)}
-                              </Link>
+                              </button>
                             )}
                             <HoldBadge order={row} />
                             {isOnlyBilling(row) && <OnlyBillingBadge order={row} />}
@@ -830,6 +833,14 @@ export function OrderMakingWorkspace({
           </table>
         </div>
         {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
+        {versionsFor && (
+          <VersionsModal
+            orderId={versionsFor.id}
+            soLabel={str(versionsFor.so_no) || `#${versionsFor.sl_no}`}
+            canMake={makesVersions}
+            onClose={() => setVersionsFor(null)}
+          />
+        )}
         {versioning && (
           <NewVersionDialog
             orderId={versioning.id}
