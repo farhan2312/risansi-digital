@@ -3,11 +3,15 @@ import type { JWTPayload } from "jose";
 
 import { SHARED_COOKIE, sharedSessionPayload } from "@/lib/effective-role";
 import { sessionVerdict } from "@/lib/session-guard";
-import { OPERATION_PAGES, REP_PAGES, hasClientOperationDocs, isOperationRole, isRepRole } from "@/lib/roles";
+import { CRM_PAGES, OPERATION_PAGES, REP_PAGES, hasClientOperationDocs, isCrmRole, isOperationRole, isRepRole, isViewOnlyRole } from "@/lib/roles";
 
 /** APIs a Rep / Rep Manager has no business with (outside their read-only
  *  Dashboard / Enquiries / Pump Selection / Reports): the client price pages. */
 const REP_BLOCKED_API = ["/api/client-quotes", "/api/client-price-refs"];
+
+/** Master lists any signed-in user can add to (from the wizard and the quotations):
+ *  the view-only roles (reps, CRM) only read them. */
+const VIEW_ONLY_NO_WRITE_API = ["/api/product-pumps", "/api/media-list", "/api/flange-standards", "/api/pump-code-options", "/api/settings"];
 
 /** All Operation can call: their documents, their session, and the top bar's bug
  *  report and bell. Everything else is closed, so a new route stays closed to them. */
@@ -135,8 +139,15 @@ async function guardApi(req: NextRequest, pathname: string) {
     return apiError("Your session has ended. Please sign in again.", 401);
   }
 
-  if (isRepRole(payload.role as string | undefined) && REP_BLOCKED_API.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (isViewOnlyRole(payload.role as string | undefined) && REP_BLOCKED_API.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return apiError("Not available for your role.", 403);
+  }
+  if (
+    isViewOnlyRole(payload.role as string | undefined) &&
+    req.method !== "GET" &&
+    VIEW_ONLY_NO_WRITE_API.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
+    return apiError("Your role can view only.", 403);
   }
 
   if (isOperationRole(payload.role as string | undefined) && !OPERATION_API.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
@@ -214,6 +225,13 @@ export async function middleware(req: NextRequest) {
   if (isRepRole(role as string | undefined)) {
     const allowed = REP_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
     return allowed ? NextResponse.next() : NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+  // CRM: read-only Dashboard, Enquiries, Pump Selection and Client Operation Docs
+  // (CRM_PAGES); Reports goes to the docs, everything else to the dashboard.
+  if (isCrmRole(role as string | undefined)) {
+    if (CRM_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
+    const reports = pathname === "/selection-summary" || pathname.startsWith("/selection-summary/");
+    return NextResponse.redirect(new URL(reports ? "/client-operation-docs" : "/dashboard", req.url));
   }
   // Operation: Pump Docs and Spare Docs only; everything else goes to Pump Docs.
   const onOperationPage = OPERATION_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

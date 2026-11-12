@@ -18,6 +18,10 @@
 // operation (user, 2026-11-05; migrations/identity/0014) has two pages only,
 // Pump Docs and Spare Docs: the saved documents of the enquiries reviewed and
 // sent to operation, read-only. middleware.ts closes every other page and API.
+//
+// crm (user, 2026-11-12; migrations/identity/0015) is read-only like a rep, but
+// for EVERY enquiry (no rep scope): Dashboard, Enquiries, Pump Selection and
+// Client Operation Docs only (CRM_PAGES).
 
 export type AppRole =
   | "user_master"
@@ -26,6 +30,7 @@ export type AppRole =
   | "rep"
   | "rep_manager"
   | "operation"
+  | "crm"
   | "selection_head"
   | "pulley_owner"
   | "admin"
@@ -41,6 +46,7 @@ export const ROLE_LABELS: Record<string, string> = {
   rep: "Rep",
   rep_manager: "Rep Manager",
   operation: "Operation",
+  crm: "CRM",
   user: "User",
 };
 
@@ -76,13 +82,20 @@ export const isRepRole = (role: string | null | undefined): boolean => (REP_ROLE
 /** The only pages a rep can open. */
 export const REP_PAGES = ["/dashboard", "/projects", "/pump-selection", "/selection-summary", "/my-bug-reports"] as const;
 
+/** CRM: view only, every enquiry (no rep scope). */
+export const isCrmRole = (role: string | null | undefined): boolean => role === "crm";
+/** The only pages CRM can open (Client Operation Docs in Reports' place). */
+export const CRM_PAGES = ["/dashboard", "/projects", "/pump-selection", "/client-operation-docs", "/my-bug-reports"] as const;
+/** View only everywhere: the reps and CRM (nothing to work on, nothing to copy). */
+export const isViewOnlyRole = (role: string | null | undefined): boolean => isRepRole(role) || isCrmRole(role);
+
 /** Operation's only pages. */
 export const OPERATION_PAGES = ["/pump-docs", "/spare-docs"] as const;
 export const isOperationRole = (role: string | null | undefined): boolean => role === "operation";
 
 /** Client Operation Docs replaces Reports for these (a leftover "user" reads as a worker).
  *  Reps, selection heads and pulley owners keep Reports. */
-export const CLIENT_OPERATION_DOCS_ROLES = ["system_admin", "admin", "user_master", "user_worker", "user"] as const;
+export const CLIENT_OPERATION_DOCS_ROLES = ["system_admin", "admin", "user_master", "user_worker", "user", "crm"] as const;
 export const hasClientOperationDocs = (role: string | null | undefined): boolean => (CLIENT_OPERATION_DOCS_ROLES as readonly string[]).includes(role ?? "");
 /** Who may read the documents sent to operation. */
 export const canSeeOperationDocs = (role: string | null | undefined): boolean => isOperationRole(role) || hasClientOperationDocs(role);

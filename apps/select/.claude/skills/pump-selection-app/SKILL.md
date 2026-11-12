@@ -940,6 +940,17 @@ never auto-filled from the AI result.
   scope toggle; no copy/create/edit; tag "View" opens the wizard view-only
   (fieldset disabled, saveStep off, "View only" bar with step picker).
 
+## CRM (read-only, user 2026-11-12)
+- Role `crm` (migrations/identity/0015, applied 2026-11-12 to the IDENTITY DB - identity.* is
+  not in Pump_Selector_and_testing; grant at the hub). View only, EVERY enquiry (no rep
+  scope): Dashboard, Enquiries, Pump Selection, Client Operation Docs (`CRM_PAGES`; middleware
+  sends /selection-summary to the docs, anything else to /dashboard; nav via `mainLinksFor`).
+- `isViewOnlyRole` = reps + CRM: UI read-only (wizard view mode, no review/copy, no commercial
+  versions, scope not defaulted to "Assigned to me"), REP_BLOCKED_API, and non-GET on the
+  open master lists (VIEW_ONLY_NO_WRITE_API: product-pumps, media-list, flange-standards,
+  pump-code-options, settings) refused. Enquiry writes are already refused by workDenied
+  (never assigned). `isRepRole` stays for the rep scope and RepPicker only.
+
 ## Enquiry statuses (user, 2026-11-03)
 - Two per enquiry, each automatic but editable (SQL rules in
   lib/enquiry-filters-server.ts, used everywhere). Technical: Completed when all

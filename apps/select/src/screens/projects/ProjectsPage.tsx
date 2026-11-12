@@ -18,7 +18,7 @@ import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import EnquiryReportPanel from "../../components/projects/EnquiryReportPanel";
 import { hasEnquiryFilters, type EnquiryFilters, type EnquirySort, type EnquirySortKey } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, isViewOnlyRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmModal from "../../components/ui/ConfirmModal";
@@ -75,6 +75,8 @@ const ProjectsPage = () => {
   // Rep / Rep Manager: read-only, their own enquiries only (the API scopes the
   // list); a manager can narrow it to one rep.
   const isRep = isRepRole(user?.role);
+  // Reps and CRM: view only (no review, copy or commercial versions; tags open as View).
+  const viewOnly = isViewOnlyRole(user?.role);
   const [rep, setRep] = useState("");
   const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
   // The clearance pop-up: Clear or Hold, and its history.
@@ -198,7 +200,7 @@ const ProjectsPage = () => {
     if (!user && userLoading) return;
     scopeDefaulted.current = true;
     // (A rep's list is already just their own; "Assigned to me" means nothing to them.)
-    if (user && !worksOnAnyEnquiry(user.role) && !isRepRole(user.role)) {
+    if (user && !worksOnAnyEnquiry(user.role) && !isViewOnlyRole(user.role)) {
       setScope("mine");
       setPage(1);
     }
@@ -1088,7 +1090,7 @@ const ProjectsPage = () => {
                         <RupeeIcon />
                         <span className="hidden 2xl:inline">{isSpare ? "Quotation" : "Commercial"}</span>
                       </button>
-                      {!isRep && (
+                      {!viewOnly && (
                       <button
                         type="button"
                         className={btn}
@@ -1107,7 +1109,7 @@ const ProjectsPage = () => {
                         <span className="hidden 2xl:inline">Review</span>
                       </button>
                       )}
-                      {!isRep && isSpare && (
+                      {!viewOnly && isSpare && (
                       <button
                         type="button"
                         className={btn}
@@ -1123,7 +1125,7 @@ const ProjectsPage = () => {
                         <span className="hidden 2xl:inline">Copy</span>
                       </button>
                       )}
-                      {!isRep && !isSpare && (
+                      {!viewOnly && !isSpare && (
                       <button
                         type="button"
                         className={btn}
@@ -1258,7 +1260,7 @@ const ProjectsPage = () => {
                                         <OpenIcon /> Open
                                       </button>
                                     )}
-                                    {isRep && (
+                                    {viewOnly && (
                                       <button
                                         type="button"
                                         className={btnPrimary}
@@ -1268,7 +1270,7 @@ const ProjectsPage = () => {
                                         <OpenIcon /> View
                                       </button>
                                     )}
-                                    {!isRep && (
+                                    {!viewOnly && (
                                     <button
                                       type="button"
                                       className={btn}
@@ -1449,7 +1451,7 @@ const ProjectsPage = () => {
       {versionsFor && (
         <EnquiryVersionsModal
           project={versionsFor}
-          showCommercial={!isRep}
+          showCommercial={!viewOnly}
           onClose={() => setVersionsFor(null)}
           onOpenTag={openProject}
           onOpenTechnical={(v) => {
