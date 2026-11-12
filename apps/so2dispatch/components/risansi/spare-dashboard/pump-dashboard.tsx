@@ -128,7 +128,8 @@ function DeptProgress({ depts, total }: { depts: DeptRow[]; total: number }) {
 
 export function PumpDashboardView({ data }: { data: PumpDashboard }) {
   const m = data.metrics;
-  const stages: Datum[] = data.stages.map((s) => ({ ...s, color: STAGE_COLOR[s.label as PumpStage] }));
+  // The pipeline leaves the On hold bar out (the On hold card and list show the holds).
+  const stages: Datum[] = data.stages.filter((s) => s.label !== "On hold").map((s) => ({ ...s, color: STAGE_COLOR[s.label as PumpStage] }));
   // Each GAD stage keeps its colour, whichever stages are present.
   const GAD_COLORS: Record<string, string> = {
     Pending: "var(--viz-yellow)",
