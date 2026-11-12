@@ -6,6 +6,7 @@
 // read one definition.
 
 import { BILL_TYPE_OPTIONS } from "@/lib/order-schema";
+import { HOLD_BY, type HoldBy } from "@/lib/dept-status";
 import {
   BILL_MODE_FILTER_OPTIONS,
   NOT_SET,
@@ -52,8 +53,8 @@ export type OrderMakingFilter = {
   from: string | null;
   to: string | null;
   missingOnly: boolean;
-  /** On hold: by Order Making itself ("om"), or by anyone ("all"). */
-  hold: "om" | "all" | null;
+  /** On hold: by Order Making itself ("om"), by Central Visibility, Accounts or Dispatch, or by anyone ("all"). */
+  hold: "om" | "all" | HoldBy | null;
   /** Whose SOs: Order Making SO member ids, and/or UNASSIGNED. */
   assignees: string[];
   /** The Sales Order details: still pending, or filled. */
@@ -91,7 +92,7 @@ export function parseOrderMakingFilter(get: (key: string) => string | undefined)
     from,
     to,
     missingOnly: get("missing") === "1",
-    hold: get("omhold") === "om" || get("omhold") === "all" ? (get("omhold") as "om" | "all") : null,
+    hold: ["om", "all", ...HOLD_BY].includes(get("omhold") ?? "") ? (get("omhold") as "om" | "all" | HoldBy) : null,
     assignees: list(get("asg")).filter((v) => v === UNASSIGNED || UUID.test(v)),
     soState: get("sos") === "pending" || get("sos") === "filled" ? (get("sos") as "pending" | "filled") : null,
     sentOps: get("sops") === "yes" || get("sops") === "no" ? (get("sops") as "yes" | "no") : null,

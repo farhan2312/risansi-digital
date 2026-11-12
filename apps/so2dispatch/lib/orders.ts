@@ -42,6 +42,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
   HOLD_BY,
   HOLD_BY_LABEL,
   holdBySql,
+  type HoldBy,
 } from "@/lib/dept-status";
 import { BILL_MODE_FILTER_OPTIONS, FIELD_FILTER_FIELDS, NOT_SET, ORDER_STATUS_OPTIONS, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
 import { sharedFacets, UNASSIGNED, type OrderMakingFilter } from "@/lib/order-making-filter";
@@ -4990,6 +4991,7 @@ export async function listOrdersForOrderMaking(opts: {
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
     if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);
+    if (ff.hold && (HOLD_BY as readonly string[]).includes(ff.hold)) clauses.push(`${holdBySql(ff.hold as HoldBy)} AND ${orderOpenSql("o")}`);
     if (ff.billTypes.length) {
       const types = ff.billTypes.filter((t) => t !== NOT_SET);
       const any: string[] = [];
@@ -5061,13 +5063,16 @@ export async function listOrdersForOrderMaking(opts: {
           params: { sos: null, asg: null, missing: null, omhold: "om" },
           tone: "danger",
         },
-        {
-          key: "hold",
-          label: "SO hold",
-          sql: `${onHoldSql("order_making")} AND ${orderOpenSql("o")}`,
-          params: { sos: null, asg: null, missing: null, omhold: "all" },
-          tone: "danger",
-        },
+        // …and each other kind, as the departments show them (no card for every hold together).
+        ...HOLD_BY.map(
+          (by): KpiCardDef => ({
+            key: `hold:${by}`,
+            label: HOLD_BY_LABEL[by],
+            sql: `${holdBySql(by)} AND ${orderOpenSql("o")}`,
+            params: { sos: null, asg: null, missing: null, omhold: by },
+            tone: "danger",
+          })
+        ),
       ]
     : undefined;
   const dir = f.sort?.startsWith("-") ? "DESC" : "ASC";
