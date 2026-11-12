@@ -91,7 +91,7 @@ export type PumpDashboard = {
   gad: Bucket[];
   /** Bought-out items on all SOs but the cancelled and diverted, received or not. */
   boi: { received: number; pending: number };
-  /** Pump ECs fully assembled, on all SOs but the cancelled and diverted needing Quality: their documents in, or not. */
+  /** Pump ECs assembled (some or all), on all SOs but the cancelled and diverted needing Quality: their documents in, or not. */
   qc: { submitted: number; pending: number };
   metrics: {
     sos: number;
@@ -222,14 +222,14 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     no_slip: boolean;
     ecs: number;
     pumps: number;
-    /** Quality Required: its pump ECs fully assembled, and of those, the ones with their documents in. */
+    /** Quality Required: its pump ECs assembled (some or all), and of those, the ones with their documents in. */
     qc_asm: number;
     qc_asm_sub: number;
   };
   const facts = new Map<string, Facts>();
-  // A pump EC fully assembled: its lots' assembly entries add up to its quantity (as Assembly & Packing reads it).
-  const assembled = (s: string) => `(SELECT COALESCE(sum(la.qty), 0) FROM order_lot_assembly la
-                                     WHERE la.item_id = ${s}.id AND la.assembled_date IS NOT NULL) >= COALESCE(NULLIF(${s}.quantity, 0), 1)`;
+  // A pump EC reaches Quality once some of it is assembled — as Quality's page reads it (lib/ec-assembly).
+  const assembled = (s: string) => `EXISTS (SELECT 1 FROM order_lot_assembly la
+                                     WHERE la.item_id = ${s}.id AND la.assembled_date IS NOT NULL AND COALESCE(la.qty, 0) > 0)`;
   const qcEcs = (more: string) => `CASE WHEN o.qc_required = 'Yes' THEN (SELECT count(*)::int FROM order_items s
                      WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB') AND ${assembled("s")}${more}) ELSE 0 END`;
   if (ids.length) {
@@ -407,7 +407,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
       boi.received += sum.purchase.received;
       boi.pending += sum.purchase.items - sum.purchase.received;
     }
-    // Quality: only the pump ECs assembled — their documents are what is due.
+    // Quality: only the pump ECs assembled (some or all) — the ECs on Quality's page.
     const f = facts.get(s.id);
     if (sum.quality.required && f) {
       qc.submitted += Number(f.qc_asm_sub) || 0;
