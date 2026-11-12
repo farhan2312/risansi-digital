@@ -71,11 +71,12 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
       rilRep: rilRep(p, reps),
       client: p.name ?? "",
       type: p.client_market_type?.trim() ?? "",
+      // With the version, as on the Enquiries list (user, 2026-11-12): Technical V1 / Commercial V0.
       statuses: spare
-        ? [{ label: null, value: p.status ?? "Pending" }]
+        ? [{ label: `V${p.commercial_version_no ?? 0}`, value: p.status ?? "Pending" }]
         : [
-            { label: "Technical", value: p.status ?? "Pending" },
-            { label: "Commercial", value: p.commercial_status ?? "Pending" },
+            { label: `Technical V${p.version_no ?? 0}`, value: p.status ?? "Pending" },
+            { label: `Commercial V${p.commercial_version_no ?? 0}`, value: p.commercial_status ?? "Pending" },
           ],
       date: dotDate(p.enquiry_date),
       sortDate: p.enquiry_date ?? "",
