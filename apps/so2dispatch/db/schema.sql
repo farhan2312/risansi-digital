@@ -3256,3 +3256,12 @@ CREATE TABLE IF NOT EXISTS order_versions (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (order_id, version_no)
 );
+
+-- 0055  SO versions start at v0: a new SO is v0, its first new version v1; SOs with no version yet move to 0.
+-- Same as migrations/so2dispatch/0037. Idempotent.
+ALTER TABLE orders ALTER COLUMN version_no SET DEFAULT 0;
+
+UPDATE orders o
+   SET version_no = 0
+ WHERE o.version_no = 1
+   AND NOT EXISTS (SELECT 1 FROM order_versions v WHERE v.order_id = o.id);

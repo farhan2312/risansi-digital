@@ -41,14 +41,16 @@ export default async function OrderVersionsPage({
   const om = isOrderMakingAny(user.role);
   if (!om && !roleSeesOrder(user.role, { ...current.order, ec_types: current.items.map((i) => i.item_type) }, user.rep_names)) notFound();
 
-  const currentNo = Number(current.order.version_no ?? 1) || 1;
-  const picked = Math.min(Math.max(Number(v) || currentNo, 1), currentNo);
+  // An SO starts at v0.
+  const currentNo = Number(current.order.version_no ?? 0) || 0;
+  const asked = v !== undefined && v.trim() !== "" && Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : currentNo;
+  const picked = Math.min(Math.max(asked, 0), currentNo);
   const frozen = picked < currentNo ? await getOrderVersion(id, picked) : null;
   const snap = frozen?.snapshot ?? current;
   // What changed in this version: against the one before it.
-  const before = picked > 1 ? (await getOrderVersion(id, picked - 1))?.snapshot ?? null : null;
+  const before = picked > 0 ? (await getOrderVersion(id, picked - 1))?.snapshot ?? null : null;
   const changes = before ? diffVersions(before, snap) : [];
-  const madeBy = picked > 1 ? versions.find((x) => x.version_no === picked - 1) : undefined;
+  const madeBy = picked > 0 ? versions.find((x) => x.version_no === picked - 1) : undefined;
 
   const soLabel = String(current.order.so_no ?? `#${current.order.sl_no}`);
   const back = om ? "/risansi/departments/order-making" : `/risansi/orders/${id}`;
@@ -69,7 +71,7 @@ export default async function OrderVersionsPage({
       </div>
 
       <nav aria-label="Versions" className="mb-4 flex flex-wrap gap-1.5">
-        {Array.from({ length: currentNo }, (_, i) => i + 1).map((n) => (
+        {Array.from({ length: currentNo + 1 }, (_, i) => i).map((n) => (
           <Link
             key={n}
             href={`/risansi/orders/${id}/versions?v=${n}`}
@@ -99,14 +101,14 @@ export default async function OrderVersionsPage({
         <div role="status" className="mb-4 rounded-xl border border-card-border bg-surface px-4 py-3 text-sm text-foreground">
           <p className="font-semibold">Version {currentNo} · current</p>
           <p className="mt-0.5 text-xs text-muted">
-            {currentNo === 1
+            {currentNo === 0
               ? "No earlier version yet. Order Making PO makes a new version from the Order Making page."
               : "Where the departments work. The earlier versions are kept read-only above."}
           </p>
         </div>
       )}
 
-      {picked > 1 && (
+      {picked > 0 && (
         <section className="mb-4 rounded-xl border border-card-border bg-surface p-4">
           <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-foreground">
             <History className="h-4 w-4 text-primary" />

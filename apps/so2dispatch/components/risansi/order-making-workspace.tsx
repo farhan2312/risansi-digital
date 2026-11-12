@@ -593,7 +593,7 @@ export function OrderMakingWorkspace({
                         {c.column === "so_no" && (
                           <>
                             {/* A Pump SO past its first version: which it is, and its history. */}
-                            {Number(row.version_no ?? 1) > 1 && (
+                            {Number(row.version_no ?? 0) > 0 && (
                               <Link
                                 href={`/risansi/orders/${row.id}/versions`}
                                 title="See the SO's versions"
@@ -834,7 +834,7 @@ export function OrderMakingWorkspace({
           <NewVersionDialog
             orderId={versioning.id}
             soLabel={str(versioning.so_no) || `#${versioning.sl_no}`}
-            versionNo={Number(versioning.version_no ?? 1) || 1}
+            versionNo={Number(versioning.version_no ?? 0) || 0}
             onClose={() => setVersioning(null)}
           />
         )}

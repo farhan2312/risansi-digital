@@ -217,7 +217,7 @@ export function OrderDetail({
             SO · {soLabel}
           </span>
           {/* A Pump SO's version, opening its history (each earlier one read-only). */}
-          {PUMP_LIKE.includes(str(order.order_type)) && Number(order.version_no ?? 1) > 1 && (
+          {PUMP_LIKE.includes(str(order.order_type)) && Number(order.version_no ?? 0) > 0 && (
             <Link
               href={`/risansi/orders/${orderId}/versions`}
               title="See the SO's versions"
@@ -245,7 +245,7 @@ export function OrderDetail({
           </button>
         )}
         {versioning && (
-          <NewVersionDialog orderId={orderId} soLabel={soLabel} versionNo={Number(order.version_no ?? 1) || 1} onClose={() => setVersioning(false)} />
+          <NewVersionDialog orderId={orderId} soLabel={soLabel} versionNo={Number(order.version_no ?? 0) || 0} onClose={() => setVersioning(false)} />
         )}
         {PUMP_LIKE.includes(str(order.order_type)) && (
           <Link

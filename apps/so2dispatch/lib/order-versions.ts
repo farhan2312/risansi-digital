@@ -140,8 +140,9 @@ export async function freezeVersion(
   input: { orderId: string; reason: string; userId: string; userName: string }
 ): Promise<{ frozen: number; current: number }> {
   const lock = await client.query<{ version_no: number }>(`SELECT version_no FROM orders WHERE id = $1 FOR UPDATE`, [input.orderId]);
-  const frozen = lock.rows[0]?.version_no;
-  if (!frozen) throw new Error("Order not found.");
+  if (lock.rows.length === 0) throw new Error("Order not found.");
+  // An SO starts at v0.
+  const frozen = Number(lock.rows[0].version_no) || 0;
   const snap = await readSnapshot(input.orderId, client);
   if (!snap) throw new Error("Order not found.");
   await client.query(

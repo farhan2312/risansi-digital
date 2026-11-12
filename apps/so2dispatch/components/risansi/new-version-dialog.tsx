@@ -26,7 +26,7 @@ export function NewVersionDialog({
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const now = versionNo || 1;
+  const now = versionNo || 0;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
@@ -97,7 +97,7 @@ export function NewVersionDialog({
             className="w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
           />
         </label>
-        {now > 1 && (
+        {now > 0 && (
           <Link href={`/risansi/orders/${orderId}/versions`} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
             <History className="h-3.5 w-3.5" />
             See the earlier versions

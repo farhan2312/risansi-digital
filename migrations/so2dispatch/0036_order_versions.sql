@@ -2,7 +2,7 @@
 -- read-only version — the SO, its ECs and payment terms, and every
 -- department's data on it — and the SO goes on as the next version, where the
 -- departments keep working. orders.version_no is the SO's current version;
--- order_versions holds the frozen ones (1 .. version_no - 1). Same statements
+-- order_versions holds the frozen ones (0 .. version_no - 1). Same statements
 -- in apps/so2dispatch/db/schema.sql. Idempotent and additive.
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS version_no INT NOT NULL DEFAULT 1;
