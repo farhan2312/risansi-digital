@@ -169,7 +169,7 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
         />
         <Metric icon={<AlertTriangle className="h-5 w-5" />} label="Late vs delivery date" value={String(m.late)} sub="dispatched late, or past it and not out" tone={m.late ? "bad" : "good"} />
         <Metric icon={<CalendarClock className="h-5 w-5" />} label="Due in 7 days" value={String(m.dueThisWeek)} sub="delivery date this week" tone={m.dueThisWeek ? "warn" : "default"} />
-        <Metric icon={<PauseCircle className="h-5 w-5" />} label="On hold" value={String(m.holds)} sub="Clearance, Accounts or Dispatch" tone={m.holds ? "warn" : "good"} />
+        <Metric icon={<PauseCircle className="h-5 w-5" />} label="On hold" value={String(m.holds)} sub="Order Making, CV, Accounts or Dispatch" tone={m.holds ? "warn" : "good"} />
         <Metric icon={<IndianRupee className="h-5 w-5" />} label="Order value" value={money(m.value)} sub="all SOs, cancelled included, in INR" />
       </div>
 

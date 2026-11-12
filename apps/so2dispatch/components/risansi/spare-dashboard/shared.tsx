@@ -7,7 +7,15 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import type { Bucket, RepRow } from "@/lib/spare-dashboard";
-import { ChartCard, Columns, HBars, StackBar, type Datum } from "./charts";
+import { ChartCard, Columns, Donut, HBars, StackBar, type Datum } from "./charts";
+
+/** Who holds, in the hold cards' order and colours. */
+const HOLD_KINDS: { by: string; label: string; color: string }[] = [
+  { by: "Order Making", label: "Order Making hold", color: "var(--viz-violet)" },
+  { by: "CV", label: "CV hold", color: "var(--viz-red)" },
+  { by: "Accounts", label: "Accounts hold", color: "var(--viz-yellow)" },
+  { by: "Dispatch", label: "Dispatch hold", color: "var(--viz-orange)" },
+];
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 /** Rs 2.45 Cr / Rs 12.3 L / Rs 45,000. */
@@ -355,11 +363,18 @@ export function WatchHoldCards({
           </table>
         )}
       </ChartCard>
-      <ChartCard title="On hold" sub="Held by Clearance, Accounts or Dispatch, with why">
+      <ChartCard title="On hold" sub="Held by Order Making, CV, Accounts or Dispatch, with why — an SO on two holds counts in both">
         {holds.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">No SO is on hold.</p>
         ) : (
-          <ul className="divide-y divide-card-border/70">
+          <>
+          <div className="mb-3">
+            <Donut
+              data={HOLD_KINDS.map((k) => ({ label: k.label, color: k.color, count: holds.filter((s) => s.holds.some((h) => h.by === k.by)).length }))}
+              centerLabel="holds"
+            />
+          </div>
+          <ul className="max-h-80 divide-y divide-card-border/70 overflow-y-auto">
             {holds.map((s) => (
               <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-sm">
                 <span className="min-w-0">
@@ -372,13 +387,14 @@ export function WatchHoldCards({
                       key={h.by}
                       className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${h.by === "Dispatch" ? "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300" : "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"}`}
                     >
-                      {h.by}{h.reason ? ` · ${h.reason}` : ""}
+                      {h.by} hold{h.reason ? ` · ${h.reason}` : ""}
                     </span>
                   ))}
                 </span>
               </li>
             ))}
           </ul>
+          </>
         )}
       </ChartCard>
     </div>

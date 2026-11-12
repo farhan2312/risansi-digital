@@ -56,7 +56,7 @@ export type PumpSo = {
   delivery_date: string | null;
   first_dispatch: string | null;
   no_slip: boolean;
-  holds: { by: "Clearance" | "Accounts" | "Dispatch"; reason: string }[];
+  holds: { by: "Order Making" | "CV" | "Accounts" | "Dispatch"; reason: string }[];
 };
 
 /** A department's standing across all SOs but the cancelled and diverted. */
@@ -251,7 +251,8 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
   const sos: PumpSo[] = rows.map((o) => {
     const f = facts.get(o.id);
     const holds: PumpSo["holds"] = [];
-    if (o.clearance_status === "Hold") holds.push({ by: "Clearance", reason: str(o.clearance_hold_reason) });
+    if (o.om_status === "Hold") holds.push({ by: "Order Making", reason: str(o.om_hold_reason) });
+    if (o.clearance_status === "Hold") holds.push({ by: "CV", reason: str(o.clearance_hold_reason) });
     if (o.accounts_hold_status === "Hold") holds.push({ by: "Accounts", reason: str(o.accounts_hold_reason) });
     if (str(o.dispatch_status) === "Hold") holds.push({ by: "Dispatch", reason: str(f?.hold_reason) });
     const inr = Number(o.order_value_inr ?? ((o.order_currency ?? "INR").toUpperCase() === "INR" ? o.order_value : 0)) || 0;

@@ -4734,9 +4734,13 @@ const PUMP_CARD_DEPT: Record<string, DeptFilterKey> = {
   Dispatch: "dispatch",
 };
 
-/** The Orders list's hold cards: its open SOs on each kind of hold, Order Making's included (no card for all together). */
+/**
+ * The Orders list's hold cards: its open SOs on each kind of hold, Order
+ * Making's included (no card for all together). Dispatch hold is the Dispatch
+ * group's own card there, so not twice.
+ */
 function soHoldCard(clear: Record<string, string | null>): KpiCardDef[] {
-  return (["om", ...HOLD_BY] as HoldBy[]).map((by) => ({
+  return (["om", "cv", "accounts"] as HoldBy[]).map((by) => ({
     key: `hold:${by}`,
     label: HOLD_BY_LABEL[by],
     group: "Orders",
