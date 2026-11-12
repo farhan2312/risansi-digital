@@ -3748,14 +3748,14 @@ export function onHoldSql(dept?: string | null): string {
 }
 
 /**
- * A department's hold cards: its open SOs on any hold (the `hold` filter),
- * then on each kind — Central Visibility's, Accounts', Dispatch's. Dispatch's
- * own page already has its Dispatch hold card (its status), so not twice there.
+ * A department's hold cards: its open SOs on each kind of hold — Central
+ * Visibility's, Accounts', Dispatch's (no card for all of them together).
+ * Dispatch's own page already has its Dispatch hold card (its status), so not
+ * twice there.
  */
 export function totalHoldCard(dept: string, clear: Record<string, string | null>, group?: string): KpiCardDef[] {
   const g = group ? { group } : {};
   return [
-    { key: "hold", label: "SO hold", ...g, sql: `${onHoldSql(dept)} AND ${orderOpenSql("o")}`, params: { ...clear, hold: "1" }, tone: "danger" },
     ...HOLD_BY.filter((by) => !(dept === "dispatch" && by === "dispatch")).map(
       (by): KpiCardDef => ({
         key: `hold:${by}`,
