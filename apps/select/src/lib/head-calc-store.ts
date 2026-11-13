@@ -37,9 +37,11 @@ export function seedHeadCalc(f: { media?: string; sg?: string; capacity?: string
   const seed: Partial<HeadCalcInput & DischargeCalcInput> = {};
   if (f.media) seed.application = f.media;
   if (f.sg && Number(f.sg) > 0) seed.specificGravity = f.sg;
-  if (f.capacity && Number(f.capacity) > 0 && (f.capacityUnit === "TPH" || f.capacityUnit === "M3/hr")) {
+  // MT/Hr is tonnes per hour too: the calculator takes it as TPH.
+  const tonnes = f.capacityUnit === "TPH" || f.capacityUnit === "MT/Hr";
+  if (f.capacity && Number(f.capacity) > 0 && (tonnes || f.capacityUnit === "M3/hr")) {
     seed.capacity = f.capacity;
-    seed.capacityUnit = f.capacityUnit === "TPH" ? "TPH" : "M3";
+    seed.capacityUnit = tonnes ? "TPH" : "M3";
   }
   return {
     suction: { ...DEFAULT_HEAD_CALC_INPUT, ...seed } as HeadCalcInput,

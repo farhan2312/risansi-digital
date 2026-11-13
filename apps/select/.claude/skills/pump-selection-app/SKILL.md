@@ -1288,3 +1288,9 @@ never auto-filled from the AI result.
 - Top bar in shadcn (user, 2026-11-13, same branch): TopBar Tailwind (TopBar.css no longer imported), outline
   Refresh / Report a Bug (labels hidden <860px), NotificationBell = outline icon button + popover at z-[1100];
   NotificationBell.css kept ONLY for the ringing keyframes (notif-ring/pulse/badge, used via animate-[...]).
+- Spare quotation doc (user, 2026-11-13): no Part No. column (HTML and Excel) when no printed part has a part no.;
+  widths from COLUMN_PCT / COLUMN_XLSX, a dropped column's share split between Description and Model.
+  Others parts can be added with a part name only (part no. optional).
+- Capacity unit MT/Hr (user, 2026-11-13): metric tonnes per hour, treated exactly as TPH (m3/hr = value / SG; SG
+  required): GeneralInformationStep option + sgNeeded, recommendation-engine and utils/units toM3PerHr, head-calc-store
+  seeds the calculator as TPH, azure-functions recommendation_engine.py. No DB constraint on capacity_unit.

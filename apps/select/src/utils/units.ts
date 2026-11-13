@@ -11,7 +11,7 @@ export function toM3PerHr(value: number, unit: string, sg: number): number {
   if (u === "LPM") return value * 0.06; // litres/min: x 60 min / 1000 L
   if (u === "GPM") return value * 0.227125; // US gallons/min
   if (u === "KLPD") return value / 24; // kiloliters/day
-  if (u === "TPH") return value / (sg || 1.0); // tons/hr, needs density
+  if (u === "TPH" || u === "MT/Hr") return value / (sg || 1.0); // tonnes/hr (TPH = MT/Hr), needs density
   return value;
 }
 

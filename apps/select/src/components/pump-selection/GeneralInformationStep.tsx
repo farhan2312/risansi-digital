@@ -55,12 +55,14 @@ const GeneralInformationStep = ({
   // Specific Gravity is required when a unit depends on it - capacity in TPH
   // (m3/hr = TPH / SG) or head in MLC (MWC = MLC x SG); otherwise it stays
   // optional and the conversions use 1.0.
-  const sgNeeded = formData.capacityUnit === "TPH" || formData.headUnit === "MLC";
+  // MT/Hr (metric tonnes per hour) is a mass flow like TPH (user, 2026-11-13).
+  const massFlow = formData.capacityUnit === "TPH" || formData.capacityUnit === "MT/Hr";
+  const sgNeeded = massFlow || formData.headUnit === "MLC";
   const sgValue = Number(formData.sg);
   const sgError = !sgNeeded
     ? ""
     : !String(formData.sg ?? "").trim()
-      ? `Specific Gravity is required for ${[formData.capacityUnit === "TPH" && "TPH", formData.headUnit === "MLC" && "MLC"].filter(Boolean).join(" and ")}.`
+      ? `Specific Gravity is required for ${[massFlow && formData.capacityUnit, formData.headUnit === "MLC" && "MLC"].filter(Boolean).join(" and ")}.`
       : !Number.isFinite(sgValue) || sgValue <= 0
         ? "Enter a Specific Gravity above 0."
         : "";
@@ -124,7 +126,7 @@ const GeneralInformationStep = ({
               <span className={hint}>
                 = <b className="mono font-semibold text-fg">{fmt(capConv)}</b>{" "}
                 m³/hr
-                {formData.capacityUnit === "TPH" && !formData.sg && (
+                {massFlow && !formData.sg && (
                   <em className="not-italic text-warn"> (using SG 1.0 — set Specific Gravity)</em>
                 )}
               </span>
@@ -148,6 +150,7 @@ const GeneralInformationStep = ({
               <option value="GPM">GPM</option>
               <option value="KLPD">KLPD</option>
               <option value="TPH">TPH</option>
+              <option value="MT/Hr">MT/Hr</option>
             </select>
             <Err show={showErrors} msg={errors.capacityUnit} />
           </div>
