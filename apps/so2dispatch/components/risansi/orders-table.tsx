@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { History, Layers, Loader2, MessageSquare, Trash2 } from "lucide-react";
+import { Columns2, History, Layers, Loader2, MessageSquare, Table2, Trash2 } from "lucide-react";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
@@ -412,7 +412,7 @@ export function OrdersTable({
   const readOnly = isReadOnlyViewer(role);
   // The filter lives in the URL, so it narrows the whole table rather than
   // only the page already loaded.
-  const { get: getParam } = useUrlTable();
+  const { get: getParam, setParams } = useUrlTable();
   const filtered = isOrderListFiltered(
     parseOrderListFilter((key) => getParam(key) || undefined)
   );
@@ -437,6 +437,394 @@ export function OrdersTable({
   const today = new Date().toLocaleDateString("en-CA");
   const colSpan = baseCols + (canDelete ? 1 : 0);
 
+
+  // What a row shows, worked out once: the table and the split view's portrait read it alike.
+  const rowView = (order: OrderListRow) => {
+    const status = deptStatuses[order.id];
+    const soLabel = order.so_no ?? `#${order.sl_no}`;
+    const planning = planningText(order, status);
+    const { cell: assembly, text: assemblyText, line: assemblyLine } = assemblyView(order, status, formatDate);
+    const dispatch = order.dispatch_status || "Pending";
+    // A cancelled or diverted SO is nobody's work: no departments, no progress.
+    const closed = CLOSED.includes(dispatch);
+    // Central Visibility holds it: every department reads Hold until cleared.
+    const held = !closed && order.clearance_status === "Hold";
+    const lots = order.lots ?? [];
+    const hasLots = lots.length > 0;
+    const planDate =
+      order.packing_plan?.date ??
+      lots.reduce<string | null>(
+        (latest, l) => (l.packing_plan_date && (!latest || l.packing_plan_date > latest) ? l.packing_plan_date : latest),
+        null
+      );
+    return { status, soLabel, planning, assembly, assemblyText, assemblyLine, dispatch, closed, held, lots, hasLots, planDate };
+  };
+
+  // The department columns' cells, each a function of the row: the table draws
+  // them across, the split view's portrait stands them upright.
+  const termsTd = (order: OrderListRow) => {
+    const { soLabel } = rowView(order);
+    return (
+                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        {/* An FR order is a replacement: no payment terms to show. */}
+                        {order.bill_mode === "FR" ? (
+                          <span className="text-xs font-medium text-muted">Replacement · no payment terms</span>
+                        ) : (
+                          <TermPis
+                            orderId={order.id}
+                            soLabel={soLabel}
+                            terms={order.term_lines ?? []}
+                            pis={order.pi_docs ?? []}
+                            canEdit={false}
+                            payments={{ canEdit: false }}
+                          />
+                        )}
+                      </td>
+    );
+  };
+  const readinessTd = (order: OrderListRow) => {
+    const { closed, hasLots, soLabel } = rowView(order);
+    return (
+                          <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
+                            {(() => {
+                              const readiness =
+                                !closed && order.readiness_from
+                                  ? order.readiness_to && order.readiness_to !== order.readiness_from
+                                    ? `${formatDate(order.readiness_from)} – ${formatDate(order.readiness_to)}`
+                                    : formatDate(order.readiness_from)
+                                  : "—";
+                              // How the readiness dates moved: Planning and Central see it, as on Planning.
+                              return seesReadinessHistory && !closed && (readiness !== "—" || hasLots) ? (
+                                <ReadyLotHistoryButton
+                                  orderId={order.id}
+                                  label={readiness === "—" ? "History" : readiness}
+                                  soLabel={soLabel}
+                                />
+                              ) : (
+                                readiness
+                              );
+                            })()}
+                          </td>
+    );
+  };
+  const packingPlanTd = (order: OrderListRow) => {
+    const { closed, planDate, soLabel } = rowView(order);
+    return (
+                          <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
+                            {/* Assembly & Packing's next planned packing date, and how it moved. */}
+                            {/* Only the planned date: the next one among unpacked lots, or once all are
+                                packed the last one planned. Packed or not is the lot columns' to say. */}
+                            {!closed && planDate ? (
+                              <>
+                                <PackingPlanHistoryButton
+                                  orderId={order.id}
+                                  label={formatDate(planDate)}
+                                  soLabel={soLabel}
+                                />
+                                {order.packing_plan?.shift && (
+                                  <span className="block text-[11px] text-muted">{order.packing_plan.shift} shift</span>
+                                )}
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+    );
+  };
+  const planningLotTds = (order: OrderListRow) => {
+    const { hasLots, closed, held, lots, planning } = rowView(order);
+    return hasLots && !closed && !held ? (
+                            LOT_COLUMNS.map((n) => (
+                              <td
+                                key={`p${n}`}
+                                className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <PlanningLotCell
+                                  lot={lots[n - 1]}
+                                  onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                                />
+                              </td>
+                            ))
+                          ) : (
+                            <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                              <StatusText
+                                hold={held}
+                                text={closed ? null : planning}
+                                tone={planning && READY.includes(planning.toLowerCase()) ? "done" : "pending"}
+                                onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                              />
+                            </td>
+                          );
+  };
+  const assemblyLotTds = (order: OrderListRow) => {
+    const { hasLots, closed, held, lots, status, assembly, assemblyText, assemblyLine } = rowView(order);
+    return hasLots && !closed && !held ? (
+                            LOT_COLUMNS.map((n) => (
+                              <td
+                                key={`a${n}`}
+                                className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <PackingLotCell
+                                  lot={lots[n - 1]}
+                                  today={today}
+                                  onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
+                                />
+                              </td>
+                            ))
+                          ) : (
+                            <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                              <StatusText
+                                hold={held}
+                                text={closed || !reachedAssembly(status) ? null : assemblyText}
+                                tone={assembly?.state ?? "pending"}
+                                line={closed ? undefined : assemblyLine}
+                                onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
+                              />
+                            </td>
+                          );
+  };
+  const pumpPlanningLotTds = (order: OrderListRow) => {
+    const { hasLots, lots } = rowView(order);
+    return hasLots ? (
+                              LOT_COLUMNS.map((n) => (
+                                <td key={`p${n}`} className="whitespace-nowrap px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                                  <PlanningLotCell
+                                    lot={lots[n - 1]}
+                                    onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                                  />
+                                </td>
+                              )).concat(
+                                <td key="pLatest" className="whitespace-nowrap px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                                  <span className="flex flex-col items-start gap-0.5">
+                                    <span className="text-[11px] font-semibold text-muted">Lot {lots[lots.length - 1].n}</span>
+                                    <PlanningLotCell
+                                      lot={lots[lots.length - 1]}
+                                      onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
+                                    />
+                                  </span>
+                                </td>
+                              )
+                            ) : (
+                              <td colSpan={LOT_COLUMNS.length + 1} className="px-4 py-3 align-top text-xs text-muted-foreground">No lots yet</td>
+                            );
+  };
+  const dispatchStatusTd = (order: OrderListRow) => {
+    const { held, dispatch, closed } = rowView(order);
+    return (
+                      <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <StatusText
+                          hold={held || dispatch === "Hold"}
+                          text={
+                            closed
+                              ? dispatch
+                              : order.only_billing === "Yes"
+                                ? null
+                                : !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order) : reachedDispatch(order))
+                                  ? "Not at Dispatch yet"
+                                  : dispatch
+                          }
+                          tone={
+                            closed || order.only_billing === "Yes" || !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order) : reachedDispatch(order))
+                              ? "na"
+                              : dispatch.toLowerCase() === "pending"
+                                ? "pending"
+                                : "done"
+                          }
+                          onClick={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
+                        />
+                      </td>
+    );
+  };
+  const followUpTd = (order: OrderListRow) => (
+                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                        <FollowupCell
+                          orderId={order.id}
+                          soLabel={order.so_no ?? `#${order.sl_no}`}
+                          last={order.last_followup}
+                          canAdd={canAddFollowup(role)}
+                        />
+                      </td>
+  );
+
+  // Split view (?view=split): the table up to Departments on the left, and on
+  // the right the SO picked, its department columns stood up as a portrait.
+  const split = getParam("view") === "split";
+  const [focus, setFocus] = useState<{ id: string; dept: ReachedDept["key"] | null } | null>(null);
+  const focusOrder = split ? (pageRows.find((o) => o.id === focus?.id) ?? pageRows[0] ?? null) : null;
+  const focusDept = focusOrder && focus?.id === focusOrder.id ? focus.dept : null;
+  const panelRef = useRef<HTMLElement | null>(null);
+  // A department picked: its part of the portrait scrolled to the top.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const el = focusDept ? panel.querySelector<HTMLElement>(`[data-sec~="${focusDept}"]`) : null;
+    panel.scrollTo({ top: el ? el.offsetTop - 12 : 0, behavior: "smooth" });
+  }, [focusDept, focusOrder?.id]);
+
+  /** The portrait: one SO, every department column of the table, section by section. */
+  function portrait(order: OrderListRow) {
+    const { status, soLabel, closed, held, hasLots } = rowView(order);
+    const onlyBilling = order.only_billing === "Yes";
+    const ps = pump ? pumpSummaries?.[order.id] : undefined;
+    const open = (key: ReachedDept["key"]) => setPopup({ order, what: DEPT_POPUP[key] });
+    const section = (
+      title: string,
+      keys: ReachedDept["key"][],
+      rows: { label: string; dept?: ReachedDept["key"] }[],
+      cells: React.ReactNode,
+      openKey?: ReachedDept["key"]
+    ) => {
+      const on = !!focusDept && keys.includes(focusDept);
+      return (
+        <section
+          data-sec={keys.join(" ")}
+          className={`rounded-lg border p-3 transition-colors ${on ? "border-primary/50 bg-primary/5" : "border-card-border"}`}
+        >
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
+            {openKey && !readOnly && (
+              <button type="button" onClick={() => open(openKey)} className="text-xs font-medium text-primary hover:underline">
+                Open {title}
+              </button>
+            )}
+          </div>
+          <table className="portrait-grid text-sm" style={{ gridTemplateRows: `repeat(${rows.length}, auto)` }}>
+            <tbody>
+              <tr>
+                {rows.map((r, i) => (
+                  <th key={i} data-on={focusDept && r.dept === focusDept ? "" : undefined}>
+                    {r.label}
+                  </th>
+                ))}
+              </tr>
+              <tr>{cells}</tr>
+            </tbody>
+          </table>
+        </section>
+      );
+    };
+    const lotRows = (dept: ReachedDept["key"], latest: boolean, lotted: boolean) =>
+      lotted
+        ? [...LOT_COLUMNS.map((n) => ({ label: `Lot ${n}`, dept })), ...(latest ? [{ label: "Latest lot", dept }] : [])]
+        : [{ label: latest ? "Lots" : "Status", dept }];
+    const spareLotted = hasLots && !closed && !held;
+    return (
+      <div className="space-y-3">
+        <div className="border-b border-card-border pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="text-base font-semibold text-foreground">{soLabel}</div>
+              <div className="text-xs text-muted">
+                {[order.client_name, order.order_type, formatDate(order.so_date)].filter((x) => x && x !== "—").join(" · ")}
+              </div>
+            </div>
+            <OrderStatusPill status={orderStatusOf(order)} />
+          </div>
+          {/* The departments it has reached: each takes the portrait to its part. */}
+          {!closed && !onlyBilling && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {reachedDepts(order, status).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setFocus({ id: order.id, dept: t.key })}
+                  className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight ${
+                    t.cell.label === "Hold" ? HOLD_TAG : TAG_TONE[t.cell.state]
+                  } ${focusDept === t.key ? "ring-2 ring-primary/50" : ""}`}
+                >
+                  <span className="font-semibold">{t.name}</span>
+                  <span className="truncate">{t.cell.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={() => setDetailsFor(order)} className="mt-2 text-xs font-medium text-primary hover:underline">
+            Order details
+          </button>
+        </div>
+        {section("Payment terms, PIs and payment", ["billing", "accounts"], [{ label: "Terms, PIs, payment", dept: "billing" }], termsTd(order), "billing")}
+        {onlyBilling ? (
+          <p className="rounded-lg border border-card-border p-3 text-xs text-muted">Only billing: no department works on this SO.</p>
+        ) : pump ? (
+          closed || !ps ? null : (
+            <>
+              {section(
+                "Drawing, Purchase, Quality, Planning",
+                ["drawing", "purchase", "quality", "planning"],
+                [
+                  { label: "Drawing · GAD", dept: "drawing" },
+                  { label: "Drawing · Perf. curve", dept: "drawing" },
+                  { label: "Drawing · Part drawing", dept: "drawing" },
+                  { label: "Drawing · Readiness", dept: "drawing" },
+                  { label: "Purchase · BOI", dept: "purchase" },
+                  { label: "Quality · QC docs", dept: "quality" },
+                  { label: "Planning · Status", dept: "planning" },
+                  { label: "Planning · Assembly readiness", dept: "planning" },
+                ],
+                <PumpLeadCells s={ps} today={today} onOpen={(d) => open(d)} />
+              )}
+              {section("Planning lots", ["planning"], lotRows("planning", true, hasLots), pumpPlanningLotTds(order), "planning")}
+              {section(
+                "Assembly & Packing",
+                ["assembly"],
+                [{ label: "Alignment", dept: "assembly" }, ...lotRows("assembly", true, true)],
+                <PumpTailCells s={ps} lotCount={LOT_COLUMNS.length} onOpen={(d) => open(d)} />,
+                "assembly"
+              )}
+            </>
+          )
+        ) : (
+          <>
+            {section(
+              "Planning",
+              ["planning"],
+              [{ label: "Readiness date", dept: "planning" }, ...lotRows("planning", false, spareLotted)],
+              <>
+                {readinessTd(order)}
+                {planningLotTds(order)}
+              </>,
+              "planning"
+            )}
+            {section(
+              "Assembly & Packing",
+              ["assembly"],
+              [{ label: "Packing plan date", dept: "assembly" }, ...lotRows("assembly", false, spareLotted)],
+              <>
+                {packingPlanTd(order)}
+                {assemblyLotTds(order)}
+              </>,
+              "assembly"
+            )}
+          </>
+        )}
+        {section(
+          "Dispatch",
+          ["dispatch"],
+          ["Packing slips", "Invoice", "Dispatch", "Docket & LR", "Order pictures", "Dispatch status"].map((label) => ({ label, dept: "dispatch" as const })),
+          <>
+            <DispatchDocCells
+              docs={dispatchDocs[order.id]}
+              onOpen={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
+            />
+            {dispatchStatusTd(order)}
+          </>,
+          "dispatch"
+        )}
+        {section(
+          "ECs and follow up",
+          [],
+          [{ label: "ECs" }, { label: "Follow up" }],
+          <>
+            <td className="tabular-nums">{order.ec_count}</td>
+            {followUpTd(order)}
+          </>
+        )}
+      </div>
+    );
+  }
+
   async function handleDelete(order: OrderListRow) {
     const label = order.so_no ?? `#${order.sl_no}`;
     if (!confirm(`Delete SO ${label}? This permanently removes it and all its EC/department data.`)) {
@@ -459,10 +847,33 @@ export function OrdersTable({
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} />
 
+      {/* Table view (every column across) or Split view (the SO list and one SO upright). */}
+      <div className="mb-3 flex justify-end">
+        <div className="inline-flex rounded-lg border border-input-border bg-surface p-0.5 text-xs font-medium">
+          {([
+            [false, "Table view", Table2],
+            [true, "Split view", Columns2],
+          ] as const).map(([v, label, Icon]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setParams({ view: v ? "split" : null }, false)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition-colors ${
+                split === v ? "bg-primary/10 text-primary" : "text-muted hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={split ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start gap-4" : ""}>
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className={`w-full ${pump ? "min-w-[2940px]" : "min-w-[2290px]"} text-sm`}>
+          <table className={`w-full ${split ? "min-w-[1500px]" : pump ? "min-w-[2940px]" : "min-w-[2290px]"} text-sm`}>
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th rowSpan={2} className="w-8 px-2 py-3" />
@@ -482,6 +893,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap text-right"><SortHeader label="Order in Hand" sortKey="in_hand" /></th>
                 {pump && <th rowSpan={2} className="px-4 py-3 text-right">Quantity</th>}
                 <th rowSpan={2} className="px-4 py-3">Departments</th>
+                {!split && (<>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
                 {pump ? (
                   // A pump SO: each department's own columns.
@@ -513,8 +925,10 @@ export function OrdersTable({
                 </th>
                 <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Follow Up</th>
+                </>)}
                 {canDelete && <th rowSpan={2} className="px-4 py-3" />}
               </tr>
+              {!split && (
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 {pump ? (
                   <PumpLeadSubHeads lotCount={LOT_COLUMNS.length} />
@@ -529,6 +943,7 @@ export function OrdersTable({
                   </>
                 )}
               </tr>
+              )}
             </thead>
             <tbody className="divide-y divide-card-border">
               {pageRows.length === 0 && (
@@ -539,34 +954,18 @@ export function OrdersTable({
                 </tr>
               )}
               {pageRows.map((order) => {
-                const status = deptStatuses[order.id];
-                const soLabel = order.so_no ?? `#${order.sl_no}`;
-                const planning = planningText(order, status);
-                const { cell: assembly, text: assemblyText, line: assemblyLine } = assemblyView(order, status, formatDate);
-                const dispatch = order.dispatch_status || "Pending";
-                // A cancelled or diverted SO is nobody's work: no departments, no progress.
-                const closed = CLOSED.includes(dispatch);
-                // Central Visibility holds it: every department reads Hold until cleared.
-                const held = !closed && order.clearance_status === "Hold";
-                const lots = order.lots ?? [];
-                const hasLots = lots.length > 0;
-                const planDate =
-                  order.packing_plan?.date ??
-                  lots.reduce<string | null>(
-                    (latest, l) => (l.packing_plan_date && (!latest || l.packing_plan_date > latest) ? l.packing_plan_date : latest),
-                    null
-                  );
+                const { status, soLabel, dispatch, closed } = rowView(order);
                 return (
                   <Fragment key={order.id}>
                     {/* A click on the row opens its Order details; the first
                         button its ECs; every other control does its own job. */}
                     <tr
-                      onClick={() => setDetailsFor(order)}
+                      onClick={() => (split ? setFocus({ id: order.id, dept: focusDept }) : setDetailsFor(order))}
                       onMouseEnter={() => hoverRow(order.id)}
                       onMouseLeave={() => hoverRow(null)}
                       // Every cell starts at the top, so the row reads straight across;
                       // a cancelled or diverted SO is red end to end.
-                      className={`cursor-pointer align-top text-foreground transition-colors ${
+                      className={`cursor-pointer align-top text-foreground transition-colors ${split && focusOrder?.id === order.id ? "outline-2 -outline-offset-2 outline-primary/50 " : ""}${
                         closed
                           ? "bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/15 dark:hover:bg-rose-500/20"
                           : (dispatchRowTone({ dispatch_status: dispatch }) ?? "hover:bg-background/60")
@@ -675,7 +1074,7 @@ export function OrdersTable({
                             <button
                               key={t.key}
                               type="button"
-                              onClick={() => setPopup({ order, what: DEPT_POPUP[t.key] })}
+                              onClick={() => (split ? setFocus({ id: order.id, dept: t.key }) : setPopup({ order, what: DEPT_POPUP[t.key] }))}
                               title={`${t.name}: ${t.cell.label} — open`}
                               className={`inline-flex max-w-[12rem] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-tight transition-opacity hover:opacity-80 ${
                                 t.cell.label === "Hold" ? HOLD_TAG : TAG_TONE[t.cell.state]
@@ -689,21 +1088,8 @@ export function OrdersTable({
                       </td>
                       )}
                       {/* Each term with its PI and what came in — as Accounts sees it. */}
-                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                        {/* An FR order is a replacement: no payment terms to show. */}
-                        {order.bill_mode === "FR" ? (
-                          <span className="text-xs font-medium text-muted">Replacement · no payment terms</span>
-                        ) : (
-                          <TermPis
-                            orderId={order.id}
-                            soLabel={soLabel}
-                            terms={order.term_lines ?? []}
-                            pis={order.pi_docs ?? []}
-                            canEdit={false}
-                            payments={{ canEdit: false }}
-                          />
-                        )}
-                      </td>
+                      {!split && (<>
+                      {termsTd(order)}
                       {order.only_billing === "Yes" ? (
                         // Sent to Billing alone: no department works on it, so no status across their columns.
                         <td
@@ -727,28 +1113,7 @@ export function OrdersTable({
                               today={today}
                               onOpen={(d) => setPopup({ order, what: DEPT_POPUP[d] })}
                             />
-                            {hasLots ? (
-                              LOT_COLUMNS.map((n) => (
-                                <td key={`p${n}`} className="whitespace-nowrap px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                                  <PlanningLotCell
-                                    lot={lots[n - 1]}
-                                    onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
-                                  />
-                                </td>
-                              )).concat(
-                                <td key="pLatest" className="whitespace-nowrap px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                                  <span className="flex flex-col items-start gap-0.5">
-                                    <span className="text-[11px] font-semibold text-muted">Lot {lots[lots.length - 1].n}</span>
-                                    <PlanningLotCell
-                                      lot={lots[lots.length - 1]}
-                                      onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
-                                    />
-                                  </span>
-                                </td>
-                              )
-                            ) : (
-                              <td colSpan={LOT_COLUMNS.length + 1} className="px-4 py-3 align-top text-xs text-muted-foreground">No lots yet</td>
-                            )}
+                            {pumpPlanningLotTds(order)}
                             <PumpTailCells
                               s={pumpSummaries[order.id]}
                               lotCount={LOT_COLUMNS.length}
@@ -758,131 +1123,21 @@ export function OrdersTable({
                         )
                       ) : (
                         <>
-                          <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
-                            {(() => {
-                              const readiness =
-                                !closed && order.readiness_from
-                                  ? order.readiness_to && order.readiness_to !== order.readiness_from
-                                    ? `${formatDate(order.readiness_from)} – ${formatDate(order.readiness_to)}`
-                                    : formatDate(order.readiness_from)
-                                  : "—";
-                              // How the readiness dates moved: Planning and Central see it, as on Planning.
-                              return seesReadinessHistory && !closed && (readiness !== "—" || hasLots) ? (
-                                <ReadyLotHistoryButton
-                                  orderId={order.id}
-                                  label={readiness === "—" ? "History" : readiness}
-                                  soLabel={soLabel}
-                                />
-                              ) : (
-                                readiness
-                              );
-                            })()}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap align-top text-muted" onClick={(e) => e.stopPropagation()}>
-                            {/* Assembly & Packing's next planned packing date, and how it moved. */}
-                            {/* Only the planned date: the next one among unpacked lots, or once all are
-                                packed the last one planned. Packed or not is the lot columns' to say. */}
-                            {!closed && planDate ? (
-                              <>
-                                <PackingPlanHistoryButton
-                                  orderId={order.id}
-                                  label={formatDate(planDate)}
-                                  soLabel={soLabel}
-                                />
-                                {order.packing_plan?.shift && (
-                                  <span className="block text-[11px] text-muted">{order.packing_plan.shift} shift</span>
-                                )}
-                              </>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
+                          {readinessTd(order)}
+                          {packingPlanTd(order)}
                           {/* Planning and Assembly & Packing lot by lot for a Spare; the SO's own status otherwise. */}
-                          {hasLots && !closed && !held ? (
-                            LOT_COLUMNS.map((n) => (
-                              <td
-                                key={`p${n}`}
-                                className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <PlanningLotCell
-                                  lot={lots[n - 1]}
-                                  onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
-                                />
-                              </td>
-                            ))
-                          ) : (
-                            <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                              <StatusText
-                                hold={held}
-                                text={closed ? null : planning}
-                                tone={planning && READY.includes(planning.toLowerCase()) ? "done" : "pending"}
-                                onClick={() => setPopup({ order, what: { kind: "ec", dept: "planning" } })}
-                              />
-                            </td>
-                          )}
-                          {hasLots && !closed && !held ? (
-                            LOT_COLUMNS.map((n) => (
-                              <td
-                                key={`a${n}`}
-                                className={`px-4 py-3 align-top ${n === 1 ? "border-l border-card-border" : ""}`}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <PackingLotCell
-                                  lot={lots[n - 1]}
-                                  today={today}
-                                  onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
-                                />
-                              </td>
-                            ))
-                          ) : (
-                            <td colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                              <StatusText
-                                hold={held}
-                                text={closed || !reachedAssembly(status) ? null : assemblyText}
-                                tone={assembly?.state ?? "pending"}
-                                line={closed ? undefined : assemblyLine}
-                                onClick={() => setPopup({ order, what: { kind: "ec", dept: "assembly" } })}
-                              />
-                            </td>
-                          )}
+                          {planningLotTds(order)}
+                          {assemblyLotTds(order)}
                         </>
                       )}
                       <DispatchDocCells
                         docs={dispatchDocs[order.id]}
                         onOpen={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
                       />
-                      <td className="border-l border-card-border px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                        <StatusText
-                          hold={held || dispatch === "Hold"}
-                          text={
-                            closed
-                              ? dispatch
-                              : order.only_billing === "Yes"
-                                ? null
-                                : !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order) : reachedDispatch(order))
-                                  ? "Not at Dispatch yet"
-                                  : dispatch
-                          }
-                          tone={
-                            closed || order.only_billing === "Yes" || !(pump ? pumpSummaries?.[order.id]?.sentToDispatch ?? reachedDispatch(order) : reachedDispatch(order))
-                              ? "na"
-                              : dispatch.toLowerCase() === "pending"
-                                ? "pending"
-                                : "done"
-                          }
-                          onClick={() => setPopup({ order, what: { kind: "so", section: "order_dispatch", title: "Dispatch" } })}
-                        />
-                      </td>
+                      {dispatchStatusTd(order)}
                       <td className="px-4 py-3 text-center tabular-nums">{order.ec_count}</td>
-                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
-                        <FollowupCell
-                          orderId={order.id}
-                          soLabel={order.so_no ?? `#${order.sl_no}`}
-                          last={order.last_followup}
-                          canAdd={canAddFollowup(role)}
-                        />
-                      </td>
+                      {followUpTd(order)}
+                      </>)}
                       {/* No Open or Add-On buttons: the row opens the order, Add-On is in its pop-up. */}
                       {canDelete && (
                         <td
@@ -918,6 +1173,15 @@ export function OrdersTable({
           to={result.to}
           total={result.total}
         />
+      </div>
+      {split && (
+        <aside
+          ref={panelRef}
+          className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-card-border bg-surface p-4 shadow-sm"
+        >
+          {focusOrder ? portrait(focusOrder) : <p className="text-sm text-muted">No SO on this page.</p>}
+        </aside>
+      )}
       </div>
 
       {ecsFor && <EcsPopup order={ecsFor} canManage={!readOnly && canManageEcs(role)} onClose={() => setEcsFor(null)} />}

@@ -17,6 +17,43 @@
   box-shadow: inset -1px 0 0 var(--color-card-border);
 }
 
+/*
+ * Orders split view: one SO's table cells stood upright — the header cells
+ * down the left, the row's cells beside them (the rows become a grid that
+ * fills column by column; grid-template-rows is set inline to the count).
+ */
+.portrait-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  width: 100%;
+}
+.portrait-grid tbody,
+.portrait-grid tr {
+  display: contents;
+}
+.portrait-grid th,
+.portrait-grid td {
+  border-left: 0 !important;
+  border-bottom: 1px solid var(--color-card-border);
+  padding: 0.5rem 0.5rem !important;
+  text-align: left;
+  min-width: 0;
+}
+.portrait-grid td {
+  overflow-x: auto;
+}
+.portrait-grid th {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.portrait-grid th[data-on] {
+  color: var(--color-primary);
+}
+
 :root {
   --background: #eef1f5;
   --foreground: #0f1b2d;
