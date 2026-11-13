@@ -3265,3 +3265,7 @@ UPDATE orders o
    SET version_no = 0
  WHERE o.version_no = 1
    AND NOT EXISTS (SELECT 1 FROM order_versions v WHERE v.order_id = o.id);
+
+-- Dispatch invoice: Other value — billed on the invoice beyond Invoice Value;
+-- counts as invoiced in Order in Hand (gross − (invoice value + other value)).
+ALTER TABLE order_invoices ADD COLUMN IF NOT EXISTS other_value NUMERIC(14,2);
