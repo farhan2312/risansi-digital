@@ -27,6 +27,7 @@ import {
   RoleBadge,
   UserCell,
 } from "./audit/auditUi";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 type TabKey = "overview" | "usage" | "activity" | "logins" | "access";
 type RangeKey = "today" | "week" | "month" | "7d" | "30d" | "all";
@@ -188,6 +189,7 @@ const AuditLogPage = () => {
     setToDate("");
   };
 
+  usePageTitle("Audit Log", "Full activity trail · who signed in, from where, and everything they did");
   return (
     <div className="w-full px-4 pt-5 pb-10 sm:px-6 2xl:px-8">
       {/* Header */}
@@ -199,18 +201,7 @@ const AuditLogPage = () => {
               "radial-gradient(1000px 220px at 0% 0%, color-mix(in srgb, var(--brand-blue) 12%, transparent), transparent 70%), radial-gradient(600px 200px at 100% 0%, color-mix(in srgb, var(--brand-cyan) 12%, transparent), transparent 70%)",
           }}
         />
-        <div className="relative flex flex-wrap items-start justify-between gap-4 px-5 pt-5 pb-4">
-          <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-white shadow-[0_6px_18px_color-mix(in_srgb,var(--brand-blue)_35%,transparent)]">
-              {Icons.shield}
-            </span>
-            <div>
-              <h1 className="text-[22px] font-bold leading-tight text-fg">Audit Log</h1>
-              <p className="mt-0.5 text-[13px] text-fg-3">
-                Full activity trail · who signed in, from where, and everything they did
-              </p>
-            </div>
-          </div>
+        <div className="relative flex flex-wrap items-start justify-end gap-4 px-5 pt-3 pb-3">
           <button
             type="button"
             onClick={() => void handleGenerateReport()}

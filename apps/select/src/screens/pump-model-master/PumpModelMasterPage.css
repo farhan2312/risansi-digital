@@ -640,3 +640,22 @@ select.pmm-search {
     grid-template-columns: 1fr;
   }
 }
+
+/* The title and description moved to the top bar (user, 2026-11-13): the header is just
+   the actions row, on the right, with no card and no icon badge. */
+.pmm-header {
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  margin-bottom: 14px;
+}
+.pmm-header > div:first-child {
+  padding-left: 0;
+  min-height: 0;
+}
+.pmm-header > div:first-child::before,
+.pmm-header > div:first-child::after {
+  content: none;
+}

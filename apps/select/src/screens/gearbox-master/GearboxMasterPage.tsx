@@ -25,6 +25,7 @@ import {
   TrashIcon,
   AlertIcon,
 } from "../../components/ui/adminIcons";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 type FieldDef = { key: keyof GearboxMasterRow; label: string; numeric: boolean; required?: boolean };
 
@@ -67,6 +68,8 @@ const emptyForm = (): Record<string, string> =>
   Object.fromEntries(FIELDS.map((f) => [f.key, ""]));
 
 const GearboxMasterPage = () => {
+  // Heading in the top bar (user, 2026-11-13).
+  usePageTitle("Gearbox Master", "PBL, PTL, and Top Gear master rows. Switch table, then add, edit, or delete a row, or view its full details. Power Rating (raw label) is not shown here.");
   const [table, setTable] = useState<GearboxTableKey>("pbl");
 
   const [rows, setRows] = useState<GearboxMasterRow[]>([]);
@@ -125,13 +128,6 @@ const GearboxMasterPage = () => {
   return (
     <div className="pmm-page">
       <div className="pmm-header">
-        <div>
-          <h1>Gearbox Master</h1>
-          <p>
-            PBL, PTL, and Top Gear master rows. Switch table, then add, edit, or delete
-            a row, or view its full details. Power Rating (raw label) is not shown here.
-          </p>
-        </div>
         <div className="pmm-header-actions">
           <div className="pmm-search-wrap">
             <span className="pmm-search-icon"><SearchIcon /></span>

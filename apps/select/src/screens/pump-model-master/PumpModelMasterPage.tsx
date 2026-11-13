@@ -25,6 +25,7 @@ import {
   TrashIcon,
   AlertIcon,
 } from "../../components/ui/adminIcons";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 type FieldDef = { key: keyof PumpModelRow; label: string; numeric: boolean };
 
@@ -77,6 +78,8 @@ const errorMessage = (err: unknown, fallback: string): string =>
   fallback;
 
 const PumpModelMasterPage = () => {
+  // Heading in the top bar (user, 2026-11-13).
+  usePageTitle("Pump Model Master", "Every (model, head-point) row from the pump model master. Edit or delete a row, or view its full details.");
   const [rows, setRows] = useState<PumpModelRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,13 +134,6 @@ const PumpModelMasterPage = () => {
   return (
     <div className="pmm-page">
       <div className="pmm-header">
-        <div>
-          <h1>Pump Model Master</h1>
-          <p>
-            Every (model, head-point) row from the pump model master. Edit or delete a
-            row, or view its full details.
-          </p>
-        </div>
         <div className="pmm-header-actions">
           <div className="pmm-search-wrap">
             <span className="pmm-search-icon"><SearchIcon /></span>

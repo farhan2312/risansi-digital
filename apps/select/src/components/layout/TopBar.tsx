@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import "./TopBar.css";
-import Breadcrumb from "./Breadcrumb";
+import { TopBarTitle } from "./PageTitle";
 import NotificationBell from "./NotificationBell";
 import ReportBugModal from "../bug-report/ReportBugModal";
 
@@ -31,7 +31,8 @@ const TopBar = ({ onRefresh }: { onRefresh: () => void }) => {
   return (
     <>
       <div className="topbar">
-        <Breadcrumb />
+        {/* The page heading and description (in place of the breadcrumb, user 2026-11-13). */}
+        <TopBarTitle />
         <div className="topbar-actions">
           <button
             type="button"

@@ -15,6 +15,7 @@ import EnquiryVersionsModal from "../../components/projects/EnquiryVersionsModal
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import EnquiryReportPanel from "../../components/projects/EnquiryReportPanel";
+import { usePageTitle } from "../../components/layout/PageTitle";
 import { hasEnquiryFilters, type EnquiryFilters, type EnquirySort, type EnquirySortKey } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, isViewOnlyRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
@@ -636,25 +637,12 @@ const ProjectsPage = () => {
   // Assigned to someone else: what every disabled action says.
   const notYours = (p: ProjectRecord, what = "work on it") => `Assigned to ${p.assigned_to_name || "someone else"} - only they can ${what}`;
   const headCls = "text-[11px] font-medium tracking-wide text-muted-foreground uppercase";
+  usePageTitle("Enquiries", "Create, open and manage pump-selection enquiries · expand an enquiry to work on its tags");
 
   return (
     <div className="min-h-full bg-background">
     {/* Full width beside the sidebar at every screen size (user, 2026-11-13: no centred column). */}
-    <div className="w-full px-4 pt-6 pb-10 sm:px-6 2xl:px-8">
-      {/* Page heading */}
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">Pump Selection</div>
-          <h1 className="mt-1 text-[22px] leading-tight font-semibold tracking-tight text-foreground">Enquiries</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">Create, open and manage pump-selection enquiries. Expand an enquiry to work on its tags.</p>
-        </div>
-        {manager && (
-          <Button size="lg" onClick={() => setIsModalOpen(true)}>
-            <Plus /> New Enquiry
-          </Button>
-        )}
-      </div>
-
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
       {/* Filters */}
       <Card>
         <div className="flex flex-wrap items-center gap-2 px-4 py-3">
@@ -736,12 +724,20 @@ const ProjectsPage = () => {
               <X /> Clear filters
             </Button>
           )}
-          {!isLoading && !error && (
-            <span className="ml-auto text-[12.5px] text-muted-foreground">
-              <b className="font-mono font-semibold text-foreground tabular-nums">{pageInfo.total}</b> enquir{pageInfo.total === 1 ? "y" : "ies"}
-              {hasFilter ? " match" : ""}
-            </span>
-          )}
+          <span className="ml-auto flex items-center gap-3">
+            {!isLoading && !error && (
+              <span className="text-[12.5px] text-muted-foreground">
+                <b className="font-mono font-semibold text-foreground tabular-nums">{pageInfo.total}</b> enquir{pageInfo.total === 1 ? "y" : "ies"}
+                {hasFilter ? " match" : ""}
+              </span>
+            )}
+            {/* The heading is in the top bar (user, 2026-11-13); New Enquiry sits with the filters. */}
+            {manager && (
+              <Button onClick={() => setIsModalOpen(true)}>
+                <Plus /> New Enquiry
+              </Button>
+            )}
+          </span>
         </div>
         <div className="border-t border-border bg-muted/40 px-4 py-2.5">
           <EnquiryFilterBar

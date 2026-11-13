@@ -17,6 +17,7 @@ import DashboardListModal, { type DashboardListTarget } from "./DashboardListMod
 import ClientMix from "./ClientMix";
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import type { EnquiryFilters } from "../../lib/enquiry-filters";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 const STATUS_STYLE: Record<string, { pill: string; dot: string; color: string }> = {
   Pending: { pill: "bg-[var(--warn-soft)] text-warn", dot: "bg-warn", color: "var(--warn)" },
@@ -307,6 +308,11 @@ const DashboardPage = () => {
   const enqPct = (n: number) => (k && k.enquiries ? Math.round((n / k.enquiries) * 100) : 0);
   const now = new Date();
   const firstName = user?.name?.split(" ")[0] || "there";
+  // The greeting and the date are the top bar's heading (user, 2026-11-13).
+  usePageTitle(
+    `${greetingFor(now)}, ${firstName}`,
+    `${now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · ${isSpare ? "spare enquiries" : "enquiries, tags and approvals"} at a glance`,
+  );
   const windowLabel = dates.label;
 
   const enquirySeries: TrendSeries = { key: "enq", label: "Enquiries", color: "var(--brand-blue)", values: (data?.trend ?? []).map((d) => d.enquiries) };
@@ -330,16 +336,7 @@ const DashboardPage = () => {
               "radial-gradient(900px 220px at 0% 0%, color-mix(in srgb, var(--brand-blue) 13%, transparent), transparent 70%), radial-gradient(600px 220px at 100% 0%, color-mix(in srgb, var(--brand-cyan) 12%, transparent), transparent 70%)",
           }}
         />
-        <div className="relative flex flex-wrap items-center justify-between gap-4 px-5 py-5">
-          <div>
-            <h1 className="text-[23px] leading-tight font-bold text-fg">
-              {greetingFor(now)}, {firstName}
-            </h1>
-            <p className="mt-1 text-[13px] text-fg-3">
-              {now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · {isSpare ? "spare enquiries" : "enquiries, tags and approvals"} at a
-              glance
-            </p>
-          </div>
+        <div className="relative flex flex-wrap items-center justify-end gap-4 px-5 py-3">
           <Link
             href="/projects"
             className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white shadow-[0_1px_2px_rgba(10,61,143,0.15)] transition hover:-translate-y-px hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--brand-blue)_30%,transparent)]"

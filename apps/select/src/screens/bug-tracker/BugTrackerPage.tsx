@@ -14,6 +14,7 @@ import {
   type BugReportStatus,
   type BugReportType,
 } from "../../services/bugReportService";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 // Board columns, left to right. "Resolved" is shown as "Resolved / Closed":
 // the old separate Closed status is merged into it (legacy "Closed" rows
@@ -385,18 +386,16 @@ const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
   const selectCls =
     "rounded-lg border border-line bg-paper px-2.5 py-2 text-[12.5px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
+  usePageTitle(
+    mine ? "My Bug Reports" : "Bug Tracker",
+    mine
+      ? "Reports you filed with the \"Report a Bug\" button, and where each one stands. The status is updated by the system admin — you are notified when it changes."
+      : "Reports filed from the \"Report a Bug\" button across the portal · drag a card to change its status",
+  );
   return (
     <div className="w-full px-4 pt-5 pb-10 sm:px-6 2xl:px-8">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-bold text-fg">{mine ? "My Bug Reports" : "Bug Tracker"}</h1>
-          <p className="mt-0.5 text-[13px] text-fg-3">
-            {mine
-              ? "Reports you filed with the \"Report a Bug\" button, and where each one stands. The status is updated by the system admin — you are notified when it changes."
-              : "Reports filed from the \"Report a Bug\" button across the portal · drag a card to change its status"}
-          </p>
-        </div>
+      <div className="flex flex-wrap items-end justify-end gap-4">
         {!isLoading && !error && (
           <div className="flex gap-2">
             <div className="rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] text-fg-3">

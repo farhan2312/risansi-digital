@@ -28,6 +28,7 @@ import {
   TrashIcon,
   AlertIcon,
 } from "../../components/ui/adminIcons";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 type FieldDef = { key: keyof PulleyMotorRow; label: string; numeric: boolean; required?: boolean };
 
@@ -141,6 +142,8 @@ const beltFormToApi = (rows: BeltRowFormShape[]): PulleyBeltInput[] => {
 };
 
 const PulleyMasterPage = () => {
+  // Heading in the top bar (user, 2026-11-13).
+  usePageTitle("Pulley Master", "Every (model, motor RPM) row from the pulley/motor master. Edit or delete a row, or view its full details including the belt options.");
   const [rows, setRows] = useState<PulleyMotorRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -195,13 +198,6 @@ const PulleyMasterPage = () => {
   return (
     <div className="pmm-page">
       <div className="pmm-header">
-        <div>
-          <h1>Pulley Master</h1>
-          <p>
-            Every (model, motor RPM) row from the pulley/motor master. Edit
-            or delete a row, or view its full details including the belt options.
-          </p>
-        </div>
         <div className="pmm-header-actions">
           <div className="pmm-search-wrap">
             <span className="pmm-search-icon"><SearchIcon /></span>

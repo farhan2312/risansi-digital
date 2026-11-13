@@ -1242,3 +1242,9 @@ never auto-filled from the AI result.
   so a dialog opened from it can't leave the page locked) with Review, Copy, Edit, Delete.
   Deletes use ConfirmDialog. Its other modals, filter bar, KPIs, report panel and Pagination
   are unchanged (still the old look).
+- Page heading in the TOP BAR (user, 2026-11-13, same branch): the breadcrumb is gone. components/layout/
+  PageTitle.tsx: PageTitleProvider (DashboardLayout), `usePageTitle(title, description)` for a page,
+  TopBarTitle in TopBar (falls back to the route's DEFAULTS map). PageHeader now only calls
+  usePageTitle and renders its children/actions (no title card). Pages with their own heading
+  (Dashboard greeting, Audit Log, Bug Tracker, the four pmm-* masters, Enquiries) call usePageTitle
+  instead; .pmm-header is just a right-aligned actions row. A new page: call usePageTitle, no <h1>.

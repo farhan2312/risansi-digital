@@ -26,6 +26,7 @@ import {
   TrashIcon,
   AlertIcon,
 } from "../../components/ui/adminIcons";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 type FieldDef = { key: keyof MotorMasterRow; label: string; numeric: boolean; date?: boolean };
 
@@ -81,6 +82,8 @@ const errorMessage = (err: unknown, fallback: string): string =>
   fallback;
 
 const MotorMasterPage = () => {
+  // Heading in the top bar (user, 2026-11-13).
+  usePageTitle("Motor Master", "Motor price comparison across Siemens / ABB / CGL / Havells (IE2, 1500 RPM) — one row per motor rating and brand. Edit or delete a row, or view its full details.");
   const [rows, setRows] = useState<MotorMasterRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,14 +131,6 @@ const MotorMasterPage = () => {
   return (
     <div className="pmm-page">
       <div className="pmm-header">
-        <div>
-          <h1>Motor Master</h1>
-          <p>
-            Motor price comparison across Siemens / ABB / CGL / Havells (IE2, 1500
-            RPM) — one row per motor rating and brand. Edit or delete a row, or view
-            its full details.
-          </p>
-        </div>
         <div className="pmm-header-actions">
           <div className="pmm-search-wrap">
             <span className="pmm-search-icon"><SearchIcon /></span>
