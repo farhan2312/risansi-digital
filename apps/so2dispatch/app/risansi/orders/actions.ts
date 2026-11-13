@@ -3183,7 +3183,7 @@ export async function listEcCancellationsAction(orderId: string): Promise<EcCanc
 /** Each SO's EC changes since its last version, and whether the viewer's department has seen them. */
 export async function ecVersionChangesAction(orderIds: string[]): Promise<{ dept: string | null; changes: Record<string, SoEcChanges> }> {
   const user = await getCurrentUser();
-  if (!user) return { dept: null, changes: {} };
+  if (!user || isReadOnlyViewer(user.role)) return { dept: null, changes: {} };
   const dept = ecChangeDept(user.role);
   return { dept, changes: await listEcVersionChanges(orderIds.slice(0, 200), dept) };
 }

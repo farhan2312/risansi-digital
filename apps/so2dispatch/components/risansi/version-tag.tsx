@@ -17,8 +17,11 @@ const subscribe = (fn: () => void) => {
   listeners.add(fn);
   return () => listeners.delete(fn);
 };
-function want(orderId: string) {
-  if (!orderId || cache.has(orderId) || queue.has(orderId)) return;
+function want(orderId: string, fresh = false) {
+  if (!orderId || queue.has(orderId)) return;
+  // The page's data refreshed (an EC saved, say): read it again.
+  if (fresh) cache.delete(orderId);
+  if (cache.has(orderId)) return;
   queue.add(orderId);
   if (!scheduled) {
     scheduled = true;
@@ -54,9 +57,10 @@ export function VersionTag({ order }: { order: Record<string, unknown> | null | 
   const orderId = str(order?.order_id) || str(order?.id);
   const data = useSyncExternalStore(subscribe, () => cache.get(orderId), () => undefined);
   const [open, setOpen] = useState(false);
+  // Read when shown, and again whenever the page hands it a fresh row.
   useEffect(() => {
-    if (n >= 1) want(orderId);
-  }, [orderId, n]);
+    if (n >= 1) want(orderId, true);
+  }, [orderId, n, order]);
   if (n < 1) return null;
   const changes = data?.changes ?? [];
   const unseen = changes.filter((c) => !c.acked).length;

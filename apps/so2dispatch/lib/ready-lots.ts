@@ -174,6 +174,8 @@ export function packingLotsFromRows(rows: unknown): PackingLot[] {
       packed_date: String(row.packed_date ?? "").slice(0, 10),
       plan_moves: Number(row.plan_moves ?? 0) || 0,
       recheck_note: row.recheck_at ? String(row.recheck_note ?? "").trim() || "Planning changed the lot" : "",
+      // Assembly & Packing's tick, as the form sends it.
+      recheck_ok: row.recheck_ok === true,
     };
   });
 }
@@ -197,6 +199,8 @@ export type SoLot = {
   /** ECs with lot n packed, of all the SO's ECs. */
   packed_ecs?: number;
   total_ecs?: number;
+  /** The latest packing date among its ECs (packed_date is set only once all are). */
+  last_packed_date?: string | null;
   /** Planning changed it after it was packed: Assembly & Packing to re-check. */
   recheck?: boolean;
 };

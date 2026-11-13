@@ -214,19 +214,19 @@ function PlanningLotCell({ lot, onClick }: { lot: SoLot | undefined; onClick: ()
 function PackingLotCell({ lot, today, onClick }: { lot: SoLot | undefined; today: string; onClick: () => void }) {
   if (!lot) return <span className="text-xs text-muted-foreground">—</span>;
   // Packed on some of the SO's ECs only (a new EC not packed, or not planned yet).
-  const partly = !!lot.packed_date && lot.total_ecs != null && (lot.packed_ecs ?? 0) < lot.total_ecs;
+  const partly = !lot.packed_date && (lot.packed_ecs ?? 0) > 0 && lot.total_ecs != null && (lot.packed_ecs ?? 0) < lot.total_ecs;
   const recheck = lot.recheck && (
     <span className="mt-0.5 w-fit rounded bg-amber-100 px-1 text-[10.5px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
       Re-check: Planning changed it
     </span>
   );
-  if (lot.packed_date && partly) {
+  if (partly) {
     return (
       <LotButton onClick={onClick}>
         <span className="text-[13px] font-medium text-amber-700">
           Packed {lot.packed_ecs}/{lot.total_ecs} ECs
         </span>
-        <span className="text-[11px] text-muted">{formatDate(lot.packed_date)}</span>
+        <span className="text-[11px] text-muted">{formatDate(lot.last_packed_date ?? null)}</span>
         {recheck}
       </LotButton>
     );

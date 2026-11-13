@@ -1110,6 +1110,8 @@ export async function saveReadyLots(
                   recheck_note = CASE WHEN chg.changed THEN chg.note ELSE rl.recheck_note END
              FROM old,
                   LATERAL (SELECT old.packed_date IS NOT NULL
+                                  AND EXISTS (SELECT 1 FROM order_items si JOIN orders so ON so.id = si.order_id
+                                               WHERE si.id = old.item_id AND ${spareEcSql("si", "so")})
                                   AND (old.status IS DISTINCT FROM $2 OR old.ready_date IS DISTINCT FROM $3::date
                                        OR old.qty IS DISTINCT FROM $4::int) AS changed,
                                   concat_ws(' · ',
@@ -4379,19 +4381,23 @@ export async function listOrdersPage(opts: {
                         'packing_plan_date', z.packing_plan_date, 'packing_shift', z.packing_shift,
                         'pdi', z.pdi, 'packed_date', z.packed_date, 'ecs', z.ecs,
                         'differ', z.differ, 'slips', z.slips,
-                        'packed_ecs', z.packed_ecs, 'total_ecs', z.total_ecs, 'recheck', z.recheck) ORDER BY z.n)
+                        'packed_ecs', z.packed_ecs, 'total_ecs', z.total_ecs, 'recheck', z.recheck,
+                        'last_packed_date', z.last_packed_date) ORDER BY z.n)
                FROM (SELECT lt.n,
                             (array_agg(lt.status ORDER BY lt.ec_no))[1] AS status,
                             (array_agg(to_char(lt.ready_date, 'YYYY-MM-DD') ORDER BY lt.ec_no))[1] AS ready_date,
                             (array_agg(to_char(lt.packing_plan_date, 'YYYY-MM-DD') ORDER BY lt.ec_no))[1] AS packing_plan_date,
                             (array_agg(lt.packing_shift ORDER BY lt.ec_no))[1] AS packing_shift,
                             (array_agg(lt.pdi ORDER BY lt.ec_no))[1] AS pdi,
-                            (array_agg(to_char(lt.packed_date, 'YYYY-MM-DD') ORDER BY lt.ec_no))[1] AS packed_date,
+                            -- Packed only once every EC of the SO is (a new EC not packed, or
+                            -- not planned yet, keeps the lot open); the latest date then.
+                            CASE WHEN count(lt.packed_date) >= z_all.n
+                                 THEN to_char(max(lt.packed_date), 'YYYY-MM-DD') END AS packed_date,
+                            to_char(max(lt.packed_date), 'YYYY-MM-DD') AS last_packed_date,
                             count(*)::int AS ecs,
                             count(DISTINCT (lt.status, lt.ready_date, lt.packed_date)) > 1 AS differ,
                             count(lt.packed_date)::int AS packed_ecs,
-                            -- Every EC of the SO, those with no lot n too (a new EC not planned yet).
-                            (SELECT count(*)::int FROM order_items ti WHERE ti.order_id = o.id) AS total_ecs,
+                            z_all.n AS total_ecs,
                             bool_or(lt.recheck_at IS NOT NULL) AS recheck,
                             COALESCE((SELECT jsonb_agg(btrim(ps.packing_slip_no) ORDER BY ps.seq)
                                         FROM order_packing_slips ps
@@ -4403,7 +4409,13 @@ export async function listOrdersPage(opts: {
                                     row_number() OVER (PARTITION BY rl.item_id ORDER BY rl.seq)::int AS n
                                FROM order_ready_lots rl JOIN order_items ri ON ri.id = rl.item_id
                               WHERE ri.order_id = o.id) lt
-                      GROUP BY lt.n) z), '[]'::jsonb) AS lots
+                       -- The SO's ECs a lot is owed by: its Spare ECs (a new one with no
+                       -- lots yet among them) and any EC in lots.
+                       CROSS JOIN (SELECT count(*)::int AS n FROM order_items ti
+                                    WHERE ti.order_id = o.id
+                                      AND (${spareEcSql("ti", "o")}
+                                           OR EXISTS (SELECT 1 FROM order_ready_lots tr WHERE tr.item_id = ti.id))) z_all
+                      GROUP BY lt.n, z_all.n) z), '[]'::jsonb) AS lots
        FROM orders o
        LEFT JOIN order_accounts a ON a.order_id = o.id
        LEFT JOIN (

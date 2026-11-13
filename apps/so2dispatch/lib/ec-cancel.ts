@@ -37,10 +37,13 @@ export async function checkEcCancel(itemId: string): Promise<CancelCheck | null>
   }>(
     `SELECT it.ec_no,
             EXISTS (SELECT 1 FROM order_invoices iv WHERE iv.item_id = it.id) AS invoiced,
-            -- A numbered packing slip raised on this EC itself.
-            (SELECT btrim(ps.packing_slip_no) FROM order_packing_slips ps
-              WHERE ps.item_id = it.id AND ps.kind = 'actual'
-                AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL
+            -- A packing slip raised on this EC itself: one Packing made (numbered
+            -- or not), or any on a dispatch — removing the EC would remove it.
+            (SELECT COALESCE(NULLIF(btrim(ps.packing_slip_no), ''), '(no number)') FROM order_packing_slips ps
+              WHERE ps.item_id = it.id
+                AND (ps.kind = 'actual'
+                     OR EXISTS (SELECT 1 FROM order_invoice_slips x WHERE x.packing_slip_id = ps.id)
+                     OR EXISTS (SELECT 1 FROM order_invoices iv WHERE iv.packing_slip_id = ps.id))
               ORDER BY ps.seq LIMIT 1) AS own_slip,
             -- A packed lot of this EC that one of the SO's slips carries.
             (SELECT btrim(ps.packing_slip_no)
