@@ -58,25 +58,25 @@ function Kpi({
   spark?: number[];
 }) {
   const tones: Record<string, [string, string]> = {
-    accent: ["bg-accent-soft text-accent", "var(--brand-blue)"],
-    cyan: ["bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[var(--brand-cyan)]", "var(--brand-cyan)"],
-    pos: ["bg-[var(--pos-soft)] text-pos", "var(--pos)"],
-    warn: ["bg-[var(--warn-soft)] text-warn", "var(--warn)"],
-    neg: ["bg-[var(--neg-soft)] text-neg", "var(--neg)"],
-    purple: ["bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]", "var(--purple)"],
+    accent: ["bg-primary/8 text-primary", "var(--chart-1)"],
+    cyan: ["bg-info/10 text-info", "var(--chart-1)"],
+    pos: ["bg-success/10 text-success", "var(--chart-done)"],
+    warn: ["bg-warning/10 text-warning", "var(--chart-pending)"],
+    neg: ["bg-destructive/10 text-destructive", "var(--chart-regret)"],
+    purple: ["bg-primary/8 text-primary", "var(--chart-sent)"],
   };
   const [chip, color] = tones[tone]!;
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-line bg-paper p-4 transition-colors hover:border-line-strong">
+    <div className="group relative overflow-hidden rounded-lg border border-border bg-card p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_6px_18px_rgba(15,23,42,0.07)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-3">{label}</div>
-          <div className="mt-1.5 font-mono text-[24px] font-bold leading-none tracking-tight text-fg tabular-nums">{value}</div>
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+          <div className="mt-1.5 font-mono text-[24px] font-semibold leading-none tracking-tight text-foreground tabular-nums">{value}</div>
         </div>
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${chip}`}>{icon}</span>
+        <span className={`flex size-8 shrink-0 items-center justify-center rounded-md ${chip}`}>{icon}</span>
       </div>
       <div className="mt-3 flex min-h-[30px] items-end justify-between gap-2">
-        <div className="min-w-0 text-[11.5px] leading-snug text-fg-3">{foot}</div>
+        <div className="min-w-0 text-[11.5px] leading-snug text-muted-foreground">{foot}</div>
         {spark && <Sparkline values={spark} color={color} />}
       </div>
     </div>
@@ -85,14 +85,14 @@ function Kpi({
 
 function Insight({ icon, label, value, sub }: { icon: ReactNode; label: string; value: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-line bg-paper px-4 py-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-white">
+    <div className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/8 text-primary ring-1 ring-primary/15">
         {icon}
       </span>
       <div className="min-w-0">
-        <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">{label}</div>
-        <div className="truncate text-[13.5px] font-semibold text-fg">{value}</div>
-        {sub && <div className="truncate text-[11.5px] text-fg-3">{sub}</div>}
+        <div className="text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="truncate text-[13.5px] font-semibold text-foreground">{value}</div>
+        {sub && <div className="truncate text-[11.5px] text-muted-foreground">{sub}</div>}
       </div>
     </div>
   );
@@ -119,17 +119,17 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
 
   const trendSeries: TrendSeries[] = useMemo(() => {
     const pick = (k: keyof (typeof daily)[number]) => daily.map((d) => Number(d[k]) || 0);
-    if (trend === "users") return [{ key: "users", label: "Active users", color: "var(--purple)", values: pick("users") }];
-    if (trend === "time") return [{ key: "time", label: "Active time", color: "var(--pos)", values: pick("activeSeconds") }];
+    if (trend === "users") return [{ key: "users", label: "Active users", color: "var(--chart-1)", values: pick("users") }];
+    if (trend === "time") return [{ key: "time", label: "Active time", color: "var(--chart-1)", values: pick("activeSeconds") }];
     if (trend === "created")
       return [
-        { key: "enq", label: "Enquiries", color: "var(--brand-blue)", values: pick("enquiries") },
-        { key: "tags", label: "Tags", color: "var(--brand-cyan)", values: pick("tags") },
+        { key: "enq", label: "Enquiries", color: "var(--chart-1)", values: pick("enquiries") },
+        { key: "tags", label: "Tags", color: "var(--chart-2)", values: pick("tags") },
       ];
     return [
-      { key: "actions", label: "Actions", color: "var(--brand-blue)", values: pick("actions") },
-      { key: "logins", label: "Sign-ins", color: "var(--brand-cyan)", values: pick("logins") },
-      { key: "failed", label: "Failed sign-ins", color: "var(--neg)", values: pick("failed") },
+      { key: "actions", label: "Actions", color: "var(--chart-s1)", values: pick("actions") },
+      { key: "logins", label: "Sign-ins", color: "var(--chart-s2)", values: pick("logins") },
+      { key: "failed", label: "Failed sign-ins", color: "var(--chart-regret)", values: pick("failed") },
     ];
   }, [daily, trend]);
 
@@ -154,9 +154,9 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
       const c = u.days[day];
       return (
         <div className="space-y-0.5">
-          <div className="flex justify-between gap-4"><span className="text-fg-2">Active time</span><b className="font-mono">{formatDuration(c?.activeSeconds ?? 0)}</b></div>
-          <div className="flex justify-between gap-4"><span className="text-fg-2">Actions</span><b className="font-mono">{c?.actions ?? 0}</b></div>
-          <div className="flex justify-between gap-4"><span className="text-fg-2">Enquiries / Tags</span><b className="font-mono">{c?.enquiries ?? 0} / {c?.tags ?? 0}</b></div>
+          <div className="flex justify-between gap-4"><span className="text-foreground">Active time</span><b className="font-mono">{formatDuration(c?.activeSeconds ?? 0)}</b></div>
+          <div className="flex justify-between gap-4"><span className="text-foreground">Actions</span><b className="font-mono">{c?.actions ?? 0}</b></div>
+          <div className="flex justify-between gap-4"><span className="text-foreground">Enquiries / Tags</span><b className="font-mono">{c?.enquiries ?? 0} / {c?.tags ?? 0}</b></div>
         </div>
       );
     },
@@ -188,8 +188,8 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
         const c = u.days[day];
         return (
           <div className="space-y-0.5">
-            <div className="flex justify-between gap-4"><span className="text-fg-2">Enquiries created</span><b className="font-mono">{c?.enquiries ?? 0}</b></div>
-            <div className="flex justify-between gap-4"><span className="text-fg-2">Tags created</span><b className="font-mono">{c?.tags ?? 0}</b></div>
+            <div className="flex justify-between gap-4"><span className="text-foreground">Enquiries created</span><b className="font-mono">{c?.enquiries ?? 0}</b></div>
+            <div className="flex justify-between gap-4"><span className="text-foreground">Tags created</span><b className="font-mono">{c?.tags ?? 0}</b></div>
           </div>
         );
       },
@@ -274,7 +274,7 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
           }
         >
           {days.length === 0 ? (
-            <p className="py-16 text-center text-[12.5px] text-fg-3">Nothing recorded in this period</p>
+            <p className="py-16 text-center text-[12.5px] text-muted-foreground">Nothing recorded in this period</p>
           ) : (
             <>
               <TrendChart
@@ -285,7 +285,7 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
               />
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 pl-11">
                 {trendSeries.map((s) => (
-                  <span key={s.key} className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-2">
+                  <span key={s.key} className="inline-flex items-center gap-1.5 text-[11.5px] text-foreground">
                     <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} />
                     {s.label}
                   </span>
@@ -300,10 +300,10 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
             items={data.eventTypes}
             centerLabel="events"
             colors={{
-              Actions: "var(--brand-blue)",
-              "Sign-ins": "var(--brand-cyan)",
-              "Failed sign-ins": "var(--neg)",
-              "Sign-outs": "#64748b",
+              Actions: "var(--chart-s1)",
+              "Sign-ins": "var(--chart-s2)",
+              "Failed sign-ins": "var(--chart-regret)",
+              "Sign-outs": "var(--chart-none)",
             }}
           />
         </Card>
@@ -345,7 +345,7 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
           rows={userRows}
           format={userMetric === "time" ? fmtMinutes : fmtNum}
           cellFormat={userMetric === "time" ? fmtMinutesShort : fmtNum}
-          color={userMetric === "time" ? "var(--pos)" : "var(--brand-blue)"}
+          color="var(--chart-1)"
         />
       </Card>
 
@@ -366,7 +366,7 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
           />
         }
       >
-        <UserDayHeatmap days={days} rows={creatorRows} color="var(--brand-cyan)" />
+        <UserDayHeatmap days={days} rows={creatorRows} color="var(--chart-1)" />
       </Card>
 
       {/* Devices + IP addresses */}
@@ -375,14 +375,14 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
           <DonutChart
             items={data.devices}
             centerLabel="events"
-            colors={{ Desktop: "var(--brand-blue)", Mobile: "var(--brand-cyan)", Tablet: "var(--purple)", Unknown: "#64748b" }}
+            colors={{ Desktop: "var(--chart-s1)", Mobile: "var(--chart-s2)", Tablet: "var(--chart-s3)", Unknown: "var(--chart-none)" }}
           />
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-line pt-3">
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-3">
             {data.devices.slice(0, 4).map((d) => (
-              <div key={d.label} className="rounded-lg bg-elev px-3 py-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3">{d.label}</div>
-                <div className="mt-0.5 text-[12.5px] text-fg-2">
-                  <b className="font-mono text-fg">{d.users}</b> user{d.users === 1 ? "" : "s"}
+              <div key={d.label} className="rounded-md bg-muted/60 px-3 py-2">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{d.label}</div>
+                <div className="mt-0.5 text-[12.5px] text-foreground">
+                  <b className="font-mono text-foreground">{d.users}</b> user{d.users === 1 ? "" : "s"}
                 </div>
               </div>
             ))}
@@ -405,11 +405,11 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
           }
         >
           <DonutChart items={platformView === "os" ? data.os : data.browsers} centerLabel="events" />
-          <ul className="mt-4 space-y-1 border-t border-line pt-3 text-[12px] text-fg-3">
+          <ul className="mt-4 space-y-1 border-t border-border pt-3 text-[12px] text-muted-foreground">
             {(platformView === "os" ? data.os : data.browsers).slice(0, 4).map((d) => (
               <li key={d.label} className="flex justify-between gap-3">
                 <span>{d.label}</span>
-                <span><b className="font-mono text-fg">{d.users}</b> user{d.users === 1 ? "" : "s"}</span>
+                <span><b className="font-mono text-foreground">{d.users}</b> user{d.users === 1 ? "" : "s"}</span>
               </li>
             ))}
           </ul>
@@ -424,27 +424,27 @@ export default function AuditOverviewTab({ data, windowLabel }: { data: AuditOve
           bodyClassName="relative min-h-[240px] flex-1"
         >
           {data.ips.length === 0 ? (
-            <p className="py-8 text-center text-[12.5px] text-fg-3">Nothing recorded</p>
+            <p className="py-8 text-center text-[12.5px] text-muted-foreground">Nothing recorded</p>
           ) : (
-            <ul className="max-h-[360px] divide-y divide-line overflow-y-auto xl:absolute xl:inset-0 xl:max-h-none">
+            <ul className="max-h-[360px] divide-y divide-border overflow-y-auto xl:absolute xl:inset-0 xl:max-h-none">
               {data.ips.map((ip) => (
-                <li key={ip.ip} className="flex items-center gap-3 px-4 py-2.5 hover:bg-elev">
+                <li key={ip.ip} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <IpChip ip={ip.ip} />
                       {ip.failed > 0 && (
-                        <span className="rounded-full bg-[var(--neg-soft)] px-1.5 py-0.5 text-[10.5px] font-semibold text-neg">
+                        <span className="rounded-md bg-destructive/10 px-1.5 py-px text-[11px] font-medium text-destructive ring-1 ring-destructive/25 ring-inset">
                           {ip.failed} failed
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 truncate text-[11.5px] text-fg-3" title={ip.emails.join(", ")}>
+                    <div className="mt-1 truncate text-[11.5px] text-muted-foreground" title={ip.emails.join(", ")}>
                       {ip.emails.slice(0, 2).join(", ")}
                       {ip.emails.length > 2 ? ` +${ip.emails.length - 2} more` : ""}
                     </div>
                   </div>
-                  <div className="text-right text-[11.5px] text-fg-3">
-                    <div><b className="font-mono text-fg">{fmtNum(ip.events)}</b> events</div>
+                  <div className="text-right text-[11.5px] text-muted-foreground">
+                    <div><b className="font-mono text-foreground">{fmtNum(ip.events)}</b> events</div>
                     <div>{ip.users} user{ip.users === 1 ? "" : "s"} · {fmtAgo(ip.lastAt)}</div>
                   </div>
                 </li>

@@ -1276,3 +1276,8 @@ never auto-filled from the AI result.
   left; PumpModelMasterPage.css stays loaded in layout for anything still using it), the shared
   tableControls (FilterBar/SortTh) and adminIcons (lucide), BOI master (boiUi Modal = Radix Dialog,
   DeleteConfirm = ConfirmDialog), Client Quoted Prices, USD to INR (3-card grid).
+- Also in shadcn (user, 2026-11-13, same branch): spare quotation (SpareCommercial; QuotePreview stays a
+  NON-Radix overlay - prints via printHtml), QuotationPanel (SHARED with the pump Commercial Summary;
+  SnapshotModal stays non-Radix because CommercialOfferModal opens inside it), UsdToggle, Head
+  Calculator (HeadCalculatorView also feeds HeadCalcModal), Bug Tracker / My Bug Reports, the top
+  bar's ReportBugModal, Audit Log + audit/* (auditUi restyled, chart colours on --chart-* tokens).
