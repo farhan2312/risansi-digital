@@ -16,6 +16,7 @@ import {
   type OrderListRow,
 } from "@/lib/orders";
 import { listPumpSummaries, type PumpSummary } from "@/lib/pump-summary";
+import { ecQcStatusSql } from "@/lib/qc-filter";
 import type { KpiCard } from "@/lib/kpis";
 import type { OrderListFilter } from "@/lib/order-list-filter";
 import { CLOSED } from "@/lib/order-row-view";
@@ -90,7 +91,7 @@ export type PumpDashboard = {
   gad: Bucket[];
   /** Bought-out items on all SOs but the cancelled and diverted, received or not. */
   boi: { received: number; pending: number };
-  /** Pump ECs on all SOs but the cancelled and diverted whose Quality documents are in, or not (Quality needed). */
+  /** Pump ECs assembled (some or all), on all SOs but the cancelled and diverted needing Quality: their documents in, or not. */
   qc: { submitted: number; pending: number };
   metrics: {
     sos: number;
@@ -221,8 +222,16 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     no_slip: boolean;
     ecs: number;
     pumps: number;
+    /** Quality Required: its pump ECs assembled (some or all), and of those, the ones with their documents in. */
+    qc_asm: number;
+    qc_asm_sub: number;
   };
   const facts = new Map<string, Facts>();
+  // A pump EC reaches Quality once some of it is assembled — as Quality's page reads it (lib/ec-assembly).
+  const assembled = (s: string) => `EXISTS (SELECT 1 FROM order_lot_assembly la
+                                     WHERE la.item_id = ${s}.id AND la.assembled_date IS NOT NULL AND COALESCE(la.qty, 0) > 0)`;
+  const qcEcs = (more: string) => `CASE WHEN o.qc_required = 'Yes' THEN (SELECT count(*)::int FROM order_items s
+                     WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB') AND ${assembled("s")}${more}) ELSE 0 END`;
   if (ids.length) {
     const r = await query<Facts>(
       `SELECT o.id,
@@ -240,7 +249,9 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
                                             AND (SELECT count(*) FROM order_ready_lots n2
                                                   WHERE n2.item_id = nl.item_id AND n2.seq <= nl.seq) = ANY(ns.lot_nos))) AS no_slip,
               (SELECT count(*)::int FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')) AS ecs,
-              (SELECT COALESCE(sum(s.quantity), 0)::int FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')) AS pumps
+              (SELECT COALESCE(sum(s.quantity), 0)::int FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB')) AS pumps,
+              ${qcEcs("")} AS qc_asm,
+              ${qcEcs(` AND ${ecQcStatusSql("s", "o")} = 'Submitted'`)} AS qc_asm_sub
          FROM orders o WHERE o.id = ANY($1::uuid[])`,
       [ids]
     );
@@ -396,9 +407,11 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
       boi.received += sum.purchase.received;
       boi.pending += sum.purchase.items - sum.purchase.received;
     }
-    if (sum.quality.required) {
-      qc.submitted += sum.quality.submitted;
-      qc.pending += sum.quality.total - sum.quality.submitted;
+    // Quality: only the pump ECs assembled (some or all) — the ECs on Quality's page.
+    const f = facts.get(s.id);
+    if (sum.quality.required && f) {
+      qc.submitted += Number(f.qc_asm_sub) || 0;
+      qc.pending += (Number(f.qc_asm) || 0) - (Number(f.qc_asm_sub) || 0);
     }
   }
   const GAD_ORDER = ["Pending", "Resubmit", "Sent to client – approval pending", "Approved by client", "Issued to planning", GAD_CLOSED];

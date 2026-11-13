@@ -1142,6 +1142,12 @@ never auto-filled from the AI result.
   (only with the BOI total add-parameter ticked), "Final Discounted Unit Price" and "Sub-Total
   Discounted Price (INR)" (no "No Regret", 2026-11-11); Total Price (add-parameter) becomes the discounted total.
 
+## Assigned to filter (user, 2026-11-13)
+- EnquiryFilters.assignee (multi, by the assignee's NAME, filterKey spelling): param f_assignee; SQL
+  EXISTS on users_pump (au.id = projects.assigned_to, keyOf(au.name)); options = assignees in
+  /api/projects/filter-options (names of users some enquiry is assigned to, role user_worker / user_master only). In EnquiryFilterBar
+  after Industry, so the Enquiries table, the Enquiry Report and the Dashboard all filter on it.
+
 ## Enquiries list column sort (user, 2026-11-06)
 - Click Enquiry No. / Date, Client / Code, Reps / Zone or Assigned To to sort; several at once, in click order
   (numbered). A click adds (date newest first, names A to Z), the next reverses, the next removes. Server-side:

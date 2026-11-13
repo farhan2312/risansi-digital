@@ -151,7 +151,13 @@ export async function freezeVersion(
      VALUES ($1, $2, $3, $4::jsonb, $5, $6)`,
     [input.orderId, frozen, input.reason, JSON.stringify(snap), input.userId, input.userName]
   );
-  await client.query(`UPDATE orders SET version_no = version_no + 1, updated_at = now() WHERE id = $1`, [input.orderId]);
+  // The new version is sent to Operation and to PPC afresh: both dates blank,
+  // to fill again (the frozen version keeps the old ones).
+  await client.query(
+    `UPDATE orders SET version_no = version_no + 1, ec_sent_operation_date = NULL, so_handover_date = NULL, updated_at = now()
+      WHERE id = $1`,
+    [input.orderId]
+  );
   return { frozen, current: frozen + 1 };
 }
 

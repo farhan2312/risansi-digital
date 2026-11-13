@@ -78,6 +78,7 @@ const FILTER_KEYS = [
   "hreason",
   "ahold",
   "areason",
+  "ppc",
 ];
 
 /**
@@ -468,6 +469,17 @@ export function OrderListFilterBar({
               options={HOLD_REASON_FILTER_OPTIONS}
               selected={filter.holdReasons}
               onChange={(next) => setParams({ hreason: next })}
+            />
+            {/* SO Sent to PPC: its date entered, or blank (No). */}
+            <SingleSelectFilter
+              label="Sent to PPC"
+              allLabel="Any"
+              options={[
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+              ]}
+              selected={filter.sentPpc ?? null}
+              onChange={(next) => setParams({ ppc: next })}
             />
           </>
         )}

@@ -46,7 +46,8 @@ const REP_GROUPS: RepGroup<Stage>[] = [
 
 export function SpareDashboardView({ data }: { data: SpareDashboard }) {
   const m = data.metrics;
-  const stages: Datum[] = data.stages.map((s) => ({ ...s, color: STAGE_COLOR[s.label as Stage] }));
+  // The pipeline leaves the On hold bar out (the On hold card and list show the holds).
+  const stages: Datum[] = data.stages.filter((s) => s.label !== "On hold").map((s) => ({ ...s, color: STAGE_COLOR[s.label as Stage] }));
 
   return (
     <div className="viz space-y-5">
