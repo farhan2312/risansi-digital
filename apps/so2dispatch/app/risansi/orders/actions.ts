@@ -130,6 +130,8 @@ import {
   type TargetRevision,
 } from "@/lib/target-dates";
 import { logAudit } from "@/lib/audit";
+import { isVersionedType } from "@/lib/order-versions";
+import { ackEcVersionChanges, ecChangeDept, listEcVersionChanges, type SoEcChanges } from "@/lib/ec-version-changes";
 import { cancelEc, checkEcCancel, listEcCancellations, type CancelCheck, type EcCancellation } from "@/lib/ec-cancel";
 import {
   PACKING_LOTS_FIELD,
@@ -512,6 +514,20 @@ export async function createItemAction(
       // A new EC can settle Drawing's target: its quantity may be the one the
       // SO did not state, and it may be the first EC that is not a Spare.
       autoFillTargets(orderId, user),
+      // An EC added to a revised Pump SO: the departments hear (its version tag shows it too).
+      query<{ version_no: number; order_type: string | null }>(`SELECT version_no, order_type FROM orders WHERE id = $1`, [orderId])
+        .then(({ rows: [o] }) =>
+          o && Number(o.version_no) > 0 && isVersionedType(o.order_type)
+            ? emitNotification({
+                roles: ["drawing", "purchase", "qc", "planning", "assembly"],
+                orderId,
+                itemId,
+                type: "dept_update",
+                message: `New EC ${ecLabel || ""} added to ${soLabel} in v${Number(o.version_no)}.`.replace("  ", " "),
+              })
+            : undefined
+        )
+        .catch((error) => console.error("version EC notice failed:", error)),
       // A Spare SO is planned as one: the new EC joins it where it stands.
       inheritSparePlanning(itemId, { id: user.id, role: user.role })
         .then((r) =>
@@ -1109,6 +1125,17 @@ export async function updateOrderSectionAction(
           ? `Readiness lots: ${lotText(after.order_ready_lots)}`
           : null;
       const changes = [fieldChanges, lotsChange].filter(Boolean).join("; ") || null;
+      // An EC changed on a revised Pump SO: the departments working on it hear,
+      // and its version tag shows the change until each acknowledges it.
+      if (tbl === "order_items" && fieldChanges && current && Number(current.order.version_no ?? 0) > 0 && isVersionedType(current.order.order_type)) {
+        await emitNotification({
+          roles: ["drawing", "purchase", "qc", "planning", "assembly"],
+          orderId: String(current.order.id),
+          itemId: id,
+          type: "dept_update",
+          message: `${ecNo ?? "An EC"} changed in v${Number(current.order.version_no)}: ${fieldChanges}`,
+        });
+      }
       await logAudit({
         actor: { id: user.id, email: user.email, role: user.role },
         action: "order.update",
@@ -3147,4 +3174,26 @@ export async function listEcCancellationsAction(orderId: string): Promise<EcCanc
   const user = await getCurrentUser();
   if (!user) return [];
   return listEcCancellations(orderId);
+}
+
+// ---------------------------------------------------------------------------
+// A Pump SO's EC changes in its current version, for the version tag.
+// ---------------------------------------------------------------------------
+
+/** Each SO's EC changes since its last version, and whether the viewer's department has seen them. */
+export async function ecVersionChangesAction(orderIds: string[]): Promise<{ dept: string | null; changes: Record<string, SoEcChanges> }> {
+  const user = await getCurrentUser();
+  if (!user) return { dept: null, changes: {} };
+  const dept = ecChangeDept(user.role);
+  return { dept, changes: await listEcVersionChanges(orderIds.slice(0, 200), dept) };
+}
+
+/** The viewer's department has seen the SO's EC changes. */
+export async function ackEcVersionChangesAction(orderId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  const dept = ecChangeDept(user.role);
+  if (!dept) return { ok: false, error: "Only a department that works on ECs acknowledges them." };
+  await ackEcVersionChanges(orderId, dept, { id: user.id, name: user.full_name || user.email });
+  return { ok: true };
 }

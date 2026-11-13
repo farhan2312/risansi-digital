@@ -3297,3 +3297,19 @@ CREATE INDEX IF NOT EXISTS order_item_cancellations_order_idx ON order_item_canc
 -- with what changed, until Assembly & Packing confirms the packing or packs it again.
 ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS recheck_at TIMESTAMPTZ;
 ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS recheck_note TEXT;
+
+-- A department has seen an EC's change in the SO's current version (added,
+-- changed, removed). The fingerprint is the change as it stood then: a later
+-- change to the same EC shows again.
+CREATE TABLE IF NOT EXISTS order_ec_version_acks (
+    order_id      UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    item_id       UUID NOT NULL,
+    version_no    INTEGER NOT NULL,
+    dept          TEXT NOT NULL,
+    fingerprint   TEXT NOT NULL,
+    acked_by      UUID,
+    acked_by_name TEXT,
+    acked_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (item_id, version_no, dept)
+);
+CREATE INDEX IF NOT EXISTS order_ec_version_acks_order_idx ON order_ec_version_acks (order_id, version_no, dept);
