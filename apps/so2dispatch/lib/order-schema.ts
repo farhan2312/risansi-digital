@@ -1161,6 +1161,8 @@ export const INVOICE_FIELDS: OrderField[] = [
   { column: "invoice_date",     label: "Invoice Date",  type: "date",   group: "Invoice", dependsOn: [{ column: "bill_type", value: "Tax Invoice" }] },
   { column: "invoice_value",    label: "Invoice Value", type: "number", group: "Invoice", dependsOn: [{ column: "bill_type", value: "Tax Invoice" }] },
   { column: "invoice_quantity", label: "Invoice Qty",   type: "int",    group: "Invoice", dependsOn: [{ column: "bill_type", value: "Tax Invoice" }] },
+  // Billed beyond Invoice Value; counts as invoiced in Order in Hand.
+  { column: "other_value",      label: "Other Value",   type: "number", group: "Invoice", dependsOn: [{ column: "bill_type", value: "Tax Invoice" }] },
   { column: "challan_no",       label: "Challan No.",   type: "text",   group: "Invoice", dependsOn: [{ column: "bill_type", value: "Challan" }] },
   { column: "challan_date",     label: "Challan Date",  type: "date",   group: "Invoice", dependsOn: [{ column: "bill_type", value: "Challan" }] },
   { column: "challan_value",    label: "Challan Value", type: "number", group: "Invoice", dependsOn: [{ column: "bill_type", value: "Challan" }] },

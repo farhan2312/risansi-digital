@@ -3021,7 +3021,7 @@ export async function listOrdersForBilling(
             o.gst_percent::text AS gst_percent,
             o.taxable_value::text AS taxable_value,
             o.gross_value_usd::text AS gross_value_usd,
-            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
+            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value, 0) + COALESCE(iv.other_value, 0))::text
                FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
             (SELECT jsonb_agg(jsonb_build_object('n', pz.n, 'status', pz.status, 'packed_date', pz.packed_date, 'remarks', pz.remarks) ORDER BY pz.n)
                FROM (SELECT py.n, max(py.st) AS status, to_char(max(py.packed_date), 'YYYY-MM-DD') AS packed_date, max(py.packing_remarks) AS remarks
@@ -4256,7 +4256,7 @@ export async function listOrdersPage(opts: {
             o.discount_percent::text AS discount_percent,
             o.packing_forwarding_percent::text AS packing_forwarding_percent,
             o.gst_percent::text AS gst_percent,
-            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
+            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value, 0) + COALESCE(iv.other_value, 0))::text
                FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
             o.boi,
             a.payment_status,
@@ -4399,7 +4399,7 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.discount_percent::text AS discount_percent,
             o.packing_forwarding_percent::text AS packing_forwarding_percent,
             o.gst_percent::text AS gst_percent,
-            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
+            (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value, 0) + COALESCE(iv.other_value, 0))::text
                FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
             o.boi,
             a.payment_status,
@@ -4458,7 +4458,7 @@ async function cumulativeInHand(where: string, params: unknown[]): Promise<numbe
     `SELECT sum(CASE WHEN h.diff < 1 THEN 0 ELSE h.diff END)::text AS amount
        FROM orders o
        CROSS JOIN LATERAL (
-         SELECT o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))
+         SELECT o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value, 0) + COALESCE(iv.other_value, 0))
                                               FROM order_invoices iv WHERE iv.order_id = o.id), 0) AS diff
        ) h
        ${where ? `${where}\n        AND` : "WHERE"} o.taxable_value IS NOT NULL
@@ -5253,7 +5253,7 @@ function queueOrderBy(sort: QueueSort | null | undefined): string | undefined {
   // invoiced, as orderInHand reads it; a Challan (replacement) or no gross last.
   if (sort.replace("-", "") === "in_hand") {
     return `(CASE WHEN COALESCE(o.bill_type, '') = 'Challan' OR o.taxable_value IS NULL THEN NULL
-                  ELSE o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))
+                  ELSE o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value, 0) + COALESCE(iv.other_value, 0))
                                                      FROM order_invoices iv WHERE iv.order_id = o.id), 0) END) ${dir} NULLS LAST, o.sl_no DESC`;
   }
   // The EC date: the SO's earliest EC.
