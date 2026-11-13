@@ -361,7 +361,7 @@ export default function SpareCommercial({
   if (loadError || !draft || !quoteLoaded) {
     return (
       <div className="min-h-full bg-background">
-      <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8">
+      <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 min-[1101px]:px-0">
         {header}
         <div className={`${cardCls} p-6 text-center text-[13px] ${loadError ? "text-destructive" : "text-muted-foreground"}`}>
           {loadError || "Loading…"}
@@ -383,7 +383,7 @@ export default function SpareCommercial({
 
   return (
     <div className="min-h-full bg-background">
-    <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8">
+    <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 min-[1101px]:px-0">
       {header}
 
       {olderVersion && (

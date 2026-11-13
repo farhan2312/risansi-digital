@@ -753,7 +753,7 @@ const PumpSelectionPage = () => {
     <ApprovalProvider tagId={project?.tagId} refreshKey={approvalRefresh}>
       <ProjectHeader project={project} />
       {readOnly && (
-        <div className="mt-3 w-full px-4 sm:px-6 2xl:px-8">
+        <div className="mt-3 w-full px-4 sm:px-6 min-[1101px]:px-0">
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3.5 py-2.5 text-[12.5px]">
             <span className="rounded-md bg-accent px-2 py-0.5 text-[11.5px] font-bold text-white">View only</span>
             <span className="text-fg-2">

@@ -222,7 +222,7 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
 
   return (
     <div className="min-h-full bg-background">
-    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 min-[1101px]:px-0">
       {/* The heading goes to the top bar (PageHeader with nothing else renders nothing). */}
       <PageHeader icon={<DocsIcon />} title={title} subtitle="The enquiries reviewed and sent to operation, with their saved documents" />
 

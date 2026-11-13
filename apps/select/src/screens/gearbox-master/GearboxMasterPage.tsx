@@ -140,7 +140,7 @@ const GearboxMasterPage = () => {
 
   return (
     <div className="min-h-full bg-background">
-      <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      <div className="w-full px-4 pt-4 pb-10 sm:px-6 min-[1101px]:px-0">
         {/* Table switch on the left; search and Add on the right (the heading is in the top bar) */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Tabs value={table} onValueChange={(v) => setTable(v as GearboxTableKey)}>
