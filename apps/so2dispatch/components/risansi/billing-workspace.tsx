@@ -176,7 +176,11 @@ export function BillingWorkspace({
                 {mode === "dispatch" && <th className="px-4 py-3">Payment terms &amp; PIs</th>}
                 <th className="px-4 py-3">{mode === "billing" ? "Payment terms & PIs" : "Packing slips & dispatches"}</th>
                 <th className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
-                {mode === "dispatch" && <th className="px-4 py-3 whitespace-nowrap text-right">Order in Hand</th>}
+                {mode === "dispatch" && (
+                  <th className="px-4 py-3 whitespace-nowrap text-right">
+                    <SortHeader label="Order in Hand" sortKey="in_hand" />
+                  </th>
+                )}
                 {mode === "billing" && <th className="px-4 py-3">PI Status</th>}
                 <th className="px-4 py-3">Dispatch Status</th>
                 {mode === "dispatch" && <th className="px-4 py-3">Stage</th>}

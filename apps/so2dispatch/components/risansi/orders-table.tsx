@@ -479,7 +479,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label="Order Status" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap text-right">Order in Hand</th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap text-right"><SortHeader label="Order in Hand" sortKey="in_hand" /></th>
                 {pump && <th rowSpan={2} className="px-4 py-3 text-right">Quantity</th>}
                 <th rowSpan={2} className="px-4 py-3">Departments</th>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>

@@ -5182,12 +5182,14 @@ export type QueueSort =
   | "asm_plan" | "-asm_plan" | "ec_date" | "-ec_date"
   // Any of SORTABLE_DATE_COLUMNS or the ones below (see DATE_SORT_SQL).
   | `${string}_date` | `-${string}_date` | "qc_submitted" | "-qc_submitted"
-  | "dispatch_target_date" | "-dispatch_target_date" | "ld_date" | "-ld_date" | "so_handover_date" | "-so_handover_date";
+  | "dispatch_target_date" | "-dispatch_target_date" | "ld_date" | "-ld_date" | "so_handover_date" | "-so_handover_date"
+  | "in_hand" | "-in_hand";
 
 const QUEUE_SORTS: QueueSort[] = [
   "sl", "-sl", "readiness", "-readiness", "packing", "-packing", "so_date", "-so_date", "ecs", "-ecs", "rep", "-rep",
   "asm_plan", "-asm_plan", "ec_date", "-ec_date",
   "dispatch_target_date", "-dispatch_target_date", "ld_date", "-ld_date", "so_handover_date", "-so_handover_date",
+  "in_hand", "-in_hand",
 ];
 
 /**
@@ -5246,6 +5248,13 @@ function queueOrderBy(sort: QueueSort | null | undefined): string | undefined {
   if (sort.replace("-", "") === "asm_plan") {
     return `(SELECT min(pla.plan_date) FROM order_items s
                JOIN order_lot_assembly pla ON pla.item_id = s.id WHERE s.order_id = o.id) ${dir} NULLS LAST, o.sl_no DESC`;
+  }
+  // Order in Hand (the Orders list and Dispatch): gross value less what is
+  // invoiced, as orderInHand reads it; a Challan (replacement) or no gross last.
+  if (sort.replace("-", "") === "in_hand") {
+    return `(CASE WHEN COALESCE(o.bill_type, '') = 'Challan' OR o.taxable_value IS NULL THEN NULL
+                  ELSE o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))
+                                                     FROM order_invoices iv WHERE iv.order_id = o.id), 0) END) ${dir} NULLS LAST, o.sl_no DESC`;
   }
   // The EC date: the SO's earliest EC.
   if (sort.replace("-", "") === "ec_date") {
