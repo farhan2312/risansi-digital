@@ -320,7 +320,7 @@ const DashboardPage = () => {
       : [{ key: "done", label: "Tags completed (by creation day)", color: "var(--pos)", values: (data?.trend ?? []).map((d) => d.completed) }];
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
+    <div className="w-full px-4 pt-5 pb-10 sm:px-6 2xl:px-8">
       {/* Header */}
       <div className="relative overflow-hidden rounded-2xl border border-line bg-paper">
         <div

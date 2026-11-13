@@ -386,7 +386,7 @@ const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
     "rounded-lg border border-line bg-paper px-2.5 py-2 text-[12.5px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
+    <div className="w-full px-4 pt-5 pb-10 sm:px-6 2xl:px-8">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

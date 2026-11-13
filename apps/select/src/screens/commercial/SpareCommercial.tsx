@@ -352,7 +352,7 @@ export default function SpareCommercial({
 
   if (loadError || !draft || !quoteLoaded) {
     return (
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 sm:px-6">
+      <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8">
         {header}
         <div className={`rounded-xl border border-line bg-paper p-6 text-center text-[13.5px] ${loadError ? "text-neg" : "text-fg-3"}`}>
           {loadError || "Loading…"}
@@ -372,7 +372,7 @@ export default function SpareCommercial({
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 sm:px-6">
+    <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8">
       {header}
 
       {olderVersion && (

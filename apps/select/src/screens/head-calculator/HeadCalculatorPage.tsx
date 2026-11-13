@@ -85,7 +85,7 @@ const HeadCalculatorPage = () => {
   const [form, setForm] = useState<HeadCalcInput>(DEFAULT_HEAD_CALC_INPUT);
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
+    <div className="w-full px-4 pt-5 pb-10 sm:px-6 2xl:px-8">
       <PageHeader
         icon={<CalcGlyph />}
         title="Head Calculator"

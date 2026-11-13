@@ -542,7 +542,7 @@ export default function CommercialSummaryPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-5 sm:px-6">
+    <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8">
       <PageHeader
         icon={<RupeeIcon />}
         title="Commercial Summary"

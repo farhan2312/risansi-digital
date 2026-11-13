@@ -5,7 +5,7 @@
 
 .pmm-page {
   padding: 20px 24px 40px;
-  max-width: 1440px;
+  /* Full width (user, 2026-11-13: every page fits the screen). */
   margin: 0 auto;
 }
 

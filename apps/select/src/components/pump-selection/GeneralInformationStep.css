@@ -11,7 +11,7 @@
 
 .step-card {
   background: var(--bg-paper);
-  max-width: 1200px;
+  /* full width (user, 2026-11-13) */
   margin: 0 auto 8px;
   padding: 18px 22px;
   border-radius: var(--radius-lg);
