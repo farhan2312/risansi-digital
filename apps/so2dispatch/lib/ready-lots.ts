@@ -154,6 +154,10 @@ export type PackingLot = {
   packed_date: string;
   /** How many times the packing date has moved (read-only). */
   plan_moves?: number;
+  /** Planning changed the lot after it was packed: what changed (read-only). */
+  recheck_note?: string;
+  /** Assembly & Packing has checked it: the packing still stands. */
+  recheck_ok?: boolean;
 };
 
 export function packingLotsFromRows(rows: unknown): PackingLot[] {
@@ -169,6 +173,7 @@ export function packingLotsFromRows(rows: unknown): PackingLot[] {
       pdi: String(row.pdi ?? "").trim(),
       packed_date: String(row.packed_date ?? "").slice(0, 10),
       plan_moves: Number(row.plan_moves ?? 0) || 0,
+      recheck_note: row.recheck_at ? String(row.recheck_note ?? "").trim() || "Planning changed the lot" : "",
     };
   });
 }
@@ -189,6 +194,11 @@ export type SoLot = {
   ecs: number;
   differ: boolean;
   slips: string[];
+  /** ECs with lot n packed, of all the SO's ECs. */
+  packed_ecs?: number;
+  total_ecs?: number;
+  /** Planning changed it after it was packed: Assembly & Packing to re-check. */
+  recheck?: boolean;
 };
 
 /** The first thing wrong with the packing dates, or null. */

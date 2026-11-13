@@ -98,6 +98,23 @@ export function PackingLotsEditor({
                 {packed ? PACKED_FOR[lot.status] ?? "Packed" : PACKING_IN_PROGRESS}
               </span>
             </div>
+            {/* Planning changed the lot after it was packed: confirm the packing, or pack it again. */}
+            {lot.recheck_note && (
+              <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                <p className="font-semibold">Re-check: Planning changed this lot after it was packed</p>
+                <p className="text-xs">{lot.recheck_note}</p>
+                {editing && (
+                  <label className="mt-1.5 flex items-center gap-2 text-xs font-medium">
+                    <input
+                      type="checkbox"
+                      checked={!!lot.recheck_ok}
+                      onChange={(e) => set(i, { recheck_ok: e.target.checked })}
+                    />
+                    Checked: the packing still stands (or change Packed on below)
+                  </label>
+                )}
+              </div>
+            )}
             {/* Assembly & Packing's plan, then the actual packing. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">

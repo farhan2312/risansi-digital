@@ -575,6 +575,11 @@ export function DepartmentWorkspace({
           {l.packed_date ? `Packed ${shortDate(l.packed_date)}` : PACKING_IN_PROGRESS}
         </span>
         {noSlip && <span className="mt-0.5 block w-fit rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>}
+        {lots.some((x) => x.recheck_note) && (
+          <span className="mt-0.5 block w-fit rounded bg-amber-100 px-1 text-[10.5px] font-semibold text-amber-800" title={lots.map((x) => x.recheck_note).filter(Boolean).join("; ")}>
+            Re-check: Planning changed it
+          </span>
+        )}
       </span>
     );
   };

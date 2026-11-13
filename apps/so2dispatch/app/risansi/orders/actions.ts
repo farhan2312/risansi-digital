@@ -513,9 +513,20 @@ export async function createItemAction(
       // SO did not state, and it may be the first EC that is not a Spare.
       autoFillTargets(orderId, user),
       // A Spare SO is planned as one: the new EC joins it where it stands.
-      inheritSparePlanning(itemId, { id: user.id, role: user.role }).catch((error) =>
-        console.error("inheritSparePlanning failed:", error)
-      ),
+      inheritSparePlanning(itemId, { id: user.id, role: user.role })
+        .then((r) =>
+          // The SO is planned in lots: this EC is Planning's to plan.
+          r === "replan"
+            ? emitNotification({
+                roles: ["planning"],
+                orderId,
+                itemId,
+                type: "dept_update",
+                message: `New EC ${ecLabel || ""} added to ${soLabel}, which is planned in lots: plan it.`.replace("  ", " "),
+              })
+            : undefined
+        )
+        .catch((error) => console.error("inheritSparePlanning failed:", error)),
     ];
 
     // Bought-out items listed with the EC are Purchase's work, so they hear
@@ -993,7 +1004,7 @@ export async function updateOrderSectionAction(
 
       }
       // …and their packing dates ride along with Assembly & Packing's.
-      let packing: { id: string; packed_date: string; packing_plan_date: string; packing_shift: string; pdi: string }[] | null = null;
+      let packing: { id: string; packed_date: string; packing_plan_date: string; packing_shift: string; pdi: string; recheck_ok?: boolean }[] | null = null;
       const packingJson = allowedValues[PACKING_LOTS_FIELD];
       if (tbl === "order_assembly_dispatch" && typeof packingJson === "string") {
         let sent: unknown;
@@ -1009,7 +1020,7 @@ export async function updateOrderSectionAction(
         const merged = saved.map((l) => {
           const s = byId.get(l.id);
           return s
-            ? { ...l, packed_date: s.packed_date, packing_plan_date: s.packing_plan_date, packing_shift: s.packing_shift, pdi: s.pdi }
+            ? { ...l, packed_date: s.packed_date, packing_plan_date: s.packing_plan_date, packing_shift: s.packing_shift, pdi: s.pdi, recheck_ok: !!s.recheck_ok }
             : l;
         });
         const problem = packingError(merged);
@@ -1023,6 +1034,7 @@ export async function updateOrderSectionAction(
           packing_plan_date: l.packing_plan_date,
           packing_shift: l.packing_shift,
           pdi: l.pdi,
+          recheck_ok: l.recheck_ok,
         }));
       }
       if (lots && lots.length > 0) {
@@ -1044,8 +1056,18 @@ export async function updateOrderSectionAction(
             return { ok: false, error: `EC ${before?.item?.ec_no ?? ""}: the lots hold ${total}, more than its quantity ${qty}.` };
           }
         }
-        await saveReadyLots(id, withQty, { id: user.id, role: user.role });
+        const flagged = await saveReadyLots(id, withQty, { id: user.id, role: user.role });
         if (named) await syncReadyQtyFromLots(id);
+        // A lot already packed changed: Assembly & Packing re-checks it.
+        if (flagged > 0 && before) {
+          await emitNotification({
+            roles: ["assembly"],
+            orderId: String(before.order.id),
+            itemId: id,
+            type: "dept_update",
+            message: `Planning changed ${flagged === 1 ? "a lot" : `${flagged} lots`} already packed on ${before.item.ec_no ?? "an EC"}: re-check the packing.`,
+          });
+        }
       }
       if (packing) await saveLotPacking(id, packing, { id: user.id, role: user.role });
       const after = before ? await getItemDetail(id) : null;

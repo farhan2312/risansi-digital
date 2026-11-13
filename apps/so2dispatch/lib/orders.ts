@@ -1045,10 +1045,12 @@ export async function saveReadyLots(
   lots: { status: string; ready_date: string | null; qty?: number | null }[],
   // Who made the change, for the lots' history.
   actor?: { id: string; role: string }
-): Promise<void> {
-  if (!UUID_RE.test(itemId)) return;
+): Promise<number> {
+  if (!UUID_RE.test(itemId)) return 0;
   // A Fully ready lot may have no date: stored as none, not as "".
   lots = lots.map((l) => ({ status: l.status, ready_date: l.ready_date || null, qty: l.qty ?? null }));
+  // Packed lots Planning changed: Assembly & Packing re-checks them.
+  let flagged = 0;
   await withTransaction(async (c) => {
     // Lot by lot in place, so what Assembly & Packing recorded against a lot
     // (its packing date) stays with it; a lot whose status changes carries
@@ -1095,15 +1097,32 @@ export async function saveReadyLots(
       const lot = lots[i];
       const id = existing.rows[i]?.id;
       if (id) {
-        await c.query(
-          `UPDATE order_ready_lots
-              SET status = $2, ready_date = $3, qty = $4,
-                  packing_status = CASE WHEN packed_date IS NULL THEN NULL
+        // A lot already packed that Planning changes: flagged, with what changed,
+        // until Assembly & Packing confirms the packing or packs it again.
+        const upd = await c.query<{ flagged: boolean }>(
+          `WITH old AS (SELECT * FROM order_ready_lots WHERE id = $1)
+           UPDATE order_ready_lots rl
+              SET status = $2, ready_date = $3::date, qty = $4::int,
+                  packing_status = CASE WHEN rl.packed_date IS NULL THEN NULL
                                         WHEN $2 = 'Fully ready' THEN 'Fully packed'
-                                        ELSE 'Partially packed' END
-            WHERE id = $1`,
+                                        ELSE 'Partially packed' END,
+                  recheck_at = CASE WHEN chg.changed THEN now() ELSE rl.recheck_at END,
+                  recheck_note = CASE WHEN chg.changed THEN chg.note ELSE rl.recheck_note END
+             FROM old,
+                  LATERAL (SELECT old.packed_date IS NOT NULL
+                                  AND (old.status IS DISTINCT FROM $2 OR old.ready_date IS DISTINCT FROM $3::date
+                                       OR old.qty IS DISTINCT FROM $4::int) AS changed,
+                                  concat_ws(' · ',
+                                    CASE WHEN old.status IS DISTINCT FROM $2 THEN COALESCE(old.status, '—') || ' → ' || COALESCE($2, '—') END,
+                                    CASE WHEN old.ready_date IS DISTINCT FROM $3::date
+                                         THEN 'ready ' || COALESCE(to_char(old.ready_date, 'DD Mon'), '—') || ' → ' || COALESCE(to_char($3::date, 'DD Mon'), '—') END,
+                                    CASE WHEN old.qty IS DISTINCT FROM $4::int
+                                         THEN 'qty ' || COALESCE(old.qty::text, '—') || ' → ' || COALESCE($4::int::text, '—') END) AS note) chg
+            WHERE rl.id = $1
+        RETURNING chg.changed AS flagged`,
           [id, lot.status, lot.ready_date, lot.qty ?? null]
         );
+        if (upd.rows[0]?.flagged) flagged++;
       } else {
         await c.query(
           `INSERT INTO order_ready_lots (item_id, status, ready_date, qty) VALUES ($1, $2, $3, $4)`,
@@ -1160,6 +1179,7 @@ export async function saveReadyLots(
   });
   // The lots decide how much is packed and sent: the dispatch status follows.
   await recomputeDispatchStatusForItem(itemId);
+  return flagged;
 }
 
 /**
@@ -1172,7 +1192,7 @@ export async function saveReadyLots(
 export async function inheritSparePlanning(
   itemId: string,
   actor?: { id: string; role: string }
-): Promise<boolean> {
+): Promise<boolean | "replan"> {
   if (!UUID_RE.test(itemId)) return false;
   const lead = await query<{
     item_id: string;
@@ -1200,6 +1220,21 @@ export async function inheritSparePlanning(
     [itemId]
   );
   const from = lead.rows[0];
+  // The SO is already planned in lots: copying them would read the new EC as
+  // ready (and its lots as packed beside the others) though Planning never
+  // planned it. It starts at Date awaited, for Planning to plan.
+  const inLots = from
+    ? (await query(`SELECT 1 FROM order_ready_lots WHERE item_id = $1 LIMIT 1`, [from.item_id])).rows.length > 0
+    : false;
+  if (inLots) {
+    await query(
+      `INSERT INTO order_planning (item_id, actual_spare_status) VALUES ($1, $2)
+       ON CONFLICT (item_id) DO UPDATE SET actual_spare_status = EXCLUDED.actual_spare_status
+        WHERE NULLIF(btrim(order_planning.actual_spare_status), '') IS NULL`,
+      [itemId, SPARE_PLANNING_START]
+    );
+    return "replan";
+  }
   if (!from) {
     // Nothing planned on this SO yet: a Spare starts at Date awaited.
     await query(
@@ -1290,7 +1325,7 @@ export async function unpackBlockedBySlip(orderId: string, clearingRowIds: strin
  */
 export async function saveLotPacking(
   itemId: string,
-  entries: { id: string; packed_date: string; packing_plan_date?: string; packing_shift?: string; pdi?: string }[],
+  entries: { id: string; packed_date: string; packing_plan_date?: string; packing_shift?: string; pdi?: string; recheck_ok?: boolean }[],
   actor?: { id: string; role: string }
 ): Promise<void> {
   if (!UUID_RE.test(itemId)) return;
@@ -1317,9 +1352,12 @@ export async function saveLotPacking(
                                       ELSE 'Partially packed' END,
                 packing_plan_date = CASE WHEN $4 THEN NULLIF($5, '')::date ELSE packing_plan_date END,
                 packing_shift = CASE WHEN $4 THEN NULLIF($6, '') ELSE packing_shift END,
-                pdi = CASE WHEN $4 THEN NULLIF($7, '') ELSE pdi END
+                pdi = CASE WHEN $4 THEN NULLIF($7, '') ELSE pdi END,
+                -- Planning's change re-checked: confirmed, or the packing entered again.
+                recheck_at = CASE WHEN $8 OR packed_date IS DISTINCT FROM NULLIF($3, '')::date THEN NULL ELSE recheck_at END,
+                recheck_note = CASE WHEN $8 OR packed_date IS DISTINCT FROM NULLIF($3, '')::date THEN NULL ELSE recheck_note END
           WHERE id = $1 AND item_id = $2`,
-        [e.id, itemId, e.packed_date, plan, e.packing_plan_date ?? "", e.packing_shift ?? "", e.pdi ?? ""]
+        [e.id, itemId, e.packed_date, plan, e.packing_plan_date ?? "", e.packing_shift ?? "", e.pdi ?? "", !!e.recheck_ok]
       );
       if (
         plan &&
@@ -4340,7 +4378,8 @@ export async function listOrdersPage(opts: {
                         'n', z.n, 'status', z.status, 'ready_date', z.ready_date,
                         'packing_plan_date', z.packing_plan_date, 'packing_shift', z.packing_shift,
                         'pdi', z.pdi, 'packed_date', z.packed_date, 'ecs', z.ecs,
-                        'differ', z.differ, 'slips', z.slips) ORDER BY z.n)
+                        'differ', z.differ, 'slips', z.slips,
+                        'packed_ecs', z.packed_ecs, 'total_ecs', z.total_ecs, 'recheck', z.recheck) ORDER BY z.n)
                FROM (SELECT lt.n,
                             (array_agg(lt.status ORDER BY lt.ec_no))[1] AS status,
                             (array_agg(to_char(lt.ready_date, 'YYYY-MM-DD') ORDER BY lt.ec_no))[1] AS ready_date,
@@ -4350,13 +4389,17 @@ export async function listOrdersPage(opts: {
                             (array_agg(to_char(lt.packed_date, 'YYYY-MM-DD') ORDER BY lt.ec_no))[1] AS packed_date,
                             count(*)::int AS ecs,
                             count(DISTINCT (lt.status, lt.ready_date, lt.packed_date)) > 1 AS differ,
+                            count(lt.packed_date)::int AS packed_ecs,
+                            -- Every EC of the SO, those with no lot n too (a new EC not planned yet).
+                            (SELECT count(*)::int FROM order_items ti WHERE ti.order_id = o.id) AS total_ecs,
+                            bool_or(lt.recheck_at IS NOT NULL) AS recheck,
                             COALESCE((SELECT jsonb_agg(btrim(ps.packing_slip_no) ORDER BY ps.seq)
                                         FROM order_packing_slips ps
                                        WHERE ps.order_id = o.id AND ps.kind = 'actual'
                                          AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL
                                          AND lt.n = ANY(ps.lot_nos)), '[]'::jsonb) AS slips
                        FROM (SELECT rl.status, rl.ready_date, rl.packing_plan_date, rl.packing_shift, rl.pdi,
-                                    rl.packed_date, ri.ec_no,
+                                    rl.packed_date, rl.recheck_at, ri.ec_no,
                                     row_number() OVER (PARTITION BY rl.item_id ORDER BY rl.seq)::int AS n
                                FROM order_ready_lots rl JOIN order_items ri ON ri.id = rl.item_id
                               WHERE ri.order_id = o.id) lt

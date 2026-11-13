@@ -3292,3 +3292,8 @@ CREATE TABLE IF NOT EXISTS order_item_cancellations (
     cancelled_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS order_item_cancellations_order_idx ON order_item_cancellations (order_id, cancelled_at);
+
+-- A readiness lot Planning changes after Assembly & Packing packed it: flagged,
+-- with what changed, until Assembly & Packing confirms the packing or packs it again.
+ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS recheck_at TIMESTAMPTZ;
+ALTER TABLE order_ready_lots ADD COLUMN IF NOT EXISTS recheck_note TEXT;
