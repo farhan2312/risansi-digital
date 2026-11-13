@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * Small, dependency-free SVG/CSS charts for the Audit Log Overview. Colours
- * come from the theme variables, so they follow light/dark mode.
+ * Small, dependency-free SVG/CSS charts for the Audit Log Overview and the Dashboard.
+ * Colours come from the theme variables, so they follow light/dark mode. Chrome uses the
+ * shadcn tokens (user, 2026-11-13): recessive grid, muted labels, card tooltips; marks
+ * follow the dataviz spec (2px lines, 4px rounded data ends, 2px surface gaps).
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -10,18 +12,9 @@ import { WEEKDAYS } from "../../lib/audit-overview-shared";
 
 // Series colours. The first few are theme tokens; the rest are fixed hues
 // that read on both light and dark surfaces.
-export const PALETTE = [
-  "var(--brand-blue)",
-  "var(--brand-cyan)",
-  "var(--pos)",
-  "var(--warn)",
-  "var(--purple)",
-  "#ec4899",
-  "#14b8a6",
-  "#f97316",
-  "#64748b",
-  "var(--neg)",
-];
+/** Series colours in a fixed order (index.css --chart-s1..8, light and dark, validated for
+ *  colour-blind separation). Past eight a chart should fold the rest into "Other". */
+export const PALETTE = ["var(--chart-s1)", "var(--chart-s2)", "var(--chart-s3)", "var(--chart-s4)", "var(--chart-s5)", "var(--chart-s6)", "var(--chart-s7)", "var(--chart-s8)"];
 
 export const fmtNum = (n: number) => n.toLocaleString("en-IN");
 
@@ -36,9 +29,9 @@ export const fmtDay = (ymd: string, withWeekday = false) => {
   });
 };
 
-export const heatColor = (ratio: number, color = "var(--brand-blue)") =>
+export const heatColor = (ratio: number, color = "var(--chart-1)") =>
   ratio <= 0
-    ? "var(--bg-sunk)"
+    ? "var(--sc-muted)"
     : `color-mix(in srgb, ${color} ${Math.round(14 + ratio * 86)}%, transparent)`;
 
 // --- Tooltip -----------------------------------------------------------------
@@ -58,7 +51,7 @@ function useTooltip() {
   const width = ref.current?.clientWidth ?? 0;
   const node = tip ? (
     <div
-      className="pointer-events-none absolute z-20 min-w-[140px] rounded-md border border-line-strong bg-paper px-3 py-2 text-[12px] leading-[1.45] text-fg shadow-[0_8px_24px_rgba(10,22,40,0.18)]"
+      className="pointer-events-none absolute z-20 min-w-[140px] rounded-md border border-border bg-popover px-3 py-2 text-[12px] leading-[1.45] text-popover-foreground shadow-[0_8px_28px_rgba(15,23,42,0.14)]"
       style={{
         left: Math.min(tip.x + 14, Math.max(0, width - 200)),
         top: Math.max(0, tip.y - 12),
@@ -95,13 +88,19 @@ const niceMax = (v: number) => {
 
 const TipRow = ({ color, label, value }: { color: string; label: string; value: string }) => (
   <div className="flex items-center justify-between gap-4">
-    <span className="flex items-center gap-1.5 text-fg-2">
-      <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
+    <span className="flex items-center gap-1.5 text-muted-foreground">
+      <span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: color }} />
       {label}
     </span>
-    <span className="font-mono font-semibold tabular-nums">{value}</span>
+    <span className="font-mono font-semibold text-foreground tabular-nums">{value}</span>
   </div>
 );
+
+/** A bar segment with its data end (the top) rounded 4px and a flat base. */
+const topRounded = (x: number, yTop: number, w: number, h: number, r: number) => {
+  const rr = Math.max(0, Math.min(r, w / 2, h));
+  return `M${x},${yTop + h} L${x},${yTop + rr} Q${x},${yTop} ${x + rr},${yTop} L${x + w - rr},${yTop} Q${x + w},${yTop} ${x + w},${yTop + rr} L${x + w},${yTop + h} Z`;
+};
 
 // --- Trend chart ---------------------------------------------------------------
 
@@ -158,10 +157,10 @@ export function TrendChart({
                   x2={w - pad.right}
                   y1={y(max * f)}
                   y2={y(max * f)}
-                  stroke="var(--line)"
-                  strokeDasharray={f === 0 ? undefined : "3 4"}
+                  stroke="var(--sc-border)"
+                  strokeDasharray={f === 0 ? undefined : "2 4"}
                 />
-                <text x={pad.left - 8} y={y(max * f) + 4} textAnchor="end" fontSize="10.5" fill="var(--fg-3)">
+                <text x={pad.left - 8} y={y(max * f) + 4} textAnchor="end" fontSize="10.5" fill="var(--sc-muted-foreground)">
                   {format(Math.round(max * f * 100) / 100)}
                 </text>
               </g>
@@ -173,32 +172,33 @@ export function TrendChart({
                 y={pad.top}
                 width={slot}
                 height={innerH}
-                fill="var(--accent-soft)"
-                rx={3}
+                fill="color-mix(in srgb, var(--sc-primary) 6%, transparent)"
+                rx={4}
               />
             )}
 
             {mode === "bars" &&
               days.map((day, i) => {
                 let acc = 0;
+                // The topmost non-zero segment carries the rounded data end; each one
+                // above the first keeps a 2px surface gap from the segment below.
+                const top = series.reduce((t, s, si) => ((s.values[i] ?? 0) ? si : t), -1);
+                let drawn = 0;
                 return (
                   <g key={day}>
-                    {series.map((s) => {
+                    {series.map((s, si) => {
                       const v = s.values[i] ?? 0;
                       if (!v) return null;
                       const y0 = y(acc);
                       acc += v;
                       const y1 = y(acc);
-                      return (
-                        <rect
-                          key={s.key}
-                          x={pad.left + i * slot + (slot - barW) / 2}
-                          y={y1}
-                          width={barW}
-                          height={Math.max(1, y0 - y1)}
-                          fill={s.color}
-                          rx={Math.min(3, barW / 3)}
-                        />
+                      const gap = drawn++ > 0 ? 2 : 0;
+                      const h = Math.max(1, y0 - y1 - gap);
+                      const x = pad.left + i * slot + (slot - barW) / 2;
+                      return si === top ? (
+                        <path key={s.key} d={topRounded(x, y1, barW, h, 4)} fill={s.color} />
+                      ) : (
+                        <rect key={s.key} x={x} y={y1} width={barW} height={h} fill={s.color} />
                       );
                     })}
                   </g>
@@ -220,7 +220,7 @@ export function TrendChart({
                           cx={pad.left + i * slot + slot / 2}
                           cy={y(v)}
                           r={hover === i ? 4 : 2.5}
-                          fill="var(--bg-paper)"
+                          fill="var(--sc-card)"
                           stroke={s.color}
                           strokeWidth={2}
                         />
@@ -237,7 +237,7 @@ export function TrendChart({
                   y={height - 8}
                   textAnchor="middle"
                   fontSize="10.5"
-                  fill="var(--fg-3)"
+                  fill="var(--sc-muted-foreground)"
                 >
                   {fmtDay(day)}
                 </text>
@@ -315,14 +315,14 @@ export function DonutChart({
   const colorOf = (label: string, i: number) => colors?.[label] ?? PALETTE[i % PALETTE.length];
 
   if (total === 0) {
-    return <p className="py-10 text-center text-[12.5px] text-fg-3">Nothing recorded</p>;
+    return <p className="py-10 text-center text-[12.5px] text-muted-foreground">Nothing recorded</p>;
   }
 
   return (
     <div className="flex flex-wrap items-center gap-5">
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--bg-sunk)" strokeWidth={18} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--sc-muted)" strokeWidth={18} />
           {slices.map((s, i) => {
             const len = (s.count / total) * c;
             const seg = (
@@ -334,7 +334,7 @@ export function DonutChart({
                 fill="none"
                 stroke={colorOf(s.label, i)}
                 strokeWidth={active === i ? 22 : 18}
-                strokeDasharray={`${Math.max(0, len - (slices.length > 1 ? 1.5 : 0))} ${c}`}
+                strokeDasharray={`${Math.max(0, len - (slices.length > 1 ? 2 : 0))} ${c}`}
                 strokeDashoffset={-offset}
                 className="cursor-pointer transition-[stroke-width] duration-150"
                 opacity={active === null || active === i ? 1 : 0.35}
@@ -347,10 +347,10 @@ export function DonutChart({
           })}
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="font-mono text-[20px] font-bold leading-none text-fg tabular-nums">
+          <span className="font-mono text-[20px] font-semibold leading-none text-foreground tabular-nums">
             {shown ? `${Math.round((shown.count / total) * 100)}%` : fmtNum(total)}
           </span>
-          <span className="mt-1 max-w-[90px] truncate text-[10.5px] uppercase tracking-[0.08em] text-fg-3">
+          <span className="mt-1 max-w-[90px] truncate text-[10.5px] tracking-wide text-muted-foreground uppercase">
             {shown ? shown.label : centerLabel}
           </span>
         </div>
@@ -361,15 +361,15 @@ export function DonutChart({
           <li
             key={s.label}
             className={`flex items-center gap-2 rounded px-1.5 py-1 text-[12.5px] transition-colors ${
-              active === i ? "bg-elev" : ""
+              active === i ? "bg-muted" : ""
             }`}
             onMouseEnter={() => setActive(i)}
             onMouseLeave={() => setActive(null)}
           >
             <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: colorOf(s.label, i) }} />
-            <span className="min-w-0 flex-1 truncate text-fg-2">{s.label}</span>
-            <span className="font-mono font-semibold tabular-nums text-fg">{fmtNum(s.count)}</span>
-            <span className="w-10 text-right font-mono text-[11px] tabular-nums text-fg-3">
+            <span className="min-w-0 flex-1 truncate text-foreground">{s.label}</span>
+            <span className="font-mono font-semibold tabular-nums text-foreground">{fmtNum(s.count)}</span>
+            <span className="w-10 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
               {Math.round((s.count / total) * 100)}%
             </span>
           </li>
@@ -392,19 +392,19 @@ export function WeekHourHeatmap({ data }: { data: number[][] }) {
         <div className="grid grid-cols-[38px_repeat(24,minmax(0,1fr))] gap-[3px]">
           <span />
           {hours.map((h) => (
-            <span key={h} className="text-center text-[10px] text-fg-3">
+            <span key={h} className="text-center text-[10px] text-muted-foreground">
               {h % 3 === 0 ? String(h).padStart(2, "0") : ""}
             </span>
           ))}
           {WEEKDAYS.map((wd, d) => (
             <FragmentRow key={wd}>
-              <span className="self-center pr-1 text-[11px] font-medium text-fg-3">{wd}</span>
+              <span className="self-center pr-1 text-[11px] font-medium text-muted-foreground">{wd}</span>
               {hours.map((h) => {
                 const v = data[d]?.[h] ?? 0;
                 return (
                   <span
                     key={h}
-                    className="h-[22px] rounded-[3px] transition-transform hover:scale-125 hover:ring-1 hover:ring-accent"
+                    className="h-[22px] rounded-[3px] transition-transform hover:scale-125 hover:ring-1 hover:ring-ring"
                     style={{ background: heatColor(max ? v / max : 0) }}
                     onMouseMove={(e) =>
                       tip.show(
@@ -413,8 +413,8 @@ export function WeekHourHeatmap({ data }: { data: number[][] }) {
                           <div className="font-semibold">
                             {wd} · {String(h).padStart(2, "0")}:00–{String(h).padStart(2, "0")}:59
                           </div>
-                          <div className="text-fg-2">
-                            <span className="font-mono font-semibold text-fg">{fmtNum(v)}</span> events
+                          <div className="text-muted-foreground">
+                            <span className="font-mono font-semibold text-foreground">{fmtNum(v)}</span> events
                           </div>
                         </>,
                       )
@@ -436,7 +436,7 @@ const FragmentRow = ({ children }: { children: ReactNode }) => <>{children}</>;
 
 export function HeatLegend({ max, format = fmtNum, color }: { max: number; format?: (n: number) => string; color?: string }) {
   return (
-    <div className="mt-3 flex items-center justify-end gap-2 text-[10.5px] text-fg-3">
+    <div className="mt-3 flex items-center justify-end gap-2 text-[10.5px] text-muted-foreground">
       <span>Less</span>
       {[0, 0.25, 0.5, 0.75, 1].map((f) => (
         <span key={f} className="h-3 w-3 rounded-[3px]" style={{ background: heatColor(f, color) }} />
@@ -462,7 +462,7 @@ export function UserDayHeatmap({
   rows,
   format = fmtNum,
   cellFormat,
-  color = "var(--brand-blue)",
+  color = "var(--chart-1)",
   showValues = true,
   totalLabel = "Total",
 }: {
@@ -487,7 +487,7 @@ export function UserDayHeatmap({
   }, [days.length, rows.length]);
 
   if (rows.length === 0 || days.length === 0) {
-    return <p className="py-8 text-center text-[12.5px] text-fg-3">Nothing recorded</p>;
+    return <p className="py-8 text-center text-[12.5px] text-muted-foreground">Nothing recorded</p>;
   }
 
   return (
@@ -496,20 +496,20 @@ export function UserDayHeatmap({
         <table className="border-separate border-spacing-[3px] text-[11px]">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 min-w-[190px] bg-paper pr-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">
+              <th className="sticky left-0 z-10 min-w-[190px] bg-card pr-3 text-left text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">
                 User
               </th>
               {days.map((d) => {
                 const dt = new Date(`${d}T00:00:00Z`);
                 const weekend = dt.getUTCDay() === 0;
                 return (
-                  <th key={d} className={`min-w-[36px] px-0 text-center font-medium ${weekend ? "text-neg/70" : "text-fg-3"}`}>
+                  <th key={d} className={`min-w-[36px] px-0 text-center font-medium ${weekend ? "text-destructive/70" : "text-muted-foreground"}`}>
                     <div className="text-[10px] leading-tight">{dt.toLocaleDateString("en-IN", { weekday: "narrow", timeZone: "UTC" })}</div>
                     <div className="font-mono text-[10.5px] leading-tight">{dt.getUTCDate()}</div>
                   </th>
                 );
               })}
-              <th className="sticky right-0 z-10 min-w-[64px] bg-paper pl-2 text-right text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">
+              <th className="sticky right-0 z-10 min-w-[64px] bg-card pl-2 text-right text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">
                 {totalLabel}
               </th>
             </tr>
@@ -519,9 +519,9 @@ export function UserDayHeatmap({
               const total = days.reduce((s, d) => s + (r.values[d] ?? 0), 0);
               return (
                 <tr key={r.key}>
-                  <td className="sticky left-0 z-10 max-w-[220px] bg-paper py-0.5 pr-3">
-                    <div className="truncate text-[12px] font-medium text-fg">{r.label}</div>
-                    {r.sub && <div className="truncate text-[10.5px] text-fg-3">{r.sub}</div>}
+                  <td className="sticky left-0 z-10 max-w-[220px] bg-card py-0.5 pr-3">
+                    <div className="truncate text-[12px] font-medium text-foreground">{r.label}</div>
+                    {r.sub && <div className="truncate text-[10.5px] text-muted-foreground">{r.sub}</div>}
                   </td>
                   {days.map((d) => {
                     const v = r.values[d] ?? 0;
@@ -529,17 +529,17 @@ export function UserDayHeatmap({
                     return (
                       <td
                         key={d}
-                        className="h-[30px] min-w-[36px] rounded-[4px] p-0 text-center font-mono text-[10px] font-semibold tabular-nums transition-shadow hover:ring-2 hover:ring-accent"
+                        className="h-[30px] min-w-[36px] rounded-[4px] p-0 text-center font-mono text-[10px] font-semibold tabular-nums transition-shadow hover:ring-2 hover:ring-ring"
                         style={{
                           background: heatColor(ratio, color),
-                          color: ratio > 0.55 ? "#fff" : "var(--fg-2)",
+                          color: ratio > 0.55 ? "#fff" : "var(--sc-foreground)",
                         }}
                         onMouseMove={(e) =>
                           tip.show(
                             e,
                             <>
                               <div className="mb-1 font-semibold">{fmtDay(d, true)}</div>
-                              <div className="mb-1 truncate text-fg-3">{r.label}</div>
+                              <div className="mb-1 truncate text-muted-foreground">{r.label}</div>
                               {r.detail ? r.detail(d) : <div className="font-mono font-semibold">{format(v)}</div>}
                             </>,
                           )
@@ -549,7 +549,7 @@ export function UserDayHeatmap({
                       </td>
                     );
                   })}
-                  <td className="sticky right-0 z-10 bg-paper pl-2 text-right font-mono text-[12px] font-semibold tabular-nums text-fg">
+                  <td className="sticky right-0 z-10 bg-card pl-2 text-right font-mono text-[12px] font-semibold tabular-nums text-foreground">
                     {total ? format(total) : "—"}
                   </td>
                 </tr>
@@ -558,15 +558,15 @@ export function UserDayHeatmap({
           </tbody>
           <tfoot>
             <tr>
-              <td className="sticky left-0 z-10 bg-paper pr-3 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">
+              <td className="sticky left-0 z-10 bg-card pr-3 pt-1 text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">
                 All users
               </td>
               {colTotals.map((t, i) => (
-                <td key={days[i]} className="pt-1 text-center font-mono text-[10px] font-semibold tabular-nums text-fg-2">
+                <td key={days[i]} className="pt-1 text-center font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
                   {t ? format(t) : ""}
                 </td>
               ))}
-              <td className="sticky right-0 z-10 bg-paper pl-2 pt-1 text-right font-mono text-[12px] font-bold tabular-nums text-accent">
+              <td className="sticky right-0 z-10 bg-card pl-2 pt-1 text-right font-mono text-[12px] font-bold tabular-nums text-primary">
                 {format(colTotals.reduce((s, t) => s + t, 0))}
               </td>
             </tr>
@@ -589,7 +589,7 @@ export function Sparkline({ values, color = "var(--brand-blue)", width = 96, hei
   return (
     <svg width={width} height={height} className="block overflow-visible">
       <path d={`M0,${height} L${pts.join(" L")} L${width},${height} Z`} fill={color} opacity={0.12} />
-      <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }

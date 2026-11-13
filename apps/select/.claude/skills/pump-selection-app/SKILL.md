@@ -1264,3 +1264,9 @@ never auto-filled from the AI result.
   EnquiryDocumentModal stay NON-Radix overlays (restyled): they print through printHtml's hidden
   iframe and a Radix focus/pointer lock could block it. Rule: an overlay opened on top of a Radix
   dialog must be Radix too (or inside its content).
+- Dashboard in shadcn (user, 2026-11-13, same branch): filters Card (scope Tabs, DateRangeFilter, Go to
+  Enquiries) + KPI Cards + Section cards; ClientMix, DashboardListModal (Radix Dialog) and the shared
+  charts.tsx restyled (recessive dashed grid, popover tooltip, 2px gaps, 4px rounded bar tops).
+  Chart colours: index.css --chart-1/2 (series), --chart-pending/progress/done/sent/regret/none
+  (statuses, = badge tones), --chart-s1..8 (charts.tsx PALETTE, fixed order) - all checked with the
+  dataviz validate_palette.js on the card surface, light and dark. Never --brand-* for chart marks.

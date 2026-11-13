@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Activity, ArrowRight, ChartBar, CircleAlert, CircleCheck, Clock, FileText, FolderOpen, ShieldCheck, Tag as TagIcon } from "lucide-react";
 
 import { DonutChart, fmtDay, fmtNum, TrendChart, type TrendSeries } from "../../components/charts/charts";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
@@ -10,7 +11,6 @@ import { canApprove } from "../../lib/approval";
 import { isRepRole, isViewOnlyRole, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
 import { getDashboard, type DashboardData, type DashboardEnquiry, type DashboardTag } from "../../services/dashboardService";
-import { Card, Icons, Segmented } from "../admin/audit/auditUi";
 import { SELECTED_PROJECT_KEY } from "../projects/ProjectsPage";
 import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
 import DashboardListModal, { type DashboardListTarget } from "./DashboardListModal";
@@ -18,27 +18,80 @@ import ClientMix from "./ClientMix";
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import type { EnquiryFilters } from "../../lib/enquiry-filters";
 import { usePageTitle } from "../../components/layout/PageTitle";
+// shadcn/ui (user, 2026-11-13: the Dashboard in the new look, branch select-shadcn).
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { cn } from "@/lib/utils";
 
-const STATUS_STYLE: Record<string, { pill: string; dot: string; color: string }> = {
-  Pending: { pill: "bg-[var(--warn-soft)] text-warn", dot: "bg-warn", color: "var(--warn)" },
-  "In Progress": { pill: "bg-accent-soft text-accent", dot: "bg-[var(--brand-blue)]", color: "var(--brand-blue)" },
-  Completed: { pill: "bg-[var(--pos-soft)] text-pos", dot: "bg-pos", color: "var(--pos)" },
-  "Sent to client": {
-    pill: "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[color-mix(in_srgb,var(--brand-cyan)_65%,var(--fg))]",
-    dot: "bg-[var(--brand-cyan)]",
-    color: "var(--brand-cyan)",
-  },
+type Tone = "warning" | "info" | "success" | "neutral" | "danger" | "primary";
+
+/** A status as the badges and the charts mean it (index.css --chart-* are validated for
+ *  colour-blind separation). */
+const STATUS: Record<string, { tone: Tone; color: string }> = {
+  Pending: { tone: "warning", color: "var(--chart-pending)" },
+  "In Progress": { tone: "info", color: "var(--chart-progress)" },
+  Completed: { tone: "success", color: "var(--chart-done)" },
+  "Sent to client": { tone: "primary", color: "var(--chart-sent)" },
+  "Not Quoted": { tone: "neutral", color: "var(--chart-none)" },
+  Regret: { tone: "danger", color: "var(--chart-regret)" },
 };
-const statusStyle = (s: string) => STATUS_STYLE[s] ?? { pill: "bg-sunk text-fg-2", dot: "bg-fg-4", color: "var(--fg-4)" };
+const statusOf = (s: string) => STATUS[s] ?? { tone: "neutral" as Tone, color: "var(--chart-none)" };
+const STATUS_COLORS = Object.fromEntries(Object.entries(STATUS).map(([k, v]) => [k, v.color]));
 
 const StatusPill = ({ status }: { status: string }) => (
-  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${statusStyle(status).pill}`}>
-    <span className={`h-1.5 w-1.5 rounded-full ${statusStyle(status).dot}`} />
+  <Badge tone={statusOf(status).tone} dot>
     {status}
-  </span>
+  </Badge>
 );
 
+/** The icon chip on a KPI card, in its status' tone. */
+const TONE_CHIP: Record<Tone, string> = {
+  warning: "bg-warning/10 text-warning",
+  info: "bg-info/10 text-info",
+  success: "bg-success/10 text-success",
+  neutral: "bg-muted text-muted-foreground",
+  danger: "bg-destructive/10 text-destructive",
+  primary: "bg-primary/8 text-primary",
+};
+
 const greetingFor = (d: Date) => (d.getHours() < 12 ? "Good morning" : d.getHours() < 17 ? "Good afternoon" : "Good evening");
+
+/** A dashboard section: a card with a title row (and an action on its right). */
+function Section({
+  title,
+  subtitle,
+  icon,
+  action,
+  children,
+  className,
+  bodyClassName = "p-4",
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  icon?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  bodyClassName?: string;
+}) {
+  return (
+    <Card className={cn("min-w-0 overflow-hidden", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {icon && <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground [&_svg]:size-3.5">{icon}</span>}
+          <div className="min-w-0">
+            <h3 className="truncate text-[13px] font-semibold text-foreground">{title}</h3>
+            {subtitle && <p className="truncate text-[11.5px] text-muted-foreground">{subtitle}</p>}
+          </div>
+        </div>
+        {action}
+      </div>
+      <div className={bodyClassName}>{children}</div>
+    </Card>
+  );
+}
 
 /** A KPI card with its figures side by side - enquiries and tags, or a spare's enquiries alone. */
 function KpiSplit({
@@ -51,28 +104,24 @@ function KpiSplit({
   /** A half with onClick is its own button, opening that half's list. */
   cells: { label: string; value: ReactNode; sub?: ReactNode; onClick?: () => void; hint?: string }[];
   icon: ReactNode;
-  tone: string;
+  tone: Tone;
 }) {
   return (
-    <div className="flex h-full flex-col gap-2 rounded-xl border border-line bg-paper p-3 transition hover:border-line-strong hover:shadow-[0_6px_18px_rgba(10,22,40,0.07)]">
+    <Card className="flex h-full flex-col gap-2 p-3 transition-shadow hover:shadow-[0_6px_18px_rgba(15,23,42,0.07)]">
       <div className="flex items-center justify-between gap-3 px-1">
-        <div className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">{label}</div>
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}>{icon}</span>
+        <div className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{label}</div>
+        <span className={`flex size-7 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5 ${TONE_CHIP[tone]}`}>{icon}</span>
       </div>
       <div className={`grid flex-1 gap-1.5 ${cells.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
         {cells.map((c) => {
           const inner = (
             <>
-              <span className="flex items-center justify-between gap-1 text-[10.5px] font-semibold tracking-[0.06em] text-fg-4 uppercase">
+              <span className="flex items-center justify-between gap-1 text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">
                 {c.label}
-                {c.onClick && (
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-3 w-3 opacity-0 transition group-hover/cell:opacity-100">
-                    <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
+                {c.onClick && <ArrowRight className="size-3 opacity-0 transition group-hover/cell:opacity-100" />}
               </span>
-              <span className="mt-1 block font-mono text-[24px] leading-none font-bold text-fg tabular-nums">{c.value}</span>
-              {c.sub && <span className="mt-1.5 block text-[11.5px] leading-snug text-fg-3">{c.sub}</span>}
+              <span className="mt-1 block font-mono text-[24px] leading-none font-semibold text-foreground tabular-nums">{c.value}</span>
+              {c.sub && <span className="mt-1.5 block text-[11.5px] leading-snug text-muted-foreground">{c.sub}</span>}
             </>
           );
           return c.onClick ? (
@@ -81,37 +130,37 @@ function KpiSplit({
               type="button"
               onClick={c.onClick}
               title={c.hint}
-              className="group/cell min-w-0 rounded-lg bg-[color-mix(in_srgb,var(--bg-elev)_60%,transparent)] px-2.5 py-2 text-left transition hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+              className="group/cell min-w-0 rounded-md bg-muted/60 px-2.5 py-2 text-left transition-colors outline-none hover:bg-primary/8 focus-visible:ring-[3px] focus-visible:ring-ring/30"
             >
               {inner}
             </button>
           ) : (
-            <div key={c.label} className="min-w-0 rounded-lg px-2.5 py-2">
+            <div key={c.label} className="min-w-0 rounded-md px-2.5 py-2">
               {inner}
             </div>
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }
 
 /** Horizontal bars for small ranked lists. */
 function Bars({ items, color }: { items: { key: string; label: ReactNode; value: number; hint?: ReactNode }[]; color: string }) {
   const max = Math.max(1, ...items.map((i) => i.value));
-  if (items.length === 0) return <p className="py-6 text-center text-[12.5px] text-fg-3">Nothing yet</p>;
+  if (items.length === 0) return <p className="py-6 text-center text-[12.5px] text-muted-foreground">Nothing yet</p>;
   return (
     <ul className="space-y-3">
       {items.map((it) => (
-        <li key={it.key}>
+        <li key={it.key} title={`${typeof it.label === "string" ? `${it.label}: ` : ""}${fmtNum(it.value)}`}>
           <div className="mb-1 flex items-baseline justify-between gap-3 text-[12.5px]">
-            <span className="min-w-0 truncate text-fg-2">{it.label}</span>
-            <span className="shrink-0 font-mono font-semibold text-fg tabular-nums">
+            <span className="min-w-0 truncate text-foreground">{it.label}</span>
+            <span className="shrink-0 font-mono font-semibold text-foreground tabular-nums">
               {fmtNum(it.value)}
-              {it.hint && <span className="ml-1.5 font-sans text-[11px] font-normal text-fg-3">{it.hint}</span>}
+              {it.hint && <span className="ml-1.5 font-sans text-[11px] font-normal text-muted-foreground">{it.hint}</span>}
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-sunk">
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${(it.value / max) * 100}%`, background: color }} />
           </div>
         </li>
@@ -126,31 +175,25 @@ function TagRow({ tag, onOpen }: { tag: DashboardTag; onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      className="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-elev"
+      className="group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-muted"
       title="Open this tag in Pump Selection"
     >
-      <span className={`h-2 w-2 shrink-0 rounded-full ${statusStyle(tag.status).dot}`} />
+      <span className="size-2 shrink-0 rounded-full" style={{ background: statusOf(tag.status).color }} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="text-[12.5px] font-semibold text-fg">{tag.name}</span>
-          <span className="text-[11px] text-fg-3">{tag.status}</span>
+          <span className="text-[12.5px] font-medium text-foreground">{tag.name}</span>
+          <span className="text-[11px] text-muted-foreground">{tag.status}</span>
           {tag.reportGeneratedAt && (
-            <span className="rounded-full bg-[var(--pos-soft)] px-1.5 py-px text-[10px] font-semibold text-pos">Report ✓</span>
+            <Badge tone="success">
+              <CircleCheck /> Report
+            </Badge>
           )}
-          {tag.approvals.awaiting > 0 && (
-            <span className="rounded-full bg-[var(--warn-soft)] px-1.5 py-px text-[10px] font-semibold text-warn">
-              {tag.approvals.awaiting} awaiting approval
-            </span>
-          )}
-          {tag.approvals.rejected > 0 && (
-            <span className="rounded-full bg-[var(--neg-soft)] px-1.5 py-px text-[10px] font-semibold text-neg">
-              {tag.approvals.rejected} rejected
-            </span>
-          )}
+          {tag.approvals.awaiting > 0 && <Badge tone="warning">{tag.approvals.awaiting} awaiting approval</Badge>}
+          {tag.approvals.rejected > 0 && <Badge tone="danger">{tag.approvals.rejected} rejected</Badge>}
         </div>
-        {details.length > 0 && <div className="mt-0.5 truncate text-[11.5px] text-fg-3">{details.join(" · ")}</div>}
+        {details.length > 0 && <div className="mt-0.5 truncate text-[11.5px] text-muted-foreground">{details.join(" · ")}</div>}
       </div>
-      <span className="shrink-0 text-fg-4 transition group-hover:translate-x-0.5 group-hover:text-accent">→</span>
+      <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
     </button>
   );
 }
@@ -160,11 +203,11 @@ function EnquiryHeading({ enquiry }: { enquiry: DashboardEnquiry }) {
   return (
     <div className="min-w-0">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-[13px] font-bold text-title">{enquiry.code}</span>
+        <span className="font-mono text-[12.5px] font-semibold text-primary">{enquiry.code}</span>
         <StatusPill status={enquiry.status} />
       </div>
-      <div className="mt-0.5 truncate text-[13px] font-medium text-fg">{enquiry.client}</div>
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-fg-3">
+      <div className="mt-0.5 truncate text-[13px] font-medium text-foreground">{enquiry.client}</div>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-muted-foreground">
         {enquiry.industry && <span>{enquiry.industry}</span>}
         {enquiry.createdByName && (
           <>
@@ -187,9 +230,9 @@ function EnquiryHeading({ enquiry }: { enquiry: DashboardEnquiry }) {
 function SpareItem({ enquiry }: { enquiry: DashboardEnquiry }) {
   return (
     <li>
-      <Link href={`/commercial?projectId=${enquiry.id}`} className="group flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-elev" title="Open its quotation">
+      <Link href={`/commercial?projectId=${enquiry.id}`} className="group flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-muted/50" title="Open its quotation">
         <EnquiryHeading enquiry={enquiry} />
-        <span className="shrink-0 text-fg-4 transition group-hover:translate-x-0.5 group-hover:text-accent">→</span>
+        <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
       </Link>
     </li>
   );
@@ -203,25 +246,27 @@ function EnquiryItem({ enquiry, onOpenTag }: { enquiry: DashboardEnquiry; onOpen
       <div className="flex flex-wrap items-start justify-between gap-2">
         <EnquiryHeading enquiry={enquiry} />
         <div className="w-[140px] shrink-0 text-right">
-          <div className="text-[11.5px] text-fg-3">
-            <b className="font-mono text-fg">{done}</b> / {total} tag{total === 1 ? "" : "s"} done
+          <div className="text-[11.5px] text-muted-foreground">
+            <b className="font-mono font-semibold text-foreground">{done}</b> / {total} tag{total === 1 ? "" : "s"} done
           </div>
-          <div className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-sunk">
+          {/* One segment per tag, a 2px gap between them. */}
+          <div className="mt-1 flex h-1.5 gap-[2px] overflow-hidden rounded-full">
             {enquiry.tags.map((t) => (
-              <span key={t.id} className="h-full" style={{ width: `${100 / Math.max(1, total)}%`, background: statusStyle(t.status).color }} />
+              <span key={t.id} className="h-full flex-1" style={{ background: statusOf(t.status).color }} title={`${t.name}: ${t.status}`} />
             ))}
+            {total === 0 && <span className="h-full flex-1 bg-muted" />}
           </div>
         </div>
       </div>
 
       {total > 0 ? (
-        <div className="mt-2 rounded-lg border border-line bg-[color-mix(in_srgb,var(--bg-elev)_40%,transparent)] py-1">
+        <div className="mt-2 rounded-md border border-border bg-muted/30 py-1">
           {enquiry.tags.map((t) => (
             <TagRow key={t.id} tag={t} onOpen={() => onOpenTag(t)} />
           ))}
         </div>
       ) : (
-        <p className="mt-2 text-[12px] text-fg-3">No tags yet.</p>
+        <p className="mt-2 text-[12px] text-muted-foreground">No tags yet.</p>
       )}
     </li>
   );
@@ -315,85 +360,77 @@ const DashboardPage = () => {
   );
   const windowLabel = dates.label;
 
-  const enquirySeries: TrendSeries = { key: "enq", label: "Enquiries", color: "var(--brand-blue)", values: (data?.trend ?? []).map((d) => d.enquiries) };
+  const enquirySeries: TrendSeries = { key: "enq", label: "Enquiries", color: "var(--chart-1)", values: (data?.trend ?? []).map((d) => d.enquiries) };
   const trendSeries: TrendSeries[] = isSpare
     ? [enquirySeries]
     : trendView === "created"
       ? [
           enquirySeries,
-          { key: "tags", label: "Tags", color: "var(--brand-cyan)", values: (data?.trend ?? []).map((d) => d.tags) },
+          { key: "tags", label: "Tags", color: "var(--chart-2)", values: (data?.trend ?? []).map((d) => d.tags) },
         ]
-      : [{ key: "done", label: "Tags completed (by creation day)", color: "var(--pos)", values: (data?.trend ?? []).map((d) => d.completed) }];
+      : [{ key: "done", label: "Tags completed (by creation day)", color: "var(--chart-1)", values: (data?.trend ?? []).map((d) => d.completed) }];
+
 
   return (
-    <div className="w-full px-4 pt-5 pb-10 sm:px-6 2xl:px-8">
-      {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl border border-line bg-paper">
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(900px 220px at 0% 0%, color-mix(in srgb, var(--brand-blue) 13%, transparent), transparent 70%), radial-gradient(600px 220px at 100% 0%, color-mix(in srgb, var(--brand-cyan) 12%, transparent), transparent 70%)",
-          }}
-        />
-        <div className="relative flex flex-wrap items-center justify-end gap-4 px-5 py-3">
-          <Link
-            href="/projects"
-            className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white shadow-[0_1px_2px_rgba(10,61,143,0.15)] transition hover:-translate-y-px hover:shadow-[0_6px_16px_color-mix(in_srgb,var(--brand-blue)_30%,transparent)]"
-          >
-            {Icons.folder} Go to Enquiries
-          </Link>
-        </div>
-
-        {/* Filters */}
-        <div className="relative flex flex-wrap items-center gap-2.5 border-t border-line px-5 py-3">
+    <div className="min-h-full bg-background">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      {/* Filters (the greeting is the top bar's heading) */}
+      <Card>
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3">
           {isRep ? (
             <RepPicker value={rep} onChange={setRep} />
           ) : (
-            <Segmented
-              value={scope}
-              onChange={setScope}
-              loading={isLoading}
-              options={[
-                { key: "all", label: "All enquiries" },
-                { key: "mine", label: "Assigned to me" },
-              ]}
-            />
+            <Tabs value={scope} onValueChange={(v) => setScope(v === "mine" ? "mine" : "all")}>
+              <TabsList aria-label="Which enquiries">
+                <TabsTrigger value="all">All enquiries</TabsTrigger>
+                <TabsTrigger value="mine">Assigned to me</TabsTrigger>
+              </TabsList>
+            </Tabs>
           )}
           <DateRangeFilter state={dates} />
+          <Button asChild className="ml-auto">
+            <Link href="/projects">
+              <FolderOpen /> Go to Enquiries
+            </Link>
+          </Button>
         </div>
-        <div className="relative border-t border-line px-5 py-3">
+        <div className="border-t border-border bg-muted/40 px-4 py-2.5">
           <EnquiryFilterBar value={filters} onChange={setFilters} orderTypeRequired />
         </div>
-      </div>
+      </Card>
 
-      {error && <div className="mt-4 rounded-lg bg-[var(--neg-soft)] px-4 py-3 text-[13px] font-medium text-neg">{error}</div>}
+      {error && (
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-destructive/25 bg-destructive/8 px-4 py-2.5 text-[13px] font-medium text-destructive" role="alert">
+          <CircleAlert className="size-4 shrink-0" />
+          {error}
+        </div>
+      )}
 
       {/* Everything below the filters dims while a reload (scope / period) is loading. */}
       <div className={`transition-opacity ${isLoading && data ? "pointer-events-none opacity-60" : ""}`} aria-busy={isLoading || undefined}>
       {/* KPIs */}
-      <div className={`mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${isSpare ? "lg:grid-cols-3" : "lg:grid-cols-3 xl:grid-cols-5"}`}>
+      <div className={`mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${isSpare ? "lg:grid-cols-3 2xl:grid-cols-7" : "lg:grid-cols-3 xl:grid-cols-5"}`}>
         {isLoading && !data
-          ? Array.from({ length: isSpare ? 6 : 5 }, (_, i) => <div key={i} className="h-[124px] animate-pulse rounded-xl border border-line bg-paper" />)
+          ? Array.from({ length: isSpare ? 7 : 5 }, (_, i) => <div key={i} className="h-[124px] animate-pulse rounded-lg border border-border bg-card" />)
           : k &&
             (isSpare ? (
               <>
                 <KpiSplit
                   label="Enquiries"
                   cells={[{ label: "Enquiries", value: fmtNum(k.enquiries), sub: windowLabel, onClick: openList("enquiries", "all", "All spare enquiries"), hint: "Show the enquiries" }]}
-                  icon={Icons.folder}
-                  tone="bg-accent-soft text-accent"
+                  icon={<FolderOpen />}
+                  tone="primary"
                 />
                 {(
                   [
-                    ["Pending", "Pending", Icons.clock, "bg-[var(--warn-soft)] text-warn"],
-                    ["In progress", "In Progress", Icons.activity, "bg-accent-soft text-accent"],
-                    ["Completed", "Completed", Icons.check, "bg-[var(--pos-soft)] text-pos"],
-                    ["Sent to client", "Sent to client", Icons.file, "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[color-mix(in_srgb,var(--brand-cyan)_65%,var(--fg))]"],
-                    ["Not quoted", "Not Quoted", Icons.alert, "bg-sunk text-fg-2"],
-                    ["Regret", "Regret", Icons.alert, "bg-[var(--neg-soft)] text-neg"],
+                    ["Pending", "Pending", <Clock key="i" />],
+                    ["In progress", "In Progress", <Activity key="i" />],
+                    ["Completed", "Completed", <CircleCheck key="i" />],
+                    ["Sent to client", "Sent to client", <FileText key="i" />],
+                    ["Not quoted", "Not Quoted", <CircleAlert key="i" />],
+                    ["Regret", "Regret", <CircleAlert key="i" />],
                   ] as const
-                ).map(([label, status, icon, tone]) => (
+                ).map(([label, status, icon]) => (
                   <KpiSplit
                     key={status}
                     label={label}
@@ -407,7 +444,7 @@ const DashboardPage = () => {
                       },
                     ]}
                     icon={icon}
-                    tone={tone}
+                    tone={statusOf(status).tone}
                   />
                 ))}
               </>
@@ -419,16 +456,16 @@ const DashboardPage = () => {
                     { label: "Enquiries", value: fmtNum(k.enquiries), sub: windowLabel, onClick: openList("enquiries", "all", "All enquiries"), hint: "Show the enquiries" },
                     { label: "Tags", value: fmtNum(k.tags), sub: windowLabel, onClick: openList("tags", "all", "All tags"), hint: "Show the tags" },
                   ]}
-                  icon={Icons.folder}
-                  tone="bg-accent-soft text-accent"
+                  icon={<FolderOpen />}
+                  tone="primary"
                 />
                 {(
                   [
-                    ["Pending", "Pending", k.pending, Icons.clock, "bg-[var(--warn-soft)] text-warn"],
-                    ["In progress", "In Progress", k.inProgress, Icons.activity, "bg-accent-soft text-accent"],
-                    ["Completed", "Completed", k.completed, Icons.check, "bg-[var(--pos-soft)] text-pos"],
+                    ["Pending", "Pending", k.pending, <Clock key="i" />],
+                    ["In progress", "In Progress", k.inProgress, <Activity key="i" />],
+                    ["Completed", "Completed", k.completed, <CircleCheck key="i" />],
                   ] as const
-                ).map(([label, status, tagCount, icon, tone]) => (
+                ).map(([label, status, tagCount, icon]) => (
                   <KpiSplit
                     key={status}
                     label={label}
@@ -452,7 +489,7 @@ const DashboardPage = () => {
                       },
                     ]}
                     icon={icon}
-                    tone={tone}
+                    tone={statusOf(status).tone}
                   />
                 ))}
                 <KpiSplit
@@ -473,8 +510,8 @@ const DashboardPage = () => {
                       hint: "Show the tags awaiting approval",
                     },
                   ]}
-                  icon={Icons.shield}
-                  tone="bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]"
+                  icon={<ShieldCheck />}
+                  tone="warning"
                 />
               </>
             ))}
@@ -484,67 +521,66 @@ const DashboardPage = () => {
         <>
           {/* Trend + tag status */}
           <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <Card
+            <Section
               className="xl:col-span-2"
-              icon={Icons.activity}
+              icon={<Activity />}
               title={isSpare ? "Enquiries over time" : "Enquiries & tags over time"}
               subtitle={`Per IST day · ${windowLabel}`}
               action={
-                isSpare ? undefined : <Segmented
-                  value={trendView}
-                  onChange={setTrendView}
-                  options={[
-                    { key: "created", label: "Created" },
-                    { key: "completed", label: "Completed" },
-                  ]}
-                />
+                isSpare ? undefined : (
+                  <Tabs value={trendView} onValueChange={(v) => setTrendView(v === "completed" ? "completed" : "created")}>
+                    <TabsList aria-label="Trend">
+                      <TabsTrigger value="created">Created</TabsTrigger>
+                      <TabsTrigger value="completed">Completed</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )
               }
             >
               {data.trend.length === 0 ? (
-                <p className="py-16 text-center text-[12.5px] text-fg-3">Nothing created in this period</p>
+                <p className="py-16 text-center text-[12.5px] text-muted-foreground">Nothing created in this period</p>
               ) : (
                 <>
                   <TrendChart days={data.trend.map((d) => d.day)} series={trendSeries} mode="bars" />
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 pl-11">
-                    {trendSeries.map((s) => (
-                      <span key={s.key} className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-2">
-                        <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} />
-                        {s.label}
-                      </span>
-                    ))}
-                  </div>
+                  {/* Always named: the Completed view's one series isn't what the title says. */}
+                  {trendSeries.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 pl-11">
+                      {trendSeries.map((s) => (
+                        <span key={s.key} className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                          <span className="size-2.5 rounded-[3px]" style={{ background: s.color }} />
+                          {s.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
-            </Card>
+            </Section>
 
             {isSpare ? (
-              <Card icon={Icons.activity} title="Status" subtitle="Where every spare enquiry stands">
-                <DonutChart
-                  items={data.enquiryStatus}
-                  centerLabel="enquiries"
-                  colors={{ Pending: "var(--warn)", "In Progress": "var(--brand-blue)", Completed: "var(--pos)", "Sent to client": "var(--brand-cyan)", "Not Quoted": "var(--fg-4)", Regret: "var(--neg)" }}
-                />
-              </Card>
+              <Section icon={<Activity />} title="Status" subtitle="Where every spare enquiry stands">
+                <DonutChart items={data.enquiryStatus} centerLabel="enquiries" colors={STATUS_COLORS} />
+              </Section>
             ) : (
-            <Card icon={Icons.tag} title="Tag status" subtitle="Where every tag stands">
-              <DonutChart
-                items={[
-                  { label: "Pending", count: data.kpis.pending },
-                  { label: "In Progress", count: data.kpis.inProgress },
-                  { label: "Completed", count: data.kpis.completed },
-                ].filter((i) => i.count > 0)}
-                centerLabel="tags"
-                colors={{ Pending: "var(--warn)", "In Progress": "var(--brand-blue)", Completed: "var(--pos)" }}
-              />
-              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
-                {data.enquiryStatus.map((s) => (
-                  <div key={s.label} className="rounded-lg bg-elev px-2 py-2">
-                    <div className="font-mono text-[17px] font-bold text-fg">{s.count}</div>
-                    <div className="text-[10.5px] text-fg-3">{s.label} enquiries</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+              <Section icon={<TagIcon />} title="Tag status" subtitle="Where every tag stands">
+                <DonutChart
+                  items={[
+                    { label: "Pending", count: data.kpis.pending },
+                    { label: "In Progress", count: data.kpis.inProgress },
+                    { label: "Completed", count: data.kpis.completed },
+                  ].filter((i) => i.count > 0)}
+                  centerLabel="tags"
+                  colors={STATUS_COLORS}
+                />
+                <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-3 text-center">
+                  {data.enquiryStatus.map((s) => (
+                    <div key={s.label} className="rounded-md bg-muted/60 px-2 py-2">
+                      <div className="font-mono text-[17px] font-semibold text-foreground tabular-nums">{s.count}</div>
+                      <div className="text-[10.5px] text-muted-foreground">{s.label} enquiries</div>
+                    </div>
+                  ))}
+                </div>
+              </Section>
             )}
           </div>
 
@@ -553,61 +589,66 @@ const DashboardPage = () => {
 
           {/* Recent enquiries with tags + side panels */}
           <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
-            <Card
+            <Section
               className="xl:col-span-2"
-              icon={Icons.folder}
+              icon={<FolderOpen />}
               title="Recent enquiries"
               subtitle={isSpare ? "Newest first · click one to open its quotation" : "Newest first, with every tag · click a tag to open it"}
               bodyClassName=""
               action={
-                <Link href="/projects" className="text-[12.5px] font-semibold text-accent hover:underline">
-                  View all →
-                </Link>
+                <Button variant="link" size="sm" asChild className="px-0">
+                  <Link href="/projects">
+                    View all <ArrowRight />
+                  </Link>
+                </Button>
               }
             >
               {data.recent.length === 0 ? (
-                <p className="py-12 text-center text-[12.5px] text-fg-3">
+                <p className="py-12 text-center text-[12.5px] text-muted-foreground">
                   {scope === "mine" ? "No enquiries assigned to you in this period." : "No enquiries in this period."}
                 </p>
               ) : (
-                <ul className="divide-y divide-line">
+                <ul className="divide-y divide-border">
                   {data.recent.map((e) => (isSpare ? <SpareItem key={e.id} enquiry={e} /> : <EnquiryItem key={e.id} enquiry={e} onOpenTag={(t) => openTag(e, t)} />))}
                 </ul>
               )}
-            </Card>
+            </Section>
 
             <div className="space-y-4">
               {!isSpare && (
-              <Card icon={Icons.shield} title="Approvals" subtitle="Steps sent to selection heads">
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  {[
-                    { label: "Awaiting", value: data.approvals.awaiting, cls: "text-warn bg-[var(--warn-soft)]" },
-                    { label: "Approved", value: data.approvals.approved, cls: "text-pos bg-[var(--pos-soft)]" },
-                    { label: "Rejected", value: data.approvals.rejected, cls: "text-neg bg-[var(--neg-soft)]" },
-                  ].map((a) => (
-                    <div key={a.label} className={`rounded-lg px-2 py-3 ${a.cls}`}>
-                      <div className="font-mono text-[20px] leading-none font-bold">{a.value}</div>
-                      <div className="mt-1 text-[11px] font-semibold">{a.label}</div>
-                    </div>
-                  ))}
-                </div>
-                {canApprove(user?.role) && data.approvals.awaiting > 0 && (
-                  <Link href="/approvals" className="mt-3 block text-center text-[12.5px] font-semibold text-accent hover:underline">
-                    Review {data.approvals.awaiting} waiting →
-                  </Link>
-                )}
-              </Card>
+                <Section icon={<ShieldCheck />} title="Approvals" subtitle="Steps sent to selection heads">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {(
+                      [
+                        { label: "Awaiting", value: data.approvals.awaiting, tone: "warning" },
+                        { label: "Approved", value: data.approvals.approved, tone: "success" },
+                        { label: "Rejected", value: data.approvals.rejected, tone: "danger" },
+                      ] as const
+                    ).map((a) => (
+                      <div key={a.label} className={`rounded-md px-2 py-3 ${TONE_CHIP[a.tone]}`}>
+                        <div className="font-mono text-[20px] leading-none font-semibold tabular-nums">{a.value}</div>
+                        <div className="mt-1 text-[11px] font-medium">{a.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {canApprove(user?.role) && data.approvals.awaiting > 0 && (
+                    <Button variant="outline" size="sm" asChild className="mt-3 w-full">
+                      <Link href="/approvals">
+                        Review {data.approvals.awaiting} waiting <ArrowRight />
+                      </Link>
+                    </Button>
+                  )}
+                </Section>
               )}
 
-              <Card icon={Icons.overview} title="Enquiries by industry">
-                <Bars color="var(--brand-blue)" items={data.industries.map((i) => ({ key: i.label, label: i.label, value: i.count }))} />
-              </Card>
-
+              <Section icon={<ChartBar />} title="Enquiries by industry">
+                <Bars color="var(--chart-1)" items={data.industries.map((i) => ({ key: i.label, label: i.label, value: i.count }))} />
+              </Section>
             </div>
           </div>
 
           {data.trend.length > 0 && (
-            <p className="mt-3 text-right text-[11px] text-fg-4">
+            <p className="mt-3 text-right text-[11px] text-muted-foreground">
               Data from {fmtDay(data.trend[0]!.day)} to {fmtDay(data.trend[data.trend.length - 1]!.day)}
             </p>
           )}
@@ -629,6 +670,7 @@ const DashboardPage = () => {
           onOpenTag={(r) => openTag({ ...r.enquiry, status: r.enquiry.status ?? "" }, r)}
         />
       )}
+    </div>
     </div>
   );
 };
