@@ -465,3 +465,30 @@ body {
 
 /* Quote line items: the per-field label is for phones only (see mobile.css). */
 .qli-lbl { display: none; }
+
+/* ── Report builder grid ────────────────────────────────────────
+   A report page is laid out on twelve columns of 44px rows, which is what the
+   saved document's x/y/w/h mean. Each card places itself with inline
+   gridColumn/gridRow; the grid itself only has to exist.
+
+   On a phone the saved geometry is worse than useless — a 3-column KPI card
+   on a 375px screen is 90px wide — so it is thrown away and every card gets
+   the full width in document order, with a floor height so a chart still has
+   something to draw in. !important because the placement is inline. */
+.rpt-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 44px;
+  gap: 10px;
+}
+@media (max-width: 900px) {
+  .rpt-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+  }
+  .rpt-grid > * {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    min-height: 240px;
+  }
+}

@@ -59,6 +59,10 @@ const SALES_NAV: NavItem[] = [
   // Open to every role — scoped server-side: admins see every TSM/account,
   // managers their own team, reps only themselves.
   { id: 'exec-review', href: '/risansi/executive-review', label: 'Executive Review', Icon: IcDash },
+  // Self-service reports. Open to everyone: reading one shows the reader their
+  // own figures, which they could already see elsewhere. Building one is rep
+  // and above, decided on the page rather than here.
+  { id: 'reports',   href: '/risansi/reports',  label: 'Reports',        Icon: IcChart },
 ];
 
 // GROUP 2 — Admin (admin / sysadmin only)
@@ -97,6 +101,7 @@ const PATH_TO_ID: [string, string][] = [
   ['/risansi/admin/audit',      'audit-admin'],
   ['/risansi/admin/settings',   'settings-admin'],
   ['/risansi/executive-review', 'exec-review'],
+  ['/risansi/reports',          'reports'],
   ['/risansi/admin/clients',    'clients-admin'],
   ['/risansi/admin/revenue',    'revenue-admin'],
   ['/risansi/admin/outstanding', 'outstanding-admin'],
@@ -329,3 +334,4 @@ function IcAlert()    { return ic(<><path d="M8 2 1.5 13.5h13z"/><path d="M8 6.5
 function IcBug()      { return ic(<><path d="M5.5 6.5a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0z"/><path d="M8 4V2.5M6 4.8 4.6 3.4M10 4.8l1.4-1.4M5.3 8H2.8M10.7 8h2.5M5.3 11 3.9 12.4M10.7 11l1.4 1.4"/></>)(); }
 function IcTeam()     { return ic(<><circle cx="5.5" cy="6" r="2.3"/><circle cx="11" cy="6.5" r="1.9"/><path d="M1.5 13.5c0-2.3 1.8-3.8 4-3.8s4 1.5 4 3.8"/><path d="M10.5 10c2 0 4 1.3 4 3.5"/></>)(); }
 function IcUndo()     { return ic(<><path d="M2.5 7.5A5.5 5.5 0 1 1 4 12"/><path d="M2 4v3.5h3.5"/></>)(); }
+function IcChart()    { return ic(<><path d="M2.5 13.5V2.5"/><path d="M2.5 13.5h11"/><rect x="4.5" y="8" width="2.4" height="4"/><rect x="8" y="5.5" width="2.4" height="6.5"/><rect x="11.5" y="3" width="2.4" height="9"/></>)(); }

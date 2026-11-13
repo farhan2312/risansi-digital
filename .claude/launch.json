@@ -4,8 +4,24 @@
     {
       "name": "hub",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "apps/hub"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "apps/hub"
+      ],
       "port": 3100
+    },
+    {
+      "name": "sales",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "apps/sales"
+      ],
+      "port": 3000
     }
   ]
 }

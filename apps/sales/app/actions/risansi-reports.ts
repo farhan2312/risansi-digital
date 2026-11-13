@@ -20,6 +20,7 @@ import { recordAudit } from '@/lib/audit';
 import { runVisual, type CrossFilter, type RunOpts, type RunResult } from '@/lib/custom-analytics/engine';
 import { buildScope } from '@/lib/custom-analytics/scope';
 import { sanitizeDoc, emptyDoc, cloneDoc } from '@/lib/custom-analytics/doc';
+import { templateByKey } from '@/lib/custom-analytics/templates';
 import type { ReportDoc, PageFilters, Visual } from '@/lib/custom-analytics/types';
 
 export interface ReportSummary {
@@ -194,6 +195,24 @@ export async function createReport(title = 'Untitled report'): Promise<Result<{ 
   return saved.ok ? saved : no(saved.error);
 }
 
+/**
+ * A report of the reader's own, started from one of the four templates.
+ *
+ * A copy, not a link: nothing about the result points back at the template,
+ * so editing it later cannot be confused with editing a shared report, and a
+ * template changed in a future release does not rewrite anybody's saved work.
+ */
+export async function createFromTemplate(key: string): Promise<Result<{ id: number }>> {
+  const user = await getCurrentUser();
+  if (!mayBuild(user)) return no('You do not have access to build reports.');
+  const t = templateByKey(String(key ?? ''));
+  if (!t) return no('That template does not exist.');
+  const saved = await saveReport({
+    title: t.title, description: t.description, doc: cloneDoc(t.doc),
+  });
+  return saved.ok ? saved : no(saved.error);
+}
+
 export async function deleteReport(id: number): Promise<Result<true>> {
   const user = await getCurrentUser();
   if (!maySee(user)) return no('Please sign in.');
@@ -202,7 +221,10 @@ export async function deleteReport(id: number): Promise<Result<true>> {
     `DELETE FROM custom_reports WHERE id = $1 AND owner_id = $2 RETURNING title`,
     [id, user.id]);
   if (!rows.length) return no('You can only delete a report you own.');
-  await risansiPool.query(`DELETE FROM app_settings WHERE key = $1`, [pinKey(user.id!)]);
+  // Only if the deleted one was the pinned one. An unconditional delete here
+  // un-pinned whatever else you had pinned, every time you tidied up.
+  await risansiPool.query(
+    `DELETE FROM app_settings WHERE key = $1 AND value = $2`, [pinKey(user.id!), String(id)]);
   await recordAudit({ entityType: 'custom_report', entityId: id, action: 'delete',
     summary: `Deleted report "${rows[0].title}"`, actorEmail: user.email!, actorRole: user.role });
   revalidatePath('/risansi/reports');
