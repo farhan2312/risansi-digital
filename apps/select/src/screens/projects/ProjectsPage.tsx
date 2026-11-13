@@ -639,7 +639,8 @@ const ProjectsPage = () => {
 
   return (
     <div className="min-h-full bg-background">
-    <div className="mx-auto max-w-[1600px] px-4 pt-6 pb-10 sm:px-6">
+    {/* Full width beside the sidebar at every screen size (user, 2026-11-13: no centred column). */}
+    <div className="w-full px-4 pt-6 pb-10 sm:px-6 2xl:px-8">
       {/* Page heading */}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
