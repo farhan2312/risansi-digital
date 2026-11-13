@@ -13,6 +13,8 @@
  *    back to the page's default order.
  */
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, X } from "lucide-react";
+import { Button } from "@/components/shadcn/button";
 
 type Cell = string | number | null | undefined;
 
@@ -169,8 +171,10 @@ export function useTableControls<T>(
 
 export type TableControls<T> = ReturnType<typeof useTableControls<T>>;
 
+// shadcn look (user, 2026-11-13): inputs as src/components/shadcn/input.tsx.
 const inputCls =
-  "h-8 rounded-md border border-line bg-paper px-2 text-[12.5px] text-fg outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft";
+  "h-8 rounded-md border border-input bg-card px-2 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25";
+const labelCls = "text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase";
 
 /** The filter controls, the result count and a Clear button. */
 export function FilterBar<T>({
@@ -187,16 +191,16 @@ export function FilterBar<T>({
 }) {
   const { selects, setSelect, ranges, setRange, options, activeFilters, clearAll, result, sort } = controls;
   return (
-    <div className="flex flex-wrap items-end gap-x-3 gap-y-2 border-b border-line bg-elev px-4 py-3">
+    <div className="flex flex-wrap items-end gap-x-3 gap-y-2 border-b border-border bg-muted/40 px-4 py-3">
       {children}
       {columns
         .filter((c) => c.filter)
         .map((c) =>
           c.filter === "select" ? (
             <label key={c.key} className="flex min-w-0 flex-col gap-1">
-              <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-fg-3">{c.label}</span>
+              <span className={labelCls}>{c.label}</span>
               <select
-                className={`${inputCls} min-w-[110px] max-w-[190px] ${selects[c.key] ? "border-accent text-accent" : ""}`}
+                className={`${inputCls} min-w-[110px] max-w-[190px] ${selects[c.key] ? "border-primary/50 bg-primary/5 font-medium text-primary" : ""}`}
                 value={selects[c.key] ?? ""}
                 onChange={(e) => setSelect(c.key, e.target.value)}
               >
@@ -210,7 +214,7 @@ export function FilterBar<T>({
             </label>
           ) : (
             <div key={c.key} className="flex min-w-0 flex-col gap-1">
-              <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-fg-3">{c.label}</span>
+              <span className={labelCls}>{c.label}</span>
               <div className="flex items-center gap-1">
                 <input
                   type="number"
@@ -221,7 +225,7 @@ export function FilterBar<T>({
                   value={ranges[c.key]?.min ?? ""}
                   onChange={(e) => setRange(c.key, "min", e.target.value)}
                 />
-                <span className="text-fg-4">–</span>
+                <span className="text-muted-foreground">–</span>
                 <input
                   type="number"
                   step="any"
@@ -236,17 +240,13 @@ export function FilterBar<T>({
           ),
         )}
       <div className="ml-auto flex items-center gap-3 self-center">
-        <span className="text-[12px] text-fg-3">
-          <b className="font-mono text-fg">{result.length}</b> of <span className="font-mono">{total}</span> rows
+        <span className="text-[12px] text-muted-foreground">
+          <b className="font-mono font-semibold text-foreground tabular-nums">{result.length}</b> of <span className="font-mono tabular-nums">{total}</span> rows
         </span>
         {(activeFilters > 0 || sort) && (
-          <button
-            type="button"
-            onClick={clearAll}
-            className="rounded-md border border-line bg-paper px-2.5 py-1 text-[12px] font-semibold text-fg-2 transition hover:border-accent hover:text-accent"
-          >
-            Clear{activeFilters > 0 ? ` (${activeFilters})` : ""}
-          </button>
+          <Button variant="outline" size="sm" onClick={clearAll}>
+            <X /> Clear{activeFilters > 0 ? ` (${activeFilters})` : ""}
+          </Button>
         )}
       </div>
     </div>
@@ -272,15 +272,18 @@ export function SortTh<T>({
         type="button"
         onClick={() => controls.toggleSort(colKey)}
         title="Sort"
-        className={`inline-flex items-center gap-1 whitespace-nowrap bg-transparent p-0 [font:inherit] [letter-spacing:inherit] [text-transform:inherit] transition hover:text-accent ${
-          active ? "text-accent" : "text-inherit"
+        className={`inline-flex items-center gap-1 whitespace-nowrap bg-transparent p-0 [font:inherit] [letter-spacing:inherit] [text-transform:inherit] transition-colors hover:text-foreground ${
+          active ? "text-primary" : "text-inherit"
         }`}
       >
         {children}
-        <svg viewBox="0 0 10 14" aria-hidden="true" className="h-3 w-2.5 shrink-0">
-          <path d="M5 1 1.5 5h7L5 1Z" fill="currentColor" opacity={active === "asc" ? 1 : 0.3} />
-          <path d="M5 13 1.5 9h7L5 13Z" fill="currentColor" opacity={active === "desc" ? 1 : 0.3} />
-        </svg>
+        {active === "asc" ? (
+          <ArrowUp aria-hidden="true" className="size-3 shrink-0" />
+        ) : active === "desc" ? (
+          <ArrowDown aria-hidden="true" className="size-3 shrink-0" />
+        ) : (
+          <ArrowUpDown aria-hidden="true" className="size-3 shrink-0 opacity-40" />
+        )}
       </button>
     </th>
   );

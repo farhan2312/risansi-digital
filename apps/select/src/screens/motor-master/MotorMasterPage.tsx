@@ -1,9 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-// Reuse the pump-model master's pmm-* styles — same flat-panel table/modal
-// design system, no need for a second stylesheet.
-import "../pump-model-master/PumpModelMasterPage.css";
 import {
   createMotorMasterRow,
   deleteMotorMasterRow,
@@ -18,14 +15,19 @@ import { SkeletonRows } from "../../components/ui/Skeleton";
 import Spinner from "../../components/ui/Spinner";
 import Pagination, { usePagination } from "../../components/ui/Pagination";
 import { FilterBar, SortTh, useTableControls, type ColumnSpec } from "../../components/ui/tableControls";
-import {
-  PlusIcon,
-  SearchIcon,
-  DetailsIcon,
-  EditIcon,
-  TrashIcon,
-  AlertIcon,
-} from "../../components/ui/adminIcons";
+import { PlusIcon, SearchIcon, DetailsIcon, EditIcon, TrashIcon, AlertIcon } from "../../components/ui/adminIcons";
+// shadcn/ui (user, 2026-11-13: the master pages in the new look, branch select-shadcn).
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Input } from "@/components/shadcn/input";
+import { Alert, Field } from "@/components/shadcn/field";
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
+
+/** Table heading cell (also given to SortTh, whose button inherits it). */
+const TH = "sticky top-0 z-[1] border-b border-border bg-muted px-3 py-2 text-left text-[11px] font-medium tracking-wide whitespace-nowrap text-muted-foreground uppercase";
+const TD = "px-3 py-2 align-middle";
+const NUM = `${TD} font-mono tabular-nums text-foreground`;
 import { usePageTitle } from "../../components/layout/PageTitle";
 
 type FieldDef = { key: keyof MotorMasterRow; label: string; numeric: boolean; date?: boolean };
@@ -129,123 +131,111 @@ const MotorMasterPage = () => {
   };
 
   return (
-    <div className="pmm-page">
-      <div className="pmm-header">
-        <div className="pmm-header-actions">
-          <div className="pmm-search-wrap">
-            <span className="pmm-search-icon"><SearchIcon /></span>
-            <input
-              type="search"
-              className="pmm-search"
-              placeholder="Search brand, type, frame, kW…"
-              value={controls.search}
-              onChange={(e) => controls.setSearch(e.target.value)}
-            />
-          </div>
-          <button className="btn-primary" onClick={() => setCreating(true)}>
-            <PlusIcon /> Add Motor
-          </button>
+    <div className="min-h-full bg-background">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        <div className="w-full sm:w-[280px]">
+          <Input
+            type="search"
+            icon={<SearchIcon />}
+            placeholder="Search brand, type, frame, kW…"
+            value={controls.search}
+            onChange={(e) => controls.setSearch(e.target.value)}
+          />
         </div>
+        <Button onClick={() => setCreating(true)}>
+          <PlusIcon /> Add Motor
+        </Button>
       </div>
 
       {isLoading && (
-        <div className="pmm-panel">
-          <div style={{ padding: 16 }}>
-            <SkeletonRows rows={8} cols={7} />
-          </div>
-        </div>
+        <Card className="p-4">
+          <SkeletonRows rows={8} cols={7} />
+        </Card>
       )}
 
       {!isLoading && error && (
-        <div className="pmm-form-error"><AlertIcon /><span>{error}</span></div>
+        <Alert className="flex items-center gap-2 [&_svg]:size-4">
+          <AlertIcon />
+          <span>{error}</span>
+        </Alert>
       )}
 
       {!isLoading && !error && rows.length === 0 && (
-        <EmptyState
-          icon="table"
-          title="No motor rows yet"
-          description="Add the first row to start populating the motor master."
-          action={
-            <button className="btn-primary" onClick={() => setCreating(true)}>
-              <PlusIcon /> Add first row
-            </button>
-          }
-        />
+        <Card>
+          <EmptyState
+            icon="table"
+            title="No motor rows yet"
+            description="Add the first row to start populating the motor master."
+            action={
+              <Button onClick={() => setCreating(true)}>
+                <PlusIcon /> Add first row
+              </Button>
+            }
+          />
+        </Card>
       )}
 
       {!isLoading && !error && rows.length > 0 && (
-        <div className="pmm-panel">
+        <Card className="overflow-hidden">
           <FilterBar controls={controls} columns={COLUMNS} total={rows.length} />
-          <div className="pmm-table-wrap">
-            <table className="pmm-table">
+          <div className="max-h-[calc(100vh-260px)] overflow-auto border-t border-border">
+            <table className="w-full border-collapse text-[12.5px]">
               <thead>
                 <tr>
-                  <SortTh controls={controls} colKey="brand">Brand</SortTh>
-                  <SortTh controls={controls} colKey="motorKw">Motor kW</SortTh>
-                  <SortTh controls={controls} colKey="motorHp">Motor HP</SortTh>
-                  <SortTh controls={controls} colKey="motorRpm">RPM</SortTh>
-                  <SortTh controls={controls} colKey="motorType">Motor Type</SortTh>
-                  <SortTh controls={controls} colKey="frameSize">Frame Size</SortTh>
-                  <SortTh controls={controls} colKey="lpPrice">LP Price</SortTh>
-                  <SortTh controls={controls} colKey="finalPrice">Final Price</SortTh>
-                  <SortTh controls={controls} colKey="effectiveDate">Effective Date</SortTh>
-                  <th className="pmm-actions-col">Actions</th>
+                  <SortTh controls={controls} colKey="brand" className={TH}>Brand</SortTh>
+                  <SortTh controls={controls} colKey="motorKw" className={TH}>Motor kW</SortTh>
+                  <SortTh controls={controls} colKey="motorHp" className={TH}>Motor HP</SortTh>
+                  <SortTh controls={controls} colKey="motorRpm" className={TH}>RPM</SortTh>
+                  <SortTh controls={controls} colKey="motorType" className={TH}>Motor Type</SortTh>
+                  <SortTh controls={controls} colKey="frameSize" className={TH}>Frame Size</SortTh>
+                  <SortTh controls={controls} colKey="lpPrice" className={TH}>LP Price</SortTh>
+                  <SortTh controls={controls} colKey="finalPrice" className={TH}>Final Price</SortTh>
+                  <SortTh controls={controls} colKey="effectiveDate" className={TH}>Effective Date</SortTh>
+                  <th className={`${TH} text-right`}>Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {paged.map((r) => (
-                  <tr key={r.id}>
-                    <td className="pmm-model">{val(r.brand)}</td>
-                    <td className="mono">{val(r.motorKw)}</td>
-                    <td className="mono">{val(r.motorHp)}</td>
-                    <td className="mono">{val(r.motorRpm)}</td>
-                    <td className="mono">{val(r.motorType)}</td>
-                    <td className="mono">{val(r.frameSize)}</td>
-                    <td className="mono">{val(r.lpPrice)}</td>
-                    <td className="mono">{val(r.finalPrice)}</td>
-                    <td className="mono">{fmtDate(r.effectiveDate)}</td>
-                    <td>
-                      <div className="pmm-row-actions">
-                        <button className="pmm-btn" onClick={() => setDetailsRow(r)}>
+                  <tr key={r.id} className="transition-colors hover:bg-muted/50">
+                    <td className={`${TD} font-medium text-foreground`}>{val(r.brand)}</td>
+                    <td className={NUM}>{val(r.motorKw)}</td>
+                    <td className={NUM}>{val(r.motorHp)}</td>
+                    <td className={NUM}>{val(r.motorRpm)}</td>
+                    <td className={NUM}>{val(r.motorType)}</td>
+                    <td className={NUM}>{val(r.frameSize)}</td>
+                    <td className={NUM}>{val(r.lpPrice)}</td>
+                    <td className={NUM}>{val(r.finalPrice)}</td>
+                    <td className={NUM}>{fmtDate(r.effectiveDate)}</td>
+                    <td className={TD}>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => setDetailsRow(r)}>
                           <DetailsIcon /> Details
-                        </button>
-                        <button className="pmm-btn" onClick={() => setEditRow(r)}>
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditRow(r)}>
                           <EditIcon /> Edit
-                        </button>
-                        <button
-                          className="pmm-btn pmm-btn-danger pmm-btn-icon"
-                          onClick={() => setDeleteRow(r)}
-                          title="Delete"
-                          aria-label="Delete"
-                        >
+                        </Button>
+                        <Button variant="ghost-destructive" size="icon-sm" onClick={() => setDeleteRow(r)} title="Delete" aria-label="Delete">
                           <TrashIcon />
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="pmm-empty-cell">
-                      <EmptyState
-                        compact
-                        icon="search"
-                        title="No rows match these filters"
-                        description="Try a different keyword or clear some filters."
-                      />
+                    <td colSpan={10} className="px-3 py-6">
+                      <EmptyState compact icon="search" title="No rows match these filters" description="Try a different keyword or clear some filters." />
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          <Pagination
-            page={page}
-            totalItems={filtered.length}
-            pageSize={pageSize}
-            onPageChange={setPage}
-          />
-        </div>
+          <div className="border-t border-border bg-muted/40">
+            <Pagination page={page} totalItems={filtered.length} pageSize={pageSize} onPageChange={setPage} />
+          </div>
+        </Card>
       )}
 
       {detailsRow && (
@@ -272,39 +262,41 @@ const MotorMasterPage = () => {
         />
       )}
     </div>
+    </div>
   );
 };
 
 // --- Details modal ---------------------------------------------------------
 
 const DetailsModal = ({ row, onClose }: { row: MotorMasterRow; onClose: () => void }) => (
-  <div className="pmm-modal-overlay" onClick={onClose}>
-    <div className="pmm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-      <div className="pmm-modal-header">
-        <h3>
+  <Dialog open onOpenChange={(o) => !o && onClose()}>
+    {/* Read only: a click outside closes it, as before. */}
+    <DialogContent size="lg" onInteractOutside={() => {}}>
+      <DialogHeader>
+        <DialogTitle>
           {val(row.brand)} · {val(row.motorKw)} kW
-        </h3>
-        <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-          ✕
-        </button>
-      </div>
-      <div className="pmm-details-grid">
-        {FIELDS.map((f) => (
-          <div key={f.key}>
-            <span>{f.label}</span>
-            <strong className={f.numeric || f.date ? "mono" : undefined}>
-              {f.date ? fmtDate(row[f.key] as string | null) : val(row[f.key])}
-            </strong>
-          </div>
-        ))}
-      </div>
-      <div className="pmm-modal-actions">
-        <button className="btn-secondary" onClick={onClose}>
+        </DialogTitle>
+        <DialogDescription>Every field of this motor row</DialogDescription>
+      </DialogHeader>
+      <DialogBody>
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+          {FIELDS.map((f) => (
+            <div key={f.key} className="min-w-0 border-b border-border pb-2">
+              <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{f.label}</dt>
+              <dd className={`mt-0.5 text-[13px] text-foreground ${f.numeric || f.date ? "font-mono tabular-nums" : "font-medium"}`}>
+                {f.date ? fmtDate(row[f.key] as string | null) : val(row[f.key])}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
           Close
-        </button>
-      </div>
-    </div>
-  </div>
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 );
 
 // --- shared form validation ------------------------------------------------
@@ -315,6 +307,70 @@ function validate(form: Record<string, string>): string | null {
     return "Motor kW is required and must be a number.";
   return null;
 }
+
+/** The Add / Edit form: a dialog with the fields in two columns. */
+const MotorForm = ({
+  title,
+  form,
+  set,
+  formError,
+  saving,
+  submitLabel,
+  savingLabel,
+  onSubmit,
+  onClose,
+}: {
+  title: string;
+  form: Record<string, string>;
+  set: (key: string, value: string) => void;
+  formError: string;
+  saving: boolean;
+  submitLabel: string;
+  savingLabel: string;
+  onSubmit: (e: React.FormEvent) => void;
+  onClose: () => void;
+}) => (
+  <Dialog open onOpenChange={(o) => !o && onClose()}>
+    <DialogContent size="lg">
+      <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>Brand and Motor kW are required.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          {formError && (
+            <Alert className="flex items-center gap-2 [&_svg]:size-4">
+              <AlertIcon />
+              <span>{formError}</span>
+            </Alert>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {FIELDS.map((f) => (
+              <Field key={f.key} label={f.label} required={REQUIRED_KEYS.has(f.key)} htmlFor={`motor-${f.key}`}>
+                <Input
+                  id={`motor-${f.key}`}
+                  type={f.date ? "date" : f.numeric ? "number" : "text"}
+                  step={f.numeric ? "any" : undefined}
+                  value={form[f.key]}
+                  onChange={(e) => set(f.key, e.target.value)}
+                />
+              </Field>
+            ))}
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={saving}>
+            {saving && <Spinner size="sm" inline />}
+            {saving ? savingLabel : submitLabel}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>
+);
 
 // --- Create modal ----------------------------------------------------------
 
@@ -356,53 +412,17 @@ const CreateModal = ({
   };
 
   return (
-    <div className="pmm-modal-overlay" onClick={onClose}>
-      <div
-        className="pmm-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="pmm-modal-header">
-          <h3>Add motor row</h3>
-          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <form onSubmit={handleCreate}>
-          {formError && (
-            <div className="pmm-form-error">
-              <AlertIcon /><span>{formError}</span>
-            </div>
-          )}
-          <div className="pmm-form-grid">
-            {FIELDS.map((f) => (
-              <div key={f.key} className="pmm-field">
-                <label>
-                  {f.label}
-                  {REQUIRED_KEYS.has(f.key) ? " *" : ""}
-                </label>
-                <input
-                  type={f.date ? "date" : f.numeric ? "number" : "text"}
-                  step={f.numeric ? "any" : undefined}
-                  value={form[f.key]}
-                  onChange={(e) => set(f.key, e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="pmm-modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving && <Spinner size="sm" inline />}
-              {saving ? "Adding…" : "Add motor"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <MotorForm
+      title="Add motor row"
+      form={form}
+      set={set}
+      formError={formError}
+      saving={saving}
+      submitLabel="Add motor"
+      savingLabel="Adding…"
+      onSubmit={handleCreate}
+      onClose={onClose}
+    />
   );
 };
 
@@ -452,48 +472,17 @@ const EditModal = ({
   };
 
   return (
-    <div className="pmm-modal-overlay" onClick={onClose}>
-      <div className="pmm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="pmm-modal-header">
-          <h3>Edit {val(row.brand)} · {val(row.motorKw)} kW</h3>
-          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <form onSubmit={handleSave}>
-          {formError && (
-            <div className="pmm-form-error">
-              <AlertIcon /><span>{formError}</span>
-            </div>
-          )}
-          <div className="pmm-form-grid">
-            {FIELDS.map((f) => (
-              <div key={f.key} className="pmm-field">
-                <label>
-                  {f.label}
-                  {REQUIRED_KEYS.has(f.key) ? " *" : ""}
-                </label>
-                <input
-                  type={f.date ? "date" : f.numeric ? "number" : "text"}
-                  step={f.numeric ? "any" : undefined}
-                  value={form[f.key]}
-                  onChange={(e) => set(f.key, e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="pmm-modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving && <Spinner size="sm" inline />}
-              {saving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <MotorForm
+      title={`Edit ${val(row.brand)} · ${val(row.motorKw)} kW`}
+      form={form}
+      set={set}
+      formError={formError}
+      saving={saving}
+      submitLabel="Save changes"
+      savingLabel="Saving…"
+      onSubmit={handleSave}
+      onClose={onClose}
+    />
   );
 };
 
@@ -525,31 +514,28 @@ const DeleteModal = ({
   };
 
   return (
-    <div className="pmm-modal-overlay" onClick={onClose}>
-      <div className="pmm-modal pmm-modal-sm" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="pmm-modal-header">
-          <h3>Delete row?</h3>
-          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <p className="pmm-delete-text">
+    <ConfirmDialog
+      open
+      title="Delete row?"
+      description={
+        <>
           Delete <strong>{val(row.brand)}</strong> at <strong>{val(row.motorKw)} kW</strong>
-          {row.frameSize ? <> (<strong>{row.frameSize}</strong>)</> : null}? This
-          permanently removes the row and can&apos;t be undone.
-        </p>
-        {formError && <div className="pmm-form-error">{formError}</div>}
-        <div className="pmm-modal-actions">
-          <button className="btn-secondary" onClick={onClose} disabled={deleting}>
-            Cancel
-          </button>
-          <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
-            {deleting && <Spinner size="sm" inline />}
-            {deleting ? "Deleting…" : "Delete row"}
-          </button>
-        </div>
-      </div>
-    </div>
+          {row.frameSize ? <> (<strong>{row.frameSize}</strong>)</> : null}? This permanently removes the row and can&apos;t be undone.
+        </>
+      }
+      confirmLabel={
+        <>
+          {deleting && <Spinner size="sm" inline />}
+          {deleting ? "Deleting…" : "Delete row"}
+        </>
+      }
+      tone="danger"
+      busy={deleting}
+      onConfirm={handleDelete}
+      onClose={onClose}
+    >
+      {formError && <Alert>{formError}</Alert>}
+    </ConfirmDialog>
   );
 };
 

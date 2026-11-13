@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import "../pump-model-master/PumpModelMasterPage.css";
 import {
   createGearboxRow,
   deleteGearboxRow,
@@ -26,6 +25,14 @@ import {
   AlertIcon,
 } from "../../components/ui/adminIcons";
 import { usePageTitle } from "../../components/layout/PageTitle";
+// shadcn/ui (user, 2026-11-13: master pages in the new look, branch select-shadcn).
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Input } from "@/components/shadcn/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { Alert, Field } from "@/components/shadcn/field";
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
 
 type FieldDef = { key: keyof GearboxMasterRow; label: string; numeric: boolean; required?: boolean };
 
@@ -47,6 +54,12 @@ const TABLE_TABS: { key: GearboxTableKey; label: string }[] = [
 ];
 
 const val = (v: string | number | null) => (v === null || v === "" ? "—" : v);
+
+// Table cells: a muted header row (sticky while the page scrolls), hairline rows.
+const TH =
+  "sticky top-0 z-10 border-b border-border bg-muted px-3 py-2 text-left text-[11px] font-medium tracking-wide whitespace-nowrap text-muted-foreground uppercase";
+const TD = "border-b border-border px-3 py-2 align-middle whitespace-nowrap text-foreground";
+const NUM = "font-mono tabular-nums";
 
 // Default order: model, then output RPM ascending.
 const defaultSort = (a: GearboxMasterRow, b: GearboxMasterRow) =>
@@ -126,159 +139,124 @@ const GearboxMasterPage = () => {
   };
 
   return (
-    <div className="pmm-page">
-      <div className="pmm-header">
-        <div className="pmm-header-actions">
-          <div className="pmm-search-wrap">
-            <span className="pmm-search-icon"><SearchIcon /></span>
-            <input
-              type="search"
-              className="pmm-search"
-              placeholder="Search model, RPM, GB type, kW…"
-              value={controls.search}
-              onChange={(e) => controls.setSearch(e.target.value)}
-            />
+    <div className="min-h-full bg-background">
+      <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+        {/* Table switch on the left; search and Add on the right (the heading is in the top bar) */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Tabs value={table} onValueChange={(v) => setTable(v as GearboxTableKey)}>
+            <TabsList aria-label="Gearbox table">
+              {TABLE_TABS.map((t) => (
+                <TabsTrigger key={t.key} value={t.key}>
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="w-full sm:w-[280px]">
+              <Input
+                type="search"
+                icon={<SearchIcon />}
+                placeholder="Search model, RPM, GB type, kW…"
+                value={controls.search}
+                onChange={(e) => controls.setSearch(e.target.value)}
+              />
+            </div>
+            <Button onClick={() => setCreating(true)}>
+              <PlusIcon /> Add row
+            </Button>
           </div>
-          <button className="btn-primary" onClick={() => setCreating(true)}>
-            <PlusIcon /> Add row
-          </button>
         </div>
-      </div>
 
-      <div className="pmm-tab-row" role="tablist">
-        {TABLE_TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTable(t.key)}
-            className={`pmm-tab ${table === t.key ? "pmm-tab-active" : ""}`}
-            role="tab"
-            aria-selected={table === t.key}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {isLoading && (
-        <div className="pmm-panel">
-          <div style={{ padding: 16 }}>
+        {isLoading && (
+          <Card className="p-4">
             <SkeletonRows rows={6} cols={5} />
-          </div>
-        </div>
-      )}
+          </Card>
+        )}
 
-      {!isLoading && error && (
-        <div className="pmm-form-error"><AlertIcon /><span>{error}</span></div>
-      )}
+        {!isLoading && error && (
+          <Alert className="flex items-center gap-2 [&_svg]:size-4 [&_svg]:shrink-0">
+            <AlertIcon />
+            <span>{error}</span>
+          </Alert>
+        )}
 
-      {!isLoading && !error && rows.length === 0 && (
-        <EmptyState
-          icon="table"
-          title="No rows yet"
-          description={`The ${TABLE_TABS.find((t) => t.key === table)?.label} gearbox table is empty. Add the first row to seed it.`}
-          action={
-            <button className="btn-primary" onClick={() => setCreating(true)}>
-              <PlusIcon /> Add first row
-            </button>
-          }
-        />
-      )}
+        {!isLoading && !error && rows.length === 0 && (
+          <Card>
+            <EmptyState
+              icon="table"
+              title="No rows yet"
+              description={`The ${TABLE_TABS.find((t) => t.key === table)?.label} gearbox table is empty. Add the first row to seed it.`}
+              action={
+                <Button onClick={() => setCreating(true)}>
+                  <PlusIcon /> Add first row
+                </Button>
+              }
+            />
+          </Card>
+        )}
 
-      {!isLoading && !error && rows.length > 0 && (
-        <div className="pmm-panel">
-          <FilterBar controls={controls} columns={COLUMNS} total={rows.length} />
-          <div className="pmm-table-wrap">
-            <table className="pmm-table">
-              <thead>
-                <tr>
-                  <SortTh controls={controls} colKey="model">Model</SortTh>
-                  <SortTh controls={controls} colKey="outputRpm">Output RPM</SortTh>
-                  <SortTh controls={controls} colKey="gearBoxType">Gear Box Type</SortTh>
-                  <SortTh controls={controls} colKey="powerRatingKw">Power Rating (kW)</SortTh>
-                  <SortTh controls={controls} colKey="serviceFactor">Service Factor</SortTh>
-                  <SortTh controls={controls} colKey="ratePerNos">Rate per Nos.</SortTh>
-                  <th className="pmm-actions-col">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paged.map((r) => (
-                  <tr key={r.id}>
-                    <td className="pmm-model">{r.model}</td>
-                    <td className="mono">{val(r.outputRpm)}</td>
-                    <td>{val(r.gearBoxType)}</td>
-                    <td className="mono">{val(r.powerRatingKw)}</td>
-                    <td className="mono">{val(r.serviceFactor)}</td>
-                    <td className="mono">{val(r.ratePerNos)}</td>
-                    <td>
-                      <div className="pmm-row-actions">
-                        <button className="pmm-btn" onClick={() => setDetailsRow(r)}>
-                          <DetailsIcon /> Details
-                        </button>
-                        <button className="pmm-btn" onClick={() => setEditRow(r)}>
-                          <EditIcon /> Edit
-                        </button>
-                        <button
-                          className="pmm-btn pmm-btn-danger pmm-btn-icon"
-                          onClick={() => setDeleteRow(r)}
-                          title="Delete"
-                          aria-label="Delete"
-                        >
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
+        {!isLoading && !error && rows.length > 0 && (
+          <Card className="overflow-hidden">
+            <FilterBar controls={controls} columns={COLUMNS} total={rows.length} />
+            <div className="overflow-x-auto">
+              <table className="w-full border-separate border-spacing-0 text-[12.5px]">
+                <thead>
                   <tr>
-                    <td colSpan={7} className="pmm-empty-cell">
-                      <EmptyState
-                        compact
-                        icon="search"
-                        title="No rows match these filters"
-                        description="Try a different keyword or clear some filters."
-                      />
-                    </td>
+                    <SortTh controls={controls} colKey="model" className={TH}>Model</SortTh>
+                    <SortTh controls={controls} colKey="outputRpm" className={TH}>Output RPM</SortTh>
+                    <SortTh controls={controls} colKey="gearBoxType" className={TH}>Gear Box Type</SortTh>
+                    <SortTh controls={controls} colKey="powerRatingKw" className={TH}>Power Rating (kW)</SortTh>
+                    <SortTh controls={controls} colKey="serviceFactor" className={TH}>Service Factor</SortTh>
+                    <SortTh controls={controls} colKey="ratePerNos" className={TH}>Rate per Nos.</SortTh>
+                    <th className={`${TH} w-[1%]`}>Actions</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            page={page}
-            totalItems={filtered.length}
-            pageSize={pageSize}
-            onPageChange={setPage}
-          />
-        </div>
-      )}
+                </thead>
+                <tbody>
+                  {paged.map((r) => (
+                    <tr key={r.id} className="transition-colors hover:bg-muted/50">
+                      <td className={`${TD} font-semibold text-primary`}>{r.model}</td>
+                      <td className={`${TD} ${NUM}`}>{val(r.outputRpm)}</td>
+                      <td className={TD}>{val(r.gearBoxType)}</td>
+                      <td className={`${TD} ${NUM}`}>{val(r.powerRatingKw)}</td>
+                      <td className={`${TD} ${NUM}`}>{val(r.serviceFactor)}</td>
+                      <td className={`${TD} ${NUM}`}>{val(r.ratePerNos)}</td>
+                      <td className={TD}>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setDetailsRow(r)}>
+                            <DetailsIcon /> Details
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => setEditRow(r)}>
+                            <EditIcon /> Edit
+                          </Button>
+                          <Button variant="ghost-destructive" size="icon-sm" onClick={() => setDeleteRow(r)} title="Delete" aria-label="Delete">
+                            <TrashIcon />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <EmptyState compact icon="search" title="No rows match these filters" description="Try a different keyword or clear some filters." />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-border bg-muted/40">
+              <Pagination page={page} totalItems={filtered.length} pageSize={pageSize} onPageChange={setPage} />
+            </div>
+          </Card>
+        )}
 
-      {detailsRow && (
-        <DetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />
-      )}
-      {editRow && (
-        <EditModal
-          table={table}
-          row={editRow}
-          onClose={() => setEditRow(null)}
-          onSaved={handleSaved}
-        />
-      )}
-      {creating && (
-        <CreateModal
-          table={table}
-          onClose={() => setCreating(false)}
-          onCreated={handleCreated}
-        />
-      )}
-      {deleteRow && (
-        <DeleteModal
-          table={table}
-          row={deleteRow}
-          onClose={() => setDeleteRow(null)}
-          onDeleted={handleDeleted}
-        />
-      )}
+        {detailsRow && <DetailsModal row={detailsRow} onClose={() => setDetailsRow(null)} />}
+        {editRow && <EditModal table={table} row={editRow} onClose={() => setEditRow(null)} onSaved={handleSaved} />}
+        {creating && <CreateModal table={table} onClose={() => setCreating(false)} onCreated={handleCreated} />}
+        {deleteRow && <DeleteModal table={table} row={deleteRow} onClose={() => setDeleteRow(null)} onDeleted={handleDeleted} />}
+      </div>
     </div>
   );
 };
@@ -286,30 +264,48 @@ const GearboxMasterPage = () => {
 // --- Details modal ---------------------------------------------------------
 
 const DetailsModal = ({ row, onClose }: { row: GearboxMasterRow; onClose: () => void }) => (
-  <div className="pmm-modal-overlay" onClick={onClose}>
-    <div className="pmm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-      <div className="pmm-modal-header">
-        <h3>
+  <Dialog open onOpenChange={(o) => !o && onClose()}>
+    {/* A click outside closes the details, as before (nothing to lose). */}
+    <DialogContent size="md" onInteractOutside={() => {}}>
+      <DialogHeader>
+        <DialogTitle>
           {row.model} · {val(row.outputRpm)} RPM
-        </h3>
-        <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-          ✕
-        </button>
-      </div>
-      <div className="pmm-details-grid">
-        {FIELDS.map((f) => (
-          <div key={f.key}>
-            <span>{f.label}</span>
-            <strong className={f.numeric ? "mono" : undefined}>{val(row[f.key])}</strong>
-          </div>
-        ))}
-      </div>
-      <div className="pmm-modal-actions">
-        <button className="btn-secondary" onClick={onClose}>
+        </DialogTitle>
+        <DialogDescription>Every field of this row</DialogDescription>
+      </DialogHeader>
+      <DialogBody>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {FIELDS.map((f) => (
+            <div key={f.key} className="flex flex-col gap-0.5 rounded-md bg-muted/60 px-3 py-2">
+              <span className="text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">{f.label}</span>
+              <strong className={`text-[13px] font-semibold text-foreground ${f.numeric ? NUM : ""}`}>{val(row[f.key])}</strong>
+            </div>
+          ))}
+        </div>
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
           Close
-        </button>
-      </div>
-    </div>
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
+/** The add / edit form's fields, two columns. */
+const FormFields = ({ form, set, required }: { form: Record<string, string>; set: (key: string, value: string) => void; required: boolean }) => (
+  <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+    {FIELDS.map((f) => (
+      <Field key={f.key} label={f.label} htmlFor={`gb-${f.key}`} required={required && !!f.required}>
+        <Input
+          id={`gb-${f.key}`}
+          type={f.numeric ? "number" : "text"}
+          step={f.numeric ? "any" : undefined}
+          value={form[f.key]}
+          onChange={(e) => set(f.key, e.target.value)}
+        />
+      </Field>
+    ))}
   </div>
 );
 
@@ -354,53 +350,34 @@ const CreateModal = ({
   };
 
   return (
-    <div className="pmm-modal-overlay" onClick={onClose}>
-      <div
-        className="pmm-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="pmm-modal-header">
-          <h3>Add {TABLE_TABS.find((t) => t.key === table)?.label} row</h3>
-          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <form onSubmit={handleCreate}>
-          {formError && (
-            <div className="pmm-form-error">
-              <AlertIcon /><span>{formError}</span>
-            </div>
-          )}
-          <div className="pmm-form-grid">
-            {FIELDS.map((f) => (
-              <div key={f.key} className="pmm-field">
-                <label>
-                  {f.label}
-                  {f.required ? " *" : ""}
-                </label>
-                <input
-                  type={f.numeric ? "number" : "text"}
-                  step={f.numeric ? "any" : undefined}
-                  value={form[f.key]}
-                  onChange={(e) => set(f.key, e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="pmm-modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="md">
+        <form onSubmit={handleCreate} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader>
+            <DialogTitle>Add {TABLE_TABS.find((t) => t.key === table)?.label} row</DialogTitle>
+            <DialogDescription>Model and Output RPM are required.</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-3.5">
+            {formError && (
+              <Alert className="flex items-center gap-2 [&_svg]:size-4 [&_svg]:shrink-0">
+                <AlertIcon />
+                <span>{formError}</span>
+              </Alert>
+            )}
+            <FormFields form={form} set={set} required />
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
+            </Button>
+            <Button type="submit" disabled={saving}>
               {saving && <Spinner size="sm" inline />}
               {saving ? "Adding…" : "Add row"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -455,45 +432,34 @@ const EditModal = ({
   };
 
   return (
-    <div className="pmm-modal-overlay" onClick={onClose}>
-      <div className="pmm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="pmm-modal-header">
-          <h3>Edit {row.model}</h3>
-          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <form onSubmit={handleSave}>
-          {formError && (
-            <div className="pmm-form-error">
-              <AlertIcon /><span>{formError}</span>
-            </div>
-          )}
-          <div className="pmm-form-grid">
-            {FIELDS.map((f) => (
-              <div key={f.key} className="pmm-field">
-                <label>{f.label}</label>
-                <input
-                  type={f.numeric ? "number" : "text"}
-                  step={f.numeric ? "any" : undefined}
-                  value={form[f.key]}
-                  onChange={(e) => set(f.key, e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="pmm-modal-actions">
-            <button type="button" className="btn-secondary" onClick={onClose}>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="md">
+        <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader>
+            <DialogTitle>Edit {row.model}</DialogTitle>
+            <DialogDescription>Blank numbers are saved empty.</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-3.5">
+            {formError && (
+              <Alert className="flex items-center gap-2 [&_svg]:size-4 [&_svg]:shrink-0">
+                <AlertIcon />
+                <span>{formError}</span>
+              </Alert>
+            )}
+            <FormFields form={form} set={set} required={false} />
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
+            </Button>
+            <Button type="submit" disabled={saving}>
               {saving && <Spinner size="sm" inline />}
               {saving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -527,30 +493,28 @@ const DeleteModal = ({
   };
 
   return (
-    <div className="pmm-modal-overlay" onClick={onClose}>
-      <div className="pmm-modal pmm-modal-sm" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="pmm-modal-header">
-          <h3>Delete row?</h3>
-          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <p className="pmm-delete-text">
-          Delete <strong>{row.model}</strong> at <strong>{val(row.outputRpm)} RPM</strong>?
-          This permanently removes the row and can&apos;t be undone.
-        </p>
-        {formError && <div className="pmm-form-error">{formError}</div>}
-        <div className="pmm-modal-actions">
-          <button className="btn-secondary" onClick={onClose} disabled={deleting}>
-            Cancel
-          </button>
-          <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
-            {deleting && <Spinner size="sm" inline />}
-            {deleting ? "Deleting…" : "Delete row"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <ConfirmDialog
+      open
+      title="Delete row?"
+      description={
+        <>
+          Delete <strong>{row.model}</strong> at <strong>{val(row.outputRpm)} RPM</strong>? This permanently removes the row and can&apos;t be
+          undone.
+        </>
+      }
+      confirmLabel={
+        <>
+          {deleting && <Spinner size="sm" inline />}
+          {deleting ? "Deleting…" : "Delete row"}
+        </>
+      }
+      tone="danger"
+      busy={deleting}
+      onConfirm={handleDelete}
+      onClose={onClose}
+    >
+      {formError && <Alert>{formError}</Alert>}
+    </ConfirmDialog>
   );
 };
 

@@ -1270,3 +1270,9 @@ never auto-filled from the AI result.
   Chart colours: index.css --chart-1/2 (series), --chart-pending/progress/done/sent/regret/none
   (statuses, = badge tones), --chart-s1..8 (charts.tsx PALETTE, fixed order) - all checked with the
   dataviz validate_palette.js on the card surface, light and dark. Never --brand-* for chart marks.
+- Also in shadcn (user, 2026-11-13, same branch): Client Operation Docs / Pump Docs / Spare Docs
+  (its DocsModal stays a NON-Radix overlay - SavedDocsViewer prints via printHtml), Approvals +
+  ApprovalReviewModal (Radix), the masters (Pump Model, Gearbox, Pulley, Motor: no pmm-* classes
+  left; PumpModelMasterPage.css stays loaded in layout for anything still using it), the shared
+  tableControls (FilterBar/SortTh) and adminIcons (lucide), BOI master (boiUi Modal = Radix Dialog,
+  DeleteConfirm = ConfirmDialog), Client Quoted Prices, USD to INR (3-card grid).
