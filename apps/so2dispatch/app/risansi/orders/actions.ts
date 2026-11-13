@@ -130,6 +130,7 @@ import {
   type TargetRevision,
 } from "@/lib/target-dates";
 import { logAudit } from "@/lib/audit";
+import { cancelEc, checkEcCancel, listEcCancellations, type CancelCheck, type EcCancellation } from "@/lib/ec-cancel";
 import {
   PACKING_LOTS_FIELD,
   LOT_NOS_FIELD,
@@ -3058,4 +3059,70 @@ export async function savePiPaymentAction(
   }
   revalidatePath("/risansi/departments/accounts");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// An EC the client no longer wants: cancelled (kept, then removed), not deleted.
+// ---------------------------------------------------------------------------
+
+/** Can this EC be cancelled, and is it packed (then what happens to the goods is asked). */
+export async function ecCancelCheckAction(itemId: string): Promise<CancelCheck | { blocked: string; packed: false; ecNo: null }> {
+  const user = await getCurrentUser();
+  if (!user) return { blocked: "You are not signed in.", packed: false, ecNo: null };
+  const detail = await getItemDetail(itemId);
+  const denied = detail ? await ecDenied(user, String(detail.order.id)) : "EC not found.";
+  if (denied) return { blocked: denied, packed: false, ecNo: null };
+  return (await checkEcCancel(itemId)) ?? { blocked: "EC not found.", packed: false, ecNo: null };
+}
+
+export async function cancelEcAction(input: {
+  itemId: string;
+  reason: string;
+  disposition: string | null;
+  dispositionNote: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  const detail = await getItemDetail(input.itemId);
+  if (!detail) return { ok: false, error: "EC not found." };
+  const orderId = String(detail.order.id);
+  const denied = await ecDenied(user, orderId);
+  if (denied) return { ok: false, error: denied };
+  try {
+    const res = await cancelEc({ ...input, userId: user.id, userName: user.full_name || user.email });
+    if (!res.ok) return res;
+    // Its lots, quantity and dispatches are gone with it: the SO's status reads again.
+    await recomputeDispatchStatus(orderId);
+    const soNo = String(detail.order.so_no ?? `#${detail.order.sl_no}`);
+    const ec = res.ecNo ?? "An EC";
+    const goods = res.packed && input.disposition ? ` Packed goods: ${input.disposition}${input.dispositionNote?.trim() ? ` (${input.dispositionNote.trim()})` : ""}.` : "";
+    await logAudit({
+      actor: { id: user.id, email: user.email, role: user.role },
+      action: "order.update",
+      category: "activity",
+      target: res.ecNo ?? "EC item",
+      details: `Cancelled ${ec} of ${soNo} (client): ${input.reason.trim()}.${goods}`,
+      subject: { orderId, soNo, ecNo: res.ecNo },
+    });
+    // Every department that may have worked on it hears; Purchase cancels its POs.
+    await emitNotification({
+      roles: ["drawing", "purchase", "qc", "planning", "assembly", "dispatch", "central_visibility"],
+      orderId,
+      type: "dept_update",
+      message: `${ec} cancelled by the client: ${input.reason.trim()}.${goods} Stop work on it; Purchase, cancel its open POs.`,
+    });
+    revalidatePath("/risansi/orders");
+    revalidatePath("/risansi/departments", "layout");
+    return { ok: true };
+  } catch (error) {
+    console.error("cancelEc failed:", error);
+    return { ok: false, error: "Could not cancel the EC. Please try again." };
+  }
+}
+
+/** The SO's cancelled ECs, for the ECs pop-up. */
+export async function listEcCancellationsAction(orderId: string): Promise<EcCancellation[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  return listEcCancellations(orderId);
 }

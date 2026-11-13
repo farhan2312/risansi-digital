@@ -2,8 +2,10 @@
 
 import { EcLink } from "./ec-link";
 import { Fragment, useEffect, useState } from "react";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
-import { ecBoiListAction } from "@/app/risansi/orders/actions";
+import { useRouter } from "next/navigation";
+import { Ban, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { cancelEcAction, ecBoiListAction, ecCancelCheckAction, listEcCancellationsAction } from "@/app/risansi/orders/actions";
+import type { EcCancellation } from "@/lib/ec-cancel";
 import { BoiStatusTag } from "./boi-detail-modal";
 import { addOnFieldsFor, isOnlyBilling } from "@/lib/order-schema";
 import { formatDisplay } from "./editable-section";
@@ -27,7 +29,10 @@ export function OmEcsModal({
   onDelete,
   onClose,
   initialId,
+  onCancelled,
 }: {
+  /** An EC was cancelled: read the ECs again (else the page is refreshed). */
+  onCancelled?: () => void;
   /** The EC shown first (else the first EC). */
   initialId?: string;
   order: Row;
@@ -53,6 +58,20 @@ export function OmEcsModal({
 
   const soLabel = str(order.so_no) || `#${str(order.sl_no)}`;
   const isSpare = str(order.order_type) === "Spare";
+  const router = useRouter();
+  // The EC being cancelled (its dialog), and the SO's cancelled ECs below.
+  const [cancelling, setCancelling] = useState<Row | null>(null);
+  const [cancelled, setCancelled] = useState<EcCancellation[] | null>(null);
+  const [cancelledVersion, setCancelledVersion] = useState(0);
+  useEffect(() => {
+    let live = true;
+    listEcCancellationsAction(str(order.id))
+      .then((r) => live && setCancelled(r))
+      .catch(() => live && setCancelled([]));
+    return () => {
+      live = false;
+    };
+  }, [order.id, cancelledVersion]);
 
   return (
     <div
@@ -150,6 +169,15 @@ export function OmEcsModal({
                       <Pencil className="h-3.5 w-3.5" />
                       Edit
                     </button>
+                    {/* The client no longer wants it: cancelled and kept, not deleted. */}
+                    <button
+                      type="button"
+                      onClick={() => setCancelling(current)}
+                      className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-300 px-2.5 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                      Cancel EC
+                    </button>
                     <button
                       type="button"
                       onClick={() => onDelete(current)}
@@ -186,6 +214,20 @@ export function OmEcsModal({
               {str(current.boi) === "Yes" && <EcBoiList itemId={str(current.id)} />}
             </section>
           </>
+        )}
+        {cancelled && cancelled.length > 0 && <CancelledEcs rows={cancelled} />}
+        {cancelling && (
+          <CancelEcDialog
+            item={cancelling}
+            soLabel={soLabel}
+            onClose={() => setCancelling(null)}
+            onDone={() => {
+              setCancelling(null);
+              setCancelledVersion((v) => v + 1);
+              if (onCancelled) onCancelled();
+              else router.refresh();
+            }}
+          />
         )}
       </div>
     </div>
@@ -246,5 +288,152 @@ function EcBoiList({ itemId }: { itemId: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+const DISPOSITION_OPTIONS = ["Keep as stock", "Dismantle / reuse", "Divert to another SO"];
+
+/**
+ * Cancel an EC the client no longer wants: the reason, and when it is packed,
+ * what happens to the packed goods. Refused while it is on a slip or invoiced.
+ */
+function CancelEcDialog({ item, soLabel, onClose, onDone }: { item: Row; soLabel: string; onClose: () => void; onDone: () => void }) {
+  const ec = str(item.ec_no) || "this EC";
+  const [check, setCheck] = useState<{ blocked: string | null; packed: boolean } | null>(null);
+  const [reason, setReason] = useState("");
+  const [disposition, setDisposition] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    ecCancelCheckAction(str(item.id))
+      .then((r) => live && setCheck({ blocked: r.blocked, packed: r.packed }))
+      .catch(() => live && setCheck({ blocked: "Could not check the EC.", packed: false }));
+    return () => {
+      live = false;
+    };
+  }, [item.id]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) return setError("Give the reason the client cancelled it.");
+    if (check?.packed && !disposition) return setError("Say what happens to the packed goods.");
+    setBusy(true);
+    setError(null);
+    const res = await cancelEcAction({ itemId: str(item.id), reason, disposition: disposition || null, dispositionNote: note || null });
+    setBusy(false);
+    if (!res.ok) setError(res.error);
+    else onDone();
+  }
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={`Cancel ${ec}`} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="w-full max-w-md rounded-2xl bg-surface p-5 shadow-xl">
+        <h3 className="font-display text-base font-semibold text-foreground">Cancel {ec}</h3>
+        <p className="mt-0.5 text-xs text-muted">SO {soLabel} · the client no longer wants it</p>
+        {!check ? (
+          <p className="mt-4 flex items-center gap-2 text-sm text-muted">
+            <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+          </p>
+        ) : check.blocked ? (
+          <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">{check.blocked}</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <label className="block text-sm">
+              <span className="text-[12px] font-medium text-muted">Reason</span>
+              <textarea
+                value={reason}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  setError(null);
+                }}
+                rows={2}
+                className="mt-1 w-full rounded-lg border border-input-border bg-background px-3 py-2 text-sm text-foreground"
+              />
+            </label>
+            {check.packed && (
+              <>
+                <label className="block text-sm">
+                  <span className="text-[12px] font-medium text-muted">It is packed: what happens to the packed goods</span>
+                  <select
+                    value={disposition}
+                    onChange={(e) => {
+                      setDisposition(e.target.value);
+                      setError(null);
+                    }}
+                    className="mt-1 h-9 w-full rounded-lg border border-input-border bg-background px-2 text-sm text-foreground"
+                  >
+                    <option value="">Choose…</option>
+                    {DISPOSITION_OPTIONS.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="text-[12px] font-medium text-muted">Note (which SO, where it is kept…)</span>
+                  <input value={note} onChange={(e) => setNote(e.target.value)} className="mt-1 h-9 w-full rounded-lg border border-input-border bg-background px-3 text-sm text-foreground" />
+                </label>
+              </>
+            )}
+            <p className="text-[11px] text-muted">
+              Every department drops it and is told; Purchase cancels its open POs. It stays listed as cancelled. Lower the SO&apos;s quantity
+              and value in Order Making if they change.
+            </p>
+          </div>
+        )}
+        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-lg border border-input-border px-4 text-sm font-medium text-foreground hover:bg-background">
+            Close
+          </button>
+          {check && !check.blocked && (
+            <button
+              type="submit"
+              disabled={busy}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-amber-600 px-4 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+            >
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              Cancel {ec}
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** The SO's cancelled ECs: what, why, when, by whom, and the packed goods. */
+function CancelledEcs({ rows }: { rows: EcCancellation[] }) {
+  const day = (v: string) => new Date(v).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return (
+    <section className="mt-4 rounded-xl border border-card-border">
+      <h3 className="border-b border-card-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Cancelled by client · {rows.length}
+      </h3>
+      <ul className="divide-y divide-card-border">
+        {rows.map((r) => (
+          <li key={r.id} className="px-4 py-2 text-sm">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="font-semibold text-muted line-through">{r.ec_no ?? "EC"}</span>
+              <span className="text-xs text-muted">{[r.model_no, r.quantity != null ? `Qty ${r.quantity}` : "", r.version_no ? `v${r.version_no}` : ""].filter(Boolean).join(" · ")}</span>
+            </div>
+            <div className="text-foreground">{r.reason}</div>
+            {r.was_packed && (
+              <div className="text-xs text-amber-800 dark:text-amber-300">
+                Packed goods: {r.disposition ?? "—"}
+                {r.disposition_note ? ` · ${r.disposition_note}` : ""}
+              </div>
+            )}
+            <div className="text-[11px] text-muted">
+              {day(r.cancelled_at)}
+              {r.cancelled_by_name ? ` · ${r.cancelled_by_name}` : ""}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

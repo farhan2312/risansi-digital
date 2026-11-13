@@ -110,6 +110,10 @@ function EcsPopup({ order, canManage, onClose }: { order: OrderListRow; canManag
         onEdit={(item) => setForm({ item })}
         onDelete={remove}
         onClose={onClose}
+        onCancelled={() => {
+          setVersion((v) => v + 1);
+          router.refresh();
+        }}
       />
       {form && (
         <AddOnForm

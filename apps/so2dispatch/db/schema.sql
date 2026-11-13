@@ -3269,3 +3269,26 @@ UPDATE orders o
 -- Dispatch invoice: Other Charges (column other_value) — billed beyond Invoice Value;
 -- shown under Invoiced in Order in Hand, not counted in it.
 ALTER TABLE order_invoices ADD COLUMN IF NOT EXISTS other_value NUMERIC(14,2);
+
+-- EC cancelled by the client: the EC and every department's rows on it kept
+-- as they stood (snapshot), then the EC removed — so every queue, lot, count
+-- and status leaves it out. Packed goods carry what happens to them.
+CREATE TABLE IF NOT EXISTS order_item_cancellations (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id          UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    item_id           UUID NOT NULL,
+    ec_no             TEXT,
+    item_type         TEXT,
+    model_no          TEXT,
+    quantity          INTEGER,
+    version_no        INTEGER,
+    reason            TEXT NOT NULL,
+    was_packed        BOOLEAN NOT NULL DEFAULT false,
+    disposition       TEXT CHECK (disposition IN ('Keep as stock', 'Dismantle / reuse', 'Divert to another SO')),
+    disposition_note  TEXT,
+    snapshot          JSONB NOT NULL,
+    cancelled_by      UUID,
+    cancelled_by_name TEXT,
+    cancelled_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_item_cancellations_order_idx ON order_item_cancellations (order_id, cancelled_at);
