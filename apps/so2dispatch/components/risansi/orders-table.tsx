@@ -722,6 +722,11 @@ export function OrdersTable({
             </div>
             <OrderStatusPill status={orderStatusOf(order)} />
           </div>
+          {(closed || onlyBilling) && (
+            <span className="mt-2 inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+              {closed ? (order.dispatch_status || "Closed") : "Only billing"}
+            </span>
+          )}
           {/* The departments it has reached: each takes the portrait to its part. */}
           {!closed && !onlyBilling && (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -740,9 +745,33 @@ export function OrdersTable({
               ))}
             </div>
           )}
-          <button type="button" onClick={() => setDetailsFor(order)} className="mt-2 text-xs font-medium text-primary hover:underline">
-            Order details
-          </button>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEcsFor(order)}
+              title={`ECs (${(order.items ?? []).length})`}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-input-border px-2 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              ECs {(order.items ?? []).length}
+            </button>
+            <button
+              type="button"
+              onClick={() => setChatFor(order)}
+              aria-label={`Discussion for SO ${soLabel}`}
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-input-border px-2 text-xs font-medium text-foreground transition-colors hover:bg-background"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Chat
+            </button>
+            <button
+              type="button"
+              onClick={() => setDetailsFor(order)}
+              className="inline-flex h-7 items-center rounded-md border border-input-border px-2 text-xs font-medium text-foreground transition-colors hover:bg-background"
+            >
+              Order details
+            </button>
+          </div>
         </div>
         {section("Payment terms, PIs and payment", ["billing", "accounts"], [{ label: "Terms, PIs, payment", dept: "billing" }], termsTd(order), "billing")}
         {onlyBilling ? (
@@ -873,10 +902,11 @@ export function OrdersTable({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className={`w-full ${split ? "min-w-[1250px]" : pump ? "min-w-[2940px]" : "min-w-[2290px]"} text-sm`}>
+          <table className={`w-full ${split ? "min-w-[950px]" : pump ? "min-w-[2940px]" : "min-w-[2290px]"} text-sm`}>
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th rowSpan={2} className="w-8 px-2 py-3" />
+                {/* Split view: ECs, Chat and the departments are the portrait's. */}
+                {!split && <th rowSpan={2} className="w-8 px-2 py-3" />}
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
                 {/* Split view: SO No. and its date, the client and its code, the rep and zone, a column each. */}
                 {split ? (
@@ -887,8 +917,8 @@ export function OrdersTable({
                     <th rowSpan={2} className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
                   </>
                 )}
-                <th rowSpan={2} className="px-3 py-3">Chat</th>
-                {!pump && <th rowSpan={2} className="px-4 py-3">Type</th>}
+                {!split && <th rowSpan={2} className="px-3 py-3">Chat</th>}
+                {!pump && !split && <th rowSpan={2} className="px-4 py-3">Type</th>}
                 {split ? (
                   <>
                     <th rowSpan={2} className="px-4 py-3">Client / Code</th>
@@ -904,11 +934,11 @@ export function OrdersTable({
                 )}
                 {/* Headers that filter, Excel-like: the values the column holds, each with its count. */}
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label="Order Status" /></th>
+                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label={split ? "Status / Type" : "Order Status"} /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap text-right"><SortHeader label="Order in Hand" sortKey="in_hand" /></th>
                 {pump && <th rowSpan={2} className="px-4 py-3 text-right">Quantity</th>}
-                <th rowSpan={2} className="px-4 py-3">Departments</th>
+                {!split && <th rowSpan={2} className="px-4 py-3">Departments</th>}
                 {!split && (<>
                 <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
                 {pump ? (
@@ -987,6 +1017,7 @@ export function OrdersTable({
                           : (dispatchRowTone({ dispatch_status: dispatch }) ?? "hover:bg-background/60")
                       }`}
                     >
+                      {!split && (
                       <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
@@ -1001,6 +1032,7 @@ export function OrdersTable({
                           )}
                         </button>
                       </td>
+                      )}
                       <td className="px-4 py-3 font-medium tabular-nums">{order.sl_no}</td>
                       {/* The SO and its holds; Clear / Hold is changed from the badge. */}
                       <td className="sticky-so px-4 py-3 whitespace-nowrap align-top">
@@ -1039,6 +1071,7 @@ export function OrdersTable({
                         )}
                       </td>
                       {!split && <td className="px-4 py-3 whitespace-nowrap text-muted">{formatDate(order.so_date)}</td>}
+                      {!split && (
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
@@ -1050,7 +1083,8 @@ export function OrdersTable({
                           <MessageSquare className="h-3.5 w-3.5" />
                         </button>
                       </td>
-                      {!pump && <td className="px-4 py-3 whitespace-nowrap">{cell(order.order_type)}</td>}
+                      )}
+                      {!pump && !split && <td className="px-4 py-3 whitespace-nowrap">{cell(order.order_type)}</td>}
                       {split ? (
                         <>
                           <td className="min-w-[14rem] px-4 py-3">
@@ -1074,6 +1108,7 @@ export function OrdersTable({
                       {/* Worked out, never set: Active, Active-Hold, Canceled, Diverted or Closed. */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <OrderStatusPill status={orderStatusOf(order)} />
+                        {split && order.order_type && <div className="mt-0.5 text-[11px] text-muted">{order.order_type}</div>}
                       </td>
                       <td className="px-4 py-3 align-top">
                         <OrderValueDetails row={order} />
@@ -1085,7 +1120,7 @@ export function OrdersTable({
                       {/* A pump SO's quantity: all its ECs' added up. */}
                       {pump && <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{ecQuantityOf(order.items) ?? "—"}</td>}
                       {/* The departments the SO has reached, each opening its pop-up. */}
-                      {(
+                      {!split && (
                       <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
                         <div className="flex min-w-[12rem] max-w-[18rem] flex-wrap gap-1">
                           {closed && (
