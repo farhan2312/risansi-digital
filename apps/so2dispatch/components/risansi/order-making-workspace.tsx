@@ -237,6 +237,8 @@ export function OrderMakingWorkspace({
     else router.refresh();
   }
   const pickedMember = filter.assignees.length === 1 ? filter.assignees[0] : null;
+  // The Assigned to filter's choices: Unassigned, then each SO member.
+  const assignOptions = [{ value: UNASSIGNED, label: "Unassigned" }, ...members.map((m) => ({ value: m.id, label: memberLabel(m) }))];
   const cols: { column: string; label: string }[] = [
     { column: "so_no", label: "SO No." },
     { column: "so_date", label: "SO Date" },
@@ -430,12 +432,18 @@ export function OrderMakingWorkspace({
           onChange={(next) => setParams({ socat: next })}
         />
         {canAssign && (
-          <SingleSelectFilter
+          // Any of several members (and/or Unassigned): the filter lists names, the URL their ids.
+          <MultiSelectFilter
             label="Assigned to"
             allLabel="Anyone"
-            options={[{ value: UNASSIGNED, label: "Unassigned" }, ...members.map((m) => ({ value: m.id, label: memberLabel(m) }))]}
-            selected={pickedMember}
-            onChange={(next) => setParams({ asg: next, page: null })}
+            options={assignOptions.map((o) => o.label)}
+            selected={filter.assignees.map((id) => assignOptions.find((o) => o.value === id)?.label).filter((l): l is string => !!l)}
+            onChange={(next) =>
+              setParams({
+                asg: next.map((l) => assignOptions.find((o) => o.label === l)?.value).filter((v): v is string => !!v),
+                page: null,
+              })
+            }
           />
         )}
         <SingleSelectFilter
