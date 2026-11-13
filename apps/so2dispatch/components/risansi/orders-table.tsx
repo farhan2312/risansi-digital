@@ -873,19 +873,35 @@ export function OrdersTable({
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className={`w-full ${split ? "min-w-[1500px]" : pump ? "min-w-[2940px]" : "min-w-[2290px]"} text-sm`}>
+          <table className={`w-full ${split ? "min-w-[1250px]" : pump ? "min-w-[2940px]" : "min-w-[2290px]"} text-sm`}>
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 <th rowSpan={2} className="w-8 px-2 py-3" />
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
-                <th rowSpan={2} className="sticky-so px-4 py-3">SO No.</th>
-                <th rowSpan={2} className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
+                {/* Split view: SO No. and its date, the client and its code, the rep and zone, a column each. */}
+                {split ? (
+                  <th rowSpan={2} className="sticky-so px-4 py-3"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
+                ) : (
+                  <>
+                    <th rowSpan={2} className="sticky-so px-4 py-3">SO No.</th>
+                    <th rowSpan={2} className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
+                  </>
+                )}
                 <th rowSpan={2} className="px-3 py-3">Chat</th>
                 {!pump && <th rowSpan={2} className="px-4 py-3">Type</th>}
-                <th rowSpan={2} className="px-4 py-3">Client Name</th>
-                <th rowSpan={2} className="px-4 py-3">Client Code</th>
-                <th rowSpan={2} className="px-4 py-3"><SortHeader label="Rep" sortKey="rep" /></th>
-                <th rowSpan={2} className="px-4 py-3">Zone</th>
+                {split ? (
+                  <>
+                    <th rowSpan={2} className="px-4 py-3">Client / Code</th>
+                    <th rowSpan={2} className="px-4 py-3"><SortHeader label="Rep / Zone" sortKey="rep" /></th>
+                  </>
+                ) : (
+                  <>
+                    <th rowSpan={2} className="px-4 py-3">Client Name</th>
+                    <th rowSpan={2} className="px-4 py-3">Client Code</th>
+                    <th rowSpan={2} className="px-4 py-3"><SortHeader label="Rep" sortKey="rep" /></th>
+                    <th rowSpan={2} className="px-4 py-3">Zone</th>
+                  </>
+                )}
                 {/* Headers that filter, Excel-like: the values the column holds, each with its count. */}
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label="Order Status" /></th>
@@ -989,6 +1005,7 @@ export function OrdersTable({
                       {/* The SO and its holds; Clear / Hold is changed from the badge. */}
                       <td className="sticky-so px-4 py-3 whitespace-nowrap align-top">
                         <div className="font-medium">{cell(order.so_no)}</div>
+                        {split && <div className="text-[11px] text-muted">{formatDate(order.so_date)}</div>}
                         {/* A Pump SO's version: its versions in a pop-up, New version in it. */}
                         {PUMP_LIKE.includes(String(order.order_type ?? "")) && Number(order.version_no ?? 0) > 0 && !canOpenVersions(role) && (
                           <VersionTag order={order as unknown as Record<string, unknown>} />
@@ -1021,7 +1038,7 @@ export function OrdersTable({
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-muted">{formatDate(order.so_date)}</td>
+                      {!split && <td className="px-4 py-3 whitespace-nowrap text-muted">{formatDate(order.so_date)}</td>}
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
@@ -1034,10 +1051,25 @@ export function OrdersTable({
                         </button>
                       </td>
                       {!pump && <td className="px-4 py-3 whitespace-nowrap">{cell(order.order_type)}</td>}
-                      <td className="min-w-[14rem] px-4 py-3">{cell(order.client_name)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{cell(order.client_code)}</td>
-                      <td className="px-4 py-3">{cell(order.reps)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{cell(order.zone)}</td>
+                      {split ? (
+                        <>
+                          <td className="min-w-[14rem] px-4 py-3">
+                            {cell(order.client_name)}
+                            {order.client_code && <div className="text-[11px] text-muted">{order.client_code}</div>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {cell(order.reps)}
+                            {order.zone && <div className="text-[11px] whitespace-nowrap text-muted">{order.zone}</div>}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="min-w-[14rem] px-4 py-3">{cell(order.client_name)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">{cell(order.client_code)}</td>
+                          <td className="px-4 py-3">{cell(order.reps)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">{cell(order.zone)}</td>
+                        </>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap">{billModeLabel(order.bill_mode, order.bill_type) || "—"}</td>
                       {/* Worked out, never set: Active, Active-Hold, Canceled, Diverted or Closed. */}
                       <td className="px-4 py-3 whitespace-nowrap">
