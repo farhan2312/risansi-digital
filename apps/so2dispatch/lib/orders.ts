@@ -1110,8 +1110,6 @@ export async function saveReadyLots(
                   recheck_note = CASE WHEN chg.changed THEN chg.note ELSE rl.recheck_note END
              FROM old,
                   LATERAL (SELECT old.packed_date IS NOT NULL
-                                  AND EXISTS (SELECT 1 FROM order_items si JOIN orders so ON so.id = si.order_id
-                                               WHERE si.id = old.item_id AND ${spareEcSql("si", "so")})
                                   AND (old.status IS DISTINCT FROM $2 OR old.ready_date IS DISTINCT FROM $3::date
                                        OR old.qty IS DISTINCT FROM $4::int) AS changed,
                                   concat_ws(' · ',

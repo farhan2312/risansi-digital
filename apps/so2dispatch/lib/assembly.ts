@@ -109,6 +109,10 @@ export type PumpLot = {
   /** What Assembly & Packing chose for it (LOT_PACKING_STATUSES); blank until then. */
   pack_status: string;
   pack_remarks: string;
+  /** Planning changed the lot after it was packed: what changed; blank when not. */
+  recheck_note: string;
+  /** Assembly & Packing has checked it: the packing still stands. */
+  recheck_ok?: boolean;
 };
 
 /** The SO's lots from its pump ECs' lot rows: lot n is each EC's n-th row. */
@@ -158,6 +162,7 @@ export function pumpLotsFromEcs(ecRows: Row[]): PumpLot[] {
       packed_date: day(pick("packed_date")),
       pack_status: pick("pump_packing_status") || (pick("packed_date") ? LOT_PACKED : ""),
       pack_remarks: pick("packing_remarks"),
+      recheck_note: rows.some((r) => str(r.recheck_at)) ? pick("recheck_note") || "Planning changed the lot" : "",
     });
   }
   return lots;
@@ -247,7 +252,7 @@ export function pendingRemarks(lots: PumpLot[], stage: Stage): { n: number; text
 }
 
 /** What Assembly & Packing edits on a lot as a whole: its assembly pending remarks and its packing. */
-export type LotStages = Pick<PumpLot, "n" | "asm_remarks" | "packing_plan_date" | "packing_shift" | "pdi" | "final_alignment" | "packed_date" | "pack_status" | "pack_remarks">;
+export type LotStages = Pick<PumpLot, "n" | "asm_remarks" | "packing_plan_date" | "packing_shift" | "pdi" | "final_alignment" | "packed_date" | "pack_status" | "pack_remarks" | "recheck_ok">;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 

@@ -77,6 +77,11 @@ export function LotCell({ lot, slips, noRemarks = false }: { lot: PumpLot | unde
       )}
       {day(lot.packed_date, lot.packing_plan_date, "Packing")}
       {!noRemarks && lot.pack_remarks && <span className="max-w-[14rem] whitespace-normal text-[11px] text-muted">{lot.pack_remarks}</span>}
+      {lot.recheck_note && (
+        <span title={lot.recheck_note} className="rounded bg-amber-100 px-1 text-[10.5px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+          Re-check: Planning changed it
+        </span>
+      )}
       {/* Packed, but on no packing slip yet. */}
       {lot.packed_date && !lotOnSlip(lot.n, slips) && (
         <span className="rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>

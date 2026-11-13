@@ -525,6 +525,7 @@ function LotStagesModal({
       packed_date: l.packed_date,
       pack_status: l.pack_status,
       pack_remarks: l.pack_remarks,
+      recheck_ok: l.recheck_ok,
     }));
     const sending: AsmEntry[] = entries.map((e) => ({
       id: e.id,
@@ -759,6 +760,19 @@ function LotStagesModal({
                       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
                         <Package className="h-3.5 w-3.5" /> Packing
                       </p>
+                      {/* Planning changed the lot after it was packed: confirm the packing, or pack it again. */}
+                      {l.recheck_note && (
+                        <div className="mb-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                          <p className="font-semibold">Re-check: Planning changed this lot after it was packed</p>
+                          <p className="text-xs">{l.recheck_note}</p>
+                          {!ro && (
+                            <label className="mt-1.5 flex items-center gap-2 text-xs font-medium">
+                              <input type="checkbox" checked={!!l.recheck_ok} onChange={(e) => set(i, { recheck_ok: e.target.checked })} />
+                              Checked: the packing still stands (or change the packed day)
+                            </label>
+                          )}
+                        </div>
+                      )}
                       <div className="grid grid-cols-3 gap-2">
                         <Field label="Plan date">
                           <input type="date" value={l.packing_plan_date} disabled={ro || !named} onChange={(e) => set(i, { packing_plan_date: e.target.value })} className={input} />

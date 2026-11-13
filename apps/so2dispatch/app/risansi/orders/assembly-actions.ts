@@ -80,6 +80,7 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
     packed_date: t(l.pack_status) === LOT_PACKING_PENDING ? "" : t(l.packed_date),
     pack_status: t(l.pack_status) || (t(l.packed_date) ? LOT_PACKED : ""),
     pack_remarks: t(l.pack_remarks),
+    recheck_ok: l.recheck_ok === true,
   }));
   const sent: AsmEntry[] = (Array.isArray(entries) ? entries : []).map((e) => ({
     id: UUID_RE.test(t(e.id)) ? t(e.id) : "",
@@ -154,7 +155,7 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
     }
 
     for (const ec of ecs) {
-      const packing: { id: string; packed_date: string; packing_plan_date: string; packing_shift: string; pdi: string }[] = [];
+      const packing: { id: string; packed_date: string; packing_plan_date: string; packing_shift: string; pdi: string; recheck_ok?: boolean }[] = [];
       for (const l of clean) {
         const row = ec.ready_lots[l.n - 1];
         if (!row || !UUID_RE.test(String(row.id))) continue;
@@ -164,6 +165,8 @@ export async function saveLotStagesAction(orderId: string, lots: LotStages[], en
           packing_plan_date: l.packing_plan_date,
           packing_shift: l.packing_shift,
           pdi: l.pdi,
+          // Planning's change checked: the flag clears (as it does on a new packed day).
+          recheck_ok: l.recheck_ok,
         });
         await query(
           `UPDATE order_ready_lots SET pump_packing_status = NULLIF($2, ''), packing_remarks = NULLIF($3, ''), assembly_remarks = NULLIF($4, ''), final_alignment = NULLIF($5, '') WHERE id = $1`,
