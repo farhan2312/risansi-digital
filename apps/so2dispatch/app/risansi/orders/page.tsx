@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardList, Download, Plus, Upload } from "lucide-react";
@@ -151,7 +153,7 @@ export default async function OrdersPage({
         </div>
       </div>
 
-      <OrdersTable result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} pumpSummaries={pumpSummaries} dispatchDocs={dispatchDocs} />
+      <OrdersTable split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"} result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} pumpSummaries={pumpSummaries} dispatchDocs={dispatchDocs} />
     </div>
   );
 }

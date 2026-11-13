@@ -36,6 +36,7 @@ import {
 } from "./nav-config";
 import { mayOpenPage } from "@/lib/view-pages";
 import { ThemeToggle } from "./theme-toggle";
+import { ViewModeToggle } from "./view-mode-toggle";
 
 type ShellUser = { name: string; email: string; role: string; view_pages?: string[] };
 
@@ -281,6 +282,8 @@ export function BottomNav({
                   </span>
                 </div>
 
+                {/* Table view or Split view, for the Orders list. */}
+                <ViewModeToggle large />
                 {/* Passwords live at Risansi Digital (Phase 5, step 7). */}
                 <a
                   href="/change-password"

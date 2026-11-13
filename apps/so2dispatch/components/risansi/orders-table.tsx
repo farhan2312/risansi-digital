@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Columns2, History, Layers, Loader2, MessageSquare, Table2, Trash2 } from "lucide-react";
+import { History, Layers, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
@@ -369,6 +369,7 @@ function DispatchDocCells({ docs, onOpen }: { docs: SoDispatchDocs | undefined; 
 }
 
 export function OrdersTable({
+  split = false,
   result,
   canDelete = false,
   role,
@@ -376,6 +377,8 @@ export function OrdersTable({
   pumpSummaries,
   dispatchDocs = {},
 }: {
+  /** Split view: the table up to Departments, and the SO picked upright beside it. */
+  split?: boolean;
   /** Each SO's packing slips and dispatches, by SO id. */
   dispatchDocs?: Record<string, SoDispatchDocs>;
   /** The Pump view: each pump SO's standing in every department (lib/pump-summary). */
@@ -412,7 +415,7 @@ export function OrdersTable({
   const readOnly = isReadOnlyViewer(role);
   // The filter lives in the URL, so it narrows the whole table rather than
   // only the page already loaded.
-  const { get: getParam, setParams } = useUrlTable();
+  const { get: getParam } = useUrlTable();
   const filtered = isOrderListFiltered(
     parseOrderListFilter((key) => getParam(key) || undefined)
   );
@@ -648,9 +651,9 @@ export function OrdersTable({
                       </td>
   );
 
-  // Split view (?view=split): the table up to Departments on the left, and on
+  // Split view (the profile menu's): the table up to Departments on the left, and on
   // the right the SO picked, its department columns stood up as a portrait.
-  const split = getParam("view") === "split";
+
   const [focus, setFocus] = useState<{ id: string; dept: ReachedDept["key"] | null } | null>(null);
   const focusOrder = split ? (pageRows.find((o) => o.id === focus?.id) ?? pageRows[0] ?? null) : null;
   const focusDept = focusOrder && focus?.id === focusOrder.id ? focus.dept : null;
@@ -875,28 +878,6 @@ export function OrdersTable({
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} />
-
-      {/* Table view (every column across) or Split view (the SO list and one SO upright). */}
-      <div className="mb-3 flex justify-end">
-        <div className="inline-flex rounded-lg border border-input-border bg-surface p-0.5 text-xs font-medium">
-          {([
-            [false, "Table view", Table2],
-            [true, "Split view", Columns2],
-          ] as const).map(([v, label, Icon]) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setParams({ view: v ? "split" : null }, false)}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition-colors ${
-                split === v ? "bg-primary/10 text-primary" : "text-muted hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className={split ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start gap-4" : ""}>
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">

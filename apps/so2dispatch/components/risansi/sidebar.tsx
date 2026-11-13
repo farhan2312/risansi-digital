@@ -36,6 +36,7 @@ import {
 } from "./nav-config";
 import { mayOpenPage } from "@/lib/view-pages";
 import { ThemeToggle } from "./theme-toggle";
+import { ViewModeToggle } from "./view-mode-toggle";
 import { RoleSwitcher } from "./role-switcher";
 
 type SidebarUser = { name: string; email: string; role: string; roles?: string[]; view_pages?: string[] };
@@ -220,6 +221,9 @@ export function Sidebar({
               aria-hidden
             />
             <div className="absolute bottom-full left-3 right-3 z-20 mb-2 overflow-hidden rounded-xl border border-sidebar-border bg-sidebar p-1.5 shadow-xl">
+              {/* Table view or Split view, for the Orders list. */}
+              <ViewModeToggle />
+              <div className="my-1 border-t border-sidebar-border" />
               {/* Passwords live at Risansi Digital (Phase 5, step 7). */}
               <a
                 href="/change-password"
