@@ -25,6 +25,8 @@ const DEPT_OF_ROLE: Record<string, string> = {
   qc: "qc",
   planning: "planning",
   assembly: "assembly",
+  // Admin acknowledges for itself: the departments still see theirs.
+  admin: "admin",
 };
 export const ecChangeDept = (role: string): string | null => DEPT_OF_ROLE[role] ?? null;
 
