@@ -145,7 +145,7 @@ const PumpModelMasterPage = () => {
 
   return (
     <div className="min-h-full bg-background">
-      <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      <div className="w-full px-4 pt-4 pb-10 sm:px-6 min-[1101px]:px-0">
         {/* Search and Add (the heading is in the top bar) */}
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           <div className="w-full sm:w-[280px]">

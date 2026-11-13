@@ -550,7 +550,7 @@ export default function CommercialSummaryPage() {
 
   return (
     <div className="min-h-full bg-background">
-    <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8">
+    <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 min-[1101px]:px-0">
       <PageHeader
         icon={<RupeeIcon />}
         title="Commercial Summary"
@@ -2259,7 +2259,7 @@ function CommercialLoading() {
   usePageTitle("Commercial", "Loading the enquiry…");
   return (
     <div className="min-h-full bg-background">
-      <div className="flex w-full flex-col gap-4 px-4 py-5 sm:px-6 2xl:px-8" aria-busy="true">
+      <div className="flex w-full flex-col gap-4 px-4 py-5 sm:px-6 min-[1101px]:px-0" aria-busy="true">
         <div className="h-14 animate-pulse rounded-lg border border-border bg-card" />
         <div className="rounded-lg border border-border bg-card p-8 text-center text-[13px] text-muted-foreground">Loading the enquiry…</div>
       </div>

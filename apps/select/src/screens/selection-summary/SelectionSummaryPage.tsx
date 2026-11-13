@@ -225,7 +225,7 @@ const SelectionSummaryPage = () => {
   const enquiryCount = new Set(filtered.map((r) => r.project_id)).size;
 
   return (
-    <div className="w-full px-4 pt-5 pb-10 sm:px-6 2xl:px-8">
+    <div className="w-full px-4 pt-5 pb-10 sm:px-6 min-[1101px]:px-0">
       <PageHeader
         icon={<ReportGlyph />}
         title="Reports"

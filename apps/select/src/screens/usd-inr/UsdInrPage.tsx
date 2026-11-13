@@ -66,7 +66,7 @@ export default function UsdInrPage() {
 
   return (
     <div className="min-h-full bg-background">
-      <div className="flex w-full flex-col gap-4 px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      <div className="flex w-full flex-col gap-4 px-4 pt-4 pb-10 sm:px-6 min-[1101px]:px-0">
         <PageHeader icon={<CurrencyIcon />} title="USD to INR" subtitle="Exchange rate for quotations in USD" />
 
         {loadError ? (

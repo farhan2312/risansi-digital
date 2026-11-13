@@ -198,7 +198,7 @@ const AuditLogPage = () => {
   usePageTitle("Audit Log", "Full activity trail · who signed in, from where, and everything they did");
   return (
     <div className="min-h-full bg-background">
-    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 min-[1101px]:px-0">
       {/* Header: the live last-24-hours figures, and the PDF report */}
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-stretch">

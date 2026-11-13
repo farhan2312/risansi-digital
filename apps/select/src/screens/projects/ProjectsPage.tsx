@@ -101,8 +101,10 @@ const PAGE_SIZE = 20;
 // The table fits the page with no sideways scroll: from xl (1280px, less the 240px
 // sidebar) the columns share the width and the actions sit in two rows of three,
 // icons only until 2xl; below xl each enquiry stacks as a card.
+// Sized to fit beside the sidebar at 100% zoom from 1280px wide (user, 2026-11-13: the right
+// side was cut off on a 1536px laptop): icon actions to 1535px, labelled from 2xl.
 const ROW_COLS =
-  "grid-cols-2 gap-y-2 xl:grid-cols-[28px_minmax(110px,1fr)_minmax(52px,0.45fr)_minmax(120px,1.4fr)_minmax(90px,0.9fr)_minmax(78px,0.7fr)_minmax(140px,1fr)_minmax(78px,0.6fr)_minmax(110px,0.8fr)_128px] xl:gap-y-0 2xl:grid-cols-[28px_minmax(110px,1fr)_minmax(52px,0.45fr)_minmax(120px,1.4fr)_minmax(90px,0.9fr)_minmax(78px,0.7fr)_minmax(140px,1fr)_minmax(78px,0.6fr)_minmax(110px,0.8fr)_318px]";
+  "grid-cols-2 gap-y-2 xl:grid-cols-[28px_minmax(92px,1fr)_minmax(44px,0.45fr)_minmax(100px,1.4fr)_minmax(72px,0.9fr)_minmax(66px,0.7fr)_minmax(120px,1fr)_minmax(66px,0.6fr)_minmax(92px,0.8fr)_124px] xl:gap-y-0 2xl:grid-cols-[28px_minmax(92px,1fr)_minmax(44px,0.45fr)_minmax(100px,1.4fr)_minmax(72px,0.9fr)_minmax(66px,0.7fr)_minmax(120px,1fr)_minmax(66px,0.6fr)_minmax(92px,0.8fr)_318px]";
 
 const ProjectsPage = () => {
   const router = useRouter();
@@ -642,7 +644,7 @@ const ProjectsPage = () => {
   return (
     <div className="min-h-full bg-background">
     {/* Full width beside the sidebar at every screen size (user, 2026-11-13: no centred column). */}
-    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 min-[1101px]:px-0">
       {/* Filters */}
       <Card>
         <div className="flex flex-wrap items-center gap-2 px-4 py-3">
@@ -759,7 +761,8 @@ const ProjectsPage = () => {
         (ASSIGNABLE_ROLES as readonly string[]).includes(user?.role ?? "") && <AssigneeKpis own />
       )}
 
-      {manager && (
+      {/* The report: the User-Master and system admins, and the User-Workers too (user, 2026-11-13). */}
+      {(manager || user?.role === "user_worker" || user?.role === "user") && (
         <EnquiryReportPanel
           stamp={projects}
           scope={scope === "mine" ? "Assigned to me" : hasFilter ? "As filtered" : "All enquiries"}
@@ -834,8 +837,11 @@ const ProjectsPage = () => {
 
       {!isLoading && !error && filteredProjects.length > 0 && (
         <Card className="mt-4 overflow-hidden">
+          {/* Never clipped: if the columns ever need more room than there is, the table scrolls sideways. */}
+          <div className="overflow-x-auto">
+          <div className="xl:min-w-[900px]">
           {/* Column headings (wide screens; below xl each enquiry stacks as a card) */}
-          <div className={`hidden border-b border-border bg-muted/60 px-4 py-2 xl:grid ${ROW_COLS} items-center gap-x-3 [&>*]:min-w-0`}>
+          <div className={`hidden border-b border-border bg-muted/60 px-4 py-2 xl:grid ${ROW_COLS} items-center gap-x-2 [&>*]:min-w-0`}>
             <span />
             <span>{sortHead("date", "Enquiry No. / Date")}</span>
             <span className={headCls}>Type</span>
@@ -880,7 +886,7 @@ const ProjectsPage = () => {
               const hasMenu = showReview || showCopy || manager;
               return (
                 <li key={project.id} className={isOpen ? "bg-primary/[0.025]" : ""}>
-                  <div className={`group grid px-4 py-3 transition-colors hover:bg-muted/50 ${ROW_COLS} items-center gap-x-3 [&>*]:min-w-0`}>
+                  <div className={`group grid px-4 py-3 transition-colors hover:bg-muted/50 ${ROW_COLS} items-center gap-x-2 [&>*]:min-w-0`}>
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -1312,6 +1318,8 @@ const ProjectsPage = () => {
               );
             })}
           </ul>
+          </div>
+          </div>
 
           {/* Server-side: totalItems is the count across the WHOLE filtered
               table, not the length of this page. */}

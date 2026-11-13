@@ -990,7 +990,7 @@ never auto-filled from the AI result.
   No row reads as Clear (the default); a new version starts Clear.
 
 ## Enquiry Report (user, 2026-11-04)
-- User Master / system admins, on the Enquiries page: components/projects/EnquiryReportPanel.tsx,
+- User Master / system admins AND User-Workers (+ legacy user; user 2026-11-13), on the Enquiries page: components/projects/EnquiryReportPanel.tsx,
   a panel that opens and closes, with the list as filtered, every page (GET /api/projects with
   no page). PDF view = lib/enquiry-report.ts HTML in a scaled iframe, Print / PDF = printHtml,
   A3 landscape (the Excel's page setup too); Excel view = the same rows, Download Excel. Zoom and Fit to screen on both.
