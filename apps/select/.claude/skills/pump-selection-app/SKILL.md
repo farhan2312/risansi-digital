@@ -1285,3 +1285,6 @@ never auto-filled from the AI result.
   now shadcn), ScopeControls, PumpCodeInput, PumpQtyStep, ClientPriceRefModal (Radix Dialog; opened only
   from the page). CommercialOfferModal + TechnoCommercialModal stay NON-Radix overlays at z-[1000]
   (print via printHtml; the offer also opens inside QuotationPanel's SnapshotModal).
+- Top bar in shadcn (user, 2026-11-13, same branch): TopBar Tailwind (TopBar.css no longer imported), outline
+  Refresh / Report a Bug (labels hidden <860px), NotificationBell = outline icon button + popover at z-[1100];
+  NotificationBell.css kept ONLY for the ringing keyframes (notif-ring/pulse/badge, used via animate-[...]).

@@ -77,8 +77,8 @@ export function TopBarTitle() {
   const description = value ? value.description : d?.description;
   return (
     <div className="min-w-0 flex-1 pr-4">
-      <h1 className="truncate text-[16px] leading-tight font-semibold tracking-tight text-fg">{title}</h1>
-      {description ? <p className="mt-0.5 truncate text-[12px] leading-tight text-fg-3 max-[860px]:hidden">{description}</p> : null}
+      <h1 className="truncate text-[16px] leading-tight font-semibold tracking-tight text-foreground">{title}</h1>
+      {description ? <p className="mt-0.5 truncate text-[12px] leading-tight text-muted-foreground max-[860px]:hidden">{description}</p> : null}
     </div>
   );
 }

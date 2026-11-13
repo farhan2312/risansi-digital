@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+// Only for the ringing keyframes (notif-ring / notif-pulse / notif-badge).
 import "./NotificationBell.css";
+import { Bell } from "lucide-react";
 import {
   getBugNotifications,
   markBugNotificationsRead,
@@ -68,25 +70,46 @@ const NotificationBell = () => {
     }
   };
 
+  // Status dots by meaning: open = danger, clarification = warning, in progress = info, resolved = success.
+  const dot = (n: BugNotification) =>
+    n.kind === "assigned"
+      ? "bg-primary"
+      : (({ open: "bg-destructive", "need clarification": "bg-warning", "in progress": "bg-info", resolved: "bg-success", closed: "bg-success" }) as Record<string, string>)[
+          n.status.toLowerCase()
+        ] ?? "bg-muted-foreground";
+
   return (
-    <div className="notif-bell-root" ref={rootRef}>
+    <div className="relative" ref={rootRef}>
       <button
         type="button"
-        className={`notif-bell-btn${unreadCount > 0 ? " has-alert" : ""}`}
         onClick={handleToggle}
         aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+        aria-expanded={open}
+        // Unread: the bell keeps ringing in red until it is opened (keyframes in NotificationBell.css).
+        className={`relative inline-flex size-8 items-center justify-center rounded-md border shadow-xs transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 ${
+          unreadCount > 0
+            ? "animate-[notif-pulse_1.6s_ease-out_infinite] border-destructive/60 bg-destructive/10 text-destructive motion-reduce:animate-none"
+            : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
+        }`}
       >
-        <span className="notif-bell-icon" aria-hidden>🔔</span>
-        {unreadCount > 0 && <span className="notif-bell-badge">{unreadCount}</span>}
+        <Bell className={`size-4 ${unreadCount > 0 ? "origin-[50%_10%] animate-[notif-ring_1.6s_ease-in-out_infinite] motion-reduce:animate-none" : ""}`} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] animate-[notif-badge_1.6s_ease-in-out_infinite] rounded-full bg-destructive px-1 text-center text-[10px] leading-[18px] font-semibold text-white ring-2 ring-card motion-reduce:animate-none">
+            {unreadCount}
+          </span>
+        )}
       </button>
 
       {open && (
-        <div className="notif-bell-dropdown">
-          <div className="notif-bell-dropdown-header">Notifications</div>
+        <div className="absolute top-[calc(100%+6px)] right-0 z-[1100] w-[340px] max-w-[calc(100vw-24px)] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-[0_12px_32px_rgba(15,23,42,0.16)]">
+          <div className="flex items-center justify-between border-b border-border bg-muted/50 px-3.5 py-2.5">
+            <span className="text-[12.5px] font-semibold text-foreground">Notifications</span>
+            {items.length > 0 && <span className="text-[11px] text-muted-foreground">Last day</span>}
+          </div>
           {items.length === 0 ? (
-            <p className="notif-bell-empty">No assignments, bug reports or updates in the last day.</p>
+            <p className="px-3.5 py-6 text-center text-[12.5px] text-muted-foreground">No assignments, bug reports or updates in the last day.</p>
           ) : (
-            <ul>
+            <ul className="max-h-[360px] divide-y divide-border overflow-y-auto">
               {items.map((n) => (
                 <li
                   key={`${n.kind}-${n.id}`}
@@ -98,16 +121,16 @@ const NotificationBell = () => {
                         }
                       : undefined
                   }
-                  style={{ ...(n.kind === "assigned" ? { cursor: "pointer" } : {}), ...(n.unread ? {} : { opacity: 0.6 }) }}
+                  className={`flex gap-2.5 px-3.5 py-2.5 ${n.kind === "assigned" ? "cursor-pointer hover:bg-muted/60" : ""} ${n.unread ? "" : "opacity-60"}`}
                   title={n.kind === "assigned" ? "Open Enquiries" : undefined}
                 >
-                  <span className={`notif-status-dot status-${n.status.replace(/\s+/g, "-").toLowerCase()}`} />
-                  <div>
-                    <div className="notif-item-title">
-                      {n.unread && <span className="notif-new-chip">New</span>}
+                  <span className={`mt-1.5 size-2 shrink-0 rounded-full ${dot(n)}`} />
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-medium text-foreground">
+                      {n.unread && <span className="mr-1.5 inline-block rounded-full bg-destructive px-1.5 align-[1px] text-[9.5px] leading-[15px] font-semibold text-white">New</span>}
                       {n.title}
                     </div>
-                    <div className="notif-item-status">
+                    <div className="mt-0.5 text-[11.5px] text-muted-foreground [&_b]:font-medium [&_b]:text-foreground">
                       {n.kind === "assigned" ? (
                         <>
                           Enquiry assigned to you
