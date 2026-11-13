@@ -41,6 +41,8 @@ function ConfirmDialog({
   busy = false,
   onConfirm,
   onClose,
+  confirmDisabled = false,
+  children,
 }: {
   open: boolean;
   title: React.ReactNode;
@@ -51,6 +53,10 @@ function ConfirmDialog({
   busy?: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  /** Confirm off (e.g. nothing picked yet), without the busy lock. */
+  confirmDisabled?: boolean;
+  /** Fields between the description and the buttons. */
+  children?: React.ReactNode;
 }) {
   return (
     <AlertDialog open={open} onOpenChange={(o) => !o && !busy && onClose()}>
@@ -59,6 +65,7 @@ function ConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description ? <AlertDialogDescription>{description}</AlertDialogDescription> : <AlertDialogDescription className="sr-only">{title}</AlertDialogDescription>}
         </div>
+        {children}
         <div className="flex justify-end gap-2">
           <AlertDialogPrimitive.Cancel className={buttonVariants({ variant: "outline" })} disabled={busy}>
             {cancelLabel}
@@ -66,7 +73,7 @@ function ConfirmDialog({
           <button
             type="button"
             className={buttonVariants({ variant: tone === "danger" ? "destructive" : "default" })}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             onClick={onConfirm}
           >
             {confirmLabel}
