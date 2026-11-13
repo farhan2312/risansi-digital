@@ -37,6 +37,65 @@
 
   --font-sans: var(--sans);
   --font-mono: var(--mono);
+
+  /* shadcn/ui tokens (src/components/shadcn, user 2026-11-13): a corporate look -
+     deep navy primary on slate neutrals. Named apart from the tokens above
+     (`accent` stays the brand blue), so the older screens are untouched. */
+  --color-background: var(--sc-background);
+  --color-foreground: var(--sc-foreground);
+  --color-card: var(--sc-card);
+  --color-card-foreground: var(--sc-foreground);
+  --color-popover: var(--sc-card);
+  --color-popover-foreground: var(--sc-foreground);
+  --color-primary: var(--sc-primary);
+  --color-primary-foreground: var(--sc-primary-foreground);
+  --color-secondary: var(--sc-secondary);
+  --color-secondary-foreground: var(--sc-foreground);
+  --color-muted: var(--sc-muted);
+  --color-muted-foreground: var(--sc-muted-foreground);
+  --color-border: var(--sc-border);
+  --color-input: var(--sc-input);
+  --color-ring: var(--sc-ring);
+  --color-destructive: var(--sc-destructive);
+  --color-success: var(--sc-success);
+  --color-warning: var(--sc-warning);
+  --color-info: var(--sc-info);
+}
+
+:root {
+  --sc-background: #f5f6f8;
+  --sc-foreground: #0f172a;
+  --sc-card: #ffffff;
+  --sc-primary: #14305a;
+  --sc-primary-foreground: #ffffff;
+  --sc-secondary: #f1f4f8;
+  --sc-muted: #f4f6f9;
+  --sc-muted-foreground: #64748b;
+  --sc-border: #e3e8ef;
+  --sc-input: #d5dce6;
+  --sc-ring: #3b5f99;
+  --sc-destructive: #c42b2b;
+  --sc-success: #157a4b;
+  --sc-warning: #a35a00;
+  --sc-info: #1d5fb8;
+}
+
+[data-theme="dark"] {
+  --sc-background: #0b1422;
+  --sc-foreground: #e7edf5;
+  --sc-card: #101c2e;
+  --sc-primary: #5b8fe0;
+  --sc-primary-foreground: #08111d;
+  --sc-secondary: #17263b;
+  --sc-muted: #142236;
+  --sc-muted-foreground: #8ea1b8;
+  --sc-border: #1f3049;
+  --sc-input: #2a3d58;
+  --sc-ring: #6d9be6;
+  --sc-destructive: #f06161;
+  --sc-success: #4cc38a;
+  --sc-warning: #f0a73c;
+  --sc-info: #6ea8ff;
 }
 
 :root {

@@ -1225,3 +1225,20 @@ never auto-filled from the AI result.
   2026-11-04). It shows on the status: "Technical V1" / "Commercial V0" on the Enquiries
   list and V1 beside Reports' status. Not in page headings or audit details either
   (user, 2026-11-05).
+
+## shadcn/ui pilot: Enquiries page (user, 2026-11-13; branch select-shadcn)
+- The user asked for a "more professional" look via shadcn/ui, Enquiries page first, ON A BRANCH
+  (`select-shadcn`) so it can be dropped. Not merged to select/main until the user approves.
+- Deps: radix-ui (unified), class-variance-authority, clsx, tailwind-merge, lucide-react.
+  `components.json` (ui alias `@/components/shadcn`), `cn()` in src/lib/utils.ts. Components are
+  hand-written shadcn (button, badge, card, input + NativeSelect, dropdown-menu, alert-dialog +
+  ConfirmDialog, tabs) in src/components/shadcn - NOT src/components/ui (our own older parts).
+- Tokens: src/index.css `--sc-*` (light :root, dark [data-theme="dark"]) mapped in @theme to
+  background / foreground / card / primary (deep navy #14305a) / muted / border / input / ring /
+  destructive / success / warning / info. `accent` is still the old brand blue - shadcn's
+  "accent" hover is written as `bg-muted` here; don't use `bg-accent` in shadcn parts.
+- Enquiries page: own heading (no PageHeader), filters Card, table Card; row actions =
+  Quotation / Technical / Commercial (icons below 2xl) + a "..." DropdownMenu (modal={false},
+  so a dialog opened from it can't leave the page locked) with Review, Copy, Edit, Delete.
+  Deletes use ConfirmDialog. Its other modals, filter bar, KPIs, report panel and Pagination
+  are unchanged (still the old look).
