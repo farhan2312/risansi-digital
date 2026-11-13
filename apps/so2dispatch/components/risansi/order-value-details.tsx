@@ -26,13 +26,14 @@ export type OrderValueRow = {
 export function OrderInHand({
   row,
 }: {
-  row: { bill_type?: unknown; taxable_value?: unknown; invoiced_value?: unknown; order_currency?: unknown };
+  row: { bill_type?: unknown; taxable_value?: unknown; invoiced_value?: unknown; other_charges_value?: unknown; order_currency?: unknown };
 }) {
   // A Challan / FR SO is a replacement, at no value: nothing in hand to invoice.
   if (row.bill_type === "Challan") return <span className="text-xs text-muted-foreground">Replacement</span>;
   const gross = row.taxable_value == null ? "" : String(row.taxable_value).trim();
   if (!gross) return <span className="text-muted-foreground">—</span>;
   const invoiced = Number(row.invoiced_value ?? 0) || 0;
+  const other = Number(row.other_charges_value ?? 0) || 0;
   const diff = Number(gross) - invoiced;
   // Invoices are rounded to the rupee: under one either way is all invoiced.
   const left = Math.abs(diff) < 1 ? 0 : diff;
@@ -45,6 +46,8 @@ export function OrderInHand({
         {cur}
       </span>
       <span className="text-[11px] text-muted">Invoiced {numberFmt.format(invoiced)}</span>
+      {/* The invoices' Other Charges: shown, not counted as invoiced. */}
+      {other > 0 && <span className="text-[11px] text-muted">Other charges {numberFmt.format(other)}</span>}
     </span>
   );
 }

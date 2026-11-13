@@ -80,7 +80,8 @@ export function DispatchList({
               str(inv.challan_quantity) && `Qty ${str(inv.challan_quantity)}`, str(inv.fr_reason))
           : line(str(inv.invoice_no) && `Invoice ${str(inv.invoice_no)}`, day(inv.invoice_date),
               str(inv.invoice_value) && `₹${money.format(Number(inv.invoice_value))}`,
-              str(inv.invoice_quantity) && `Qty ${str(inv.invoice_quantity)}`);
+              str(inv.invoice_quantity) && `Qty ${str(inv.invoice_quantity)}`,
+              str(inv.other_value) && `Other charges ₹${money.format(Number(inv.other_value))}`);
         const dispatchLine = line(
           str(inv.delivery_mode),
           str(inv.transporter_name),

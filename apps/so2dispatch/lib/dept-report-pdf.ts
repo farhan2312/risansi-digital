@@ -330,12 +330,14 @@ const whole = (v: unknown) => {
  * (under a rupee either way is all of it), as the Dispatch page reads it. A
  * Challan / FR SO is a replacement, at no value; null when no gross is set.
  */
-export function orderInHand(o: Row): { replacement: true } | { left: number; invoiced: number } | null {
+export function orderInHand(o: Row): { replacement: true } | { left: number; invoiced: number; other: number } | null {
   if (str(o.bill_type) === "Challan") return { replacement: true };
   if (!str(o.taxable_value)) return null;
   const invoiced = Number(o.invoiced_value ?? 0) || 0;
   const diff = Number(o.taxable_value) - invoiced;
-  return { left: Math.abs(diff) < 1 ? 0 : diff, invoiced };
+  // The invoices' Other Charges: shown, not counted as invoiced.
+  const other = Number(o.other_charges_value ?? 0) || 0;
+  return { left: Math.abs(diff) < 1 ? 0 : diff, invoiced, other };
 }
 
 /** The SO's order value to its gross, as the Order Value Details cell lists it. */
@@ -414,6 +416,7 @@ export function dispatchReport(rows: Row[], filterLine: string): Report {
         : [
             { text: `${whole(hand.left)}${cur}`, bold: true, color: hand.left > 0 ? undefined : C.green },
             { text: `Invoiced ${money(hand.invoiced)}`, small: true },
+            ...(hand.other ? [{ text: `Other charges ${money(hand.other)}`, small: true }] : []),
           ];
     return [
       { text: str(o.sl_no) },

@@ -457,6 +457,7 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
       : [
           { text: money.format(Math.round(hand.left)), bold: true, color: hand.left > 0 ? C.ink : C.green },
           { text: `Invoiced ${money.format(Math.round(hand.invoiced))}`, color: C.muted, size: 6.5 },
+          ...(hand.other ? [{ text: `Other charges ${money.format(Math.round(hand.other))}`, color: C.muted, size: 6.5 }] : []),
         ];
 
   // Payment terms, each with its PI and what came in.
