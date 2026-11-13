@@ -75,6 +75,7 @@ import { getUsdInrSetting } from "../../services/settingsService";
 import { getEnquiryQuotations } from "../../services/quotationService";
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import SpareCommercial from "./SpareCommercial";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 // Commercial Summary (pricing v1, manual). Every tag of one enquiry on one
 // page: Pump & Accessories + BOI items typed in per unit, quantity pulled from
@@ -2251,10 +2252,14 @@ const RupeeIcon = () => (
 
 /** The neutral page shown while the enquiry loads (pump or spare not known yet). */
 function CommercialLoading() {
+  // The top bar says neither Commercial Summary nor spare quotation yet.
+  usePageTitle("Commercial", "Loading the enquiry…");
   return (
-    <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8" aria-busy="true">
-      <div className="h-[76px] animate-pulse rounded-2xl border border-line bg-paper" />
-      <div className="rounded-xl border border-line bg-paper p-8 text-center text-[13.5px] text-fg-3">Loading the enquiry…</div>
+    <div className="min-h-full bg-background">
+      <div className="flex w-full flex-col gap-4 px-4 py-5 sm:px-6 2xl:px-8" aria-busy="true">
+        <div className="h-14 animate-pulse rounded-lg border border-border bg-card" />
+        <div className="rounded-lg border border-border bg-card p-8 text-center text-[13px] text-muted-foreground">Loading the enquiry…</div>
+      </div>
     </div>
   );
 }
