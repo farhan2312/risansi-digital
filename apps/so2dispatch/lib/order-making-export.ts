@@ -5,7 +5,6 @@ import ExcelJS from "exceljs";
 import { listOrdersForOrderMaking, type OrderMakingRow } from "@/lib/orders";
 import { parseQuery } from "@/lib/pagination";
 import { isOrderMakingFiltered, parseOrderMakingFilter } from "@/lib/order-making-filter";
-import { isOrderMakingSo } from "@/lib/roles";
 import { ONLY_BILLING } from "@/lib/order-schema";
 
 const HEAD_BG = "FF1F3864";
@@ -103,14 +102,13 @@ export async function loadOrderMakingReport(
   get: (key: string) => string | undefined
 ): Promise<{ rows: OrderMakingRow[]; scope: string; filtered: boolean; today: string }> {
   const filter = parseOrderMakingFilter(get);
-  const soMember = isOrderMakingSo(user.role);
   const search = parseQuery(get("q"));
   const { rows } = await listOrdersForOrderMaking({
     page: 1,
     all: true,
     search,
-    filter: soMember ? { ...filter, assignees: [] } : filter,
-    assigneeScope: soMember ? user.id : undefined,
+    // As the page: every SO, the filter as set.
+    filter,
   });
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const filtered = isOrderMakingFiltered(filter) || !!search;

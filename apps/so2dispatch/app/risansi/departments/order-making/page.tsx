@@ -50,11 +50,12 @@ export default async function OrderMakingPage({
       page: parsePage(params.page),
       withKpis: true,
       search: parseQuery(params.q),
-      filter: soMember ? { ...filter, assignees: [], kpiFilter: { ...filter.kpiFilter!, assignees: [] } } : filter,
-      assigneeScope: soMember ? user.id : undefined,
+      // An SO member sees every SO (and edits only those assigned to them).
+      filter,
     }),
     listOrderListOptions(),
-    canAssign ? listSoMembers() : Promise.resolve([]),
+    // The Assigned to filter's names: for those who assign, and SO members.
+    canAssign || soMember ? listSoMembers() : Promise.resolve([]),
     canAssign ? soMemberSummary(assignWindow) : Promise.resolve(null),
   ]);
   const canCreate = canCreateOrders(user.role);
@@ -73,7 +74,7 @@ export default async function OrderMakingPage({
               <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Order Making</h1>
               <p className="text-sm text-muted">
                 {soMember
-                  ? "The SOs assigned to you — fill each one's SO details: SO No., date, value, currency and quantity. Central Visibility is told once they are in."
+                  ? "Every SO, to view; fill the SO details (SO No., date, value, currency and quantity) of those assigned to you. Central Visibility is told once they are in."
                   : "Create SOs with their client and purchase order details and assign each one's SO details to an Order Making SO member. Central Visibility is told once the SO details are in."}
               </p>
             </div>
