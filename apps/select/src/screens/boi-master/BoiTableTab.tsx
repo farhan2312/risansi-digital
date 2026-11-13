@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { EditIcon, PlusIcon, TrashIcon } from "../../components/ui/adminIcons";
+import { Info, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { BOI_TABLES, type BoiTableDef, type BoiTableTab as TabKey } from "../../lib/boi-tables";
 import { formatInr } from "../../lib/commercial";
 import {
@@ -16,13 +16,13 @@ import {
   DeleteConfirm,
   FieldGrid,
   Modal,
-  btnPrimary,
-  btnSecondary,
-  btnSm,
   errorMessage,
   formFromRow,
-  inputCls,
 } from "./boiUi";
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Input } from "@/components/shadcn/input";
+import { Alert } from "@/components/shadcn/field";
 
 // A BOI Master tab made of simple editable tables (lib/boi-tables.ts):
 //   DRP        RTD probe + RTD panel prices ("Drp Probe Price List 12-07-25.xlsx")
@@ -36,7 +36,10 @@ const SEARCH_FROM = 12;
 export default function BoiTableTab({ tab, intro }: { tab: TabKey; intro: ReactNode }) {
   return (
     <div className="flex flex-col gap-4">
-      <p className="rounded-lg border border-line bg-sunk px-4 py-2.5 text-[12.5px] text-fg-2">{intro}</p>
+      <p className="flex items-start gap-2 rounded-md border border-info/20 bg-info/8 px-4 py-2.5 text-[12.5px] text-foreground">
+        <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
+        <span>{intro}</span>
+      </p>
       {BOI_TABLES.filter((t) => t.tab === tab).map((t) => (
         <TableSection key={t.key} def={t} />
       ))}
@@ -82,40 +85,42 @@ function TableSection({ def }: { def: TableDef }) {
   }, [table]);
 
   return (
-    <section className="rounded-xl border border-line bg-paper">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+    <Card className="overflow-hidden">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-fg">{def.title}</h2>
-          <p className="text-[12px] text-fg-3">{def.subtitle}</p>
+          <h2 className="text-[13px] font-semibold text-foreground">{def.title}</h2>
+          <p className="text-[12px] text-muted-foreground">{def.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           {(rows?.length ?? 0) > SEARCH_FROM && (
-            <input
-              type="search"
-              className={`${inputCls} w-[200px]`}
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label={`Search ${def.title}`}
-            />
+            <div className="w-[200px]">
+              <Input
+                type="search"
+                icon={<Search />}
+                placeholder="Search…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label={`Search ${def.title}`}
+              />
+            </div>
           )}
-          <button type="button" className={btnPrimary} onClick={() => setEditing("new")}>
-            <PlusIcon /> Add row
-          </button>
+          <Button onClick={() => setEditing("new")}>
+            <Plus /> Add row
+          </Button>
         </div>
       </header>
 
-      {rows === null && <p className="px-4 py-6 text-center text-[13px] text-fg-3">Loading…</p>}
-      {loadError && <p className="px-4 py-6 text-center text-[13px] text-neg">{loadError}</p>}
+      {rows === null && <p className="px-4 py-6 text-center text-[13px] text-muted-foreground">Loading…</p>}
+      {loadError && <p className="px-4 py-6 text-center text-[13px] font-medium text-destructive">{loadError}</p>}
       {rows && !loadError && (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[12.5px]">
             <thead>
-              <tr className="border-b border-line bg-sunk text-left text-[11px] tracking-[0.05em] text-fg-3 uppercase">
+              <tr className="border-b border-border bg-muted/60 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
                 {def.fields.map((f) => (
                   <th
                     key={f.key}
-                    className={`px-3 py-2 font-semibold ${f.kind === "number" || f.kind === "integer" ? "text-right" : ""}`}
+                    className={`px-3 py-2 font-medium ${f.kind === "number" || f.kind === "integer" ? "text-right" : ""}`}
                   >
                     {f.label}
                   </th>
@@ -123,40 +128,34 @@ function TableSection({ def }: { def: TableDef }) {
                 <th className="px-3 py-2 text-right font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="divide-y divide-border">
               {shown.map((r) => (
-                <tr key={r.id} className="hover:bg-sunk/60">
+                <tr key={r.id} className="transition-colors hover:bg-muted/50">
                   {def.fields.map((f) => (
                     <td
                       key={f.key}
-                      className={`px-3 py-2 text-fg-2 ${
-                        f.kind === "number" || f.kind === "integer" ? "text-right font-mono" : ""
+                      className={`px-3 py-2 text-foreground ${
+                        f.kind === "number" || f.kind === "integer" ? "text-right font-mono tabular-nums" : ""
                       }`}
                     >
                       {cellText(def, f.key, r[f.key])}
                     </td>
                   ))}
                   <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1.5">
-                      <button type="button" className={btnSm} onClick={() => setEditing(r)}>
-                        <EditIcon /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        className={`${btnSm} hover:border-neg hover:text-neg`}
-                        onClick={() => setDeleting(r)}
-                        aria-label="Delete row"
-                        title="Delete"
-                      >
-                        <TrashIcon />
-                      </button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="outline" size="sm" onClick={() => setEditing(r)}>
+                        <Pencil /> Edit
+                      </Button>
+                      <Button variant="ghost-destructive" size="icon-sm" onClick={() => setDeleting(r)} aria-label="Delete row" title="Delete">
+                        <Trash2 />
+                      </Button>
                     </div>
                   </td>
                 </tr>
               ))}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={def.fields.length + 1} className="px-4 py-6 text-center text-[13px] text-fg-3">
+                  <td colSpan={def.fields.length + 1} className="px-4 py-6 text-center text-[13px] text-muted-foreground">
                     {rows.length === 0 ? "No rows yet — add the first one." : "No row matches that search."}
                   </td>
                 </tr>
@@ -191,7 +190,7 @@ function TableSection({ def }: { def: TableDef }) {
           }}
         />
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -241,17 +240,17 @@ function TableFormModal({
   return (
     <Modal title={`${row ? "Edit" : "Add"} ${def.title} row`} onClose={onClose}>
       <form onSubmit={submit} className="flex min-h-0 flex-col">
-        <div className="grid grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2">
+        <div className="grid min-h-0 grid-cols-1 gap-3 overflow-y-auto px-5 py-4 sm:grid-cols-2">
           <FieldGrid fields={def.fields} form={form} onChange={(k, v) => setForm((p) => ({ ...p, [k]: v }))} />
-          {formError && <p className="text-[12.5px] text-neg sm:col-span-2">{formError}</p>}
+          {formError && <Alert className="sm:col-span-2">{formError}</Alert>}
         </div>
-        <footer className="flex justify-end gap-2 border-t border-line px-4 py-3">
-          <button type="button" className={btnSecondary} onClick={onClose}>
+        <footer className="flex shrink-0 justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3">
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" className={btnPrimary} disabled={saving}>
+          </Button>
+          <Button type="submit" disabled={saving}>
             {saving ? "Saving…" : row ? "Save changes" : "Add row"}
-          </button>
+          </Button>
         </footer>
       </form>
     </Modal>

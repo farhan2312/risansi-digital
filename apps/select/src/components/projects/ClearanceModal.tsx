@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { History } from "lucide-react";
 
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
+import { Alert, Field, Textarea } from "@/components/shadcn/field";
+import { Input, NativeSelect } from "@/components/shadcn/input";
 import { CLEARANCE_STATUSES, HOLD_REASONS, OTHER_REASON_GROUP, holdReasonText, type ClearanceEntry, type ClearanceNow, type ClearanceStatus } from "../../lib/clearance";
 import { addClearanceReason, getClearance, saveClearance } from "../../services/clearanceService";
-
-const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
-const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
-const inputCls =
-  "w-full rounded-lg border border-line bg-paper px-2.5 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60";
-const labelCls = "text-[11.5px] font-semibold text-fg-3";
 
 const ADD = "__add__";
 const SEP = "|";
@@ -58,12 +56,6 @@ export default function ClearanceModal({
     };
   }, [project.id]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
-
   const errMsg = (e: unknown, fallback: string) => (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
 
   const addReason = async () => {
@@ -99,25 +91,21 @@ export default function ClearanceModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={() => !busy && onClose()}>
-      <div className="flex max-h-[90vh] w-full max-w-[560px] flex-col overflow-hidden rounded-xl border border-line bg-paper" onClick={(e) => e.stopPropagation()}>
-        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-fg">Clearance</h3>
-            <p className="truncate font-mono text-[12.5px] text-fg-3">
-              {project.project_code}
-              {project.name ? ` · ${project.name}` : ""}
-            </p>
-          </div>
-          <button type="button" className={btn} onClick={onClose} disabled={busy}>
-            Close
-          </button>
-        </header>
+    // Escape or the X closes it (not while saving).
+    <Dialog open onOpenChange={(o) => !o && !busy && onClose()}>
+      <DialogContent size="md" className="max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Clearance</DialogTitle>
+          <DialogDescription className="truncate font-mono">
+            {project.project_code}
+            {project.name ? ` · ${project.name}` : ""}
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+        <DialogBody className="flex flex-col gap-5">
           {canEdit ? (
-            <section className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Clearance">
+            <section className="flex flex-col gap-3.5">
+              <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1 ring-1 ring-border ring-inset" role="radiogroup" aria-label="Clearance">
                 {CLEARANCE_STATUSES.map((s) => (
                   <button
                     key={s}
@@ -125,8 +113,10 @@ export default function ClearanceModal({
                     role="radio"
                     aria-checked={status === s}
                     onClick={() => setStatus(s)}
-                    className={`rounded-lg border px-3 py-2 text-[13.5px] font-semibold transition-colors ${
-                      status === s ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-accent"
+                    className={`rounded-[5px] px-3 py-1.5 text-[13px] font-medium transition-[color,background-color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 ${
+                      status === s
+                        ? `bg-card shadow-[0_1px_2px_rgba(15,23,42,0.1)] ${s === "Clear" ? "text-success" : "text-warning"}`
+                        : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {s}
@@ -135,10 +125,9 @@ export default function ClearanceModal({
               </div>
 
               {status === "Hold" && (
-                <label className="flex flex-col gap-1">
-                  <span className={labelCls}>Reason for the hold</span>
-                  <select
-                    className={inputCls}
+                <Field label="Reason for the hold">
+                  <NativeSelect
+                    className="w-full"
                     value={pick}
                     onChange={(e) => {
                       if (e.target.value === ADD) setAdding("");
@@ -172,67 +161,73 @@ export default function ClearanceModal({
                       ))}
                       <option value={ADD}>+ Add new reason…</option>
                     </optgroup>
-                  </select>
-                </label>
+                  </NativeSelect>
+                </Field>
               )}
 
               {status === "Hold" && adding !== null && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunk p-2">
-                  <input
-                    autoFocus
-                    className={`${inputCls} min-w-[180px] flex-1`}
-                    value={adding}
-                    maxLength={120}
-                    placeholder="New reason"
-                    aria-label="New reason"
-                    onChange={(e) => setAdding(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void addReason();
-                      }
-                    }}
-                  />
-                  <button type="button" className={btn} onClick={() => void addReason()} disabled={!adding.trim()}>
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 p-2.5">
+                  <div className="min-w-[180px] flex-1">
+                    <Input
+                      autoFocus
+                      value={adding}
+                      maxLength={120}
+                      placeholder="New reason"
+                      aria-label="New reason"
+                      onChange={(e) => setAdding(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void addReason();
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button variant="outline" onClick={() => void addReason()} disabled={!adding.trim()}>
                     Add
-                  </button>
-                  <button type="button" className="text-[12px] font-semibold text-fg-3 hover:text-fg" onClick={() => setAdding(null)}>
+                  </Button>
+                  <Button variant="ghost" onClick={() => setAdding(null)}>
                     Cancel
-                  </button>
-                  <span className="w-full text-[11px] text-fg-3">Added to the list for everyone.</span>
+                  </Button>
+                  <span className="w-full text-[11.5px] text-muted-foreground">Added to the list for everyone.</span>
                 </div>
               )}
 
-              <label className="flex flex-col gap-1">
-                <span className={labelCls}>Remarks</span>
-                <textarea className={inputCls} rows={2} maxLength={2000} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
-              </label>
+              <Field label="Remarks">
+                <Textarea rows={2} maxLength={2000} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+              </Field>
 
               <div>
-                <button type="button" className={btnPrimary} onClick={() => void save()} disabled={!canSave}>
+                <Button onClick={() => void save()} disabled={!canSave}>
                   {busy ? "Saving…" : "Save"}
-                </button>
+                </Button>
               </div>
             </section>
           ) : (
-            <p className="rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px] text-fg-3">View only. Only someone working on this enquiry can change its clearance.</p>
+            <Alert tone="info" className="font-normal">
+              View only. Only someone working on this enquiry can change its clearance.
+            </Alert>
           )}
-          {error && <p className="text-[12.5px] font-medium text-neg">{error}</p>}
+          {error && <Alert>{error}</Alert>}
 
           <section className="flex flex-col gap-2">
-            <h4 className="text-[11.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">History</h4>
-            {history === null && !error && <p className="text-[12.5px] text-fg-3">Loading…</p>}
-            {history?.length === 0 && <p className="text-[12.5px] text-fg-3">No changes yet. An enquiry is Clear until someone holds it.</p>}
+            <h4 className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              <History className="size-3.5" /> History
+            </h4>
+            {history === null && !error && <p className="text-[12.5px] text-muted-foreground">Loading…</p>}
+            {history?.length === 0 && <p className="text-[12.5px] text-muted-foreground">No changes yet. An enquiry is Clear until someone holds it.</p>}
             {history && history.length > 0 && (
-              <ul className="flex flex-col divide-y divide-line rounded-lg border border-line">
+              <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border">
                 {history.map((h) => (
-                  <li key={h.id} className="flex flex-col gap-0.5 px-3 py-2 text-[12.5px]">
+                  <li key={h.id} className="flex flex-col gap-1 px-3 py-2.5 text-[12.5px]">
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${clearanceTone(h.status)}`}>{h.status}</span>
-                      {h.status === "Hold" && <span className="font-medium text-fg">{holdReasonText(h.group, h.reason)}</span>}
+                      <Badge tone={h.status === "Clear" ? "success" : "warning"} dot>
+                        {h.status}
+                      </Badge>
+                      {h.status === "Hold" && <span className="font-medium text-foreground">{holdReasonText(h.group, h.reason)}</span>}
                     </span>
-                    {h.remarks && <span className="whitespace-pre-wrap text-fg-2">{h.remarks}</span>}
-                    <span className="text-[11.5px] text-fg-3">
+                    {h.remarks && <span className="whitespace-pre-wrap text-foreground/85">{h.remarks}</span>}
+                    <span className="text-[11.5px] text-muted-foreground">
                       {fmtWhen(h.at)}
                       {h.byName ? ` · ${h.byName}` : ""} · V{h.version}
                     </span>
@@ -241,8 +236,8 @@ export default function ClearanceModal({
               </ul>
             )}
           </section>
-        </div>
-      </div>
-    </div>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   );
 }

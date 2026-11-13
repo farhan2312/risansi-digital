@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, Download, FileSpreadsheet, Minus, Plus, Printer } from "lucide-react";
 
 import {
   REPORT_COLUMNS,
@@ -33,9 +34,11 @@ const ZOOM_MAX = 1.5;
 const PDF_WIDTH = 1124;
 const EXCEL_WIDTH = REPORT_COLUMNS.reduce((s, c) => s + c.width, 0) * 6.6;
 
+// shadcn-style buttons (Button default / ghost icon), inline so the panel stays self-contained.
 const btn =
-  "inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-paper px-3 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 hover:border-accent hover:text-accent";
-const zoomBtn = "inline-flex h-7 w-7 items-center justify-center rounded-md text-[15px] font-semibold text-fg-3 hover:bg-elev hover:text-fg disabled:opacity-40";
+  "inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12.5px] font-medium whitespace-nowrap text-primary-foreground shadow-xs transition-colors outline-none hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/35 [&_svg]:size-3.5";
+const zoomBtn =
+  "inline-flex size-7 items-center justify-center rounded-[5px] text-muted-foreground transition-colors outline-none hover:bg-card hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-3.5";
 
 /** `stamp` changes whenever the Enquiries list is re-read or edited (a reassign, a
  *  status...), so the report reads again rather than keep what it first loaded. */
@@ -96,20 +99,20 @@ export default function EnquiryReportPanel({ query, scope, stamp }: { query: Pro
   const loading = open && loadedFor !== key && !error;
 
   return (
-    <section className="mt-4 overflow-hidden rounded-xl border border-line bg-paper">
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+    <section className="mt-4 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="flex flex-wrap items-center gap-3 bg-muted/40 px-4 py-2.5">
         <button type="button" onClick={() => {
             if (open) setLoadedFor(null);
             setOpen(!open);
           }} aria-expanded={open} className="flex min-w-[220px] flex-1 items-center gap-3 text-left">
-          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${open ? "rotate-90 border-transparent bg-accent text-white" : "border-line text-fg-3"}`}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
-              <path d="m9 6 6 6-6 6" />
-            </svg>
+          <span className={`flex size-7 shrink-0 items-center justify-center rounded-md transition ${open ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+            <ChevronRight className={`size-4 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true" />
           </span>
           <span className="min-w-0">
-            <span className="block text-[14px] font-semibold text-fg">Enquiry Report</span>
-            <span className="block truncate text-[12px] text-fg-3">
+            <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">
+              <FileSpreadsheet className="size-4 text-muted-foreground" aria-hidden="true" /> Enquiry Report
+            </span>
+            <span className="block truncate text-[12px] text-muted-foreground">
               {open && rows ? `${scope} · ${rows.length} enquiries${loading ? " · updating…" : ""}` : "The list as filtered, every page - PDF or Excel"}
             </span>
           </span>
@@ -118,15 +121,15 @@ export default function EnquiryReportPanel({ query, scope, stamp }: { query: Pro
         {open && rows && (
           <div className="flex flex-wrap items-center gap-2">
             {sort && (
-              <span className="flex items-center gap-1.5 text-[12px] text-fg-3">
-                Sorted by <b className="font-semibold text-fg">{REPORT_COLUMNS.find((c) => c.key === sort.by)?.label}</b>
+              <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                Sorted by <b className="font-medium text-foreground">{REPORT_COLUMNS.find((c) => c.key === sort.by)?.label}</b>
                 {sort.by === "date" ? (sort.dir === "desc" ? "· newest first" : "· oldest first") : sort.dir === "asc" ? "· A to Z" : "· Z to A"}
-                <button type="button" onClick={() => setSort(null)} className="rounded-md px-1.5 py-0.5 font-semibold text-accent hover:bg-accent-soft">
+                <button type="button" onClick={() => setSort(null)} className="rounded-md px-1.5 py-0.5 font-medium text-primary hover:bg-primary/8">
                   Clear
                 </button>
               </span>
             )}
-            <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="group" aria-label="View">
+            <div className="inline-flex h-8 items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="group" aria-label="View">
               {(
                 [
                   ["pdf", "PDF"],
@@ -138,36 +141,36 @@ export default function EnquiryReportPanel({ query, scope, stamp }: { query: Pro
                   type="button"
                   aria-pressed={view === v}
                   onClick={() => setView(v)}
-                  className={`rounded-md px-3 py-1 text-[12px] font-semibold ${view === v ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"}`}
+                  className={`h-7 rounded-[5px] px-3 text-[12.5px] font-medium transition-[color,background-color,box-shadow] ${view === v ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-0.5 rounded-lg border border-line p-0.5">
+            <div className="flex h-8 items-center gap-0.5 rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset">
               <button type="button" className={zoomBtn} onClick={() => step(-ZOOM_STEP)} disabled={scale <= ZOOM_MIN} aria-label="Zoom out">
-                −
+                <Minus />
               </button>
-              <span className="w-11 text-center font-mono text-[12px] font-semibold text-fg">{Math.round(scale * 100)}%</span>
+              <span className="w-11 text-center font-mono text-[12px] font-medium text-foreground tabular-nums">{Math.round(scale * 100)}%</span>
               <button type="button" className={zoomBtn} onClick={() => step(ZOOM_STEP)} disabled={scale >= ZOOM_MAX} aria-label="Zoom in">
-                +
+                <Plus />
               </button>
               <button
                 type="button"
                 aria-pressed={zoom === "fit"}
                 onClick={() => setZoom("fit")}
-                className={`ml-0.5 h-7 rounded-md px-2 text-[12px] font-semibold ${zoom === "fit" ? "bg-accent text-white" : "text-fg-3 hover:bg-elev hover:text-fg"}`}
+                className={`ml-0.5 h-7 rounded-[5px] px-2 text-[12px] font-medium transition-[color,background-color,box-shadow] ${zoom === "fit" ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"}`}
               >
                 Fit to screen
               </button>
             </div>
             {view === "pdf" ? (
               <button type="button" className={btn} onClick={() => void printHtml(buildEnquiryReportHtml(rows, undefined, scope), "A3 landscape")}>
-                Print / PDF
+                <Printer /> Print / PDF
               </button>
             ) : (
               <button type="button" className={btn} onClick={() => downloadEnquiryReportExcel(rows)}>
-                Download Excel
+                <Download /> Download Excel
               </button>
             )}
           </div>
@@ -175,14 +178,14 @@ export default function EnquiryReportPanel({ query, scope, stamp }: { query: Pro
       </div>
 
       {open && (
-        <div className="border-t border-line">
+        <div className="border-t border-border">
           {error ? (
-            <p className="px-4 py-6 text-[13px] text-neg">{error}</p>
+            <p className="px-4 py-6 text-[13px] text-destructive">{error}</p>
           ) : !rows ? (
-            <p className="px-4 py-6 text-[13px] text-fg-3">Loading the report…</p>
+            <p className="px-4 py-6 text-[13px] text-muted-foreground">Loading the report…</p>
           ) : (
             // A light sheet in either theme, as it prints.
-            <div ref={frameRef} className={`max-h-[75vh] overflow-auto bg-sunk p-3 [scrollbar-gutter:stable] transition-opacity ${loading ? "opacity-60" : ""}`}>
+            <div ref={frameRef} className={`max-h-[75vh] overflow-auto bg-muted p-3 [scrollbar-gutter:stable] transition-opacity ${loading ? "opacity-60" : ""}`}>
               {view === "pdf" ? (
                 // Scaled as a whole; the box takes its scaled size so nothing is cut or left blank.
                 <div className="relative mx-auto" style={{ width: PDF_WIDTH * scale, height: pdfHeight * scale }}>

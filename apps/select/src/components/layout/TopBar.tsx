@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import "./TopBar.css";
-import Breadcrumb from "./Breadcrumb";
+import { Bug, RefreshCw } from "lucide-react";
+import { Button } from "@/components/shadcn/button";
+import { TopBarTitle } from "./PageTitle";
 import NotificationBell from "./NotificationBell";
 import ReportBugModal from "../bug-report/ReportBugModal";
 
@@ -30,41 +31,25 @@ const TopBar = ({ onRefresh }: { onRefresh: () => void }) => {
 
   return (
     <>
-      <div className="topbar">
-        <Breadcrumb />
-        <div className="topbar-actions">
-          <button
-            type="button"
-            className="topbar-report-btn"
+      {/* shadcn look (user, 2026-11-13): the page heading on the left, the actions on the right. */}
+      <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-6 max-[860px]:h-[52px] max-[860px]:px-3.5">
+        <TopBarTitle />
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant="outline"
             onClick={handleRefresh}
             disabled={refreshing}
             aria-label="Refresh"
             title="Reload this page's data"
+            className="max-[860px]:w-8 max-[860px]:px-0"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className={`h-[15px] w-[15px] ${refreshing ? "animate-spin" : ""}`}
-            >
-              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-              <path d="M21 3v6h-6" />
-            </svg>
-            <span className="topbar-report-label">Refresh</span>
-          </button>
-          <button
-            type="button"
-            className="topbar-report-btn"
-            onClick={() => setReportOpen(true)}
-            aria-label="Report a Bug"
-          >
-            <span aria-hidden="true">🐞</span>
-            <span className="topbar-report-label">Report a Bug</span>
-          </button>
+            <RefreshCw className={refreshing ? "animate-spin" : ""} />
+            <span className="max-[860px]:hidden">Refresh</span>
+          </Button>
+          <Button variant="outline" onClick={() => setReportOpen(true)} aria-label="Report a Bug" className="max-[860px]:w-8 max-[860px]:px-0">
+            <Bug />
+            <span className="max-[860px]:hidden">Report a Bug</span>
+          </Button>
           <NotificationBell />
         </div>
       </div>

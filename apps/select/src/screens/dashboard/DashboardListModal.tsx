@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import StatusPill from "../../components/ui/StatusPill";
+import { Search } from "lucide-react";
 import { fmtNum } from "../../components/charts/charts";
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Input } from "@/components/shadcn/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
 import type { EnquiryFilters } from "../../lib/enquiry-filters";
 import {
   getDashboardList,
@@ -22,6 +26,21 @@ export interface DashboardListTarget {
 /** Rows fetched per batch; the next batch loads as the list is scrolled to its end. */
 const BATCH = 10;
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** A status as a soft badge, coloured by what it means (as on the Enquiries page). */
+const STATUS_TONE: Record<string, "warning" | "info" | "success" | "neutral" | "danger" | "primary"> = {
+  pending: "warning",
+  "in progress": "info",
+  completed: "success",
+  "not quoted": "neutral",
+  regret: "danger",
+  "sent to client": "primary",
+};
+const StatusBadge = ({ status }: { status: string | null | undefined }) => (
+  <Badge tone={STATUS_TONE[(status ?? "").trim().toLowerCase()] ?? "neutral"} dot>
+    {status || "—"}
+  </Badge>
+);
 
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -138,84 +157,62 @@ export default function DashboardListModal({
     return () => io.disconnect();
   }, [hasMore, loading, loadMore, rows.length]);
 
-  // Esc closes.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const isTags = target.kind === "tags";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(10,22,40,0.55)] p-4" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={target.title}
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[88vh] w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-line bg-paper shadow-[0_24px_64px_rgba(0,0,0,0.25)]"
-      >
+    // Escape, the X or a click outside closes it (as before).
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="xl" className="max-w-[880px]" onInteractOutside={() => {}}>
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
-          <div className="min-w-0">
-            <h2 className="text-[16px] font-semibold text-fg">
-              {target.title}
-              <span className="ml-2 rounded-full bg-sunk px-2 py-0.5 align-middle font-mono text-[12px] font-semibold text-fg-2">
-                {loading && !rows.length ? "…" : fmtNum(total)}
-              </span>
-            </h2>
-            <p className="mt-0.5 text-[12px] text-fg-3">{scopeLabel}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-lg border border-line px-2.5 py-1.5 text-[13px] font-semibold text-fg-2 transition hover:border-accent hover:text-accent"
-          >
-            Close
-          </button>
-        </div>
+        <DialogHeader>
+          <DialogTitle className="flex flex-wrap items-center gap-2 text-[16px]">
+            {target.title}
+            <Badge tone="neutral" className="font-mono text-[12px]">
+              {loading && !rows.length ? "…" : fmtNum(total)}
+            </Badge>
+          </DialogTitle>
+          <DialogDescription>{scopeLabel}</DialogDescription>
+        </DialogHeader>
 
         {/* Search */}
-        <div className="border-b border-line px-5 py-3">
-          <input
+        <div className="shrink-0 border-b border-border px-5 py-3">
+          <Input
             type="search"
             autoFocus
+            icon={<Search />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={isTags ? "Search tag, enquiry no., client, media, model…" : "Search enquiry no., client, customer, creator…"}
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft"
           />
         </div>
 
         {/* Rows */}
         <div ref={scrollRef} className="min-h-[120px] flex-1 overflow-y-auto">
-          {error && <p className="px-5 py-6 text-center text-[13px] text-neg">{error}</p>}
-          {!error && loading && !rows.length && <p className="px-5 py-6 text-center text-[13px] text-fg-3">Loading…</p>}
+          {error && <p className="px-5 py-6 text-center text-[13px] font-medium text-destructive">{error}</p>}
+          {!error && loading && !rows.length && <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">Loading…</p>}
           {!error && !loading && !rows.length && (
-            <p className="px-5 py-6 text-center text-[13px] text-fg-3">{q ? "Nothing matches this search." : "Nothing here."}</p>
+            <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">{q ? "Nothing matches this search." : "Nothing here."}</p>
           )}
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-border">
             {rows.map((r) =>
               r.kind === "enquiry" ? (
                 <li key={r.id}>
                   <button
                     type="button"
                     onClick={() => onOpenEnquiry(r)}
-                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-elev"
+                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5 text-left transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted/60"
                   >
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-[12.5px] font-semibold text-title">{r.code}</span>
-                        <StatusPill status={r.status} />
+                        <span className="font-mono text-[12.5px] font-semibold text-primary">{r.code}</span>
+                        <StatusBadge status={r.status} />
                       </span>
-                      <span className="mt-0.5 block truncate text-[12.5px] text-fg-2">
+                      <span className="mt-0.5 block truncate text-[12.5px] text-foreground">
                         {r.client}
-                        {r.customer ? <span className="text-fg-3"> · {r.customer}</span> : null}
+                        {r.customer ? <span className="text-muted-foreground"> · {r.customer}</span> : null}
                       </span>
                     </span>
-                    <span className="text-right text-[11.5px] text-fg-3">
+                    <span className="text-right text-[11.5px] text-muted-foreground">
                       {!hideTagCount && (
                         <span className="block">
                           {r.tagCount} tag{r.tagCount === 1 ? "" : "s"}
@@ -232,24 +229,20 @@ export default function DashboardListModal({
                   <button
                     type="button"
                     onClick={() => onOpenTag(r)}
-                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-elev"
+                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 py-2.5 text-left transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted/60"
                   >
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="text-[13px] font-semibold text-fg">{r.name}</span>
-                        <StatusPill status={r.status} />
-                        {r.awaitingSteps > 0 && (
-                          <span className="rounded-full bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--purple)]">
-                            {r.awaitingSteps} awaiting approval
-                          </span>
-                        )}
+                        <span className="text-[13px] font-semibold text-foreground">{r.name}</span>
+                        <StatusBadge status={r.status} />
+                        {r.awaitingSteps > 0 && <Badge tone="warning">{r.awaitingSteps} awaiting approval</Badge>}
                       </span>
-                      <span className="mt-0.5 block truncate text-[12.5px] text-fg-2">
-                        <span className="font-mono text-title">{r.enquiry.code}</span> · {r.enquiry.client}
-                        {r.liquid ? <span className="text-fg-3"> · {r.liquid}</span> : null}
+                      <span className="mt-0.5 block truncate text-[12.5px] text-foreground">
+                        <span className="font-mono text-primary">{r.enquiry.code}</span> · {r.enquiry.client}
+                        {r.liquid ? <span className="text-muted-foreground"> · {r.liquid}</span> : null}
                       </span>
                     </span>
-                    <span className="text-right text-[11.5px] text-fg-3">
+                    <span className="text-right text-[11.5px] text-muted-foreground">
                       <span className="block font-mono">{r.model || "No model yet"}</span>
                       <span className="block">
                         {r.enquiry.createdByName || "—"} · {fmtDate(r.createdAt)}
@@ -262,27 +255,21 @@ export default function DashboardListModal({
           </ul>
           {hasMore && rows.length > 0 && (
             <div className="px-5 py-3 text-center">
-              <button
-                ref={sentinelRef}
-                type="button"
-                onClick={loadMore}
-                disabled={loading}
-                className="rounded-lg border border-dashed border-line-strong px-3 py-1.5 text-[12px] font-semibold text-fg-3 transition hover:border-accent hover:text-accent disabled:cursor-wait"
-              >
+              <Button ref={sentinelRef} variant="outline" size="sm" onClick={loadMore} disabled={loading} className="border-dashed">
                 {loading ? "Loading…" : `Show more (${fmtNum(total - rows.length)} left)`}
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
         {rows.length > 0 && (
-          <div className="border-t border-line px-5 py-2 text-[11.5px] text-fg-3">
-            Showing <b className="font-mono text-fg">{fmtNum(rows.length)}</b> of{" "}
-            <b className="font-mono text-fg">{fmtNum(total)}</b> {isTags ? "tags" : "enquiries"}
+          <div className="shrink-0 border-t border-border bg-muted/40 px-5 py-2 text-[11.5px] text-muted-foreground">
+            Showing <b className="font-mono font-semibold text-foreground">{fmtNum(rows.length)}</b> of{" "}
+            <b className="font-mono font-semibold text-foreground">{fmtNum(total)}</b> {isTags ? "tags" : "enquiries"}
             {!hasMore && total > BATCH ? " · end of list" : ""}
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

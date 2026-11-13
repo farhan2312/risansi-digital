@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import "./CreateProjectModal.css";
-import "./CopyTagModal.css";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
+import { Button } from "@/components/shadcn/button";
+import { NativeSelect } from "@/components/shadcn/input";
+import { Alert, Field, Label } from "@/components/shadcn/field";
 import type { TagRecord } from "../../services/tagsService";
 
 export type CopyDestination =
@@ -80,67 +82,64 @@ const CopyTagModal = ({
     else onConfirm(tagId, { kind: "same" });
   };
 
-  return (
-    <div className="modal-overlay">
-      <div className="modal copy-modal">
-        <h2>Copy tag</h2>
-        <p className="copy-lead">
-          Copies every pump-selection detail into a new tag. The generated
-          report isn&apos;t carried over &mdash; the copy starts as its own
-          selection run.
-        </p>
+  // One destination choice: a radio with its title and a line under it.
+  const choiceCls = (on: boolean) =>
+    `flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 transition-colors has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${on ? "border-primary/50 bg-primary/[0.04] ring-1 ring-primary/20" : "border-border bg-card hover:border-input hover:bg-muted/50"}`;
 
-        <div className="modal-form">
-          <div className="form-group">
-            <label>Tag to copy</label>
+  return (
+    <Dialog open onOpenChange={(o) => !o && !busy && onCancel()}>
+      <DialogContent size="sm" className="max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>Copy tag</DialogTitle>
+          <DialogDescription>
+            Copies every pump-selection detail into a new tag. The generated report isn&apos;t carried over &mdash; the copy starts as its own selection run.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody className="grid gap-4">
+          <Field label="Tag to copy" htmlFor={tags.length === 1 ? undefined : "copy-tag-pick"}>
             {tags.length === 1 ? (
-              <div className="copy-static">
+              <div className="flex items-baseline justify-between gap-3 rounded-md border border-border bg-muted/50 px-3 py-2 text-[13px] font-medium text-foreground">
                 {tags[0].name}
-                <span className="copy-static-sub">
-                  {tags[0].liquid || "no media yet"}
-                </span>
+                <span className="text-[11.5px] font-normal text-muted-foreground">{tags[0].liquid || "no media yet"}</span>
               </div>
             ) : (
-              <select value={tagId} onChange={(e) => setTagId(e.target.value)}>
+              <NativeSelect id="copy-tag-pick" className="h-9 w-full" value={tagId} onChange={(e) => setTagId(e.target.value)}>
                 {tags.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                     {t.liquid ? ` — ${t.liquid}` : ""} ({t.status})
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             )}
-          </div>
+          </Field>
 
-          <div className="form-group">
-            <label>Copy into</label>
-            <div className="copy-choices">
+          <div className="grid gap-1.5">
+            <Label>Copy into</Label>
+            <div className="grid gap-2" role="radiogroup" aria-label="Copy into">
               {allowSame && (
-                <label className={`copy-choice${dest === "same" ? " is-on" : ""}`}>
-                  <input
-                    type="radio"
-                    name="copy-dest"
-                    checked={dest === "same"}
-                    onChange={() => setDest("same")}
-                  />
-                  <span>
-                    <b>This enquiry</b>
-                    <em>{sourceProject.project_code}</em>
+                <label className={choiceCls(dest === "same")}>
+                  <input type="radio" name="copy-dest" className="mt-0.5 accent-[var(--sc-primary)]" checked={dest === "same"} onChange={() => setDest("same")} />
+                  <span className="grid gap-0.5">
+                    <b className="text-[13px] font-medium text-foreground">This enquiry</b>
+                    <em className="font-mono text-[11.5px] text-muted-foreground not-italic">{sourceProject.project_code}</em>
                   </span>
                 </label>
               )}
 
-              <label className={`copy-choice${dest === "existing" ? " is-on" : ""}`}>
+              <label className={choiceCls(dest === "existing")}>
                 <input
                   type="radio"
                   name="copy-dest"
+                  className="mt-0.5 accent-[var(--sc-primary)]"
                   checked={dest === "existing"}
                   onChange={() => setDest("existing")}
                   disabled={projects.length === 0}
                 />
-                <span>
-                  <b>An existing enquiry</b>
-                  <em>
+                <span className="grid gap-0.5">
+                  <b className="text-[13px] font-medium text-foreground">An existing enquiry</b>
+                  <em className="text-[11.5px] text-muted-foreground not-italic">
                     {projects.length === 0
                       ? allowSame
                         ? "No other enquiries yet"
@@ -151,16 +150,11 @@ const CopyTagModal = ({
               </label>
 
               {allowNew && (
-                <label className={`copy-choice${dest === "new" ? " is-on" : ""}`}>
-                  <input
-                    type="radio"
-                    name="copy-dest"
-                    checked={dest === "new"}
-                    onChange={() => setDest("new")}
-                  />
-                  <span>
-                    <b>A new enquiry</b>
-                    <em>Enter the enquiry details next</em>
+                <label className={choiceCls(dest === "new")}>
+                  <input type="radio" name="copy-dest" className="mt-0.5 accent-[var(--sc-primary)]" checked={dest === "new"} onChange={() => setDest("new")} />
+                  <span className="grid gap-0.5">
+                    <b className="text-[13px] font-medium text-foreground">A new enquiry</b>
+                    <em className="text-[11.5px] text-muted-foreground not-italic">Enter the enquiry details next</em>
                   </span>
                 </label>
               )}
@@ -168,13 +162,8 @@ const CopyTagModal = ({
           </div>
 
           {dest === "existing" && (
-            <div className="form-group">
-              <label>Destination enquiry</label>
-              <select
-                value={targetProjectId}
-                onChange={(e) => setTargetProjectId(e.target.value)}
-                autoFocus
-              >
+            <Field label="Destination enquiry" htmlFor="copy-tag-dest">
+              <NativeSelect id="copy-tag-dest" className="h-9 w-full" value={targetProjectId} onChange={(e) => setTargetProjectId(e.target.value)} autoFocus>
                 <option value="">Select an enquiry</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -182,27 +171,23 @@ const CopyTagModal = ({
                     {p.name ? ` — ${p.name}` : ""}
                   </option>
                 ))}
-              </select>
-            </div>
+              </NativeSelect>
+            </Field>
           )}
-        </div>
 
-        {error && <p className="modal-error">{error}</p>}
+          {error && <Alert>{error}</Alert>}
+        </DialogBody>
 
-        <div className="modal-actions">
-          <button className="cancel-btn" onClick={onCancel} disabled={busy}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={busy}>
             Cancel
-          </button>
-          <button className="create-btn" onClick={submit} disabled={!canConfirm}>
-            {busy
-              ? "Copying…"
-              : dest === "new"
-                ? "Continue"
-                : `Copy ${selectedTag ? selectedTag.name : "tag"}`}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+          <Button onClick={submit} disabled={!canConfirm}>
+            {busy ? "Copying…" : dest === "new" ? "Continue" : `Copy ${selectedTag ? selectedTag.name : "tag"}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

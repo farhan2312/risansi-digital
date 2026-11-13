@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import "./ProjectsPage.css";
 import CreateProjectModal from "../../components/projects/CreateProjectModal";
 import CopyTagModal, { type CopyDestination } from "../../components/projects/CopyTagModal";
 import CopySpareModal from "../../components/projects/CopySpareModal";
@@ -10,24 +9,65 @@ import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal"
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
-import ClearanceModal, { clearanceTone } from "../../components/projects/ClearanceModal";
+import ClearanceModal from "../../components/projects/ClearanceModal";
 import { holdReasonText } from "../../lib/clearance";
 import EnquiryVersionsModal from "../../components/projects/EnquiryVersionsModal";
 import EnquiryFilterBar from "../../components/projects/EnquiryFilterBar";
 import AssigneeKpis from "../../components/projects/AssigneeKpis";
 import EnquiryReportPanel from "../../components/projects/EnquiryReportPanel";
+import { usePageTitle } from "../../components/layout/PageTitle";
 import { hasEnquiryFilters, type EnquiryFilters, type EnquirySort, type EnquirySortKey } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, isViewOnlyRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
-import ConfirmModal from "../../components/ui/ConfirmModal";
 import EnquiryReviewModal from "../../components/projects/EnquiryReviewModal";
 import Pagination from "../../components/ui/Pagination";
-import PageHeader from "../../components/ui/PageHeader";
-import StatusPill, { lifecycleStyle } from "../../components/ui/StatusPill";
+import { lifecycleStyle } from "../../components/ui/StatusPill";
 import DateRangeFilter, { useDateRange } from "../../components/ui/DateRangeFilter";
-import { Segmented } from "../admin/audit/auditUi";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CalendarDays,
+  ChevronRight,
+  CircleAlert,
+  CircleCheck,
+  ClipboardCheck,
+  Copy,
+  Ellipsis,
+  ExternalLink,
+  Eye,
+  FileText,
+  Hash,
+  IndianRupee,
+  Layers,
+  MapPin,
+  Pencil,
+  Plus,
+  Search,
+  Send,
+  Tag,
+  TicketCheck,
+  Trash2,
+  UserRound,
+  X,
+} from "lucide-react";
+// shadcn/ui (user, 2026-11-13: a more professional look, on branch select-shadcn).
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Input, NativeSelect } from "@/components/shadcn/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import {
   createProject,
   deleteProject,
@@ -62,7 +102,7 @@ const PAGE_SIZE = 20;
 // sidebar) the columns share the width and the actions sit in two rows of three,
 // icons only until 2xl; below xl each enquiry stacks as a card.
 const ROW_COLS =
-  "grid-cols-2 gap-y-2 xl:grid-cols-[28px_minmax(110px,1fr)_minmax(52px,0.45fr)_minmax(120px,1.4fr)_minmax(90px,0.9fr)_minmax(78px,0.7fr)_minmax(128px,1fr)_minmax(78px,0.6fr)_minmax(100px,0.8fr)_102px] xl:gap-y-0 2xl:grid-cols-[28px_minmax(110px,1fr)_minmax(52px,0.45fr)_minmax(120px,1.4fr)_minmax(90px,0.9fr)_minmax(78px,0.7fr)_minmax(128px,1fr)_minmax(78px,0.6fr)_minmax(100px,0.8fr)_310px]";
+  "grid-cols-2 gap-y-2 xl:grid-cols-[28px_minmax(110px,1fr)_minmax(52px,0.45fr)_minmax(120px,1.4fr)_minmax(90px,0.9fr)_minmax(78px,0.7fr)_minmax(140px,1fr)_minmax(78px,0.6fr)_minmax(110px,0.8fr)_128px] xl:gap-y-0 2xl:grid-cols-[28px_minmax(110px,1fr)_minmax(52px,0.45fr)_minmax(120px,1.4fr)_minmax(90px,0.9fr)_minmax(78px,0.7fr)_minmax(140px,1fr)_minmax(78px,0.6fr)_minmax(110px,0.8fr)_318px]";
 
 const ProjectsPage = () => {
   const router = useRouter();
@@ -182,11 +222,11 @@ const ProjectsPage = () => {
         type="button"
         onClick={() => toggleSort(key)}
         title={on ? `Sorted ${on.dir === "asc" ? (key === "date" ? "oldest first" : "A to Z") : key === "date" ? "newest first" : "Z to A"} - click to ${on.dir === (key === "date" ? "desc" : "asc") ? "reverse" : "remove"}` : `Sort by ${label}`}
-        className={`inline-flex items-center gap-1 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] hover:text-fg ${on ? "text-accent" : "text-fg-3"}`}
+        className={`inline-flex items-center gap-1 text-left text-[11px] font-medium tracking-wide uppercase hover:text-foreground ${on ? "text-primary" : "text-muted-foreground"}`}
       >
         {label}
-        <span className={on ? "" : "opacity-50"}>{on ? (on.dir === "asc" ? "▲" : "▼") : "↕"}</span>
-        {on && sort.length > 1 && <span className="rounded-full bg-accent px-1 text-[9.5px] leading-[14px] tracking-normal text-white">{i + 1}</span>}
+        {on ? on.dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" /> : <ArrowUpDown className="size-3 opacity-50" />}
+        {on && sort.length > 1 && <span className="rounded-full bg-primary px-1 text-[9.5px] leading-[14px] tracking-normal text-primary-foreground">{i + 1}</span>}
       </button>
     );
   };
@@ -594,35 +634,18 @@ const ProjectsPage = () => {
     }
   };
 
-  // Tailwind building blocks for the list (modals keep their own styles).
-  const btn =
-    "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-[color-mix(in_srgb,var(--brand-blue)_35%,transparent)] hover:bg-paper hover:text-accent disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
-  // Commercial stands apart from the technical actions: filled amber-yellow
-  // with dark text (fixed colours, readable in light and dark themes).
-  const btnCommercial =
-    "inline-flex items-center gap-1.5 rounded-lg border border-[#f59e0b] bg-[#fbbf24] px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-[#422006] shadow-[0_1px_2px_rgba(180,83,9,0.18)] transition-colors hover:border-[#d97706] hover:bg-[#f59e0b] disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
-  const btnDanger =
-    "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-neg transition-colors hover:border-[color-mix(in_srgb,var(--neg)_35%,transparent)] hover:bg-[var(--neg-soft)] hover:text-neg disabled:cursor-not-allowed disabled:opacity-45 [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0";
-  const btnPrimary =
-    "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white shadow-[0_1px_2px_rgba(10,61,143,0.15)] transition hover:-translate-y-px hover:shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-blue)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:h-[14px] [&_svg]:w-[14px]";
-  const input =
-    "w-full rounded-lg border border-line bg-paper py-2 pr-3 pl-9 text-[13px] text-fg outline-none transition placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft";
+  // Assigned to someone else: what every disabled action says.
+  const notYours = (p: ProjectRecord, what = "work on it") => `Assigned to ${p.assigned_to_name || "someone else"} - only they can ${what}`;
+  const headCls = "text-[11px] font-medium tracking-wide text-muted-foreground uppercase";
+  usePageTitle("Enquiries", "Create, open and manage pump-selection enquiries · expand an enquiry to work on its tags");
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
-      <PageHeader
-        icon={<FolderGlyph />}
-        title="Enquiries"
-        subtitle="Create, open and manage PCP pump-selection enquiries · expand an enquiry to work on its tags"
-        actions={
-          manager ? (
-            <button type="button" className={`${btnPrimary} px-4 py-2 text-[13px]`} onClick={() => setIsModalOpen(true)}>
-              <PlusIcon /> New Enquiry
-            </button>
-          ) : undefined
-        }
-      >
-        <div className="flex flex-wrap items-center gap-2.5">
+    <div className="min-h-full bg-background">
+    {/* Full width beside the sidebar at every screen size (user, 2026-11-13: no centred column). */}
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      {/* Filters */}
+      <Card>
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3">
           {isRep ? (
             <RepPicker
               value={rep}
@@ -632,59 +655,52 @@ const ProjectsPage = () => {
               }}
             />
           ) : (
-            <Segmented
+            <Tabs
               value={scope}
-              onChange={(v) => {
-                setScope(v);
+              onValueChange={(v) => {
+                setScope(v === "mine" ? "mine" : "all");
                 setPage(1);
               }}
-              loading={isLoading}
-              options={[
-                { key: "all", label: "All enquiries" },
-                { key: "mine", label: "Assigned to me" },
-              ]}
-            />
+            >
+              <TabsList aria-label="Which enquiries">
+                <TabsTrigger value="all">All enquiries</TabsTrigger>
+                <TabsTrigger value="mine">Assigned to me</TabsTrigger>
+              </TabsList>
+            </Tabs>
           )}
-          <label className="relative w-full sm:w-[170px]">
-            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
-              <SearchGlyph />
-            </span>
-            <input
+          <div className="w-full sm:w-[200px]">
+            <Input
               id="filter-client-name"
               type="search"
               aria-label="Client name"
-              className={input}
-              placeholder="Search by client name…"
+              icon={<Search />}
+              placeholder="Client name"
               value={clientNameFilter}
               onChange={(e) => setClientNameFilter(e.target.value)}
             />
-          </label>
-          <label className="relative w-full sm:w-[150px]">
-            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3">
-              <HashGlyph />
-            </span>
-            <input
+          </div>
+          <div className="w-full sm:w-[170px]">
+            <Input
               id="filter-enquiry-code"
               type="search"
               aria-label="Enquiry no."
-              className={input}
-              placeholder="Search by enquiry no.…"
+              icon={<Hash />}
+              placeholder="Enquiry no."
               value={enquiryCodeFilter}
               onChange={(e) => setEnquiryCodeFilter(e.target.value)}
             />
-          </label>
-          <select
+          </div>
+          <NativeSelect
             aria-label="Date to filter on"
             value={dateField}
             onChange={(e) => {
               setDateField(e.target.value === "assigned" ? "assigned" : "enquiry");
               setPage(1);
             }}
-            className="h-9 rounded-lg border border-line bg-paper px-2.5 text-[12.5px] font-semibold text-fg-2 outline-none transition hover:border-fg-3 focus:border-accent focus:ring-2 focus:ring-accent-soft"
           >
             <option value="enquiry">Enquiry date</option>
             <option value="assigned">Assigned date</option>
-          </select>
+          </NativeSelect>
           <DateRangeFilter
             state={dates}
             onChange={() => setPage(1)}
@@ -694,9 +710,9 @@ const ProjectsPage = () => {
             compact
           />
           {hasFilter && (
-            <button
-              type="button"
-              className="rounded-md px-2 py-1.5 text-[12.5px] font-semibold text-accent hover:bg-accent-soft"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 setClientNameFilter("");
                 setEnquiryCodeFilter("");
@@ -705,17 +721,25 @@ const ProjectsPage = () => {
                 setPage(1);
               }}
             >
-              Clear filters
-            </button>
+              <X /> Clear filters
+            </Button>
           )}
-          {!isLoading && !error && (
-            <span className="ml-auto text-[12.5px] text-fg-3">
-              <b className="font-mono text-fg">{pageInfo.total}</b> enquir{pageInfo.total === 1 ? "y" : "ies"}
-              {hasFilter ? " match" : ""}
-            </span>
-          )}
+          <span className="ml-auto flex items-center gap-3">
+            {!isLoading && !error && (
+              <span className="text-[12.5px] text-muted-foreground">
+                <b className="font-mono font-semibold text-foreground tabular-nums">{pageInfo.total}</b> enquir{pageInfo.total === 1 ? "y" : "ies"}
+                {hasFilter ? " match" : ""}
+              </span>
+            )}
+            {/* The heading is in the top bar (user, 2026-11-13); New Enquiry sits with the filters. */}
+            {manager && (
+              <Button onClick={() => setIsModalOpen(true)}>
+                <Plus /> New Enquiry
+              </Button>
+            )}
+          </span>
         </div>
-        <div className="mt-2.5 border-t border-line pt-2.5">
+        <div className="border-t border-border bg-muted/40 px-4 py-2.5">
           <EnquiryFilterBar
             value={adv}
             showClient={false}
@@ -725,7 +749,7 @@ const ProjectsPage = () => {
             }}
           />
         </div>
-      </PageHeader>
+      </Card>
 
       {/* User-Master / system admins: who has what (one card per person);
           a worker sees their own card. */}
@@ -754,31 +778,35 @@ const ProjectsPage = () => {
       )}
 
       {error && (
-        <div
-          className="mt-4 flex items-center gap-2 rounded-lg bg-[var(--neg-soft)] px-4 py-3 text-[13px] font-medium text-neg [&_svg]:h-4 [&_svg]:w-4"
-          role="alert"
-        >
-          <AlertIcon />
+        <div className="mt-4 flex items-center gap-2 rounded-md border border-destructive/25 bg-destructive/8 px-4 py-2.5 text-[13px] font-medium text-destructive" role="alert">
+          <CircleAlert className="size-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {spareCopied && (
-        <p className="mt-4 rounded-lg bg-[var(--pos-soft)] px-4 py-3 text-[13px] font-medium text-pos" role="status">
+        <p className="mt-4 flex items-center gap-2 rounded-md border border-success/25 bg-success/8 px-4 py-2.5 text-[13px] font-medium text-success" role="status">
+          <CircleCheck className="size-4 shrink-0" />
           {spareCopied}
         </p>
       )}
 
       {isLoading && (
-        <div className="mt-4 space-y-2.5">
-          {Array.from({ length: 5 }, (_, i) => (
-            <div key={i} className="h-[74px] animate-pulse rounded-xl border border-line bg-paper" />
+        <Card className="mt-4 divide-y divide-border overflow-hidden">
+          <div className="h-10 bg-muted/60" />
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-4">
+              <div className="h-3 w-28 animate-pulse rounded bg-muted" />
+              <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+              <div className="h-3 flex-1 animate-pulse rounded bg-muted" />
+              <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+            </div>
           ))}
-        </div>
+        </Card>
       )}
 
       {!isLoading && !error && !hasFilter && projects.length === 0 && (
-        <div className="mt-6">
+        <Card className="mt-4">
           <EmptyState
             icon="folder"
             title={scope === "mine" ? "No enquiries assigned to you yet" : "No enquiries yet"}
@@ -789,41 +817,35 @@ const ProjectsPage = () => {
             }
             action={
               manager ? (
-                <button type="button" className={btnPrimary} onClick={() => setIsModalOpen(true)}>
-                  <PlusIcon /> Create your first enquiry
-                </button>
+                <Button onClick={() => setIsModalOpen(true)}>
+                  <Plus /> Create your first enquiry
+                </Button>
               ) : undefined
             }
           />
-        </div>
+        </Card>
       )}
 
       {!isLoading && !error && hasFilter && filteredProjects.length === 0 && (
-        <div className="mt-6">
-          <EmptyState
-            icon="folder"
-            title="No enquiries match this filter"
-            description="Try a different client name, enquiry no. or date range, or clear the filters above."
-          />
-        </div>
+        <Card className="mt-4">
+          <EmptyState icon="folder" title="No enquiries match this filter" description="Try a different client name, enquiry no. or date range, or clear the filters above." />
+        </Card>
       )}
 
       {!isLoading && !error && filteredProjects.length > 0 && (
-        <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
-          <div>
-          <div>
-          <div className={`hidden border-b border-line bg-elev px-4 py-2.5 xl:grid ${ROW_COLS} items-center gap-x-2 [&>*]:min-w-0`}>
+        <Card className="mt-4 overflow-hidden">
+          {/* Column headings (wide screens; below xl each enquiry stacks as a card) */}
+          <div className={`hidden border-b border-border bg-muted/60 px-4 py-2 xl:grid ${ROW_COLS} items-center gap-x-3 [&>*]:min-w-0`}>
             <span />
             <span>{sortHead("date", "Enquiry No. / Date")}</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Order Type</span>
+            <span className={headCls}>Type</span>
             <span>{sortHead("client", "Client / Code")}</span>
             <span>{sortHead("rep", "Reps / Zone")}</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Industry / Market</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Status</span>
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">Clearance</span>
+            <span className={headCls}>Industry / Market</span>
+            <span className={headCls}>Status</span>
+            <span className={headCls}>Clearance</span>
             <span>{sortHead("assignee", "Assigned To")}</span>
-            <span className="flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">
-              Actions
+            <span className={`flex items-center justify-end gap-2 ${headCls}`}>
               {sort.length > 0 && (
                 <button
                   type="button"
@@ -831,14 +853,15 @@ const ProjectsPage = () => {
                     setSort([]);
                     setPage(1);
                   }}
-                  className="rounded px-1 tracking-normal normal-case text-accent hover:bg-accent-soft"
+                  className="rounded px-1 tracking-normal text-primary normal-case hover:bg-primary/8"
                 >
                   Clear sort
                 </button>
               )}
+              Actions
             </span>
           </div>
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-border">
             {filteredProjects.map((project) => {
               const isOpen = expanded.has(project.id);
               const tags = tagsByProject[project.id];
@@ -848,128 +871,112 @@ const ProjectsPage = () => {
               const reps = [project.client_primary_rep, project.client_secondary_reps].filter(Boolean).join(", ");
               // A spare has no tags or technical step: only its Commercial page.
               const isSpare = project.order_type === "spare";
+              const canWork = workable(project);
+              const subtype = orderSubtypeLabel(project.order_subtype);
+              const hold = project.clearance?.status === "Hold";
+              // Review, copy, edit and delete live in the row's menu.
+              const showReview = !viewOnly;
+              const showCopy = !viewOnly;
+              const hasMenu = showReview || showCopy || manager;
               return (
-                <li key={project.id} className={isOpen ? "bg-[color-mix(in_srgb,var(--accent-soft)_45%,transparent)]" : ""}>
-                  {/* Enquiry row: columns on wide screens, stacked below lg */}
-                  <div className={`group grid px-4 py-3 transition-colors hover:bg-elev ${ROW_COLS} items-center gap-x-2 [&>*]:min-w-0`}>
-                    <button
-                        type="button"
-                        onClick={() => toggleExpanded(project.id)}
-                        disabled={isSpare}
-                        aria-expanded={isOpen}
-                        aria-label={isOpen ? "Hide tags" : "Show tags"}
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${isSpare ? "invisible" : ""} ${
-                          isOpen
-                            ? "rotate-90 border-transparent bg-accent text-white"
-                            : "border-line bg-paper text-fg-3 hover:border-accent hover:text-accent"
-                        }`}
-                      >
-                        <ChevronIcon />
-                      </button>
-
-                    {/* Enquiry no. and version over the enquiry date */}
-                    <span className="min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => !isSpare && toggleExpanded(project.id)}
-                      className="block w-full min-w-0 text-left"
-                      title={isSpare ? undefined : isOpen ? "Hide tags" : "Show tags"}
+                <li key={project.id} className={isOpen ? "bg-primary/[0.025]" : ""}>
+                  <div className={`group grid px-4 py-3 transition-colors hover:bg-muted/50 ${ROW_COLS} items-center gap-x-3 [&>*]:min-w-0`}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => toggleExpanded(project.id)}
+                      disabled={isSpare}
+                      aria-expanded={isOpen}
+                      aria-label={isOpen ? "Hide tags" : "Show tags"}
+                      className={`${isSpare ? "invisible" : ""} ${isOpen ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary" : ""}`}
                     >
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="min-w-0 font-mono text-[12.5px] font-bold [overflow-wrap:anywhere] text-title group-hover:text-accent">{project.project_code}</span>
-                      </span>
-                      <span className="mt-0.5 flex items-center gap-1 text-[11.5px] whitespace-nowrap text-fg-3" title={project.version_no > 0 ? "Revised enquiry date" : "Enquiry date"}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">
-                          <rect x="3.5" y="5" width="17" height="15" rx="2" />
-                          <path d="M3.5 10h17M8 3v4M16 3v4" />
-                        </svg>
-                        {project.enquiry_date ? new Date(`${project.enquiry_date}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                      </span>
-                    </button>
-                    {project.version_no > 0 && (
+                      <ChevronRight className={`transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                    </Button>
+
+                    {/* Enquiry no. over the enquiry date */}
+                    <span className="min-w-0">
                       <button
                         type="button"
-                        onClick={() => setVersionsFor(project)}
-                        className="mt-0.5 rounded-md px-1 py-0.5 text-[11.5px] font-semibold text-accent transition hover:bg-accent-soft"
-                        aria-label={`Versions of enquiry ${project.project_code}`}
+                        onClick={() => !isSpare && toggleExpanded(project.id)}
+                        className="block w-full min-w-0 text-left"
+                        title={isSpare ? undefined : isOpen ? "Hide tags" : "Show tags"}
                       >
-                        Versions
+                        <span className="block font-mono text-[12.5px] font-semibold [overflow-wrap:anywhere] text-primary group-hover:underline group-hover:underline-offset-2">{project.project_code}</span>
+                        <span className="mt-0.5 flex items-center gap-1 text-[11.5px] whitespace-nowrap text-muted-foreground" title={project.version_no > 0 ? "Revised enquiry date" : "Enquiry date"}>
+                          <CalendarDays className="size-3 shrink-0" />
+                          {project.enquiry_date ? shortDay(`${project.enquiry_date}T00:00:00`) : "—"}
+                        </span>
                       </button>
-                    )}
+                      {project.version_no > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setVersionsFor(project)}
+                          className="mt-1 inline-flex items-center gap-1 text-[11.5px] font-medium text-primary hover:underline"
+                          aria-label={`Versions of enquiry ${project.project_code}`}
+                        >
+                          <Layers className="size-3" /> Versions
+                        </button>
+                      )}
                     </span>
 
                     <span className="min-w-0">
-                      <span
-                        className={`inline-block rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold ${
-                          project.order_type === "spare" ? "bg-[var(--warn-soft)] text-warn" : "bg-accent-soft text-accent"
-                        }`}
-                      >
-                        {orderTypeLabel(project.order_type)}
-                      </span>
-                      {orderSubtypeLabel(project.order_subtype) && orderSubtypeLabel(project.order_subtype) !== orderTypeLabel(project.order_type) && (
-                        <span className="mt-0.5 block truncate text-[11.5px] text-fg-3">{orderSubtypeLabel(project.order_subtype)}</span>
-                      )}
+                      <Badge tone={isSpare ? "warning" : "primary"}>{orderTypeLabel(project.order_type)}</Badge>
+                      {subtype && subtype !== orderTypeLabel(project.order_type) && <span className="mt-1 block truncate text-[11.5px] text-muted-foreground">{subtype}</span>}
                     </span>
 
                     {/* Client name over the client code */}
                     <span className="min-w-0">
-                      <span className="block truncate text-[13px] font-semibold text-fg" title={project.name || undefined}>
+                      <span className="block truncate text-[13px] font-medium text-foreground" title={project.name || undefined}>
                         {project.name || "—"}
                       </span>
                       {project.client_code ? (
-                        <span className="mt-0.5 inline-block max-w-full truncate rounded-md bg-elev px-1.5 py-px font-mono text-[11px] text-fg-2">
-                          {project.client_code}
-                        </span>
+                        <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">{project.client_code}</span>
                       ) : (
-                        <span className="mt-0.5 block text-[11px] text-fg-4">No client code</span>
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground/70 italic">No client code</span>
                       )}
                     </span>
 
                     {/* Reps (primary first, then secondary) over the zone */}
                     <span className="min-w-0">
-                      <span className={`block truncate text-[12.5px] ${reps ? "text-fg-2" : "text-fg-4"}`} title={reps || undefined}>
+                      <span className={`block truncate text-[12.5px] ${reps ? "text-foreground" : "text-muted-foreground"}`} title={reps || undefined}>
                         {reps || "—"}
                       </span>
-                      <span className="mt-0.5 flex items-center gap-1 truncate text-[11.5px] text-fg-3">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-[11px] w-[11px] shrink-0">
-                          <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
-                          <circle cx="12" cy="10" r="2.3" />
-                        </svg>
+                      <span className="mt-0.5 flex items-center gap-1 truncate text-[11.5px] text-muted-foreground">
+                        <MapPin className="size-3 shrink-0" />
                         {project.client_zone || "—"}
                       </span>
                     </span>
 
                     {/* Industry over the market type */}
                     <span className="min-w-0">
-                      <span className={`block truncate text-[12.5px] ${project.industry ? "text-fg-2" : "text-fg-4"}`} title={project.industry || undefined}>
+                      <span className={`block truncate text-[12.5px] ${project.industry ? "text-foreground" : "text-muted-foreground"}`} title={project.industry || undefined}>
                         {project.industry || "—"}
                       </span>
-                      <span className="mt-0.5 block truncate text-[11.5px] text-fg-3">{project.client_market_type || "—"}</span>
+                      <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">{project.client_market_type || "—"}</span>
                     </span>
 
                     <span className="flex flex-col items-start gap-1">
                       {!isSpare && <StatusLine label={`Technical V${project.version_no}`} status={project.status} on={project.completed_on} edited={project.technical_status_override !== null} />}
                       <StatusLine label={isSpare ? `V${project.commercial_version_no}` : `Commercial V${project.commercial_version_no}`} status={project.commercial_status} on={project.commercial_completed_on} edited={project.commercial_status_override !== null} />
                       {tags && (
-                        <span className="text-[11px] text-fg-3">
+                        <span className="text-[11px] text-muted-foreground">
                           {doneCount}/{tags.length} tag{tags.length === 1 ? "" : "s"} done
                         </span>
                       )}
                       {project.released_to_operation_at ? (
-                        <span className="text-[11px] font-semibold text-pos">Sent to operation on {shortDay(project.released_to_operation_at)}</span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
+                          <Send className="size-3" /> Sent to operation {shortDay(project.released_to_operation_at)}
+                        </span>
                       ) : (
                         project.reviewed_at && (
                           <>
-                            <span className="text-[11px] font-semibold text-pos">Reviewed on {shortDay(project.reviewed_at)}</span>
-                            {workable(project) && (
-                              <button
-                                type="button"
-                                onClick={() => setReviewFor(project)}
-                                className="rounded-md bg-accent px-2 py-0.5 text-[11px] font-semibold text-white hover:opacity-90"
-                                title="Opens the reviewed versions, to send them to operation"
-                              >
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
+                              <CircleCheck className="size-3" /> Reviewed {shortDay(project.reviewed_at)}
+                            </span>
+                            {canWork && (
+                              <Button size="sm" className="h-6 px-2 text-[11px]" onClick={() => setReviewFor(project)} title="Opens the reviewed versions, to send them to operation">
                                 Send to operation
-                              </button>
+                              </Button>
                             )}
                           </>
                         )
@@ -980,15 +987,15 @@ const ProjectsPage = () => {
                       <button
                         type="button"
                         onClick={() => setClearanceFor(project)}
-                        className="flex max-w-full flex-col items-start gap-0.5 rounded-md text-left"
+                        className="flex max-w-full flex-col items-start gap-1 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30"
                         title={project.clearance?.remarks || "Clear or Hold, and its history"}
                         aria-label={`Clearance of enquiry ${project.project_code}`}
                       >
                         {/* Clear until someone holds it. */}
-                        <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${clearanceTone(project.clearance?.status ?? "Clear")}`}>{project.clearance?.status ?? "Clear"}</span>
-                        {project.clearance?.status === "Hold" && (
-                          <span className="line-clamp-2 text-[11px] text-fg-3">{holdReasonText(project.clearance.group, project.clearance.reason)}</span>
-                        )}
+                        <Badge tone={hold ? "warning" : "success"} dot className="cursor-pointer hover:brightness-95">
+                          {project.clearance?.status ?? "Clear"}
+                        </Badge>
+                        {hold && <span className="line-clamp-2 text-[11px] text-muted-foreground">{holdReasonText(project.clearance!.group, project.clearance!.reason)}</span>}
                       </button>
                     </span>
 
@@ -996,7 +1003,7 @@ const ProjectsPage = () => {
                     <span className="min-w-0" title={project.created_by_name ? `Created by ${project.created_by_name}` : undefined}>
                       {project.assigned_to_name ? (
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[9.5px] font-bold text-white">
+                          <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary ring-1 ring-primary/15">
                             {project.assigned_to_name
                               .split(/\s+/)
                               .slice(0, 2)
@@ -1004,226 +1011,197 @@ const ProjectsPage = () => {
                               .join("")}
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate text-[12.5px] font-medium text-fg-2">{project.assigned_to_name}</span>
-                            <span className="block truncate text-[10.5px] text-fg-4">
-                              {project.assigned_at ? `Assigned ${new Date(project.assigned_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}` : "Assigned"}
-                            </span>
+                            <span className="block truncate text-[12.5px] font-medium text-foreground">{project.assigned_to_name}</span>
+                            <span className="block truncate text-[11px] text-muted-foreground">{project.assigned_at ? `Assigned ${shortDay(project.assigned_at)}` : "Assigned"}</span>
                           </span>
                         </span>
                       ) : (
-                        <span className="block text-[12px] text-fg-4">Not assigned</span>
+                        <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                          <UserRound className="size-3.5" /> Not assigned
+                        </span>
                       )}
                       {manager && (
-                        <button
-                          type="button"
+                        <Button
+                          variant={project.assigned_to ? "link" : "outline"}
+                          size="sm"
                           onClick={() => setAssigning(project)}
-                          className={
-                            project.assigned_to
-                              ? "mt-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold text-accent transition hover:bg-accent-soft"
-                              : "mt-1 inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11.5px] font-semibold text-white transition hover:opacity-90"
-                          }
+                          className={project.assigned_to ? "mt-0.5 h-6 px-0 text-[11.5px]" : "mt-1 h-6 px-2 text-[11.5px]"}
                           aria-label={`${project.assigned_to ? "Reassign" : "Assign"} enquiry ${project.project_code}`}
                         >
                           {project.assigned_to ? "Reassign" : "Assign"}
-                        </button>
+                        </Button>
                       )}
                     </span>
 
-                    <div className={`col-span-2 flex flex-wrap items-center gap-0.5 xl:col-span-1 xl:grid ${isSpare ? "xl:grid-cols-2" : "xl:grid-cols-3"} [&>button]:justify-center xl:[&>button]:px-1.5 2xl:[&>button]:px-2`}>
+                    {/* Actions: the three steps, then a menu for the rest */}
+                    <div className="col-span-2 flex flex-wrap items-center justify-start gap-1 xl:col-span-1 xl:flex-nowrap xl:justify-end">
                       {!isSpare && (
-                      <>
-                      <button
-                        type="button"
-                        className={`${btn} relative`}
-                        onClick={() => setQuotationFor(project)}
-                        disabled={!workable(project)}
-                        title={
-                          !workable(project)
-                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
-                            : project.quotation_count
-                            ? "Quotation generated — view it or change the quotation no. (ERP)"
-                            : "Generate the quotation (opens Technical and Commercial)"
-                        }
-                        aria-label={`Quotation for ${project.project_code}`}
-                      >
-                        <QuoteIcon />
-                        <span className="hidden 2xl:inline">Quotation</span>
-                        {!project.quotation_count && (
-                          <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[var(--warn)]" aria-hidden="true" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        className={btn}
-                        onClick={() => openDocument(project)}
-                        disabled={!project.quotation_count || !workable(project)}
-                        title={
-                          !workable(project)
-                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
-                            : project.quotation_count
-                            ? "View this enquiry's Technical Data Sheet"
-                            : "Generate the quotation first (Quotation button)"
-                        }
-                        aria-label={`Technical Data Sheet for ${project.project_code}`}
-                      >
-                        <DocumentIcon />
-                        <span className="hidden 2xl:inline">Technical</span>
-                      </button>
-                      </>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="relative max-2xl:w-7 max-2xl:px-0"
+                            onClick={() => setQuotationFor(project)}
+                            disabled={!canWork}
+                            title={
+                              !canWork
+                                ? notYours(project)
+                                : project.quotation_count
+                                  ? "Quotation generated — view it or change the quotation no. (ERP)"
+                                  : "Generate the quotation (opens Technical and Commercial)"
+                            }
+                            aria-label={`Quotation for ${project.project_code}`}
+                          >
+                            <TicketCheck />
+                            <span className="hidden 2xl:inline">Quotation</span>
+                            {!project.quotation_count && <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-warning ring-2 ring-card" aria-hidden="true" />}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="max-2xl:w-7 max-2xl:px-0"
+                            onClick={() => openDocument(project)}
+                            disabled={!project.quotation_count || !canWork}
+                            title={
+                              !canWork
+                                ? notYours(project)
+                                : project.quotation_count
+                                  ? "View this enquiry's Technical Data Sheet"
+                                  : "Generate the quotation first (Quotation button)"
+                            }
+                            aria-label={`Technical Data Sheet for ${project.project_code}`}
+                          >
+                            <FileText />
+                            <span className="hidden 2xl:inline">Technical</span>
+                          </Button>
+                        </>
                       )}
-                      <button
-                        type="button"
-                        className={btnCommercial}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-warning/40 bg-warning/10 text-warning hover:border-warning/60 hover:bg-warning/15 max-2xl:w-7 max-2xl:px-0"
                         onClick={() => router.push(`/commercial?projectId=${project.id}`)}
-                        disabled={(!isSpare && !project.quotation_count) || !workable(project)}
+                        disabled={(!isSpare && !project.quotation_count) || !canWork}
                         title={
-                          !workable(project)
-                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can work on it`
+                          !canWork
+                            ? notYours(project)
                             : isSpare
-                            ? "Spare quotation: reference PO, models and parts"
-                            : project.quotation_count
-                            ? "Commercial Summary: P&A and BOI prices for every tag"
-                            : "Generate the quotation first (Quotation button)"
+                              ? "Spare quotation: reference PO, models and parts"
+                              : project.quotation_count
+                                ? "Commercial Summary: P&A and BOI prices for every tag"
+                                : "Generate the quotation first (Quotation button)"
                         }
                         aria-label={`${isSpare ? "Quotation" : "Commercial Summary"} for ${project.project_code}`}
                       >
-                        <RupeeIcon />
+                        <IndianRupee />
                         <span className="hidden 2xl:inline">{isSpare ? "Quotation" : "Commercial"}</span>
-                      </button>
-                      {!viewOnly && (
-                      <button
-                        type="button"
-                        className={btn}
-                        onClick={() => setReviewFor(project)}
-                        disabled={!workable(project)}
-                        title={
-                          !workable(project)
-                            ? `Assigned to ${project.assigned_to_name || "someone else"} - only they can review it`
-                            : isSpare
-                            ? "Review the saved quotation"
-                            : "Review the saved Technical, Commercial and Techno-Commercial"
-                        }
-                        aria-label={`Review ${project.project_code}`}
-                      >
-                        <ReviewIcon />
-                        <span className="hidden 2xl:inline">Review</span>
-                      </button>
-                      )}
-                      {!viewOnly && isSpare && (
-                      <button
-                        type="button"
-                        className={btn}
-                        onClick={() => {
-                          setCopyError(null);
-                          setSpareCopied(null);
-                          setCopyingSpare(project);
-                        }}
-                        title="Copy this spare quotation's models and parts"
-                        aria-label={`Copy the spare quotation of ${project.project_code}`}
-                      >
-                        <CopyIcon />
-                        <span className="hidden 2xl:inline">Copy</span>
-                      </button>
-                      )}
-                      {!viewOnly && !isSpare && (
-                      <button
-                        type="button"
-                        className={btn}
-                        onClick={() => {
-                          setCopyError(null);
-                          setCopyingFrom({ project });
-                          if (!tagsByProject[project.id]) {
-                            listTags(project.id)
-                              .then((rows) => setTagsByProject((m) => ({ ...m, [project.id]: rows })))
-                              .catch(() => {});
-                          }
-                        }}
-                        title="Copy a tag from this enquiry"
-                        aria-label={`Copy a tag from ${project.project_code}`}
-                      >
-                        <CopyIcon />
-                        <span className="hidden 2xl:inline">Copy</span>
-                      </button>
-                      )}
-                      {manager && (
-                        <>
-                          <button
-                            type="button"
-                            className={btn}
-                            onClick={() => {
-                              setEditError(null);
-                              setEditing(project);
-                            }}
-                            aria-label={`Edit enquiry ${project.project_code}`}
-                            title="Edit enquiry"
-                          >
-                            <EditIcon />
-                            <span className="hidden 2xl:inline">Edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            className={btnDanger}
-                            disabled={deletingId === project.id}
-                            onClick={() => setConfirmingDelete(project)}
-                            aria-label={`Delete enquiry ${project.project_code}`}
-                            title="Delete enquiry"
-                          >
-                            <TrashIcon />
-                          </button>
-                        </>
+                      </Button>
+                      {hasMenu && (
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" aria-label={`More actions for ${project.project_code}`} title="More actions">
+                              <Ellipsis />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>{project.project_code}</DropdownMenuLabel>
+                            {showReview && (
+                              <DropdownMenuItem disabled={!canWork} onSelect={() => setReviewFor(project)} title={!canWork ? notYours(project, "review it") : undefined}>
+                                <ClipboardCheck /> {isSpare ? "Review quotation" : "Review documents"}
+                              </DropdownMenuItem>
+                            )}
+                            {showCopy && isSpare && (
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  setCopyError(null);
+                                  setSpareCopied(null);
+                                  setCopyingSpare(project);
+                                }}
+                              >
+                                <Copy /> Copy models and parts
+                              </DropdownMenuItem>
+                            )}
+                            {showCopy && !isSpare && (
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  setCopyError(null);
+                                  setCopyingFrom({ project });
+                                  if (!tagsByProject[project.id]) {
+                                    listTags(project.id)
+                                      .then((rows) => setTagsByProject((m) => ({ ...m, [project.id]: rows })))
+                                      .catch(() => {});
+                                  }
+                                }}
+                              >
+                                <Copy /> Copy a tag
+                              </DropdownMenuItem>
+                            )}
+                            {manager && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onSelect={() => {
+                                    setEditError(null);
+                                    setEditing(project);
+                                  }}
+                                >
+                                  <Pencil /> Edit enquiry
+                                </DropdownMenuItem>
+                                <DropdownMenuItem variant="destructive" disabled={deletingId === project.id} onSelect={() => setConfirmingDelete(project)}>
+                                  <Trash2 /> Delete enquiry
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
                   </div>
 
                   {/* Tags */}
                   {isOpen && !isSpare && (
-                    <div className="pr-4 pb-4 pl-[60px]">
-                      <div className="rounded-xl border border-line bg-paper">
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3.5 py-2.5">
+                    <div className="pr-4 pb-4 pl-4 xl:pl-[56px]">
+                      <div className="overflow-hidden rounded-md border border-border bg-card">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/50 px-3.5 py-2">
                           <div>
-                            <div className="text-[12.5px] font-semibold text-fg">Tags on this enquiry</div>
-                            <div className="text-[11px] text-fg-3">
-                              {workable(project)
+                            <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-foreground">
+                              <Tag className="size-3.5 text-muted-foreground" /> Tags on this enquiry
+                            </div>
+                            <div className="text-[11.5px] text-muted-foreground">
+                              {canWork
                                 ? "Each tag is its own pump-selection run · click a tag name to rename it"
                                 : `View only - assigned to ${project.assigned_to_name || "someone else"}. Copy a tag into an enquiry assigned to you.`}
                             </div>
                           </div>
-                          {addingTagFor !== project.id && workable(project) && (
-                            <button type="button" className={btn} onClick={() => startAddTag(project.id)}>
-                              <PlusIcon /> Add tag
-                            </button>
+                          {addingTagFor !== project.id && canWork && (
+                            <Button variant="outline" size="sm" onClick={() => startAddTag(project.id)}>
+                              <Plus /> Add tag
+                            </Button>
                           )}
                         </div>
 
                         {isLoadingTags && (
                           <div className="space-y-2 p-3">
                             {[0, 1].map((i) => (
-                              <div key={i} className="h-10 animate-pulse rounded-lg bg-elev" />
+                              <div key={i} className="h-9 animate-pulse rounded bg-muted" />
                             ))}
                           </div>
                         )}
-                        {tagError && <div className="px-3.5 py-3 text-[12.5px] font-medium text-neg">{tagError}</div>}
-                        {!isLoadingTags && tags && tags.length === 0 && (
-                          <div className="px-3.5 py-4 text-[12.5px] text-fg-3">No tags yet — add one.</div>
-                        )}
+                        {tagError && <div className="px-3.5 py-3 text-[12.5px] font-medium text-destructive">{tagError}</div>}
+                        {!isLoadingTags && tags && tags.length === 0 && <div className="px-3.5 py-4 text-[12.5px] text-muted-foreground">No tags yet — add one.</div>}
 
                         {!isLoadingTags && tags && tags.length > 0 && (
-                          <ul className="divide-y divide-line">
+                          <ul className="divide-y divide-border">
                             {tags.map((tag) => {
                               const isRenaming = renamingTagId === tag.id;
                               return (
-                                <li key={tag.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2.5 hover:bg-elev">
-                                  <span
-                                    className="h-8 w-1 shrink-0 rounded-full"
-                                    style={{ background: lifecycleStyle(tag.status).color }}
-                                    aria-hidden
-                                  />
+                                <li key={tag.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2.5 hover:bg-muted/40">
+                                  <span className="h-8 w-[3px] shrink-0 rounded-full" style={{ background: lifecycleStyle(tag.status).color }} aria-hidden />
                                   <div className="min-w-[180px] flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                       {isRenaming ? (
-                                        <input
-                                          type="text"
-                                          className="rounded-md border border-accent bg-paper px-2 py-1 text-[13px] text-fg outline-none ring-2 ring-accent-soft"
+                                        <Input
+                                          className="h-7 w-auto min-w-[200px]"
                                           value={renameValue}
                                           autoFocus
                                           onChange={(e) => setRenameValue(e.target.value)}
@@ -1236,75 +1214,66 @@ const ProjectsPage = () => {
                                       ) : (
                                         <button
                                           type="button"
-                                          className="rounded px-0.5 text-[13px] font-semibold text-fg underline decoration-dotted decoration-fg-4 underline-offset-4 hover:text-accent hover:decoration-accent"
-                                          onClick={() => workable(project) && startRenameTag(tag)}
-                                          title={workable(project) ? "Click to rename" : undefined}
+                                          className="rounded px-0.5 text-[13px] font-medium text-foreground decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:text-primary hover:underline"
+                                          onClick={() => canWork && startRenameTag(tag)}
+                                          title={canWork ? "Click to rename" : undefined}
                                         >
                                           {tag.name}
                                         </button>
                                       )}
-                                      <StatusPill status={tag.status} />
+                                      <StatusBadge status={tag.status} />
                                     </div>
-                                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11.5px] text-fg-3">
+                                    <div className="mt-0.5 flex flex-wrap gap-x-4 text-[11.5px] text-muted-foreground">
                                       <span>
-                                        Liquid: <span className="text-fg-2">{tag.liquid || "—"}</span>
+                                        Liquid <span className="text-foreground">{tag.liquid || "—"}</span>
                                       </span>
                                       <span>
-                                        Pump type: <span className="text-fg-2">{tag.pump_type || "—"}</span>
+                                        Pump type <span className="text-foreground">{tag.pump_type || "—"}</span>
                                       </span>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-0.5">
-                                    {workable(project) && (
-                                      <button type="button" className={btnPrimary} onClick={() => openProject(project, tag)}>
-                                        <OpenIcon /> Open
-                                      </button>
+                                  <div className="flex items-center gap-1">
+                                    {canWork && (
+                                      <Button size="sm" onClick={() => openProject(project, tag)}>
+                                        <ExternalLink /> Open
+                                      </Button>
                                     )}
                                     {viewOnly && (
-                                      <button
-                                        type="button"
-                                        className={btnPrimary}
-                                        onClick={() => openProject(project, tag)}
-                                        title="View this tag's pump selection (read-only)"
-                                      >
-                                        <OpenIcon /> View
-                                      </button>
+                                      <Button size="sm" onClick={() => openProject(project, tag)} title="View this tag's pump selection (read-only)">
+                                        <Eye /> View
+                                      </Button>
                                     )}
                                     {!viewOnly && (
-                                    <button
-                                      type="button"
-                                      className={btn}
-                                      onClick={() => {
-                                        // Not yours: copy it into one of your enquiries instead.
-                                        if (workable(project)) handleCopyTagHere(tag);
-                                        else {
-                                          setCopyError(null);
-                                          setCopyingFrom({ project, tagId: tag.id });
-                                        }
-                                      }}
-                                      disabled={copyingTagId === tag.id}
-                                      title={
-                                        workable(project)
-                                          ? "Duplicate this tag with all its pump-selection details"
-                                          : "Copy this tag into an enquiry assigned to you"
-                                      }
-                                      aria-label={`Copy tag ${tag.name}`}
-                                    >
-                                      <CopyIcon />
-                                      {copyingTagId === tag.id ? "Copying…" : "Copy"}
-                                    </button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          // Not yours: copy it into one of your enquiries instead.
+                                          if (canWork) handleCopyTagHere(tag);
+                                          else {
+                                            setCopyError(null);
+                                            setCopyingFrom({ project, tagId: tag.id });
+                                          }
+                                        }}
+                                        disabled={copyingTagId === tag.id}
+                                        title={canWork ? "Duplicate this tag with all its pump-selection details" : "Copy this tag into an enquiry assigned to you"}
+                                        aria-label={`Copy tag ${tag.name}`}
+                                      >
+                                        <Copy />
+                                        {copyingTagId === tag.id ? "Copying…" : "Copy"}
+                                      </Button>
                                     )}
-                                    {workable(project) && (
-                                      <button
-                                        type="button"
-                                        className={btnDanger}
+                                    {canWork && (
+                                      <Button
+                                        variant="ghost-destructive"
+                                        size="icon-sm"
                                         onClick={() => setConfirmingDeleteTag(tag)}
                                         disabled={deletingTagId === tag.id || (tags?.length ?? 0) <= 1}
                                         title={(tags?.length ?? 0) <= 1 ? "Can't delete the last tag on an enquiry" : "Delete tag"}
                                         aria-label={`Delete tag ${tag.name}`}
                                       >
-                                        <TrashIcon />
-                                      </button>
+                                        <Trash2 />
+                                      </Button>
                                     )}
                                   </div>
                                 </li>
@@ -1314,31 +1283,26 @@ const ProjectsPage = () => {
                         )}
 
                         {addingTagFor === project.id && (
-                          <div className="flex flex-wrap items-center gap-2 border-t border-line px-3.5 py-2.5">
-                            <input
-                              type="text"
-                              className="min-w-[220px] flex-1 rounded-lg border border-line bg-paper px-3 py-1.5 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                              placeholder="Tag name (e.g. Pump 1, Site A)"
-                              value={newTagName}
-                              autoFocus
-                              maxLength={100}
-                              onChange={(e) => setNewTagName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleAddTag(project.id);
-                                if (e.key === "Escape") cancelAddTag();
-                              }}
-                            />
-                            <button
-                              type="button"
-                              className={btnPrimary}
-                              onClick={() => handleAddTag(project.id)}
-                              disabled={!newTagName.trim()}
-                            >
+                          <div className="flex flex-wrap items-center gap-2 border-t border-border px-3.5 py-2.5">
+                            <div className="min-w-[220px] flex-1">
+                              <Input
+                                placeholder="Tag name (e.g. Pump 1, Site A)"
+                                value={newTagName}
+                                autoFocus
+                                maxLength={100}
+                                onChange={(e) => setNewTagName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleAddTag(project.id);
+                                  if (e.key === "Escape") cancelAddTag();
+                                }}
+                              />
+                            </div>
+                            <Button onClick={() => handleAddTag(project.id)} disabled={!newTagName.trim()}>
                               Add
-                            </button>
-                            <button type="button" className={btn} onClick={cancelAddTag}>
+                            </Button>
+                            <Button variant="outline" onClick={cancelAddTag}>
                               Cancel
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -1348,21 +1312,13 @@ const ProjectsPage = () => {
               );
             })}
           </ul>
-          </div>
-          </div>
 
           {/* Server-side: totalItems is the count across the WHOLE filtered
               table, not the length of this page. */}
-          <div className="border-t border-line bg-[color-mix(in_srgb,var(--bg-elev)_45%,var(--bg-paper))]">
-            <Pagination
-              page={page}
-              totalItems={pageInfo.total}
-              pageSize={PAGE_SIZE}
-              onPageChange={setPage}
-              itemLabel="enquiries"
-            />
+          <div className="border-t border-border bg-muted/40">
+            <Pagination page={page} totalItems={pageInfo.total} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="enquiries" />
           </div>
-        </div>
+        </Card>
       )}
 
       <CreateProjectModal
@@ -1506,7 +1462,7 @@ const ProjectsPage = () => {
         }}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={confirmingDelete !== null}
         title="Delete this enquiry?"
         description={
@@ -1531,7 +1487,7 @@ const ProjectsPage = () => {
         onClose={() => !deletingId && setConfirmingDelete(null)}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={confirmingDeleteTag !== null}
         title="Delete this tag?"
         description={
@@ -1551,160 +1507,35 @@ const ProjectsPage = () => {
         onClose={() => !deletingTagId && setConfirmingDeleteTag(null)}
       />
     </div>
+    </div>
   );
 };
+
+/** A status as a soft badge, coloured by what it means. */
+const STATUS_TONE: Record<string, "warning" | "info" | "success" | "neutral" | "danger" | "primary"> = {
+  pending: "warning",
+  "in progress": "info",
+  completed: "success",
+  "not quoted": "neutral",
+  regret: "danger",
+  "sent to client": "primary",
+};
+const StatusBadge = ({ status }: { status: string | null | undefined }) => (
+  <Badge tone={STATUS_TONE[(status ?? "").trim().toLowerCase()] ?? "neutral"} dot>
+    {status || "—"}
+  </Badge>
+);
 
 /** One of the enquiry's statuses with its version and completion date. A spare has
  *  just the one status, so its label is only the version. */
 const StatusLine = ({ label, status, on, edited }: { label: string; status: string | null | undefined; on: string | null; edited: boolean }) => (
   <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5" title={`${label}: ${edited ? "status changed on the Edit form" : "status updates by itself"}`}>
-    <span className={`${label.includes(" ") ? "w-[78px]" : ""} shrink-0 text-[10.5px] text-fg-3`}>{label}</span>
-    <StatusPill status={status} />
-    {on && (
-      <span className={`${label.includes(" ") ? "pl-[84px]" : "w-full"} text-[11px] text-fg-3`}>
-        on {new Date(`${on}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-      </span>
-    )}
+    <span className={`${label.includes(" ") ? "w-[82px]" : ""} shrink-0 text-[11px] text-muted-foreground`}>{label}</span>
+    <StatusBadge status={status} />
+    {on && <span className={`${label.includes(" ") ? "pl-[88px]" : "w-full"} text-[11px] text-muted-foreground`}>on {shortDay(`${on}T00:00:00`)}</span>}
   </span>
 );
 
-// --- Inline icons (self-contained, no external asset dependency) -----------
-// The chevron ships as a right-arrow; the .projects-chevron.is-open class in
-// ProjectsPage.css rotates it 90 deg down when the row is expanded.
-const FolderGlyph = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-  </svg>
-);
-const SearchGlyph = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-    <circle cx="11" cy="11" r="6.5" />
-    <path d="M20 20l-4-4" />
-  </svg>
-);
-const HashGlyph = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-    <path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16" />
-  </svg>
-);
-
-const ChevronIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path d="M4.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const PlusIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none">
-    <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-  </svg>
-);
-
-const OpenIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none">
-    <path
-      d="M9 6h10v10M19 6 6 19"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const EditIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none">
-    <path
-      d="M4 20h4L20 8l-4-4L4 16v4Z"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinejoin="round"
-    />
-    <path d="m14 6 4 4" stroke="currentColor" strokeWidth="1.8" />
-  </svg>
-);
-
-const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none">
-    <path
-      d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-// A tag with a tick — the Quotation step.
-const QuoteIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" />
-    <path d="m8.5 11.5 2 2 4-4" />
-  </svg>
-);
-
-// Rupee sign — the Commercial Summary.
 const shortDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-
-const ReviewIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 3h6l1 2h3v16H5V5h3zM9 13l2 2 4-4" />
-  </svg>
-);
-
-const RupeeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 4h12M6 9h12M14.5 20 7 13h2.5a4.5 4.5 0 0 0 0-9" />
-  </svg>
-);
-
-// A sheet with lines — the quotation document.
-const DocumentIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none">
-    <path
-      d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M14 3v5h5M9 13h6M9 17h4"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-// Two offset sheets — the conventional "duplicate" glyph.
-const CopyIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none">
-    <rect
-      x="9"
-      y="9"
-      width="11"
-      height="11"
-      rx="2"
-      stroke="currentColor"
-      strokeWidth="1.7"
-    />
-    <path
-      d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const AlertIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-    <path d="M12 8v4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    <circle cx="12" cy="16" r="1" fill="currentColor" />
-  </svg>
-);
 
 export default ProjectsPage;

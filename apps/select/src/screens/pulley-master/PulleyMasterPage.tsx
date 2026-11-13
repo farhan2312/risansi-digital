@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import "../pump-model-master/PumpModelMasterPage.css";
 import {
   createPulleyMotorRow,
   deletePulleyMotorRow,
@@ -20,14 +19,22 @@ import Spinner from "../../components/ui/Spinner";
 import Pagination, { usePagination } from "../../components/ui/Pagination";
 import { FilterBar, SortTh, useTableControls, type ColumnSpec } from "../../components/ui/tableControls";
 import { comparePumpFamilies, comparePumpModels, pumpModelFamily } from "../../lib/pump-model-order";
-import {
-  PlusIcon,
-  SearchIcon,
-  DetailsIcon,
-  EditIcon,
-  TrashIcon,
-  AlertIcon,
-} from "../../components/ui/adminIcons";
+import { PlusIcon, SearchIcon, DetailsIcon, EditIcon, TrashIcon, AlertIcon } from "../../components/ui/adminIcons";
+// shadcn/ui (user, 2026-11-13: the master pages in the new look, branch select-shadcn).
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Input } from "@/components/shadcn/input";
+import { Alert, Field } from "@/components/shadcn/field";
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
+
+/** Table heading cell (also given to SortTh, whose button inherits it). */
+const TH = "sticky top-0 z-[1] border-b border-border bg-muted px-3 py-2 text-left text-[11px] font-medium tracking-wide whitespace-nowrap text-muted-foreground uppercase";
+const TD = "px-3 py-2 align-middle";
+const NUM = `${TD} font-mono tabular-nums text-foreground`;
+/** A sub-section heading inside a dialog (Belt Options). */
+const SUBHEAD = "text-[11px] font-semibold tracking-wide text-muted-foreground uppercase";
+import { usePageTitle } from "../../components/layout/PageTitle";
 
 type FieldDef = { key: keyof PulleyMotorRow; label: string; numeric: boolean; required?: boolean };
 
@@ -141,6 +148,8 @@ const beltFormToApi = (rows: BeltRowFormShape[]): PulleyBeltInput[] => {
 };
 
 const PulleyMasterPage = () => {
+  // Heading in the top bar (user, 2026-11-13).
+  usePageTitle("Pulley Master", "Every (model, motor RPM) row from the pulley/motor master. Edit or delete a row, or view its full details including the belt options.");
   const [rows, setRows] = useState<PulleyMotorRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -193,124 +202,105 @@ const PulleyMasterPage = () => {
   };
 
   return (
-    <div className="pmm-page">
-      <div className="pmm-header">
-        <div>
-          <h1>Pulley Master</h1>
-          <p>
-            Every (model, motor RPM) row from the pulley/motor master. Edit
-            or delete a row, or view its full details including the belt options.
-          </p>
+    <div className="min-h-full bg-background">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        <div className="w-full sm:w-[280px]">
+          <Input
+            type="search"
+            icon={<SearchIcon />}
+            placeholder="Search model, RPM, kW, groove…"
+            value={controls.search}
+            onChange={(e) => controls.setSearch(e.target.value)}
+          />
         </div>
-        <div className="pmm-header-actions">
-          <div className="pmm-search-wrap">
-            <span className="pmm-search-icon"><SearchIcon /></span>
-            <input
-              type="search"
-              className="pmm-search"
-              placeholder="Search model, RPM, kW, groove…"
-              value={controls.search}
-              onChange={(e) => controls.setSearch(e.target.value)}
-            />
-          </div>
-          <button className="btn-primary" onClick={() => setCreating(true)}>
-            <PlusIcon /> Add Model Data
-          </button>
-        </div>
+        <Button onClick={() => setCreating(true)}>
+          <PlusIcon /> Add Model Data
+        </Button>
       </div>
 
       {isLoading && (
-        <div className="pmm-panel">
-          <div style={{ padding: 16 }}>
-            <SkeletonRows rows={8} cols={5} />
-          </div>
-        </div>
+        <Card className="p-4">
+          <SkeletonRows rows={8} cols={5} />
+        </Card>
       )}
 
       {!isLoading && error && (
-        <div className="pmm-form-error"><AlertIcon /><span>{error}</span></div>
+        <Alert className="flex items-center gap-2 [&_svg]:size-4">
+          <AlertIcon />
+          <span>{error}</span>
+        </Alert>
       )}
 
       {!isLoading && !error && rows.length === 0 && (
-        <EmptyState
-          icon="table"
-          title="No pulley rows yet"
-          description="The pulley master is empty. Add the first row to seed it — belt options can be added inline as children."
-          action={
-            <button className="btn-primary" onClick={() => setCreating(true)}>
-              <PlusIcon /> Add first row
-            </button>
-          }
-        />
+        <Card>
+          <EmptyState
+            icon="table"
+            title="No pulley rows yet"
+            description="The pulley master is empty. Add the first row to seed it — belt options can be added inline as children."
+            action={
+              <Button onClick={() => setCreating(true)}>
+                <PlusIcon /> Add first row
+              </Button>
+            }
+          />
+        </Card>
       )}
 
       {!isLoading && !error && rows.length > 0 && (
-        <div className="pmm-panel">
+        <Card className="overflow-hidden">
           <FilterBar controls={controls} columns={COLUMNS} total={rows.length} />
-          <div className="pmm-table-wrap">
-            <table className="pmm-table">
+          <div className="max-h-[calc(100vh-260px)] overflow-auto border-t border-border">
+            <table className="w-full border-collapse text-[12.5px]">
               <thead>
                 <tr>
-                  <SortTh controls={controls} colKey="model">Model</SortTh>
-                  <SortTh controls={controls} colKey="motorRpm">Motor RPM</SortTh>
-                  <SortTh controls={controls} colKey="motorHp">Motor HP</SortTh>
-                  <SortTh controls={controls} colKey="motorKw">Motor kW</SortTh>
-                  <SortTh controls={controls} colKey="grooves">Grooves</SortTh>
-                  <SortTh controls={controls} colKey="maxCapAt60Mwc">Max Cap @ 60 MWC</SortTh>
-                  <th className="pmm-actions-col">Actions</th>
+                  <SortTh controls={controls} colKey="model" className={TH}>Model</SortTh>
+                  <SortTh controls={controls} colKey="motorRpm" className={TH}>Motor RPM</SortTh>
+                  <SortTh controls={controls} colKey="motorHp" className={TH}>Motor HP</SortTh>
+                  <SortTh controls={controls} colKey="motorKw" className={TH}>Motor kW</SortTh>
+                  <SortTh controls={controls} colKey="grooves" className={TH}>Grooves</SortTh>
+                  <SortTh controls={controls} colKey="maxCapAt60Mwc" className={TH}>Max Cap @ 60 MWC</SortTh>
+                  <th className={`${TH} text-right`}>Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {paged.map((r) => (
-                  <tr key={r.id}>
-                    <td className="pmm-model">{r.model}</td>
-                    <td className="mono">{val(r.motorRpm)}</td>
-                    <td className="mono">{val(r.motorHp)}</td>
-                    <td className="mono">{val(r.motorKw)}</td>
-                    <td className="mono">{val(r.grooves)}</td>
-                    <td className="mono">{val(r.maxCapAt60Mwc)}</td>
-                    <td>
-                      <div className="pmm-row-actions">
-                        <button className="pmm-btn" onClick={() => setDetailsRow(r)}>
+                  <tr key={r.id} className="transition-colors hover:bg-muted/50">
+                    <td className={`${TD} font-mono font-semibold text-primary`}>{r.model}</td>
+                    <td className={NUM}>{val(r.motorRpm)}</td>
+                    <td className={NUM}>{val(r.motorHp)}</td>
+                    <td className={NUM}>{val(r.motorKw)}</td>
+                    <td className={NUM}>{val(r.grooves)}</td>
+                    <td className={NUM}>{val(r.maxCapAt60Mwc)}</td>
+                    <td className={TD}>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => setDetailsRow(r)}>
                           <DetailsIcon /> Details
-                        </button>
-                        <button className="pmm-btn" onClick={() => setEditRow(r)}>
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditRow(r)}>
                           <EditIcon /> Edit
-                        </button>
-                        <button
-                          className="pmm-btn pmm-btn-danger pmm-btn-icon"
-                          onClick={() => setDeleteRow(r)}
-                          title="Delete"
-                          aria-label="Delete"
-                        >
+                        </Button>
+                        <Button variant="ghost-destructive" size="icon-sm" onClick={() => setDeleteRow(r)} title="Delete" aria-label="Delete">
                           <TrashIcon />
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="pmm-empty-cell">
-                      <EmptyState
-                        compact
-                        icon="search"
-                        title="No rows match these filters"
-                        description="Try a different keyword or clear some filters."
-                      />
+                    <td colSpan={7} className="px-3 py-6">
+                      <EmptyState compact icon="search" title="No rows match these filters" description="Try a different keyword or clear some filters." />
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          <Pagination
-            page={page}
-            totalItems={filtered.length}
-            pageSize={pageSize}
-            onPageChange={setPage}
-          />
-        </div>
+          <div className="border-t border-border bg-muted/40">
+            <Pagination page={page} totalItems={filtered.length} pageSize={pageSize} onPageChange={setPage} />
+          </div>
+        </Card>
       )}
 
       {detailsRow && (
@@ -333,6 +323,7 @@ const PulleyMasterPage = () => {
           onDeleted={handleDeleted}
         />
       )}
+    </div>
     </div>
   );
 };
@@ -358,88 +349,67 @@ const DetailsModal = ({ row, onClose }: { row: PulleyMotorRow; onClose: () => vo
   }, [row.id]);
 
   return (
-    <div className="pmm-modal-overlay" onClick={onClose}>
-      <div
-        className="pmm-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="pmm-modal-header">
-          <h3>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      {/* Read only: a click outside closes it, as before. */}
+      <DialogContent size="lg" onInteractOutside={() => {}}>
+        <DialogHeader>
+          <DialogTitle>
             {row.model} · {row.motorRpm} rpm
-          </h3>
-          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <div className="pmm-details-grid">
-          {FIELDS.map((f) => (
-            <div key={f.key}>
-              <span>{f.label}</span>
-              <strong className={f.numeric ? "mono" : undefined}>
-                {val(row[f.key])}
-              </strong>
-            </div>
-          ))}
-        </div>
+          </DialogTitle>
+          <DialogDescription>Every field of this motor option, and its belt options</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-5">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+            {FIELDS.map((f) => (
+              <div key={f.key} className="min-w-0 border-b border-border pb-2">
+                <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{f.label}</dt>
+                <dd className={`mt-0.5 text-[13px] text-foreground ${f.numeric ? "font-mono tabular-nums" : "font-medium"}`}>{val(row[f.key])}</dd>
+              </div>
+            ))}
+          </dl>
 
-        <h4
-          style={{
-            marginTop: 20,
-            marginBottom: 8,
-            fontSize: 13,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-            color: "var(--fg-3)",
-          }}
-        >
-          Belt Options
-        </h4>
-        {beltsError && <div className="pmm-form-error">{beltsError}</div>}
-        {!belts && !beltsError && <p style={{ fontSize: 13 }}>Loading belt options…</p>}
-        {belts && belts.length === 0 && (
-          <p style={{ fontSize: 13, color: "var(--fg-3)" }}>
-            No belt options recorded for this motor option.
-          </p>
-        )}
-        {belts && belts.length > 0 && (
-          <div className="pmm-table-wrap" style={{ maxHeight: 260 }}>
-            <table className="pmm-table">
-              <thead>
-                <tr>
-                  <th>Target RPM</th>
-                  <th>Pump Pulley</th>
-                  <th>Motor Pulley</th>
-                  <th>Actual RPM</th>
-                  <th>Centre Dist</th>
-                  <th>V-Belt No.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {belts.map((b) => (
-                  <tr key={b.id}>
-                    <td className="mono">{val(b.targetRpm)}</td>
-                    <td className="mono">{val(b.pmpPulley)}</td>
-                    <td className="mono">{val(b.mtrPulley)}</td>
-                    <td className="mono">{val(b.actualRpm)}</td>
-                    <td className="mono">{val(b.centerDistance)}</td>
-                    <td className="mono">{val(b.vBelt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            <h4 className={SUBHEAD}>Belt Options</h4>
+            {beltsError && <Alert>{beltsError}</Alert>}
+            {!belts && !beltsError && <p className="text-[12.5px] text-muted-foreground">Loading belt options…</p>}
+            {belts && belts.length === 0 && <p className="text-[12.5px] text-muted-foreground">No belt options recorded for this motor option.</p>}
+            {belts && belts.length > 0 && (
+              <div className="max-h-[260px] overflow-auto rounded-md border border-border">
+                <table className="w-full border-collapse text-[12.5px]">
+                  <thead>
+                    <tr>
+                      <th className={TH}>Target RPM</th>
+                      <th className={TH}>Pump Pulley</th>
+                      <th className={TH}>Motor Pulley</th>
+                      <th className={TH}>Actual RPM</th>
+                      <th className={TH}>Centre Dist</th>
+                      <th className={TH}>V-Belt No.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {belts.map((b) => (
+                      <tr key={b.id} className="hover:bg-muted/50">
+                        <td className={NUM}>{val(b.targetRpm)}</td>
+                        <td className={NUM}>{val(b.pmpPulley)}</td>
+                        <td className={NUM}>{val(b.mtrPulley)}</td>
+                        <td className={NUM}>{val(b.actualRpm)}</td>
+                        <td className={NUM}>{val(b.centerDistance)}</td>
+                        <td className={NUM}>{val(b.vBelt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
-
-        <div className="pmm-modal-actions">
-          <button className="btn-secondary" onClick={onClose}>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
             Close
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -535,143 +505,107 @@ const RowForm = ({
   };
 
   return (
-    <div className="pmm-modal-overlay" onClick={onCancel}>
-      <div
-        className="pmm-modal"
-        style={{ maxWidth: 880 }}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="pmm-modal-header">
-          <h3>{title}</h3>
-          <button className="pmm-modal-close" onClick={onCancel} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          {formError && (
-        <div className="pmm-form-error">
-          <AlertIcon /><span>{formError}</span>
-        </div>
-      )}
-          <div className="pmm-form-grid">
-            {FIELDS.map((f) => (
-              <div key={f.key} className="pmm-field">
-                <label>
-                  {f.label}
-                  {f.required ? " *" : ""}
-                </label>
-                <input
-                  type={f.numeric ? "number" : "text"}
-                  step={f.numeric ? "any" : undefined}
-                  value={form[f.key]}
-                  onChange={(e) => set(f.key, e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Belt Options — inline editable sub-table */}
-          <div
-            style={{
-              marginTop: 24,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <h4
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                color: "var(--fg-3)",
-              }}
-            >
-              Belt Options
-            </h4>
-            <button type="button" className="pmm-btn" onClick={addBelt}>
-              + Add belt
-            </button>
-          </div>
-
-          {beltsLoading && (
-            <p style={{ fontSize: 13, marginTop: 8 }}>Loading belt options…</p>
-          )}
-
-          {!beltsLoading && belts.length === 0 && (
-            <p style={{ fontSize: 13, color: "var(--fg-3)", marginTop: 8 }}>
-              No belt options yet — click <b>+ Add belt</b> to add one.
-            </p>
-          )}
-
-          {!beltsLoading && belts.length > 0 && (
-            <div className="pmm-table-wrap" style={{ marginTop: 8, maxHeight: 320 }}>
-              <table className="pmm-table">
-                <thead>
-                  <tr>
-                    {BELT_FIELDS.map((f) => (
-                      <th key={f.key}>
-                        {f.label}
-                        {f.required ? " *" : ""}
-                      </th>
-                    ))}
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {belts.map((b) => (
-                    <tr key={b._key}>
-                      {BELT_FIELDS.map((f) => (
-                        <td key={f.key} style={{ padding: 4 }}>
-                          <input
-                            type="number"
-                            step="any"
-                            style={{
-                              width: 90,
-                              padding: "6px 8px",
-                              border: "1px solid var(--line)",
-                              borderRadius: 6,
-                              background: "var(--bg-elev)",
-                              color: "var(--fg)",
-                              fontSize: 13,
-                            }}
-                            value={b[f.key]}
-                            onChange={(e) => setBelt(b._key, f.key, e.target.value)}
-                          />
-                        </td>
-                      ))}
-                      <td style={{ padding: 4, textAlign: "right" }}>
-                        <button
-                          type="button"
-                          className="pmm-btn pmm-btn-danger"
-                          onClick={() => removeBelt(b._key)}
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <Dialog open onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent size="xl" className="max-w-[880px]">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>Model and Motor RPM are required; each belt option needs its target RPM.</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-5">
+            {formError && (
+              <Alert className="flex items-center gap-2 [&_svg]:size-4">
+                <AlertIcon />
+                <span>{formError}</span>
+              </Alert>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {FIELDS.map((f) => (
+                <Field key={f.key} label={f.label} required={f.required} htmlFor={`pulley-${f.key}`}>
+                  <Input
+                    id={`pulley-${f.key}`}
+                    type={f.numeric ? "number" : "text"}
+                    step={f.numeric ? "any" : undefined}
+                    value={form[f.key]}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  />
+                </Field>
+              ))}
             </div>
-          )}
 
-          <div className="pmm-modal-actions">
-            <button type="button" className="btn-secondary" onClick={onCancel}>
+            {/* Belt Options — inline editable sub-table */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className={SUBHEAD}>Belt Options</h4>
+                <Button variant="outline" size="sm" onClick={addBelt}>
+                  <PlusIcon /> Add belt
+                </Button>
+              </div>
+
+              {beltsLoading && <p className="text-[12.5px] text-muted-foreground">Loading belt options…</p>}
+
+              {!beltsLoading && belts.length === 0 && (
+                <p className="text-[12.5px] text-muted-foreground">
+                  No belt options yet — click <b className="font-semibold text-foreground">Add belt</b> to add one.
+                </p>
+              )}
+
+              {!beltsLoading && belts.length > 0 && (
+                <div className="max-h-[320px] overflow-auto rounded-md border border-border">
+                  <table className="w-full border-collapse text-[12.5px]">
+                    <thead>
+                      <tr>
+                        {BELT_FIELDS.map((f) => (
+                          <th key={f.key} className={TH}>
+                            {f.label}
+                            {f.required && <span className="ml-0.5 text-destructive">*</span>}
+                          </th>
+                        ))}
+                        <th className={TH}>
+                          <span className="sr-only">Remove</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {belts.map((b) => (
+                        <tr key={b._key}>
+                          {BELT_FIELDS.map((f) => (
+                            <td key={f.key} className="p-1">
+                              <Input
+                                type="number"
+                                step="any"
+                                aria-label={f.label}
+                                className="h-7 w-[90px] font-mono tabular-nums"
+                                value={b[f.key]}
+                                onChange={(e) => setBelt(b._key, f.key, e.target.value)}
+                              />
+                            </td>
+                          ))}
+                          <td className="p-1 text-right">
+                            <Button variant="ghost-destructive" size="sm" onClick={() => removeBelt(b._key)}>
+                              <TrashIcon /> Remove
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={onCancel}>
               Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
+            </Button>
+            <Button type="submit" disabled={saving}>
               {saving && <Spinner size="sm" inline />}
               {saving ? "Saving…" : submitLabel}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -787,40 +721,33 @@ const DeleteModal = ({
   };
 
   return (
-    <div className="pmm-modal-overlay" onClick={onClose}>
-      <div
-        className="pmm-modal pmm-modal-sm"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="pmm-modal-header">
-          <h3>Delete row?</h3>
-          <button className="pmm-modal-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-        <p className="pmm-delete-text">
-          Delete <strong>{row.model}</strong> ({row.motorRpm} rpm)?
-          This also removes all its belt options (cascade). Affects the V-belt drive
+    <ConfirmDialog
+      open
+      title="Delete row?"
+      description={
+        <>
+          Delete <strong>{row.model}</strong> ({row.motorRpm} rpm)? This also removes all its belt options (cascade). Affects the V-belt drive
           recommendation and can&apos;t be undone.
-        </p>
-        {formError && (
-        <div className="pmm-form-error">
-          <AlertIcon /><span>{formError}</span>
-        </div>
+        </>
+      }
+      confirmLabel={
+        <>
+          {deleting && <Spinner size="sm" inline />}
+          {deleting ? "Deleting…" : "Delete row"}
+        </>
+      }
+      tone="danger"
+      busy={deleting}
+      onConfirm={handleDelete}
+      onClose={onClose}
+    >
+      {formError && (
+        <Alert className="flex items-center gap-2 [&_svg]:size-4">
+          <AlertIcon />
+          <span>{formError}</span>
+        </Alert>
       )}
-        <div className="pmm-modal-actions">
-          <button className="btn-secondary" onClick={onClose} disabled={deleting}>
-            Cancel
-          </button>
-          <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
-            {deleting && <Spinner size="sm" inline />}
-            {deleting ? "Deleting…" : "Delete row"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </ConfirmDialog>
   );
 };
 

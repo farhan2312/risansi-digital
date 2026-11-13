@@ -14,6 +14,16 @@ import {
   type BugReportStatus,
   type BugReportType,
 } from "../../services/bugReportService";
+import { usePageTitle } from "../../components/layout/PageTitle";
+import { Bug, CircleAlert, LayoutGrid, Lightbulb, List, Paperclip, Search, X } from "lucide-react";
+// shadcn/ui (user, 2026-11-13: the Bug Tracker in the new look, branch select-shadcn).
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
+import { Alert } from "@/components/shadcn/field";
+import { Input, NativeSelect } from "@/components/shadcn/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 
 // Board columns, left to right. "Resolved" is shown as "Resolved / Closed":
 // the old separate Closed status is merged into it (legacy "Closed" rows
@@ -100,44 +110,29 @@ function LoadMore({
       type="button"
       onClick={onMore}
       disabled={loading}
-      className="rounded-lg border border-dashed border-line-strong px-3 py-2 text-[12px] font-semibold text-fg-3 transition hover:border-accent hover:text-accent"
+      className="rounded-md border border-dashed border-input px-3 py-2 text-[12px] font-medium text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-60"
     >
       {loading ? "Loading…" : `Show more (${remaining} left)`}
     </button>
   );
 }
 
-// Column accent + the soft chip used for that status elsewhere on the page.
-const STATUS_STYLE: Record<BugReportStatus, { dot: string; chip: string; drop: string }> = {
-  Open: {
-    dot: "bg-[var(--brand-blue)]",
-    chip: "bg-accent-soft text-accent",
-    drop: "ring-[var(--brand-blue)]",
-  },
-  "Need Clarification": {
-    dot: "bg-[var(--brand-cyan)]",
-    chip: "bg-[color-mix(in_srgb,var(--brand-cyan)_16%,transparent)] text-fg",
-    drop: "ring-[var(--brand-cyan)]",
-  },
-  "In progress": {
-    dot: "bg-warn",
-    chip: "bg-[var(--warn-soft)] text-warn",
-    drop: "ring-[var(--warn)]",
-  },
-  Resolved: {
-    dot: "bg-pos",
-    chip: "bg-[var(--pos-soft)] text-pos",
-    drop: "ring-[var(--pos)]",
-  },
+// Each status' tone (open=info, need clarification=warning, in progress=primary,
+// resolved=success): the column dot, the soft chip used elsewhere and the drop ring.
+const STATUS_STYLE: Record<BugReportStatus, { tone: "info" | "warning" | "primary" | "success"; dot: string; chip: string; drop: string }> = {
+  Open: { tone: "info", dot: "bg-info", chip: "bg-info/10 text-info ring-info/25", drop: "ring-info" },
+  "Need Clarification": { tone: "warning", dot: "bg-warning", chip: "bg-warning/10 text-warning ring-warning/25", drop: "ring-warning" },
+  "In progress": { tone: "primary", dot: "bg-primary", chip: "bg-primary/8 text-primary ring-primary/20", drop: "ring-primary" },
+  Resolved: { tone: "success", dot: "bg-success", chip: "bg-success/10 text-success ring-success/25", drop: "ring-success" },
 };
 
-const SEVERITY_STYLE: Record<string, string> = {
-  Critical: "bg-[var(--neg-soft)] text-neg",
-  High: "bg-[color-mix(in_srgb,#f97316_16%,transparent)] text-[#ea580c]",
-  Medium: "bg-[var(--warn-soft)] text-warn",
-  Low: "bg-sunk text-fg-2",
+// Severity as a badge tone: critical=danger, high=warning, medium=info, low=neutral.
+const SEVERITY_TONE: Record<string, "danger" | "warning" | "info" | "neutral"> = {
+  Critical: "danger",
+  High: "warning",
+  Medium: "info",
+  Low: "neutral",
 };
-
 const fmt = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -158,25 +153,16 @@ const initials = (name: string | null) =>
 
 const TypeIcon = ({ type }: { type: BugReportType }) => (
   <span
-    className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[13px] ${
-      type === "feature" ? "bg-[var(--warn-soft)]" : "bg-[var(--neg-soft)]"
+    className={`inline-flex size-6 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5 ${
+      type === "feature" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"
     }`}
     title={type === "feature" ? "Feature request" : "Bug"}
   >
-    {type === "feature" ? "💡" : "🐞"}
+    {type === "feature" ? <Lightbulb /> : <Bug />}
   </span>
 );
 
-const SeverityBadge = ({ severity }: { severity: string }) => (
-  <span
-    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold whitespace-nowrap ${
-      SEVERITY_STYLE[severity] ?? SEVERITY_STYLE.Low
-    }`}
-  >
-    {severity}
-  </span>
-);
-
+const SeverityBadge = ({ severity }: { severity: string }) => <Badge tone={SEVERITY_TONE[severity] ?? "neutral"}>{severity}</Badge>;
 // system_admin only — gated by middleware (/admin/bug-tracker) and by the
 // underlying GET /api/bug-reports route itself. Search, filters and paging run
 // on the server: the board asks for each column BOARD_BATCH cards at a time,
@@ -382,125 +368,112 @@ const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
   const criticalOpen = summary?.criticalOpen ?? 0;
   const filtersOn = Boolean(search.trim()) || typeFilter !== "all" || severityFilter !== "all";
 
-  const selectCls =
-    "rounded-lg border border-line bg-paper px-2.5 py-2 text-[12.5px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
-
+  usePageTitle(
+    mine ? "My Bug Reports" : "Bug Tracker",
+    mine
+      ? "Reports you filed with the \"Report a Bug\" button, and where each one stands. The status is updated by the system admin — you are notified when it changes."
+      : "Reports filed from the \"Report a Bug\" button across the portal · drag a card to change its status",
+  );
   return (
-    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[22px] font-bold text-fg">{mine ? "My Bug Reports" : "Bug Tracker"}</h1>
-          <p className="mt-0.5 text-[13px] text-fg-3">
-            {mine
-              ? "Reports you filed with the \"Report a Bug\" button, and where each one stands. The status is updated by the system admin — you are notified when it changes."
-              : "Reports filed from the \"Report a Bug\" button across the portal · drag a card to change its status"}
-          </p>
-        </div>
-        {!isLoading && !error && (
-          <div className="flex gap-2">
-            <div className="rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] text-fg-3">
-              <b className="font-mono text-[15px] text-fg">{openCount}</b> open
-            </div>
-            {criticalOpen > 0 && (
-              <div className="rounded-lg border border-[var(--neg-soft)] bg-[var(--neg-soft)] px-3 py-1.5 text-[12px] text-neg">
-                <b className="font-mono text-[15px]">{criticalOpen}</b> critical
-              </div>
-            )}
-            <div className="rounded-lg border border-line bg-paper px-3 py-1.5 text-[12px] text-fg-3">
-              <b className="font-mono text-[15px] text-fg">{summary?.total ?? 0}</b> total
-            </div>
+    <div className="min-h-full bg-background">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      {/* Toolbar: view, search, filters, and the counts on the right */}
+      <Card>
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+          <Tabs value={view} onValueChange={(v) => setView(v === "list" ? "list" : "board")}>
+            <TabsList aria-label="View">
+              <TabsTrigger value="board">
+                <LayoutGrid className="mr-1.5 size-3.5" /> Board
+              </TabsTrigger>
+              <TabsTrigger value="list">
+                <List className="mr-1.5 size-3.5" /> List
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="min-w-[220px] flex-1 sm:max-w-[340px]">
+            <Input
+              type="search"
+              icon={<Search />}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search title, description, reporter, page…"
+              aria-label="Search reports"
+            />
           </div>
-        )}
-      </div>
-
-      {/* Toolbar */}
-      <div className="mt-4 flex flex-wrap items-center gap-2.5">
-        <div className="inline-flex rounded-lg border border-line bg-paper p-0.5">
-          {(["board", "list"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setView(v)}
-              className={`rounded-md px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
-                view === v ? "bg-accent text-white" : "text-fg-3 hover:bg-elev hover:text-fg"
-              }`}
+          <NativeSelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)} aria-label="Type">
+            <option value="all">All types</option>
+            <option value="bug">Bugs</option>
+            <option value="feature">Feature requests</option>
+          </NativeSelect>
+          <NativeSelect value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value as typeof severityFilter)} aria-label="Severity">
+            <option value="all">All severities</option>
+            {SEVERITIES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </NativeSelect>
+          {filtersOn && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearch("");
+                setTypeFilter("all");
+                setSeverityFilter("all");
+              }}
             >
-              {v === "board" ? "Board" : "List"}
-            </button>
-          ))}
+              <X /> Clear filters
+            </Button>
+          )}
+          {!isLoading && !error && (
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <Badge tone="neutral" className="px-2 py-0.5 text-[12px]">
+                <b className="font-mono font-semibold text-foreground tabular-nums">{openCount}</b> open
+              </Badge>
+              {criticalOpen > 0 && (
+                <Badge tone="danger" className="px-2 py-0.5 text-[12px]">
+                  <b className="font-mono font-semibold tabular-nums">{criticalOpen}</b> critical
+                </Badge>
+              )}
+              <Badge tone="neutral" className="px-2 py-0.5 text-[12px]">
+                <b className="font-mono font-semibold text-foreground tabular-nums">{summary?.total ?? 0}</b> total
+              </Badge>
+            </div>
+          )}
         </div>
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search title, description, reporter, page…"
-          className="min-w-[220px] flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft sm:max-w-[340px]"
-        />
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)} className={selectCls}>
-          <option value="all">All types</option>
-          <option value="bug">Bugs</option>
-          <option value="feature">Feature requests</option>
-        </select>
-        <select
-          value={severityFilter}
-          onChange={(e) => setSeverityFilter(e.target.value as typeof severityFilter)}
-          className={selectCls}
-        >
-          <option value="all">All severities</option>
-          {SEVERITIES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        {filtersOn && (
-          <button
-            type="button"
-            onClick={() => {
-              setSearch("");
-              setTypeFilter("all");
-              setSeverityFilter("all");
-            }}
-            className="rounded-md px-2 py-1.5 text-[12.5px] font-semibold text-accent hover:bg-accent-soft"
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
+      </Card>
 
       {saveError && (
-        <div className="mt-3 rounded-lg bg-[var(--neg-soft)] px-4 py-2.5 text-[13px] font-medium text-neg">{saveError}</div>
+        <Alert className="mt-3 flex items-center gap-2">
+          <CircleAlert className="size-4 shrink-0" />
+          {saveError}
+        </Alert>
       )}
       {error && (
-        <div className="mt-4 rounded-lg bg-[var(--neg-soft)] px-4 py-3 text-[13px] font-medium text-neg">{error}</div>
+        <Alert className="mt-4 flex items-center gap-2">
+          <CircleAlert className="size-4 shrink-0" />
+          {error}
+        </Alert>
       )}
 
       {isLoading && (
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {STATUSES.map((s) => (
-            <div key={s} className="h-[320px] animate-pulse rounded-xl border border-line bg-paper" />
+            <div key={s} className="h-[320px] animate-pulse rounded-lg border border-border bg-card" />
           ))}
         </div>
       )}
 
       {!isLoading && !error && summary?.total === 0 && (
-        <div className="mt-6">
-          <EmptyState
-            icon="folder"
-            title="No reports yet"
-            description="Reports filed from the Report a Bug button will show up here."
-          />
-        </div>
+        <Card className="mt-4">
+          <EmptyState icon="folder" title="No reports yet" description="Reports filed from the Report a Bug button will show up here." />
+        </Card>
       )}
 
       {/* Board */}
       {!isLoading && !!summary?.total && view === "board" && (
-        <div
-          className={`mt-4 grid grid-cols-1 items-start gap-4 transition-opacity md:grid-cols-2 xl:grid-cols-4 ${
-            fetching ? "opacity-60" : ""
-          }`}
-        >
+        <div className={`mt-4 grid grid-cols-1 items-start gap-4 transition-opacity md:grid-cols-2 xl:grid-cols-4 ${fetching ? "opacity-60" : ""}`}>
           {STATUSES.map((status) => {
             const col = board[status];
             const cards = col.rows;
@@ -519,30 +492,28 @@ const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
                   if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropTarget(null);
                 }}
                 onDrop={(e) => onDrop(e, status)}
-                className={`flex min-h-[260px] flex-col rounded-xl border bg-sunk/50 transition-shadow ${
-                  isTarget ? `border-transparent ring-2 ${style.drop}` : "border-line"
+                className={`flex min-h-[260px] flex-col overflow-hidden rounded-lg border bg-muted/40 transition-shadow ${
+                  isTarget ? `border-transparent ring-2 ${style.drop}` : "border-border"
                 }`}
               >
-                <header className="flex items-center justify-between gap-2 px-3.5 pt-3 pb-2">
+                <header className="flex items-center justify-between gap-2 border-b border-border bg-card px-3.5 py-2.5">
                   <div className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
-                    <h2 className="text-[13px] font-semibold text-fg">{STATUS_LABEL[status]}</h2>
-                    <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[11px] font-semibold text-fg-3">
-                      {col.total}
-                    </span>
+                    <span className={`size-2 rounded-full ${style.dot}`} />
+                    <h2 className="text-[12.5px] font-semibold text-foreground">{STATUS_LABEL[status]}</h2>
                   </div>
+                  <span className="rounded-md bg-muted px-1.5 py-px font-mono text-[11px] font-semibold text-muted-foreground tabular-nums">{col.total}</span>
                 </header>
 
                 <div
                   ref={(el) => {
                     colRef(status).current = el;
                   }}
-                  className="flex max-h-[min(68vh,620px)] flex-1 flex-col gap-2.5 overflow-y-auto px-2.5 pb-3"
+                  className="flex max-h-[min(68vh,620px)] flex-1 flex-col gap-2 overflow-y-auto p-2.5"
                 >
                   {cards.length === 0 && (
                     <div
-                      className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-3 py-8 text-center text-[12px] ${
-                        isTarget ? "border-accent text-accent" : "border-line-strong text-fg-4"
+                      className={`flex flex-1 items-center justify-center rounded-md border border-dashed px-3 py-8 text-center text-[12px] ${
+                        isTarget ? "border-primary text-primary" : "border-input text-muted-foreground"
                       }`}
                     >
                       {isTarget ? "Drop here" : filtersOn ? "No matching reports" : "Nothing here"}
@@ -572,54 +543,45 @@ const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
                       tabIndex={0}
                       role="button"
                       aria-label={`${r.title} — ${r.severity}, ${STATUS_LABEL[columnOf(r.status)]}`}
-                      className={`group cursor-grab rounded-lg border border-line bg-paper p-3 text-left shadow-[0_1px_2px_rgba(10,22,40,0.05)] transition hover:-translate-y-px hover:border-line-strong hover:shadow-[0_6px_16px_rgba(10,22,40,0.1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing ${
-                        dragId === r.id ? "opacity-40" : ""
-                      } ${savingId === r.id ? "animate-pulse" : ""} ${
-                        r.severity === "Critical" && isOpenStatus(status)
-                          ? "border-l-[3px] border-l-[var(--neg)]"
-                          : ""
+                      className={`group rounded-md border border-border bg-card p-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition outline-none hover:border-input hover:shadow-[0_6px_16px_rgba(15,23,42,0.09)] focus-visible:ring-[3px] focus-visible:ring-ring/30 ${
+                        mine ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
+                      } ${dragId === r.id ? "opacity-40" : ""} ${savingId === r.id ? "animate-pulse" : ""} ${
+                        r.severity === "Critical" && isOpenStatus(status) ? "border-l-[3px] border-l-destructive" : ""
                       }`}
                     >
                       <div className="flex items-start gap-2">
                         <TypeIcon type={r.type} />
-                        <h3 className="line-clamp-2 flex-1 text-[13px] leading-snug font-semibold text-fg">{r.title}</h3>
+                        <h3 className="line-clamp-2 flex-1 text-[12.5px] leading-snug font-medium text-foreground">{r.title}</h3>
                       </div>
-                      {r.description && (
-                        <p className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-fg-3">{r.description}</p>
-                      )}
+                      {r.description && <p className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-muted-foreground">{r.description}</p>}
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                         <SeverityBadge severity={r.severity} />
                         {r.page && (
-                          <span className="max-w-[140px] truncate rounded bg-elev px-1.5 py-0.5 font-mono text-[10.5px] text-fg-3" title={r.page}>
+                          <span className="max-w-[140px] truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground" title={r.page}>
                             {r.page}
                           </span>
                         )}
                         {r.screenshotFileName && (
-                          <span className="text-[11px] text-fg-3" title="Has a screenshot">
-                            📎
+                          <span className="text-muted-foreground" title="Has a screenshot">
+                            <Paperclip className="size-3" />
                           </span>
                         )}
                       </div>
-                      <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-line pt-2">
+                      <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-border pt-2">
                         <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[9px] font-bold text-white">
+                          <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary ring-1 ring-primary/15">
                             {initials(r.reportedByName)}
                           </span>
-                          <span className="truncate text-[11.5px] text-fg-2">{r.reportedByName || "Unknown"}</span>
+                          <span className="truncate text-[11.5px] text-foreground">{r.reportedByName || "Unknown"}</span>
                         </span>
-                        <span className="shrink-0 text-[11px] text-fg-3" title={fmt(r.createdAt)}>
+                        <span className="shrink-0 text-[11px] text-muted-foreground" title={fmt(r.createdAt)}>
                           {ago(r.createdAt)}
                         </span>
                       </div>
                     </article>
                   ))}
                   {col.total > cards.length && (
-                    <LoadMore
-                      remaining={col.total - cards.length}
-                      loading={col.loading}
-                      onMore={moreFns[status]}
-                      scrollRef={colRef(status)}
-                    />
+                    <LoadMore remaining={col.total - cards.length} loading={col.loading} onMore={moreFns[status]} scrollRef={colRef(status)} />
                   )}
                 </div>
               </section>
@@ -630,65 +592,60 @@ const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
 
       {/* List */}
       {!isLoading && !!summary?.total && view === "list" && (
-        <div
-          className={`mt-4 overflow-hidden rounded-xl border border-line bg-paper transition-opacity ${
-            fetching ? "opacity-60" : ""
-          }`}
-        >
+        <Card className={`mt-4 overflow-hidden transition-opacity ${fetching ? "opacity-60" : ""}`}>
           {listTotal === 0 ? (
             <EmptyState compact icon="search" title="No matching reports" description="Try a different filter." />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-[13px]">
+              <table className="w-full border-collapse text-[12.5px]">
                 <thead>
                   <tr>
                     {["", "Title", "Severity", "Reported by", "Filed", "Status"].map((h) => (
                       <th
                         key={h}
-                        className="border-b border-line bg-elev px-4 py-2.5 text-left text-[10.5px] font-semibold tracking-[0.08em] whitespace-nowrap text-fg-3 uppercase"
+                        className="border-b border-border bg-muted/60 px-4 py-2 text-left text-[11px] font-medium tracking-wide whitespace-nowrap text-muted-foreground uppercase"
                       >
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line">
+                <tbody className="divide-y divide-border">
                   {listRows.map((r) => (
-                    <tr key={r.id} className="cursor-pointer transition-colors hover:bg-elev" onClick={() => setOpenId(r.id)}>
+                    <tr key={r.id} className="cursor-pointer transition-colors hover:bg-muted/50" onClick={() => setOpenId(r.id)}>
                       <td className="w-10 px-4 py-2.5">
                         <TypeIcon type={r.type} />
                       </td>
                       <td className="max-w-[420px] px-4 py-2.5">
-                        <div className="truncate font-medium text-fg">{r.title}</div>
-                        {r.page && <div className="truncate font-mono text-[11px] text-fg-3">{r.page}</div>}
+                        <div className="truncate font-medium text-foreground">{r.title}</div>
+                        {r.page && <div className="truncate font-mono text-[11px] text-muted-foreground">{r.page}</div>}
                       </td>
                       <td className="px-4 py-2.5">
                         <SeverityBadge severity={r.severity} />
                       </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-fg-2">{r.reportedByName || "—"}</td>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-fg-2" title={fmt(r.createdAt)}>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-foreground">{r.reportedByName || "—"}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground" title={fmt(r.createdAt)}>
                         {ago(r.createdAt)}
                       </td>
                       <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                         {mine ? (
-                          <span
-                            className={`inline-block rounded-full px-2.5 py-1 text-[12px] font-semibold ${STATUS_STYLE[columnOf(r.status)].chip}`}
-                          >
+                          <Badge tone={STATUS_STYLE[columnOf(r.status)].tone} dot>
                             {STATUS_LABEL[columnOf(r.status)]}
-                          </span>
+                          </Badge>
                         ) : (
-                        <select
-                          value={columnOf(r.status)}
-                          disabled={savingId === r.id}
-                          onChange={(e) => void moveTo(r.id, e.target.value as BugReportStatus)}
-                          className={`rounded-full border-0 px-2.5 py-1 text-[12px] font-semibold outline-none ${STATUS_STYLE[columnOf(r.status)].chip}`}
-                        >
-                          {STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {STATUS_LABEL[s]}
-                            </option>
-                          ))}
-                        </select>
+                          <select
+                            value={columnOf(r.status)}
+                            disabled={savingId === r.id}
+                            onChange={(e) => void moveTo(r.id, e.target.value as BugReportStatus)}
+                            aria-label={`Status of ${r.title}`}
+                            className={`h-7 rounded-md border-0 px-2 text-[12px] font-medium ring-1 outline-none ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/30 ${STATUS_STYLE[columnOf(r.status)].chip}`}
+                          >
+                            {STATUSES.map((s) => (
+                              <option key={s} value={s}>
+                                {STATUS_LABEL[s]}
+                              </option>
+                            ))}
+                          </select>
                         )}
                       </td>
                     </tr>
@@ -698,56 +655,39 @@ const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
             </div>
           )}
           {listTotal > 0 && (
-            <Pagination
-              page={page}
-              totalItems={listTotal}
-              pageSize={LIST_PAGE_SIZE}
-              onPageChange={setPage}
-              itemLabel="reports"
-            />
+            <div className="border-t border-border bg-muted/40">
+              <Pagination page={page} totalItems={listTotal} pageSize={LIST_PAGE_SIZE} onPageChange={setPage} itemLabel="reports" />
+            </div>
           )}
-        </div>
+        </Card>
       )}
 
-      {/* Details popup */}
-      {openReport && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(10,22,40,0.55)] p-4"
-          onClick={() => setOpenId(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={openReport.title}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-2xl border border-line bg-paper shadow-[0_24px_64px_rgba(0,0,0,0.25)]"
-          >
-            <div className="flex items-start gap-3 border-b border-line px-5 py-4">
-              <TypeIcon type={openReport.type} />
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[16px] leading-snug font-semibold text-fg">{openReport.title}</h2>
-                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[12px] text-fg-3">
-                  <SeverityBadge severity={openReport.severity} />
-                  <span>{openReport.type === "feature" ? "Feature request" : "Bug"}</span>
-                  <span>·</span>
-                  <span>
-                    by {openReport.reportedByName || "Unknown"} · {fmt(openReport.createdAt)}
-                  </span>
+      {/* Details pop-up */}
+      <Dialog open={!!openReport} onOpenChange={(o) => !o && setOpenId(null)}>
+        {openReport && (
+          <DialogContent size="lg" className="max-w-[640px]" onInteractOutside={() => undefined}>
+            <DialogHeader>
+              <div className="flex items-start gap-3">
+                <TypeIcon type={openReport.type} />
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="text-[15px]">{openReport.title}</DialogTitle>
+                  <DialogDescription asChild>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <SeverityBadge severity={openReport.severity} />
+                      <span>{openReport.type === "feature" ? "Feature request" : "Bug"}</span>
+                      <span>·</span>
+                      <span>
+                        by {openReport.reportedByName || "Unknown"} · {fmt(openReport.createdAt)}
+                      </span>
+                    </div>
+                  </DialogDescription>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setOpenId(null)}
-                aria-label="Close"
-                className="rounded-md px-2 py-1 text-[18px] leading-none text-fg-3 hover:bg-elev hover:text-fg"
-              >
-                ×
-              </button>
-            </div>
+            </DialogHeader>
 
-            <div className="space-y-4 px-5 py-4">
+            <DialogBody className="space-y-4">
               <div>
-                <div className="mb-1.5 text-[10.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Status</div>
+                <div className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Status</div>
                 <div className="flex flex-wrap gap-1.5">
                   {(mine ? [columnOf(openReport.status)] : STATUSES).map((s) => {
                     const active = columnOf(openReport.status) === s;
@@ -757,63 +697,49 @@ const BugTrackerPage = ({ mine = false }: { mine?: boolean }) => {
                         type="button"
                         disabled={mine || savingId === openReport.id}
                         onClick={() => !mine && void moveTo(openReport.id, s)}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition disabled:opacity-60 ${mine ? "cursor-default disabled:opacity-100 " : ""}${
-                          active
-                            ? `border-transparent ${STATUS_STYLE[s].chip}`
-                            : "border-line text-fg-3 hover:border-line-strong hover:text-fg"
-                        }`}
+                        className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[12px] font-medium transition outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:opacity-60 ${
+                          mine ? "cursor-default disabled:opacity-100 " : ""
+                        }${active ? `border-transparent ring-1 ring-inset ${STATUS_STYLE[s].chip}` : "border-border bg-card text-muted-foreground hover:border-input hover:text-foreground"}`}
                       >
-                        <span className={`h-2 w-2 rounded-full ${STATUS_STYLE[s].dot}`} />
+                        <span className={`size-2 rounded-full ${STATUS_STYLE[s].dot}`} />
                         {STATUS_LABEL[s]}
                       </button>
                     );
                   })}
                 </div>
-                <p className="mt-1.5 text-[11.5px] text-fg-3">
-                  {mine
-                    ? "Updated by the system admin — you are notified when it changes."
-                    : "The reporter is notified when the status changes."}
+                <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+                  {mine ? "Updated by the system admin — you are notified when it changes." : "The reporter is notified when the status changes."}
                 </p>
               </div>
 
               <div>
-                <div className="mb-1.5 text-[10.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Description</div>
-                <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-fg-2">
-                  {openReport.description || "No description provided."}
-                </p>
+                <div className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Description</div>
+                <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-foreground">{openReport.description || "No description provided."}</p>
               </div>
 
               {openReport.page && (
                 <div>
-                  <div className="mb-1.5 text-[10.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Page</div>
-                  <span className="rounded bg-elev px-2 py-1 font-mono text-[12px] text-fg-2">{openReport.page}</span>
+                  <div className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Page</div>
+                  <span className="rounded bg-muted px-2 py-1 font-mono text-[12px] text-foreground">{openReport.page}</span>
                 </div>
               )}
 
               {openReport.screenshotFileName && (
                 <div>
-                  <div className="mb-1.5 text-[10.5px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Screenshot</div>
-                  <a
-                    href={getBugReportScreenshotUrl(openReport.id)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block overflow-hidden rounded-lg border border-line"
-                  >
+                  <div className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Screenshot</div>
+                  <a href={getBugReportScreenshotUrl(openReport.id)} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-border">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={getBugReportScreenshotUrl(openReport.id)}
-                      alt="Attached screenshot"
-                      className="block max-h-[360px] w-full bg-sunk object-contain"
-                    />
+                    <img src={getBugReportScreenshotUrl(openReport.id)} alt="Attached screenshot" className="block max-h-[360px] w-full bg-muted object-contain" />
                   </a>
                 </div>
               )}
 
-              <div className="text-[11.5px] text-fg-3">Last updated {fmt(openReport.updatedAt)}</div>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="text-[11.5px] text-muted-foreground">Last updated {fmt(openReport.updatedAt)}</div>
+            </DialogBody>
+          </DialogContent>
+        )}
+      </Dialog>
+    </div>
     </div>
   );
 };

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CircleCheck, Send, X } from "lucide-react";
 
+import { Button } from "@/components/shadcn/button";
 import SavedDocsViewer from "./SavedDocsViewer";
 import type { SavedDocs } from "../../lib/saved-docs";
 import { getReviewState, reviewEnquiry, type ProjectRecord } from "../../services/projectService";
@@ -9,11 +11,9 @@ import { getReviewState, reviewEnquiry, type ProjectRecord } from "../../service
 // Review on the Enquiries list: the versions saved with Save Version, as they were
 // saved, nothing to edit. Then Mark as reviewed, and after that Send to operation, which
 // puts them on Operation's Pump Docs / Spare Docs.
-
-const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
-const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+//
+// Its shell is a plain overlay, not a Radix Dialog: printing goes through a hidden iframe
+// added to the page body (lib/enquiry-print), which a Radix focus trap would fight.
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -65,46 +65,65 @@ export default function EnquiryReviewModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
-      <div className="flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-xl border border-line bg-paper" onClick={(e) => e.stopPropagation()}>
-        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-fg">
-              Review
-              <span className="ml-2 text-[13px] font-normal text-fg-3">
-                {project.project_code}
-              </span>
-            </h3>
-            <p className="text-[12.5px] text-fg-3">{project.name || "—"} · the saved versions, exactly as saved. Nothing can be edited here.</p>
-          </div>
-          <button type="button" className={btn} onClick={onClose}>
-            Close
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[1px]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="enquiry-review-title"
+      onClick={onClose}
+    >
+      <div
+        className="relative flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-[0_24px_64px_rgba(15,23,42,0.25)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="grid shrink-0 gap-1 border-b border-border px-5 py-4 pr-12">
+          <h3 id="enquiry-review-title" className="text-[15px] leading-snug font-semibold text-foreground">
+            Review
+            <span className="ml-2 font-mono text-[12.5px] font-normal text-muted-foreground">{project.project_code}</span>
+          </h3>
+          <p className="text-[12.5px] text-muted-foreground">{project.name || "—"} · the saved versions, exactly as saved. Nothing can be edited here.</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-3.5 right-3.5 rounded-md p-1 text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
+            aria-label="Close"
+            title="Close"
+          >
+            <X className="size-4" />
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-          {loadError && <p className="text-[13px] text-neg">{loadError}</p>}
-          {!docs && !loadError && <p className="py-8 text-center text-[13px] text-fg-3">Loading…</p>}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-5 py-4">
+          {loadError && (
+            <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/8 px-3 py-2 text-[12.5px] font-medium text-destructive">
+              {loadError}
+            </p>
+          )}
+          {!docs && !loadError && <p className="py-8 text-center text-[13px] text-muted-foreground">Loading…</p>}
           {docs && <SavedDocsViewer docs={docs} />}
         </div>
 
-        <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-line px-4 py-3">
-          {actionError && <span className="mr-auto text-[12.5px] text-neg">{actionError}</span>}
+        <footer className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-border bg-muted/40 px-5 py-3">
+          {actionError && <span className="mr-auto text-[12.5px] font-medium text-destructive">{actionError}</span>}
           {project.released_to_operation_at ? (
-            <span className="text-[12.5px] font-semibold text-pos">Sent to operation on {fmtDay(project.released_to_operation_at)}</span>
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
+              <Send className="size-3.5" /> Sent to operation on {fmtDay(project.released_to_operation_at)}
+            </span>
           ) : project.reviewed_at ? (
             <>
-              <span className="text-[12.5px] font-semibold text-pos">Reviewed on {fmtDay(project.reviewed_at)}</span>
-              <button type="button" className={btnPrimary} disabled={busy} onClick={() => void act("send")}>
-                {busy ? "Sending…" : "Send to operation"}
-              </button>
+              <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
+                <CircleCheck className="size-3.5" /> Reviewed on {fmtDay(project.reviewed_at)}
+              </span>
+              <Button disabled={busy} onClick={() => void act("send")}>
+                <Send /> {busy ? "Sending…" : "Send to operation"}
+              </Button>
             </>
           ) : (
             <>
-              {docs && missing && <span className="text-[12.5px] font-semibold text-warn">{missing}</span>}
-              <button type="button" className={btnPrimary} disabled={busy || !docs || Boolean(missing)} onClick={() => void act("reviewed")}>
-                {busy ? "Saving…" : "Mark as reviewed"}
-              </button>
+              {docs && missing && <span className="text-[12.5px] font-medium text-warning">{missing}</span>}
+              <Button disabled={busy || !docs || Boolean(missing)} onClick={() => void act("reviewed")}>
+                <CircleCheck /> {busy ? "Saving…" : "Mark as reviewed"}
+              </Button>
             </>
           )}
         </footer>

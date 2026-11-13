@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CircleCheck, Clock, Info, RefreshCw } from "lucide-react";
 
 import PageHeader from "../../components/ui/PageHeader";
 import { parseUsdRate } from "../../lib/commercial";
 import { getUsdInrSetting, saveUsdInrRate, type UsdInrSetting } from "../../services/settingsService";
+// shadcn/ui (user, 2026-11-13: the new look, branch select-shadcn).
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Alert, Field } from "@/components/shadcn/field";
+import { cn } from "@/lib/utils";
 
 // USD to INR (sidebar, every user): the one exchange rate for the portal. An enquiry that
 // switches on Quote in USD (Commercial page) fixes the rate at that moment,
@@ -15,6 +21,11 @@ const fmtWhen = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
     : "";
+
+/** A card's title row. */
+const CardHead = ({ children }: { children: React.ReactNode }) => (
+  <div className="border-b border-border px-4 py-3 text-[13px] font-semibold text-foreground">{children}</div>
+);
 
 export default function UsdInrPage() {
   const [setting, setSetting] = useState<UsdInrSetting | null>(null);
@@ -36,6 +47,7 @@ export default function UsdInrPage() {
 
   const parsed = parseUsdRate(draft);
   const changed = parsed !== undefined && parsed !== setting?.rate;
+  const invalid = draft.trim() !== "" && parsed === undefined;
 
   const save = async () => {
     if (parsed === undefined) return;
@@ -53,85 +65,110 @@ export default function UsdInrPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 py-5 sm:px-6">
-      <PageHeader icon={<CurrencyIcon />} title="USD to INR" subtitle="Exchange rate for quotations in USD" />
+    <div className="min-h-full bg-background">
+      <div className="flex w-full flex-col gap-4 px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+        <PageHeader icon={<CurrencyIcon />} title="USD to INR" subtitle="Exchange rate for quotations in USD" />
 
-      <section className="rounded-xl border border-line bg-paper p-5">
         {loadError ? (
-          <p className="text-[13.5px] text-neg">
-            {loadError}{" "}
-            <button type="button" className="font-semibold text-accent underline" onClick={load}>
-              Retry
-            </button>
-          </p>
+          <Alert className="flex items-center gap-2">
+            {loadError}
+            <Button variant="outline" size="sm" className="ml-auto" onClick={load}>
+              <RefreshCw /> Retry
+            </Button>
+          </Alert>
         ) : !setting ? (
-          <p className="text-[13.5px] text-fg-3">Loading…</p>
+          <Card className="p-6 text-[13px] text-muted-foreground">Loading…</Card>
         ) : (
-          <div className="flex flex-col gap-4">
-            <div>
-              <p className="text-[11.5px] font-semibold tracking-[0.06em] text-fg-3 uppercase">Current rate</p>
-              <p className="mt-1 font-mono text-[22px] font-bold text-fg">
+          // Three cards side by side on a wide screen (the rate, changing it, how it is used),
+          // so the page fills its width without stretching a single input.
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            {/* Current rate */}
+            <Card className="overflow-hidden">
+              <CardHead>Current rate</CardHead>
+              <div className="px-4 py-5">
                 {setting.rate === null ? (
-                  <span className="text-[14px] font-medium text-warn">Not set yet</span>
+                  <p className="text-[14px] font-medium text-warning">Not set yet</p>
                 ) : (
-                  <>1 USD = ₹{setting.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}</>
+                  <p className="flex items-baseline gap-2 text-foreground">
+                    <span className="text-[13px] text-muted-foreground">1 USD =</span>
+                    <span className="font-mono text-[30px] leading-none font-semibold tabular-nums">
+                      ₹{setting.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}
+                    </span>
+                  </p>
                 )}
-              </p>
-              {setting.updatedAt && (
-                <p className="mt-0.5 text-[12px] text-fg-3">
-                  Updated {fmtWhen(setting.updatedAt)}
-                  {setting.updatedByName ? ` by ${setting.updatedByName}` : ""}
-                </p>
-              )}
-            </div>
+                {setting.updatedAt && (
+                  <p className="mt-3 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                    <Clock className="size-3.5 shrink-0" />
+                    Updated {fmtWhen(setting.updatedAt)}
+                    {setting.updatedByName ? ` by ${setting.updatedByName}` : ""}
+                  </p>
+                )}
+              </div>
+            </Card>
 
-            <form
-              className="flex flex-wrap items-end gap-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (changed) save();
-              }}
-            >
-              <label className="flex flex-col gap-1">
-                <span className="text-[12.5px] font-semibold text-fg-2">New rate (₹ for 1 USD)</span>
-                <div className="flex items-center rounded-lg border border-line bg-paper focus-within:border-accent">
-                  <span className="pl-3 text-[13.5px] text-fg-3">₹</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={draft}
-                    onChange={(e) => {
-                      setDraft(e.target.value);
-                      setState("");
-                      setSaveError("");
-                    }}
-                    placeholder="e.g. 84.25"
-                    className="w-40 bg-transparent px-2 py-2 font-mono text-[14px] text-fg outline-none"
-                  />
-                </div>
-              </label>
-              <button
-                type="submit"
-                disabled={!changed || state === "saving"}
-                className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            {/* Change it */}
+            <Card className="overflow-hidden">
+              <CardHead>Change the rate</CardHead>
+              <form
+                className="flex flex-col gap-3 px-4 py-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (changed) save();
+                }}
               >
-                {state === "saving" ? "Saving…" : "Save rate"}
-              </button>
-              {state === "saved" && <span className="pb-2 text-[12.5px] font-medium text-pos">Saved</span>}
-            </form>
-            {draft.trim() !== "" && parsed === undefined && (
-              <p className="text-[12.5px] text-neg">Enter a number above 0 and up to 1000.</p>
-            )}
-            {saveError && <p className="text-[12.5px] text-neg">{saveError}</p>}
+                <Field label="New rate (₹ for 1 USD)" htmlFor="usd-inr-rate" error={invalid ? "Enter a number above 0 and up to 1000." : undefined}>
+                  <div
+                    className={cn(
+                      "flex h-9 max-w-[240px] items-center rounded-md border bg-card shadow-xs transition-[box-shadow,border-color] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/25",
+                      invalid ? "border-destructive/60" : "border-input",
+                    )}
+                  >
+                    <span className="pl-3 text-[13.5px] text-muted-foreground">₹</span>
+                    <input
+                      id="usd-inr-rate"
+                      type="text"
+                      inputMode="decimal"
+                      value={draft}
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        setState("");
+                        setSaveError("");
+                      }}
+                      placeholder="e.g. 84.25"
+                      className="w-full bg-transparent px-2 font-mono text-[14px] text-foreground tabular-nums outline-none placeholder:text-muted-foreground/80"
+                    />
+                  </div>
+                </Field>
+                <div className="flex items-center gap-3">
+                  <Button type="submit" disabled={!changed || state === "saving"}>
+                    {state === "saving" ? "Saving…" : "Save rate"}
+                  </Button>
+                  {state === "saved" && (
+                    <span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-success">
+                      <CircleCheck className="size-3.5" /> Saved
+                    </span>
+                  )}
+                </div>
+                {saveError && <Alert>{saveError}</Alert>}
+              </form>
+            </Card>
 
-            <p className="rounded-lg bg-sunk px-3 py-2.5 text-[12.5px] leading-relaxed text-fg-2">
-              Prices are always entered in INR. When <b>Quote in USD</b> is switched on for an enquiry on the
-              Commercial page, this rate is fixed on that enquiry and its Commercial Offer shows USD. Changing the rate
-              here does not change enquiries already in USD; they can take the new rate with <b>Use current rate</b>.
-            </p>
+            {/* How it is used */}
+            <Card className="overflow-hidden lg:col-span-2 2xl:col-span-1">
+              <CardHead>
+                <span className="inline-flex items-center gap-1.5">
+                  <Info className="size-3.5 text-info" /> How the rate is used
+                </span>
+              </CardHead>
+              <p className="px-4 py-4 text-[12.5px] leading-relaxed text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground">
+                Prices are always entered in INR. When <b>Quote in USD</b> is switched on for an enquiry on the
+                Commercial page, this rate is fixed on that enquiry and its Commercial Offer shows USD. Changing the rate
+                here does not change enquiries already in USD; they can take the new rate with <b>Use current rate</b>.
+              </p>
+            </Card>
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }

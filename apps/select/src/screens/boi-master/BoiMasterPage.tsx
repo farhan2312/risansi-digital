@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import PageHeader from "../../components/ui/PageHeader";
-import { EditIcon, PlusIcon, TrashIcon } from "../../components/ui/adminIcons";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { VFD_FIELDS } from "../../lib/boi-vfd";
 import { formatInr, vfdNetPrice } from "../../lib/commercial";
 import BoiTableTab from "./BoiTableTab";
@@ -11,13 +11,14 @@ import {
   DeleteConfirm,
   FieldGrid,
   Modal,
-  btnPrimary,
-  btnSecondary,
-  btnSm,
   errorMessage,
   formFromRow,
-  inputCls,
 } from "./boiUi";
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Input } from "@/components/shadcn/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { Alert } from "@/components/shadcn/field";
 import {
   createBoiVfd,
   deleteBoiVfd,
@@ -48,28 +49,22 @@ const show = (v: string | null) => (v === null || v === "" ? "—" : String(Numb
 export default function BoiMasterPage() {
   const [tab, setTab] = useState<TabKey>("vfd");
   return (
-    <div className="flex flex-col gap-4">
+    <div className="min-h-full bg-background">
+    <div className="flex w-full flex-col gap-4 px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
       <PageHeader
         icon={<DatabaseIcon />}
         title="BOI Master"
         subtitle="Bought-out item price lists used by the Commercial Summary"
       >
-        <div className="flex gap-1 px-5 pb-3" role="tablist">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.key}
-              onClick={() => setTab(t.key)}
-              className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-                tab === t.key ? "bg-accent text-white" : "text-fg-2 hover:bg-sunk"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+          <TabsList aria-label="BOI item type">
+            {TABS.map((t) => (
+              <TabsTrigger key={t.key} value={t.key}>
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </PageHeader>
       {tab === "vfd" && <VfdTab />}
       {tab === "drp" && (
@@ -90,6 +85,7 @@ export default function BoiMasterPage() {
           intro="Shaft dia of every pump model. Used to size the DRP probe; a model with a blank shaft dia gets no DRP suggestion."
         />
       )}
+    </div>
     </div>
   );
 }
@@ -138,11 +134,11 @@ function VfdTab() {
   const head = rows?.[0];
 
   return (
-    <section className="rounded-xl border border-line bg-paper">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+    <Card className="overflow-hidden">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-fg">Variable Frequency Drives</h2>
-          <p className="text-[12px] text-fg-3">
+          <h2 className="text-[13px] font-semibold text-foreground">Variable Frequency Drives</h2>
+          <p className="text-[12px] text-muted-foreground">
             {head
               ? [head.make, head.series, head.supply, head.priceListDate && `list of ${head.priceListDate}`]
                   .filter(Boolean)
@@ -152,90 +148,92 @@ function VfdTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="search"
-            className={`${inputCls} w-[220px]`}
-            placeholder="Search drive, frame, kW…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search VFDs"
-          />
-          <button type="button" className={btnPrimary} onClick={() => setEditing("new")}>
-            <PlusIcon /> Add VFD
-          </button>
+          <div className="w-[220px]">
+            <Input
+              type="search"
+              icon={<Search />}
+              placeholder="Search drive, frame, kW…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search VFDs"
+            />
+          </div>
+          <Button onClick={() => setEditing("new")}>
+            <Plus /> Add VFD
+          </Button>
         </div>
       </header>
 
-      {rows === null && <p className="px-4 py-8 text-center text-[13px] text-fg-3">Loading…</p>}
-      {loadError && <p className="px-4 py-8 text-center text-[13px] text-neg">{loadError}</p>}
+      {rows === null && <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">Loading…</p>}
+      {loadError && <p className="px-4 py-8 text-center text-[13px] font-medium text-destructive">{loadError}</p>}
       {rows && !loadError && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1060px] border-collapse text-[12.5px]">
             <thead>
-              <tr className="border-b border-line bg-sunk text-left text-[11px] tracking-[0.05em] text-fg-3 uppercase">
-                <th rowSpan={2} className="px-3 py-2 font-semibold">Drive Description</th>
-                <th rowSpan={2} className="px-2 py-2 font-semibold">Frame</th>
-                <th colSpan={2} className="border-l border-line px-2 py-1.5 text-center font-semibold">Nominal Use</th>
-                <th colSpan={2} className="border-l border-line px-2 py-1.5 text-center font-semibold">Light Duty</th>
-                <th colSpan={2} className="border-l border-line px-2 py-1.5 text-center font-semibold">Heavy Duty</th>
-                <th rowSpan={2} className="border-l border-line px-2 py-2 text-right font-semibold">List Price</th>
-                <th rowSpan={2} className="px-2 py-2 text-right font-semibold">Disc.</th>
-                <th rowSpan={2} className="px-2 py-2 text-right font-semibold">BOP Extra</th>
-                <th rowSpan={2} className="px-2 py-2 text-right font-semibold">Net Price</th>
-                <th rowSpan={2} className="px-3 py-2 text-right font-semibold">Actions</th>
+              <tr className="border-b border-border bg-muted/60 text-left text-[11px] tracking-wide text-muted-foreground uppercase">
+                <th rowSpan={2} className="px-3 py-2 font-medium">Drive Description</th>
+                <th rowSpan={2} className="px-2 py-2 font-medium">Frame</th>
+                <th colSpan={2} className="border-l border-border px-2 py-1.5 text-center font-medium">Nominal Use</th>
+                <th colSpan={2} className="border-l border-border px-2 py-1.5 text-center font-medium">Light Duty</th>
+                <th colSpan={2} className="border-l border-border px-2 py-1.5 text-center font-medium">Heavy Duty</th>
+                <th rowSpan={2} className="border-l border-border px-2 py-2 text-right font-medium">List Price</th>
+                <th rowSpan={2} className="px-2 py-2 text-right font-medium">Disc.</th>
+                <th rowSpan={2} className="px-2 py-2 text-right font-medium">BOP Extra</th>
+                <th rowSpan={2} className="px-2 py-2 text-right font-medium">Net Price</th>
+                <th rowSpan={2} className="px-3 py-2 text-right font-medium">Actions</th>
               </tr>
-              <tr className="border-b border-line bg-sunk text-[11px] text-fg-3">
+              <tr className="border-b border-border bg-muted/60 text-[11px] text-muted-foreground">
                 {["P_N kW", "I_N A", "P_LD kW", "I_LD A", "P_HD kW", "I_HD A"].map((h, i) => (
-                  <th key={h} className={`px-2 py-1 text-right font-medium ${i % 2 === 0 ? "border-l border-line" : ""}`}>
+                  <th key={h} className={`px-2 py-1 text-right font-medium ${i % 2 === 0 ? "border-l border-border" : ""}`}>
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="divide-y divide-border">
               {shown.map((r) => (
-                <tr key={r.id} className="hover:bg-sunk/60">
-                  <td className="px-3 py-2 font-mono text-fg" title={r.remarks ?? undefined}>
+                <tr key={r.id} className="transition-colors hover:bg-muted/50">
+                  <td className="px-3 py-2 font-mono text-foreground" title={r.remarks ?? undefined}>
                     {r.driveDescription}
-                    {r.remarks && <span className="ml-1 text-warn">*</span>}
+                    {r.remarks && <span className="ml-1 text-warning">*</span>}
                   </td>
-                  <td className="px-2 py-2 text-fg-2">{r.frame ?? "—"}</td>
+                  <td className="px-2 py-2 text-muted-foreground">{r.frame ?? "—"}</td>
                   {[r.pnKw, r.inA, r.pldKw, r.ildA, r.phdKw, r.ihdA].map((v, i) => (
-                    <td key={i} className={`px-2 py-2 text-right font-mono text-fg-2 ${i % 2 === 0 ? "border-l border-line" : ""}`}>
+                    <td key={i} className={`px-2 py-2 text-right font-mono text-foreground tabular-nums ${i % 2 === 0 ? "border-l border-border" : ""}`}>
                       {show(v)}
                     </td>
                   ))}
-                  <td className="border-l border-line px-2 py-2 text-right font-mono text-fg-2">
+                  <td className="border-l border-border px-2 py-2 text-right font-mono text-foreground tabular-nums">
                     {formatInr(num(r.listPrice))}
                   </td>
-                  <td className="px-2 py-2 text-right font-mono text-fg-3">
+                  <td className="px-2 py-2 text-right font-mono text-muted-foreground tabular-nums">
                     {r.discountPct === null ? "—" : `${Number(r.discountPct)}%`}
                   </td>
-                  <td className="px-2 py-2 text-right font-mono text-fg-3">{formatInr(num(r.bopExtra))}</td>
-                  <td className="px-2 py-2 text-right font-mono font-semibold text-fg">
+                  <td className="px-2 py-2 text-right font-mono text-muted-foreground tabular-nums">{formatInr(num(r.bopExtra))}</td>
+                  <td className="px-2 py-2 text-right font-mono font-semibold text-foreground tabular-nums">
                     {formatInr(vfdNetPrice(num(r.listPrice), num(r.discountPct), num(r.bopExtra)))}
                   </td>
                   <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1.5">
-                      <button type="button" className={btnSm} onClick={() => setEditing(r)}>
-                        <EditIcon /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        className={`${btnSm} hover:border-neg hover:text-neg`}
+                    <div className="flex justify-end gap-1">
+                      <Button variant="outline" size="sm" onClick={() => setEditing(r)}>
+                        <Pencil /> Edit
+                      </Button>
+                      <Button
+                        variant="ghost-destructive"
+                        size="icon-sm"
                         onClick={() => setDeleting(r)}
                         aria-label={`Delete ${r.driveDescription}`}
                         title="Delete"
                       >
-                        <TrashIcon />
-                      </button>
+                        <Trash2 />
+                      </Button>
                     </div>
                   </td>
                 </tr>
               ))}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-4 py-8 text-center text-[13px] text-fg-3">
+                  <td colSpan={14} className="px-4 py-8 text-center text-[13px] text-muted-foreground">
                     {rows.length === 0 ? "No VFDs yet — add the first one." : "No VFD matches that search."}
                   </td>
                 </tr>
@@ -268,7 +266,7 @@ function VfdTab() {
           }}
         />
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -327,20 +325,20 @@ function VfdFormModal({
   return (
     <Modal title={row ? `Edit ${row.driveDescription}` : "Add VFD"} onClose={onClose}>
       <form onSubmit={submit} className="flex min-h-0 flex-col">
-        <div className="grid grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2">
+        <div className="grid min-h-0 grid-cols-1 gap-3 overflow-y-auto px-5 py-4 sm:grid-cols-2">
           <FieldGrid fields={VFD_FIELDS} form={form} onChange={(k, v) => setForm((p) => ({ ...p, [k]: v }))} />
-          <p className="text-[12.5px] text-fg-2 sm:col-span-2">
-            Net price: <span className="font-mono font-semibold">{formatInr(net)}</span>
+          <p className="rounded-md bg-muted/60 px-3 py-2 text-[12.5px] text-muted-foreground sm:col-span-2">
+            Net price: <span className="font-mono font-semibold text-foreground tabular-nums">{formatInr(net)}</span>
           </p>
-          {formError && <p className="text-[12.5px] text-neg sm:col-span-2">{formError}</p>}
+          {formError && <Alert className="sm:col-span-2">{formError}</Alert>}
         </div>
-        <footer className="flex justify-end gap-2 border-t border-line px-4 py-3">
-          <button type="button" className={btnSecondary} onClick={onClose}>
+        <footer className="flex shrink-0 justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3">
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" className={btnPrimary} disabled={saving}>
+          </Button>
+          <Button type="submit" disabled={saving}>
             {saving ? "Saving…" : row ? "Save changes" : "Add VFD"}
-          </button>
+          </Button>
         </footer>
       </form>
     </Modal>

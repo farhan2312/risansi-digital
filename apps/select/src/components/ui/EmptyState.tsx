@@ -1,4 +1,3 @@
-import "./EmptyState.css";
 
 export type EmptyStateIconName =
   | "folder"
@@ -27,13 +26,16 @@ const EmptyState = ({
   action,
   compact = false,
 }: EmptyStateProps) => (
-  <div className={`empty-state-panel ${compact ? "empty-state-compact" : ""}`}>
-    <div className="empty-state-icon" aria-hidden="true">
+  <div className={`flex flex-col items-center justify-center text-center ${compact ? "gap-1.5 px-4 py-6" : "gap-2 px-6 py-12"}`}>
+    <div
+      className={`mb-1 flex items-center justify-center rounded-full bg-muted text-muted-foreground ring-1 ring-border ${compact ? "size-10 [&_svg]:size-5" : "size-14 [&_svg]:size-7"}`}
+      aria-hidden="true"
+    >
       <EmptyIcon name={icon} />
     </div>
-    <h3 className="empty-state-title">{title}</h3>
-    {description && <p className="empty-state-desc">{description}</p>}
-    {action && <div className="empty-state-action">{action}</div>}
+    <h3 className={`font-semibold text-foreground ${compact ? "text-[13px]" : "text-[14.5px]"}`}>{title}</h3>
+    {description && <p className="max-w-[46ch] text-[12.5px] leading-relaxed text-muted-foreground">{description}</p>}
+    {action && <div className="mt-2">{action}</div>}
   </div>
 );
 

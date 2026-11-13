@@ -1231,3 +1231,60 @@ never auto-filled from the AI result.
   2026-11-04). It shows on the status: "Technical V1" / "Commercial V0" on the Enquiries
   list and V1 beside Reports' status. Not in page headings or audit details either
   (user, 2026-11-05).
+
+## shadcn/ui pilot: Enquiries page (user, 2026-11-13; branch select-shadcn)
+- The user asked for a "more professional" look via shadcn/ui, Enquiries page first, ON A BRANCH
+  (`select-shadcn`) so it can be dropped. Not merged to select/main until the user approves.
+- Deps: radix-ui (unified), class-variance-authority, clsx, tailwind-merge, lucide-react.
+  `components.json` (ui alias `@/components/shadcn`), `cn()` in src/lib/utils.ts. Components are
+  hand-written shadcn (button, badge, card, input + NativeSelect, dropdown-menu, alert-dialog +
+  ConfirmDialog, tabs) in src/components/shadcn - NOT src/components/ui (our own older parts).
+- Tokens: src/index.css `--sc-*` (light :root, dark [data-theme="dark"]) mapped in @theme to
+  background / foreground / card / primary (deep navy #14305a) / muted / border / input / ring /
+  destructive / success / warning / info. `accent` is still the old brand blue - shadcn's
+  "accent" hover is written as `bg-muted` here; don't use `bg-accent` in shadcn parts.
+- Enquiries page: own heading (no PageHeader), filters Card, table Card; row actions =
+  Quotation / Technical / Commercial (icons below 2xl) + a "..." DropdownMenu (modal={false},
+  so a dialog opened from it can't leave the page locked) with Review, Copy, Edit, Delete.
+  Deletes use ConfirmDialog. Its other modals, filter bar, KPIs, report panel and Pagination
+  are unchanged (still the old look).
+- Page heading in the TOP BAR (user, 2026-11-13, same branch): the breadcrumb is gone. components/layout/
+  PageTitle.tsx: PageTitleProvider (DashboardLayout), `usePageTitle(title, description)` for a page,
+  TopBarTitle in TopBar (falls back to the route's DEFAULTS map). PageHeader now only calls
+  usePageTitle and renders its children/actions (no title card). Pages with their own heading
+  (Dashboard greeting, Audit Log, Bug Tracker, the four pmm-* masters, Enquiries) call usePageTitle
+  instead; .pmm-header is just a right-aligned actions row. A new page: call usePageTitle, no <h1>.
+- Rest of the Enquiries page in shadcn (user, 2026-11-13, same branch): shadcn/dialog.tsx (Dialog
+  with header/body/footer, sizes; outside click does NOT close a form), shadcn/field.tsx (Field,
+  Label, Textarea, Alert); ConfirmDialog takes children + confirmDisabled; menus z-[1100] (above
+  dialogs at z-1001). Converted: Create/Edit (EnquiryFields shell), ClientLookup, Assign, CopyTag,
+  CopySpare, Clearance, QuotationStep (nested ConfirmDialog for "close without saving"), Versions,
+  VersionSection, SavedDocsViewer, EnquiryFilterBar, AssigneeKpis, EnquiryReportPanel, RepPicker,
+  and the SHARED Pagination / DateRangeFilter / EmptyState (new look on every page). Review and
+  EnquiryDocumentModal stay NON-Radix overlays (restyled): they print through printHtml's hidden
+  iframe and a Radix focus/pointer lock could block it. Rule: an overlay opened on top of a Radix
+  dialog must be Radix too (or inside its content).
+- Dashboard in shadcn (user, 2026-11-13, same branch): filters Card (scope Tabs, DateRangeFilter, Go to
+  Enquiries) + KPI Cards + Section cards; ClientMix, DashboardListModal (Radix Dialog) and the shared
+  charts.tsx restyled (recessive dashed grid, popover tooltip, 2px gaps, 4px rounded bar tops).
+  Chart colours: index.css --chart-1/2 (series), --chart-pending/progress/done/sent/regret/none
+  (statuses, = badge tones), --chart-s1..8 (charts.tsx PALETTE, fixed order) - all checked with the
+  dataviz validate_palette.js on the card surface, light and dark. Never --brand-* for chart marks.
+- Also in shadcn (user, 2026-11-13, same branch): Client Operation Docs / Pump Docs / Spare Docs
+  (its DocsModal stays a NON-Radix overlay - SavedDocsViewer prints via printHtml), Approvals +
+  ApprovalReviewModal (Radix), the masters (Pump Model, Gearbox, Pulley, Motor: no pmm-* classes
+  left; PumpModelMasterPage.css stays loaded in layout for anything still using it), the shared
+  tableControls (FilterBar/SortTh) and adminIcons (lucide), BOI master (boiUi Modal = Radix Dialog,
+  DeleteConfirm = ConfirmDialog), Client Quoted Prices, USD to INR (3-card grid).
+- Also in shadcn (user, 2026-11-13, same branch): spare quotation (SpareCommercial; QuotePreview stays a
+  NON-Radix overlay - prints via printHtml), QuotationPanel (SHARED with the pump Commercial Summary;
+  SnapshotModal stays non-Radix because CommercialOfferModal opens inside it), UsdToggle, Head
+  Calculator (HeadCalculatorView also feeds HeadCalcModal), Bug Tracker / My Bug Reports, the top
+  bar's ReportBugModal, Audit Log + audit/* (auditUi restyled, chart colours on --chart-* tokens).
+- Pump Commercial Summary in shadcn (user, 2026-11-13, same branch): CommercialSummaryPage (inputCls/btnSm
+  now shadcn), ScopeControls, PumpCodeInput, PumpQtyStep, ClientPriceRefModal (Radix Dialog; opened only
+  from the page). CommercialOfferModal + TechnoCommercialModal stay NON-Radix overlays at z-[1000]
+  (print via printHtml; the offer also opens inside QuotationPanel's SnapshotModal).
+- Top bar in shadcn (user, 2026-11-13, same branch): TopBar Tailwind (TopBar.css no longer imported), outline
+  Refresh / Report a Bug (labels hidden <860px), NotificationBell = outline icon button + popover at z-[1100];
+  NotificationBell.css kept ONLY for the ringing keyframes (notif-ring/pulse/badge, used via animate-[...]).

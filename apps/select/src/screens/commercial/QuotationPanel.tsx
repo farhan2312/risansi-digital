@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-import ConfirmModal from "../../components/ui/ConfirmModal";
+// shadcn/ui (user, 2026-11-13: the quotation panel in the new look, branch select-shadcn).
+import { Eye, FileText, GitBranchPlus, Save, X } from "lucide-react";
+import { Badge } from "@/components/shadcn/badge";
+import { buttonVariants } from "@/components/shadcn/button";
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import { Alert } from "@/components/shadcn/field";
 import CommercialOfferModal from "./CommercialOfferModal";
 import { discountOf, normalizeOfferConfig } from "../../lib/commercial-offer";
 import {
@@ -41,11 +46,13 @@ import {
 // makes no version. The serial (6000, 6001, …) is issued when the quotation is created.
 
 const selectCls =
-  "rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:opacity-60";
-const btnSm =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
-const btnPrimarySm =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+  "h-8 rounded-md border border-input bg-card px-2.5 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:opacity-60";
+const btnSm = buttonVariants({ variant: "outline", size: "sm" });
+const btnPrimarySm = buttonVariants();
+/** A section card, as on the other new-look pages. */
+const cardCls = "rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]";
+/** The small uppercase label over a value. */
+const labelCls = "text-[11px] font-medium tracking-wide text-muted-foreground uppercase";
 
 /** A version's grand total in USD: a spare's is its total (after its discount) at the
  *  rate, with cents; a pump's as the Commercial Offer sums it. */
@@ -182,19 +189,19 @@ export default function QuotationPanel({
   };
 
   if (!loaded) {
-    return <section className="rounded-xl border border-line bg-paper p-4 text-[13px] text-fg-3">Loading quotation…</section>;
+    return <section className={`${cardCls} p-4 text-[13px] text-muted-foreground`}>Loading quotation…</section>;
   }
   if (loadError) {
-    return <section className="rounded-xl border border-line bg-paper p-4 text-[13px] text-neg">{loadError}</section>;
+    return <section className={`${cardCls} p-4 text-[13px] text-destructive`}>{loadError}</section>;
   }
 
   // Locked: the client's rep, read-only. Otherwise a pick list.
   const tsmField = clientTsm ? (
     <div className="flex min-w-0 flex-col">
-      <span className="truncate text-[13px] font-semibold text-fg" title={tsmLabel(clientTsm)}>
+      <span className="truncate text-[13px] font-medium text-foreground" title={tsmLabel(clientTsm)}>
         {tsmLabel(clientTsm)}
       </span>
-      <span className="text-[11.5px] text-fg-3">The client's rep in the sales portal</span>
+      <span className="text-[11.5px] text-muted-foreground">The client's rep in the sales portal</span>
     </div>
   ) : (
     <select
@@ -218,12 +225,13 @@ export default function QuotationPanel({
   // e.g. for a drive system added after the first quotation.
   if (!quotation) {
     return (
-      <section className="rounded-xl border border-[var(--warn)] bg-paper">
-        <header className="border-b border-line px-4 py-3">
-          <h2 className="text-[14px] font-semibold text-fg">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
+      <section className="overflow-hidden rounded-lg border border-warning/40 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <header className="flex items-center gap-2 border-b border-warning/25 bg-warning/8 px-4 py-3">
+          <FileText className="size-4 text-warning" />
+          <h2 className="text-[13px] font-semibold text-foreground">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
         </header>
         <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <p className="text-[13px] text-fg-2">
+          <p className="text-[13px] text-muted-foreground">
             No quotation for {groupLabel ? `the ${groupLabel} tags` : "this enquiry"} yet — generate it on the Quotation step.
           </p>
           {!readOnly && (
@@ -251,14 +259,19 @@ export default function QuotationPanel({
   const saveLabel = sent ? `Save again Version V${quotation.nextClientVersion}` : `Save Version V${quotation.nextClientVersion}`;
 
   return (
-    <section className="rounded-xl border border-line bg-paper">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-        <div className="min-w-0">
-          <h2 className="text-[14px] font-semibold text-fg">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
-          <p className="mt-0.5 font-mono text-[15px] font-semibold break-all text-fg">
-            <span className="mr-1.5 font-sans text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No. (System)</span>
-            {quotation.number}
-          </p>
+    <section className={`overflow-hidden ${cardCls}`}>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <FileText className="size-3.5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[13px] font-semibold text-foreground">Quotation{groupLabel ? ` — ${groupLabel}` : ""}</h2>
+            <p className="mt-0.5 font-mono text-[14px] font-semibold break-all text-primary">
+              <span className={`mr-1.5 font-sans ${labelCls}`}>Quotation No. (System)</span>
+              {quotation.number}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!isSpare && (
@@ -280,7 +293,7 @@ export default function QuotationPanel({
               setConfirm("internal");
             }}
           >
-            New internal version
+            <GitBranchPlus /> New internal version
           </button>
           )}
           <button
@@ -298,7 +311,7 @@ export default function QuotationPanel({
             }
             onClick={() => setConfirm("send")}
           >
-            {saveLabel}
+            <Save /> {saveLabel}
           </button>
           </>
           )}
@@ -307,10 +320,10 @@ export default function QuotationPanel({
 
       <fieldset disabled={readOnly} className="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Quotation No.</span>
+          <span className={labelCls}>Quotation No.</span>
           <span className="flex flex-wrap items-center gap-1.5">
             <input
-              className="w-[120px] rounded-md border border-line bg-paper px-2 py-1 font-mono text-[12.5px] text-fg uppercase outline-none focus:border-accent"
+              className="h-7 w-[120px] rounded-md border border-input bg-card px-2 font-mono text-[12.5px] text-foreground uppercase shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
               value={erpDraft}
               maxLength={30}
               placeholder="Serial"
@@ -328,17 +341,17 @@ export default function QuotationPanel({
               </button>
             )}
           </span>
-          <span className="font-mono text-[11.5px] break-all text-fg-2">{quotation.erpNumber ?? "—"}</span>
+          <span className="font-mono text-[11.5px] break-all text-muted-foreground">{quotation.erpNumber ?? "—"}</span>
         </div>
         <Info label="Date" value={new Date(quotation.quoteDate).toLocaleDateString("en-IN", { dateStyle: "medium" })} />
         <Info label="Client" value={[quotation.clientName, quotation.clientCode].filter(Boolean).join(" · ") || "—"} />
         <Info label="Region (TSM initials)" value={quotation.regionCode ?? "—"} />
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">TSM</span>
+          <span className={labelCls}>TSM</span>
           {clientTsm && tsmChanged ? (
             <div className="flex flex-col gap-1.5">
-              <span className="truncate text-[13px] text-fg">{quotation.tsmName ?? "—"}</span>
-              <span className="text-[11.5px] text-warn">Sales now shows {clientTsm.name} as the client's rep.</span>
+              <span className="truncate text-[13px] text-foreground">{quotation.tsmName ?? "—"}</span>
+              <span className="text-[11.5px] text-warning">Sales now shows {clientTsm.name} as the client's rep.</span>
               <button type="button" className={`${btnSm} self-start`} disabled={busy} onClick={() => setConfirm("tsm")}>
                 Update to {clientTsm.initials}
               </button>
@@ -356,33 +369,47 @@ export default function QuotationPanel({
         </div>
       </fieldset>
 
-      {sendBlock && !readOnly && <p className="px-4 pb-2 text-[12px] font-semibold text-warn">{saveLabel} is waiting: {sendBlock}</p>}
+      {sendBlock && !readOnly && (
+        <div className="px-4 pb-3">
+          <Alert tone="warning">
+            {saveLabel} is waiting: {sendBlock}
+          </Alert>
+        </div>
+      )}
       {sent && !sendAgain && !readOnly && (
-        <p className="px-4 pb-3 text-[12.5px] font-semibold text-pos">
+        <div className="px-4 pb-3">
+        <Alert tone="success">
           {isSpare
             ? `Version V${quotation.nextClientVersion} saved. If anything is corrected, Save again replaces it.`
             : `Version V${quotation.nextClientVersion} saved. If a price or document is corrected, saving again replaces client ${versionLabel(quotation.clientVersion)}.`}
-        </p>
+        </Alert>
+        </div>
       )}
       {sendAgain && !readOnly && (
-        <p className="px-4 pb-3 text-[12.5px] font-semibold text-warn">
+        <div className="px-4 pb-3">
+        <Alert tone="warning">
           {isSpare ? "The quotation or its document has" : "Prices or documents have"} changed since this version was saved. Save again to replace{" "}
           {isSpare ? `Version V${quotation.nextClientVersion}` : `client ${versionLabel(quotation.clientVersion)}`}.
-        </p>
+        </Alert>
+        </div>
       )}
       {hasUnsavedPrices && (
-        <p className="px-4 pb-2 text-[12px] text-warn">
+        <p className="px-4 pb-3 text-[12px] font-medium text-warning">
           Save the price changes below before {isSpare ? "saving the version" : "making a new internal version or saving the version"}.
         </p>
       )}
-      {actionError && <p className="px-4 pb-3 text-[12.5px] text-neg">{actionError}</p>}
+      {actionError && (
+        <div className="px-4 pb-3">
+          <Alert>{actionError}</Alert>
+        </div>
+      )}
 
-      <div className={`grid grid-cols-1 gap-4 border-t border-line p-4 md:grid-cols-2 ${isSpare ? "hidden" : ""}`}>
+      <div className={`grid grid-cols-1 gap-4 border-t border-border bg-muted/30 p-4 md:grid-cols-2 ${isSpare ? "hidden" : ""}`}>
         <VersionList title="Internal versions" hint="A new one each time the TSM asks for changes." items={internal} onView={setViewing} />
         <VersionList title="Client versions" hint="One for each version of the enquiry. Saving again replaces it." items={client} onView={setViewing} />
       </div>
 
-      <ConfirmModal
+      <ConfirmDialog
         open={confirm === "tsm"}
         title={`Change TSM to ${picked?.name ?? ""}?`}
         description={
@@ -397,7 +424,7 @@ export default function QuotationPanel({
         onClose={() => setConfirm(null)}
         onConfirm={() => picked && run(() => changeQuotationTsm(quotation.id, picked.id), "Couldn't change the TSM.")}
       />
-      <ConfirmModal
+      <ConfirmDialog
         open={confirm === "internal"}
         title={`Record internal V${quotation.internalVersion + 1}?`}
         description={
@@ -423,13 +450,13 @@ export default function QuotationPanel({
           run(() => newInternalVersion(quotation.id, note.trim()), "Couldn't record the internal version.");
         }}
       >
-        <label className="mt-3 flex flex-col gap-1.5 text-left">
-          <span className="text-[12px] font-semibold text-fg-2">
+        <label className="flex flex-col gap-1.5 text-left">
+          <span className="text-[12px] font-medium text-foreground">
             Changes requested by the TSM ({quotation.tsmName ?? "—"})
           </span>
           <textarea
-            className={`min-h-[80px] resize-y rounded-lg border bg-paper px-3 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft ${
-              noteError ? "border-neg" : "border-line"
+            className={`min-h-[80px] resize-y rounded-md border bg-card px-2.5 py-2 text-[12.5px] text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 ${
+              noteError ? "border-destructive" : "border-input"
             }`}
             value={note}
             maxLength={2000}
@@ -439,10 +466,10 @@ export default function QuotationPanel({
               if (e.target.value.trim()) setNoteError(false);
             }}
           />
-          {noteError && <span className="text-[11.5px] text-neg">Describe what the TSM asked to change.</span>}
+          {noteError && <span className="text-[11.5px] font-medium text-destructive">Describe what the TSM asked to change.</span>}
         </label>
-      </ConfirmModal>
-      <ConfirmModal
+      </ConfirmDialog>
+      <ConfirmDialog
         open={confirm === "send"}
         title={`${saveLabel}?`}
         description={
@@ -485,9 +512,9 @@ export default function QuotationPanel({
 
 function VersionBadge({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-sunk px-2.5 py-1 text-[12px]">
-      <span className="text-fg-3">{label}</span>
-      <b className={`font-mono ${muted ? "text-fg-3" : "text-fg"}`}>{value}</b>
+    <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2.5 text-[12px] ring-1 ring-border ring-inset">
+      <span className="text-muted-foreground">{label}</span>
+      <b className={`font-mono font-semibold ${muted ? "text-muted-foreground" : "text-foreground"}`}>{value}</b>
     </span>
   );
 }
@@ -495,8 +522,8 @@ function VersionBadge({ label, value, muted }: { label: string; value: string; m
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <span className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">{label}</span>
-      <span className="truncate pt-1.5 text-[13px] text-fg" title={value}>
+      <span className={labelCls}>{label}</span>
+      <span className="truncate pt-1 text-[13px] text-foreground" title={value}>
         {value}
       </span>
     </div>
@@ -516,29 +543,29 @@ function VersionList({
 }) {
   return (
     <div className="min-w-0">
-      <h3 className="text-[12.5px] font-semibold text-fg">{title}</h3>
-      <p className="mb-2 text-[11.5px] text-fg-3">{hint}</p>
+      <h3 className="text-[12.5px] font-semibold text-foreground">{title}</h3>
+      <p className="mb-2 text-[11.5px] text-muted-foreground">{hint}</p>
       {items.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-line px-3 py-2.5 text-[12.5px] text-fg-3">None yet.</p>
+        <p className="rounded-md border border-dashed border-border bg-card px-3 py-2.5 text-[12.5px] text-muted-foreground">None yet.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-line rounded-lg border border-line">
+        <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border bg-card">
           {items.map((v) => (
-            <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2">
+            <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2 transition-colors hover:bg-muted/50">
               <div className="min-w-0">
-                <p className="text-[13px] text-fg">
-                  <b className="font-mono">V{v.version}</b> <span className="text-fg-2">· {v.reason ?? ""}</span>
+                <p className="text-[13px] text-foreground">
+                  <b className="font-mono font-semibold">V{v.version}</b> <span className="text-muted-foreground">· {v.reason ?? ""}</span>
                   {v.live && (
-                    <span className="ml-2 rounded-full bg-[var(--pos-soft)] px-2 py-0.5 text-[10.5px] font-semibold text-pos">
+                    <Badge tone="success" dot className="ml-2">
                       Live · follows saved prices
-                    </span>
+                    </Badge>
                   )}
                 </p>
                 {v.note && (
-                  <p className="line-clamp-2 text-[12px] text-fg-2" title={v.note}>
+                  <p className="line-clamp-2 text-[12px] text-foreground/85" title={v.note}>
                     &ldquo;{v.note}&rdquo;
                   </p>
                 )}
-                <p className="truncate text-[11.5px] text-fg-3">
+                <p className="truncate text-[11.5px] text-muted-foreground">
                   {fmtDate(v.createdAt)}
                   {v.createdByName ? ` · ${v.createdByName}` : ""} · TSM {v.tsmInitials ?? "—"} ·{" "}
                   {formatInr(v.snapshot.grandTotal)}
@@ -546,7 +573,7 @@ function VersionList({
                 </p>
               </div>
               <button type="button" className={btnSm} onClick={() => onView(v)}>
-                View
+                <Eye /> View
               </button>
             </li>
           ))}
@@ -582,40 +609,47 @@ function SnapshotModal({
   // A spare quotation's rows are its parts.
   const isSpare = Boolean(s.spare);
   return (
+    // A plain overlay, not a Radix Dialog: it opens the Commercial Offer (its own plain
+    // overlay, which prints) on top of itself.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[1px]"
       role="dialog"
       aria-modal="true"
+      aria-label={label}
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-[900px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
+        className="flex max-h-[90vh] w-full max-w-[900px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-[0_24px_64px_rgba(15,23,42,0.25)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+        <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div>
-            {number && <p className="font-mono text-[12.5px] font-semibold break-all text-fg-2">{number}</p>}
-            <h3 className="text-[14px] font-semibold text-fg">
+            {number && <p className="font-mono text-[12.5px] font-semibold break-all text-primary">{number}</p>}
+            <h3 className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-foreground">
               {version.track === "internal" ? "Internal" : "Client"} V{version.version}
-              {version.live && <span className="ml-2 text-[12px] font-normal text-pos">Live — current saved prices</span>}
+              {version.live && (
+                <Badge tone="success" dot>
+                  Live — current saved prices
+                </Badge>
+              )}
             </h3>
-            <p className="text-[12px] text-fg-3">
+            <p className="text-[12.5px] text-muted-foreground">
               {version.reason} · {fmtDate(version.createdAt)} · TSM {version.tsmName ?? "—"}
             </p>
             {version.note && (
-              <p className="mt-1 text-[12.5px] whitespace-pre-line text-fg-2">
-                <span className="font-semibold">Asked for:</span> {version.note}
+              <p className="mt-1 text-[12.5px] whitespace-pre-line text-foreground/85">
+                <span className="font-medium text-foreground">Asked for:</span> {version.note}
               </p>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {!isSpare && (
               <button type="button" className={btnSm} onClick={() => setShowOffer(true)}>
-                Commercial Offer
+                <FileText /> Commercial Offer
               </button>
             )}
-            <button type="button" className={btnSm} onClick={onClose}>
-              Close
+            <button type="button" className={buttonVariants({ variant: "ghost", size: "icon" })} onClick={onClose} aria-label="Close">
+              <X className="size-4" />
             </button>
           </div>
         </header>
@@ -641,7 +675,7 @@ function SnapshotModal({
         <div className="overflow-auto">
           <table className="w-full min-w-[600px] text-[13px]">
             <thead>
-              <tr className="border-b border-line text-left text-[11.5px] font-semibold tracking-[0.06em] text-fg-3 uppercase">
+              <tr className="border-b border-border bg-muted/60 text-left text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                 <th className="px-4 py-2">{isSpare ? "Part" : "Tag"}</th>
                 <th className="px-4 py-2">{isSpare ? "Model" : "Pump Model"}</th>
                 <th className="px-4 py-2 text-right">Unit Price</th>
@@ -651,28 +685,28 @@ function SnapshotModal({
             </thead>
             <tbody>
               {s.tags.map((t, i) => (
-                <tr key={i} className="border-b border-line last:border-b-0">
-                  <td className="px-4 py-2 font-semibold text-fg">{t.tagName}</td>
-                  <td className="px-4 py-2 text-fg-2">{t.productCode ?? t.model ?? "—"}</td>
-                  <td className="px-4 py-2 text-right font-mono">{formatInr(t.unit)}</td>
-                  <td className="px-4 py-2 text-right font-mono">{t.quantity ?? "—"}</td>
-                  <td className="px-4 py-2 text-right font-mono">{formatInr(t.sub)}</td>
+                <tr key={i} className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/50">
+                  <td className="px-4 py-2 font-medium text-foreground">{t.tagName}</td>
+                  <td className="px-4 py-2 font-mono text-[12.5px] text-muted-foreground">{t.productCode ?? t.model ?? "—"}</td>
+                  <td className="px-4 py-2 text-right font-mono tabular-nums">{formatInr(t.unit)}</td>
+                  <td className="px-4 py-2 text-right font-mono tabular-nums">{t.quantity ?? "—"}</td>
+                  <td className="px-4 py-2 text-right font-mono tabular-nums">{formatInr(t.sub)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-line-strong bg-sunk">
-                <td colSpan={4} className="px-4 py-2.5 text-right font-semibold text-fg">
+              <tr className="border-t border-input bg-muted/60">
+                <td colSpan={4} className="px-4 py-2.5 text-right font-semibold text-foreground">
                   Grand Total
                 </td>
-                <td className="px-4 py-2.5 text-right font-mono font-bold text-fg">{formatInr(s.grandTotal)}</td>
+                <td className="px-4 py-2.5 text-right font-mono font-semibold text-foreground tabular-nums">{formatInr(s.grandTotal)}</td>
               </tr>
               {s.fx && (
-                <tr className="bg-sunk">
-                  <td colSpan={4} className="px-4 pb-2.5 text-right text-[12px] text-fg-3">
+                <tr className="bg-muted/60">
+                  <td colSpan={4} className="px-4 pb-2.5 text-right text-[12px] text-muted-foreground">
                     Quoted in USD · 1 USD = ₹{s.fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}
                   </td>
-                  <td className="px-4 pb-2.5 text-right font-mono font-bold text-accent">
+                  <td className="px-4 pb-2.5 text-right font-mono font-semibold text-primary tabular-nums">
                     {snapshotUsd(s, s.fx.rate)}
                   </td>
                 </tr>
@@ -681,13 +715,13 @@ function SnapshotModal({
           </table>
 
           {/* Each tag's price build-up, as saved in this version. */}
-          <div className={`flex flex-col gap-3 border-t border-line bg-sunk p-4 ${isSpare ? "hidden" : ""}`}>
+          <div className={`flex flex-col gap-3 border-t border-border bg-muted/40 p-4 ${isSpare ? "hidden" : ""}`}>
             {s.remarks && (
-              <p className="rounded-lg border border-line bg-paper px-3 py-2 text-[12.5px] whitespace-pre-line text-fg-2">
-                <span className="font-semibold">Remarks:</span> {s.remarks}
+              <p className="rounded-md border border-border bg-card px-3 py-2 text-[12.5px] whitespace-pre-line text-foreground/85">
+                <span className="font-medium text-foreground">Remarks:</span> {s.remarks}
               </p>
             )}
-            <h4 className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">Details by tag</h4>
+            <h4 className={labelCls}>Details by tag</h4>
             {s.tags.map((t, i) => (
               <TagBreakdown key={i} tag={t} discount={discountOf(s.offer)} />
             ))}
@@ -716,30 +750,30 @@ function TagBreakdown({ tag, discount }: { tag: SnapshotTag; discount: QuoteDisc
   const p = tag.prices;
   const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ") || null;
   const line = (label: string, value: number | null | undefined, note?: string | null, key?: string) => (
-    <tr key={key ?? label} className="border-b border-line last:border-b-0">
-      <td className="px-3 py-1.5 text-fg-2">
+    <tr key={key ?? label} className="border-b border-border last:border-b-0">
+      <td className="px-3 py-1.5 text-foreground/85">
         {label}
-        {note && <span className="ml-2 font-mono text-[11.5px] text-fg-3">{note}</span>}
+        {note && <span className="ml-2 font-mono text-[11.5px] text-muted-foreground">{note}</span>}
       </td>
-      <td className={`px-3 py-1.5 text-right font-mono ${value == null ? "text-fg-4" : "text-fg"}`}>
+      <td className={`px-3 py-1.5 text-right font-mono tabular-nums ${value == null ? "text-muted-foreground/70" : "text-foreground"}`}>
         {formatInr(value ?? null)}
       </td>
     </tr>
   );
   return (
-    <section className="rounded-lg border border-line bg-paper">
-      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-3 py-2">
-        <span className="text-[13.5px] font-semibold text-fg">
+    <section className="overflow-hidden rounded-md border border-border bg-card">
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-3 py-2">
+        <span className="text-[13px] font-semibold text-foreground">
           {tag.tagName}
-          <span className="ml-2 text-[12.5px] font-normal text-fg-3">{tag.productCode ?? tag.model ?? "No pump"}</span>
+          <span className="ml-2 text-[12.5px] font-normal text-muted-foreground">{tag.productCode ?? tag.model ?? "No pump"}</span>
         </span>
-        <span className="text-[12px] text-fg-3">Qty {tag.quantity ?? "not set"}</span>
+        <span className="text-[12px] text-muted-foreground">Qty {tag.quantity ?? "not set"}</span>
       </header>
       <table className="w-full text-[12.5px]">
         <tbody>
           {line("Pump & Accessories", p.paPrice, p.paBasis)}
-          <tr className="border-b border-line bg-sunk">
-            <td colSpan={2} className="px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
+          <tr className="border-b border-border bg-muted/60">
+            <td colSpan={2} className="px-3 py-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
               BOI items
             </td>
           </tr>
@@ -764,39 +798,39 @@ function TagBreakdown({ tag, discount }: { tag: SnapshotTag; discount: QuoteDisc
           )}
         </tbody>
         <tfoot className="text-[12.5px]">
-          <tr className="border-t border-line">
-            <td className="px-3 py-1.5 text-right text-fg-3">BOI total</td>
-            <td className="px-3 py-1.5 text-right font-mono text-fg-2">{formatInr(boiTotal({ ...p, others: p.others ?? [] }))}</td>
+          <tr className="border-t border-border">
+            <td className="px-3 py-1.5 text-right text-muted-foreground">BOI total</td>
+            <td className="px-3 py-1.5 text-right font-mono text-foreground/85 tabular-nums">{formatInr(boiTotal({ ...p, others: p.others ?? [] }))}</td>
           </tr>
           {discount.paPct > 0 && (
             <tr>
-              <td className="px-3 py-1.5 text-right text-fg-3">P&amp;A less {discount.paPct}% discount</td>
-              <td className="px-3 py-1.5 text-right font-mono text-fg-2">{formatInr(finalPa(p, discount))}</td>
+              <td className="px-3 py-1.5 text-right text-muted-foreground">P&amp;A less {discount.paPct}% discount</td>
+              <td className="px-3 py-1.5 text-right font-mono text-foreground/85 tabular-nums">{formatInr(finalPa(p, discount))}</td>
             </tr>
           )}
           {discount.boiPct > 0 && (
             <tr>
-              <td className="px-3 py-1.5 text-right text-fg-3">BOI less {discount.boiPct}% discount</td>
-              <td className="px-3 py-1.5 text-right font-mono text-fg-2">{formatInr(finalBoi(p, discount))}</td>
+              <td className="px-3 py-1.5 text-right text-muted-foreground">BOI less {discount.boiPct}% discount</td>
+              <td className="px-3 py-1.5 text-right font-mono text-foreground/85 tabular-nums">{formatInr(finalBoi(p, discount))}</td>
             </tr>
           )}
           <tr>
-            <td className="px-3 py-1.5 text-right font-semibold text-fg">Unit price</td>
-            <td className="px-3 py-1.5 text-right font-mono font-semibold text-fg">{formatInr(tag.unit)}</td>
+            <td className="px-3 py-1.5 text-right font-semibold text-foreground">Unit price</td>
+            <td className="px-3 py-1.5 text-right font-mono font-semibold text-foreground tabular-nums">{formatInr(tag.unit)}</td>
           </tr>
           <tr>
-            <td className="px-3 py-1.5 text-right text-fg-3">× Quantity</td>
-            <td className="px-3 py-1.5 text-right font-mono text-fg-2">{tag.quantity ?? "—"}</td>
+            <td className="px-3 py-1.5 text-right text-muted-foreground">× Quantity</td>
+            <td className="px-3 py-1.5 text-right font-mono text-foreground/85 tabular-nums">{tag.quantity ?? "—"}</td>
           </tr>
-          <tr className="border-t border-line-strong bg-sunk">
-            <td className="px-3 py-2 text-right font-semibold text-fg">Sub-total</td>
-            <td className="px-3 py-2 text-right font-mono font-bold text-fg">{formatInr(tag.sub)}</td>
+          <tr className="border-t border-input bg-muted/60">
+            <td className="px-3 py-2 text-right font-semibold text-foreground">Sub-total</td>
+            <td className="px-3 py-2 text-right font-mono font-semibold text-foreground tabular-nums">{formatInr(tag.sub)}</td>
           </tr>
         </tfoot>
       </table>
       {p.remarks && (
-        <p className="border-t border-line px-3 py-2 text-[12px] whitespace-pre-line text-fg-2">
-          <span className="font-semibold">Remarks:</span> {p.remarks}
+        <p className="border-t border-border px-3 py-2 text-[12px] whitespace-pre-line text-foreground/85">
+          <span className="font-medium text-foreground">Remarks:</span> {p.remarks}
         </p>
       )}
     </section>

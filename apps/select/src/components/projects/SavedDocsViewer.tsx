@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { FileX, Printer } from "lucide-react";
 
+import { Button } from "@/components/shadcn/button";
 import PrintPageSizeSelect, { usePrintPageSize } from "../reports/PrintPageSize";
 import { DRIVE_GROUP_LABEL } from "../../lib/commercial";
 import { buildOfferHtml } from "../../lib/commercial-offer";
@@ -21,9 +23,6 @@ const DOCS: { key: SavedDocKind; label: string }[] = [
   { key: "commercial", label: "Commercial" },
   { key: "techno", label: TECHNO_COMMERCIAL_TITLE },
 ];
-
-const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { docs: SavedDocs; /** Opens on this one. */ initialDoc?: SavedDocKind }) {
   const isSpare = docs.orderType === "spare";
@@ -63,7 +62,7 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
     <>
       <div className="flex flex-wrap items-center gap-2">
         {!isSpare && (
-          <div className="inline-flex flex-wrap rounded-lg border border-line bg-sunk p-0.5" role="tablist" aria-label="Document">
+          <div className="inline-flex h-8 flex-wrap items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="tablist" aria-label="Document">
             {DOCS.map((d) => (
               <button
                 key={d.key}
@@ -71,7 +70,9 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
                 role="tab"
                 aria-selected={doc === d.key}
                 onClick={() => setDoc(d.key)}
-                className={`rounded-md px-3 py-1 text-[12.5px] font-semibold ${doc === d.key ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"}`}
+                className={`inline-flex h-7 items-center rounded-[5px] px-3 text-[12.5px] font-medium transition-[color,background-color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 ${
+                  doc === d.key ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"
+                }`}
               >
                 {d.label}
               </button>
@@ -87,8 +88,10 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
                 role="tab"
                 aria-selected={g.group === current?.group}
                 onClick={() => setActiveGroup(g.group)}
-                className={`rounded-lg border px-3 py-1 text-[12.5px] font-semibold ${
-                  g.group === current?.group ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-accent"
+                className={`inline-flex h-8 items-center rounded-md border px-3 text-[12.5px] font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 ${
+                  g.group === current?.group
+                    ? "border-primary/30 bg-primary/8 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:border-input hover:text-foreground"
                 }`}
               >
                 {g.group === "NONE" ? techDocGroupLabel(g.group) : DRIVE_GROUP_LABEL[g.group]}
@@ -98,15 +101,22 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
         )}
         <span className="ml-auto flex flex-wrap items-center gap-2">
           <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
-          <button type="button" className={btn} disabled={!html || printing} onClick={() => void handlePrint()}>
-            {printing ? "Preparing…" : "Print / Save as PDF"}
-          </button>
+          <Button variant="outline" disabled={!html || printing} onClick={() => void handlePrint()}>
+            <Printer /> {printing ? "Preparing…" : "Print / Save as PDF"}
+          </Button>
         </span>
       </div>
       {html ? (
-        <iframe title={isSpare ? "Quotation" : DOCS.find((d) => d.key === doc)?.label} srcDoc={html} className="min-h-[62vh] w-full flex-1 rounded-lg border border-line bg-white" />
+        <iframe
+          title={isSpare ? "Quotation" : DOCS.find((d) => d.key === doc)?.label}
+          srcDoc={html}
+          className="min-h-[62vh] w-full flex-1 rounded-md border border-border bg-white"
+        />
       ) : (
-        <p className="rounded-lg border border-dashed border-line px-4 py-10 text-center text-[13px] text-fg-3">{emptyText}</p>
+        <p className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-[13px] text-muted-foreground">
+          <FileX className="size-5 text-muted-foreground/70" />
+          {emptyText}
+        </p>
       )}
     </>
   );

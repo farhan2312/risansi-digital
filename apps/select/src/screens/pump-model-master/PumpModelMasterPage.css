@@ -5,7 +5,7 @@
 
 .pmm-page {
   padding: 20px 24px 40px;
-  max-width: 1440px;
+  /* Full width (user, 2026-11-13: every page fits the screen). */
   margin: 0 auto;
 }
 
@@ -639,4 +639,23 @@ select.pmm-search {
   .pmm-form-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* The title and description moved to the top bar (user, 2026-11-13): the header is just
+   the actions row, on the right, with no card and no icon badge. */
+.pmm-header {
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  margin-bottom: 14px;
+}
+.pmm-header > div:first-child {
+  padding-left: 0;
+  min-height: 0;
+}
+.pmm-header > div:first-child::before,
+.pmm-header > div:first-child::after {
+  content: none;
 }

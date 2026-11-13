@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import "./ApprovalsPage.css";
-import "../../components/pump-selection/approval/ApprovalStep.css";
 import EmptyState from "../../components/ui/EmptyState";
 import PageHeader from "../../components/ui/PageHeader";
 import {
@@ -13,6 +11,12 @@ import {
 } from "../../lib/approval";
 import { listApprovalInbox } from "../../services/approvalService";
 import ApprovalReviewModal from "./ApprovalReviewModal";
+import { ArrowRight, CircleAlert } from "lucide-react";
+// shadcn/ui (user, 2026-11-13: the new look, branch select-shadcn).
+import { Badge } from "@/components/shadcn/badge";
+import { buttonVariants } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 
 const VIEWS: { key: ApprovalInboxView; label: string }[] = [
   { key: "awaiting", label: "Awaiting decision" },
@@ -20,12 +24,12 @@ const VIEWS: { key: ApprovalInboxView; label: string }[] = [
   { key: "all", label: "All" },
 ];
 
-/** Step pill colours by approval tone (see approvalStatusTone). */
-const STEP_TONE: Record<string, string> = {
-  ok: "bg-[var(--pos-soft)] text-pos",
-  bad: "bg-[var(--neg-soft)] text-neg",
-  sent: "bg-[var(--warn-soft)] text-warn",
-  pending: "bg-sunk text-fg-3",
+/** Step badge tone by approval tone (see approvalStatusTone). */
+const STEP_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
+  ok: "success",
+  bad: "danger",
+  sent: "warning",
+  pending: "neutral",
 };
 
 const ShieldGlyph = () => (
@@ -93,61 +97,46 @@ const ApprovalsPage = () => {
   const items = inbox?.items ?? [];
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
-      <PageHeader
-        icon={<ShieldGlyph />}
-        title="Approvals"
-        subtitle="Steps engineers have sent for your approval · open a request to review each step and decide"
-      >
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex rounded-lg border border-line bg-paper p-0.5" role="tablist">
-            {VIEWS.map((v) => {
-              const active = view === v.key;
-              return (
-                <button
-                  key={v.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setView(v.key)}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
-                    active ? "bg-accent text-white" : "text-fg-3 hover:bg-elev hover:text-fg"
-                  }`}
-                >
+    <div className="min-h-full bg-background">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
+      {/* The heading goes to the top bar (PageHeader with nothing else renders nothing). */}
+      <PageHeader icon={<ShieldGlyph />} title="Approvals" subtitle="Steps engineers have sent for your approval · open a request to review each step and decide" />
+
+      <Card>
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+          <Tabs value={view} onValueChange={(v) => setView(v as ApprovalInboxView)}>
+            <TabsList aria-label="Which requests">
+              {VIEWS.map((v) => (
+                <TabsTrigger key={v.key} value={v.key} className="gap-2">
                   {v.label}
-                  {inbox && (
-                    <span
-                      className={`rounded-full px-1.5 py-px font-mono text-[11px] ${
-                        active ? "bg-white/25 text-white" : "bg-sunk text-fg-2"
-                      }`}
-                    >
-                      {inbox.counts[v.key]}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  {inbox && <span className="rounded-full bg-muted px-1.5 py-px font-mono text-[11px] text-muted-foreground ring-1 ring-border ring-inset">{inbox.counts[v.key]}</span>}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
           {inbox && inbox.counts.awaiting > 0 && (
-            <span className="ml-auto inline-flex items-center gap-2 rounded-lg bg-[var(--warn-soft)] px-3 py-1.5 text-[12.5px] font-semibold text-warn">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-warn" />
+            <Badge tone="warning" className="ml-auto px-2.5 py-1 text-[12px]">
+              <span className="size-2 animate-pulse rounded-full bg-current" aria-hidden="true" />
               {inbox.counts.awaiting} request{inbox.counts.awaiting === 1 ? "" : "s"} waiting for a decision
-            </span>
+            </Badge>
           )}
         </div>
-      </PageHeader>
+      </Card>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-line bg-paper shadow-[0_1px_2px_rgba(10,22,40,0.04),0_8px_24px_rgba(10,22,40,0.04)]">
+      <Card className="mt-4 overflow-hidden">
         {loading && (
           <div className="space-y-2 p-4">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-[76px] animate-pulse rounded-lg bg-elev" />
+              <div key={i} className="h-[76px] animate-pulse rounded-md bg-muted" />
             ))}
           </div>
         )}
 
         {!loading && error && (
-          <div className="m-4 rounded-lg bg-[var(--neg-soft)] px-4 py-3 text-[13px] font-medium text-neg">{error}</div>
+          <div className="m-4 flex items-center gap-2 rounded-md border border-destructive/25 bg-destructive/8 px-4 py-2.5 text-[13px] font-medium text-destructive" role="alert">
+            <CircleAlert className="size-4 shrink-0" />
+            {error}
+          </div>
         )}
 
         {!loading && !error && items.length === 0 && (
@@ -164,7 +153,7 @@ const ApprovalsPage = () => {
         )}
 
         {!loading && !error && items.length > 0 && (
-          <ul className="divide-y divide-line">
+          <ul className="divide-y divide-border">
             {items.map((item) => {
               const decided = item.steps.filter((s) => s.status === "Approved" || s.status === "Rejected").length;
               return (
@@ -172,57 +161,45 @@ const ApprovalsPage = () => {
                   <button
                     type="button"
                     onClick={() => setOpenTag(item.tagId)}
-                    className="group flex w-full flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 text-left transition-colors hover:bg-elev"
+                    className="group flex w-full flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 text-left transition-colors outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
                   >
-                    <span className={`h-10 w-1 shrink-0 rounded-full ${item.awaiting > 0 ? "bg-warn" : "bg-pos"}`} aria-hidden />
+                    <span className={`h-10 w-[3px] shrink-0 rounded-full ${item.awaiting > 0 ? "bg-warning" : "bg-success"}`} aria-hidden />
                     <span className="min-w-[240px] flex-1">
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-[13px] font-bold text-title">{item.enquiryCode}</span>
-                        <span className="text-[13px] font-semibold text-fg">· {item.tagName}</span>
+                        <span className="font-mono text-[12.5px] font-semibold text-primary">{item.enquiryCode}</span>
+                        <span className="text-[13px] font-medium text-foreground">· {item.tagName}</span>
                         {item.awaiting > 0 ? (
-                          <span className="rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] font-semibold text-warn">
+                          <Badge tone="warning" dot>
                             {item.awaiting} to decide
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="rounded-full bg-[var(--pos-soft)] px-2 py-0.5 text-[11px] font-semibold text-pos">
+                          <Badge tone="success" dot>
                             All decided
-                          </span>
+                          </Badge>
                         )}
                       </span>
-                      <span className="mt-0.5 block truncate text-[12px] text-fg-3">
+                      <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
                         {[item.customerName, item.pumpModel && `Model ${item.pumpModel}`].filter(Boolean).join(" · ") || item.projectName}
                       </span>
                       <span className="mt-2 flex flex-wrap gap-1.5">
                         {item.steps.map((s) => (
-                          <span
-                            key={s.step}
-                            title={`${s.label}: ${s.status}`}
-                            className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                              STEP_TONE[approvalStatusTone(s.status)]
-                            }`}
-                          >
-                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          <Badge key={s.step} tone={STEP_TONE[approvalStatusTone(s.status)] ?? "neutral"} dot title={`${s.label}: ${s.status}`}>
                             {s.step}. {s.label}
-                          </span>
+                          </Badge>
                         ))}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-4">
                       <span className="text-right">
-                        <span className="block text-[12.5px] font-medium text-fg-2">{item.sentByName ?? "—"}</span>
-                        <span className="block font-mono text-[11.5px] text-fg-3">{fmtWhen(item.sentAt)}</span>
-                        <span className="block text-[11px] text-fg-3">
+                        <span className="block text-[12.5px] font-medium text-foreground">{item.sentByName ?? "—"}</span>
+                        <span className="block font-mono text-[11.5px] text-muted-foreground">{fmtWhen(item.sentAt)}</span>
+                        <span className="block text-[11px] text-muted-foreground">
                           {decided}/{item.steps.length} decided
                         </span>
                       </span>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition ${
-                          item.awaiting > 0
-                            ? "bg-accent text-white group-hover:-translate-y-px group-hover:shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-blue)_30%,transparent)]"
-                            : "border border-line text-fg-2 group-hover:border-accent group-hover:text-accent"
-                        }`}
-                      >
-                        {item.awaiting > 0 ? "Review" : "View"} →
+                      {/* Inside the row's button: styled as a button, not one itself. */}
+                      <span className={buttonVariants({ variant: item.awaiting > 0 ? "default" : "outline", size: "sm" })}>
+                        {item.awaiting > 0 ? "Review" : "View"} <ArrowRight />
                       </span>
                     </span>
                   </button>
@@ -231,15 +208,10 @@ const ApprovalsPage = () => {
             })}
           </ul>
         )}
-      </div>
+      </Card>
 
-      {openTag && (
-        <ApprovalReviewModal
-          tagId={openTag}
-          onClose={() => setOpenTag(null)}
-          onDecided={() => void load(view, true)}
-        />
-      )}
+      {openTag && <ApprovalReviewModal tagId={openTag} onClose={() => setOpenTag(null)} onDecided={() => void load(view, true)} />}
+    </div>
     </div>
   );
 };

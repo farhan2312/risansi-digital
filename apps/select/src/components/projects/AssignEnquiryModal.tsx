@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import ConfirmModal from "../ui/ConfirmModal";
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import { NativeSelect } from "@/components/shadcn/input";
+import { Field } from "@/components/shadcn/field";
 import { roleLabel } from "../../lib/roles";
 import { assignProject, listAssignees, type Assignee, type ProjectRecord } from "../../services/projectService";
 
@@ -46,7 +48,7 @@ export default function AssignEnquiryModal({
   };
 
   return (
-    <ConfirmModal
+    <ConfirmDialog
       open={project !== null}
       title="Assign enquiry"
       description={
@@ -62,16 +64,20 @@ export default function AssignEnquiryModal({
       busy={busy}
       onConfirm={save}
       onClose={() => !busy && onClose()}
+      confirmDisabled={!pick}
     >
-      <label className="mt-3 block text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase" htmlFor="assign-to">
-        Assign to
-      </label>
-      <select
+      <Field
+        label="Assign to"
+        htmlFor="assign-to"
+        hint="Only the person it is assigned to can work on it; everyone can still view it and copy its tags."
+        error={err || undefined}
+      >
+      <NativeSelect
         id="assign-to"
         value={pick}
         onChange={(e) => setPick(e.target.value)}
         disabled={assignees === null || busy}
-        className="mt-1.5 w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-[14px] text-fg outline-none focus:border-accent"
+        className="h-9 w-full"
       >
         <option value="">{assignees === null ? "Loading…" : "Select who works this enquiry"}</option>
         {(assignees ?? []).map((a) => (
@@ -79,9 +85,8 @@ export default function AssignEnquiryModal({
             {a.is_me ? `Me (${a.name || a.email})` : `${a.name || a.email} · ${roleLabel(a.role)}`}
           </option>
         ))}
-      </select>
-      <p className="mt-1.5 text-[12px] text-fg-3">Only the person it is assigned to can work on it; everyone can still view it and copy its tags.</p>
-      {err && <p className="mt-2 text-[12.5px] font-medium text-neg">{err}</p>}
-    </ConfirmModal>
+      </NativeSelect>
+      </Field>
+    </ConfirmDialog>
   );
 }

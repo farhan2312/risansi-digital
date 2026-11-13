@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import "./ReportBugModal.css";
+import { Bug, Lightbulb, Paperclip, X } from "lucide-react";
+// shadcn/ui (user, 2026-11-13: the Report a Bug pop-up in the new look, branch select-shadcn).
+import { Button } from "@/components/shadcn/button";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
+import { Alert, Field, Textarea } from "@/components/shadcn/field";
+import { Input, NativeSelect } from "@/components/shadcn/input";
 import { createBugReport, type BugReportSeverity, type BugReportType } from "../../services/bugReportService";
 
 type Props = {
@@ -31,7 +36,7 @@ const COPY: Record<
   }
 > = {
   bug: {
-    eyebrow: "🐞 REPORT A BUG",
+    eyebrow: "Report a bug",
     title: "Report a Bug",
     subtitle: "Tell us what went wrong — it goes straight to the admin's Bug Tracker.",
     titlePlaceholder: "Short summary of the issue",
@@ -41,7 +46,7 @@ const COPY: Record<
     submittingLabel: "Submitting…",
   },
   feature: {
-    eyebrow: "💡 REPORT A FEATURE",
+    eyebrow: "Report a feature",
     title: "Report a Feature",
     subtitle: "Tell us what you'd like to see — it goes straight to the admin's Bug Tracker.",
     titlePlaceholder: "Short summary of the request",
@@ -152,123 +157,111 @@ const ReportBugModal = ({ isOpen, onClose, page, onSubmitted }: Props) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="bug-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <button className="bug-modal-close" onClick={onClose} aria-label="Close">
-          ✕
-        </button>
+    // Escape, the X, Cancel or a click outside close it, as before.
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="md" className="max-w-[560px]" onInteractOutside={() => undefined}>
+        <DialogHeader>
+          <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            {type === "feature" ? <Lightbulb className="size-3.5 text-warning" /> : <Bug className="size-3.5 text-destructive" />}
+            {copy.eyebrow}
+          </div>
+          <DialogTitle className="text-[16px]">{copy.title}</DialogTitle>
+          <DialogDescription>{copy.subtitle}</DialogDescription>
+        </DialogHeader>
 
-        <div className="bug-modal-eyebrow">{copy.eyebrow}</div>
-        <h2 className="bug-modal-title">{copy.title}</h2>
-        <p className="bug-modal-subtitle">{copy.subtitle}</p>
-
-        <div className="bug-modal-form">
-          <div className="bug-field">
-            <label>Type</label>
-            <div className="bug-type-toggle">
-              <button
-                type="button"
-                className={type === "bug" ? "active" : ""}
-                onClick={() => setType("bug")}
-              >
-                🐞 Bug
-              </button>
-              <button
-                type="button"
-                className={type === "feature" ? "active" : ""}
-                onClick={() => setType("feature")}
-              >
-                💡 Feature
-              </button>
+        <DialogBody className="grid gap-3.5">
+          <Field label="Type">
+            <div className="inline-flex h-8 w-fit items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="radiogroup" aria-label="Type">
+              {(
+                [
+                  ["bug", "Bug", <Bug key="i" className="size-3.5" />],
+                  ["feature", "Feature", <Lightbulb key="i" className="size-3.5" />],
+                ] as const
+              ).map(([key, label, icon]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={type === key}
+                  onClick={() => setType(key)}
+                  className={`inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-[12.5px] font-medium transition-[color,background-color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 ${
+                    type === key ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
             </div>
-          </div>
+          </Field>
 
-          <div className="bug-field">
-            <label>
-              Title <span className="req">*</span>
-            </label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={copy.titlePlaceholder}
-            />
-          </div>
+          <Field label="Title" htmlFor="bug-title" required>
+            <Input id="bug-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={copy.titlePlaceholder} />
+          </Field>
 
-          <div className="bug-field">
-            <label>
-              {copy.descriptionLabel} <span className="req">*</span>
-            </label>
-            <textarea
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={copy.descriptionPlaceholder}
-            />
-          </div>
+          <Field label={copy.descriptionLabel} htmlFor="bug-description" required>
+            <Textarea id="bug-description" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={copy.descriptionPlaceholder} />
+          </Field>
 
-          <div className="bug-field-row">
-            <div className="bug-field">
-              <label>Severity</label>
-              <select value={severity} onChange={(e) => setSeverity(e.target.value as BugReportSeverity)}>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <Field label="Severity" htmlFor="bug-severity">
+              <NativeSelect id="bug-severity" value={severity} onChange={(e) => setSeverity(e.target.value as BugReportSeverity)} className="w-full">
                 {SEVERITIES.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
                 ))}
-              </select>
-            </div>
-            <div className="bug-field">
-              <label>Page / where</label>
-              <input value={pageWhere} onChange={(e) => setPageWhere(e.target.value)} />
-            </div>
+              </NativeSelect>
+            </Field>
+            <Field label="Page / where" htmlFor="bug-page">
+              <Input id="bug-page" value={pageWhere} onChange={(e) => setPageWhere(e.target.value)} />
+            </Field>
           </div>
 
-          <div className="bug-field">
-            <label>Screenshot (optional)</label>
+          <Field label="Screenshot (optional)">
             {screenshotName ? (
-              <div className="bug-screenshot-attached">
-                <span>📎 {screenshotName}</span>
-                <button
-                  type="button"
+              <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
+                <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-foreground">
+                  <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{screenshotName}</span>
+                </span>
+                <Button
+                  variant="ghost-destructive"
+                  size="sm"
                   onClick={() => {
                     setScreenshotName(null);
                     setScreenshotDataUrl(null);
                   }}
                 >
-                  Remove
-                </button>
+                  <X /> Remove
+                </Button>
               </div>
             ) : (
               <button
                 type="button"
-                className="bug-screenshot-btn"
                 onClick={() => fileInputRef.current?.click()}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-input px-3 py-3 text-[12.5px] text-muted-foreground transition outline-none hover:border-primary hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/30"
               >
-                📎 Attach a screenshot — or paste one (Ctrl/⌘+V)
+                <Paperclip className="size-3.5" /> Attach a screenshot — or paste one (Ctrl/⌘+V)
               </button>
             )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={handleFilePick}
-            />
-          </div>
+            <input ref={fileInputRef} type="file" accept="image/*" className="sr-only" onChange={handleFilePick} />
+          </Field>
 
-          {formError && <p className="bug-modal-error">{formError}</p>}
-        </div>
+          {formError && <Alert>{formError}</Alert>}
+        </DialogBody>
 
-        <div className="bug-modal-actions">
-          <button className="cancel-btn" onClick={onClose} disabled={submitting}>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
             Cancel
-          </button>
-          <button className="submit-bug-btn" onClick={handleSubmit} disabled={submitting}>
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {type === "feature" ? <Lightbulb /> : <Bug />}
             {submitting ? copy.submittingLabel : copy.submitLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

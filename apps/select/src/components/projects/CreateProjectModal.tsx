@@ -103,7 +103,7 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
       footer={
         <>
           {error && (
-            <p className="mr-auto text-[12.5px] font-medium text-neg" role="alert">
+            <p className="mr-auto text-[12.5px] font-medium text-destructive" role="alert">
               {error}
             </p>
           )}

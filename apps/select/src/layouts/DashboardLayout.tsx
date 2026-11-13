@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Sidebar from "../components/layout/Sidebar";
 import TopBar from "../components/layout/TopBar";
 import BottomNav from "../components/layout/BottomNav";
+import { PageTitleProvider } from "../components/layout/PageTitle";
 import "./DashboardLayout.css";
 
 const DashboardLayout = ({ children }: { children: ReactNode }) => {
@@ -13,6 +14,7 @@ const DashboardLayout = ({ children }: { children: ReactNode }) => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
+    <PageTitleProvider>
     <div className="dashboard-layout">
       {/* Sidebar on desktop, bottom bar on mobile — both are always rendered
           and swapped purely by CSS media queries, so there's no breakpoint
@@ -28,6 +30,7 @@ const DashboardLayout = ({ children }: { children: ReactNode }) => {
 
       <BottomNav />
     </div>
+    </PageTitleProvider>
   );
 };
 

@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { BoiFieldDef } from "../../lib/boi-master";
+import { buttonVariants } from "@/components/shadcn/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/shadcn/dialog";
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import { Label } from "@/components/shadcn/field";
+import { cn } from "@/lib/utils";
 
 // Shared pieces of the BOI Master tabs: button/input styles, the modal frame,
-// the field grid for add/edit forms and the delete confirmation.
+// the field grid for add/edit forms and the delete confirmation (shadcn look,
+// user 2026-11-13).
 
 export const inputCls =
-  "w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none transition placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft";
-export const btnSm =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:h-3.5 [&_svg]:w-3.5";
-export const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] font-semibold whitespace-nowrap text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:h-4 [&_svg]:w-4";
-export const btnSecondary =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3.5 py-2 text-[13px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:opacity-50";
+  "h-8 w-full rounded-md border border-input bg-card px-2.5 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25";
+export const btnSm = buttonVariants({ variant: "outline", size: "sm" });
+export const btnPrimary = buttonVariants({ variant: "default" });
+export const btnSecondary = buttonVariants({ variant: "outline" });
 
 export const errorMessage = (err: unknown, fallback: string): string =>
   (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
@@ -30,27 +33,19 @@ export const formFromRow = (fields: BoiFieldDef[], row: object | null | undefine
     }),
   ) as Record<string, string>;
 
+/** The form frame: a dialog with a title bar; the children are the body and footer.
+ *  Escape, the X or a click outside closes it, as before. */
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
-      <div
-        className="flex max-h-[90vh] w-full max-w-[720px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-          <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
-          <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-fg-3 hover:text-fg" aria-label="Close">
-            ✕
-          </button>
-        </header>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="lg" className="max-w-[720px]" onInteractOutside={() => onClose()}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription className="sr-only">{title}</DialogDescription>
+        </DialogHeader>
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -67,16 +62,14 @@ export function FieldGrid({
   return (
     <>
       {fields.map((f) => (
-        <label
-          key={f.key}
-          className={`flex flex-col gap-1 ${f.key === "remarks" || f.key === "description" ? "sm:col-span-2" : ""}`}
-        >
-          <span className="text-[11.5px] font-semibold text-fg-3">
+        <div key={f.key} className={cn("grid gap-1.5", (f.key === "remarks" || f.key === "description") && "sm:col-span-2")}>
+          <Label htmlFor={`boi-${f.key}`}>
             {f.label}
-            {f.required ? " *" : ""}
-          </span>
+            {f.required && <span className="ml-0.5 text-destructive">*</span>}
+          </Label>
           <input
-            className={`${inputCls} ${isNumeric(f) ? "text-right font-mono" : ""}`}
+            id={`boi-${f.key}`}
+            className={cn(inputCls, isNumeric(f) && "text-right font-mono tabular-nums")}
             type={f.kind === "date" ? "date" : isNumeric(f) ? "number" : "text"}
             step={f.kind === "integer" ? 1 : f.kind === "number" ? "any" : undefined}
             min={isNumeric(f) ? 0 : undefined}
@@ -84,7 +77,7 @@ export function FieldGrid({
             value={form[f.key]}
             onChange={(e) => onChange(f.key, e.target.value)}
           />
-        </label>
+        </div>
       ))}
     </>
   );
@@ -116,27 +109,22 @@ export function DeleteConfirm({
     }
   };
   return (
-    <Modal title={`Delete ${what}?`} onClose={onClose}>
-      <div className="flex flex-col gap-2 p-4 text-[13px] text-fg-2">
-        <p>
-          Delete <span className="font-mono font-semibold text-fg">{name}</span> from the BOI Master? It can&apos;t be
-          undone. Prices already saved on the Commercial Summary keep their amount.
-        </p>
-        {err && <p className="text-neg">{err}</p>}
-      </div>
-      <footer className="flex justify-end gap-2 border-t border-line px-4 py-3">
-        <button type="button" className={btnSecondary} onClick={onClose} disabled={busy}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-neg px-3.5 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
-          onClick={remove}
-          disabled={busy}
-        >
-          {busy ? "Deleting…" : "Delete"}
-        </button>
-      </footer>
-    </Modal>
+    <ConfirmDialog
+      open
+      title={`Delete ${what}?`}
+      description={
+        <>
+          Delete <span className="font-mono font-semibold text-foreground">{name}</span> from the BOI Master? It can&apos;t be undone.
+          Prices already saved on the Commercial Summary keep their amount.
+        </>
+      }
+      confirmLabel={busy ? "Deleting…" : "Delete"}
+      tone="danger"
+      busy={busy}
+      onConfirm={remove}
+      onClose={onClose}
+    >
+      {err && <p className="text-[12.5px] font-medium text-destructive">{err}</p>}
+    </ConfirmDialog>
   );
 }

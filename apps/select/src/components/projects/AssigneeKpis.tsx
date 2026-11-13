@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { UsersRound } from "lucide-react";
+
 import apiClient from "../../services/apiClient";
-import { Segmented } from "../../screens/admin/audit/auditUi";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
+import { Button } from "@/components/shadcn/button";
 import { roleLabel } from "../../lib/roles";
 import type { AssigneeStats, StatusCounts } from "../../lib/assignee-stats";
 
@@ -22,17 +25,17 @@ const dayStart = (v: string) => new Date(`${v}T00:00:00`).toISOString();
 const dayEnd = (v: string) => new Date(`${v}T23:59:59.999`).toISOString();
 
 const STATUS = [
-  { key: "pending", label: "Pending", color: "var(--warn)" },
-  { key: "inProgress", label: "In progress", color: "var(--brand-blue)" },
-  { key: "completed", label: "Completed", color: "var(--pos)" },
-  { key: "sentToClient", label: "Sent to client", color: "var(--brand-cyan)" },
-  { key: "notQuoted", label: "Not quoted", color: "var(--fg-4)" },
-  { key: "regret", label: "Regret", color: "var(--neg)" },
+  { key: "pending", label: "Pending", color: "var(--sc-warning)" },
+  { key: "inProgress", label: "In progress", color: "var(--sc-info)" },
+  { key: "completed", label: "Completed", color: "var(--sc-success)" },
+  { key: "sentToClient", label: "Sent to client", color: "var(--sc-primary)" },
+  { key: "notQuoted", label: "Not quoted", color: "var(--sc-muted-foreground)" },
+  { key: "regret", label: "Regret", color: "var(--sc-destructive)" },
 ] as const;
 
 function StatusBar({ counts }: { counts: StatusCounts }) {
   return (
-    <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-sunk" aria-hidden>
+    <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
       {counts.total > 0 &&
         STATUS.map((s) =>
           counts[s.key] > 0 ? (
@@ -48,8 +51,8 @@ function StatusRow({ label, counts }: { label: string; counts: StatusCounts }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2 text-[11px]">
-        <span className="font-medium text-fg-3">{label}</span>
-        <span className="flex items-center gap-2 font-mono font-semibold">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="flex items-center gap-2 font-mono font-medium tabular-nums">
           {STATUS.map((s, i) =>
             i < 3 || counts[s.key] > 0 ? (
               <span key={s.key} style={{ color: s.color }} title={`${s.label}: ${counts[s.key]}`}>
@@ -67,10 +70,10 @@ function StatusRow({ label, counts }: { label: string; counts: StatusCounts }) {
 /** "Pump 8" over its status rows. */
 function OrderSection({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5 border-t border-line pt-2">
-      <div className="flex items-center justify-between gap-2 text-[10.5px] font-semibold tracking-[0.08em] text-fg-2 uppercase">
+    <div className="space-y-1.5 border-t border-border pt-2">
+      <div className="flex items-center justify-between gap-2 text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">
         <span>{label}</span>
-        <span className="font-mono text-[13px] tracking-normal text-title">{count}</span>
+        <span className="font-mono text-[13px] font-semibold tracking-normal text-foreground tabular-nums">{count}</span>
       </div>
       {children}
     </div>
@@ -85,18 +88,18 @@ function AssigneeCard({ s }: { s: AssigneeStats }) {
     .map((p) => p[0]?.toUpperCase())
     .join("");
   return (
-    <div className="min-w-[200px] flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 transition hover:border-[color-mix(in_srgb,var(--brand-blue)_35%,var(--line))] hover:shadow-[0_6px_18px_rgba(10,22,40,0.07)]">
+    <div className="min-w-[200px] flex-1 rounded-md border border-border bg-card px-3 py-2.5 transition-[border-color,box-shadow] hover:border-input hover:shadow-[0_4px_14px_rgba(15,23,42,0.07)]">
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-cyan)] text-[10.5px] font-bold text-white">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary ring-1 ring-primary/15">
           {initials}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] font-semibold text-fg" title={name}>
+          <div className="truncate text-[12.5px] font-medium text-foreground" title={name}>
             {name}
           </div>
-          <div className="truncate text-[10.5px] text-fg-4">{roleLabel(s.role)}</div>
+          <div className="truncate text-[11px] text-muted-foreground">{roleLabel(s.role)}</div>
         </div>
-        <span className="font-mono text-[20px] leading-none font-bold text-title" title="Enquiries">
+        <span className="font-mono text-[20px] leading-none font-semibold text-foreground tabular-nums" title="Enquiries">
           {s.enquiries}
         </span>
       </div>
@@ -148,20 +151,17 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
   const totals = (rows ?? []).reduce((t, r) => ({ e: t.e + r.enquiries, p: t.p + r.pump.technical.total, s: t.s + r.spare.total }), { e: 0, p: 0, s: 0 });
 
   return (
-    <section className="mt-4 rounded-2xl border border-line bg-[linear-gradient(180deg,color-mix(in_srgb,var(--accent-soft)_55%,var(--bg-paper))_0%,var(--bg-paper)_70%)] px-4 py-3 sm:px-5">
-      <div className="flex flex-wrap items-center gap-3">
+    <section className="mt-4 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className={`flex flex-wrap items-center gap-3 bg-muted/40 px-4 py-2.5 ${open ? "border-b border-border" : ""}`}>
         <div className="min-w-0 flex-1">
-          <h2 className="flex items-center gap-2 text-[15px] font-semibold text-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-accent" aria-hidden>
-              <circle cx="9" cy="8" r="3.5" />
-              <path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20c0-3-1.9-5.5-4.5-6.3" />
-            </svg>
+          <h2 className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+            <UsersRound className="size-4 text-muted-foreground" aria-hidden />
             {own ? "My workload" : "Team workload"}
           </h2>
-          <p className="mt-0.5 text-[12px] text-fg-3">
+          <p className="mt-0.5 text-[12px] text-muted-foreground">
             {rows ? (
               <>
-                <b className="font-mono text-fg">{totals.e}</b> enquir{totals.e === 1 ? "y" : "ies"} · <b className="font-mono text-fg">{totals.p}</b> pump · <b className="font-mono text-fg">{totals.s}</b> spare {periodText}
+                <b className="font-mono font-semibold text-foreground tabular-nums">{totals.e}</b> enquir{totals.e === 1 ? "y" : "ies"} · <b className="font-mono font-semibold text-foreground tabular-nums">{totals.p}</b> pump · <b className="font-mono font-semibold text-foreground tabular-nums">{totals.s}</b> spare {periodText}
               </>
             ) : (
               `Enquiries ${periodText}, by person`
@@ -170,24 +170,22 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
         </div>
         {open && (
           <div className="flex flex-wrap items-center gap-2">
-            <Segmented
-              value={period}
-              onChange={setPeriod}
-              options={[
-                { key: "daily", label: "Daily" },
-                { key: "all", label: "All time" },
-                { key: "range", label: "Pick range" },
-              ]}
-            />
+            <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+              <TabsList aria-label="Period">
+                <TabsTrigger value="daily">Daily</TabsTrigger>
+                <TabsTrigger value="all">All time</TabsTrigger>
+                <TabsTrigger value="range">Pick range</TabsTrigger>
+              </TabsList>
+            </Tabs>
             {period === "range" && (
-              <span className="flex items-center gap-1.5 text-[12px] text-fg-3">
+              <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
                 <input
                   type="date"
                   value={fromDate}
                   max={toDate || undefined}
                   onChange={(e) => setFromDate(e.target.value)}
                   aria-label="From"
-                  className="h-8 rounded-lg border border-line bg-paper px-2 text-[12.5px] text-fg outline-none focus:border-accent"
+                  className="h-8 rounded-md border border-input bg-card px-2 font-mono text-[12px] text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
                 />
                 →
                 <input
@@ -196,14 +194,14 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
                   min={fromDate || undefined}
                   onChange={(e) => setToDate(e.target.value)}
                   aria-label="To"
-                  className="h-8 rounded-lg border border-line bg-paper px-2 text-[12.5px] text-fg outline-none focus:border-accent"
+                  className="h-8 rounded-md border border-input bg-card px-2 font-mono text-[12px] text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
                 />
               </span>
             )}
           </div>
         )}
         {open && (
-          <span className="hidden items-center gap-2.5 text-[11px] text-fg-3 md:flex" aria-hidden>
+          <span className="hidden items-center gap-2.5 text-[11px] text-muted-foreground md:flex" aria-hidden>
             {STATUS.map((s) => (
               <span key={s.key} className="flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
@@ -212,27 +210,22 @@ export default function AssigneeKpis({ own = false }: { /** A worker: just their
             ))}
           </span>
         )}
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:bg-accent-soft"
-          aria-expanded={open}
-        >
+        <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           {open ? "Hide" : "Show"}
-        </button>
+        </Button>
       </div>
 
       {open && (
-        <div className="mt-3">
-          {failed && <p className="text-[12.5px] text-neg">Couldn&apos;t load the team workload.</p>}
+        <div className="px-4 py-3">
+          {failed && <p className="text-[12.5px] text-destructive">Couldn&apos;t load the team workload.</p>}
           {!failed && rows === null && (
             <div className={`flex gap-2.5 overflow-x-auto pb-1 ${own ? "max-w-[380px]" : ""}`}>
               {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-[180px] min-w-[200px] flex-1 animate-pulse rounded-xl border border-line bg-paper" />
+                <div key={i} className="h-[180px] min-w-[200px] flex-1 animate-pulse rounded-md border border-border bg-muted/60" />
               ))}
             </div>
           )}
-          {!failed && rows && rows.length === 0 && <p className="text-[12.5px] text-fg-3">{own ? "Nothing assigned to you yet." : "Nobody to assign enquiries to yet."}</p>}
+          {!failed && rows && rows.length === 0 && <p className="text-[12.5px] text-muted-foreground">{own ? "Nothing assigned to you yet." : "Nobody to assign enquiries to yet."}</p>}
           {!failed && rows && rows.length > 0 && (
             <div className={`flex gap-2.5 overflow-x-auto pb-1 ${own ? "max-w-[380px]" : ""}`}>
               {rows.map((s) => (

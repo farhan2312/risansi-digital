@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Eye, FileSpreadsheet, History, ListPlus, Printer, RotateCcw, Save, X } from "lucide-react";
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Input } from "@/components/shadcn/input";
 import EmptyState from "../ui/EmptyState";
 import Spinner from "../ui/Spinner";
 import {
@@ -47,12 +51,6 @@ export interface EnquiryDocumentSource {
  *
  * Shown from both the Reports page and the Enquiries page.
  */
-// Same buttons as the Commercial Offer popup.
-const frameBtn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
-const framePrimary =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
-
 const EnquiryDocumentModal = ({
   source,
   readOnly = false,
@@ -219,35 +217,51 @@ const EnquiryDocumentModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+    // A plain overlay, not a Radix Dialog: printing goes through a hidden iframe added to
+    // the page body (lib/enquiry-print), which a Radix focus trap would fight.
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[1px]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tech-doc-title"
+      onClick={onClose}
+    >
       <div
-        className="flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
+        className="relative flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-[0_24px_64px_rgba(15,23,42,0.25)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-fg">
-              Technical Data Sheet
-              <span className="ml-2 text-[13px] font-normal text-fg-3">{source.projectCode}</span>
-            </h3>
-            <p className="text-[12.5px] text-fg-3">
-              {source.projectName || "—"}
-              {data ? ` · ${data.tags.length} confirmed tag${data.tags.length === 1 ? "" : "s"}` : ""}
-              {groups.length > 1 ? ` · ${groups.length} drive groups, one sheet each` : ""}
-            </p>
-          </div>
-          <button type="button" className={frameBtn} onClick={onClose}>
-            Close
+        <header className="grid shrink-0 gap-1 border-b border-border px-5 py-4 pr-12">
+          <h3 id="tech-doc-title" className="text-[15px] leading-snug font-semibold text-foreground">
+            Technical Data Sheet
+            <span className="ml-2 font-mono text-[12.5px] font-normal text-muted-foreground">{source.projectCode}</span>
+          </h3>
+          <p className="text-[12.5px] text-muted-foreground">
+            {source.projectName || "—"}
+            {data ? ` · ${data.tags.length} confirmed tag${data.tags.length === 1 ? "" : "s"}` : ""}
+            {groups.length > 1 ? ` · ${groups.length} drive groups, one sheet each` : ""}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-3.5 right-3.5 rounded-md p-1 text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/30"
+            aria-label="Close"
+            title="Close"
+          >
+            <X className="size-4" />
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
           {isLoading && (
             <div className="py-6 text-center">
               <Spinner caption="Loading document…" />
             </div>
           )}
-          {error && <p className="text-[13px] text-neg">{error}</p>}
+          {error && (
+            <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/8 px-3 py-2 text-[12.5px] font-medium text-destructive">
+              {error}
+            </p>
+          )}
           {!isLoading && !error && !hasTags && (
             <EmptyState
               compact
@@ -272,8 +286,10 @@ const EnquiryDocumentModal = ({
                         onClick={() => {
                           setActiveGroup(g);
                         }}
-                        className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold ${
-                          g === group ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-accent"
+                        className={`inline-flex h-8 items-center rounded-md border px-3 text-[12.5px] font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 ${
+                          g === group
+                            ? "border-primary/30 bg-primary/8 text-primary"
+                            : "border-border bg-card text-muted-foreground hover:border-input hover:text-foreground"
                         }`}
                       >
                         {techDocGroupLabel(g)}
@@ -285,50 +301,55 @@ const EnquiryDocumentModal = ({
                 </div>
               )}
               {/* Save Version: again whenever the sheet has changed */}
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px]">
-                <span className="font-semibold text-fg-2">Version {versionText}:</span>
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-[12.5px]">
+                <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                  <History className="size-3.5 text-muted-foreground" /> Version {versionText}:
+                </span>
                 {versions === null ? (
-                  <span className="text-fg-3">Loading…</span>
+                  <span className="text-muted-foreground">Loading…</span>
                 ) : !lastSent ? (
-                  <span className="text-fg-3">Not saved yet</span>
+                  <span className="text-muted-foreground">Not saved yet</span>
                 ) : (
-                  <span className="text-fg-2" title={lastSent.note || undefined}>
+                  <span className="text-foreground/85" title={lastSent.note || undefined}>
                     Saved {lastSent.createdAt ? new Date(lastSent.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : ""}
                     {lastSent.createdByName ? ` by ${lastSent.createdByName}` : ""}
                     {groupSends.length > 1 ? ` · saved ${groupSends.length} times` : ""}
                   </span>
                 )}
-                {editedSinceSent && <span className="font-semibold text-warn">Edited since then</span>}
+                {editedSinceSent && (
+                  <Badge tone="warning" dot>
+                    Edited since then
+                  </Badge>
+                )}
                 <span className={`ml-auto flex flex-wrap items-center gap-1.5 ${readOnly ? "hidden" : ""}`}>
-                  <input
-                    className="w-[200px] rounded-md border border-line bg-paper px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
+                  <Input
+                    className="h-7 w-[200px]"
                     placeholder="Note (optional)"
                     value={sendNote}
                     maxLength={1000}
                     onChange={(e) => setSendNote(e.target.value)}
                     aria-label="Note for this version"
                   />
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
                     onClick={() => void sendToOperation()}
                     disabled={sending || saveState === "saving" || !hasTags || (Boolean(lastSent) && !editedSinceSent)}
-                    className="rounded-md bg-accent px-3 py-1 font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     title={lastSent && !editedSinceSent ? "Nothing has changed since it was saved" : `Save this sheet as Version ${versionText}`}
                   >
-                    {sending ? "Saving…" : lastSent && !editedSinceSent ? `Version ${versionText} saved` : `Save Version ${versionText}`}
-                  </button>
+                    <Save /> {sending ? "Saving…" : lastSent && !editedSinceSent ? `Version ${versionText} saved` : `Save Version ${versionText}`}
+                  </Button>
                 </span>
-                {sendError && <span className="w-full text-neg">{sendError}</span>}
+                {sendError && <span className="w-full font-medium text-destructive">{sendError}</span>}
               </div>
 
               {readOnly && (
-                <div className="rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px] text-fg-3">
-                  View only - you can print or download it.
+                <div className="flex items-center gap-1.5 rounded-md border border-info/25 bg-info/8 px-3 py-2 text-[12.5px] text-info">
+                  <Eye className="size-3.5" /> View only - you can print or download it.
                 </div>
               )}
 
               <div className={`flex flex-wrap items-center gap-2 ${locked ? "hidden" : ""}`}>
-                <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
+                <div className="inline-flex h-8 items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="tablist">
                   {(["preview", "edit"] as const).map((m) => (
                     <button
                       key={m}
@@ -336,36 +357,28 @@ const EnquiryDocumentModal = ({
                       role="tab"
                       aria-selected={mode === m}
                       onClick={() => setMode(m)}
-                      className={`rounded-md px-3 py-1 text-[12.5px] font-semibold ${
-                        mode === m ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"
+                      className={`inline-flex h-7 items-center rounded-[5px] px-3 text-[12.5px] font-medium transition-[color,background-color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 ${
+                        mode === m ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       {m === "preview" ? "Preview" : "Edit rows"}
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPicker((v) => !v)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent"
-                  aria-expanded={showPicker}
-                >
-                  {showPicker ? "Hide parameters" : "Add parameters"}
-                  {config.extras.length > 0 && (
-                    <span className="rounded-full bg-accent-soft px-1.5 text-[11px] text-accent">{config.extras.length}</span>
-                  )}
-                </button>
+                <Button variant="outline" onClick={() => setShowPicker((v) => !v)} aria-expanded={showPicker}>
+                  <ListPlus /> {showPicker ? "Hide parameters" : "Add parameters"}
+                  {config.extras.length > 0 && <span className="rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">{config.extras.length}</span>}
+                </Button>
                 {customised && (
-                  <button
-                    type="button"
-                    onClick={resetAll}
-                    className="rounded-lg px-2 py-1.5 text-[12px] font-semibold text-neg hover:bg-[var(--neg-soft)]"
-                    title="Undo every removal, rename, edited value and manual row"
-                  >
-                    Reset edits
-                  </button>
+                  <Button variant="ghost-destructive" onClick={resetAll} title="Undo every removal, rename, edited value and manual row">
+                    <RotateCcw /> Reset edits
+                  </Button>
                 )}
-                <span className="text-[12px] text-fg-3">
+                <span
+                  className={`text-[12px] ${
+                    saveState === "error" ? "text-destructive" : saveState === "saved" ? "text-success" : "text-muted-foreground"
+                  }`}
+                >
                   {saveState === "saving"
                     ? "Saving…"
                     : saveState === "saved"
@@ -387,23 +400,21 @@ const EnquiryDocumentModal = ({
               )}
 
               {showPicker && !locked && (
-                <div className="grid grid-cols-1 gap-4 rounded-lg border border-line bg-sunk p-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 rounded-md border border-border bg-muted/40 p-3.5 sm:grid-cols-2 lg:grid-cols-3">
                   {TECH_DOC_SECTIONS.map((section) => {
                     const fields = techDocExtrasFor(doc?.tags ?? []).filter((f) => f.section === section);
                     if (fields.length === 0) return null;
                     return (
                       <fieldset key={section} className="min-w-0">
-                        <legend className="mb-1.5 text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">
-                          {section}
-                        </legend>
+                        <legend className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{section}</legend>
                         <div className="flex flex-col gap-1">
                           {fields.map((f) => (
-                            <label key={f.key} className="flex cursor-pointer items-center gap-2 text-[12.5px] text-fg">
+                            <label key={f.key} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-[12.5px] text-foreground hover:bg-card">
                               <input
                                 type="checkbox"
                                 checked={config.extras.includes(f.key)}
                                 onChange={() => toggleExtra(f.key)}
-                                className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                                className="size-3.5 rounded border-input accent-[var(--sc-primary)]"
                               />
                               {f.label}
                             </label>
@@ -456,26 +467,22 @@ const EnquiryDocumentModal = ({
                 </div>
               ) : (
                 /* The printable sheet itself, so what you see is what prints. */
-                <iframe
-                  title="Technical Data Sheet"
-                  srcDoc={html}
-                  className="min-h-[62vh] w-full flex-1 rounded-lg border border-line bg-white"
-                />
+                <iframe title="Technical Data Sheet" srcDoc={html} className="min-h-[62vh] w-full flex-1 rounded-md border border-border bg-white" />
               )}
             </div>
           )}
         </div>
 
-        <footer className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">
+        <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3">
           {/* Native print dialog - the user picks paper size, orientation,
               page range and "Save as PDF". */}
           <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
-          <button type="button" className={framePrimary} onClick={handlePrint} disabled={printing || !hasTags}>
-            {printing ? "Preparing…" : "Print / Save as PDF"}
-          </button>
-          <button type="button" className={frameBtn} onClick={() => doc && downloadTechDocExcel(doc)} disabled={!hasTags}>
-            Download Excel
-          </button>
+          <Button onClick={handlePrint} disabled={printing || !hasTags}>
+            <Printer /> {printing ? "Preparing…" : "Print / Save as PDF"}
+          </Button>
+          <Button variant="outline" onClick={() => doc && downloadTechDocExcel(doc)} disabled={!hasTags}>
+            <FileSpreadsheet /> Download Excel
+          </Button>
         </footer>
       </div>
     </div>

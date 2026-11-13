@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Plus, RotateCcw } from "lucide-react";
 
 import {
   DEFAULT_OUT_OF_SCOPE_ITEMS,
@@ -12,13 +13,14 @@ import {
   scopePool,
   type OfferConfig,
 } from "../../lib/commercial-offer";
+import { buttonVariants } from "@/components/shadcn/button";
+import { cn } from "@/lib/utils";
 
 // Scope of supply / Out of scope pickers for the Commercial Offer sheet, shown
 // on the Commercial Summary (per drive group). Saved in the group's offer
 // config (projects.commercial_offer_config); the Commercial Offer prints them.
 
-const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
+const btn = buttonVariants({ variant: "outline", size: "sm" });
 
 /** The two lines as they will print. */
 export function ScopeLines({ config, group }: { config: OfferConfig; group: string }) {
@@ -27,7 +29,7 @@ export function ScopeLines({ config, group }: { config: OfferConfig; group: stri
   return (
     <div className="flex flex-col gap-1 text-[12.5px]">
       <p className="font-semibold text-[#c00000] italic">Scope of supply :- {scope || "—"}</p>
-      <p className="text-fg-2 italic">Out Of Scope :- {out || "—"}</p>
+      <p className="text-muted-foreground italic">Out Of Scope :- {out || "—"}</p>
     </div>
   );
 }
@@ -108,7 +110,7 @@ export default function ScopeControls({
       />
       <ScopeDropdown
         label="Out of scope"
-        tone="text-fg-2"
+        tone="text-foreground"
         pool={pool}
         selected={outScope}
         elsewhere={inScope}
@@ -118,18 +120,18 @@ export default function ScopeControls({
         onAdd={(i) => addItem("out", i)}
         onReset={() => reset("out")}
       />
-      <span className="text-[11.5px] text-fg-3">Ticked items print on the sheet; an item is in one list or the other.</span>
+      <span className="text-[11.5px] text-muted-foreground">Ticked items print on the sheet; an item is in one list or the other.</span>
       {typed && (
         // A line typed on a document prints instead of the ticked items.
-        <span className="flex w-full flex-wrap items-center gap-2 rounded-md bg-[var(--warn-soft)] px-2.5 py-1.5 text-[12px] text-fg-2">
-          <b className="text-warn">
+        <span className="flex w-full flex-wrap items-center gap-2 rounded-md border border-warning/25 bg-warning/10 px-2.5 py-1.5 text-[12px] text-foreground">
+          <b className="text-warning">
             {config.scopeText && config.outOfScopeText ? "Both lines are" : config.scopeText ? "Scope of supply is" : "Out of scope is"} typed
             on the document
           </b>
           — it prints instead of the ticked items.
           <button
             type="button"
-            className="font-semibold text-accent hover:underline"
+            className="font-semibold text-primary hover:underline"
             onClick={() => onChange({ ...config, scopeText: "", outOfScopeText: "" })}
           >
             Restore picked items
@@ -186,14 +188,16 @@ function ScopeDropdown({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`${btn} ${changed ? "border-warn" : ""}`}
+        className={cn(btn, changed && "border-warning/60 bg-warning/5")}
+        title={changed ? "Changed from the default" : undefined}
       >
         <span className={tone}>{label}</span>
-        <span className="rounded-full bg-sunk px-1.5 text-[11px] text-fg-2">{selected.length}</span>
-        <span aria-hidden="true">▾</span>
+        <span className="rounded-full bg-muted px-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">{selected.length}</span>
+        <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute left-0 z-20 mt-1 flex w-[340px] flex-col rounded-lg border border-line bg-paper shadow-[0_12px_32px_rgba(0,0,0,0.18)]">
+        // Absolute inside its own box, so inside a dialog it stays in the dialog's content.
+        <div className="absolute left-0 z-[1100] mt-1 flex w-[340px] flex-col overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-[0_8px_28px_rgba(15,23,42,0.14)]">
           <div className="max-h-[300px] overflow-y-auto p-1.5">
             {pool.map((item) => {
               const on = selected.includes(item);
@@ -201,23 +205,23 @@ function ScopeDropdown({
               return (
                 <label
                   key={item}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] text-fg hover:bg-sunk"
+                  className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-[12.5px] text-foreground hover:bg-muted"
                 >
                   <input
                     type="checkbox"
                     checked={on}
                     onChange={() => onToggle(item)}
-                    className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                    className="size-3.5 accent-[var(--sc-primary)]"
                   />
                   <span className="min-w-0 flex-1">{item}</span>
-                  {other && <span className="shrink-0 text-[10.5px] text-fg-4">{elsewhereLabel}</span>}
+                  {other && <span className="shrink-0 text-[10.5px] text-muted-foreground">{elsewhereLabel}</span>}
                 </label>
               );
             })}
           </div>
-          <div className="flex items-center gap-1.5 border-t border-line p-2">
+          <div className="flex items-center gap-1.5 border-t border-border bg-muted/40 p-2">
             <input
-              className="min-w-0 flex-1 rounded-md border border-line bg-paper px-2 py-1 text-[12.5px] text-fg outline-none focus:border-accent"
+              className="h-7 min-w-0 flex-1 rounded-md border border-input bg-card px-2 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
               placeholder="Add an item…"
               value={text}
               maxLength={120}
@@ -230,16 +234,16 @@ function ScopeDropdown({
               }}
             />
             <button type="button" className={btn} onClick={add} disabled={!text.trim()}>
-              Add
+              <Plus /> Add
             </button>
           </div>
           {changed && (
             <button
               type="button"
               onClick={onReset}
-              className="border-t border-line px-3 py-1.5 text-left text-[12px] font-semibold text-accent hover:bg-sunk"
+              className="flex items-center gap-1.5 border-t border-border px-3 py-1.5 text-left text-[12px] font-medium text-primary hover:bg-muted [&_svg]:size-3.5"
             >
-              Reset to default
+              <RotateCcw /> Reset to default
             </button>
           )}
         </div>

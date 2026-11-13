@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import "./Pagination.css";
+import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon } from "lucide-react";
 
 type PaginationProps = {
   /** 1-based current page. */
@@ -71,15 +71,15 @@ const Pagination = ({
   };
 
   return (
-    <nav className="pagination" aria-label="Pagination">
-      <span className="pagination-count">
-        Showing <strong>{from}</strong>–<strong>{to}</strong> of{" "}
-        <strong>{totalItems}</strong> {itemLabel}
+    <nav className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5" aria-label="Pagination">
+      <span className="text-[12.5px] text-muted-foreground">
+        Showing <strong className="font-medium text-foreground tabular-nums">{from}</strong>–<strong className="font-medium text-foreground tabular-nums">{to}</strong> of{" "}
+        <strong className="font-medium text-foreground tabular-nums">{totalItems}</strong> {itemLabel}
       </span>
-      <div className="pagination-controls">
+      <div className="flex items-center gap-1">
         <button
           type="button"
-          className="pagination-btn"
+          className={NAV_BTN}
           onClick={() => go(page - 1)}
           disabled={page === 1}
           aria-label="Previous page"
@@ -88,14 +88,14 @@ const Pagination = ({
         </button>
         {pages.map((p, i) =>
           p === "…" ? (
-            <span key={`e-${i}`} className="pagination-ellipsis" aria-hidden="true">
+            <span key={`e-${i}`} className="px-1 text-[12.5px] text-muted-foreground" aria-hidden="true">
               …
             </span>
           ) : (
             <button
               key={p}
               type="button"
-              className={`pagination-btn pagination-num ${p === page ? "pagination-active" : ""}`}
+              className={`${NAV_BTN} min-w-8 px-2 font-mono text-[12px] tabular-nums ${p === page ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" : ""}`}
               onClick={() => go(p)}
               aria-current={p === page ? "page" : undefined}
               aria-label={`Page ${p}`}
@@ -106,7 +106,7 @@ const Pagination = ({
         )}
         <button
           type="button"
-          className="pagination-btn"
+          className={NAV_BTN}
           onClick={() => go(page + 1)}
           disabled={page === totalPages}
           aria-label="Next page"
@@ -118,16 +118,11 @@ const Pagination = ({
   );
 };
 
-const ChevronLeft = () => (
-  <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
-    <path d="m14 6-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const ChevronRight = () => (
-  <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
-    <path d="m10 6 6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+// shadcn-style page buttons (outline, h-8).
+const NAV_BTN =
+  "inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-xs transition-[color,background-color,border-color] outline-none hover:border-input hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-45";
+const ChevronLeft = () => <ChevronLeftIcon className="size-3.5" />;
+const ChevronRight = () => <ChevronRightIcon className="size-3.5" />;
 
 /** Reset a paginator's `page` to 1 whenever `resetKey` changes (e.g. when the
  * search query or tab switches so the user isn't stranded on page 5 of a

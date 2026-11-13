@@ -2,7 +2,14 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 
+import { Calculator, Droplet, Gauge, RotateCcw, Waypoints } from "lucide-react";
+
 import PageHeader from "../../components/ui/PageHeader";
+// shadcn/ui (user, 2026-11-13: the Head Calculator in the new look, branch select-shadcn).
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import {
   BEND_ANGLES,
   calculateHead,
@@ -21,25 +28,24 @@ import {
 const fmt = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : "—");
 
 const inputCls =
-  "w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none transition placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+  "h-8 w-full rounded-md border border-input bg-card px-2.5 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
+/** The margin's verdict: badge tone, the NPSHA bar's colour and the result card's top stripe. */
 const STATUS_STYLE = {
-  ok: { pill: "bg-[var(--pos-soft)] text-pos", bar: "linear-gradient(90deg, var(--brand-cyan), #5ce0f5)", ring: "var(--pos)" },
-  caution: { pill: "bg-[var(--warn-soft)] text-warn", bar: "linear-gradient(90deg, #e8a22a, #ffc862)", ring: "var(--warn)" },
-  bad: { pill: "bg-[var(--neg-soft)] text-neg", bar: "linear-gradient(90deg, #e0524a, #ff9b95)", ring: "var(--neg)" },
+  ok: { tone: "success", bar: "var(--chart-done)", ring: "var(--chart-done)" },
+  caution: { tone: "warning", bar: "var(--chart-pending)", ring: "var(--chart-pending)" },
+  bad: { tone: "danger", bar: "var(--chart-regret)", ring: "var(--chart-regret)" },
 } as const;
 
 function Section({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-line bg-paper">
-      <header className="flex items-center gap-2.5 border-b border-line px-4 py-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent-soft text-accent [&_svg]:h-4 [&_svg]:w-4">
-          {icon}
-        </span>
-        <h2 className="text-[13.5px] font-semibold text-fg">{title}</h2>
+    <Card className="overflow-hidden">
+      <header className="flex items-center gap-2.5 border-b border-border bg-muted/40 px-4 py-3">
+        <span className="flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground [&_svg]:size-3.5">{icon}</span>
+        <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
       </header>
       <div className="grid grid-cols-1 gap-3.5 p-4 sm:grid-cols-2">{children}</div>
-    </section>
+    </Card>
   );
 }
 
@@ -56,9 +62,9 @@ function Field({
 }) {
   return (
     <label className={`flex min-w-0 flex-col gap-1.5 ${span ? "sm:col-span-2" : ""}`}>
-      <span className="flex items-center justify-between gap-2 text-[12px] font-medium text-fg-2">
+      <span className="flex items-center justify-between gap-2 text-[12px] font-medium text-foreground">
         {label}
-        {unit && <span className="rounded bg-elev px-1.5 py-px font-mono text-[10.5px] text-fg-3">{unit}</span>}
+        {unit && <span className="rounded bg-muted px-1.5 py-px font-mono text-[10.5px] text-muted-foreground">{unit}</span>}
       </span>
       {children}
     </label>
@@ -66,7 +72,7 @@ function Field({
 }
 
 const Note = ({ children }: { children: ReactNode }) => (
-  <p className="rounded-lg bg-elev px-3 py-2 text-[11.5px] leading-relaxed text-fg-3 sm:col-span-2">{children}</p>
+  <p className="rounded-md bg-muted px-3 py-2 text-[11.5px] leading-relaxed text-muted-foreground sm:col-span-2">{children}</p>
 );
 
 /**
@@ -85,9 +91,10 @@ const HeadCalculatorPage = () => {
   const [form, setForm] = useState<HeadCalcInput>(DEFAULT_HEAD_CALC_INPUT);
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-10 sm:px-6">
+    <div className="min-h-full bg-background">
+    <div className="w-full px-4 pt-4 pb-10 sm:px-6 2xl:px-8">
       <PageHeader
-        icon={<CalcGlyph />}
+        icon={<Calculator />}
         title="Head Calculator"
         subtitle={
           mode === "suction"
@@ -96,17 +103,13 @@ const HeadCalculatorPage = () => {
         }
         actions={
           <>
-            <span className="inline-flex items-center gap-2 rounded-full bg-[var(--pos-soft)] px-3 py-1.5 text-[12px] font-semibold text-pos">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-pos" />
+            <Badge tone="success" className="px-2 py-0.5">
+              <span className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden="true" />
               Live calculation
-            </span>
-            <button
-              type="button"
-              onClick={() => (mode === "suction" ? setForm(DEFAULT_HEAD_CALC_INPUT) : setDischarge(DEFAULT_DISCHARGE_INPUT))}
-              className="rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 transition hover:border-accent hover:text-accent"
-            >
-              Reset
-            </button>
+            </Badge>
+            <Button variant="outline" onClick={() => (mode === "suction" ? setForm(DEFAULT_HEAD_CALC_INPUT) : setDischarge(DEFAULT_DISCHARGE_INPUT))}>
+              <RotateCcw /> Reset
+            </Button>
           </>
         }
       />
@@ -119,6 +122,7 @@ const HeadCalculatorPage = () => {
         discharge={discharge}
         setDischarge={setDischarge}
       />
+    </div>
     </div>
   );
 };
@@ -143,27 +147,20 @@ export function HeadCalculatorView({
   return (
     <>
       {/* Suction / Discharge */}
-      <div className="mt-4 inline-flex rounded-xl border border-line bg-paper p-1" role="tablist" aria-label="Calculator">
-        {(
-          [
-            ["suction", "Suction (NPSH)"],
-            ["discharge", "Discharge"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={mode === key}
-            onClick={() => setMode(key)}
-            className={`rounded-lg px-4 py-1.5 text-[13px] font-semibold transition-colors ${
-              mode === key ? "bg-accent text-white shadow-[0_1px_2px_rgba(10,61,143,0.2)]" : "text-fg-3 hover:bg-elev hover:text-fg"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={mode} onValueChange={(v) => setMode(v === "discharge" ? "discharge" : "suction")} className="mt-4">
+        <TabsList aria-label="Calculator">
+          {(
+            [
+              ["suction", "Suction (NPSH)"],
+              ["discharge", "Discharge"],
+            ] as const
+          ).map(([key, label]) => (
+            <TabsTrigger key={key} value={key}>
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {mode === "discharge" ? (
         <DischargePanel form={discharge} setForm={setDischarge} />
@@ -212,7 +209,7 @@ function SuctionPanel({
       <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         {/* Inputs */}
         <div className="space-y-4">
-          <Section icon={<DropGlyph />} title="Fluid & Duty">
+          <Section icon={<Droplet />} title="Fluid & Duty">
             <Field label="Application">
               <input type="text" className={inputCls} value={form.application} onChange={set("application")} />
             </Field>
@@ -234,12 +231,12 @@ function SuctionPanel({
             {form.capacityUnit === "M3" && (
               <Note>
                 1 TPH = 1 m³/hr × Specific Gravity. The m³/hr entered is converted automatically (
-                <b className="font-mono text-fg-2">{fmt(result.capacityTph)} TPH</b>).
+                <b className="font-mono text-foreground">{fmt(result.capacityTph)} TPH</b>).
               </Note>
             )}
           </Section>
 
-          <Section icon={<PipeGlyph />} title="Suction Line and Fittings">
+          <Section icon={<Waypoints />} title="Suction Line and Fittings">
             <Field label="Suction Line Size" unit="in" span>
               <select className={inputCls} value={form.lineSize} onChange={set("lineSize")}>
                 {LINE_SIZES.map((s) => (
@@ -275,7 +272,7 @@ function SuctionPanel({
             </Field>
           </Section>
 
-          <Section icon={<GaugeGlyph />} title="Suction Conditions">
+          <Section icon={<Gauge />} title="Suction Conditions">
             <Field label="Atmospheric / Source Head" unit="MWC">
               {numberInput("atmPressure", "0.1")}
             </Field>
@@ -291,42 +288,42 @@ function SuctionPanel({
 
         {/* Results */}
         <div className="space-y-4 xl:sticky xl:top-4">
-          <section className="relative overflow-hidden rounded-2xl border border-line bg-[linear-gradient(160deg,#0a1628_0%,#132a4d_60%,#0f3a5c_100%)] p-5 text-white shadow-[0_12px_32px_rgba(10,22,40,0.25)]">
-            <div
-              className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full opacity-40 blur-3xl"
-              style={{ background: style.ring }}
-            />
+          <Card className="relative overflow-hidden p-5">
+            {/* The verdict's colour as a stripe along the top. */}
+            <div className="absolute inset-x-0 top-0 h-1" style={{ background: style.ring }} aria-hidden="true" />
             <div className="relative">
-              <h2 className="text-[16px] font-semibold">NPSH Margin</h2>
-              <p className="text-[12px] text-white/60">Available suction head vs. pump requirement{form.application ? ` · ${form.application}` : ""}</p>
+              <h2 className="text-[15px] font-semibold text-foreground">NPSH Margin</h2>
+              <p className="text-[12px] text-muted-foreground">Available suction head vs. pump requirement{form.application ? ` · ${form.application}` : ""}</p>
 
               <div className="mt-5 space-y-4">
                 {[
                   { k: "NPSHA", sub: "Available", pct: result.npshaPct, v: result.npsha, bg: style.bar },
-                  { k: "NPSHR", sub: "Required", pct: result.npshrPct, v: result.npshr, bg: "linear-gradient(90deg, #8aa0bd, #c3d0e0)" },
+                  { k: "NPSHR", sub: "Required", pct: result.npshrPct, v: result.npshr, bg: "var(--chart-none)" },
                 ].map((g) => (
                   <div key={g.k} className="grid grid-cols-[72px_minmax(0,1fr)_64px] items-center gap-3">
                     <div>
-                      <div className="text-[13px] font-bold">{g.k}</div>
-                      <div className="text-[10.5px] text-white/55">{g.sub}</div>
+                      <div className="text-[13px] font-semibold text-foreground">{g.k}</div>
+                      <div className="text-[10.5px] text-muted-foreground">{g.sub}</div>
                     </div>
-                    <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                    <div className="h-2.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${g.pct}%`, background: g.bg }} />
                     </div>
-                    <div className="text-right font-mono text-[15px] font-bold tabular-nums">{fmt(g.v)}</div>
+                    <div className="text-right font-mono text-[15px] font-semibold text-foreground tabular-nums">{fmt(g.v)}</div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 flex flex-wrap items-end justify-between gap-3 rounded-xl bg-white/[0.06] px-4 py-3.5 ring-1 ring-white/10">
+              <div className="mt-6 flex flex-wrap items-end justify-between gap-3 rounded-md bg-muted/60 px-4 py-3.5 ring-1 ring-border ring-inset">
                 <div>
-                  <div className="text-[10.5px] font-semibold tracking-[0.1em] text-white/55 uppercase">Margin (NPSHA − NPSHR)</div>
-                  <div className="mt-1 font-mono text-[34px] leading-none font-bold tabular-nums">
+                  <div className="text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">Margin (NPSHA − NPSHR)</div>
+                  <div className="mt-1 font-mono text-[34px] leading-none font-semibold text-foreground tabular-nums">
                     {fmt(result.margin)}
-                    <span className="ml-1.5 font-sans text-[13px] font-medium text-white/60">MWC</span>
+                    <span className="ml-1.5 font-sans text-[13px] font-medium text-muted-foreground">MWC</span>
                   </div>
                 </div>
-                <span className={`rounded-full px-3 py-1.5 text-[12px] font-bold ${style.pill}`}>{result.statusText}</span>
+                <Badge tone={style.tone} dot className="px-2.5 py-1 text-[12px]">
+                  {result.statusText}
+                </Badge>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -334,51 +331,51 @@ function SuctionPanel({
                   { label: "Total Head Loss", v: result.totalLoss },
                   { label: "NPSH Available", v: result.npsha },
                 ].map((t) => (
-                  <div key={t.label} className="rounded-xl bg-white/[0.06] px-4 py-3 ring-1 ring-white/10">
-                    <div className="text-[10.5px] font-semibold tracking-[0.08em] text-white/55 uppercase">{t.label}</div>
-                    <div className="mt-1 font-mono text-[20px] font-bold tabular-nums">
+                  <div key={t.label} className="rounded-md bg-muted/60 px-4 py-3 ring-1 ring-border ring-inset">
+                    <div className="text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">{t.label}</div>
+                    <div className="mt-1 font-mono text-[20px] font-semibold text-foreground tabular-nums">
                       {fmt(t.v)}
-                      <span className="ml-1 font-sans text-[11px] font-medium text-white/60">MWC</span>
+                      <span className="ml-1 font-sans text-[11px] font-medium text-muted-foreground">MWC</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          </section>
+          </Card>
 
-          <section className="rounded-xl border border-line bg-paper">
-            <header className="border-b border-line px-4 py-3">
-              <h2 className="text-[13.5px] font-semibold text-fg">Head loss breakdown</h2>
-              <p className="text-[11.5px] text-fg-3">How the total suction loss is made up (MWC)</p>
+          <Card className="overflow-hidden">
+            <header className="border-b border-border bg-muted/40 px-4 py-3">
+              <h2 className="text-[13px] font-semibold text-foreground">Head loss breakdown</h2>
+              <p className="text-[11.5px] text-muted-foreground">How the total suction loss is made up (MWC)</p>
             </header>
             <ul className="space-y-3 p-4">
               {breakdown.map((b) => (
                 <li key={b.label}>
                   <div className="mb-1 flex items-baseline justify-between gap-3 text-[12.5px]">
-                    <span className="text-fg-2">{b.label}</span>
-                    <span className="font-mono font-semibold text-fg tabular-nums">{fmt(b.value)}</span>
+                    <span className="text-foreground">{b.label}</span>
+                    <span className="font-mono font-semibold text-foreground tabular-nums">{fmt(b.value)}</span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-sunk">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-[var(--brand-blue)] to-[var(--brand-cyan)] transition-[width] duration-500"
+                      className="h-full rounded-full bg-[var(--chart-1)] transition-[width] duration-500"
                       style={{ width: `${Math.max(0, (b.value / maxLoss) * 100)}%` }}
                     />
                   </div>
-                  <div className="mt-0.5 text-[11px] text-fg-3">{b.hint}</div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">{b.hint}</div>
                 </li>
               ))}
-              <li className="flex items-baseline justify-between border-t border-line pt-3 text-[13px] font-semibold">
-                <span className="text-fg">Total head loss</span>
-                <span className="font-mono text-title tabular-nums">{fmt(result.totalLoss)}</span>
+              <li className="flex items-baseline justify-between border-t border-border pt-3 text-[13px] font-semibold">
+                <span className="text-foreground">Total head loss</span>
+                <span className="font-mono text-primary tabular-nums">{fmt(result.totalLoss)}</span>
               </li>
               <li className="flex items-baseline justify-between text-[12.5px]">
-                <span className="text-fg-2">NPSHA = source head − total loss</span>
-                <span className="font-mono text-fg tabular-nums">
+                <span className="text-muted-foreground">NPSHA = source head − total loss</span>
+                <span className="font-mono text-foreground tabular-nums">
                   {fmt(parseFloat(form.atmPressure) || 0)} − {fmt(result.totalLoss)} = {fmt(result.npsha)}
                 </span>
               </li>
             </ul>
-          </section>
+          </Card>
         </div>
       </div>
   );
@@ -418,7 +415,7 @@ function DischargePanel({
   return (
     <div className="mt-4 grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <div className="space-y-4">
-        <Section icon={<DropGlyph />} title="Fluid & Duty">
+        <Section icon={<Droplet />} title="Fluid & Duty">
           <Field label="Application">
             <input type="text" className={inputCls} value={form.application} onChange={set("application")} />
           </Field>
@@ -440,12 +437,12 @@ function DischargePanel({
           {form.capacityUnit === "M3" && (
             <Note>
               1 TPH = 1 m³/hr × Specific Gravity. The m³/hr entered is converted automatically (
-              <b className="font-mono text-fg-2">{fmt(result.capacityTph)} TPH</b>).
+              <b className="font-mono text-foreground">{fmt(result.capacityTph)} TPH</b>).
             </Note>
           )}
         </Section>
 
-        <Section icon={<PipeGlyph />} title="Discharge Line and Fittings">
+        <Section icon={<Waypoints />} title="Discharge Line and Fittings">
           <Field label="Discharge Line Size" unit="in" span>
             <select className={inputCls} value={form.lineSize} onChange={set("lineSize")}>
               {DISCHARGE_LINE_SIZES.map((s) => (
@@ -487,23 +484,23 @@ function DischargePanel({
       </div>
 
       <div className="space-y-4 xl:sticky xl:top-4">
-        <section className="relative overflow-hidden rounded-2xl border border-line bg-[linear-gradient(160deg,#0a1628_0%,#132a4d_60%,#0f3a5c_100%)] p-5 text-white shadow-[0_12px_32px_rgba(10,22,40,0.25)]">
-          <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[var(--brand-cyan)] opacity-30 blur-3xl" />
+        <Card className="relative overflow-hidden p-5">
+          <div className="absolute inset-x-0 top-0 h-1 bg-primary" aria-hidden="true" />
           <div className="relative">
-            <h2 className="text-[16px] font-semibold">Discharge Head</h2>
-            <p className="text-[12px] text-white/60">
+            <h2 className="text-[15px] font-semibold text-foreground">Discharge Head</h2>
+            <p className="text-[12px] text-muted-foreground">
               Head the pump must develop on the discharge line{form.application ? ` · ${form.application}` : ""}
             </p>
 
-            <div className="mt-5 rounded-xl bg-white/[0.06] px-4 py-3.5 ring-1 ring-white/10">
-              <div className="text-[10.5px] font-semibold tracking-[0.1em] text-white/55 uppercase">Total discharge head</div>
-              <div className="mt-1 font-mono text-[34px] leading-none font-bold tabular-nums">
+            <div className="mt-5 rounded-md bg-muted/60 px-4 py-3.5 ring-1 ring-border ring-inset">
+              <div className="text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">Total discharge head</div>
+              <div className="mt-1 font-mono text-[34px] leading-none font-semibold text-foreground tabular-nums">
                 {fmt(result.totalHead)}
-                <span className="ml-1.5 font-sans text-[13px] font-medium text-white/60">MWC</span>
+                <span className="ml-1.5 font-sans text-[13px] font-medium text-muted-foreground">MWC</span>
               </div>
-              <div className="mt-2 text-[12px] text-white/60">
-                ≈ <b className="font-mono text-white/85">{fmt(result.totalKgCm2)}</b> kg/cm² ·{" "}
-                <b className="font-mono text-white/85">{fmt(result.totalBar)}</b> bar
+              <div className="mt-2 text-[12px] text-muted-foreground">
+                ≈ <b className="font-mono text-foreground">{fmt(result.totalKgCm2)}</b> kg/cm² ·{" "}
+                <b className="font-mono text-foreground">{fmt(result.totalBar)}</b> bar
               </div>
             </div>
 
@@ -512,84 +509,48 @@ function DischargePanel({
                 { label: "Static head", v: result.pressureFromHeight },
                 { label: "Friction losses", v: friction },
               ].map((t) => (
-                <div key={t.label} className="rounded-xl bg-white/[0.06] px-4 py-3 ring-1 ring-white/10">
-                  <div className="text-[10.5px] font-semibold tracking-[0.08em] text-white/55 uppercase">{t.label}</div>
-                  <div className="mt-1 font-mono text-[20px] font-bold tabular-nums">
+                <div key={t.label} className="rounded-md bg-muted/60 px-4 py-3 ring-1 ring-border ring-inset">
+                  <div className="text-[10.5px] font-medium tracking-wide text-muted-foreground uppercase">{t.label}</div>
+                  <div className="mt-1 font-mono text-[20px] font-semibold text-foreground tabular-nums">
                     {fmt(t.v)}
-                    <span className="ml-1 font-sans text-[11px] font-medium text-white/60">MWC</span>
+                    <span className="ml-1 font-sans text-[11px] font-medium text-muted-foreground">MWC</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        </section>
+        </Card>
 
-        <section className="rounded-xl border border-line bg-paper">
-          <header className="border-b border-line px-4 py-3">
-            <h2 className="text-[13.5px] font-semibold text-fg">Head breakdown</h2>
-            <p className="text-[11.5px] text-fg-3">How the total discharge head is made up (MWC)</p>
+        <Card className="overflow-hidden">
+          <header className="border-b border-border bg-muted/40 px-4 py-3">
+            <h2 className="text-[13px] font-semibold text-foreground">Head breakdown</h2>
+            <p className="text-[11.5px] text-muted-foreground">How the total discharge head is made up (MWC)</p>
           </header>
           <ul className="space-y-3 p-4">
             {breakdown.map((b) => (
               <li key={b.label}>
                 <div className="mb-1 flex items-baseline justify-between gap-3 text-[12.5px]">
-                  <span className="text-fg-2">{b.label}</span>
-                  <span className="font-mono font-semibold text-fg tabular-nums">{fmt(b.value)}</span>
+                  <span className="text-foreground">{b.label}</span>
+                  <span className="font-mono font-semibold text-foreground tabular-nums">{fmt(b.value)}</span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-sunk">
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--brand-blue)] to-[var(--brand-cyan)] transition-[width] duration-500"
+                    className="h-full rounded-full bg-[var(--chart-1)] transition-[width] duration-500"
                     style={{ width: `${Math.max(0, (b.value / maxLoss) * 100)}%` }}
                   />
                 </div>
-                <div className="mt-0.5 text-[11px] text-fg-3">{b.hint}</div>
+                <div className="mt-0.5 text-[11px] text-muted-foreground">{b.hint}</div>
               </li>
             ))}
-            <li className="flex items-baseline justify-between border-t border-line pt-3 text-[13px] font-semibold">
-              <span className="text-fg">Total discharge head</span>
-              <span className="font-mono text-title tabular-nums">{fmt(result.totalHead)}</span>
+            <li className="flex items-baseline justify-between border-t border-border pt-3 text-[13px] font-semibold">
+              <span className="text-foreground">Total discharge head</span>
+              <span className="font-mono text-primary tabular-nums">{fmt(result.totalHead)}</span>
             </li>
           </ul>
-        </section>
+        </Card>
       </div>
     </div>
   );
 }
-
-const svgProps = {
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  "aria-hidden": true,
-};
-
-const CalcGlyph = () => (
-  <svg {...svgProps}>
-    <rect x="5" y="3" width="14" height="18" rx="2" />
-    <path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18h.01M12 18h.01M16 18h.01" />
-  </svg>
-);
-const DropGlyph = () => (
-  <svg {...svgProps}>
-    <path d="M12 2.5C12 2.5 5.5 11 5.5 15.5a6.5 6.5 0 0013 0C18.5 11 12 2.5 12 2.5z" />
-  </svg>
-);
-const PipeGlyph = () => (
-  <svg {...svgProps}>
-    <path d="M4 4v8a4 4 0 0 0 4 4h12" />
-    <circle cx="4" cy="4" r="1.6" fill="currentColor" stroke="none" />
-    <circle cx="20" cy="16" r="1.6" fill="currentColor" stroke="none" />
-  </svg>
-);
-const GaugeGlyph = () => (
-  <svg {...svgProps}>
-    <path d="M4 15a8 8 0 1 1 16 0" />
-    <path d="M12 15l4.2-4.2" />
-    <circle cx="12" cy="15" r="1.3" fill="currentColor" stroke="none" />
-  </svg>
-);
 
 export default HeadCalculatorPage;

@@ -1,7 +1,10 @@
 "use client";
 
-/** Shared building blocks for the Audit Log page (Tailwind). */
+/** Shared building blocks for the Audit Log page (Tailwind, shadcn tokens: user 2026-11-13). */
 import type { ReactNode } from "react";
+
+import { Badge } from "@/components/shadcn/badge";
+import { cn } from "@/lib/utils";
 
 import { ROLE_LABELS } from "../../../lib/roles";
 import { parseUserAgent } from "../../../lib/user-agent";
@@ -84,18 +87,18 @@ export function Card({
   bodyClassName?: string;
 }) {
   return (
-    <section className={`min-w-0 overflow-hidden rounded-xl border border-line bg-paper ${className}`}>
+    <section className={cn("min-w-0 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)]", className)}>
       {(title || action) && (
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             {icon && (
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 {icon}
               </span>
             )}
             <div className="min-w-0">
-              <h3 className="truncate text-[13.5px] font-semibold text-fg">{title}</h3>
-              {subtitle && <p className="truncate text-[11.5px] text-fg-3">{subtitle}</p>}
+              <h3 className="truncate text-[13px] font-semibold text-foreground">{title}</h3>
+              {subtitle && <p className="truncate text-[11.5px] text-muted-foreground">{subtitle}</p>}
             </div>
           </div>
           {action}
@@ -120,15 +123,15 @@ export function Segmented<T extends string>({
   loading?: boolean;
 }) {
   return (
-    <div className="inline-flex rounded-lg bg-sunk p-0.5" aria-busy={loading || undefined}>
+    <div className="inline-flex h-8 items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" aria-busy={loading || undefined}>
       {options.map((o) => (
         <button
           key={o.key}
           type="button"
           disabled={loading}
           onClick={() => onChange(o.key)}
-          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-medium whitespace-nowrap transition-colors disabled:cursor-wait ${
-            value === o.key ? "bg-paper text-fg shadow-[0_1px_2px_rgba(10,22,40,0.12)]" : "text-fg-3 hover:text-fg"
+          className={`inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-[12.5px] font-medium whitespace-nowrap transition-colors disabled:cursor-wait ${
+            value === o.key ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           {loading && value === o.key && (
@@ -157,12 +160,14 @@ export function Avatar({ email, size = 28 }: { email: string | null | undefined;
   const hue = AVATAR_HUES[h % AVATAR_HUES.length];
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white"
+      className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold ring-1 ring-black/5"
       style={{
         width: size,
         height: size,
-        fontSize: size * 0.38,
-        background: `linear-gradient(135deg, hsl(${hue} 70% 52%), hsl(${(hue! + 30) % 360} 70% 42%))`,
+        fontSize: size * 0.36,
+        // A soft tint per person (the same e-mail keeps its hue), dark text on it.
+        background: `hsl(${hue} 55% 92%)`,
+        color: `hsl(${hue} 55% 30%)`,
       }}
       aria-hidden
     >
@@ -176,52 +181,45 @@ export function UserCell({ email, role }: { email: string | null; role?: string 
     <div className="flex min-w-0 items-center gap-2.5">
       <Avatar email={email} />
       <div className="min-w-0">
-        <div className="truncate font-medium text-fg">{email ?? "—"}</div>
-        {role !== undefined && <div className="truncate text-[11px] text-fg-3">{prettyRole(role)}</div>}
+        <div className="truncate font-medium text-foreground">{email ?? "—"}</div>
+        {role !== undefined && <div className="truncate text-[11px] text-muted-foreground">{prettyRole(role)}</div>}
       </div>
     </div>
   );
 }
 
-const ROLE_STYLES: Record<string, string> = {
-  system_admin: "bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]",
-  admin: "bg-accent-soft text-accent",
-  selection_head: "bg-[var(--warn-soft)] text-warn",
-  pulley_owner: "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[var(--brand-cyan)]",
-  user_master: "bg-[var(--pos-soft)] text-pos",
-  user_worker: "bg-sunk text-fg-2",
-  user: "bg-sunk text-fg-2",
+type Tone = "neutral" | "primary" | "info" | "success" | "warning" | "danger" | "outline";
+
+const ROLE_TONES: Record<string, Tone> = {
+  system_admin: "primary",
+  admin: "info",
+  selection_head: "warning",
+  pulley_owner: "outline",
+  user_master: "success",
+  user_worker: "neutral",
+  user: "neutral",
 };
 
 export function RoleBadge({ role }: { role: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${
-        ROLE_STYLES[role ?? ""] ?? "bg-sunk text-fg-3"
-      }`}
-    >
-      {prettyRole(role)}
-    </span>
-  );
+  return <Badge tone={ROLE_TONES[role ?? ""] ?? "neutral"}>{prettyRole(role)}</Badge>;
 }
 
 // --- Events ------------------------------------------------------------------------------
 
-function actionTone(action: string, eventType?: string): string {
-  if (eventType === "login_failed") return "bg-[var(--neg-soft)] text-neg";
-  if (eventType === "login") return "bg-[var(--pos-soft)] text-pos";
-  if (eventType === "logout") return "bg-sunk text-fg-2";
-  if (action.startsWith("wizard.")) return "bg-accent-soft text-accent";
-  if (action.startsWith("enquiry.") || action.startsWith("tag.")) return "bg-[color-mix(in_srgb,var(--brand-cyan)_15%,transparent)] text-[var(--brand-cyan)]";
-  if (action.startsWith("approval.")) return "bg-[var(--warn-soft)] text-warn";
-  if (action.startsWith("master.") || action.startsWith("drive_option.") || action.startsWith("end_connection.") || action.startsWith("flange_standard."))
-    return "bg-[color-mix(in_srgb,#f97316_14%,transparent)] text-[#ea580c]";
-  if (action === "user.approve") return "bg-[var(--pos-soft)] text-pos";
-  if (action === "user.reject" || action === "user.delete") return "bg-[var(--neg-soft)] text-neg";
-  if (action === "user.request") return "bg-[var(--warn-soft)] text-warn";
-  if (action.startsWith("user.")) return "bg-[color-mix(in_srgb,var(--purple)_14%,transparent)] text-[var(--purple)]";
-  if (action.startsWith("report.") || action.startsWith("audit.")) return "bg-[var(--pos-soft)] text-pos";
-  return "bg-sunk text-fg-2";
+function actionTone(action: string, eventType?: string): Tone {
+  if (eventType === "login_failed") return "danger";
+  if (eventType === "login") return "success";
+  if (eventType === "logout") return "neutral";
+  if (action.startsWith("wizard.")) return "info";
+  if (action.startsWith("enquiry.") || action.startsWith("tag.")) return "primary";
+  if (action.startsWith("approval.")) return "warning";
+  if (action.startsWith("master.") || action.startsWith("drive_option.") || action.startsWith("end_connection.") || action.startsWith("flange_standard.")) return "outline";
+  if (action === "user.approve") return "success";
+  if (action === "user.reject" || action === "user.delete") return "danger";
+  if (action === "user.request") return "warning";
+  if (action.startsWith("user.")) return "primary";
+  if (action.startsWith("report.") || action.startsWith("audit.")) return "success";
+  return "neutral";
 }
 
 export function ActionBadge({ action, eventType }: { action: string; eventType?: string }) {
@@ -236,28 +234,25 @@ export function ActionBadge({ action, eventType }: { action: string; eventType?:
           ? "Signed out"
           : prettyAction(action);
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11.5px] font-semibold whitespace-nowrap ${actionTone(action, eventType)}`}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+    <Badge tone={actionTone(action, eventType)} dot>
       {label}
-    </span>
+    </Badge>
   );
 }
 
 export function IpChip({ ip, extra }: { ip: string | null | undefined; extra?: number }) {
-  if (!ip) return <span className="text-fg-4">—</span>;
+  if (!ip) return <span className="text-muted-foreground">—</span>;
   const local = ip === "::1" || ip === "127.0.0.1";
   return (
     <span className="inline-flex items-center gap-1 whitespace-nowrap">
       <span
-        className="rounded-md border border-line bg-elev px-1.5 py-0.5 font-mono text-[11.5px] text-fg-2"
+        className="rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[11.5px] text-foreground"
         title={local ? "Local machine (development)" : ip}
       >
         {local ? "localhost" : ip}
       </span>
       {extra ? (
-        <span className="text-[11px] text-fg-3" title={`${extra} more IP address${extra === 1 ? "" : "es"} in this period`}>
+        <span className="text-[11px] text-muted-foreground" title={`${extra} more IP address${extra === 1 ? "" : "es"} in this period`}>
           +{extra}
         </span>
       ) : null}
@@ -266,13 +261,13 @@ export function IpChip({ ip, extra }: { ip: string | null | undefined; extra?: n
 }
 
 export function DeviceCell({ ua }: { ua: string | null | undefined }) {
-  if (!ua) return <span className="text-fg-4">—</span>;
+  if (!ua) return <span className="text-muted-foreground">—</span>;
   const d = parseUserAgent(ua);
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-fg-2" title={ua}>
-      <span className="text-fg-3">{d.device === "Mobile" ? Icons.phone : d.device === "Tablet" ? Icons.tablet : Icons.monitor}</span>
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-foreground" title={ua}>
+      <span className="text-muted-foreground">{d.device === "Mobile" ? Icons.phone : d.device === "Tablet" ? Icons.tablet : Icons.monitor}</span>
       <span className="text-[12px]">
-        {d.browser} <span className="text-fg-3">· {d.os}</span>
+        {d.browser} <span className="text-muted-foreground">· {d.os}</span>
       </span>
     </span>
   );
@@ -311,14 +306,14 @@ export const Icons = {
 
 export function TrendDelta({ current, previous, invert = false }: { current: number; previous: number | null | undefined; invert?: boolean }) {
   if (previous === null || previous === undefined) return null;
-  if (previous === 0 && current === 0) return <span className="text-[11px] text-fg-3">no change</span>;
-  if (previous === 0) return <span className="text-[11px] font-semibold text-pos">new</span>;
+  if (previous === 0 && current === 0) return <span className="text-[11px] text-muted-foreground">no change</span>;
+  if (previous === 0) return <span className="text-[11px] font-semibold text-success">new</span>;
   const pct = Math.round(((current - previous) / previous) * 100);
   const up = pct > 0;
   const good = invert ? !up : up;
-  if (pct === 0) return <span className="text-[11px] text-fg-3">no change</span>;
+  if (pct === 0) return <span className="text-[11px] text-muted-foreground">no change</span>;
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${good ? "text-pos" : "text-neg"}`}>
+    <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${good ? "text-success" : "text-destructive"}`}>
       {up ? "▲" : "▼"} {Math.abs(pct)}%
     </span>
   );

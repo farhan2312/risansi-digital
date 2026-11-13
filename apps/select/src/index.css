@@ -37,6 +37,102 @@
 
   --font-sans: var(--sans);
   --font-mono: var(--mono);
+
+  /* shadcn/ui tokens (src/components/shadcn, user 2026-11-13): a corporate look -
+     deep navy primary on slate neutrals. Named apart from the tokens above
+     (`accent` stays the brand blue), so the older screens are untouched. */
+  --color-background: var(--sc-background);
+  --color-foreground: var(--sc-foreground);
+  --color-card: var(--sc-card);
+  --color-card-foreground: var(--sc-foreground);
+  --color-popover: var(--sc-card);
+  --color-popover-foreground: var(--sc-foreground);
+  --color-primary: var(--sc-primary);
+  --color-primary-foreground: var(--sc-primary-foreground);
+  --color-secondary: var(--sc-secondary);
+  --color-secondary-foreground: var(--sc-foreground);
+  --color-muted: var(--sc-muted);
+  --color-muted-foreground: var(--sc-muted-foreground);
+  --color-border: var(--sc-border);
+  --color-input: var(--sc-input);
+  --color-ring: var(--sc-ring);
+  --color-destructive: var(--sc-destructive);
+  --color-success: var(--sc-success);
+  --color-warning: var(--sc-warning);
+  --color-info: var(--sc-info);
+}
+
+:root {
+  --sc-background: #f5f6f8;
+  --sc-foreground: #0f172a;
+  --sc-card: #ffffff;
+  --sc-primary: #14305a;
+  --sc-primary-foreground: #ffffff;
+  --sc-secondary: #f1f4f8;
+  --sc-muted: #f4f6f9;
+  --sc-muted-foreground: #64748b;
+  --sc-border: #e3e8ef;
+  --sc-input: #d5dce6;
+  --sc-ring: #3b5f99;
+  --sc-destructive: #c42b2b;
+  --sc-success: #157a4b;
+  --sc-warning: #a35a00;
+  --sc-info: #1d5fb8;
+
+  /* Chart colours (dataviz validator, 2026-11-13: CVD + normal-vision separation pass on the
+     card surface). Series in fixed order; statuses as the badges mean them. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-pending: #d98a00;
+  --chart-progress: #2a78d6;
+  --chart-done: #1f9d55;
+  --chart-sent: #6250d6;
+  --chart-regret: #d03b3b;
+  --chart-none: #94a3b8;
+  /* Categorical order for charts without set colours (dataviz reference palette, fixed order). */
+  --chart-s1: #2a78d6;
+  --chart-s2: #eb6834;
+  --chart-s3: #1baf7a;
+  --chart-s4: #eda100;
+  --chart-s5: #e87ba4;
+  --chart-s6: #008300;
+  --chart-s7: #6250d6;
+  --chart-s8: #e34948;
+}
+
+[data-theme="dark"] {
+  --sc-background: #0b1422;
+  --sc-foreground: #e7edf5;
+  --sc-card: #101c2e;
+  --sc-primary: #5b8fe0;
+  --sc-primary-foreground: #08111d;
+  --sc-secondary: #17263b;
+  --sc-muted: #142236;
+  --sc-muted-foreground: #8ea1b8;
+  --sc-border: #1f3049;
+  --sc-input: #2a3d58;
+  --sc-ring: #6d9be6;
+  --sc-destructive: #f06161;
+  --sc-success: #4cc38a;
+  --sc-warning: #f0a73c;
+  --sc-info: #6ea8ff;
+
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-pending: #c98500;
+  --chart-progress: #3987e5;
+  --chart-done: #199e70;
+  --chart-sent: #9085e9;
+  --chart-regret: #e66767;
+  --chart-none: #64748b;
+  --chart-s1: #3987e5;
+  --chart-s2: #d95926;
+  --chart-s3: #199e70;
+  --chart-s4: #c98500;
+  --chart-s5: #d55181;
+  --chart-s6: #008300;
+  --chart-s7: #9085e9;
+  --chart-s8: #e66767;
 }
 
 :root {
