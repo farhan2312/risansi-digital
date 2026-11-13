@@ -412,8 +412,7 @@ export async function getOrderCoreAction(
   const detail = await getOrderDetail(orderId);
   if (!detail) return null;
   if (isOrderMakingAny(user.role)) {
-    // An SO member: only the SOs assigned to them.
-    if (isOrderMakingSo(user.role) && !(await isAssignedTo(orderId, user.id))) return null;
+    // An SO member reads any SO's (edits only those assigned to them).
     return Object.fromEntries(
       ["id", "sl_no", ...ORDER_MAKING_FIELDS.map((f) => f.column)].map((c) => [c, detail.order[c] ?? null])
     );
@@ -1864,9 +1863,7 @@ export async function getOrderOperationAction(orderId: string): Promise<
   if (!user) return { ok: false, error: "You are not signed in." };
   if (!canViewOrderMaking(user.role)) return { ok: false, error: "This is for Order Making." };
   if (!UUID_RE_ACTION.test(orderId)) return { ok: false, error: "Order not found." };
-  if (isOrderMakingSo(user.role) && !(await isAssignedTo(orderId, user.id))) {
-    return { ok: false, error: "This SO is not assigned to you." };
-  }
+  // Read only: an SO member views any SO's Operation.
   const [detail, targetRevisions] = await Promise.all([getOrderDetail(orderId), listTargetRevisions(orderId)]);
   if (!detail) return { ok: false, error: "Order not found." };
   const columns = new Set(["id", "sl_no", "so_no", "client_name"]);

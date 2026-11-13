@@ -6,7 +6,7 @@ import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Ban, CheckCircle2, CopyPlus, Download, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, CopyPlus, Download, Eye, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { NewVersionDialog } from "./new-version-dialog";
 import { VersionsModal } from "./versions-modal";
 import { OrderThreadModal } from "./order-thread-modal";
@@ -225,6 +225,9 @@ export function OrderMakingWorkspace({
   // The Pump SO a new version is being made of (its reason asked first): Order Making PO, Central, Admin.
   const [versioning, setVersioning] = useState<OrderMakingRow | null>(null);
   const makesVersions = canMakeVersions(role);
+  // An SO member edits only the SOs assigned to them; the rest are view only.
+  const mine = (row: OrderMakingRow) => mode !== "so" || (!!viewerId && row.so_assignee_id === viewerId);
+  const [viewing, setViewing] = useState<OrderMakingRow | null>(null);
   // The SO whose versions are open in the pop-up.
   const [versionsFor, setVersionsFor] = useState<OrderMakingRow | null>(null);
   // The assigned SO whose Reassign is open.
@@ -431,7 +434,7 @@ export function OrderMakingWorkspace({
           selected={filter.categories}
           onChange={(next) => setParams({ socat: next })}
         />
-        {canAssign && (
+        {(canAssign || mode === "so") && (
           // Any of several members (and/or Unassigned): the filter lists names, the URL their ids.
           <MultiSelectFilter
             label="Assigned to"
@@ -565,7 +568,7 @@ export function OrderMakingWorkspace({
                 <th className="px-4 py-3">SO details</th>
                 <th className="px-4 py-3">Operation</th>
                 <th className="px-4 py-3"><SortHeader label="ECs" sortKey="ecs" /></th>
-                {mode === "po" && <th className="px-4 py-3"><SortHeader label="Assigned to" sortKey="assignee" /></th>}
+                <th className="px-4 py-3"><SortHeader label="Assigned to" sortKey="assignee" /></th>
                 {canEdit && <th className="px-4 py-3" />}
               </tr>
             </thead>
@@ -713,7 +716,7 @@ export function OrderMakingWorkspace({
                     {/* The row itself opens the ECs; the count is just the count. */}
                     <span className={`mr-2 text-sm tabular-nums ${row.ec_count > 0 ? "text-foreground" : "text-muted"}`}>{row.ec_count}</span>
                     {/* An Only Billing SO has no ECs. */}
-                    {manageEcs && !isOnlyBilling(row) && (
+                    {manageEcs && mine(row) && !isOnlyBilling(row) && (
                       <button
                         type="button"
                         onClick={() => setAddFor(row)}
@@ -725,7 +728,8 @@ export function OrderMakingWorkspace({
                       </button>
                     )}
                   </td>
-                  {mode === "po" && (
+                  {/* Who has it — everyone sees; only those who assign change it. */}
+                  {(
                     <td className="px-4 py-3 whitespace-nowrap">
                       {/* Carried in by the migration: its SO details came with it. */}
                       {row.so_migrated && !row.so_assignee_id ? (
@@ -803,6 +807,17 @@ export function OrderMakingWorkspace({
                   )}
                   {canEdit && (
                     <td className="px-4 py-3 text-right">
+                      {/* An SO not assigned to an SO member: View, not edit. */}
+                      {!mine(row) ? (
+                        <button
+                          type="button"
+                          onClick={() => setViewing(row)}
+                          className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                      ) : (
                       <button
                         type="button"
                         onClick={() => setEditing(row)}
@@ -815,6 +830,7 @@ export function OrderMakingWorkspace({
                         <Pencil className="h-3.5 w-3.5" />
                         {mode === "so" ? "SO details" : "Edit"}
                       </button>
+                      )}
                       {/* A new version of a Pump SO, the current one kept read-only. */}
                       {mode === "po" && makesVersions && PUMP_LIKE.includes(str(row.order_type)) && !isClosedStatus(row.status_override) && (
                         <button
@@ -884,7 +900,7 @@ export function OrderMakingWorkspace({
           <OmEcsModal
             order={ecsRow}
             items={ecsRow.items}
-            canManage={manageEcs}
+            canManage={manageEcs && mine(ecsRow)}
             deletingId={deletingEc}
             onAdd={() => setAddFor(ecsRow)}
             onEdit={(item) => setEditEc({ row: ecsRow, item })}
@@ -941,6 +957,7 @@ export function OrderMakingWorkspace({
           onClose={() => setEditing(null)}
         />
       )}
+      {viewing && <OrderMakingEdit row={viewing} mode={mode} members={null} viewerId={viewerId} viewOnly onClose={() => setViewing(null)} />}
     </div>
   );
 }
@@ -963,9 +980,12 @@ function OrderMakingEdit({
   mode,
   members,
   viewerId,
+  viewOnly = false,
   onClose,
 }: {
   viewerId?: string;
+  /** An SO not assigned to the SO member looking: every part read only, nothing to save. */
+  viewOnly?: boolean;
   row: OrderMakingRow | null;
   /** "so": an Order Making SO member fills the Sales Order details only. */
   mode: "po" | "so";
@@ -1133,7 +1153,9 @@ function OrderMakingEdit({
             <p className="text-xs text-muted">
               {row ? `SO ${str(row.so_no) || `#${row.sl_no}`} · ` : ""}
               {mode === "so"
-                ? "fill the Sales Order details; the client and PO are Order Making PO's"
+                ? viewOnly
+                  ? `view only — assigned to ${row?.so_assignee_name ?? "no one yet"}`
+                  : "fill the Sales Order details; the client and PO are Order Making PO's"
                 : read("bill_mode") === ONLY_BILLING
                   ? "Only Billing: no ECs, terms, target dates or clearance — it goes to no department"
                   : "Central Visibility is told once the SO details are in, and fills the terms, target dates and ECs"}
@@ -1171,7 +1193,7 @@ function OrderMakingEdit({
           // The Handover (SO Sent to Operation) is Order Making PO's: an SO member does not see it.
           if (isHandover && mode === "so") return null;
           // An SO member sees the client and PO as they stand, to fill against.
-          const readOnly = mode === "so" && !isSo;
+          const readOnly = viewOnly || (mode === "so" && !isSo);
           return (
             <section
               key={section.title}
@@ -1183,7 +1205,7 @@ function OrderMakingEdit({
                   {readOnly && <span className="ml-2 text-[11px] font-normal text-muted">view only</span>}
                 </h3>
                 {/* Who fills it: Order Making PO, Central and Admin assign. */}
-                {isSo && members && (
+                {isSo && members && !viewOnly && (
                   <label className="inline-flex items-center gap-2 text-xs text-muted">
                     Assigned to
                     <select
@@ -1254,8 +1276,9 @@ function OrderMakingEdit({
             disabled={saving}
             className="inline-flex h-9 items-center rounded-lg border border-input-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-background"
           >
-            Cancel
+            {viewOnly ? "Close" : "Cancel"}
           </button>
+          {!viewOnly && (
           <button
             type="submit"
             disabled={saving}
@@ -1264,6 +1287,7 @@ function OrderMakingEdit({
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {mode === "so" ? "Save SO details" : row ? "Save" : "Create order"}
           </button>
+          )}
         </div>
       </form>
     </div>
