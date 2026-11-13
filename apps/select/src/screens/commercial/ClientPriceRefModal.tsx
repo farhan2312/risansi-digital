@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+import { ExternalLink, FileSpreadsheet, Search } from "lucide-react";
+
 import { listClientPriceRefs, type ClientPriceRef } from "../../services/clientPriceRefService";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
+import { Input } from "@/components/shadcn/input";
+import { buttonVariants } from "@/components/shadcn/button";
 
 // "Client Price Ref" viewer on the Commercial Summary: the client's old pump
 // price reference files (Excel on SharePoint). Read-only — each file opens in
@@ -50,12 +55,6 @@ export default function ClientPriceRefModal({
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   // The client's own files, or — while searching — any file by name.
   const searching = query.length > 0;
   useEffect(() => {
@@ -76,39 +75,29 @@ export default function ClientPriceRefModal({
     return () => controller.abort();
   }, [query, searching, clientCode]);
 
+  // A Radix Dialog: nothing opens on top of it (each file opens in a new tab). Escape, the X
+  // or a click outside close it, as before.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
-      <div
-        className="flex max-h-[85vh] w-full max-w-[820px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-fg">Client Price Reference</h3>
-            <p className="truncate text-[12.5px] text-fg-3">
-              {clientName || "—"}
-              {clientCode ? ` · ${clientCode}` : ""} · past price sheets on SharePoint (view only)
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent"
-          >
-            Close
-          </button>
-        </header>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="lg" className="max-h-[85vh] max-w-[820px]" onInteractOutside={() => {}}>
+        <DialogHeader>
+          <DialogTitle>Client Price Reference</DialogTitle>
+          <DialogDescription className="truncate">
+            {clientName || "—"}
+            {clientCode ? ` · ${clientCode}` : ""} · past price sheets on SharePoint (view only)
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="border-b border-line px-4 py-2.5">
-          <input
+        <div className="shrink-0 border-b border-border bg-muted/40 px-5 py-3">
+          <Input
             type="search"
+            icon={<Search />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by file name, client name or code, e.g. athani or A037"
-            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
             aria-label="Search price reference files"
           />
-          <p className="mt-1 text-[11.5px] text-fg-3">
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
             {searching
               ? "Showing files of any client whose file name, client name or code matches."
               : clientCode
@@ -117,45 +106,48 @@ export default function ClientPriceRefModal({
           </p>
         </div>
 
-        <div className="min-h-[160px] overflow-y-auto">
-          {rows === null && <p className="px-4 py-6 text-center text-[13px] text-fg-3">Loading…</p>}
-          {failed && <p className="px-4 py-6 text-center text-[13px] text-neg">Couldn&apos;t load the reference files.</p>}
+        <DialogBody className="min-h-[160px] p-0">
+          {rows === null && <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">Loading…</p>}
+          {failed && <p className="px-5 py-6 text-center text-[13px] text-destructive">Couldn&apos;t load the reference files.</p>}
           {rows && !failed && rows.length === 0 && (
-            <p className="px-4 py-6 text-center text-[13px] text-fg-3">
+            <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">
               {searching ? "No file matches that search." : clientCode ? "No price reference files for this client." : ""}
             </p>
           )}
           {rows && rows.length > 0 && (
-            <ul className="divide-y divide-line">
+            <ul className="divide-y divide-border">
               {rows.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate font-mono text-[12.5px] text-fg" title={r.fileName}>
-                      {r.fileName}
-                    </p>
-                    <p className="text-[11.5px] text-fg-3">
-                      {fmtDate(r.fileDate)}
-                      {searching && (r.clientName ? ` · ${r.clientName}` : " · not linked to a sales client")}
-                    </p>
+                <li key={r.id} className="flex items-center justify-between gap-3 px-5 py-2.5 hover:bg-muted/50">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <FileSpreadsheet className="size-4 shrink-0 text-success" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-[12.5px] text-foreground" title={r.fileName}>
+                        {r.fileName}
+                      </p>
+                      <p className="text-[11.5px] text-muted-foreground">
+                        {fmtDate(r.fileDate)}
+                        {searching && (r.clientName ? ` · ${r.clientName}` : " · not linked to a sales client")}
+                      </p>
+                    </div>
                   </div>
                   <a
                     href={browserViewUrl(r.url)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-accent hover:border-accent"
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
                     title="Opens in Excel for the web, in a new tab"
                   >
-                    Open ↗
+                    Open <ExternalLink />
                   </a>
                 </li>
               ))}
             </ul>
           )}
           {rows && rows.length === 100 && (
-            <p className="px-4 py-2 text-center text-[11.5px] text-fg-3">Showing the first 100 — narrow the search.</p>
+            <p className="px-5 py-2 text-center text-[11.5px] text-muted-foreground">Showing the first 100 — narrow the search.</p>
           )}
-        </div>
-      </div>
-    </div>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CircleCheck, Save } from "lucide-react";
 
 import { DRIVE_GROUP_LABEL, type CommercialTag } from "../../lib/commercial";
 import { EMPTY_PARTS, fieldsFromParts, partsFromHints, type CodeOption, type CodeParts } from "../../lib/pump-code";
@@ -8,6 +9,9 @@ import { listPumpCodeOptions } from "../../services/pumpCodeService";
 import { addProductPump, listProductPumps } from "../../services/productPumpService";
 import { CodeFields, CodeModeToggle, codeError, codeOf, editedCodeToAdd, editedFromSaved, type CodeMode } from "./PumpCodeInput";
 import { saveWizardInput } from "../../services/wizardInputService";
+import { Badge } from "@/components/shadcn/badge";
+import { buttonVariants } from "@/components/shadcn/button";
+import { Card } from "@/components/shadcn/card";
 
 // Commercial step 1 — Pump & Qty: per tag the ERP pump product code and the
 // number of pumps. The code is BUILT from its parts (lib/pump-code.ts — series,
@@ -23,12 +27,11 @@ const errorsOf = (r: Row) => ({
   quantity: /^[1-9]\d*$/.test(r.quantity.trim()) ? "" : "Enter a whole number, 1 or more.",
 });
 
-const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
-const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+const btn = buttonVariants({ variant: "outline" });
+const btnPrimary = buttonVariants({ variant: "default" });
+// The border colour is added per use (border-input, or destructive when invalid).
 const selectCls =
-  "w-full rounded-lg border bg-paper px-2.5 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-50";
+  "h-8 w-full rounded-md border bg-card px-2.5 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50";
 
 // The code options + known product codes, shared between an early start (the
 // Commercial page calls loadPumpQtyLists() on open, alongside the summary)
@@ -78,8 +81,8 @@ export default function PumpQtyStep({
     };
   }, []);
 
-  if (loadError) return <p className="rounded-xl border border-line bg-paper p-5 text-[13px] text-neg">{loadError}</p>;
-  if (!options) return <p className="rounded-xl border border-line bg-paper p-5 text-center text-[13px] text-fg-3">Loading…</p>;
+  if (loadError) return <p className="rounded-md border border-destructive/25 bg-destructive/8 p-4 text-[13px] font-medium text-destructive">{loadError}</p>;
+  if (!options) return <p className="rounded-lg border border-border bg-card p-5 text-center text-[13px] text-muted-foreground">Loading…</p>;
   return (
     <Editor
       projectId={projectId}
@@ -203,19 +206,23 @@ function Editor({
   };
 
   return (
-    <section className="rounded-xl border border-line bg-paper">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+    <Card className="overflow-hidden">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
-          <h3 className="text-[14px] font-semibold text-fg">Pump &amp; Qty</h3>
-          <p className="text-[12px] text-fg-3">
+          <h3 className="text-[13px] font-semibold text-foreground">Pump &amp; Qty</h3>
+          <p className="text-[12px] text-muted-foreground">
             Build each tag&apos;s pump product code from its parts (prefilled from the pump selection) or pick an existing
             one, and set the number of pumps.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {savedOnce && dirtyIds.length === 0 && <span className="text-[12px] font-medium text-pos">Saved</span>}
+          {savedOnce && dirtyIds.length === 0 && (
+            <Badge tone="success">
+              <CircleCheck /> Saved
+            </Badge>
+          )}
           <button type="button" className={btn} onClick={() => void save()} disabled={saving || dirtyIds.length === 0}>
-            {saving ? "Saving…" : "Save"}
+            <Save /> {saving ? "Saving…" : "Save"}
           </button>
           <button type="button" className={btnPrimary} onClick={() => void save().then((ok) => ok && onNext())} disabled={saving}>
             {nextLabel}
@@ -223,7 +230,7 @@ function Editor({
         </div>
       </header>
 
-      <div className="flex flex-col divide-y divide-line">
+      <div className="flex flex-col divide-y divide-border">
         {tags.map((t) => {
           const r = rows[t.tagId];
           const err = errorsOf(r);
@@ -231,9 +238,9 @@ function Editor({
             <div key={t.tagId} className="flex flex-col gap-3 px-4 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[14px] font-semibold text-fg">
+                  <p className="text-[13.5px] font-semibold text-foreground">
                     {t.tagName}
-                    <span className="ml-2 text-[12.5px] font-normal text-fg-3">
+                    <span className="ml-2 text-[12.5px] font-normal text-muted-foreground">
                       {t.model ?? "No pump selected"}
                       {t.model && !t.modelConfirmed ? " (not confirmed)" : ""} ·{" "}
                       {t.driveGroup ? DRIVE_GROUP_LABEL[t.driveGroup] : "No drive yet"} · Pump type PCP
@@ -244,18 +251,18 @@ function Editor({
                   </div>
                 </div>
                 <label className="flex w-[140px] flex-col gap-1">
-                  <span className="text-[11.5px] font-semibold text-fg-3">Quantity (Nos)</span>
+                  <span className="text-[12px] font-medium text-foreground">Quantity (Nos)</span>
                   <input
                     type="number"
                     min={1}
                     step={1}
                     inputMode="numeric"
-                    className={`${selectCls} text-right font-mono ${showErrors && err.quantity ? "border-neg" : "border-line"}`}
+                    className={`${selectCls} text-right font-mono tabular-nums ${showErrors && err.quantity ? "border-destructive" : "border-input"}`}
                     value={r.quantity}
                     onChange={(e) => set(t.tagId, { quantity: e.target.value })}
                     aria-label={`Quantity for ${t.tagName}`}
                   />
-                  {showErrors && err.quantity && <span className="text-[11.5px] text-neg">{err.quantity}</span>}
+                  {showErrors && err.quantity && <span className="text-[11.5px] font-medium text-destructive">{err.quantity}</span>}
                 </label>
               </div>
 
@@ -273,11 +280,11 @@ function Editor({
       </div>
 
       {(saveError || (showErrors && invalidIds.length > 0)) && (
-        <p className="border-t border-line px-4 py-2.5 text-[12.5px] text-neg">
+        <p className="border-t border-destructive/25 bg-destructive/8 px-4 py-2.5 text-[12.5px] font-medium text-destructive" role="alert">
           {saveError ||
             `${invalidIds.length} tag${invalidIds.length === 1 ? " needs" : "s need"} a complete product code and quantity before moving on.`}
         </p>
       )}
-    </section>
+    </Card>
   );
 }

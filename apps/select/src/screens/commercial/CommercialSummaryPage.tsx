@@ -76,6 +76,8 @@ import { getEnquiryQuotations } from "../../services/quotationService";
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import SpareCommercial from "./SpareCommercial";
 import { usePageTitle } from "../../components/layout/PageTitle";
+import { buttonVariants } from "@/components/shadcn/button";
+import { ArrowLeft, FileSpreadsheet, FileText, Lock, Save } from "lucide-react";
 
 // Commercial Summary (pricing v1, manual). Every tag of one enquiry on one
 // page: Pump & Accessories + BOI items typed in per unit, quantity pulled from
@@ -200,13 +202,12 @@ const draftErrors = (d: Draft): Record<string, string> => {
 
 const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 
+// shadcn look (user, 2026-11-13, branch select-shadcn): the Input / Button styles.
 const inputCls =
-  "w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none transition placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft";
+  "w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50";
 const moneyCls = `${inputCls} text-right font-mono`;
-const btnSm =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-fg-2 transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
-const btnPrimarySm =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold whitespace-nowrap text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+const btnSm = buttonVariants({ variant: "outline" });
+const btnPrimarySm = buttonVariants({ variant: "default" });
 
 export default function CommercialSummaryPage() {
   const projectId = useSearchParams().get("projectId") ?? "";
@@ -548,6 +549,7 @@ export default function CommercialSummaryPage() {
   }
 
   return (
+    <div className="min-h-full bg-background">
     <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8">
       <PageHeader
         icon={<RupeeIcon />}
@@ -560,7 +562,7 @@ export default function CommercialSummaryPage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {dirtyIds.length > 0 && (
-              <span className="text-[12.5px] font-medium text-warn">
+              <span className="inline-flex items-center rounded-md bg-warning/10 px-1.5 py-px text-[11.5px] font-medium text-warning ring-1 ring-warning/25 ring-inset">
                 {dirtyIds.length} tag{dirtyIds.length === 1 ? "" : "s"} with unsaved changes
               </span>
             )}
@@ -570,7 +572,7 @@ export default function CommercialSummaryPage() {
               onClick={saveAll}
               disabled={dirtyIds.length === 0 || dirtyIds.some((id) => saving[id])}
             >
-              Save all
+              <Save /> Save all
             </button>
             <button
               type="button"
@@ -579,7 +581,7 @@ export default function CommercialSummaryPage() {
               disabled={!data}
               title="View this client's past price reference sheets (SharePoint)"
             >
-              Client Price Ref
+              <FileSpreadsheet /> Client Price Ref
             </button>
             <button
               type="button"
@@ -592,7 +594,7 @@ export default function CommercialSummaryPage() {
                   : "Preview, edit, print or download the Commercial Offer sheet"
               }
             >
-              Commercial Offer
+              <FileText /> Commercial Offer
             </button>
             <button
               type="button"
@@ -605,27 +607,27 @@ export default function CommercialSummaryPage() {
                   : "Technical Data Sheet + Commercial Offer as one sheet — preview, print or download"
               }
             >
-              Techno-Commercial
+              <FileText /> Techno-Commercial
             </button>
-            <Link href="/projects" className={btnSm}>
-              Back to Enquiries
+            <Link href="/projects" className={buttonVariants({ variant: "ghost" })}>
+              <ArrowLeft /> Back to Enquiries
             </Link>
           </div>
         }
       />
 
       {readOnly && (
-        <p className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3.5 py-2.5 text-[12.5px] text-fg-2">
-          <span className="rounded-md bg-accent px-2 py-0.5 text-[11.5px] font-bold text-white">View only</span>
+        <p className="flex flex-wrap items-center gap-2 rounded-md border border-info/25 bg-info/8 px-3.5 py-2.5 text-[12.5px] text-foreground">
+          <span className="rounded-md bg-primary px-2 py-0.5 text-[11.5px] font-semibold text-primary-foreground">View only</span>
           This is an older version of the enquiry - nothing here can be changed. Work on the latest version from the Enquiries list.
         </p>
       )}
 
       {loadError && (
-        <div className="rounded-xl border border-line bg-paper p-5 text-[13.5px] text-neg">
+        <div className="rounded-lg border border-border bg-card p-5 text-[13.5px] text-destructive">
           {loadError}{" "}
           {projectId && (
-            <button type="button" className="font-semibold text-accent underline" onClick={load}>
+            <button type="button" className="font-semibold text-primary underline" onClick={load}>
               Retry
             </button>
           )}
@@ -633,13 +635,13 @@ export default function CommercialSummaryPage() {
       )}
 
       {!data && !loadError && (
-        <div className="rounded-xl border border-line bg-paper p-8 text-center text-[13.5px] text-fg-3">
+        <div className="rounded-lg border border-border bg-card p-8 text-center text-[13.5px] text-muted-foreground">
           Loading Commercial Summary…
         </div>
       )}
 
       {data && data.tags.length === 0 && (
-        <div className="rounded-xl border border-line bg-paper p-8 text-center text-[13.5px] text-fg-3">
+        <div className="rounded-lg border border-border bg-card p-8 text-center text-[13.5px] text-muted-foreground">
           This enquiry has no tags yet.
         </div>
       )}
@@ -647,8 +649,8 @@ export default function CommercialSummaryPage() {
       {data && data.tags.some((t) => !t.productCode || t.quantity === null) && (() => {
         const missing = data.tags.filter((t) => !t.productCode || t.quantity === null);
         return (
-          <p className="rounded-xl border border-[var(--warn)] bg-[var(--warn-soft)] px-4 py-2.5 text-[12.5px] text-fg-2">
-            <b className="text-warn">
+          <p className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-[12.5px] text-foreground">
+            <b className="text-warning">
               {missing.length} tag{missing.length === 1 ? "" : "s"} without a product code or quantity
             </b>{" "}
             ({missing.map((t) => t.tagName).join(", ")}) — set them on the <b>Pump &amp; Qty</b> step of the pump selection
@@ -658,18 +660,18 @@ export default function CommercialSummaryPage() {
       })()}
 
       {data && data.tags.length > 0 && quoteCount === 0 && (
-        <section className="flex flex-col items-center gap-3 rounded-xl border border-line bg-paper px-6 py-10 text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--warn-soft)] text-[20px]" aria-hidden="true">
-            🔒
+        <section className="flex flex-col items-center gap-3 rounded-lg border border-border bg-card px-6 py-10 text-center">
+          <span className="flex size-11 items-center justify-center rounded-full bg-warning/10 text-warning" aria-hidden="true">
+            <Lock className="size-5" />
           </span>
-          <h2 className="text-[16px] font-semibold text-fg">Generate the quotation first</h2>
-          <p className="max-w-[520px] text-[13px] text-fg-3">
+          <h2 className="text-[16px] font-semibold text-foreground">Generate the quotation first</h2>
+          <p className="max-w-[520px] text-[13px] text-muted-foreground">
             Commercial opens once the enquiry&apos;s quotation is generated — one per drive system, with the TSM and the
             quotation no. (ERP). It&apos;s the Quotation step, between Technical and Commercial on the Enquiries list.
           </p>
           <button
             type="button"
-            className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className={buttonVariants({ variant: "default", size: "lg" })}
             disabled={readOnly}
             onClick={() => setShowQuotationStep(true)}
           >
@@ -696,7 +698,7 @@ export default function CommercialSummaryPage() {
       {data && data.tags.length > 0 && quoteCount !== null && quoteCount > 0 && (
         <>
           {tabs.length > 1 && (
-            <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Drive system">
+            <div className="inline-flex w-fit flex-wrap items-center gap-0.5 rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="tablist" aria-label="Drive system">
               {tabs.map((t) => {
                 const n = rows.filter((r) => (r.tag.driveGroup ?? "NONE") === t).length;
                 return (
@@ -706,8 +708,8 @@ export default function CommercialSummaryPage() {
                     role="tab"
                     aria-selected={t === tab}
                     onClick={() => setActiveTab(t)}
-                    className={`rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-                      t === tab ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-accent"
+                    className={`rounded-[5px] px-3 py-1.5 text-[12.5px] font-medium transition-[color,background-color,box-shadow] ${
+                      t === tab ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {tabLabel(t)}
@@ -720,7 +722,7 @@ export default function CommercialSummaryPage() {
           )}
 
           {tab === "NONE" ? (
-            <div className="rounded-xl border border-line bg-paper p-4 text-[13px] text-fg-2">
+            <div className="rounded-lg border border-border bg-card p-4 text-[13px] text-foreground">
               These tags have no drive system yet, so they can&apos;t be quoted. Choose the drive on the tag&apos;s Drive step —
               the tag then moves to its drive group&apos;s quotation.
             </div>
@@ -743,33 +745,33 @@ export default function CommercialSummaryPage() {
           {/* An older version: the prices show, every control below is off. */}
           <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
           {data.project.versionKind === "technical" && (
-            <p className="rounded-xl border border-line bg-paper px-4 py-3 text-[13px] text-fg-2">
-              <b className="font-semibold text-fg">Technical only version.</b> Technical is V{data.project.versionNo} and Commercial stays V{data.project.commercialVersionNo}.
+            <p className="rounded-lg border border-border bg-card px-4 py-3 text-[13px] text-foreground">
+              <b className="font-semibold text-foreground">Technical only version.</b> Technical is V{data.project.versionNo} and Commercial stays V{data.project.commercialVersionNo}.
               Prices don&apos;t change by themselves here. If the pump selection affects a price, the tag shows a warning, and it needs an answer before the next Save Version.
             </p>
           )}
           {data.project.commercialVersionNo > 0 && (
-            <label className="flex cursor-pointer flex-wrap items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3 text-[13px] text-fg-2">
+            <label className="flex cursor-pointer flex-wrap items-center gap-2.5 rounded-lg border border-border bg-card px-4 py-3 text-[13px] text-foreground">
               <input
                 type="checkbox"
-                className="accent-accent"
+                className="accent-[var(--sc-primary)]"
                 checked={Boolean(data.project.pricesReviewedAt)}
                 disabled={reviewBusy}
                 onChange={(e) => void toggleReviewed(e.target.checked)}
               />
               <span className="min-w-0 flex-1">
-                <b className="font-semibold text-fg">Prices reviewed</b> - I have checked the prices copied from V{data.project.commercialVersionNo - 1},
+                <b className="font-semibold text-foreground">Prices reviewed</b> - I have checked the prices copied from V{data.project.commercialVersionNo - 1},
                 including Strainer, PRV and Other items. Needed before Save Version.
               </span>
             </label>
           )}
           {tab && tab !== "NONE" && (
-            <section className="rounded-xl border border-line bg-paper">
-              <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-                <h2 className="text-[14px] font-semibold text-fg">
+            <section className="rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+                <h2 className="text-[14px] font-semibold text-foreground">
                   Scope of Supply{mixed ? ` — ${tabLabel(tab)}` : ""}
                 </h2>
-                <span className="text-[12px] text-fg-3">
+                <span className="text-[12px] text-muted-foreground">
                   {scopeSave === "saving"
                     ? "Saving…"
                     : scopeSave === "saved"
@@ -781,7 +783,7 @@ export default function CommercialSummaryPage() {
               </header>
               <div className="flex flex-col gap-3 p-4">
                 {offerConfigs === null ? (
-                  <p className="text-[12.5px] text-fg-3">Loading…</p>
+                  <p className="text-[12.5px] text-muted-foreground">Loading…</p>
                 ) : (
                   <>
                     <ScopeControls
@@ -797,17 +799,17 @@ export default function CommercialSummaryPage() {
           )}
 
           {/* Summary across all tags */}
-          <section className="rounded-xl border border-line bg-paper">
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-              <h2 className="text-[14px] font-semibold text-fg">
+          <section className="rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+              <h2 className="text-[14px] font-semibold text-foreground">
                 Summary{mixed && tab && tab !== "NONE" ? ` — ${tabLabel(tab)}` : ""}
               </h2>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-[12px] text-fg-3">
+                <span className="text-[12px] text-muted-foreground">
                   {fx ? (
                     <>
                       Entered in INR · quoted in USD at{" "}
-                      <b className="font-mono text-fg-2">1 USD = ₹{fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}</b>
+                      <b className="font-mono text-foreground">1 USD = ₹{fx.rate.toLocaleString("en-IN", { maximumFractionDigits: 4 })}</b>
                     </>
                   ) : (
                     "All prices in INR, per unit unless marked"
@@ -816,7 +818,7 @@ export default function CommercialSummaryPage() {
                 {fx && rateNow && rateNow !== fx.rate && (
                   <button
                     type="button"
-                    className="text-[12px] font-semibold text-accent hover:underline disabled:opacity-50"
+                    className="text-[12px] font-semibold text-primary hover:underline disabled:opacity-50"
                     disabled={fxBusy}
                     onClick={() => changeCurrency("USD", true)}
                     title="Fix today's USD to INR rate on this enquiry instead"
@@ -825,7 +827,7 @@ export default function CommercialSummaryPage() {
                   </button>
                 )}
                 <label
-                  className={`inline-flex items-center gap-2 text-[12.5px] font-semibold ${fx ? "text-accent" : "text-fg-2"} ${
+                  className={`inline-flex items-center gap-2 text-[12.5px] font-semibold ${fx ? "text-primary" : "text-foreground"} ${
                     fxBusy || (!fx && !rateNow) ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                   }`}
                   title={
@@ -843,7 +845,7 @@ export default function CommercialSummaryPage() {
                     disabled={fxBusy || (!fx && !rateNow)}
                     onClick={() => changeCurrency(fx ? "INR" : "USD")}
                     className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed ${
-                      fx ? "bg-accent" : "bg-line-strong"
+                      fx ? "bg-primary" : "bg-line-strong"
                     }`}
                   >
                     <span
@@ -876,12 +878,12 @@ export default function CommercialSummaryPage() {
                 )}
               </div>
             </header>
-            {fxError && <p className="border-b border-line px-4 py-2 text-[12.5px] text-neg">{fxError}</p>}
-            {discountError && <p className="border-b border-line px-4 py-2 text-[12.5px] text-neg">{discountError}</p>}
+            {fxError && <p className="border-b border-border px-4 py-2 text-[12.5px] text-destructive">{fxError}</p>}
+            {discountError && <p className="border-b border-border px-4 py-2 text-[12.5px] text-destructive">{discountError}</p>}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-[13px]">
                 <thead>
-                  <tr className="border-b border-line text-left text-[11.5px] font-semibold tracking-[0.06em] text-fg-3 uppercase">
+                  <tr className="border-b border-border bg-muted/60 text-left text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     <th className="px-4 py-2.5 align-top">Tag</th>
                     <th className="px-4 py-2.5 align-top">Pump Model</th>
                     <th className="px-4 py-2.5 text-right align-top">
@@ -913,19 +915,19 @@ export default function CommercialSummaryPage() {
                 </thead>
                 <tbody>
                   {groupRows.map(({ tag, prices, unit, sub, baseUnit, baseSub }) => (
-                    <tr key={tag.tagId} className="border-b border-line last:border-b-0">
+                    <tr key={tag.tagId} className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/50">
                       <td className="px-4 py-2.5">
-                        <a href={`#tag-${tag.tagId}`} className="font-semibold text-accent hover:underline">
+                        <a href={`#tag-${tag.tagId}`} className="font-semibold text-primary hover:underline">
                           {tag.tagName}
                         </a>
                         {dirtyIds.includes(tag.tagId) && (
-                          <span className="ml-2 text-[11px] font-medium text-warn">unsaved</span>
+                          <span className="ml-2 text-[11px] font-medium text-warning">unsaved</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-fg-2">
+                      <td className="px-4 py-2.5 text-foreground">
                         {tag.productCode ?? tag.model ?? "—"}
                         {tag.productCode && tag.model && (
-                          <span className="block text-[11.5px] text-fg-3">{tag.model}</span>
+                          <span className="block text-[11.5px] text-muted-foreground">{tag.model}</span>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
@@ -936,15 +938,15 @@ export default function CommercialSummaryPage() {
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
                         <WithBase final={formatInr(unit)} base={formatInr(baseUnit)} show={discounted} />
-                        {fx && <span className="block text-[11.5px] text-accent">{formatUsd(finalUnit(usd(prices), discount))}</span>}
+                        {fx && <span className="block text-[11.5px] text-primary">{formatUsd(finalUnit(usd(prices), discount))}</span>}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono">
-                        {tag.quantity ?? <span className="text-neg">not set</span>}
+                        {tag.quantity ?? <span className="text-destructive">not set</span>}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-fg">
+                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-foreground">
                         <WithBase final={formatInr(sub)} base={formatInr(baseSub)} show={discounted} />
                         {fx && (
-                          <span className="block text-[11.5px] text-accent">{formatUsd(finalSub(usd(prices), tag.quantity, discount))}</span>
+                          <span className="block text-[11.5px] text-primary">{formatUsd(finalSub(usd(prices), tag.quantity, discount))}</span>
                         )}
                       </td>
                     </tr>
@@ -952,41 +954,41 @@ export default function CommercialSummaryPage() {
                 </tbody>
                 <tfoot>
                   {/* Column sums: P&A, BOI and unit price as listed (per unit), qty, sub-total. */}
-                  <tr className="border-t-2 border-line-strong bg-sunk">
-                    <td colSpan={2} className="px-4 py-3 text-[13px] font-semibold text-fg">
+                  <tr className="border-t-2 border-input bg-muted">
+                    <td colSpan={2} className="px-4 py-3 text-[13px] font-semibold text-foreground">
                       Grand Total
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
+                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-foreground">
                       <WithBase
                         final={formatInr(groupRows.reduce((s, r) => s + (finalPa(r.prices, discount) ?? 0), 0))}
                         base={formatInr(groupRows.reduce((s, r) => s + (r.prices.paPrice ?? 0), 0))}
                         show={discount.paPct > 0}
                       />
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
+                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-foreground">
                       <WithBase
                         final={formatInr(groupRows.reduce((s, r) => s + finalBoi(r.prices, discount), 0))}
                         base={formatInr(groupRows.reduce((s, r) => s + boiTotal(r.prices), 0))}
                         show={discount.boiPct > 0}
                       />
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
+                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-foreground">
                       <WithBase
                         final={formatInr(groupRows.reduce((s, r) => s + r.unit, 0))}
                         base={formatInr(groupRows.reduce((s, r) => s + r.baseUnit, 0))}
                         show={discounted}
                       />
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-fg">
+                    <td className="px-4 py-3 text-right font-mono text-[13px] font-semibold text-foreground">
                       {groupRows.reduce((s, r) => s + (r.tag.quantity ?? 0), 0)}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-[15px] font-bold text-fg">
+                    <td className="px-4 py-3 text-right font-mono text-[15px] font-bold text-foreground">
                       <WithBase final={formatInr(grand)} base={formatInr(groupRows.reduce((s, r) => s + r.baseSub, 0))} show={discounted} />
                     </td>
                   </tr>
                   {fx && (
                     // The same sums in USD, as the Commercial Offer shows them.
-                    <tr className="bg-sunk text-accent">
+                    <tr className="bg-muted text-primary">
                       <td colSpan={2} className="px-4 pb-3 text-[13px] font-semibold">
                         Grand Total (USD)
                       </td>
@@ -1009,7 +1011,7 @@ export default function CommercialSummaryPage() {
               </table>
             </div>
             {missingQty > 0 && (
-              <p className="border-t border-line px-4 py-2.5 text-[12px] text-neg">
+              <p className="border-t border-border px-4 py-2.5 text-[12px] text-destructive">
                 {missingQty} tag{missingQty === 1 ? " has" : "s have"} no quantity, so{" "}
                 {missingQty === 1 ? "it counts" : "they count"} as 0. Set Quantity on the wizard&apos;s Pump &amp; Qty step.
               </p>
@@ -1121,6 +1123,7 @@ export default function CommercialSummaryPage() {
         />
       )}
     </div>
+    </div>
   );
 }
 
@@ -1144,7 +1147,7 @@ function WithBase({ final, base, show }: { final: string; base: string; show: bo
   return (
     <>
       {final}
-      <span className="block text-[11.5px] font-normal text-fg-3" title="Before the discount">
+      <span className="block text-[11.5px] font-normal text-muted-foreground" title="Before the discount">
         base {base}
       </span>
     </>
@@ -1192,7 +1195,7 @@ function DiscountInput({
   };
   return (
     <span className="mt-1 flex items-center justify-end gap-1 font-medium tracking-normal normal-case">
-      <span className="text-[11px] text-fg-3">Disc.</span>
+      <span className="text-[11px] text-muted-foreground">Disc.</span>
       <input
         type="text"
         inputMode="decimal"
@@ -1210,11 +1213,11 @@ function DiscountInput({
             setBad(false);
           }
         }}
-        className={`w-14 rounded border bg-paper px-1.5 py-0.5 text-right font-mono text-[12px] text-fg outline-none focus:border-accent disabled:opacity-60 ${
-          bad ? "border-neg" : "border-line"
+        className={`w-14 rounded border bg-card px-1.5 py-0.5 text-right font-mono text-[12px] text-foreground outline-none focus:border-primary disabled:opacity-60 ${
+          bad ? "border-destructive" : "border-border"
         }`}
       />
-      <span className="text-[11px] text-fg-3">%</span>
+      <span className="text-[11px] text-muted-foreground">%</span>
     </span>
   );
 }
@@ -1286,7 +1289,7 @@ function TagCard({
       case "motorPrice":
       case "gearboxPrice": {
         const ref = refs[key];
-        if (!ref) return { master: null, node: <span className="text-fg-3">Not selected in the wizard</span> };
+        if (!ref) return { master: null, node: <span className="text-muted-foreground">Not selected in the wizard</span> };
         const price = ref.price;
         const active = price !== null && draft[key] === priceText(price);
         return {
@@ -1331,7 +1334,7 @@ function TagCard({
             node: (
               <div className="flex flex-col items-start gap-1">
                 {stale}
-                <span className="text-warn">{tag.mechSealNote}</span>
+                <span className="text-warning">{tag.mechSealNote}</span>
               </div>
             ),
           };
@@ -1361,7 +1364,7 @@ function TagCard({
             node: (
               <div className="flex flex-col items-start gap-1">
                 {stale}
-                <span className="text-warn">{tag.drpNote}</span>
+                <span className="text-warning">{tag.drpNote}</span>
               </div>
             ),
           };
@@ -1389,14 +1392,14 @@ function TagCard({
         };
       }
       default:
-        return { master: null, node: <span className="text-fg-3">Manual entry</span> };
+        return { master: null, node: <span className="text-muted-foreground">Manual entry</span> };
     }
   };
 
   return (
-    <section id={`tag-${tag.tagId}`} className="scroll-mt-4 rounded-xl border border-line bg-paper">
+    <section id={`tag-${tag.tagId}`} className="scroll-mt-4 rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <header
-        className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${collapsed ? "" : "border-b border-line"}`}
+        className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${collapsed ? "" : "border-b border-border"}`}
       >
         <button
           type="button"
@@ -1405,31 +1408,31 @@ function TagCard({
           className="flex min-w-0 flex-1 items-start gap-2.5 text-left"
           title={collapsed ? "Expand this tag" : "Collapse this tag"}
         >
-          <span className="mt-0.5 shrink-0 text-[13px] text-fg-3" aria-hidden="true">
+          <span className="mt-0.5 shrink-0 text-[13px] text-muted-foreground" aria-hidden="true">
             {collapsed ? "▸" : "▾"}
           </span>
           <span className="min-w-0">
-            <span className="block text-[15px] font-semibold text-fg">
+            <span className="block text-[15px] font-semibold text-foreground">
               {tag.tagName}
-              <span className="ml-2 text-[13px] font-normal text-fg-3">{tag.model ?? "No pump selected"}</span>
+              <span className="ml-2 text-[13px] font-normal text-muted-foreground">{tag.model ?? "No pump selected"}</span>
             </span>
             {collapsed ? (
-              <span className="mt-0.5 block text-[12px] text-fg-3">
-                {tag.productCode ?? "No product code"} · Unit <b className="font-mono text-fg-2">{formatInr(unit)}</b> ·{" "}
-                {tag.quantity === null ? <span className="text-warn">qty not set</span> : `× ${tag.quantity}`} · Sub-total{" "}
-                <b className="font-mono text-fg">{formatInr(sub)}</b>
+              <span className="mt-0.5 block text-[12px] text-muted-foreground">
+                {tag.productCode ?? "No product code"} · Unit <b className="font-mono text-foreground">{formatInr(unit)}</b> ·{" "}
+                {tag.quantity === null ? <span className="text-warning">qty not set</span> : `× ${tag.quantity}`} · Sub-total{" "}
+                <b className="font-mono text-foreground">{formatInr(sub)}</b>
               </span>
             ) : (
-              <span className="mt-0.5 block text-[12px] text-fg-3">
+              <span className="mt-0.5 block text-[12px] text-muted-foreground">
                 {[tag.media, tag.driveSystem, tag.status].filter(Boolean).join(" · ")}
-                {tag.model && !tag.modelConfirmed && <span className="ml-1 text-warn">· model not confirmed</span>}
+                {tag.model && !tag.modelConfirmed && <span className="ml-1 text-warning">· model not confirmed</span>}
               </span>
             )}
           </span>
         </button>
         <div className="flex items-center gap-2">
-          {dirty && collapsed && <span className="text-[12px] font-medium text-warn">Unsaved changes</span>}
-          {justSaved && !dirty && <span className="text-[12px] font-medium text-pos">Saved</span>}
+          {dirty && collapsed && <span className="text-[12px] font-medium text-warning">Unsaved changes</span>}
+          {justSaved && !dirty && <span className="text-[12px] font-medium text-success">Saved</span>}
           {dirty && (
             <button type="button" className={btnSm} onClick={onReset} disabled={saving}>
               Discard
@@ -1442,11 +1445,11 @@ function TagCard({
       </header>
 
       {(tag.priceChanges.length > 0 || tag.removedBoi.length > 0) && (
-        <div className="flex flex-col gap-2 border-b border-line bg-[var(--warn-soft)] px-4 py-3 text-[12.5px] text-fg-2">
+        <div className="flex flex-col gap-2 border-b border-border bg-warning/10 px-4 py-3 text-[12.5px] text-foreground">
           {tag.priceChanges.map((c) => (
             <div key={c.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <span className="min-w-0 flex-1">
-                <b className="font-semibold text-warn">{c.label} changed</b> from {c.was} to {c.now}. Old price{" "}
+                <b className="font-semibold text-warning">{c.label} changed</b> from {c.was} to {c.now}. Old price{" "}
                 <b className="font-mono">{formatInr(c.price)}</b>
                 {c.newPrice !== null ? (
                   <>
@@ -1478,7 +1481,7 @@ function TagCard({
               <span className="min-w-0 flex-1">
                 {tag.removedBoi.map((r) => (
                   <span key={r.key} className="block">
-                    <b className="font-semibold text-fg">{r.label} {formatInr(r.price)} removed</b>: {r.reason}.
+                    <b className="font-semibold text-foreground">{r.label} {formatInr(r.price)} removed</b>: {r.reason}.
                   </span>
                 ))}
               </span>
@@ -1487,7 +1490,7 @@ function TagCard({
               </button>
             </div>
           )}
-          {reviewError && <p className="font-medium text-neg">{reviewError}</p>}
+          {reviewError && <p className="font-medium text-destructive">{reviewError}</p>}
         </div>
       )}
 
@@ -1495,14 +1498,14 @@ function TagCard({
         <div className="flex min-w-0 flex-col gap-4">
           {/* Pump & Accessories */}
           <div>
-            <h3 className="mb-2 text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">
+            <h3 className="mb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
               Pump &amp; Accessories
             </h3>
             <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-[1fr_200px]">
-              <p className="pt-2 text-[13px] text-fg-2">
+              <p className="pt-2 text-[13px] text-foreground">
                 {tag.productCode ?? tag.model ?? "Pump"} with accessories
                 {!tag.productCode && (
-                  <span className="block text-[11.5px] text-warn">Product code not picked on the wizard&apos;s Pump &amp; Qty step</span>
+                  <span className="block text-[11.5px] text-warning">Product code not picked on the wizard&apos;s Pump &amp; Qty step</span>
                 )}
               </p>
               <MoneyInput
@@ -1527,8 +1530,8 @@ function TagCard({
               shows the line's state (priced / differs from master / not priced). */}
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase">BOI Items (bought-out)</h3>
-              <span className="hidden items-center gap-3.5 text-[11.5px] font-medium text-fg-3 sm:flex">
+              <h3 className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">BOI Items (bought-out)</h3>
+              <span className="hidden items-center gap-3.5 text-[11.5px] font-medium text-muted-foreground sm:flex">
                 {(["ok", "diff", "empty"] as const).map((s) => (
                   <span key={s} className="inline-flex items-center gap-1.5">
                     <i className={`inline-block h-2 w-2 rounded-full ${BOI_DOT[s]}`} />
@@ -1537,9 +1540,9 @@ function TagCard({
                 ))}
               </span>
             </div>
-            <div className="overflow-hidden rounded-lg border border-line">
+            <div className="overflow-hidden rounded-lg border border-border">
               <div
-                className={`hidden border-b border-line bg-sunk py-2 pr-3 pl-[15px] text-[11px] font-semibold tracking-[0.04em] text-fg-3 uppercase sm:grid sm:gap-x-2.5 ${BOI_GRID}`}
+                className={`hidden border-b border-border bg-muted py-2 pr-3 pl-[15px] text-[11px] font-semibold tracking-[0.04em] text-muted-foreground uppercase sm:grid sm:gap-x-2.5 ${BOI_GRID}`}
               >
                 <span>Item</span>
                 <span>Reference / suggestion</span>
@@ -1567,17 +1570,17 @@ function TagCard({
                   return (
                     <div
                       key={key}
-                      className={`grid grid-cols-1 gap-1 border-b border-l-[3px] border-line border-l-[color:var(--fg-4)] bg-sunk px-3 py-2 text-fg-4 sm:items-center sm:gap-x-2.5 ${BOI_GRID}`}
+                      className={`grid grid-cols-1 gap-1 border-b border-l-[3px] border-border border-l-[color:var(--sc-border)] bg-muted px-3 py-2 text-muted-foreground/70 sm:items-center sm:gap-x-2.5 ${BOI_GRID}`}
                     >
                       <span className="text-[13px] font-semibold">{item.label}</span>
                       <span className="text-[12px] sm:col-span-4">
-                        <span className="mr-2 rounded bg-paper px-1.5 py-px text-[11px] font-semibold text-fg-3">N/A</span>
+                        <span className="mr-2 rounded bg-card px-1.5 py-px text-[11px] font-semibold text-muted-foreground">N/A</span>
                         {msa
                           ? "ACME MSA is the standard mechanical seal - priced in Pump & Accessories (P&A suggestion), not here"
                           : (tag.mechSealNote ?? `${sealing} — no mechanical seal`)}
                         <button
                           type="button"
-                          className="ml-2 text-[12px] font-semibold text-accent hover:underline"
+                          className="ml-2 text-[12px] font-semibold text-primary hover:underline"
                           onClick={() => setSealOpen(true)}
                         >
                           Price anyway
@@ -1629,7 +1632,7 @@ function TagCard({
                       />
                       <button
                         type="button"
-                        className="shrink-0 rounded-md px-2 py-1.5 text-[12px] font-semibold text-neg hover:bg-[var(--neg-soft)]"
+                        className="shrink-0 rounded-md px-2 py-1.5 text-[12px] font-semibold text-destructive hover:bg-destructive/10"
                         onClick={() => onChange({ others: draft.others.filter((_, j) => j !== i) })}
                         aria-label="Remove this item"
                       >
@@ -1650,7 +1653,7 @@ function TagCard({
               <div className="border-l-[3px] border-l-transparent px-3 py-2">
                 <button
                   type="button"
-                  className="text-[12.5px] font-semibold text-accent hover:underline disabled:cursor-not-allowed disabled:text-fg-4 disabled:no-underline"
+                  className="text-[12.5px] font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground/70 disabled:no-underline"
                   onClick={() => onChange({ others: [...draft.others, newOther()] })}
                   disabled={draft.others.length >= MAX_OTHER_ITEMS}
                 >
@@ -1660,9 +1663,9 @@ function TagCard({
             </div>
           </div>
 
-          {error && <p className="text-[12.5px] text-neg">{error}</p>}
+          {error && <p className="text-[12.5px] text-destructive">{error}</p>}
           {tag.updatedAt && (
-            <p className="text-[11.5px] text-fg-4">
+            <p className="text-[11.5px] text-muted-foreground/70">
               Last saved {new Date(tag.updatedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
               {tag.updatedByName ? ` by ${tag.updatedByName}` : ""}
             </p>
@@ -1670,7 +1673,7 @@ function TagCard({
         </div>
 
         {/* Totals */}
-        <aside className="flex h-fit flex-col gap-2 rounded-lg border border-line bg-sunk p-4 text-[13px]">
+        <aside className="flex h-fit flex-col gap-2 rounded-lg border border-border bg-muted p-4 text-[13px]">
           <TotalRow label="Pump & Accessories" value={formatInr(prices.paPrice ?? 0)} />
           {discount.paPct > 0 && (
             <TotalRow label={`P&A less ${discount.paPct}% discount`} value={formatInr(finalPa(prices, discount) ?? 0)} />
@@ -1679,16 +1682,16 @@ function TagCard({
           {discount.boiPct > 0 && (
             <TotalRow label={`BOI less ${discount.boiPct}% discount`} value={formatInr(finalBoi(prices, discount))} />
           )}
-          <div className="my-1 border-t border-line" />
+          <div className="my-1 border-t border-border" />
           <TotalRow label="Unit price" value={formatInr(unit)} strong />
           <TotalRow
             label="Quantity"
             value={tag.quantity === null ? "not set" : `× ${tag.quantity}`}
             warn={tag.quantity === null}
           />
-          <div className="my-1 border-t border-line-strong" />
+          <div className="my-1 border-t border-input" />
           <TotalRow label="Sub-total" value={formatInr(sub)} big />
-          <p className="mt-1 text-[11.5px] text-fg-3">Quantity comes from the wizard's Pump & Qty step.</p>
+          <p className="mt-1 text-[11.5px] text-muted-foreground">Quantity comes from the wizard's Pump & Qty step.</p>
         </aside>
       </div>
     </section>
@@ -1700,11 +1703,11 @@ function TagCard({
 type BoiState = "ok" | "diff" | "empty";
 const BOI_GRID = "sm:grid-cols-[112px_minmax(0,1fr)_132px_68px_68px_96px]";
 const BOI_EDGE: Record<BoiState, string> = {
-  ok: "border-l-[color:var(--pos)]",
-  diff: "border-l-[color:#f59e0b]",
-  empty: "border-l-[color:var(--fg-4)]",
+  ok: "border-l-[color:var(--sc-success)]",
+  diff: "border-l-[color:var(--sc-warning)]",
+  empty: "border-l-[color:var(--sc-border)]",
 };
-const BOI_DOT: Record<BoiState, string> = { ok: "bg-[var(--pos)]", diff: "bg-[#f59e0b]", empty: "bg-[var(--fg-4)]" };
+const BOI_DOT: Record<BoiState, string> = { ok: "bg-success", diff: "bg-warning", empty: "bg-muted-foreground/50" };
 const BOI_STATE_LABEL: Record<BoiState, string> = { ok: "Priced", diff: "Differs from master", empty: "Not priced" };
 
 /** Not priced (blank or invalid), priced, or priced but not the master price. */
@@ -1735,8 +1738,8 @@ function UseChip({
       title={active ? "Click to clear this price" : title}
       className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-px font-mono text-[11.5px] font-semibold whitespace-nowrap transition-colors ${
         active
-          ? "border-[color:var(--pos)] bg-[var(--pos-soft)] text-pos"
-          : "border-[color:var(--accent-line)] bg-paper text-accent hover:bg-accent-soft"
+          ? "border-success/40 bg-success/10 text-success"
+          : "border-primary/25 bg-card text-primary hover:bg-primary/8"
       }`}
     >
       {active ? `✓ ${verb} ${formatInr(price)}` : `Use ${formatInr(price)}`}
@@ -1755,7 +1758,7 @@ function RefLine({ text, warn, children }: { text: ReactNode; warn?: string; chi
     <div className="flex flex-col items-start gap-1">
       <span>
         {text}
-        {warn && <span className="ml-1 text-warn">({warn})</span>}
+        {warn && <span className="ml-1 text-warning">({warn})</span>}
       </span>
       {children}
     </div>
@@ -1766,10 +1769,10 @@ function RefLine({ text, warn, children }: { text: ReactNode; warn?: string; chi
 function UsedLine({ label = "Used", value, onClear }: { label?: string; value: string; onClear: () => void }) {
   return (
     <span className="flex flex-wrap items-center gap-x-2 text-[11.5px]">
-      <span className="text-fg-2">
+      <span className="text-foreground">
         {label}: {value}
       </span>
-      <button type="button" className="font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
+      <button type="button" className="font-semibold text-muted-foreground hover:text-destructive" onClick={onClear}>
         Clear
       </button>
     </span>
@@ -1798,7 +1801,7 @@ function VfdOptions({
     return (
       <div className="flex flex-col items-start gap-1">
         {stale}
-        <span className="text-warn">
+        <span className="text-warning">
           {tag.motorKw === null
             ? "No motor kW on the Motor Rating step to match a drive"
             : `No drive in the BOI Master covers ${tag.motorKw} kW`}
@@ -1820,10 +1823,10 @@ function VfdOptions({
                 title={`List ${formatInr(o.listPrice)} less ${o.discountPct ?? 0}% + BOP ${formatInr(o.bopExtra ?? 0)}`}
               />
             ) : (
-              <span className="text-fg-4">no price</span>
+              <span className="text-muted-foreground/70">no price</span>
             )}
-            <span className="font-mono font-semibold text-fg">{o.driveDescription}</span>
-            <span className="text-fg-3" title="N = Nominal use · LD = Light duty · HD = Heavy duty">
+            <span className="font-mono font-semibold text-foreground">{o.driveDescription}</span>
+            <span className="text-muted-foreground" title="N = Nominal use · LD = Light duty · HD = Heavy duty">
               {[o.make, o.frame, o.duties.map((d) => `${DUTY_SHORT[d.duty]} ${d.kw} kW`).join(" / ")].filter(Boolean).join(" · ")}
             </span>
           </div>
@@ -1845,7 +1848,7 @@ function PctInput({ value, label, onChange }: { value: string; label: string; on
         aria-label={label}
         onChange={(e) => onChange(e.target.value)}
       />
-      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[12px] text-fg-3">%</span>
+      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-[12px] text-muted-foreground">%</span>
     </div>
   );
 }
@@ -1879,13 +1882,13 @@ function BoiRow({
 }) {
   return (
     <div
-      className={`grid grid-cols-1 gap-2 border-b border-l-[3px] border-line px-3 py-2.5 sm:items-center sm:gap-x-2.5 ${BOI_GRID} ${BOI_EDGE[state]}`}
+      className={`grid grid-cols-1 gap-2 border-b border-l-[3px] border-border px-3 py-2.5 sm:items-center sm:gap-x-2.5 ${BOI_GRID} ${BOI_EDGE[state]}`}
     >
-      <div className="text-[13px] font-semibold text-fg">
+      <div className="text-[13px] font-semibold text-foreground">
         {label}
-        {sub && <span className="mt-px block text-[11px] font-normal text-fg-3">{sub}</span>}
+        {sub && <span className="mt-px block text-[11px] font-normal text-muted-foreground">{sub}</span>}
       </div>
-      <div className="min-w-0 text-[12px] text-fg-2">{reference}</div>
+      <div className="min-w-0 text-[12px] text-foreground">{reference}</div>
       <div className="flex items-center gap-2 sm:contents">
         <div className="min-w-0 flex-1 sm:flex-none">
           <MoneyInput
@@ -1901,13 +1904,13 @@ function BoiRow({
         <PctInput value={pct.discountPct} label={`${label} vendor discount %`} onChange={(v) => onPct({ discountPct: v })} />
         <PctInput value={pct.markupPct} label={`${label} markup %`} onChange={(v) => onPct({ markupPct: v })} />
         <span
-          className={`w-[96px] shrink-0 text-right font-mono text-[13.5px] ${net === null ? "text-fg-4" : "font-bold text-fg"}`}
+          className={`w-[96px] shrink-0 text-right font-mono text-[13.5px] ${net === null ? "text-muted-foreground/70" : "font-bold text-foreground"}`}
           title="Base × (1 − disc %) × (1 + markup %)"
         >
           {formatInr(net)}
         </span>
       </div>
-      {error && <span className="text-[11.5px] text-neg sm:col-span-6 sm:text-right">{error}</span>}
+      {error && <span className="text-[11.5px] text-destructive sm:col-span-6 sm:text-right">{error}</span>}
     </div>
   );
 }
@@ -1980,34 +1983,34 @@ function PaSuggestionPanel({
   const from = (k: keyof typeof inputs.source) => (inputs.source[k] ? `${k === "subCategory" ? "sub-category" : k} from ${inputs.source[k]}` : null);
 
   return (
-    <div className="mt-2 rounded-lg border border-line bg-sunk/50 p-3 text-[12px] text-fg-2">
+    <div className="mt-2 rounded-lg border border-border bg-muted/50 p-3 text-[12px] text-foreground">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-semibold text-fg">Price suggestion · L1–L4 price list</span>
+        <span className="font-semibold text-foreground">Price suggestion · L1–L4 price list</span>
         {used && (
           <span className="flex flex-wrap items-center gap-2">
             <span>
               Used: <span className="font-mono text-[11.5px]">{used}</span>
             </span>
-            <button type="button" className="text-[11.5px] font-semibold text-fg-3 hover:text-neg" onClick={onClear}>
+            <button type="button" className="text-[11.5px] font-semibold text-muted-foreground hover:text-destructive" onClick={onClear}>
               Clear
             </button>
           </span>
         )}
       </div>
 
-      {data === null && <p className="mt-1 text-fg-3">Loading the price list…</p>}
-      {data === "error" && <p className="mt-1 text-neg">Couldn&apos;t load the price list.</p>}
-      {sug?.problem && <p className="mt-1 text-warn">{sug.problem}</p>}
+      {data === null && <p className="mt-1 text-muted-foreground">Loading the price list…</p>}
+      {data === "error" && <p className="mt-1 text-destructive">Couldn&apos;t load the price list.</p>}
+      {sug?.problem && <p className="mt-1 text-warning">{sug.problem}</p>}
 
       {sug && !sug.problem && sug.row && sug.col && data && data !== "error" && (
         <div className="mt-1.5 flex flex-col gap-2">
           <p>
-            Row <b className="text-fg">{sug.row.pumpModelNo}</b> · MOC <b className="text-fg">{sug.col.toUpperCase()}</b>
-            <span className="ml-1 text-fg-3">
+            Row <b className="text-foreground">{sug.row.pumpModelNo}</b> · MOC <b className="text-foreground">{sug.col.toUpperCase()}</b>
+            <span className="ml-1 text-muted-foreground">
               ({[from("model"), from("moc"), from("subCategory"), from("rubber")].filter(Boolean).join(", ")})
             </span>
           </p>
-          {sug.notes.length > 0 && <p className="text-fg-3">{sug.notes.join(" · ")}</p>}
+          {sug.notes.length > 0 && <p className="text-muted-foreground">{sug.notes.join(" · ")}</p>}
 
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {sug.adjustments.map((a) =>
@@ -2018,9 +2021,9 @@ function PaSuggestionPanel({
                       type="checkbox"
                       checked={on.has(a.key)}
                       onChange={() => toggle(a.key, a.group)}
-                      className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                      className="h-3.5 w-3.5 accent-[var(--sc-primary)]"
                     />
-                    <span className={on.has(a.key) ? "text-fg" : ""}>{a.label}</span>
+                    <span className={on.has(a.key) ? "text-foreground" : ""}>{a.label}</span>
                   </label>
                   <input
                     type="text"
@@ -2033,14 +2036,14 @@ function PaSuggestionPanel({
                       // Typing a price means the seal is in.
                       setOn((cur) => (cur.has(a.key) ? cur : new Set(cur).add(a.key)));
                     }}
-                    className="w-[92px] rounded-md border border-line-strong bg-paper px-1.5 py-0.5 text-right font-mono text-[12px] text-fg focus:border-accent focus:outline-none"
+                    className="w-[92px] rounded-md border border-input bg-card px-1.5 py-0.5 text-right font-mono text-[12px] text-foreground focus:border-primary focus:outline-none"
                   />
                   {typed[a.key] !== undefined && Number(typed[a.key]) !== (a.add ?? 0) && a.add ? (
                     <>
-                      <span className="text-[11px] text-warn">edited</span>
+                      <span className="text-[11px] text-warning">edited</span>
                       <button
                         type="button"
-                        className="text-[11px] font-semibold text-accent hover:underline"
+                        className="text-[11px] font-semibold text-primary hover:underline"
                         onClick={() =>
                           setTyped((t) => {
                             const next = { ...t };
@@ -2053,7 +2056,7 @@ function PaSuggestionPanel({
                       </button>
                     </>
                   ) : (
-                    a.note && <span className="text-[11px] text-fg-4">({a.note})</span>
+                    a.note && <span className="text-[11px] text-muted-foreground/70">({a.note})</span>
                   )}
                 </span>
               ) : (
@@ -2062,34 +2065,34 @@ function PaSuggestionPanel({
                     type="checkbox"
                     checked={on.has(a.key)}
                     onChange={() => toggle(a.key, a.group)}
-                    className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                    className="h-3.5 w-3.5 accent-[var(--sc-primary)]"
                   />
-                  <span className={on.has(a.key) ? "text-fg" : ""}>{a.label}</span>
-                  {a.note && <span className="text-[11px] text-fg-4">({a.note})</span>}
+                  <span className={on.has(a.key) ? "text-foreground" : ""}>{a.label}</span>
+                  {a.note && <span className="text-[11px] text-muted-foreground/70">({a.note})</span>}
                 </label>
               ),
             )}
           </div>
 
-          <div className="flex flex-col divide-y divide-line rounded-md border border-line bg-paper">
+          <div className="flex flex-col divide-y divide-border rounded-md border border-border bg-card">
             {data.levels.map((l) => {
               const { base, price } = paPrice(sug, l.level, on, amounts);
               const basis = paBasisText(sug, l.level, on, amounts);
               const active = used === basis;
               return (
-                <div key={l.level} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 ${active ? "bg-accent-soft" : ""}`}>
-                  <span className="w-[22px] font-mono font-semibold text-fg">{l.level}</span>
+                <div key={l.level} className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 ${active ? "bg-primary/8" : ""}`}>
+                  <span className="w-[22px] font-mono font-semibold text-foreground">{l.level}</span>
                   <span className="min-w-0 flex-1 truncate" title={`${l.title} ${l.dateText ?? ""}`}>
-                    {levelName(l)} <span className="text-fg-4">· {dmy(l.listDate)}</span>
+                    {levelName(l)} <span className="text-muted-foreground/70">· {dmy(l.listDate)}</span>
                   </span>
                   {price === null ? (
-                    <span className="text-fg-4">no {sug.col?.toUpperCase()} price in this list</span>
+                    <span className="text-muted-foreground/70">no {sug.col?.toUpperCase()} price in this list</span>
                   ) : (
                     <>
-                      <span className="font-mono text-fg-3">list {formatInr(base)}</span>
+                      <span className="font-mono text-muted-foreground">list {formatInr(base)}</span>
                       <button
                         type="button"
-                        className="rounded-md border border-line bg-paper px-1.5 py-0.5 font-mono text-[11.5px] text-accent hover:border-accent"
+                        className="rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-[11.5px] text-primary hover:border-primary"
                         onClick={() => (active ? onClear() : onUse(price, basis))}
                         title={active ? "Click to clear this price" : basis}
                       >
@@ -2132,11 +2135,11 @@ function RemarksCard({
     }
   };
   return (
-    <section className="rounded-xl border border-line bg-paper">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-        <h2 className="text-[14px] font-semibold text-fg">Remarks</h2>
+    <section className="rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <h2 className="text-[14px] font-semibold text-foreground">Remarks</h2>
         <div className="flex items-center gap-2">
-          <span className="text-[12px] text-fg-3">
+          <span className="text-[12px] text-muted-foreground">
             {state === "saving" ? "Saving…" : state === "error" ? "Couldn't save — try again" : state === "saved" && !dirty ? "Saved" : "One note for the whole enquiry"}
           </span>
           <button type="button" className={btnPrimarySm} onClick={() => void save()} disabled={!dirty || state === "saving"}>
@@ -2191,12 +2194,12 @@ function MoneyInput({
   return (
     <div className="flex flex-col gap-1">
       <div className="relative">
-        <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[13px] text-fg-3">₹</span>
+        <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[13px] text-muted-foreground">₹</span>
         <input
-          className={`${moneyCls} pl-7 ${error || invalid ? "border-neg" : ""}`}
+          className={`${moneyCls} pl-7 ${error || invalid ? "border-destructive" : ""}`}
           style={{
             ...(strong ? { fontSize: 15, fontWeight: 700 } : {}),
-            ...(warn && !error && !invalid ? { background: "var(--warn-soft)", borderColor: "#f5b84a" } : {}),
+            ...(warn && !error && !invalid ? { background: "color-mix(in srgb, var(--sc-warning) 10%, transparent)", borderColor: "color-mix(in srgb, var(--sc-warning) 45%, transparent)" } : {}),
           }}
           inputMode="numeric"
           placeholder="0"
@@ -2212,7 +2215,7 @@ function MoneyInput({
           }}
         />
       </div>
-      {error && <span className="text-[11.5px] text-neg">{error}</span>}
+      {error && <span className="text-[11.5px] text-destructive">{error}</span>}
     </div>
   );
 }
@@ -2232,10 +2235,10 @@ function TotalRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className={big || strong ? "font-semibold text-fg" : "text-fg-2"}>{label}</span>
+      <span className={big || strong ? "font-semibold text-foreground" : "text-foreground"}>{label}</span>
       <span
-        className={`font-mono ${big ? "text-[16px] font-bold text-fg" : strong ? "font-semibold text-fg" : "text-fg-2"} ${
-          warn ? "text-neg" : ""
+        className={`font-mono ${big ? "text-[16px] font-bold text-foreground" : strong ? "font-semibold text-foreground" : "text-foreground"} ${
+          warn ? "text-destructive" : ""
         }`}
       >
         {value}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowRight, Plus } from "lucide-react";
 
 import ProductCodeSelect from "../../components/pump-selection/ProductCodeSelect";
 import {
@@ -14,6 +15,8 @@ import {
   type CodeSegmentKey,
 } from "../../lib/pump-code";
 import { addPumpCodeOption } from "../../services/pumpCodeService";
+import { Badge } from "@/components/shadcn/badge";
+import { buttonVariants } from "@/components/shadcn/button";
 
 // A pump product code, built from its parts (lib/pump-code.ts) or picked from the
 // existing product_pump list. Shared by Pump & Qty and the spare quotation.
@@ -55,14 +58,14 @@ export const codeError = (v: CodeValue): string => {
 
 const ADD = "__add__";
 
-const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
+const btn = buttonVariants({ variant: "outline", size: "sm" });
+// The border colour is added per use (border-input, or destructive when missing).
 const selectCls =
-  "w-full rounded-lg border bg-paper px-2.5 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-50";
+  "h-8 w-full rounded-md border bg-card px-2.5 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function CodeModeToggle({ mode, onChange }: { mode: CodeMode; onChange: (mode: CodeMode) => void }) {
   return (
-    <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
+    <div className="inline-flex h-8 items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="tablist">
       {(
         [
           ["build", "Build code"],
@@ -75,7 +78,7 @@ export function CodeModeToggle({ mode, onChange }: { mode: CodeMode; onChange: (
           role="tab"
           aria-selected={mode === m}
           onClick={() => onChange(m)}
-          className={`rounded-md px-3 py-1 text-[12px] font-semibold ${mode === m ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"}`}
+          className={`inline-flex h-7 items-center rounded-[5px] px-3 text-[12px] font-medium transition-colors ${mode === m ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"}`}
         >
           {label}
         </button>
@@ -129,7 +132,7 @@ export function CodeFields({
     return (
       <div className="max-w-[520px]">
         <ProductCodeSelect value={value.picked} invalid={showErrors && !!error} onChange={(productCode) => onChange({ picked: productCode })} />
-        {showErrors && error && <span className="mt-1 block text-[11.5px] text-neg">{error}</span>}
+        {showErrors && error && <span className="mt-1 block text-[11.5px] font-medium text-destructive">{error}</span>}
       </div>
     );
   }
@@ -148,12 +151,12 @@ export function CodeFields({
           const missing = showErrors && !disabled && !value.parts[seg.key] && (seg.required || seg.key === "subSealing");
           return (
             <label key={seg.key} className="flex min-w-0 flex-col gap-1">
-              <span className="text-[11.5px] font-semibold text-fg-3">
+              <span className="text-[12px] font-medium text-foreground">
                 {seg.label}
-                {!seg.required && seg.key !== "subSealing" && <span className="font-normal"> (optional)</span>}
+                {!seg.required && seg.key !== "subSealing" && <span className="font-normal text-muted-foreground"> (optional)</span>}
               </span>
               <select
-                className={`${selectCls} ${missing ? "border-neg" : "border-line"}`}
+                className={`${selectCls} ${missing ? "border-destructive" : "border-input"}`}
                 value={value.parts[seg.key]}
                 disabled={disabled}
                 onChange={(e) => (e.target.value === ADD ? setAdding({ segment: seg.key, text: "", error: "" }) : setPart(seg.key, e.target.value))}
@@ -172,11 +175,11 @@ export function CodeFields({
       </div>
 
       {adding && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunk p-2">
-          <span className="text-[12px] font-semibold text-fg-2">New {CODE_SEGMENTS.find((s) => s.key === adding.segment)!.label.toLowerCase()}:</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 p-2">
+          <span className="text-[12px] font-medium text-foreground">New {CODE_SEGMENTS.find((s) => s.key === adding.segment)!.label.toLowerCase()}:</span>
           <input
             autoFocus
-            className={`${selectCls} w-[160px] border-line font-mono uppercase`}
+            className={`${selectCls} w-[160px] border-input font-mono uppercase`}
             value={adding.text}
             maxLength={30}
             placeholder={adding.segment === "model" ? "e.g. 95 or H95" : "code"}
@@ -189,35 +192,33 @@ export function CodeFields({
             }}
           />
           <button type="button" className={btn} onClick={() => void addOption()} disabled={!adding.text.trim()}>
-            Add
+            <Plus /> Add
           </button>
-          <button type="button" className="text-[12px] font-semibold text-fg-3 hover:text-fg" onClick={() => setAdding(null)}>
+          <button type="button" className={buttonVariants({ variant: "ghost", size: "sm" })} onClick={() => setAdding(null)}>
             Cancel
           </button>
-          {adding.error && <span className="text-[12px] text-neg">{adding.error}</span>}
-          <span className="w-full text-[11px] text-fg-3">Added to the list for everyone.</span>
+          {adding.error && <span className="text-[12px] font-medium text-destructive">{adding.error}</span>}
+          <span className="w-full text-[11px] text-muted-foreground">Added to the list for everyone.</span>
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[12px] text-fg-3">Product code:</span>
-        <span className="rounded-md bg-sunk px-2.5 py-1 font-mono text-[13.5px] font-semibold tracking-wide break-all text-fg" title="The generated code">
+        <span className="text-[12px] text-muted-foreground">Product code:</span>
+        <span className="rounded-md bg-muted px-2.5 py-1 font-mono text-[13px] font-semibold tracking-wide break-all text-foreground ring-1 ring-border ring-inset" title="The generated code">
           {generated || "—"}
         </span>
         {complete && (
           <>
-            <span className="text-[15px] font-semibold text-fg-3" aria-hidden="true">
-              →
-            </span>
+            <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
             <input
-              className={`${selectCls} w-[300px] max-w-full border-accent font-mono font-semibold tracking-wide uppercase`}
+              className={`${selectCls} w-[300px] max-w-full border-primary/50 font-mono font-semibold tracking-wide uppercase`}
               value={value.edited ?? generated}
               maxLength={100}
               aria-label="Edited product code"
               onChange={(e) => onChange({ edited: e.target.value.toUpperCase().replace(/\s+/g, "") })}
             />
             {edited && (
-              <button type="button" className="text-[12px] font-semibold text-fg-3 hover:text-fg" onClick={() => onChange({ edited: undefined })}>
+              <button type="button" className={buttonVariants({ variant: "ghost", size: "sm" })} onClick={() => onChange({ edited: undefined })}>
                 Reset
               </button>
             )}
@@ -225,13 +226,15 @@ export function CodeFields({
         )}
         {!error &&
           (isNew ? (
-            <span className="rounded-full bg-[var(--warn-soft)] px-2 py-0.5 text-[11px] font-semibold text-warn">
+            <Badge tone="warning" dot>
               {edited && editedCodeToAdd(value, known) ? "New code (added to the list when saved)" : "New code (not in the product code list)"}
-            </span>
+            </Badge>
           ) : (
-            <span className="rounded-full bg-[var(--pos-soft)] px-2 py-0.5 text-[11px] font-semibold text-pos">Existing code</span>
+            <Badge tone="success" dot>
+              Existing code
+            </Badge>
           ))}
-        {showErrors && error && <span className="text-[12px] text-neg">{error}</span>}
+        {showErrors && error && <span className="text-[12px] font-medium text-destructive">{error}</span>}
       </div>
     </>
   );

@@ -1281,3 +1281,7 @@ never auto-filled from the AI result.
   SnapshotModal stays non-Radix because CommercialOfferModal opens inside it), UsdToggle, Head
   Calculator (HeadCalculatorView also feeds HeadCalcModal), Bug Tracker / My Bug Reports, the top
   bar's ReportBugModal, Audit Log + audit/* (auditUi restyled, chart colours on --chart-* tokens).
+- Pump Commercial Summary in shadcn (user, 2026-11-13, same branch): CommercialSummaryPage (inputCls/btnSm
+  now shadcn), ScopeControls, PumpCodeInput, PumpQtyStep, ClientPriceRefModal (Radix Dialog; opened only
+  from the page). CommercialOfferModal + TechnoCommercialModal stay NON-Radix overlays at z-[1000]
+  (print via printHtml; the offer also opens inside QuotationPanel's SnapshotModal).

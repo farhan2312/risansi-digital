@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FileSpreadsheet, Printer, X } from "lucide-react";
+import { buttonVariants } from "@/components/shadcn/button";
 
 import PrintPageSizeSelect, { usePrintPageSize } from "../../components/reports/PrintPageSize";
 import TechDocEditor, { DocHeaderEditor, DocScopeEditor, DocTagPicker } from "../../components/reports/TechDocEditor";
@@ -45,11 +47,11 @@ import { getEnquiryDocument, saveEnquiryDocumentConfig } from "../../services/en
 // Offer (commercial part and the header) for this enquiry, and the other way
 // round. Prices are the Commercial Summary's saved ones and never change.
 
-const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
-const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
-const partTitle = "text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase";
+// shadcn/ui buttons (user, 2026-11-13). A plain overlay, not a Radix Dialog: it prints
+// through printHtml's hidden iframe and opens inside QuotationPanel's SnapshotModal.
+const btn = buttonVariants({ variant: "outline" });
+const btnPrimary = buttonVariants();
+const partTitle = "text-[11px] font-medium tracking-wide text-muted-foreground uppercase";
 
 const SAVE_DELAY_MS = 700;
 
@@ -230,43 +232,43 @@ export default function TechnoCommercialModal({
   const offerExtras = OFFER_EXTRAS.filter((f) => !IN_TECHNICAL.has(f.key));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[1px]" role="dialog" aria-modal="true" onClick={onClose}>
       <div
-        className="flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
+        className="flex max-h-[94vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-[0_24px_64px_rgba(15,23,42,0.25)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+        <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-fg">
+            <h3 className="text-[15px] font-semibold text-foreground">
               {TECHNO_COMMERCIAL_TITLE}
               {offer?.mixed ? ` — ${DRIVE_GROUP_LABEL[group]}` : ""}
             </h3>
-            <p className="text-[12.5px] text-fg-3">
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">
               {offer ? `${offer.projectCode} · ${offer.clientName}` : "Loading…"} · Technical Data Sheet + Commercial Offer
             </p>
             {unsavedPrices && (
-              <p className="mt-0.5 text-[12px] text-warn">Some prices on the page aren&apos;t saved yet — save them to see them here.</p>
+              <p className="mt-0.5 text-[12px] font-medium text-warning">Some prices on the page aren&apos;t saved yet — save them to see them here.</p>
             )}
           </div>
-          <button type="button" className={btn} onClick={onClose}>
-            Close
+          <button type="button" className={buttonVariants({ variant: "ghost", size: "icon" })} onClick={onClose} aria-label="Close" title="Close">
+            <X className="size-4" />
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-          {loadError && <p className="text-[13px] text-neg">{loadError}</p>}
-          {!sheets && !loadError && <p className="py-8 text-center text-[13px] text-fg-3">Loading…</p>}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-5 py-4">
+          {loadError && <p className="rounded-md border border-destructive/25 bg-destructive/8 px-3 py-2 text-[12.5px] font-medium text-destructive">{loadError}</p>}
+          {!sheets && !loadError && <p className="py-8 text-center text-[13px] text-muted-foreground">Loading…</p>}
 
           {sheets && tech && offer && (
             <>
               {readOnly && (
-                <div className="rounded-lg border border-line bg-sunk px-3 py-2 text-[12.5px] text-fg-3">
+                <div className="rounded-md border border-info/25 bg-info/8 px-3 py-2 text-[12.5px] font-medium text-info">
                   View only - this enquiry is assigned to someone else. You can print or download it.
                 </div>
               )}
 
               <div className={`flex flex-wrap items-center gap-2 ${readOnly ? "hidden" : ""}`}>
-                <div className="inline-flex rounded-lg border border-line bg-sunk p-0.5" role="tablist">
+                <div className="inline-flex h-8 items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="tablist">
                   {(["preview", "edit"] as const).map((m) => (
                     <button
                       key={m}
@@ -274,8 +276,8 @@ export default function TechnoCommercialModal({
                       role="tab"
                       aria-selected={mode === m}
                       onClick={() => setMode(m)}
-                      className={`rounded-md px-3 py-1 text-[12.5px] font-semibold ${
-                        mode === m ? "bg-paper text-fg shadow-sm" : "text-fg-3 hover:text-fg"
+                      className={`inline-flex h-7 items-center rounded-[5px] px-3 text-[12.5px] font-medium transition-colors ${
+                        mode === m ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       {m === "preview" ? "Preview" : "Edit rows"}
@@ -285,7 +287,7 @@ export default function TechnoCommercialModal({
                 <button type="button" className={btn} onClick={() => setShowPicker((v) => !v)} aria-expanded={showPicker}>
                   {showPicker ? "Hide parameters" : "Add parameters"}
                   {techConfig.extras.length + offerConfig.extras.length > 0 && (
-                    <span className="rounded-full bg-accent-soft px-1.5 text-[11px] text-accent">
+                    <span className="rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">
                       {techConfig.extras.length + offerConfig.extras.length}
                     </span>
                   )}
@@ -294,13 +296,13 @@ export default function TechnoCommercialModal({
                   <button
                     type="button"
                     onClick={resetAll}
-                    className="rounded-lg px-2 py-1.5 text-[12px] font-semibold text-neg hover:bg-[var(--neg-soft)]"
+                    className={buttonVariants({ variant: "ghost-destructive", size: "sm" })}
                     title="Undo every removal, rename, edited value, manual row and header change on both parts"
                   >
                     Reset edits
                   </button>
                 )}
-                <span className="text-[12px] text-fg-3">
+                <span className="text-[12px] text-muted-foreground">
                   {saveState === "saving"
                     ? "Saving…"
                     : saveState === "saved"
@@ -314,21 +316,21 @@ export default function TechnoCommercialModal({
               {!readOnly && <DocTagPicker tags={allTags} hidden={hiddenTags} onChange={setHiddenTags} />}
 
               {showPicker && !readOnly && (
-                <div className="grid max-h-[40vh] grid-cols-1 gap-4 overflow-y-auto rounded-lg border border-line bg-sunk p-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid max-h-[40vh] grid-cols-1 gap-4 overflow-y-auto rounded-md border border-border bg-muted/50 p-3 sm:grid-cols-2 lg:grid-cols-3">
                   {TECH_DOC_SECTIONS.map((section) => {
                     const fields = techExtras.filter((f) => f.section === section);
                     if (fields.length === 0) return null;
                     return (
                       <fieldset key={section} className="min-w-0">
-                        <legend className="mb-1.5 text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">{section}</legend>
+                        <legend className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{section}</legend>
                         <div className="flex flex-col gap-1">
                           {fields.map((f) => (
-                            <label key={f.key} className="flex cursor-pointer items-center gap-2 text-[12.5px] text-fg">
+                            <label key={f.key} className="flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
                               <input
                                 type="checkbox"
                                 checked={techConfig.extras.includes(f.key)}
                                 onChange={() => toggle(techConfig, f.key, updateTech)}
-                                className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                                className="h-3.5 w-3.5 accent-[var(--sc-primary)]"
                               />
                               {f.label}
                             </label>
@@ -339,20 +341,20 @@ export default function TechnoCommercialModal({
                   })}
                   {offerExtras.length > 0 && (
                     <fieldset className="min-w-0">
-                      <legend className="mb-1.5 text-[11px] font-semibold tracking-[0.08em] text-fg-3 uppercase">Commercial Offer</legend>
+                      <legend className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Commercial Offer</legend>
                       <div className="flex flex-col gap-1">
                         {offerExtras.map((f) => (
-                          <label key={f.key} className="flex cursor-pointer items-center gap-2 text-[12.5px] text-fg">
+                          <label key={f.key} className="flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
                             <input
                               type="checkbox"
                               checked={offerConfig.extras.includes(f.key)}
                               onChange={() => toggle(offerConfig, f.key, updateOffer)}
-                              className="h-3.5 w-3.5 accent-[var(--brand-blue)]"
+                              className="h-3.5 w-3.5 accent-[var(--sc-primary)]"
                             />
                             {f.label(geared)}
                           </label>
                         ))}
-                        <span className="text-[11.5px] text-fg-3">VFD, Strainer, PRV and Other items appear on their own when a tag has that price.</span>
+                        <span className="text-[11.5px] text-muted-foreground">VFD, Strainer, PRV and Other items appear on their own when a tag has that price.</span>
                       </div>
                     </fieldset>
                   )}
@@ -409,15 +411,16 @@ export default function TechnoCommercialModal({
                   />
                 </div>
               ) : (
-                <iframe title={TECHNO_COMMERCIAL_TITLE} srcDoc={html} className="min-h-[62vh] w-full flex-1 rounded-lg border border-line bg-white" />
+                <iframe title={TECHNO_COMMERCIAL_TITLE} srcDoc={html} className="min-h-[62vh] w-full flex-1 rounded-md border border-border bg-white" />
               )}
             </>
           )}
         </div>
 
-        <footer className="flex flex-wrap justify-end gap-2 border-t border-line px-4 py-3">
+        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3">
           <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
           <button type="button" className={btnPrimary} onClick={handlePrint} disabled={empty || printing}>
+            <Printer />
             {printing ? "Preparing…" : "Print / Save as PDF"}
           </button>
           <button
@@ -426,6 +429,7 @@ export default function TechnoCommercialModal({
             onClick={() => sheets && downloadTechnoCommercialExcel(sheets.tech, sheets.offer)}
             disabled={empty}
           >
+            <FileSpreadsheet />
             Download Excel
           </button>
         </footer>
