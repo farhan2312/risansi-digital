@@ -164,7 +164,7 @@ export default function EnquiryFilterBar({
 }) {
   const [opts, setOpts] = useState<EnquiryFilterOptions | null>(null);
   useEffect(() => {
-    loadOptions().then(setOpts).catch(() => setOpts({ primaryReps: [], secondaryReps: [], zones: [], markets: [], industries: [] }));
+    loadOptions().then(setOpts).catch(() => setOpts({ primaryReps: [], secondaryReps: [], zones: [], markets: [], industries: [], assignees: [] }));
   }, []);
 
   // The client search is sent once typing pauses.
@@ -250,6 +250,7 @@ export default function EnquiryFilterBar({
       {multi("zone", "Zone", opts?.zones)}
       {multi("market", "Market", opts?.markets)}
       {multi("industry", "Industry", opts?.industries)}
+      {multi("assignee", "Assigned to", opts?.assignees)}
       {/* Pumps and spares filter by status independently. */}
       {!onlySpares && multi("status", "Technical status", ENQUIRY_STATUSES)}
       {!onlySpares && multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}
