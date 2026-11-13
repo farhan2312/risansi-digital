@@ -32,8 +32,8 @@ export default function RepPicker({ value, onChange }: { value: string; onChange
       aria-label="Rep"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`h-9 rounded-lg border px-2.5 text-[12.5px] font-semibold outline-none transition focus:ring-2 focus:ring-accent-soft ${
-        value ? "border-accent bg-accent-soft text-accent" : "border-line bg-paper text-fg-2 hover:border-fg-3"
+      className={`h-8 rounded-md border px-2.5 text-[12.5px] font-medium shadow-xs outline-none transition-[box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 ${
+        value ? "border-primary/40 bg-primary/8 text-primary" : "border-input bg-card text-foreground hover:bg-muted"
       }`}
     >
       <option value="">My team (all)</option>

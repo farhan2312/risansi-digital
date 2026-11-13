@@ -164,7 +164,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
       footer={
         <>
           {saveError && (
-            <p className="mr-auto text-[12.5px] font-medium text-neg" role="alert">
+            <p className="mr-auto text-[12.5px] font-medium text-destructive" role="alert">
               {saveError}
             </p>
           )}

@@ -1248,3 +1248,13 @@ never auto-filled from the AI result.
   usePageTitle and renders its children/actions (no title card). Pages with their own heading
   (Dashboard greeting, Audit Log, Bug Tracker, the four pmm-* masters, Enquiries) call usePageTitle
   instead; .pmm-header is just a right-aligned actions row. A new page: call usePageTitle, no <h1>.
+- Rest of the Enquiries page in shadcn (user, 2026-11-13, same branch): shadcn/dialog.tsx (Dialog
+  with header/body/footer, sizes; outside click does NOT close a form), shadcn/field.tsx (Field,
+  Label, Textarea, Alert); ConfirmDialog takes children + confirmDisabled; menus z-[1100] (above
+  dialogs at z-1001). Converted: Create/Edit (EnquiryFields shell), ClientLookup, Assign, CopyTag,
+  CopySpare, Clearance, QuotationStep (nested ConfirmDialog for "close without saving"), Versions,
+  VersionSection, SavedDocsViewer, EnquiryFilterBar, AssigneeKpis, EnquiryReportPanel, RepPicker,
+  and the SHARED Pagination / DateRangeFilter / EmptyState (new look on every page). Review and
+  EnquiryDocumentModal stay NON-Radix overlays (restyled): they print through printHtml's hidden
+  iframe and a Radix focus/pointer lock could block it. Rule: an overlay opened on top of a Radix
+  dialog must be Radix too (or inside its content).

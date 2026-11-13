@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 
-import ConfirmModal from "../ui/ConfirmModal";
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import { NativeSelect } from "@/components/shadcn/input";
+import { Field } from "@/components/shadcn/field";
 import type { ProjectRecord } from "../../services/projectService";
 
 const NEW = "__new__";
@@ -30,7 +32,7 @@ export default function CopySpareModal({
 }) {
   const [pick, setPick] = useState(allowNew ? NEW : "");
   return (
-    <ConfirmModal
+    <ConfirmDialog
       open
       title="Copy this spare quotation"
       description={
@@ -43,16 +45,15 @@ export default function CopySpareModal({
       busy={busy}
       onConfirm={() => pick && onConfirm(pick === NEW ? "new" : pick)}
       onClose={() => !busy && onCancel()}
+      confirmDisabled={!pick}
     >
-      <label className="mt-3 block text-[11.5px] font-semibold tracking-[0.09em] text-fg-3 uppercase" htmlFor="copy-spare-to">
-        Copy into
-      </label>
-      <select
+      <Field label="Copy into" htmlFor="copy-spare-to" hint="If the enquiry already has models, these are added after them." error={error || undefined}>
+      <NativeSelect
         id="copy-spare-to"
         value={pick}
         disabled={busy}
         onChange={(e) => setPick(e.target.value)}
-        className="mt-1.5 w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-[14px] text-fg outline-none focus:border-accent"
+        className="h-9 w-full"
       >
         {allowNew ? <option value={NEW}>A new enquiry</option> : <option value="">Select an enquiry</option>}
         {targets.map((p) => (
@@ -61,9 +62,8 @@ export default function CopySpareModal({
             {p.name ? ` - ${p.name}` : ""}
           </option>
         ))}
-      </select>
-      <p className="mt-1.5 text-[12px] text-fg-3">If the enquiry already has models, these are added after them.</p>
-      {error && <p className="mt-2 text-[12.5px] font-medium text-neg">{error}</p>}
-    </ConfirmModal>
+      </NativeSelect>
+      </Field>
+    </ConfirmDialog>
   );
 }

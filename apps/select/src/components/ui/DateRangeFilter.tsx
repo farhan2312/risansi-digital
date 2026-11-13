@@ -143,7 +143,7 @@ export default function DateRangeFilter({
   const changed = () => onChange?.();
   return (
     <>
-      <div className={`inline-flex rounded-lg border border-line bg-paper p-0.5 ${compact ? "flex-nowrap" : "flex-wrap"}`}>
+      <div className={`inline-flex rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset ${compact ? "h-8 flex-nowrap items-center" : "flex-wrap"}`}>
         {DATE_RANGES.filter((r) => !compact || r.key !== "90d").map((r) => {
           const on = !state.customDates && state.range === r.key;
           return (
@@ -155,8 +155,8 @@ export default function DateRangeFilter({
                 state.setRange(r.key);
                 changed();
               }}
-              className={`rounded-md py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors ${compact ? "px-2.5" : "px-3"} ${
-                on ? "bg-accent text-white" : "text-fg-3 hover:bg-elev hover:text-fg"
+              className={`rounded-[5px] text-[12.5px] font-medium whitespace-nowrap transition-[color,background-color,box-shadow] ${compact ? "h-7 px-2.5" : "px-3 py-1.5"} ${
+                on ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {r.label}
@@ -165,11 +165,11 @@ export default function DateRangeFilter({
         })}
       </div>
       <div
-        className={`inline-flex shrink-0 flex-nowrap items-center gap-1.5 rounded-lg border bg-paper px-2 ${compact ? "h-9" : "py-1"} ${
-          state.customDates ? "border-accent ring-2 ring-accent-soft" : "border-line"
+        className={`inline-flex shrink-0 flex-nowrap items-center gap-1.5 rounded-md border bg-card px-2 shadow-xs ${compact ? "h-8" : "py-0.5"} ${
+          state.customDates ? "border-primary/50 ring-[3px] ring-ring/20" : "border-input"
         }`}
       >
-        <span className="text-fg-3">
+        <span className="text-muted-foreground">
           <CalendarGlyph />
         </span>
         <input
@@ -182,9 +182,9 @@ export default function DateRangeFilter({
             state.setFromDate(e.target.value);
             changed();
           }}
-          className="bg-transparent px-1 py-1 font-mono text-[12.5px] text-fg outline-none"
+          className="bg-transparent px-1 py-1 font-mono text-[12px] text-foreground outline-none"
         />
-        <span className="text-fg-4">→</span>
+        <span className="text-muted-foreground">→</span>
         <input
           type="date"
           aria-label={toLabel}
@@ -195,7 +195,7 @@ export default function DateRangeFilter({
             state.setToDate(e.target.value);
             changed();
           }}
-          className="bg-transparent px-1 py-1 font-mono text-[12.5px] text-fg outline-none"
+          className="bg-transparent px-1 py-1 font-mono text-[12px] text-foreground outline-none"
         />
         {showClear && state.customDates && (
           <button
@@ -205,7 +205,7 @@ export default function DateRangeFilter({
               state.setToDate("");
               changed();
             }}
-            className="rounded-md px-2 py-1 text-[12px] font-semibold text-accent hover:bg-accent-soft"
+            className="rounded-md px-2 py-1 text-[12px] font-medium text-primary hover:bg-primary/8"
           >
             Clear
           </button>

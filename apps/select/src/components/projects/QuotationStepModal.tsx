@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { ArrowRight, CircleCheck } from "lucide-react";
+
+import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
+import { Badge } from "@/components/shadcn/badge";
+import { Button } from "@/components/shadcn/button";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
+import { Alert } from "@/components/shadcn/field";
+import { Input, NativeSelect } from "@/components/shadcn/input";
 import { DRIVE_GROUP_LABEL, type EnquiryQuotations, type TsmOption } from "../../lib/commercial";
-import ConfirmModal from "../ui/ConfirmModal";
 import ScopeControls, { ScopeLines } from "../../screens/commercial/ScopeControls";
 import { EMPTY_OFFER_CONFIG, type OfferConfig } from "../../lib/commercial-offer";
 import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
@@ -21,13 +28,6 @@ import {
 // one exists. Also each group's Scope of supply / Out of scope (its offer
 // config — the Technical Data Sheet and the Commercial Offer both print them).
 // Later edits (ERP no., scope, versions, send) can still be made on Commercial.
-
-const btn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-fg-2 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
-const btnPrimary =
-  "inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
-const inputCls =
-  "w-full rounded-lg border border-line bg-paper px-2.5 py-1.5 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -139,196 +139,185 @@ export default function QuotationStepModal({
     if (unsaved) setConfirmClose(true);
     else onClose();
   };
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !confirmClose && requestClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" onClick={requestClose}>
-      <div
+    // Escape or the X asks first when something is unsaved (requestClose); the
+    // close confirm is a nested dialog, so Escape there only closes the confirm.
+    <Dialog open onOpenChange={(o) => !o && requestClose()}>
+      <DialogContent
         // Wide and tall enough that the scope dropdowns (340px lists) open
         // without squeezing; the body scrolls inside.
-        className="flex h-[90vh] w-full max-w-[1200px] flex-col overflow-hidden rounded-xl border border-line bg-paper"
-        onClick={(e) => e.stopPropagation()}
+        size="full"
+        className="h-[90vh]"
       >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold text-fg">
-              Quotation
-              <span className="ml-2 text-[13px] font-normal text-fg-3">{project.project_code}</span>
-            </h3>
-            <p className="text-[12.5px] text-fg-3">
-              {project.name || "—"} · one quotation per drive system, sharing one serial. Technical and Commercial open once it&apos;s generated.
-            </p>
-          </div>
-          <button type="button" className={btn} onClick={requestClose} disabled={busy}>
-            Close
-          </button>
-        </header>
+        <DialogHeader>
+          <DialogTitle>
+            Quotation
+            <span className="ml-2 font-mono text-[12.5px] font-normal text-muted-foreground">{project.project_code}</span>
+          </DialogTitle>
+          <DialogDescription>
+            {project.name || "—"} · one quotation per drive system, sharing one serial. Technical and Commercial open once it&apos;s generated.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 text-[13px]">
+        <DialogBody className="flex flex-col gap-3 text-[13px]">
           {loadError && (
-            <p className="text-neg">
-              {loadError}{" "}
-              <button type="button" className="font-semibold text-accent hover:underline" onClick={() => void load()}>
+            <Alert className="flex flex-wrap items-center gap-2">
+              {loadError}
+              <Button variant="link" size="sm" className="h-auto px-0" onClick={() => void load()}>
                 Retry
-              </button>
-            </p>
+              </Button>
+            </Alert>
           )}
-          {!data && !loadError && <p className="py-6 text-center text-fg-3">Loading…</p>}
+          {!data && !loadError && <p className="py-6 text-center text-muted-foreground">Loading…</p>}
 
           {data && data.groups.length === 0 && (
-            <p className="rounded-lg border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2.5 text-fg-2">
+            <Alert tone="warning" className="font-normal text-foreground">
               No tag has a drive system yet — finish the <b>Drive</b> step of the pump selection first, then generate the
               quotation here.
-            </p>
+            </Alert>
           )}
 
           {data && data.groups.length > 0 && (
             <>
               {missing.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunk px-3 py-2">
-                  <span className="font-semibold text-fg-2">TSM</span>
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
+                  <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">TSM</span>
                   {data.clientTsm ? (
-                    <span className="text-fg">
+                    <span className="text-foreground">
                       {data.clientTsm.name} ({data.clientTsm.initials})
-                      <span className="ml-1.5 text-[12px] text-fg-3">· the client&apos;s rep in sales</span>
+                      <span className="ml-1.5 text-[12px] text-muted-foreground">· the client&apos;s rep in sales</span>
                     </span>
                   ) : (
                     <>
-                      <select
-                        className={`${inputCls} w-auto min-w-[240px]`}
-                        value={tsmId}
-                        onChange={(e) => setTsmId(e.target.value)}
-                        aria-label="TSM"
-                      >
+                      <NativeSelect className="min-w-[240px]" value={tsmId} onChange={(e) => setTsmId(e.target.value)} aria-label="TSM">
                         <option value="">{options === null ? "Loading…" : "Pick the TSM"}</option>
                         {(options ?? []).map((o) => (
                           <option key={o.id} value={o.id}>
                             {o.name} ({o.initials}){o.zone ? ` · ${o.zone}` : ""}
                           </option>
                         ))}
-                      </select>
-                      <span className="text-[12px] text-fg-3">This client has no rep in the sales portal.</span>
+                      </NativeSelect>
+                      <span className="text-[12px] text-muted-foreground">This client has no rep in the sales portal.</span>
                     </>
                   )}
                 </div>
               )}
 
               {/* Not overflow-hidden: the scope dropdowns open past the box's edge. */}
-              <div className="rounded-lg border border-line">
-                <div className="hidden grid-cols-[1.1fr_1.3fr_150px] gap-3 rounded-t-lg border-b border-line bg-sunk px-3 py-2 text-[11px] font-semibold tracking-[0.05em] text-fg-3 uppercase sm:grid">
+              <div className="rounded-md border border-border">
+                <div className="hidden grid-cols-[1.1fr_1.3fr_150px] gap-3 rounded-t-md border-b border-border bg-muted/60 px-3 py-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase sm:grid">
                   <span>Drive system · tags</span>
                   <span>Quotation No. (System)</span>
                   <span>Quotation No. serial</span>
                 </div>
                 {data.groups.map((g) => (
-                  <div key={g.group} className="border-b border-line last:border-b-0 last:[&>div:last-child]:rounded-b-lg">
-                  <div className="grid grid-cols-1 items-center gap-2 px-3 py-2.5 sm:grid-cols-[1.1fr_1.3fr_150px] sm:gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-fg">
-                        {DRIVE_GROUP_LABEL[g.group]}
-                        {data.groups.length > 1 && <span className="ml-1 font-mono text-[11.5px] text-fg-3">/{g.group}</span>}
-                      </p>
-                      <p className="truncate text-[12px] text-fg-3" title={g.tags.join(", ")}>
-                        {g.tags.length} tag{g.tags.length === 1 ? "" : "s"} · {g.tags.join(", ")}
-                      </p>
-                    </div>
-                    <div className="min-w-0">
-                      {g.quotation ? (
-                        <>
-                          <p className="font-mono text-[12.5px] font-semibold break-all text-fg">{g.quotation.number}</p>
-                          <p className="text-[12px] text-fg-3">
-                            <span className="mr-1.5 rounded-full bg-[var(--pos-soft)] px-1.5 py-px text-[11px] font-semibold text-pos">
-                              Generated
-                            </span>
-                            {fmtDate(g.quotation.quoteDate)}
-                            {g.quotation.tsmName ? ` · TSM ${g.quotation.tsmName}` : ""}
-                          </p>
-                          {g.quotation.erpNumber && (
-                            <p className="font-mono text-[11.5px] break-all text-fg-2">Quotation No.: {g.quotation.erpNumber}</p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-fg-3">
-                          <span className="mr-1.5 rounded-full bg-[var(--warn-soft)] px-1.5 py-px text-[11px] font-semibold text-warn">
-                            Not generated
-                          </span>
-                          Will be dated {fmtDate(new Date().toISOString())}
+                  <div key={g.group} className="border-b border-border last:border-b-0 last:[&>div:last-child]:rounded-b-md">
+                    <div className="grid grid-cols-1 items-center gap-2 px-3 py-2.5 sm:grid-cols-[1.1fr_1.3fr_150px] sm:gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">
+                          {DRIVE_GROUP_LABEL[g.group]}
+                          {data.groups.length > 1 && <span className="ml-1 font-mono text-[11.5px] text-muted-foreground">/{g.group}</span>}
                         </p>
+                        <p className="truncate text-[12px] text-muted-foreground" title={g.tags.join(", ")}>
+                          {g.tags.length} tag{g.tags.length === 1 ? "" : "s"} · {g.tags.join(", ")}
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        {g.quotation ? (
+                          <>
+                            <p className="font-mono text-[12.5px] font-semibold break-all text-primary">{g.quotation.number}</p>
+                            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
+                              <Badge tone="success" dot>
+                                Generated
+                              </Badge>
+                              {fmtDate(g.quotation.quoteDate)}
+                              {g.quotation.tsmName ? ` · TSM ${g.quotation.tsmName}` : ""}
+                            </p>
+                            {g.quotation.erpNumber && (
+                              <p className="mt-0.5 font-mono text-[11.5px] break-all text-foreground/80">Quotation No.: {g.quotation.erpNumber}</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+                            <Badge tone="warning" dot>
+                              Not generated
+                            </Badge>
+                            Will be dated {fmtDate(new Date().toISOString())}
+                          </p>
+                        )}
+                      </div>
+                      <Input
+                        className="font-mono uppercase"
+                        value={erp[g.group] ?? ""}
+                        maxLength={30}
+                        placeholder="ERP serial"
+                        aria-label={`Quotation No. serial for ${DRIVE_GROUP_LABEL[g.group]}`}
+                        onChange={(e) => {
+                          setErp((m) => ({ ...m, [g.group]: e.target.value }));
+                          setSaved(false);
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 border-t border-dashed border-border bg-muted/40 px-3 py-2.5">
+                      {offerConfigs === null ? (
+                        <span className="text-[12px] text-muted-foreground">Loading scope…</span>
+                      ) : (
+                        <>
+                          <ScopeControls
+                            config={offerConfigs[g.group] ?? EMPTY_OFFER_CONFIG}
+                            group={g.group}
+                            onChange={(next) => changeScope(g.group, next)}
+                          />
+                          <ScopeLines config={offerConfigs[g.group] ?? EMPTY_OFFER_CONFIG} group={g.group} />
+                        </>
                       )}
                     </div>
-                    <input
-                      className={`${inputCls} font-mono uppercase`}
-                      value={erp[g.group] ?? ""}
-                      maxLength={30}
-                      placeholder="ERP serial"
-                      aria-label={`Quotation No. serial for ${DRIVE_GROUP_LABEL[g.group]}`}
-                      onChange={(e) => {
-                        setErp((m) => ({ ...m, [g.group]: e.target.value }));
-                        setSaved(false);
-                      }}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2 border-t border-dashed border-line bg-sunk px-3 py-2.5">
-                    {offerConfigs === null ? (
-                      <span className="text-[12px] text-fg-3">Loading scope…</span>
-                    ) : (
-                      <>
-                        <ScopeControls
-                          config={offerConfigs[g.group] ?? EMPTY_OFFER_CONFIG}
-                          group={g.group}
-                          onChange={(next) => changeScope(g.group, next)}
-                        />
-                        <ScopeLines config={offerConfigs[g.group] ?? EMPTY_OFFER_CONFIG} group={g.group} />
-                      </>
-                    )}
-                  </div>
                   </div>
                 ))}
               </div>
 
               {data.noDriveTags.length > 0 && (
-                <p className="text-[12px] text-fg-3">
+                <p className="text-[12px] text-muted-foreground">
                   Not quoted yet — no drive system: {data.noDriveTags.join(", ")}. Generate again here after their Drive step.
                 </p>
               )}
-              <p className="text-[12px] text-fg-3">
+              <p className="text-[12px] text-muted-foreground">
                 The quotation no. (ERP) and the scope lines are what the Technical Data Sheet and the Commercial Offer
                 show; both can still be changed later on the Commercial page.
               </p>
             </>
           )}
-          {error && <p className="text-neg">{error}</p>}
-        </div>
+          {error && <Alert>{error}</Alert>}
+        </DialogBody>
 
-        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-3">
+        <DialogFooter>
           {unsaved ? (
-            <span className="mr-auto text-[12.5px] font-medium text-warn">Unsaved changes</span>
+            <span className="mr-auto text-[12.5px] font-medium text-warning">Unsaved changes</span>
           ) : (
-            saved && !error && <span className="mr-auto text-[12.5px] font-medium text-pos">Saved</span>
+            saved &&
+            !error && (
+              <span className="mr-auto inline-flex items-center gap-1 text-[12.5px] font-medium text-success">
+                <CircleCheck className="size-3.5" /> Saved
+              </span>
+            )
           )}
           {allGenerated && (
-            <button type="button" className={btn} onClick={onOpenCommercial} disabled={busy || unsaved} title={unsaved ? "Save your changes first" : undefined}>
-              Open Commercial →
-            </button>
+            <Button variant="outline" onClick={onOpenCommercial} disabled={busy || unsaved} title={unsaved ? "Save your changes first" : undefined}>
+              Open Commercial <ArrowRight />
+            </Button>
           )}
           {data && data.groups.length > 0 && (
-            <button type="button" className={btnPrimary} onClick={() => void submit()} disabled={!canSubmit}>
+            <Button onClick={() => void submit()} disabled={!canSubmit}>
               {busy
                 ? "Working…"
                 : missing.length > 0
                   ? `Generate quotation${missing.length > 1 ? `s (${missing.length})` : ""}`
                   : "Save"}
-            </button>
+            </Button>
           )}
-        </footer>
-      </div>
-      {/* Stops clicks here reaching the backdrop behind it. */}
-      <div onClick={(e) => e.stopPropagation()}>
-        <ConfirmModal
+        </DialogFooter>
+
+        <ConfirmDialog
           open={confirmClose}
           title="Close without saving?"
           description="Your changes to the scope or the quotation no. will be lost."
@@ -338,7 +327,7 @@ export default function QuotationStepModal({
           onConfirm={onClose}
           onClose={() => setConfirmClose(false)}
         />
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

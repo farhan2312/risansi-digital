@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Filter, Search } from "lucide-react";
 
 import apiClient from "../../services/apiClient";
 import { ORDER_SUBTYPES, ORDER_TYPES } from "../../lib/roles";
@@ -95,50 +96,48 @@ export function MultiSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={`flex h-9 max-w-[220px] items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px] transition ${
-          on ? "border-accent bg-accent-soft font-semibold text-accent" : "border-line bg-paper text-fg-2 hover:border-fg-3"
+        className={`flex h-8 max-w-[220px] items-center gap-1.5 rounded-md border px-2.5 text-[12.5px] shadow-xs transition-[color,background-color,border-color] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 ${
+          on ? "border-primary/40 bg-primary/8 font-medium text-primary" : "border-border bg-card text-foreground hover:border-input hover:bg-muted"
         }`}
       >
         <span className="truncate">{!on ? label : value.length === 1 ? value[0] : label}</span>
         {value.length > 1 && (
-          <span className="rounded-full bg-accent px-1.5 text-[10.5px] font-bold text-white">{value.length}</span>
+          <span className="rounded-full bg-primary px-1.5 text-[10.5px] font-semibold text-primary-foreground">{value.length}</span>
         )}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`h-3.5 w-3.5 shrink-0 transition ${open ? "rotate-180" : ""}`} aria-hidden>
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <ChevronDown className={`size-3.5 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
 
       {open && at && (
         <div
           style={{ top: at.top, left: at.left }}
-          className="fixed z-[60] w-[250px] overflow-hidden rounded-xl border border-line bg-paper shadow-[0_12px_32px_rgba(10,22,40,0.16)]">
+          className="fixed z-[1100] w-[250px] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-[0_8px_28px_rgba(15,23,42,0.14)]">
           {all.length > 8 && (
-            <div className="border-b border-line p-2">
+            <div className="border-b border-border p-1.5">
               <input
                 type="search"
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder={`Search ${label.toLowerCase()}…`}
-                className="h-8 w-full rounded-md border border-line bg-sunk px-2.5 text-[12.5px] text-fg outline-none focus:border-accent"
+                className="h-8 w-full rounded-md border border-input bg-card px-2.5 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
               />
             </div>
           )}
           <ul role="listbox" aria-multiselectable="true" className="max-h-[260px] overflow-y-auto py-1">
-            {shown.length === 0 && <li className="px-3 py-2 text-[12.5px] text-fg-4">Nothing to pick</li>}
+            {shown.length === 0 && <li className="px-3 py-2 text-[12.5px] text-muted-foreground">Nothing to pick</li>}
             {shown.map((o) => (
               <li key={o}>
-                <label className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 text-[12.5px] text-fg-2 hover:bg-elev">
-                  <input type="checkbox" checked={isOn(o)} onChange={() => toggle(o)} className="h-3.5 w-3.5 accent-[var(--brand-blue)]" />
-                  <span className={`truncate ${isOn(o) ? "font-semibold text-fg" : ""}`}>{o}</span>
+                <label className="mx-1 flex cursor-pointer items-center gap-2.5 rounded-sm px-2 py-1.5 text-[12.5px] text-foreground hover:bg-muted">
+                  <input type="checkbox" checked={isOn(o)} onChange={() => toggle(o)} className="size-3.5 accent-[var(--sc-primary)]" />
+                  <span className={`truncate ${isOn(o) ? "font-medium" : ""}`}>{o}</span>
                 </label>
               </li>
             ))}
           </ul>
           {on && (
-            <div className="flex items-center justify-between border-t border-line px-3 py-2 text-[11.5px]">
-              <span className="text-fg-3">{value.length} selected</span>
-              <button type="button" onClick={() => onChange([])} className="font-semibold text-accent hover:underline">
+            <div className="flex items-center justify-between border-t border-border bg-muted/40 px-3 py-2 text-[11.5px]">
+              <span className="text-muted-foreground">{value.length} selected</span>
+              <button type="button" onClick={() => onChange([])} className="font-medium text-primary hover:underline">
                 Clear
               </button>
             </div>
@@ -192,31 +191,26 @@ export default function EnquiryFilterBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="flex items-center gap-1.5 text-[11.5px] font-semibold tracking-[0.06em] text-fg-3 uppercase">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
-          <path d="M3 5h18l-7 8v6l-4 2v-8z" />
-        </svg>
+      <span className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        <Filter className="size-3.5" aria-hidden />
         Filters
       </span>
       {showClient && (
         <label className="relative">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-fg-3" aria-hidden>
-            <circle cx="11" cy="11" r="6.5" />
-            <path d="m20 20-4-4" />
-          </svg>
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input
             type="search"
             aria-label="Client name or code"
             placeholder="Client name or code…"
             value={client}
             onChange={(e) => setClient(e.target.value)}
-            className={`h-9 w-[200px] rounded-lg border bg-paper pr-2.5 pl-8 text-[12.5px] text-fg outline-none transition placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft ${
-              value.client ? "border-accent" : "border-line"
+            className={`h-8 w-[200px] rounded-md border bg-card pr-2.5 pl-8 text-[12.5px] text-foreground shadow-xs outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25 ${
+              value.client ? "border-primary/50" : "border-input"
             }`}
           />
         </label>
       )}
-      <div className="inline-flex h-9 items-center rounded-lg border border-line bg-sunk p-0.5" role="radiogroup" aria-label="Order type">
+      <div className="inline-flex h-8 items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="radiogroup" aria-label="Order type">
         {(orderTypeRequired ? ORDER_TYPE_LABELS : ["All", ...ORDER_TYPE_LABELS]).map((label) => {
           const on = label === "All" ? value.orderType?.length !== 1 : value.orderType?.length === 1 && value.orderType[0] === label;
           return (
@@ -236,7 +230,7 @@ export default function EnquiryFilterBar({
                   ...(orderTypeRequired ? (label === "Spare" ? { pumpType: undefined } : { spareType: undefined }) : {}),
                 })
               }
-              className={`h-full rounded-md px-3 text-[12.5px] font-semibold transition-colors ${on ? "bg-paper text-accent shadow-sm" : "text-fg-3 hover:text-fg"}`}
+              className={`h-full rounded-[5px] px-3 text-[12.5px] font-medium transition-[color,background-color,box-shadow] ${on ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"}`}
             >
               {label}
             </button>
@@ -261,7 +255,7 @@ export default function EnquiryFilterBar({
             setClient("");
             onChange(kept);
           }}
-          className="rounded-md px-2 py-1.5 text-[12.5px] font-semibold text-accent hover:bg-accent-soft"
+          className="inline-flex h-7 items-center rounded-md px-2.5 text-[12px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           Clear
         </button>
