@@ -48,7 +48,7 @@ def to_m3_per_hr(value: float, unit: str, sg: float) -> float:
         return value * 0.227125
     if unit == "KLPD":  # kiloliters/day
         return value / 24
-    if unit == "TPH":  # tons/hr, needs density
+    if unit in ("TPH", "MT/Hr"):  # tonnes/hr (TPH = MT/Hr), needs density
         return value / (sg or 1.0)
     return value
 

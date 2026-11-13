@@ -27,7 +27,21 @@ export const SPARE_DOC_GREETING = "Dear Sir,";
 export const SPARE_DOC_OPENING = "We thankfully acknowledge having received your above enquiry and herewith submit our lowest possible quotation as follows:";
 const TITLE = "Quotation for Spares";
 const PO_HEADING = "Reference PO No. / Date";
-const HEADINGS = ["Sl. No.", "Description", "Model", PO_HEADING, "Part No.", "Qty/Unit", "Unit Cost (INR)", "Amount (INR)"];
+const PART_NO_HEADING = "Part No.";
+const HEADINGS = ["Sl. No.", "Description", "Model", PO_HEADING, PART_NO_HEADING, "Qty/Unit", "Unit Cost (INR)", "Amount (INR)"];
+/** Each column's share of the printed width (%) and its Excel width, in HEADINGS order.
+ *  A column left off (no PO tick; no part with a part no.) gives its share to
+ *  Description and Model, half each. */
+const COLUMN_PCT = [5, 23, 20, 14, 8, 8, 11, 11];
+const COLUMN_XLSX = [8, 30, 34, 22, 10, 10, 14, 14];
+function columnWidths(showPo: boolean, showPartNo: boolean): { pct: number[]; xlsx: number[] } {
+  const keep = HEADINGS.map((h) => (h === PO_HEADING ? showPo : h === PART_NO_HEADING ? showPartNo : true));
+  const fit = (all: number[]) => {
+    const freed = all.reduce((s, w, i) => s + (keep[i] ? 0 : w), 0);
+    return all.map((w, i) => (i === 1 || i === 2 ? w + freed / 2 : w)).filter((_, i) => keep[i]);
+  };
+  return { pct: fit(COLUMN_PCT), xlsx: fit(COLUMN_XLSX) };
+}
 const TERMS_HEADING = "TERMS AND CONDITIONS";
 /** The Enquiry No. & Date cell: Sl. No. + Description + Model with the PO column
  *  (about half), Sl. No. + Description without (about a third). */
@@ -98,6 +112,8 @@ function printed(sheet: SpareQuoteSheet) {
   const discount = (subtotal * discountPct) / 100;
   // No PO tick: no column for it. Each row prints its own part's PO.
   const showPo = sheet.quote.hasPo;
+  // No part with a part no. (as printed, edits applied): no Part No. column (user, 2026-11-13).
+  const showPartNo = models.some((m) => m.lines.some((l) => l.partNo.trim() !== ""));
   // A term whose wording was cleared on the document doesn't print.
   const { terms, warranty } = spareDocTerms(sheet.quote, edits);
   const printable = (list: SpareDocTerm[]) => list.map((t) => t.text.trim()).filter(Boolean);
@@ -111,7 +127,9 @@ function printed(sheet: SpareQuoteSheet) {
     terms: printable(terms),
     warranty: printable(warranty),
     showPo,
-    headings: (showPo ? HEADINGS : HEADINGS.filter((h) => h !== PO_HEADING)).map((h) => (fx ? h.replace("(INR)", "(USD)") : h)),
+    showPartNo,
+    widths: columnWidths(showPo, showPartNo),
+    headings: HEADINGS.filter((h) => (h === PO_HEADING ? showPo : h === PART_NO_HEADING ? showPartNo : true)).map((h) => (fx ? h.replace("(INR)", "(USD)") : h)),
     fmt,
     count: models.reduce((s, m) => s + m.lines.length, 0),
     subject: edits.subject ?? SPARE_DOC_SUBJECT,
@@ -135,7 +153,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
       sl += 1;
       return `<tr><td>${sl}</td><td class="l">${esc(l.name)}</td>${i === 0 ? `<td rowspan="${m.lines.length}" class="m">${esc(m.model)}</td>` : ""}${
         d.showPo ? `<td>${esc(l.po || "-")}</td>` : ""
-      }<td>${esc(l.partNo)}</td><td>${esc(l.qty || "-")}</td><td class="r">${d.fmt(l.unitNum)}</td><td class="r">${d.fmt(l.amount)}</td></tr>`;
+      }${d.showPartNo ? `<td>${esc(l.partNo)}</td>` : ""}<td>${esc(l.qty || "-")}</td><td class="r">${d.fmt(l.unitNum)}</td><td class="r">${d.fmt(l.amount)}</td></tr>`;
     }),
   );
   const termRows = (heading: string, list: string[]) =>
@@ -168,22 +186,8 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
     body,
     logoUrl,
     css: `
-      ${
-        d.showPo
-          ? `col:nth-child(1), col.lbl { width: 5%; }
-      col:nth-child(2) { width: 23%; }
-      col:nth-child(3) { width: 20%; }
-      col:nth-child(4) { width: 14%; }
-      col:nth-child(5) { width: 8%; }
-      col:nth-child(6) { width: 8%; }
-      col:nth-child(7), col:nth-child(8) { width: 11%; }`
-          : `col:nth-child(1), col.lbl { width: 5%; }
-      col:nth-child(2) { width: 29%; }
-      col:nth-child(3) { width: 26%; }
-      col:nth-child(4) { width: 9%; }
-      col:nth-child(5) { width: 9%; }
-      col:nth-child(6), col:nth-child(7) { width: 11%; }`
-      }
+      col.lbl { width: ${d.widths.pct[0]}%; }
+      ${d.widths.pct.map((w, i) => `col:nth-child(${i + 1}) { width: ${w}%; }`).join("\n      ")}
       td.l { text-align: left; }
       td.r { text-align: right; }
       td.m { font-weight: bold; }
@@ -197,7 +201,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
 export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
   const d = printed(sheet);
   const cols = d.headings.length;
-  const widths = d.showPo ? [8, 30, 34, 22, 10, 10, 14, 14] : [8, 34, 38, 10, 10, 14, 14];
+  const widths = d.widths.xlsx;
   // Roughly one character per width unit; 409 is as tall as Excel allows.
   const heightOf = (text: string, chars: number) => Math.min(409, 14 * text.split("\n").reduce((n, l) => n + Math.max(1, Math.ceil(l.length / chars)), 0));
   const allWidth = widths.reduce((s, w) => s + w, 0);
@@ -223,7 +227,7 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
           { value: l.name },
           { value: i === 0 ? m.model : "", bold: true },
           ...(d.showPo ? [{ value: l.po || "-" }] : []),
-          { value: l.partNo },
+          ...(d.showPartNo ? [{ value: l.partNo }] : []),
           { value: l.qty },
           { value: d.fmt(l.unitNum) },
           { value: d.fmt(l.amount) },

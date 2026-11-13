@@ -895,7 +895,7 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
           </>
           )}
           <section className="flex flex-col gap-2 rounded-md border border-border p-3">
-            <h4 className="text-[12.5px] font-semibold text-foreground">{list.length ? OTHER_PART_SECTION : "Add parts - part no. and part name"}</h4>
+            <h4 className="text-[12.5px] font-semibold text-foreground">{list.length ? OTHER_PART_SECTION : "Add parts - part name, part no. if there is one"}</h4>
             {others.map((l) => (
               <label key={partKey(l)} className="flex cursor-pointer items-center gap-2.5 rounded-md bg-primary/6 px-2 py-1 text-[12.5px]">
                 <input type="checkbox" className={checkCls} checked onChange={() => toggle(l.partNo, l.partName)} />
@@ -904,7 +904,7 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
               </label>
             ))}
             <div className="flex flex-wrap items-center gap-2">
-              <input className={`${inputCls} w-[130px]`} value={otherNo} maxLength={40} placeholder="Part No." aria-label="Other part number" onChange={(e) => setOtherNo(e.target.value)} />
+              <input className={`${inputCls} w-[130px]`} value={otherNo} maxLength={40} placeholder="Part No. (optional)" aria-label="Other part number (optional)" onChange={(e) => setOtherNo(e.target.value)} />
               <input
                 className={`${inputCls} min-w-[180px] flex-1`}
                 value={otherName}
