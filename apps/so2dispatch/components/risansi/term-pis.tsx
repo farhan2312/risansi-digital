@@ -55,7 +55,10 @@ export function TermPis({
   pis,
   canEdit,
   payments,
+  fluid = false,
 }: {
+  /** Fill the space it is given (the Orders split view's portrait) instead of its fixed list width. */
+  fluid?: boolean;
   orderId: string;
   soLabel: string;
   terms: Row[];
@@ -204,7 +207,7 @@ export function TermPis({
     );
 
   return (
-    <div className={payments ? "w-[40rem]" : "w-[28.5rem]"}>
+    <div className={fluid ? "w-full" : payments ? "w-[40rem]" : "w-[28.5rem]"}>
       {terms.length === 0 && unlinked.length === 0 ? (
         <span className="text-xs text-muted">No payment terms yet</span>
       ) : (
@@ -212,7 +215,8 @@ export function TermPis({
         // their own columns, so the lines read straight down.
         // Fixed column widths, so the PI columns line up from one SO's row
         // to the next instead of each table sizing itself to its contents.
-        <table className="w-full table-fixed text-xs">
+        <table className={`w-full text-xs ${fluid ? "table-auto" : "table-fixed"}`}>
+          {!fluid && (
           <colgroup>
             <col className="w-[10.5rem]" />
             <col className="w-[7rem]" />
@@ -221,6 +225,7 @@ export function TermPis({
             {payments && <col className="w-[9.5rem]" />}
             <col className={payments ? "w-[3.5rem]" : "w-[2.25rem]"} />
           </colgroup>
+          )}
           <thead>
             <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               <th className="pb-1 pl-1.5 pr-1.5 font-semibold whitespace-nowrap">Term</th>

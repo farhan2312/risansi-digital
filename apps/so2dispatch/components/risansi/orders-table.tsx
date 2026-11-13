@@ -466,10 +466,10 @@ export function OrdersTable({
 
   // The department columns' cells, each a function of the row: the table draws
   // them across, the split view's portrait stands them upright.
-  const termsTd = (order: OrderListRow) => {
+  const termsTd = (order: OrderListRow, fluid = false) => {
     const { soLabel } = rowView(order);
-    return (
-                      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+    const body = (
+                      <>
                         {/* An FR order is a replacement: no payment terms to show. */}
                         {order.bill_mode === "FR" ? (
                           <span className="text-xs font-medium text-muted">Replacement · no payment terms</span>
@@ -481,9 +481,17 @@ export function OrdersTable({
                             pis={order.pi_docs ?? []}
                             canEdit={false}
                             payments={{ canEdit: false }}
+                            fluid={fluid}
                           />
                         )}
-                      </td>
+                      </>
+    );
+    // The portrait shows it full width, no cell around it.
+    if (fluid) return body;
+    return (
+      <td className="px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+        {body}
+      </td>
     );
   };
   const readinessTd = (order: OrderListRow) => {
@@ -678,7 +686,9 @@ export function OrdersTable({
       keys: ReachedDept["key"][],
       rows: { label: string; dept?: ReachedDept["key"] }[],
       cells: React.ReactNode,
-      openKey?: ReachedDept["key"]
+      openKey?: ReachedDept["key"],
+      /** One wide thing (payment terms): full width, no label column. */
+      wide = false
     ) => {
       const on = !!focusDept && keys.includes(focusDept);
       return (
@@ -690,10 +700,13 @@ export function OrdersTable({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
             {openKey && !readOnly && (
               <button type="button" onClick={() => open(openKey)} className="text-xs font-medium text-primary hover:underline">
-                Open {title}
+                Open
               </button>
             )}
           </div>
+          {wide ? (
+            <div className="min-w-0">{cells}</div>
+          ) : (
           <table className="portrait-grid text-sm" style={{ gridTemplateRows: `repeat(${rows.length}, auto)` }}>
             <tbody>
               <tr>
@@ -706,6 +719,7 @@ export function OrdersTable({
               <tr>{cells}</tr>
             </tbody>
           </table>
+          )}
         </section>
       );
     };
@@ -777,7 +791,7 @@ export function OrdersTable({
             </button>
           </div>
         </div>
-        {section("Payment terms, PIs and payment", ["billing", "accounts"], [{ label: "Terms, PIs, payment", dept: "billing" }], termsTd(order), "billing")}
+        {section("Payment terms, PIs and payment", ["billing", "accounts"], [], termsTd(order, true), "billing", true)}
         {onlyBilling ? (
           <p className="rounded-lg border border-card-border p-3 text-xs text-muted">Only billing: no department works on this SO.</p>
         ) : pump ? (
