@@ -4,7 +4,7 @@
 import { sql, type AnyColumn, type SQL } from "drizzle-orm";
 
 import { db } from "./db";
-import { commercialTagPrice, enquiryTags, projects, quotation } from "./db/schema";
+import { commercialTagPrice, enquiryTags, projects, quotation, users } from "./db/schema";
 import { filterKey, type EnquiryFilterOptions, type EnquiryFilters } from "./enquiry-filters";
 
 const esc = (v: string) => v.replace(/([\\%_])/g, "\\$1");
@@ -134,6 +134,9 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
   push(anyOf(projects.clientZone, f.zone ?? []));
   push(anyOf(projects.clientMarketType, f.market ?? []));
   push(anyOf(projects.industry, f.industry ?? []));
+  // Assigned to: the assignee's name, whatever its spelling (user, 2026-11-13).
+  const who = [...new Set((f.assignee ?? []).map(filterKey).filter(Boolean))];
+  if (who.length) out.push(sql`EXISTS (SELECT 1 FROM ${users} au WHERE au.id = projects.assigned_to AND ${keyOf(sql`au.name`)} IN (${list(who)}))`);
   // Pumps and spares filter by status independently (user, 2026-11-06): Technical and
   // Commercial pick pumps, Spare status picks spares. Once any is picked, a type with
   // none of its own picked is left off.
@@ -173,12 +176,21 @@ export async function enquiryFilterOptions(): Promise<EnquiryFilterOptions> {
     );
     return new Map(rows.rows.map((r) => [r.v, Number(r.n)]));
   };
-  const [primary, secondaryRaw, zones, markets, industries] = await Promise.all([
+  // The names of the people enquiries are assigned to, counted like the columns above:
+  // User-Workers and the User-Master only (user, 2026-11-13).
+  const assigneeCounts = async () => {
+    const rows = await db.execute<{ v: string; n: number }>(
+      sql`select trim(u.name) as v, count(*)::int as n from ${projects} join ${users} u on u.id = projects.assigned_to where nullif(trim(u.name), '') is not null and u.role in ('user_worker', 'user_master') group by 1`,
+    );
+    return new Map(rows.rows.map((r) => [r.v, Number(r.n)]));
+  };
+  const [primary, secondaryRaw, zones, markets, industries, assignees] = await Promise.all([
     counted(projects.clientPrimaryRep),
     counted(projects.clientSecondaryReps),
     counted(projects.clientZone),
     counted(projects.clientMarketType),
     counted(projects.industry),
+    assigneeCounts(),
   ]);
   const secondary = new Map<string, number>();
   for (const [raw, n] of secondaryRaw)
@@ -189,5 +201,6 @@ export async function enquiryFilterOptions(): Promise<EnquiryFilterOptions> {
     zones: canonical(zones),
     markets: canonical(markets),
     industries: canonical(industries),
+    assignees: canonical(assignees),
   };
 }

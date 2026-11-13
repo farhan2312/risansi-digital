@@ -24,9 +24,11 @@ export type EnquiryFilters = {
   commercialStatus?: string[];
   /** A spare's one status, independent of the pump ones (user, 2026-11-06). */
   spareStatus?: string[];
+  /** The person the enquiry is assigned to, by name (user, 2026-11-13). */
+  assignee?: string[];
 };
 
-export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus", "spareStatus"] as const;
+export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus", "spareStatus", "assignee"] as const;
 export type MultiFilterKey = (typeof MULTI_FILTER_KEYS)[number];
 
 /** Not Quoted, Regret and Sent to client are only ever picked by hand on the Edit form
@@ -113,4 +115,6 @@ export type EnquiryFilterOptions = {
   zones: string[];
   markets: string[];
   industries: string[];
+  /** Everyone some enquiry is assigned to. */
+  assignees: string[];
 };
