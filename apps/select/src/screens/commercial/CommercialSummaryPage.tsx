@@ -531,6 +531,11 @@ export default function CommercialSummaryPage() {
     [data, saved, tab, offerConfigs],
   );
 
+  // Until the enquiry is read it isn't known to be a pump or a spare: show neither page's
+  // heading and buttons, so a spare doesn't open on the pump Commercial Summary first
+  // (user, 2026-11-13).
+  if (!data && !loadError) return <CommercialLoading />;
+
   if (project?.orderType === "spare") {
     return (
       <SpareCommercial
@@ -2243,3 +2248,13 @@ const RupeeIcon = () => (
     <path d="M6 4h12M6 9h12M14.5 20 7 13h2.5a4.5 4.5 0 0 0 0-9" />
   </svg>
 );
+
+/** The neutral page shown while the enquiry loads (pump or spare not known yet). */
+function CommercialLoading() {
+  return (
+    <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 2xl:px-8" aria-busy="true">
+      <div className="h-[76px] animate-pulse rounded-2xl border border-line bg-paper" />
+      <div className="rounded-xl border border-line bg-paper p-8 text-center text-[13.5px] text-fg-3">Loading the enquiry…</div>
+    </div>
+  );
+}
