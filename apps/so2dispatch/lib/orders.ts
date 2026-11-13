@@ -1192,7 +1192,7 @@ export async function saveReadyLots(
 export async function inheritSparePlanning(
   itemId: string,
   actor?: { id: string; role: string }
-): Promise<boolean | "replan"> {
+): Promise<boolean> {
   if (!UUID_RE.test(itemId)) return false;
   const lead = await query<{
     item_id: string;
@@ -1220,21 +1220,6 @@ export async function inheritSparePlanning(
     [itemId]
   );
   const from = lead.rows[0];
-  // The SO is already planned in lots: copying them would read the new EC as
-  // ready (and its lots as packed beside the others) though Planning never
-  // planned it. It starts at Date awaited, for Planning to plan.
-  const inLots = from
-    ? (await query(`SELECT 1 FROM order_ready_lots WHERE item_id = $1 LIMIT 1`, [from.item_id])).rows.length > 0
-    : false;
-  if (inLots) {
-    await query(
-      `INSERT INTO order_planning (item_id, actual_spare_status) VALUES ($1, $2)
-       ON CONFLICT (item_id) DO UPDATE SET actual_spare_status = EXCLUDED.actual_spare_status
-        WHERE NULLIF(btrim(order_planning.actual_spare_status), '') IS NULL`,
-      [itemId, SPARE_PLANNING_START]
-    );
-    return "replan";
-  }
   if (!from) {
     // Nothing planned on this SO yet: a Spare starts at Date awaited.
     await query(

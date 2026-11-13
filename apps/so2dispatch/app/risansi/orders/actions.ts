@@ -529,20 +529,9 @@ export async function createItemAction(
         )
         .catch((error) => console.error("version EC notice failed:", error)),
       // A Spare SO is planned as one: the new EC joins it where it stands.
-      inheritSparePlanning(itemId, { id: user.id, role: user.role })
-        .then((r) =>
-          // The SO is planned in lots: this EC is Planning's to plan.
-          r === "replan"
-            ? emitNotification({
-                roles: ["planning"],
-                orderId,
-                itemId,
-                type: "dept_update",
-                message: `New EC ${ecLabel || ""} added to ${soLabel}, which is planned in lots: plan it.`.replace("  ", " "),
-              })
-            : undefined
-        )
-        .catch((error) => console.error("inheritSparePlanning failed:", error)),
+      inheritSparePlanning(itemId, { id: user.id, role: user.role }).catch((error) =>
+        console.error("inheritSparePlanning failed:", error)
+      ),
     ];
 
     // Bought-out items listed with the EC are Purchase's work, so they hear
