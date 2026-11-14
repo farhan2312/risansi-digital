@@ -4235,13 +4235,35 @@ export async function listOrdersPage(opts: {
   /** Add up what is still to invoice over every matching SO. */
   inHand?: boolean;
 }): Promise<PageResult<OrderListRow> & { options: OrderListOptions; kpis?: KpiCard[]; inHand?: number }> {
-  const listed = orderListWhere(await withRepTeams(opts.filter));
+  // A card clicked: the list is exactly what it counted (as pageOfOrderIds) —
+  // the card's own condition over the filter less what it sets, SOs with an
+  // SO No. and no test SO, as the cards count.
+  const kf = opts.filter.kpiFilter;
+  const picked =
+    opts.kpis && opts.filter.kpiPicked && kf
+      ? opts.kpis.find((c) => !c.measure && pickedValue(c.params) === opts.filter.kpiPicked)
+      : undefined;
+  const listFilter =
+    picked && kf
+      ? {
+          ...opts.filter,
+          dept: kf.dept,
+          deptStatuses: kf.deptStatuses,
+          deptStatusMulti: kf.deptStatusMulti,
+          packingStatuses: kf.packingStatuses,
+          dispatchStatuses: kf.dispatchStatuses,
+          overdue: kf.overdue,
+          onHold: kf.onHold,
+          holdBy: kf.holdBy ?? null,
+          accountsHold: kf.accountsHold,
+        }
+      : opts.filter;
+  const listed = orderListWhere(await withRepTeams(listFilter));
   const params = listed.params;
-  const where = opts.extraRestrict
-    ? listed.where
-      ? `${listed.where}\n        AND (${opts.extraRestrict})`
-      : `WHERE ${opts.extraRestrict}`
-    : listed.where;
+  const more = picked
+    ? `${HAS_SO_NO} AND (${picked.sql ?? "TRUE"}) AND NOT ${TEST_SO_SQL("o")}`
+    : opts.extraRestrict ?? null;
+  const where = more ? (listed.where ? `${listed.where}\n        AND (${more})` : `WHERE ${more}`) : listed.where;
   const kpisQ = opts.kpis
     ? countKpis(
         // The cards count what the list shows: SOs with an SO No.
@@ -4550,6 +4572,8 @@ async function pageOfOrderIds(opts: {
   kpis?: KpiRequest;
   /** Dispatch: add up what is still to invoice over every matching SO. */
   inHand?: boolean;
+  /** The card clicked, where the filter is not an OrderListFilter (Order Making). */
+  kpiPicked?: string | null;
 }): Promise<{ ids: string[]; total: number; page: number; kpis?: KpiCard[]; inHand?: number }> {
   const search = opts.search ? likePattern(opts.search) : null;
   const kpis = opts.kpis ? await countKpis(opts.kpis, opts.filter, search, opts.searchable) : undefined;
@@ -4558,10 +4582,8 @@ async function pageOfOrderIds(opts: {
   // it), and no test SO (no card counts one). Otherwise a card and the list
   // after clicking it could read a status two different ways.
   const f = opts.filter;
-  const picked =
-    opts.kpis && f?.kpiPicked && f.kpiFilter
-      ? opts.kpis.cards.find((c) => !c.measure && pickedValue(c.params) === f.kpiPicked)
-      : undefined;
+  const pickedKey = opts.kpiPicked ?? (f?.kpiFilter ? f.kpiPicked : null);
+  const picked = opts.kpis && pickedKey ? opts.kpis.cards.find((c) => !c.measure && pickedValue(c.params) === pickedKey) : undefined;
   const kf = f?.kpiFilter;
   const listFilter =
     picked && f && kf
@@ -4578,7 +4600,9 @@ async function pageOfOrderIds(opts: {
           accountsHold: kf.accountsHold,
         }
       : f;
-  const restrict = picked ? `${opts.restrict} AND (${picked.sql ?? "TRUE"}) AND NOT ${TEST_SO_SQL("o")}` : opts.restrict;
+  // …over the cards' own condition (kpiRestrict, not the list's), so the list is
+  // the very count the card shows, whatever the page's own filters.
+  const restrict = picked && opts.kpis ? `${opts.kpis.restrict} AND (${picked.sql ?? "TRUE"}) AND NOT ${TEST_SO_SQL("o")}` : opts.restrict;
   const facets = listFilter
     ? orderListClauses({ ...(await withRepTeams(listFilter)), search: "" })
     : { clauses: [], params: [] };
@@ -5187,6 +5211,7 @@ export async function listOrdersForOrderMaking(opts: {
     filter: sharedFacets(f),
     orderBy: ordered,
     all: opts.all,
+    kpiPicked: f.kpiPicked ?? null,
   });
   if (ids.length === 0) return { ...pageResult<OrderMakingRow>([], total, page), kpis };
   const cols = ORDER_MAKING_FIELDS.map((f) =>

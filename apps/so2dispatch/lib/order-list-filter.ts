@@ -6,6 +6,7 @@
 // route and the SQL builder all read one definition.
 
 import { DEPT_VIEWS } from "@/lib/dept-view";
+import { pickedCard } from "@/lib/kpis";
 import { isRep } from "@/lib/roles";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
 import {
@@ -309,12 +310,7 @@ export function parseOrderListFilter(
     onlyBilling: get("ob") === "1" && !dept,
     sentPpc: opts.noDispatchTarget && (get("ppc") === "yes" || get("ppc") === "no") ? (get("ppc") as "yes" | "no") : null,
     // A card clicked, as long as every filter it set still stands (else it is no longer on).
-    kpiPicked: (() => {
-      const raw = get("kc");
-      if (!raw) return null;
-      const set = [...new URLSearchParams(raw)];
-      return set.length && set.every(([k, v]) => get(k) === v) ? raw : null;
-    })(),
+    kpiPicked: pickedCard(get),
     field,
     // Only where the controls are shown — a hidden filter would narrow
     // without saying so.

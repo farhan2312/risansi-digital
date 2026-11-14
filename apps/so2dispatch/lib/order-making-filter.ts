@@ -6,6 +6,7 @@
 // read one definition.
 
 import { BILL_TYPE_OPTIONS } from "@/lib/order-schema";
+import { pickedCard } from "@/lib/kpis";
 import { HOLD_BY, type HoldBy } from "@/lib/dept-status";
 import {
   BILL_MODE_FILTER_OPTIONS,
@@ -41,6 +42,8 @@ const SORTS: OmSort[] = [
 export type OrderMakingFilter = {
   /** What the summary cards count over: this filter less the card clicked (cardBaseGet). */
   kpiFilter?: OrderMakingFilter;
+  /** The card clicked: the list is then exactly what it counted. */
+  kpiPicked?: string | null;
   zones: string[];
   reps: string[];
   markets: string[];
@@ -83,6 +86,7 @@ export function parseOrderMakingFilter(get: (key: string) => string | undefined)
   if (from && to && from > to) [from, to] = [to, from];
   const sort = get("sort");
   return {
+    kpiPicked: pickedCard(get),
     zones: list(get("zone")),
     reps: list(get("rep")),
     markets: list(get("market")),

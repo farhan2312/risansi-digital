@@ -38,6 +38,14 @@ export function pickedValue(params: Record<string, string | null>): string | nul
  * card the URL no longer matches (its filter since changed in the bar) is no
  * longer the pick, and everything set counts.
  */
+/** The card clicked (the URL's kc), while every filter it set still stands; else null. */
+export function pickedCard(get: (key: string) => string | undefined): string | null {
+  const raw = get(KPI_PICKED);
+  if (!raw) return null;
+  const set = [...new URLSearchParams(raw)];
+  return set.length && set.every(([k, v]) => get(k) === v) ? raw : null;
+}
+
 export function cardBaseGet(get: (key: string) => string | undefined): (key: string) => string | undefined {
   const raw = get(KPI_PICKED);
   if (!raw) return get;
