@@ -6,7 +6,7 @@ import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Ban, CheckCircle2, CopyPlus, Download, Eye, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
+import { AlertTriangle, Ban, CopyPlus, Download, Eye, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { NewVersionDialog } from "./new-version-dialog";
 import { VersionsModal } from "./versions-modal";
 import { OrderThreadModal } from "./order-thread-modal";
@@ -243,8 +243,8 @@ export function OrderMakingWorkspace({
   // The Assigned to filter's choices: Unassigned, then each SO member.
   const assignOptions = [{ value: UNASSIGNED, label: "Unassigned" }, ...members.map((m) => ({ value: m.id, label: memberLabel(m) }))];
   const cols: { column: string; label: string }[] = [
-    { column: "so_no", label: "SO No." },
-    { column: "so_date", label: "SO Date" },
+    // SO No. with its date under it, in one column.
+    { column: "so_no", label: "SO No. / Date" },
     // The Client Code sits under the name, in one column.
     { column: "client_name", label: "Client Name & Code" },
     { column: "order_type", label: "Order Type" },
@@ -557,15 +557,24 @@ export function OrderMakingWorkspace({
                 </th>
                 {cols.map((c) => (
                   <Fragment key={c.column}>
-                    <th className={`px-4 py-3 ${c.column === "order_value" ? "whitespace-nowrap" : c.column === "so_no" ? "sticky-so" : ""}`}>
-                      {["so_date", "po_received_date", "ec_sent_operation_date"].includes(c.column) ? <SortHeader label={c.label} sortKey={c.column} /> : c.label}
+                    <th
+                      className={`px-4 py-3 ${
+                        c.column === "order_value" ? "whitespace-nowrap" : c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : ""
+                      }`}
+                    >
+                      {c.column === "so_no" ? (
+                        <SortHeader label={c.label} sortKey="so_date" />
+                      ) : ["po_received_date", "ec_sent_operation_date"].includes(c.column) ? (
+                        <SortHeader label={c.label} sortKey={c.column} />
+                      ) : (
+                        c.label
+                      )}
                     </th>
-                    {c.column === "so_no" && <th className="px-4 py-3">Chat</th>}
+                    {/* Chat after the client: SO No. and the client stay at the left edge together. */}
+                    {c.column === "client_name" && <th className="px-4 py-3">Chat</th>}
                   </Fragment>
                 ))}
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">PO details</th>
-                <th className="px-4 py-3">SO details</th>
                 <th className="px-4 py-3">Operation</th>
                 <th className="px-4 py-3"><SortHeader label="ECs" sortKey="ecs" /></th>
                 <th className="px-4 py-3"><SortHeader label="Assigned to" sortKey="assignee" /></th>
@@ -575,7 +584,7 @@ export function OrderMakingWorkspace({
             <tbody className="divide-y divide-card-border">
               {queue.rows.length === 0 && (
                 <tr>
-                  <td colSpan={cols.length + 9} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={cols.length + 7} className="px-4 py-10 text-center text-sm text-muted">
                     {mode === "so"
                       ? "No SOs assigned to you match."
                       : missingOnly
@@ -607,9 +616,12 @@ export function OrderMakingWorkspace({
                       <td
                         className={`px-4 py-3 ${
                           c.column === "order_value" ? "align-top" : c.column === "client_name" ? "" : "whitespace-nowrap"
-                        } ${c.column === "so_no" ? "sticky-so" : ""}`}
+                        } ${c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : ""}`}
                       >
                         {c.column === "order_value" ? <OrderValueDetails row={row as OrderValueRow} /> : formatDisplay(field(c.column), row[c.column])}
+                        {c.column === "so_no" && str(row.so_date) && (
+                          <span className="block text-[11px] text-muted">{formatDisplay(field("so_date"), row.so_date)}</span>
+                        )}
                         {c.column === "client_name" && str(row.client_code) && (
                           <span className="block text-[11px] text-muted">{str(row.client_code)}</span>
                         )}
@@ -633,7 +645,7 @@ export function OrderMakingWorkspace({
                         )}
                       </td>
                       {/* The SO's discussion with Central Visibility and the departments. */}
-                      {c.column === "so_no" && (
+                      {c.column === "client_name" && (
                         <td className="px-4 py-3">
                           <button
                             type="button"
@@ -658,42 +670,6 @@ export function OrderMakingWorkspace({
                   <td className="px-4 py-3">
                     <OmHoldBadge order={row} />
                   </td>
-                  <td className="px-4 py-3">
-                    {row.missing.length === 0 ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Complete
-                      </span>
-                    ) : (
-                      <span
-                        title={row.missing.join(", ")}
-                        className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
-                      >
-                        {row.missing.length} missing
-                      </span>
-                    )}
-                  </td>
-                  {/* The Sales Order details: in (and when), or what is still blank. */}
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {row.so_missing.length === 0 ? (
-                      <span className="inline-flex flex-col">
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Filled
-                        </span>
-                        {row.so_details_filled_at && (
-                          <span className="text-[11px] text-muted">{formatDisplay(field("so_date"), row.so_details_filled_at)}</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span
-                        title={row.so_missing.join(", ")}
-                        className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
-                      >
-                        Pending · {row.so_missing.length} missing
-                      </span>
-                    )}
-                  </td>
                   {/* Its handover, terms and target dates, in a pop-up. Only Billing has none of them. */}
                   <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     {isOnlyBilling(row) ? (
@@ -714,19 +690,7 @@ export function OrderMakingWorkspace({
                   {/* The SO's ECs: Order Making PO fills the EC form (Pump or Spare Add-On). */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     {/* The row itself opens the ECs; the count is just the count. */}
-                    <span className={`mr-2 text-sm tabular-nums ${row.ec_count > 0 ? "text-foreground" : "text-muted"}`}>{row.ec_count}</span>
-                    {/* An Only Billing SO has no ECs. */}
-                    {manageEcs && mine(row) && !isOnlyBilling(row) && (
-                      <button
-                        type="button"
-                        onClick={() => setAddFor(row)}
-                        title={`${str(row.order_type) || "Pump"} Add-On`}
-                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-primary/40 bg-primary/10 px-2 text-[11px] font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        {str(row.order_type) === "Spare" ? "Spare Add-On" : "Pump Add-On"}
-                      </button>
-                    )}
+                    <span className={`text-sm tabular-nums ${row.ec_count > 0 ? "text-foreground" : "text-muted"}`}>{row.ec_count}</span>
                   </td>
                   {/* Who has it — everyone sees; only those who assign change it. */}
                   {(
