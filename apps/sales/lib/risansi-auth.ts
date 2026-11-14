@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { returnableOnlyUserIds } from '@/lib/risansi-settings';
 import { getServerSession } from 'next-auth/next';
 import type { Session } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -341,6 +342,11 @@ export interface CurrentUser {
   /** Every function they work in. Empty for someone who works none, which is
    *  most of the sales team. Order is not meaningful. */
   departments: Department[];
+  /**
+   * Restricted to complaints with returnable material (app_settings, see
+   * returnableOnlyUserIds). Narrows; never widens. Nobody by default.
+   */
+  returnableOnly?: boolean;
 }
 
 /** A caller with no identity and no privileges. Every scope helper below turns
@@ -359,13 +365,20 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
   const session = await getSession();
   if (!isApproved(session)) return SIGNED_OUT;
   const raw = session?.user?.departments;
+  const id = (session?.user?.repId as number | null) ?? null;
+  // Read here, not in the session: it is a company setting somebody may change
+  // this afternoon, and a JWT minted this morning would keep the old answer
+  // until the token expired. Both reads are cache()d, so a page that asks
+  // eight times pays for one query.
+  const restricted = id == null ? [] : await returnableOnlyUserIds();
   return {
-    id:    (session?.user?.repId as number | null) ?? null,
+    id,
     email: session?.user?.email ?? null,
     role:  ((session?.user?.role as RisansiRole) ?? 'rep'),
     // Filtered rather than trusted: the list arrives through a JWT, and an
     // unrecognised value would otherwise reach a stage-permission check.
     departments: Array.isArray(raw) ? raw.filter(isDepartment) : [],
+    returnableOnly: id != null && restricted.includes(id),
   };
 });
 
@@ -751,6 +764,14 @@ export async function whyCannotVisitClient(repId: number, clientId: number): Pro
  * Mirrors the complaints page visibility predicate.
  */
 export async function canAccessComplaint(user: CurrentUser, complaintId: number): Promise<boolean> {
+  // The same narrowing as complaintVisibilitySql, and first for the same
+  // reason. Without it the list would hide a complaint that could still be
+  // opened by typing its id into the address bar.
+  if (user.returnableOnly) {
+    const { rows } = await risansiPool.query<{ returnable: boolean | null }>(
+      'SELECT material_returnable AS returnable FROM complaints WHERE id = $1', [complaintId]);
+    return rows[0]?.returnable === true;
+  }
   if (hasRole(user.role, 'admin')) return true;
   // The module's staff, and anyone in a complaint department, see every
   // complaint — the workflow hands one record between them (matches
@@ -774,6 +795,10 @@ export async function canAccessComplaint(user: CurrentUser, complaintId: number)
 
 /** SQL predicate scoping a `complaints` query (aliased `cm`) to what a user may see. */
 export function complaintVisibilitySql(user: CurrentUser, alias = 'cm'): string | null {
+  // Before everything, including admin: this NARROWS, and a rule that widens
+  // on the way past the one place it was meant to stop is not a rule. Somebody
+  // whose whole job is the returnable material sees the returnable material.
+  if (user.returnableOnly) return `${alias}.material_returnable IS TRUE`;
   if (hasRole(user.role, 'admin')) return null;
   // The module staff exist to work. Every complaint, because the workflow hands
   // one record between departments and a stores clerk cannot be shown only the

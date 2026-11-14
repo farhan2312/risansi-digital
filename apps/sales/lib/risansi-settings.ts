@@ -40,6 +40,44 @@ export async function getUsdRate(): Promise<number> {
 // a document without anybody being able to quietly reopen it.
 export const COMPLAINT_EDIT_OVERRIDE_KEY = 'complaint_edit_override';
 
+// ── Returnable-material only ────────────────────────────────────
+//
+// One job, one slice of the register. Krishna Verma does the returnable
+// material and nothing else, and as module staff he could see all 413
+// complaints — the 28 that are his among them, and no way to tell which.
+//
+// A setting rather than a role, for the same reason the override above is one:
+// a role means a migration, a change to the role check, and a grant on the hub
+// before anybody can be given it, and this is a list of people that will
+// change faster than any of those. A setting rather than a column on `users`
+// for the same reason — nothing to migrate, and the Admin screen can hold it
+// when somebody wants it there.
+//
+// It NARROWS. Everything else in this file widens, so read it carefully: a
+// user named here sees returnable complaints and nothing else, whatever their
+// role or department would otherwise give them.
+export const RETURNABLE_ONLY_USERS_KEY = 'complaints_returnable_only_users';
+
+/**
+ * The user ids restricted to returnable-material complaints.
+ *
+ * Empty on any failure, which means nobody is restricted — the same direction
+ * every other read here fails in. A failure that silently hid the register
+ * from somebody would look like a permissions bug nobody could reproduce.
+ */
+export const returnableOnlyUserIds = cache(async (): Promise<number[]> => {
+  try {
+    const { rows } = await risansiPool.query<{ value: string }>(
+      `SELECT value FROM app_settings WHERE key = $1 LIMIT 1`, [RETURNABLE_ONLY_USERS_KEY]);
+    return (rows[0]?.value ?? '')
+      .split(',')
+      .map(x => Number(x.trim()))
+      .filter(n => Number.isInteger(n) && n > 0);
+  } catch {
+    return [];
+  }
+});
+
 /**
  * Is the company-wide complaint edit override on? Off on any failure.
  *

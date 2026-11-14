@@ -3,6 +3,7 @@
 import { useState, useTransition, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteComplaintAttachment } from '@/app/actions/risansi-complaints-v2';
+import { shrinkImage, isImage, fmtBytes, UPLOAD_CEILING_BYTES } from '@/lib/shrink-image';
 
 // The files on a complaint, by slot. The CAPA slot is the one that matters:
 // for an S1 or S2 complaint, nothing closes until something sits in it.
@@ -35,14 +36,47 @@ export function ComplaintAttachments({ complaintId, files, canEdit, canEditCapa,
   const [err, setErr] = useState('');
   const [, start] = useTransition();
 
+  /**
+   * Upload, shrinking photographs on the way.
+   *
+   * The server allows 20 MB and the platform carries 4.5, so a phone photo
+   * used to fail with nothing useful said about it — which is what happened
+   * on complaint 425. A photograph is re-drawn smaller here; anything else
+   * that is over the limit is named, with its size, before it is sent.
+   */
   const upload = async (category: string, picked: File[]) => {
     if (!picked.length) return;
     setBusy(category); setErr('');
-    for (const f of picked) {
+    for (const original of picked) {
+      let f = original;
+      try {
+        f = await shrinkImage(original);
+      } catch {
+        f = original;   // shrinking is an optimisation, never a gate
+      }
+
+      if (f.size > UPLOAD_CEILING_BYTES) {
+        setErr(isImage(f)
+          ? `${original.name} is ${fmtBytes(f.size)} and could not be made smaller here — `
+            + `${fmtBytes(UPLOAD_CEILING_BYTES)} is the most that can be sent. `
+            + 'Save it as a JPEG and try again.'
+          : `${original.name} is ${fmtBytes(f.size)}. ${fmtBytes(UPLOAD_CEILING_BYTES)} is the most that can be sent — `
+            + 'compress the PDF, or split it, and attach it again.');
+        break;
+      }
+
       const fd = new FormData();
       fd.set('file', f); fd.set('category', category);
       const res = await fetch(`/api/risansi/complaints/${complaintId}/attachments`, { method: 'POST', body: fd });
-      if (!res.ok) { const j = await res.json().catch(() => ({})); setErr(j.error || `Could not upload ${f.name}.`); break; }
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        // 413 never reaches our handler — the platform refuses the body first,
+        // so there is no JSON to read and the generic message would be wrong.
+        setErr(res.status === 413
+          ? `${original.name} is too large for the server to accept (${fmtBytes(f.size)}).`
+          : j.error || `Could not upload ${original.name}.`);
+        break;
+      }
     }
     setBusy(null);
     router.refresh();

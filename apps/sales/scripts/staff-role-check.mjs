@@ -23,7 +23,13 @@ const src = fs.readFileSync(path.join(ROOT, 'lib', 'risansi-auth.ts'), 'utf8')
   .replace(/export const getCurrentUser = cache\([\s\S]*?\n\}\);/m, '')
   .replace(/export const requireSession = cache\([\s\S]*?\n\}\);/m, '')
   .replace(/const getSession = cache\([\s\S]*?\);/m, '');
-fs.writeFileSync(path.join(tmp, 'auth.mjs'), ts.transpileModule(src, {
+// `cache` comes from React, which the stripped imports took with them. Three
+// of its uses were deleted above by name; a fourth (sessionFromSharedCookie)
+// was added later and was not, so this script has been dying on import rather
+// than checking anything. A no-op stand-in is both shorter and proof against
+// the next one — nothing under test is memoised.
+const shimmed = 'const cache = (f) => f;\n' + src;
+fs.writeFileSync(path.join(tmp, 'auth.mjs'), ts.transpileModule(shimmed, {
   fileName: 'lib/risansi-auth.ts',
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText);
@@ -99,13 +105,22 @@ console.log('\n  and a department grants no sales access on its own:');
 check('staff with Stores+Dispatch still refused every record',
   A.clientScopeSql(storesAndDispatch, 'x.client_id'), 'FALSE');
 
-// The route allowlist in proxy.ts, read from the file so it cannot drift.
-console.log('\nRoute gate (proxy.ts):');
-const proxy = fs.readFileSync(path.join(ROOT, 'proxy.ts'), 'utf8');
-const allowed = [...proxy.matchAll(/^\s*'(\/[a-z/-]+)',$/gm)].map(m => m[1])
-  .filter(p => !p.includes(':path'));
-console.log(`  allowlist: ${allowed.join(', ')}`);
-const reach = (p) => allowed.some(a => p === a || p.startsWith(`${a}/`));
+// The route allowlist, asked of the function that actually answers it.
+//
+// This used to scrape proxy.ts for quoted paths. The rule moved to
+// lib/risansi-role-paths.ts — deliberately, because it had been written out
+// twice and the two copies disagreed — and the regex went on matching
+// nothing, so all four of these checks reported that staff could open
+// nothing at all. A check that cannot fail honestly is worse than no check.
+// That file imports nothing, by design, so it transpiles on its own.
+console.log('\nRoute gate (lib/risansi-role-paths.ts):');
+fs.writeFileSync(path.join(tmp, 'paths.mjs'), ts.transpileModule(
+  fs.readFileSync(path.join(ROOT, 'lib', 'risansi-role-paths.ts'), 'utf8'),
+  { fileName: 'lib/risansi-role-paths.ts',
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText);
+const P = await import('file:///' + path.join(tmp, 'paths.mjs').split(path.sep).join('/'));
+console.log(`  allowlist: ${P.NARROW_ROLES.staff.paths.join(', ')}`);
+const reach = (p) => P.mayOpen('staff', p);
 for (const [p, want] of [
   ['/risansi/clients', true], ['/risansi/clients/123', true],
   ['/risansi/complaints', true], ['/print/client/ABC01', true],
@@ -138,13 +153,21 @@ check('user_departments table exists', d.n, 1);
 // that is not on the list. Done in a transaction that is always rolled back.
 const client = await pool.connect();
 const { rows: [someone] } = await client.query('SELECT id FROM users LIMIT 1');
+// Counted before, not assumed to be zero. These two checks were written the
+// week departments arrived, when the table was empty and anybody's count was
+// the count this script had just inserted. Eight real rows later they both
+// failed, which said nothing about the database and everything about the
+// assertion.
+const { rows: [base] } = await client.query('SELECT count(*)::int n FROM user_departments');
+const { rows: [mine] } = await client.query(
+  'SELECT count(*)::int n FROM user_departments WHERE user_id = $1', [someone.id]);
 await client.query('BEGIN');
 await client.query(
   `INSERT INTO user_departments (user_id, department) VALUES ($1,'Billing Team'),($1,'Quotation Team')`,
   [someone.id]);
 const { rows: [held] } = await client.query(
   `SELECT count(*)::int n FROM user_departments WHERE user_id = $1`, [someone.id]);
-check('one user can hold two departments', held.n, 2);
+check('one user can hold two departments', held.n - mine.n, 2);
 let refused = false;
 try {
   await client.query('SAVEPOINT s');
@@ -153,7 +176,7 @@ try {
 check('the database refuses a department that is not on the list', refused, true);
 await client.query('ROLLBACK');
 const { rows: [left] } = await client.query('SELECT count(*)::int n FROM user_departments');
-check('nothing left behind after rollback', left.n, 0);
+check('nothing left behind after rollback', left.n, base.n);
 client.release();
 
 // Nobody is staff yet, and every existing user kept their role.
