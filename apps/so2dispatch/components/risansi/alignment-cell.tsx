@@ -12,7 +12,7 @@ import {
   type BasePlate,
   type WoodenBox,
 } from "@/app/risansi/orders/assembly-actions";
-import { BASE_PLATE_STATUSES, WOODEN_BOX_SOURCES, WOODEN_BOX_STATUSES } from "@/lib/assembly";
+import { BASE_PLATE_STATUSES, WOODEN_BOX_SOURCES, WOODEN_BOX_STATUSES, inHouseToPlan } from "@/lib/assembly";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? "" : String(v));
@@ -293,7 +293,12 @@ export function WoodenBoxForm({ orderId, soLabel, alignment, onClose }: FormProp
         </Field>
       )}
       {/* Each way with its own: some pumps' boxes in house, some bought out. */}
-      {required === "Yes" && boxes.map((b) => (
+      {required === "Yes" && boxes.map((b) => {
+        // In house: stock covering the required quantity needs no plan; short, the rest is planned.
+        const inHouse = b.source === "In house";
+        const toPlan = inHouseToPlan(b.required_qty, b.stock_qty);
+        const fromStock = inHouse && String(b.required_qty).trim() !== "" && toPlan === 0;
+        return (
         <div key={b.source} className="space-y-3 rounded-lg border border-card-border/70 bg-background/40 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{b.source}</p>
           <div className="grid grid-cols-2 gap-3">
@@ -304,11 +309,22 @@ export function WoodenBoxForm({ orderId, soLabel, alignment, onClose }: FormProp
               <input type="number" min={0} step={1} value={b.stock_qty} onChange={(e) => setBox(b.source, { stock_qty: e.target.value })} className={input} />
             </Field>
           </div>
+          {fromStock ? (
+            <p className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+              Covered from stock: nothing to plan.
+            </p>
+          ) : (
+            <>
+          {inHouse && toPlan > 0 && String(b.required_qty).trim() !== "" && (
+            <p className="text-xs font-medium text-amber-700">To plan in house: {toPlan}</p>
+          )}
           <Field label="Status" required group>
             <Pills options={WOODEN_BOX_STATUSES} on={(o) => b.status === o} pick={(o) => setBox(b.source, { status: o })} />
           </Field>
+            </>
+          )}
           {/* Received on a day, in a quantity. */}
-          {b.status === "Received" && (
+          {!fromStock && b.status === "Received" && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Received Date" required>
                 <input type="date" value={b.received_date} onChange={(e) => setBox(b.source, { received_date: e.target.value })} className={input} />
@@ -322,7 +338,8 @@ export function WoodenBoxForm({ orderId, soLabel, alignment, onClose }: FormProp
             <input type="text" value={b.remarks} onChange={(e) => setBox(b.source, { remarks: e.target.value })} className={input} />
           </Field>
         </div>
-      ))}
+        );
+      })}
     </AlignmentDialog>
   );
 }
@@ -355,22 +372,25 @@ export function AlignmentValue({
         // then its required, stock and received quantities.
         <span className="flex flex-col items-start gap-1.5">
           {boxes.map((b) => {
-            const st = str(b.status) || "Pending";
             const n = (v: unknown) => str(v) || "0";
+            // In house covered by stock: From stock; short of it, its status for the rest.
+            const fromStock = str(b.source) === "In house" && str(b.required_qty) !== "" && inHouseToPlan(b.required_qty, b.stock_qty) === 0 && str(b.status) === "Received";
+            const st = fromStock ? "From stock" : str(b.status) || "Pending";
             return (
               <span key={str(b.source)} className="flex flex-col items-start gap-0.5">
                 <span className="flex items-center gap-1.5 whitespace-nowrap">
                   <span className="text-[11px] font-semibold text-foreground">{str(b.source)}</span>
                   <span
                     className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      st === DONE.wooden_box ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                      st === DONE.wooden_box || fromStock ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
                     }`}
                   >
                     {st}
                   </span>
                 </span>
                 <span className="whitespace-nowrap text-[11px] text-muted">
-                  Required {n(b.required_qty)} · Stock {n(b.stock_qty)} · Received {n(b.received_qty)}
+                  Required {n(b.required_qty)} · Stock {n(b.stock_qty)}
+                  {!fromStock && ` · Received ${n(b.received_qty)}`}
                 </span>
                 {st === "Received" && str(b.received_date) && (
                   <span className="whitespace-nowrap text-[11px] text-muted">{shortDate(str(b.received_date))}</span>

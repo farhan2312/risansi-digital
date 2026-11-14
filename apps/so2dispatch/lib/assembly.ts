@@ -29,6 +29,17 @@ export function basePlateStepsSql(o = "o"): string {
 export const WOODEN_BOX_SOURCES = ["In house", "Bought out"];
 export const WOODEN_BOX_STATUSES = ["Pending", "In plan", "Received"];
 
+/**
+ * In house, as Purchase's BOI: what stock covers needs no plan. Stock short of
+ * the required quantity, the rest is planned (Pending, In plan, Received).
+ * Returns how many are still to plan (0 when stock covers it all).
+ */
+export function inHouseToPlan(requiredQty: unknown, stockQty: unknown): number {
+  const req = Number(String(requiredQty ?? "").trim()) || 0;
+  const stock = Number(String(stockQty ?? "").trim()) || 0;
+  return Math.max(0, req - stock);
+}
+
 /** What the ECs say: Yes when an EC of the SO (alias o) needs a base plate, else No. */
 export const basePlateFromEcsSql = (o: string) =>
   `CASE WHEN EXISTS (SELECT 1 FROM order_items bpi WHERE bpi.order_id = ${o}.id AND bpi.base_plate = 'Yes') THEN 'Yes' ELSE 'No' END`;

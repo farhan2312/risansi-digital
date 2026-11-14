@@ -369,8 +369,10 @@ export async function saveWoodenBoxAction(orderId: string, required: string, sen
     if (!w) continue;
     const required = qty(w.required_qty);
     const stock = qty(w.stock_qty);
-    const status = WOODEN_BOX_STATUSES.includes(w.status) ? w.status : "Pending";
-    const received = status === "Received";
+    // In house with stock covering what is required: nothing to plan — there, as Received.
+    const fromStock = source === "In house" && required !== false && required != null && stock !== false && (stock ?? 0) >= required;
+    const status = fromStock ? "Received" : WOODEN_BOX_STATUSES.includes(w.status) ? w.status : "Pending";
+    const received = status === "Received" && !fromStock;
     const date = received ? (w.received_date ?? "").trim() : "";
     const got = received ? qty(w.received_qty) : null;
     if (required === false || stock === false || got === false) return { ok: false, error: `${source}: quantities are whole numbers.` };
