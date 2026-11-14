@@ -2,14 +2,13 @@
 
 import { useSyncExternalStore } from "react";
 
-// The split view's right panel, as the viewer left it: pinned (it stays in
-// view as the page scrolls) and / or collapsed (a slim rail). Kept in the
-// browser; every split view reads the same.
+// The split view's right panel, as the viewer left it: collapsed (a slim
+// rail) or not. Kept in the browser; every split view reads the same.
 
-export type SplitPanelPrefs = { pinned: boolean; collapsed: boolean };
+export type SplitPanelPrefs = { collapsed: boolean };
 
 const KEY = "so2d_split_panel";
-const DEFAULT: SplitPanelPrefs = { pinned: true, collapsed: false };
+const DEFAULT: SplitPanelPrefs = { collapsed: false };
 const listeners = new Set<() => void>();
 let cached: SplitPanelPrefs | null = null;
 
@@ -17,7 +16,7 @@ function read(): SplitPanelPrefs {
   if (cached) return cached;
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "null") as Partial<SplitPanelPrefs> | null;
-    cached = { pinned: v?.pinned ?? DEFAULT.pinned, collapsed: v?.collapsed ?? DEFAULT.collapsed };
+    cached = { collapsed: v?.collapsed ?? DEFAULT.collapsed };
   } catch {
     cached = DEFAULT;
   }

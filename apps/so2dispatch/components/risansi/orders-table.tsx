@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { History, Layers, Loader2, MessageSquare, PanelRightClose, PanelRightOpen, Pin, PinOff, Trash2 } from "lucide-react";
+import { History, Layers, Loader2, MessageSquare, PanelRightClose, PanelRightOpen, Trash2 } from "lucide-react";
 import { setSplitPanelPrefs, useSplitPanelPrefs } from "./split-panel-prefs";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
@@ -697,7 +697,7 @@ export function OrdersTable({
   const focusOrder = split ? (pageRows.find((o) => o.id === focus?.id) ?? pageRows[0] ?? null) : null;
   const focusDept = focusOrder && focus?.id === focusOrder.id ? focus.dept : null;
   const panelRef = useRef<HTMLElement | null>(null);
-  // The panel pinned (in view as the page scrolls) and / or collapsed to a rail.
+  // The panel stays in view as the page scrolls; it can be collapsed to a rail.
   const panel = useSplitPanelPrefs();
   // An SO or a department picked opens a collapsed panel again.
   useEffect(() => {
@@ -705,15 +705,13 @@ export function OrdersTable({
     // Only on a pick, not when the viewer collapses it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus]);
-  // A department picked: its part of the portrait scrolled to the top —
-  // within a pinned panel, or the page itself for one that scrolls with it.
+  // A department picked: its part of the portrait scrolled to the top.
   useEffect(() => {
     const box = panelRef.current;
     if (!box || panel.collapsed) return;
     const el = focusDept ? box.querySelector<HTMLElement>(`[data-sec~="${focusDept}"]`) : null;
-    if (panel.pinned) box.scrollTo({ top: el ? el.offsetTop - 56 : 0, behavior: "smooth" });
-    else if (el) el.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, [focusDept, focusOrder?.id, panel.pinned, panel.collapsed]);
+    box.scrollTo({ top: el ? el.offsetTop - 56 : 0, behavior: "smooth" });
+  }, [focusDept, focusOrder?.id, panel.collapsed]);
 
   /** The portrait: one SO, every department column of the table, section by section. */
   function portrait(order: OrderListRow) {
@@ -1256,7 +1254,7 @@ export function OrdersTable({
       {split &&
         (panel.collapsed ? (
           // Collapsed: a slim rail — the SO it holds, and the way back.
-          <aside className={`${panel.pinned ? "sticky top-20 z-30" : ""} flex flex-col items-center gap-3 rounded-xl border border-card-border bg-surface py-3 shadow-sm`}>
+          <aside className={`sticky top-20 z-30 flex flex-col items-center gap-3 rounded-xl border border-card-border bg-surface py-3 shadow-sm`}>
             <button
               type="button"
               onClick={() => setSplitPanelPrefs({ collapsed: false })}
@@ -1276,26 +1274,15 @@ export function OrdersTable({
           <aside
             ref={panelRef}
             className={`rounded-xl border border-card-border bg-surface shadow-sm ${
-              // Pinned, it is a layer of its own: lifted above the table (whose SO No.
-              // column is sticky too) so a pop-up opened in it covers the whole page.
-              // Unpinned, it is no layer, and its pop-ups cover the page anyway.
-              panel.pinned ? "sticky top-20 z-30 max-h-[calc(100vh-6rem)] overflow-y-auto" : ""
+              // A layer of its own, lifted above the table (whose SO No. column is
+              // sticky too), so a pop-up opened in it covers the whole page.
+              "sticky top-20 z-30 max-h-[calc(100vh-6rem)] overflow-y-auto"
             }`}
           >
             {/* The panel's own bar: pin it in view, or collapse it to give the table the room. */}
             <div className="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-t-xl border-b border-card-border bg-surface px-4 py-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted">SO details</span>
               <span className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setSplitPanelPrefs({ pinned: !panel.pinned })}
-                  title={panel.pinned ? "Unpin: scroll with the page" : "Pin: keep in view as the page scrolls"}
-                  aria-label={panel.pinned ? "Unpin the SO panel" : "Pin the SO panel"}
-                  aria-pressed={panel.pinned}
-                  className={`rounded-lg p-1.5 transition-colors hover:bg-background ${panel.pinned ? "text-primary" : "text-muted hover:text-foreground"}`}
-                >
-                  {panel.pinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
-                </button>
                 <button
                   type="button"
                   onClick={() => setSplitPanelPrefs({ collapsed: true })}
