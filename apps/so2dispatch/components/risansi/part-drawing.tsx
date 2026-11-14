@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Plus, Search, X } from "lucide-react";
+import { Check, CheckCircle2, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import {
   gadStandardOf,
   OTHER_PART_SECTION,
@@ -13,7 +13,9 @@ import {
 } from "@/lib/part-drawings";
 import {
   addPartExtraAction,
+  deletePartExtraAction,
   listPartExtrasAction,
+  updatePartExtraAction,
   savePartProgressAction,
   savePartSelectionAction,
   saveShortageAction,
@@ -148,7 +150,10 @@ export function PartPickerModal({
 }) {
   const router = useRouter();
   // Parts named under Others before: a list of their own, to tick like the rest.
-  const [extras, setExtras] = useState<PartListItem[]>([]);
+  const [extras, setExtras] = useState<(PartListItem & { id: string })[]>([]);
+  // The added part being corrected, and the one being taken off the list.
+  const [editingExtra, setEditingExtra] = useState<{ id: string; part_no: string; part_name: string } | null>(null);
+  const [busyExtra, setBusyExtra] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     listPartExtrasAction()
@@ -204,6 +209,38 @@ export function PartPickerModal({
   const matches = (p: PartListItem) => !q || p.part_name.toLowerCase().includes(q) || p.part_no.includes(q);
 
   const [adding, setAdding] = useState(false);
+  const extraOf = (p: PartListItem) => extras.find((x) => keyOf(x) === keyOf(p));
+  /** Correct an added part; ticked, it stays ticked under its new name. */
+  async function saveExtra() {
+    if (!editingExtra) return;
+    const was = extras.find((x) => x.id === editingExtra.id);
+    setBusyExtra(editingExtra.id);
+    setError(null);
+    const res = await updatePartExtraAction(editingExtra.id, { part_no: editingExtra.part_no, part_name: editingExtra.part_name });
+    setBusyExtra(null);
+    if (!res.ok) return setError(res.error);
+    setExtras((xs) => xs.map((x) => (x.id === res.item.id ? res.item : x)).sort((a, b) => a.part_name.localeCompare(b.part_name)));
+    if (was && picked.has(keyOf(was))) {
+      setPicked((m) => {
+        const next = new Map(m);
+        next.delete(keyOf(was));
+        next.set(keyOf(res.item), res.item);
+        return next;
+      });
+      setQtys((m) => new Map(m).set(keyOf(res.item), m.get(keyOf(was)) ?? ""));
+    }
+    setEditingExtra(null);
+  }
+  /** Take an added part off the list (an EC that has it keeps it). */
+  async function removeExtra(x: PartListItem & { id: string }) {
+    if (!confirm(`Take "${x.part_name}" off the parts list? ECs that already have it keep it.`)) return;
+    setBusyExtra(x.id);
+    setError(null);
+    const res = await deletePartExtraAction(x.id);
+    setBusyExtra(null);
+    if (!res.ok) return setError(res.error);
+    setExtras((xs) => xs.filter((e) => e.id !== x.id));
+  }
   /** A part named here joins the list for next time, and is ticked now. */
   async function addOther() {
     const name = other.part_name.trim();
@@ -283,6 +320,39 @@ export function PartPickerModal({
                       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                         {shown.map((p) => {
                           const on = picked.has(keyOf(p));
+                          const extra = extraOf(p);
+                          // An added part being corrected: its number and name to change.
+                          if (extra && editingExtra?.id === extra.id) {
+                            return (
+                              <div key={keyOf(p)} className="flex items-center gap-1.5 rounded-lg border border-primary/50 px-2 py-1">
+                                <input
+                                  value={editingExtra.part_no}
+                                  onChange={(e) => setEditingExtra({ ...editingExtra, part_no: e.target.value })}
+                                  placeholder="No."
+                                  aria-label="Part No."
+                                  className="h-7 w-16 rounded-md border border-input-border bg-surface px-2 text-xs"
+                                />
+                                <input
+                                  value={editingExtra.part_name}
+                                  onChange={(e) => setEditingExtra({ ...editingExtra, part_name: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      saveExtra();
+                                    }
+                                  }}
+                                  aria-label="Part name"
+                                  className="h-7 min-w-0 flex-1 rounded-md border border-input-border bg-surface px-2 text-sm"
+                                />
+                                <button type="button" onClick={saveExtra} disabled={busyExtra === extra.id} aria-label="Save part" className="text-emerald-700 hover:text-emerald-800">
+                                  {busyExtra === extra.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                </button>
+                                <button type="button" onClick={() => setEditingExtra(null)} aria-label="Cancel" className="text-muted hover:text-foreground">
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            );
+                          }
                           return (
                             <label
                               key={keyOf(p)}
@@ -305,6 +375,34 @@ export function PartPickerModal({
                                   aria-label={`How many ${p.part_name} are short`}
                                   className="h-7 w-16 shrink-0 rounded-md border border-input-border bg-surface px-2 text-right text-sm tabular-nums focus:border-primary focus:outline-none"
                                 />
+                              )}
+                              {/* An added part: correct it, or take it off the list. */}
+                              {extra && !ro && (
+                                <span className="flex shrink-0 items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setEditingExtra({ id: extra.id, part_no: extra.part_no, part_name: extra.part_name });
+                                    }}
+                                    aria-label={`Edit ${extra.part_name}`}
+                                    className="rounded p-0.5 text-muted hover:text-foreground"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      removeExtra(extra);
+                                    }}
+                                    disabled={busyExtra === extra.id}
+                                    aria-label={`Delete ${extra.part_name}`}
+                                    className="rounded p-0.5 text-muted hover:text-rose-600"
+                                  >
+                                    {busyExtra === extra.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                  </button>
+                                </span>
                               )}
                             </label>
                           );

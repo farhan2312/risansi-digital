@@ -258,17 +258,17 @@ export async function saveShortageAction(
 }
 
 /** The parts named under Others before, to tick from the list. */
-export async function listPartExtrasAction(): Promise<PartListItem[]> {
+export async function listPartExtrasAction(): Promise<(PartListItem & { id: string })[]> {
   const user = await getCurrentUser();
   if (!user) return [];
-  const r = await query<{ part_no: string; part_name: string }>(
-    `SELECT part_no, part_name FROM part_list_extras ORDER BY lower(part_name), part_no`
+  const r = await query<{ id: string; part_no: string; part_name: string }>(
+    `SELECT id, part_no, part_name FROM part_list_extras ORDER BY lower(part_name), part_no`
   );
-  return r.rows.map((p) => ({ section: OTHER_PART_SECTION, part_no: p.part_no, part_name: p.part_name }));
+  return r.rows.map((p) => ({ id: p.id, section: OTHER_PART_SECTION, part_no: p.part_no, part_name: p.part_name }));
 }
 
 /** A part named under Others joins the list (once), for everyone to tick next time. */
-export async function addPartExtraAction(input: { part_no: string; part_name: string }): Promise<{ ok: true; item: PartListItem } | { ok: false; error: string }> {
+export async function addPartExtraAction(input: { part_no: string; part_name: string }): Promise<{ ok: true; item: PartListItem & { id: string } } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   if (!canEditChild(user.role, "order_drawing_revisions") && !canEditSection(user.role, "order_planning")) {
@@ -278,18 +278,57 @@ export async function addPartExtraAction(input: { part_no: string; part_name: st
   const part_no = String(input?.part_no ?? "").trim().slice(0, 50);
   if (!part_name) return { ok: false, error: "Give the part a name." };
   // Already there (any case): the one in the list stands.
-  const r = await query<{ part_no: string; part_name: string }>(
+  const r = await query<{ id: string; part_no: string; part_name: string }>(
     `WITH ins AS (
        INSERT INTO part_list_extras (part_no, part_name, created_by_name) VALUES ($1, $2, $3)
        ON CONFLICT (lower(btrim(part_name)), lower(btrim(part_no))) DO NOTHING
-       RETURNING part_no, part_name)
-     SELECT part_no, part_name FROM ins
+       RETURNING id, part_no, part_name)
+     SELECT id, part_no, part_name FROM ins
      UNION ALL
-     SELECT part_no, part_name FROM part_list_extras
+     SELECT id, part_no, part_name FROM part_list_extras
       WHERE lower(btrim(part_name)) = lower($2) AND lower(btrim(part_no)) = lower($1)
      LIMIT 1`,
     [part_no, part_name, user.full_name || user.email]
   );
-  const p = r.rows[0] ?? { part_no, part_name };
-  return { ok: true, item: { section: OTHER_PART_SECTION, part_no: p.part_no, part_name: p.part_name } };
+  const p = r.rows[0];
+  if (!p) return { ok: false, error: "Could not add the part." };
+  return { ok: true, item: { id: p.id, section: OTHER_PART_SECTION, part_no: p.part_no, part_name: p.part_name } };
+}
+
+const mayEditParts = (role: string) => canEditChild(role, "order_drawing_revisions") || canEditSection(role, "order_planning");
+
+/** Correct an added part in the list. ECs that already have it keep it as it was named. */
+export async function updatePartExtraAction(
+  id: string,
+  input: { part_no: string; part_name: string }
+): Promise<{ ok: true; item: PartListItem & { id: string } } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!mayEditParts(user.role)) return { ok: false, error: "Only Drawing or Planning edit parts." };
+  if (!UUID_RE.test(id)) return { ok: false, error: "Part not found." };
+  const part_name = String(input?.part_name ?? "").trim().slice(0, 200);
+  const part_no = String(input?.part_no ?? "").trim().slice(0, 50);
+  if (!part_name) return { ok: false, error: "Give the part a name." };
+  const clash = await query(
+    `SELECT 1 FROM part_list_extras WHERE id <> $1 AND lower(btrim(part_name)) = lower($2) AND lower(btrim(part_no)) = lower($3)`,
+    [id, part_name, part_no]
+  );
+  if (clash.rows.length) return { ok: false, error: "That part is already in the list." };
+  const r = await query<{ id: string; part_no: string; part_name: string }>(
+    `UPDATE part_list_extras SET part_no = $2, part_name = $3 WHERE id = $1 RETURNING id, part_no, part_name`,
+    [id, part_no, part_name]
+  );
+  const p = r.rows[0];
+  if (!p) return { ok: false, error: "Part not found." };
+  return { ok: true, item: { id: p.id, section: OTHER_PART_SECTION, part_no: p.part_no, part_name: p.part_name } };
+}
+
+/** Take an added part off the list. ECs that already have it keep it. */
+export async function deletePartExtraAction(id: string): Promise<PartDrawingResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!mayEditParts(user.role)) return { ok: false, error: "Only Drawing or Planning delete parts." };
+  if (!UUID_RE.test(id)) return { ok: false, error: "Part not found." };
+  await query(`DELETE FROM part_list_extras WHERE id = $1`, [id]);
+  return { ok: true };
 }
