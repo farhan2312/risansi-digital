@@ -10,6 +10,9 @@ import { clientStatusLabel, statusDotKind } from '@/lib/risansi-client-status';
 import risansiPool from '@/lib/db-risansi';
 import { fyShortLabel, formatRev, formatLastVisit, fmtUsdFromCr } from '@/lib/risansi-utils';
 import { getUsdRate } from '@/lib/risansi-settings';
+import { clientOrderBook, type ClientOrderBook } from '@/lib/risansi-order-in-hand';
+import { OpenSoList } from '@/components/risansi/OpenSoList';
+import { SoLineCompare } from '@/components/risansi/SoLineCompare';
 import { OfferRevisionsList } from '@/components/risansi/OfferRevisionsField';
 import type { OfferRevision } from '@/lib/risansi-offer-revisions';
 import { canReadClient, canViewClient, getCurrentUser, getSession, hasRole, isRegistry } from '@/lib/risansi-auth';
@@ -258,7 +261,7 @@ export default async function ClientProfilePage({
 
   // ── Fetch supporting data in parallel ─────────────────────
 
-  const [contacts, revRows, clientRevByFY, comp, visits, allOpps, activityLog, reps, complaints, , clientPumps, clientComments, clientActions, lastSeen] = await Promise.all([
+  const [contacts, revRows, clientRevByFY, comp, visits, allOpps, activityLog, reps, complaints, , clientPumps, clientComments, clientActions, lastSeen, orderBook] = await Promise.all([
 
     // 2. Contacts — single source of truth
     q<Contact[]>(async () => {
@@ -507,6 +510,12 @@ export default async function ClientProfilePage({
         [client.id]);
       return rows[0] ?? null;
     }, null),
+
+    // The open order book for this account, live from the SO portal. Keyed on
+    // the client CODE, because that system has never heard of our ids. Null
+    // rather than an empty book when it cannot be reached — "no open orders"
+    // and "could not ask" must not look the same on a client's page.
+    q<ClientOrderBook | null>(() => clientOrderBook(client.code), null),
   ]);
 
   // Which of this client's actions are the viewer's own to close or delete.
@@ -786,13 +795,24 @@ export default async function ClientProfilePage({
         <MobileTabs>
 
         {/* ── KPI cards ────────────────────────────────────────── */}
-        <div data-tabgroup="overview" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 16 }}>
-          <MiniKpi label="Order in Hand"
+        <div data-tabgroup="overview" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 12, marginBottom: 16 }}>
+          {/* Two sides of the same story, side by side on purpose: what this
+              account has won and nobody has raised an SO for, and what has an
+              SO and has not shipped. */}
+          <MiniKpi label="Won, no SO yet"
             value={wonTotal > 0 ? formatRev(wonTotal * 1e7) : '—'}
             valueColor={wonTotal > 0 ? 'var(--accent)' : undefined}
             sub={wonTotal > 0
               ? `${openWonCount} won order${openWonCount === 1 ? '' : 's'} to fulfil`
               : 'Nothing pending — all won orders fulfilled'} />
+          <MiniKpi label="Order in Hand (SO portal)"
+            value={orderBook ? (orderBook.openCr > 0 ? formatRev(orderBook.openCr * 1e7) : '—') : '—'}
+            valueColor={orderBook && orderBook.openCr > 0 ? 'var(--warn)' : undefined}
+            sub={!orderBook
+              ? 'the SO portal did not answer'
+              : orderBook.sos.length
+                ? `${orderBook.sos.length} SO${orderBook.sos.length === 1 ? '' : 's'} raised · not yet dispatched`
+                : 'nothing open on the SO portal'} />
           <MiniKpi label="Lifetime Revenue"
             value={formatRev(lifetimeTotal * 100_000)}
             sub={`${client.since_year ?? '—'} – present · ${lifetimeOrders} orders`} />
@@ -1428,6 +1448,30 @@ export default async function ClientProfilePage({
               )}
             </div>
 
+              {/* The open order book, above the quotation pipeline: what this
+              account is waiting for is a more urgent question than what it
+              has been quoted. Hidden entirely when there is nothing open
+              and the SO portal answered — an empty panel on most accounts
+              would push everything else down for no reason. */}
+            {orderBook && orderBook.sos.length > 0 && (
+              <div data-tabgroup="activity" style={{ ...PANEL, marginBottom: 12 }}>
+              <div style={PANEL_H}>
+                <span style={PANEL_TITLE}>Order in Hand · SO portal</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)' }}>
+                  {orderBook.sos.length} open · ₹{orderBook.openCr.toFixed(2)} Cr
+                </span>
+              </div>
+              <div style={{ padding: 14 }}>
+                <OpenSoList sos={orderBook.sos} />
+                <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--fg-4)', lineHeight: 1.5 }}>
+                  Raised in the SO portal and not yet marked dispatched. Hold counts;
+                  cancelled and diverted do not. Read-only here — SOs are changed in
+                  that system.
+                </p>
+              </div>
+              </div>
+            )}
+
             {/* Opportunities — every stage. Won opportunities are the client's
                 order in hand and lead the list; open pipeline follows. */}
             {allOpps.length > 0 && (
@@ -1444,7 +1488,7 @@ export default async function ClientProfilePage({
                     <PipeStat label="Quoted value" value={formatRev(quotedPlusVal * 1e7)} sub={`≈ ${fmtUsdFromCr(quotedPlusVal, usdRate)}`} />
                     <PipeStat label="Won value" value={formatRev(wonValTotal * 1e7)} sub={`${wonCount} won`} color="var(--pos)" />
                     <PipeStat label="Win rate" value={winRatePct != null ? `${winRatePct}%` : '—'} sub={decidedCount > 0 ? `${wonCount}W · ${lostCount}L` : 'no decisions yet'} />
-                    <PipeStat label="Order in hand" value={formatRev(wonTotal * 1e7)} sub="won · not yet in SO" color="var(--accent)" />
+                    <PipeStat label="Won, no SO yet" value={formatRev(wonTotal * 1e7)} sub="won · not yet in SO" color="var(--accent)" />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {pipeRows.map(r => {
@@ -1480,7 +1524,7 @@ export default async function ClientProfilePage({
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
                   {wonTotal > 0 && (
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--pos)' }}>
-                      {formatRev(wonTotal * 1e7)} order in hand
+                      {formatRev(wonTotal * 1e7)} won, no SO yet
                     </span>
                   )}
                   {pipelineTotal > 0 && (
@@ -1562,6 +1606,13 @@ export default async function ClientProfilePage({
                               compact
                             />
                           </div>
+                        )}
+                        {/* Won, with a sales order against it: the one case
+                            where there is something on the SO portal to line
+                            the quote up against. Collapsed, and it asks that
+                            system only when opened. */}
+                        {isWon && (o.so_sum_cr ?? 0) > 0 && (
+                          <SoLineCompare oppId={Number(o.id)} />
                         )}
                       </div>
                       <div style={{ flexShrink: 0, marginLeft: 8, textAlign: 'right' }}>

@@ -161,3 +161,147 @@ export async function firstBusyInvoiceMonth(): Promise<string | null> {
   );
   return rows[0]?.month ?? null;
 }
+
+// ── one client's open order book ──────────────────────────────
+
+export interface OpenSo {
+  soNo: string;
+  soDate: string | null;
+  valueCr: number;
+  status: string;
+  /** Days since the SO was raised. Null when it carries no date. */
+  ageDays: number | null;
+}
+
+export interface ClientOrderBook {
+  openCr: number;
+  sos: OpenSo[];
+}
+
+/**
+ * The open SOs for one client, newest first.
+ *
+ * By client CODE, not by id: the dispatch portal has never heard of this
+ * portal's primary keys, and the code is the only thing the two share. A
+ * client with no code, or a code that system does not know, has no order book
+ * here — which is an empty list, not a failure.
+ */
+export async function clientOrderBook(code: string | null | undefined): Promise<ClientOrderBook> {
+  const key = (code ?? '').trim().toUpperCase();
+  if (!key) return { openCr: 0, sos: [] };
+
+  const { rows } = await ecPool().query<{
+    so_no: string; so_date: string | null; inr: string; status: string | null; age: number | null;
+  }>(
+    `SELECT o.so_no, o.so_date::text AS so_date,
+            COALESCE(${SO_INR}, 0)::text AS inr,
+            o.dispatch_status AS status,
+            (CURRENT_DATE - o.so_date)::int AS age
+       FROM orders o
+      WHERE ${NOT_DISPATCHED}
+        AND ${NOT_A_TEST}
+        AND UPPER(TRIM(o.client_code)) = $1
+      ORDER BY o.so_date DESC NULLS LAST, o.so_no DESC`,
+    [key],
+  );
+
+  const sos: OpenSo[] = rows.map(r => ({
+    soNo:    r.so_no,
+    soDate:  r.so_date,
+    valueCr: Number(r.inr) / 10_000_000,
+    status:  r.status ?? 'No status',
+    ageDays: r.age,
+  }));
+  return { openCr: sos.reduce((a, b) => a + b.valueCr, 0), sos };
+}
+
+// ── is this SO number real? ───────────────────────────────────
+
+export interface SoCheck {
+  /** As typed. */
+  soNo: string;
+  /** True when the dispatch portal has an SO with exactly this number. */
+  found: boolean;
+  /** What that system holds for it, when it does. */
+  client?: string;
+  valueCr?: number;
+  status?: string;
+}
+
+/**
+ * Check SO numbers against the dispatch portal.
+ *
+ * Used where somebody types one in by hand. It is deliberately a question and
+ * not a gate: 90 of the SO numbers recorded since August are not in that
+ * system, mostly because it is a day or a week behind rather than because
+ * anybody mistyped. Blocking the save would stop real work to catch a typo;
+ * saying "not found there" catches the typo and lets the work through.
+ *
+ * `S026/1/396` — a letter O where a zero belongs — is already in the data, and
+ * is exactly what this is for.
+ */
+export async function checkSoNumbers(numbers: readonly string[]): Promise<SoCheck[]> {
+  const asked = [...new Set(numbers.map(n => n.trim()).filter(Boolean))];
+  if (!asked.length) return [];
+
+  const { rows } = await ecPool().query<{
+    so_no: string; client_name: string | null; inr: string | null; status: string | null;
+  }>(
+    `SELECT o.so_no, o.client_name, ${SO_INR}::text AS inr, o.dispatch_status AS status
+       FROM orders o
+      WHERE UPPER(TRIM(o.so_no)) = ANY($1::text[])`,
+    [asked.map(n => n.toUpperCase())],
+  );
+  const found = new Map(rows.map(r => [r.so_no.trim().toUpperCase(), r]));
+
+  return asked.map(soNo => {
+    const hit = found.get(soNo.toUpperCase());
+    return hit
+      ? { soNo, found: true, client: hit.client_name ?? undefined,
+          valueCr: hit.inr == null ? undefined : Number(hit.inr) / 10_000_000,
+          status: hit.status ?? undefined }
+      : { soNo, found: false };
+  });
+}
+
+// ── what was ordered, against what was quoted ─────────────────
+
+export interface OrderedLine {
+  soNo: string;
+  seq: number;
+  ecNo: string | null;
+  itemType: string | null;
+  model: string | null;
+  quantity: number | null;
+  /** Pump serial numbers, as that system records them. */
+  serials: string | null;
+}
+
+/**
+ * The SO portal's own lines for a set of SO numbers.
+ *
+ * Model strings are not normalised here. "RTOH 8190ABCN" and "RTOH8190ABCN"
+ * are the same pump written two ways and both appear on the same SO, so the
+ * comparison has to fold them — but that is the comparison's business, and
+ * what is shown on screen should be what that system actually holds.
+ */
+export async function orderedLines(soNumbers: readonly string[]): Promise<OrderedLine[]> {
+  const asked = [...new Set(soNumbers.map(n => n.trim().toUpperCase()).filter(Boolean))];
+  if (!asked.length) return [];
+
+  const { rows } = await ecPool().query<{
+    so_no: string; seq: string; ec_no: string | null; item_type: string | null;
+    model_no: string | null; quantity: number | null; pump_sno: string | null;
+  }>(
+    `SELECT o.so_no, i.seq::text AS seq, i.ec_no, i.item_type, i.model_no, i.quantity, i.pump_sno
+       FROM order_items i
+       JOIN orders o ON o.id = i.order_id
+      WHERE UPPER(TRIM(o.so_no)) = ANY($1::text[])
+      ORDER BY o.so_no, i.seq`,
+    [asked],
+  );
+  return rows.map(r => ({
+    soNo: r.so_no, seq: Number(r.seq), ecNo: r.ec_no, itemType: r.item_type,
+    model: r.model_no, quantity: r.quantity, serials: r.pump_sno,
+  }));
+}

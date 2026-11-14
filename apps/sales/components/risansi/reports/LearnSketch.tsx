@@ -239,7 +239,7 @@ export function LearnSketch({ kind }: { kind: SketchKind }) {
         <T x={14} y={40} size={6}>Client</T>
         <T x={14} y={52} size={6}>Revenue ₹</T>
         <Box x={8} y={84} w={86} h={48} />
-        <T x={14} y={96} size={6.5} fill={FG} weight={600}>Order in hand</T>
+        <T x={14} y={96} size={6.5} fill={FG} weight={600}>Orders (uploaded)</T>
         <T x={14} y={108} size={6}>Client</T>
         <T x={14} y={120} size={6}>Order value ₹</T>
         <path d="M94 40 C 120 40, 120 74, 140 74" stroke={ACCENT} strokeWidth={1.2} fill="none" />

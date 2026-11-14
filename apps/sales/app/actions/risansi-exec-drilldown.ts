@@ -229,7 +229,7 @@ export async function execDrilldown(p: DrillParams): Promise<DrillResult | null>
                    - COALESCE((SELECT sum(so.so_value_cr)*10000000 FROM opportunity_sales_orders so
                                 WHERE so.opportunity_id = o.id), 0), 0))) > 0
            ORDER BY value DESC`);
-        return { title: 'Order in hand', subtitle: sub, unit: 'money', rows, total: rows.reduce((s, r) => s + money(r.value), 0) };
+        return { title: 'Won, no SO yet', subtitle: sub, unit: 'money', rows, total: rows.reduce((s, r) => s + money(r.value), 0) };
       }
 
       case 'revenue': {

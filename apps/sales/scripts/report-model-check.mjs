@@ -752,7 +752,7 @@ try {
     const info = B.combinedInfo(v);
     eq('a category only one table has is refused, by name',
        [info.on.length, info.refused.length, info.refused[0].dim, info.refused[0].dataset],
-       [0, 1, 'Drop reason', 'Order in hand']);
+       [0, 1, 'Drop reason', 'Orders (uploaded)']);
     eq('and the refusal says what they could be matched on instead',
        info.refused[0].only.includes('Client'), true);
   }

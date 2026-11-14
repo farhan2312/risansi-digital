@@ -2,7 +2,10 @@
 
 import { useState, useEffect, type CSSProperties } from 'react';
 import { listSalesOrders, addSalesOrder, deleteSalesOrder, updateWonFinalValue } from '@/app/actions/risansi';
+import { verifySalesOrders } from '@/app/actions/risansi-so-portal';
 import type { SalesOrder } from '@/lib/risansi-sales-orders';
+import type { SoVerdict } from '@/lib/risansi-so-portal-types';
+import { SoLineCompare } from './SoLineCompare';
 
 // Live Sales Order management for an existing Won opportunity (shown in the Edit
 // drawer's Won view). The core deal is locked once Won, but SOs keep moving until
@@ -10,6 +13,9 @@ import type { SalesOrder } from '@/lib/risansi-sales-orders';
 // the server and shows a coverage bar with Won · Open vs Won · Closed.
 
 const CR = 10_000_000;
+
+/** `SO26/1/1234` — what this portal and the SO portal both call an SO. */
+const SO_SHAPE = /^SO\d{2}\/\d+\/\d+$/i;
 const fmtInr = (n: number) =>
   n >= 1e7 ? `₹${(n / 1e7).toFixed(2)} Cr` : n >= 1e5 ? `₹${(n / 1e5).toFixed(2)} L` : `₹${Math.round(n).toLocaleString('en-IN')}`;
 
@@ -26,6 +32,11 @@ export function SalesOrderManager({ oppId, finalValueCr, canEdit }: {
   const [err, setErr]   = useState('');
   // The final value drives Open/Closed alongside the SOs, so it stays editable
   // on a Won (the deal is otherwise frozen).
+  // What the SO portal says about each number recorded here. Keyed by the
+  // number as typed; a number it has never heard of is a typo often enough to
+  // be worth saying so, and a system that is a week behind often enough that
+  // saying so must not block the save.
+  const [verdicts, setVerdicts] = useState<Record<string, SoVerdict>>({});
   const [finalCr, setFinalCr]     = useState<number | null>(finalValueCr);
   const [finalStr, setFinalStr]   = useState(finalValueCr != null ? String(Math.round(finalValueCr * CR)) : '');
   const [savingFinal, setSavingFinal] = useState(false);
@@ -37,6 +48,22 @@ export function SalesOrderManager({ oppId, finalValueCr, canEdit }: {
       .catch(() => { if (active) setSos([]); });
     return () => { active = false; };
   }, [oppId]);
+
+  // Check the recorded numbers against the SO portal whenever the list
+  // changes. Deliberately after the list renders rather than before: the SOs
+  // are this portal's own record and are shown whether or not another system
+  // can be reached.
+  useEffect(() => {
+    if (!sos?.length) return;
+    let active = true;
+    verifySalesOrders(oppId, sos.map(o => o.so_number))
+      .then(rows => {
+        if (!active) return;
+        setVerdicts(Object.fromEntries(rows.map(r => [r.soNo.trim().toUpperCase(), r])));
+      })
+      .catch(() => { /* the markers simply do not appear */ });
+    return () => { active = false; };
+  }, [oppId, sos]);
 
   const saveFinal = async () => {
     const inr = parseFloat(finalStr.replace(/[^0-9.\-]/g, ''));
@@ -145,6 +172,7 @@ export function SalesOrderManager({ oppId, finalValueCr, canEdit }: {
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontWeight: 600, fontSize: 13 }}>{o.so_number}</span>
                   <span style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 8 }}>{o.so_date}</span>
+                  <SoMark verdict={verdicts[o.so_number.trim().toUpperCase()]} />
                 </div>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{fmtInr(Number(o.so_value_cr) * CR)}</span>
@@ -158,6 +186,9 @@ export function SalesOrderManager({ oppId, finalValueCr, canEdit }: {
         </div>
 
         {err && <div style={{ fontSize: 12, color: 'var(--neg-strong)' }}>{err}</div>}
+
+        {/* What the SO portal actually has against these numbers. */}
+        {!!sos?.length && <SoLineCompare oppId={oppId} />}
 
         {/* Add block — always visible while editable, so it's never buried. */}
         {canEdit ? (
@@ -203,3 +234,39 @@ const INP: CSSProperties = {
 const BTN_SM: CSSProperties = { background: 'var(--accent-fill)', color: 'var(--on-accent)', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit' };
 const BTN_ADD: CSSProperties = { marginTop: 8, width: '100%', background: 'var(--accent-fill)', color: 'var(--on-accent)', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, padding: '9px 12px', cursor: 'pointer', fontFamily: 'inherit' };
 const REMOVE: CSSProperties = { border: '1px solid var(--line-strong)', background: 'var(--bg-paper)', color: 'var(--neg-strong)', borderRadius: 5, fontSize: 11, fontWeight: 600, padding: '2px 8px', cursor: 'pointer', fontFamily: 'inherit' };
+
+/**
+ * What the SO portal knows about one recorded number.
+ *
+ * Three states and three different things to say. "Not in the SO portal" is
+ * the useful one — it is how `S026/1/396`, with a letter O where a zero
+ * belongs, would have been caught the day it was typed. It is a remark, not a
+ * refusal: ninety of the numbers recorded since August are not in that system
+ * yet, and almost all of them are real.
+ */
+function SoMark({ verdict }: { verdict?: SoVerdict }) {
+  if (!verdict) return null;
+  if (verdict.state === 'found') {
+    return (
+      <span title={`In the SO portal${verdict.status ? ` · ${verdict.status}` : ''}`}
+        style={{ fontSize: 11, color: 'var(--pos-strong, var(--pos))', marginLeft: 8 }}>✓</span>
+    );
+  }
+  if (verdict.state === 'unknown') {
+    return (
+      <span title="The SO portal could not be reached, so this number has not been checked."
+        style={{ fontSize: 10.5, color: 'var(--fg-4)', marginLeft: 8 }}>not checked</span>
+    );
+  }
+  const malformed = !SO_SHAPE.test(verdict.soNo.trim());
+  return (
+    <span
+      title={malformed
+        ? 'This does not look like an SO number. They read SO26/1/1234 — a letter O where a zero belongs is the usual slip.'
+        : 'Not in the SO portal. Either the number is wrong, or that system has not caught up yet.'}
+      style={{ fontSize: 10.5, marginLeft: 8, padding: '1px 5px', borderRadius: 3,
+               color: 'var(--warn)', border: '1px solid var(--warn)', background: 'var(--warn-soft)' }}>
+      {malformed ? 'check this number' : 'not in the SO portal'}
+    </span>
+  );
+}

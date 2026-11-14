@@ -137,8 +137,13 @@ export const DATASETS: Dataset[] = [
     ],
   },
   {
-    id: 'orders', label: 'Order in hand', icon: '\u{1F4E6}',
-    description: 'Confirmed orders and their value.',
+    id: 'orders', label: 'Orders (uploaded)', icon: '\u{1F4E6}',
+    // The Excel upload behind this stopped on 30 June 2026 — live sales orders
+    // are raised in the SO portal now, and are read from there on the
+    // Opportunities row and on Client 360. This table remains the record of
+    // everything up to that date, which is why it is still here and why its
+    // name says where it came from.
+    description: 'Orders as uploaded from Excel. The record up to 30 June 2026; live SOs come from the SO portal.',
     dateLabel: 'Order date', dateField: 'order_date',
     fields: [
       { id: 'orders',      label: 'Orders',        kind: 'measure', format: 'int' },

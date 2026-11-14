@@ -133,7 +133,7 @@ function CurrentFyStrip({ d }: { d: CurrentFyView }) {
              sub={`${d.pendingCount} open opportunit${d.pendingCount === 1 ? 'y' : 'ies'}`} />
         <Fig label="Order received" value={cr(d.wonValue)}
              sub={`${d.wonCount} won`} tone="var(--pos)" />
-        <Fig label="Order in hand" value={cr(d.orderInHand)}
+        <Fig label="Won, no SO yet" value={cr(d.orderInHand)}
              sub="won · not yet in a sales order" tone="var(--accent)" />
         <Fig label="Lost" value={cr(d.lostValue)}
              sub={`${d.lostCount} lost`} tone="var(--neg)" />

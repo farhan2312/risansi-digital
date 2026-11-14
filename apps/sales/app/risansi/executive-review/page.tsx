@@ -1079,7 +1079,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
       },
     } : null,
     kpis: [
-      { label: 'Order in Hand', value: fmtMoney(n(kpiRow?.total_business)), sub: 'won · not yet in a sales order', accent: true,
+      { label: 'Won, no SO yet', value: fmtMoney(n(kpiRow?.total_business)), sub: 'won · not yet in a sales order', accent: true,
         drill: { kind: 'order_in_hand', tsm } },
       { label: 'Revenue', value: fmtMoney(n(kpiRow?.revenue)), sub: `invoiced · FY ${yy(fy)}${w.toDate ? ' to date' : ''}`,
         drill: { kind: 'revenue', tsm } },
@@ -1169,7 +1169,7 @@ export default async function ExecutiveReviewPage({ searchParams }: {
   // so the client component cannot offer a year parseFy would then reject.
   const fyOpts = fyChoices(now).map(y => ({ value: String(y), label: `FY ${yy(y)}` }));
 
-  const note = `Live data for ${tsmName}, fiscal year ${yy(fy)} (Apr–Mar)${w.toDate ? ' to date' : ', complete'}. An opportunity belongs to the year its quotation is dated in, or failing that the day its record was made; anything the year does not reach is counted on its own line in Target & Conversion rather than quietly left out. "Order in Hand" is the value of Won opportunities not yet turned into a Sales Order; "Order Received" is the value of Won opportunities dated in the FY. "Revenue" is everything invoiced in the year, whatever status the client holds now — money booked in a year stays booked for it. The Turnover table below counts the ACTIVE book only, because it bands accounts by size, so its total is the smaller of the two by design rather than by accident. "Conversion" divides order received by the quoted pipeline, and that panel says in full what it counts and what it leaves out. ${targetIsPersonal
+  const note = `Live data for ${tsmName}, fiscal year ${yy(fy)} (Apr–Mar)${w.toDate ? ' to date' : ', complete'}. An opportunity belongs to the year its quotation is dated in, or failing that the day its record was made; anything the year does not reach is counted on its own line in Target & Conversion rather than quietly left out. "Won, no SO yet" is the value of Won opportunities not yet turned into a Sales Order; "Order Received" is the value of Won opportunities dated in the FY. "Revenue" is everything invoiced in the year, whatever status the client holds now — money booked in a year stays booked for it. The Turnover table below counts the ACTIVE book only, because it bands accounts by size, so its total is the smaller of the two by design rather than by accident. "Conversion" divides order received by the quoted pipeline, and that panel says in full what it counts and what it leaves out. ${targetIsPersonal
     ? `The annual target shown there is ${isSelfReview ? 'your own' : `${tsmName}'s own`}, set per rep in Settings, and the attainment percentage and the tick on the Order received bar are both measured against it; the company-wide figure is on the smaller line beneath it.`
     : viewerCarriesQuota
       ? `No individual annual target is on record for ${isSelfReview ? 'you' : tsmName}, so that panel measures against the company-wide figure and says so; a sysadmin can set a per-rep target in Settings.`

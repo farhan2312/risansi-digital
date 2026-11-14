@@ -336,7 +336,7 @@ export async function dashDrilldown(p: DashDrillParams): Promise<DashDrillResult
           HAVING sum(${expr}) > 0
            ORDER BY value DESC`);
         return {
-          title: p.kind === 'order_in_hand' ? 'Order in hand' : 'Order booked',
+          title: p.kind === 'order_in_hand' ? 'Won, no SO yet' : 'Order booked',
           subtitle: p.kind === 'order_in_hand'
             ? 'Won, not yet written into a Sales Order'
             : 'Won value already in Sales Orders',

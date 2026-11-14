@@ -211,7 +211,7 @@ export default async function ClientPrintPage({ params }: { params: Promise<{ id
               ['Lifetime Revenue', formatRev(lifeTotal * 100_000)],
               ['Last Visit', lastVisit.label],
               ['Risansi Pumps', rilPumpsTotal > 0 ? `${rilUnits} PCP · ${rilMmp} MMP` : '—'],
-              ['Order in Hand', wonOpps.length > 0 ? `${fmtCr(wonTotal)} · ${wonOpps.length}` : '—'],
+              ['Won, no SO yet', wonOpps.length > 0 ? `${fmtCr(wonTotal)} · ${wonOpps.length}` : '—'],
               ['Open Pipeline', openOpps.length > 0 ? `${fmtCr(pipelineTotal)} · ${openOpps.length}` : '—'],
             ].map(([l, v]) => (
               <div key={l} style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: 10 }}>

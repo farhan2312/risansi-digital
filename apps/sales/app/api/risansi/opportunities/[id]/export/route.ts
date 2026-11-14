@@ -235,7 +235,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ['PO Date', day(opp.po_date)],
     ['PO Received Date', day(opp.po_received_date)],
     ['Sales Orders', salesOrders.length],
-    ['Orders (Order in Hand)', ordersRows.length],
+    ['Orders (uploaded)', ordersRows.length],
     ['Lost To Competitor', txt(opp.lost_to_competitor)],
     ['Lost Reason', txt(opp.lost_reason)],
     ['Drop Reason', txt(opp.drop_reason)],

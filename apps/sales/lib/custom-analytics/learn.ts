@@ -143,7 +143,7 @@ export const TOPICS: Topic[] = [
       + 'page in the middle, the selected card\'s contents down the right. Nothing is '
       + 'saved until you press Save, and Discard really does put it back.',
     steps: [
-      'Pick a table at the top left — Revenue, Pipeline, Order in hand, Visits, Complaints, Clients.',
+      'Pick a table at the top left — Revenue, Pipeline, Orders (uploaded), Visits, Complaints, Clients.',
       'With nothing selected, click a field. The builder starts a card it thinks suits that field: a Column for a category, a Line for a date, a KPI card for a number.',
       'Click more fields to add them to the card that is selected. Or drag a field straight onto a card.',
       'The card queries real data as you build it, so you can tell whether it is worth keeping before you save.',
@@ -217,7 +217,7 @@ export const TOPICS: Topic[] = [
       + 'another, matched on what the two have in common.',
     steps: [
       'Select the card and look at the Numbers well. Under the field list there is "＋ a number from another table…".',
-      'Pick one. Order value ₹ from Order in hand onto a Revenue card grouped by client, for instance.',
+      'Pick one. Order value ₹ from Orders (uploaded) onto a Revenue card grouped by client, for instance.',
       'The card\'s footer then says what the two were matched on: "Two tables, matched on client".',
       'Only tables that can be matched are offered. A card grouped by Drop reason — which only Pipeline has — is offered nothing, and the panel says why rather than letting the card fail later.',
     ],
@@ -304,7 +304,7 @@ export const TOPICS: Topic[] = [
       '"This card is not finished", with a list — add a number, pick a table, give the axis something. Nothing has gone wrong; the card is half built.',
       '"Nothing in this range" — the query ran and the answer was genuinely nothing. Usually the date range, or a filter you had forgotten was on.',
       '"This visual took too long" — the question was too broad for the data behind it. Narrow the dates, or group by fewer things.',
-      '"Order in hand can\'t be split by Drop reason" and the like — a real refusal, naming what the two tables could be lined up on instead.',
+      '"Orders (uploaded) can\'t be split by Drop reason" and the like — a real refusal, naming what the two tables could be lined up on instead.',
       '"Showing the top few · why?" at the foot of a chart is not a complaint. Click it: everything outside the top few is added together as Other, so the total is right and only the list is shortened.',
     ],
     sketch: { kind: 'refusal', caption: 'Four messages a card can give, and what each one means.' },

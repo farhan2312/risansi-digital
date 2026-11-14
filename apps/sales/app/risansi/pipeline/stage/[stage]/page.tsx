@@ -224,7 +224,7 @@ export default async function StageDashboardPage({ params, searchParams }: {
                 <>
                   <StageKpi label="Won" value={String(n)} sub={`${clients} client${clients === 1 ? '' : 's'}`} />
                   <StageKpi label="Won value" value={fmtCr(totalCr)} sub={`≈ ${fmtUsdFromCr(totalCr, usdRate)}`} color="var(--pos)" />
-                  <StageKpi label="Order in hand" value={fmtCr(inHandCr)} sub="won · no SO raised yet" color="var(--warn)" alert={inHandCr > 0} />
+                  <StageKpi label="Won, no SO yet" value={fmtCr(inHandCr)} sub="won · no SO raised yet" color="var(--warn)" alert={inHandCr > 0} />
                   <StageKpi label="SO created" value={fmtCr(soCr)} sub={`${withSo} of ${n} covered`} color="var(--pos)" />
                 </>
               ) : stage === 'Negotiating' ? (
@@ -335,7 +335,7 @@ export default async function StageDashboardPage({ params, searchParams }: {
               {stage === 'Won' ? (
                 <>
                   <ChartPanel title="Sales-Order coverage" sub={`${withSo} of ${n} have an SO`}
-                    note="Order in hand is won value with no Sales Order against it — the raise-an-SO to-do list. Click a part to filter.">
+                    note="Won, no SO yet is won value with no Sales Order against it — the raise-an-SO to-do list. Click a part to filter.">
                     <StackedBar parts={[
                       { label: 'SO created', value: P('so').soCr, color: 'var(--pos)', sub: `${P('so').withSo} opps` },
                       { label: 'Awaiting SO', value: P('so').inHandCr, color: 'var(--warn)', sub: `${P('so').n - P('so').withSo} opps` },

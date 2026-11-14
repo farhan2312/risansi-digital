@@ -928,7 +928,7 @@ export default async function ExecDashboardPage({ searchParams }: {
 
           {/* Order in Hand — won value not yet turned into a Sales Order. */}
           <SmallMetric
-            label="Order in Hand"
+            label="Won, no SO yet"
             value={orderInHand.inHand > 0 ? fmtCr(orderInHand.inHand) : '—'}
             delta={orderInHand.openCount > 0 ? `${orderInHand.openCount} won · awaiting SO` : 'All won orders in SOs'}
             deltaPos={orderInHand.inHand > 0}
@@ -1140,7 +1140,7 @@ export default async function ExecDashboardPage({ searchParams }: {
               <OppStat label="Open Pipeline" value={pipelineTotal > 0 ? fmtCr(pipelineTotal) : '—'}
                 sub={`${openCount} quoted + negotiating`} color="var(--fg)"
                 drill={openCount > 0 ? { kind: 'pipeline' } : undefined} />
-              <OppStat label="Order in Hand" value={orderInHand.inHand > 0 ? fmtCr(orderInHand.inHand) : '—'}
+              <OppStat label="Won, no SO yet" value={orderInHand.inHand > 0 ? fmtCr(orderInHand.inHand) : '—'}
                 sub="won · not yet in SO" color="var(--accent)" divider
                 drill={orderInHand.inHand > 0 ? { kind: 'order_in_hand' } : undefined} />
               <OppStat label="Order Booked" value={orderInHand.booked > 0 ? fmtCr(orderInHand.booked) : '—'}

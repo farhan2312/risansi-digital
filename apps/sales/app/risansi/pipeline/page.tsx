@@ -1022,7 +1022,7 @@ export default async function PipelinePage({
                   is which. Not clickable: these SOs are not opportunities and
                   there is no set of cards to filter the board to. */}
               <Flow title="Sales orders raised in the SO portal and not yet marked dispatched. Hold counts; cancelled and diverted do not. Live from the dispatch system, not from this portal's order upload.">
-                <ForecastBlock label="Order in Hand" value={dispatch?.orderInHandCr ?? null}
+                <ForecastBlock label="Order in Hand (SO portal)" value={dispatch?.orderInHandCr ?? null}
                   sub={dispatch
                     ? `${dispatch.openOrders} SOs raised · not yet dispatched`
                     : 'the SO portal did not answer'}
