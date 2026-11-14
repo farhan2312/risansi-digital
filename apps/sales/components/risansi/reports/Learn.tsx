@@ -98,7 +98,11 @@ function Section({ topic, n }: { topic: Topic; n: number }) {
         {topic.lead}
       </p>
 
-      <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {/* listStyle is set here on purpose: the CSS reset the app carries for
+          its shadcn bridge strips markers from every list, and steps without
+          their numbers read as unrelated sentences rather than an order. */}
+      <ol style={{ margin: 0, paddingLeft: 20, listStyle: 'decimal', display: 'flex',
+                   flexDirection: 'column', gap: 5 }}>
         {topic.steps.map(s => (
           <li key={s} style={{ fontSize: 12.5, color: 'var(--fg-2)', lineHeight: 1.6 }}>{s}</li>
         ))}

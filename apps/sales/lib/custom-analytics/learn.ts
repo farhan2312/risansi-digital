@@ -178,7 +178,7 @@ export const TOPICS: Topic[] = [
       'A Legend and several Numbers cannot share one scale, so adding a Legend to a '
       + 'chart that already has two numbers drops it to one. The panel does it in front '
       + 'of you rather than drawing something dishonest.',
-    sketch: { kind: 'wells', caption: 'The right-hand panel, with a chip in each well.' },
+    sketch: { kind: 'wells', caption: 'The selected card, and the panel that edits it.' },
     names: {
       wells: ['values', 'axis', 'split', 'dims'],
       visuals: ['kpi', 'table', 'column'],

@@ -217,12 +217,18 @@ export function LearnSketch({ kind }: { kind: SketchKind }) {
         <T x={18} y={72} size={5.5} fill={FAINT}>TOP CLIENTS</T>
         <Bars x={18} y={78} h={28} heights={[0.9, 0.65, 0.5, 0.3]} w={16} gap={6} />
         <path d="M104 110 l6 0 0 -6" stroke={STRONG} strokeWidth={1.4} fill="none" />
-        <Box x={186} y={34} w={124} h={54} dash fill={SOFT} stroke={ACCENT} />
-        <T x={248} y={64} size={6.5} fill={ACCENT} anchor="middle">where it will land</T>
-        <Box x={172} y={22} w={124} h={54} />
-        <T x={180} y={34} size={5.5} fill={FAINT}>BY STATE</T>
-        <Bars x={180} y={40} h={28} heights={[0.8, 0.6, 0.45, 0.33, 0.25]} w={14} gap={6} />
-        <T x={288} y={32} size={8} fill={ACCENT} anchor="end">⠿</T>
+        {/* The dashed outline is where the card will snap to; the card itself
+            is drawn offset and half-transparent, as it is mid-drag. Drawing
+            them on top of each other hid both, and hid the label with them. */}
+        <Box x={170} y={16} w={120} h={50} dash fill={SOFT} stroke={ACCENT} />
+        <g opacity={0.92}>
+          <Box x={192} y={44} w={120} h={50} />
+          <T x={200} y={56} size={5.5} fill={FAINT}>BY STATE</T>
+          <Bars x={200} y={62} h={24} heights={[0.8, 0.6, 0.45, 0.33, 0.25]} w={14} gap={6} />
+          <T x={304} y={54} size={8} fill={ACCENT} anchor="end">⠿</T>
+        </g>
+        <T x={230} y={110} size={6.5} fill={ACCENT} anchor="middle">where it will land</T>
+        <path d="M212 104 L 206 70" stroke={ACCENT} strokeWidth={0.8} strokeDasharray="2 2" fill="none" />
       </>);
 
     // One card, two tables, lined up on what they share.
