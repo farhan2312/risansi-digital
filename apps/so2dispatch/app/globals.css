@@ -18,6 +18,28 @@
 }
 
 /*
+ * Order Making: SO No. at a set width so the client column can stick right
+ * after it — both stay at the left edge as the table scrolls sideways.
+ */
+.om-so-col {
+  width: 11rem;
+  min-width: 11rem;
+  max-width: 11rem;
+  /* Its badges wrap rather than widen it past the client's offset. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sticky-client {
+  position: sticky;
+  left: 11rem;
+  z-index: 2;
+  min-width: 13rem;
+  background-color: var(--color-surface);
+  background-image: linear-gradient(var(--row-tint, transparent), var(--row-tint, transparent));
+  box-shadow: inset -1px 0 0 var(--color-card-border);
+}
+
+/*
  * Orders split view: one SO's table cells stood upright — the header cells
  * down the left, the row's cells beside them (the rows become a grid that
  * fills column by column; grid-template-rows is set inline to the count).

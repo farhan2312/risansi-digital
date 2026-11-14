@@ -3313,3 +3313,115 @@ CREATE TABLE IF NOT EXISTS order_ec_version_acks (
     PRIMARY KEY (item_id, version_no, dept)
 );
 CREATE INDEX IF NOT EXISTS order_ec_version_acks_order_idx ON order_ec_version_acks (order_id, version_no, dept);
+
+-- Parts named under Others in the part picker (Drawing's part drawings,
+-- Planning's shortages): kept, so they are in the list to tick next time.
+CREATE TABLE IF NOT EXISTS part_list_extras (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    part_no         TEXT NOT NULL DEFAULT '',
+    part_name       TEXT NOT NULL,
+    created_by_name TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS part_list_extras_uidx ON part_list_extras (lower(btrim(part_name)), lower(btrim(part_no)));
+-- Those already named on an EC join the list. Idempotent.
+INSERT INTO part_list_extras (part_no, part_name)
+SELECT DISTINCT ON (lower(btrim(x.part_name)), lower(btrim(COALESCE(x.part_no, ''))))
+       btrim(COALESCE(x.part_no, '')), btrim(x.part_name)
+  FROM (SELECT section, part_no, part_name FROM order_part_drawings
+        UNION ALL SELECT section, part_no, part_name FROM order_part_shortages) x
+ WHERE x.section = 'Others' AND NULLIF(btrim(x.part_name), '') IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+-- The pump parts lists (Rota MMP, Screw PCP) the part picker ticks from: kept
+-- here, so Drawing and Planning can correct a part. Seeded from the lists the
+-- code carried (Parts_List_1.xlsx). Idempotent.
+CREATE TABLE IF NOT EXISTS part_list_items (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    list       TEXT NOT NULL CHECK (list IN ('MMP', 'PCP')),
+    section    TEXT NOT NULL,
+    part_no    TEXT NOT NULL DEFAULT '',
+    part_name  TEXT NOT NULL,
+    seq        INTEGER NOT NULL DEFAULT 0,
+    updated_by_name TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS part_list_items_uidx ON part_list_items (list, lower(btrim(part_name)), lower(btrim(part_no)));
+INSERT INTO part_list_items (list, section, part_no, part_name, seq)
+SELECT v.list, v.section, v.part_no, v.part_name, v.seq
+  FROM (VALUES
+    ('MMP', 'Main Parts', '2011', 'Body', 0),
+    ('MMP', 'Main Parts', '2013', 'Stud For Body Both Side', 1),
+    ('MMP', 'Main Parts', '2014', 'Nut & Spring Washer For Item No. 2013', 2),
+    ('MMP', 'Main Parts', '2016', 'Gasket For Side Cover Drive End', 3),
+    ('MMP', 'Main Parts', '2021', 'Rotor', 4),
+    ('MMP', 'Main Parts', '2022', 'Key For Rotor', 5),
+    ('MMP', 'Main Parts', '2023', 'Wedge', 6),
+    ('MMP', 'Main Parts', '2024', 'Allen Bolts For Wedge Fitting', 7),
+    ('MMP', 'Main Parts', '2032', 'Bush For Flap', 8),
+    ('MMP', 'Main Parts', '2033', 'End-plate For Flap', 9),
+    ('MMP', 'Main Parts', '2034', 'Gasket For End Plate Flap', 10),
+    ('MMP', 'Main Parts', '2035', 'Stud For Flap End Plate', 11),
+    ('MMP', 'Main Parts', '2036', 'Nut & Washer For Stud', 12),
+    ('MMP', 'Main Parts', '2225', 'Drive Shaft', 13),
+    ('MMP', 'Main Parts', '2215', 'Side Cover Drive End', 14),
+    ('MMP', 'Main Parts', '2231', 'Flap', 15),
+    ('MMP', 'Main Parts', '2232', 'Tapered Bolt', 16),
+    ('MMP', 'Drive End Parts', '4041', 'Plummer Block', 17),
+    ('MMP', 'Drive End Parts', '4042', 'Roller Bearing Drive End', 18),
+    ('MMP', 'Drive End Parts', '4043', 'Plummer Block Cover Pump Side', 19),
+    ('MMP', 'Drive End Parts', '4044', 'Plummer Block Cover Coupling Side', 20),
+    ('MMP', 'Drive End Parts', '4045', 'Bolt For Part No. 4043 & 4044', 21),
+    ('MMP', 'Drive End Parts', '4046', 'Felt Ring For Part No. 4033', 22),
+    ('MMP', 'Drive End Parts', '4047', 'Felt Ring For Part No. 4044', 23),
+    ('MMP', 'Drive End Parts', '4054', 'Bush For End DE Side Cover', 24),
+    ('MMP', 'Non-Drive End Parts', '4021', 'Side Cover Non-drive End', 25),
+    ('MMP', 'Non-Drive End Parts', '4022', 'Gasket For Side Cover Non- Drive End', 26),
+    ('MMP', 'Non-Drive End Parts', '4023', 'Bush Housing', 27),
+    ('MMP', 'Non-Drive End Parts', '4024', 'Gasket For Bush Housing', 28),
+    ('MMP', 'Non-Drive End Parts', '4025', 'Stud For Bush Housing', 29),
+    ('MMP', 'Non-Drive End Parts', '4026', 'Nut & Washer For Bush Housing Stud', 30),
+    ('MMP', 'Non-Drive End Parts', '4027', 'Bearing Housing Non-drive End', 31),
+    ('MMP', 'Non-Drive End Parts', '4028', 'Bush Bearing Non-drive End', 32),
+    ('MMP', 'Non-Drive End Parts', '4029', 'Plate For Part No. 4027', 33),
+    ('MMP', 'Non-Drive End Parts', '4030', 'Bush Gunmetal Non-drive End', 34),
+    ('MMP', 'Non-Drive End Parts', '4031', 'Bolt For Part No. 4023', 35),
+    ('PCP', 'Parts', '210', 'Bearing Housing', 0),
+    ('PCP', 'Parts', '211', 'Suctioin Housing', 1),
+    ('PCP', 'Parts', '213', 'End Plate', 2),
+    ('PCP', 'Parts', '214', 'Bearing Cover', 3),
+    ('PCP', 'Parts', '215', 'Grease Seal Housing', 4),
+    ('PCP', 'Parts', '216', 'Gland', 5),
+    ('PCP', 'Parts', '217', 'Stuffing Box', 6),
+    ('PCP', 'Parts', '218', 'Oil Seal', 7),
+    ('PCP', 'Parts', '219', 'Shaft Key', 8),
+    ('PCP', 'Parts', '220', 'Shaft', 9),
+    ('PCP', 'Parts', '221', 'Bearing Support Ring', 10),
+    ('PCP', 'Parts', '222', 'Bearing Spacer', 11),
+    ('PCP', 'Parts', '225', 'Circlip Lock', 12),
+    ('PCP', 'Parts', '226', 'Shaft Head', 13),
+    ('PCP', 'Parts', '227', 'Coupling Rod', 14),
+    ('PCP', 'Parts', '230', 'Sleeve', 15),
+    ('PCP', 'Parts', '231', 'Pin', 16),
+    ('PCP', 'Parts', '233', 'Dovel Pin', 17),
+    ('PCP', 'Parts', '234', 'Rotor', 18),
+    ('PCP', 'Parts', '236', 'Stator', 19),
+    ('PCP', 'Parts', '237', 'Deflector', 20),
+    ('PCP', 'Parts', '240', 'Felt Ring', 21),
+    ('PCP', 'Parts', '241', 'Gland Packing', 22),
+    ('PCP', 'Parts', '246', 'Plug 3/4" BSW (for Drain)', 23),
+    ('PCP', 'Parts', '255', 'Tie Rod Standard', 24),
+    ('PCP', 'Parts', '262', 'Stator Gasket', 25),
+    ('PCP', 'Parts', '2114', 'Leg (Optional)', 26),
+    ('PCP', 'Parts', '2135', 'End plate support', 27),
+    ('PCP', 'Parts', '2173', 'Stuffing Box Gasket', 28),
+    ('PCP', 'Parts', '2241', 'Adjustment Bolt', 29),
+    ('PCP', 'Parts', '2242', 'Taper Roller Bearing', 30),
+    ('PCP', 'Parts', '2261', 'Grub Screw', 31),
+    ('PCP', 'Parts', '2239', 'Sleave Ring', 32),
+    ('PCP', 'Parts', '2325', 'Oil Retainer', 33),
+    ('PCP', 'Parts', '23261', 'Holder / Cliff', 34),
+    ('PCP', 'Parts', '250', 'Bolt', 35)
+  ) AS v(list, section, part_no, part_name, seq)
+ WHERE NOT EXISTS (SELECT 1 FROM part_list_items x WHERE x.list = v.list)
+ON CONFLICT DO NOTHING;

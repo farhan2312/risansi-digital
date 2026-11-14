@@ -468,11 +468,12 @@ export const ORDER_SECTIONS: OrderSection[] = [
         dependsOn: [{ column: "order_currency", value: "USD" }],
         group: "Purchase Order",
       },
+      // A USD order's rate, typed on the SO: its INR figures are worked out at it.
       {
         column: "order_fx_rate",
-        label: "USD → INR rate used",
+        label: "USD → INR rate",
         type: "number",
-        computed: true,
+        min: 0,
         dependsOn: [{ column: "order_currency", value: "USD" }],
         group: "Purchase Order",
       },
@@ -987,7 +988,7 @@ const SO_REQUIRED_COLUMNS = ["so_no", "so_date", "order_value", "order_currency"
 /** What Order Making SO types into — and Clear / Hold on the SOs assigned to them. */
 export const ORDER_MAKING_SO_EDITABLE: OrderField[] = ORDER_MAKING_EDITABLE.filter(
   // Not the SO Sent to Operation Date: that is Order Making PO's.
-  (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.group === "Order Making Hold"
+  (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.column === "order_fx_rate" || f.group === "Order Making Hold"
 );
 /**
  * What Order Making must fill before its form saves. Order Making PO: every
@@ -1007,8 +1008,11 @@ export function orderMakingRequired(
       ? false
       : mode === "so"
         ? SO_DETAIL_COLUMNS.includes(f.column)
-        : f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && !/remarks/i.test(f.column)
+        : f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && f.column !== "order_fx_rate" && !/remarks/i.test(f.column)
   );
+  // A USD SO's rate comes with its Sales Order details.
+  const fx = ORDER_MAKING_EDITABLE.find((f) => f.column === "order_fx_rate");
+  if (mode === "so" && fx && isUsd(read?.("order_currency"))) own.push(fx);
   // Order Making PO owes the day the SO went to Operation once its Sales
   // Order details were saved in full: the save that completes them goes
   // through without it, the next does not — unless Order Making holds the SO
@@ -1460,7 +1464,7 @@ export function withValueRules<T extends Record<string, unknown>>(
   return next as T;
 }
 
-const TAXABLE_INPUTS = ["order_value", "order_currency", "discount_percent", "packing_forwarding_percent", "gst_percent"];
+const TAXABLE_INPUTS = ["order_value", "order_currency", "order_fx_rate", "discount_percent", "packing_forwarding_percent", "gst_percent"];
 
 /** Whether an order is priced in USD. */
 export function isUsd(currency: unknown): boolean {
@@ -1930,6 +1934,16 @@ export const PLANNING_CONTEXT_FIELDS: OrderField[] = [
   // When the SO reached PPC (Central fills it under Handover).
   { column: "so_handover_date", label: "SO Sent to PPC Date", type: "date" },
 ];
+
+/**
+ * LD and LD Date as one column: LD (Yes / No) with its date under it. Where a
+ * list shows both, LD Date's own column goes and LD's is headed for both.
+ */
+export const LD_DATE_FIELD: OrderField = { column: "ld_date", label: "LD Date", type: "date" };
+export function withLdCombined(fields: OrderField[]): OrderField[] {
+  if (!fields.some((f) => f.column === "ld") || !fields.some((f) => f.column === "ld_date")) return fields;
+  return fields.filter((f) => f.column !== "ld_date").map((f) => (f.column === "ld" ? { ...f, label: "LD / LD Date" } : f));
+}
 
 /** Coerce a raw form string to the storable value for a field type. */
 export function coerceField(
