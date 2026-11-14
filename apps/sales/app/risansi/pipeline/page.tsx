@@ -23,6 +23,7 @@ import { LIVE_CLIENT, AND_LIVE_CLIENT } from '@/lib/risansi-opportunity-scope';
 import {
   bracketLink, soCoverageSql, isSoCoverage, SO_COVERAGE_LABELS,
 } from '@/lib/risansi-pipeline-brackets';
+import { dispatchFigures, firstBusyInvoiceMonth, type DispatchFigures } from '@/lib/risansi-order-in-hand';
 
 async function q<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
@@ -408,7 +409,7 @@ export default async function PipelinePage({
           ELSE FALSE
         END AS can_edit`;
 
-  const [openOpps, closedOpps, bookedYTD, annualTarget, winLossRows, lostToRows, stageOptions, productTypeOptions, repOptions, industryOptions, clientTypeOptions, clientStatusOptions, wonTotal, orderInHand, orderBooked, wonQuotedPo, stageTotals, usdRate] = await Promise.all([
+  const [openOpps, closedOpps, bookedYTD, annualTarget, winLossRows, lostToRows, stageOptions, productTypeOptions, repOptions, industryOptions, clientTypeOptions, clientStatusOptions, wonTotal, orderInHand, orderBooked, wonQuotedPo, stageTotals, usdRate, dispatch, invoicesBeganIn] = await Promise.all([
 
     // 1. Open opportunities with filters + sort. Feeds the KPIs, the kanban (every
     //    open card must show), and the Active Opportunities table — so NO row cap
@@ -756,6 +757,20 @@ export default async function PipelinePage({
 
     // 9. USD→INR rate (company setting) for the ≈ $ figures on the tiles/table.
     getUsdRate(),
+
+    // 10. Order in Hand and what the SO portal has invoiced — both live from
+    //     ec_to_dispatch, the only system that knows what has actually shipped.
+    //
+    //     The fallback is NULL, not zero. "The dispatch portal did not answer"
+    //     and "there are no open orders" are different facts, and a card that
+    //     cannot tell them apart is worse than no card: a zero would be read as
+    //     an empty order book.
+    q<DispatchFigures | null>(
+      () => dispatchFigures(revFilterClause, revVals, cyStart, cyEnd), null),
+
+    // 11. The month that portal's invoices really begin, for the sub-line.
+    //     Read live so it stops being mentioned once the history is filled in.
+    q<string | null>(() => firstBusyInvoiceMonth(), null),
   ]);
 
   // ── Derived values ─────────────────────────────────────────
@@ -962,35 +977,81 @@ export default async function PipelinePage({
                 NB: Revenue (Invoiced) is client-level monthly revenue, which
                 carries no opportunity link — it's the actuals that land after a
                 win, not literally the same rupees moving out of the Won card. */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto 1fr auto 1fr auto 1fr', gap: 10, alignItems: 'center' }}>
+            {/* Seven figures now, so this wraps rather than squeezing. A fixed
+                seven-column grid at laptop width turns every sub-line into four
+                words a row; wrapping drops the two revenue blocks onto a second
+                line instead, which is the pair you would want kept together
+                anyway. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'stretch' }}>
               {/* Says "still at Quoted" because the Executive Review's Total
                   Quoted counts everything quoted this year including what has
                   since been won or lost, and the two reading differently looked
                   like a mismatch. Each label now names its own question. */}
-              <ForecastBlock label="Quoted" value={quotedCr}
-                sub={quotedCount > 0 ? `${quotedCount} still at Quoted · not those since won or lost` : 'nothing still at Quoted'} color="var(--fg)" rate={usdRate}
-                {...bracket('quoted')} />
+              <Flow>
+                <ForecastBlock label="Quoted" value={quotedCr}
+                  sub={quotedCount > 0 ? `${quotedCount} still at Quoted · not those since won or lost` : 'nothing still at Quoted'} color="var(--fg)" rate={usdRate}
+                  {...bracket('quoted')} />
+              </Flow>
               <FlowArrow />
-              <ForecastBlock label="In Negotiation" value={negotiatingCr}
-                sub={negotiatingCount > 0 ? `${negotiatingCount} in active talks` : 'none in negotiation'} color="var(--accent)" rate={usdRate}
-                {...bracket('negotiating')} />
+              <Flow>
+                <ForecastBlock label="In Negotiation" value={negotiatingCr}
+                  sub={negotiatingCount > 0 ? `${negotiatingCount} in active talks` : 'none in negotiation'} color="var(--accent)" rate={usdRate}
+                  {...bracket('negotiating')} />
+              </Flow>
               <FlowArrow />
               {/* Amber: won business still waiting on an SO is a to-do, not a
                   resting state — raising the SO is the next action. */}
-              <ForecastBlock label="Won (awaiting SO)" value={orderInHand}
-                sub="won · not yet in an SO" color="var(--warn)" rate={usdRate}
-                {...bracket('awaitingSo')} />
+              <Flow>
+                <ForecastBlock label="Won (awaiting SO)" value={orderInHand}
+                  sub="won · not yet in an SO" color="var(--warn)" rate={usdRate}
+                  {...bracket('awaitingSo')} />
+              </Flow>
               <FlowArrow />
-              <ForecastBlock label="Won (SO created)" value={orderBooked}
-                sub="SO value" color="var(--pos)" rate={usdRate}
-                meta={<QuoteToOrder quoted={wonQuotedCr} po={wonPoCr} gap={wonGapCr} pct={wonGapPct} />}
-                {...bracket('createdSo')} />
+              <Flow>
+                <ForecastBlock label="Won (SO created)" value={orderBooked}
+                  sub="SO value" color="var(--pos)" rate={usdRate}
+                  meta={<QuoteToOrder quoted={wonQuotedCr} po={wonPoCr} gap={wonGapCr} pct={wonGapPct} />}
+                  {...bracket('createdSo')} />
+              </Flow>
               <FlowArrow />
-              {/* Not clickable: this is client_revenue_monthly, which carries no
-                  opportunity link — there is no set of cards to filter to. */}
-              <ForecastBlock label="Revenue (Invoiced)" value={bookedYTD}
-                sub={`sales · ${fy.label}${oppOnlyFilter ? ' · moves with rep / industry / client type only' : ''}`}
-                color="var(--fg-2)" rate={usdRate} />
+              {/* The SO portal's own book, not this one. Three SO-shaped figures
+                  now sit on this row from three different systems — the one to
+                  its left is the PO value typed onto the won opportunity, the
+                  portal's own `orders` import is a third — so each names its
+                  source on hover rather than leaving the reader to guess which
+                  is which. Not clickable: these SOs are not opportunities and
+                  there is no set of cards to filter the board to. */}
+              <Flow title="Sales orders raised in the SO portal and not yet marked dispatched. Hold counts; cancelled and diverted do not. Live from the dispatch system, not from this portal's order upload.">
+                <ForecastBlock label="Order in Hand" value={dispatch?.orderInHandCr ?? null}
+                  sub={dispatch
+                    ? `${dispatch.openOrders} SOs raised · not yet dispatched`
+                    : 'the SO portal did not answer'}
+                  color="var(--accent)" rate={usdRate} />
+              </Flow>
+
+              {/* The two billed figures travel together, divider and all. They
+                  answer the same question from two systems, so a wrap that put
+                  one on each line would invite exactly the comparison error the
+                  labels are trying to prevent. */}
+              <div style={{ display: 'flex', gap: 10, flex: '2 1 300px', minWidth: 0 }}>
+                {/* Not an arrow: what has been billed is not the next stage of
+                    the pipeline, it is what actually happened. */}
+                <div aria-hidden style={{ width: 1, alignSelf: 'stretch', background: 'var(--line)', marginRight: 4 }} />
+                {/* Not clickable: this is client_revenue_monthly, which carries
+                    no opportunity link — there is no set of cards to filter to. */}
+                <Flow title="Client revenue uploaded month by month in this portal. The complete record, and the one to quote.">
+                  <ForecastBlock label="Revenue" value={bookedYTD}
+                    sub={`monthly upload · ${fy.label}${oppOnlyFilter ? ' · moves with rep / industry / client type only' : ''}`}
+                    color="var(--fg-2)" rate={usdRate} />
+                </Flow>
+                <Flow title="Invoices raised in the SO portal this financial year. That system has only been carrying invoices since it went live, so this is NOT the company's revenue — the Revenue block beside it is.">
+                  <ForecastBlock label="Invoiced (SO portal)" value={dispatch?.invoicedCr ?? null}
+                    sub={dispatch
+                      ? `${dispatch.invoices} invoices${invoicesBeganIn ? ` · from ${invoicesBeganIn}` : ''} · not all of revenue`
+                      : 'the SO portal did not answer'}
+                    color="var(--fg-2)" rate={usdRate} />
+                </Flow>
+              </div>
             </div>
 
             {/* Row 2 — forecast, unchanged. */}
@@ -1128,11 +1189,26 @@ export default async function PipelinePage({
 
 // Separator between the flow brackets — signals that value MOVES from one
 // bracket to the next rather than the cards being independent totals.
+/**
+ * One figure's slot on the flow row.
+ *
+ * flex rather than a grid column so seven of them wrap on a laptop instead of
+ * squeezing every sub-line into four words a row. `minWidth: 0` because a long
+ * sub-line would otherwise set the floor and stop the row wrapping at all.
+ */
+function Flow({ children, title }: { children: ReactNode; title?: string }) {
+  return <div title={title} style={{ flex: '1 1 140px', minWidth: 0 }}>{children}</div>;
+}
+
 function FlowArrow() {
   return (
     <div aria-hidden style={{
       fontSize: 15, color: 'var(--fg-4, var(--fg-3))', lineHeight: 1,
       padding: '0 2px', userSelect: 'none',
+      // The row stretches so the hairline before the billed figures can reach
+      // top to bottom; without this the arrows stretch with it and sit up by
+      // the labels instead of between the numbers.
+      alignSelf: 'center',
     }}>
       →
     </div>
@@ -1170,7 +1246,9 @@ function QuoteToOrder({ quoted, po, gap, pct }: { quoted: number; po: number; ga
 function ForecastBlock({
   label, value, sub, color, highlight = false, rate, href, active = false, meta,
 }: {
-  label: string; value: number; sub: string; color: string; highlight?: boolean; rate?: number;
+  label: string; sub: string; color: string; highlight?: boolean; rate?: number;
+  /** Null means the figure could not be fetched — NOT that it is zero. */
+  value: number | null;
   /** Set when this bracket maps to a real set of opportunities — clicking it filters the board. */
   href?: string;
   /** True when the board is already showing exactly this bracket; the link then clears it. */
@@ -1184,10 +1262,13 @@ function ForecastBlock({
         {label}
         {active && <span style={{ fontSize: 9, color: 'var(--accent)', letterSpacing: 0 }}>● filtered · click to clear</span>}
       </div>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, marginTop: 2, color, lineHeight: 1.1 }}>
-        ₹{value.toFixed(1)}<span style={{ fontSize: 12, color: 'var(--fg-3)', marginLeft: 4 }}>Cr</span>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, marginTop: 2,
+                    color: value == null ? 'var(--fg-4)' : color, lineHeight: 1.1 }}>
+        {value == null
+          ? '—'
+          : <>₹{value.toFixed(1)}<span style={{ fontSize: 12, color: 'var(--fg-3)', marginLeft: 4 }}>Cr</span></>}
       </div>
-      {rate != null && (
+      {rate != null && value != null && (
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-3)', marginTop: 1 }}>
           ≈ {fmtUsdFromCr(value, rate)}
         </div>
