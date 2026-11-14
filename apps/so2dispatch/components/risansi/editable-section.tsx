@@ -4,6 +4,7 @@ import { EcLink, ecLinkHref } from "./ec-link";
 import { Fragment, useEffect, useState } from "react";
 import { TARGET_SET_EVENT, type TargetSetDetail } from "./target-date-control";
 import { TARGET_DATES } from "@/lib/target-dates";
+import { autoDrawingTarget } from "@/lib/target-rules";
 import { useRouter } from "next/navigation";
 import { Loader2, Paperclip, Pencil } from "lucide-react";
 import { updateOrderSectionAction, updateSectionForSoAction } from "@/app/risansi/orders/actions";
@@ -183,7 +184,14 @@ export function EditableSection({
     return () => window.removeEventListener(TARGET_SET_EVENT, on);
   }, [section.table, targetId]);
   // A field's value as the form stands: typed, else set just now, else as saved.
-  const readNow = (c: string) => (c in values ? values[c] : c in targetsSet ? targetsSet[c] : toInput(data?.[c]));
+  const readSet = (c: string) => (c in values ? values[c] : c in targetsSet ? targetsSet[c] : toInput(data?.[c]));
+  // No Drawing target yet, and an SO Sent to PPC Date in: the one a save will fill
+  // (PPC + 2 days, + 3 for a larger quantity), shown at once and counted as there.
+  const autoDrg =
+    section.table === "orders" && !readSet("drg_target_date").trim()
+      ? autoDrawingTarget({ so_handover_date: readSet("so_handover_date"), total_quantity: readSet("total_quantity") })
+      : null;
+  const readNow = (c: string) => (c === "drg_target_date" && autoDrg ? autoDrg.date : readSet(c));
   // Gone to Operation: the fields Central must fill (marked *).
   const afterOps =
     section.table === "orders" && readNow("ec_sent_operation_date").trim() && !closedForOperation(readNow)
@@ -491,6 +499,12 @@ export function EditableSection({
                                           : data?.[field.column] ?? field.defaultValue
                                     )}
                             </span>
+                            {/* Drawing's target as a save will fill it from the PPC date. */}
+                            {field.column === "drg_target_date" && autoDrg && (
+                              <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300" title={autoDrg.reason}>
+                                {formatDisplay(field, autoDrg.date)} · auto, on save
+                              </span>
+                            )}
                             {fieldExtra?.(field)}
                           </div>
                         )}

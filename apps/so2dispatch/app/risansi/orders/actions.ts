@@ -130,6 +130,7 @@ import {
   type TargetRevision,
 } from "@/lib/target-dates";
 import { logAudit } from "@/lib/audit";
+import { autoDrawingTarget } from "@/lib/target-rules";
 import { isVersionedType } from "@/lib/order-versions";
 import { ackEcVersionChanges, ecChangeDept, listEcVersionChanges, type SoEcChanges } from "@/lib/ec-version-changes";
 import { cancelEc, checkEcCancel, listEcCancellations, type CancelCheck, type EcCancellation } from "@/lib/ec-cancel";
@@ -865,7 +866,12 @@ export async function updateOrderSectionAction(
   if (table === "orders" && !orderMaker && Object.keys(allowedValues).some((k) => afterOperationCols.has(k))) {
     const detail = await getOrderDetail(id);
     const now = detail?.order ?? {};
-    const after = (c: string) => String((c in allowedValues ? allowedValues[c] : now[c]) ?? "");
+    const raw = (c: string) => String((c in allowedValues ? allowedValues[c] : now[c]) ?? "");
+    // No Drawing target yet but an SO Sent to PPC Date: the save fills it (fillFirstTargets).
+    const after = (c: string) =>
+      c === "drg_target_date" && !raw(c).trim()
+        ? autoDrawingTarget({ so_handover_date: raw("so_handover_date"), total_quantity: raw("total_quantity") })?.date ?? ""
+        : raw(c);
     const missing = firstAfterOperationMissing(after, (detail?.order_payment_terms ?? []).length > 0);
     if (missing) return { ok: false, error: `Sent to Operation: ${missing.label} is required.` };
   }

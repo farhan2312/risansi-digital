@@ -180,6 +180,17 @@ export function autoTargets(o: TargetInputs): AutoTarget[] {
 }
 
 /** Drawing works to the hand-over, and only where there is something to draw; without a quantity there is no telling which allowance applies. */
+/**
+ * Drawing's first target from the SO Sent to PPC Date alone (PPC + 2 days, + 3
+ * for a larger quantity), or null — what the Order details form shows as soon
+ * as that date is entered, and what a save fills.
+ */
+export function autoDrawingTarget(o: Pick<TargetInputs, "so_handover_date" | "total_quantity" | "drawing_involved">): AutoTarget | null {
+  const out: AutoTarget[] = [];
+  pushDrawing(out, o);
+  return out[0] ?? null;
+}
+
 function pushDrawing(out: AutoTarget[], o: TargetInputs) {
   const handover = isoDate(o.so_handover_date);
   const qty = Number(String(o.total_quantity ?? "").trim());

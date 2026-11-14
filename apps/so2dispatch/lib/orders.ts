@@ -6219,7 +6219,9 @@ export async function fillFirstTargets(
     // A new version's Drawing target, from its SO Sent to PPC Date afresh.
     const revise =
       auto.key === "drawing" && o.version_no > 0 && (already.has(auto.key) || columnSet[auto.key]) && !o.drg_manual_since && o.drg_date !== auto.date;
-    if (!revise && (already.has(auto.key) || columnSet[auto.key])) continue;
+    // Drawing's is filled whenever the SO has none (an SO sent to PPC owes one);
+    // the rest only once, never over a target someone set and took away.
+    if (!revise && (auto.key === "drawing" ? columnSet.drawing : already.has(auto.key) || columnSet[auto.key])) continue;
     const target = TARGET_BY_KEY.get(auto.key);
     if (!target) continue;
     if (revise) auto.reason = `${auto.reason} — v${o.version_no}`;
