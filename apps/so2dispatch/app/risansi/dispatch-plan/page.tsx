@@ -8,7 +8,6 @@ import { FinalDispatchTarget } from "@/components/risansi/final-dispatch-target"
 import { DISPATCH_PLAN_DAYS, listDispatchPlan, type DispatchPlanRow, type DispatchPlanStage } from "@/lib/dispatch-plan";
 import { boiStatus } from "@/lib/dept-view";
 import { UrlSearchInput } from "@/components/risansi/url-table";
-import { TermPis } from "@/components/risansi/term-pis";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
@@ -156,7 +155,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className="w-full min-w-[2160px] text-sm">
+          <table className="w-full min-w-[1800px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
@@ -165,7 +164,6 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3">Rep · Zone</th>
                 <th className="px-4 py-3">PO</th>
                 <th className="whitespace-nowrap px-4 py-3">SO Sent to PPC</th>
-                <th className="px-4 py-3">Payment terms, PIs &amp; payment</th>
                 <th className="px-4 py-3">ECs · Model</th>
                 <th className="px-4 py-3 text-right">Pumps</th>
                 <th className="px-4 py-3">Readiness</th>
@@ -201,21 +199,6 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                       {r.po_date && <div className="text-xs text-muted">{formatDate(r.po_date)}</div>}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{formatDate(r.ppc_date)}</td>
-                    {/* Each term with its PI and what came in — as on the Orders page. */}
-                    <td className="px-4 py-3 align-top">
-                      {r.bill_mode === "FR" ? (
-                        <span className="text-xs font-medium text-muted">Replacement · no payment terms</span>
-                      ) : (
-                        <TermPis
-                          orderId={r.id}
-                          soLabel={r.so_no ?? `#${r.sl_no}`}
-                          terms={r.term_lines}
-                          pis={r.pi_docs}
-                          canEdit={false}
-                          payments={{ canEdit: false }}
-                        />
-                      )}
-                    </td>
                     <td className="px-4 py-3">
                       <ul className="space-y-1 text-xs">
                         {r.ecs.map((e) => (
