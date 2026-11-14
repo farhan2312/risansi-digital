@@ -61,6 +61,56 @@ function Stage({ st, now }: { st: DispatchPlanStage; now: string }) {
   );
 }
 
+/** The SO's base plate and wooden box: No, not set, or each one's status with its day. */
+function Alignment({ a }: { a: DispatchPlanRow["alignment"] }) {
+  const line = (label: string, body: React.ReactNode) => (
+    <div className="whitespace-nowrap text-xs">
+      <span className="font-semibold text-foreground">{label}</span> {body}
+    </div>
+  );
+  const plate =
+    a.base_plate === "Yes" ? (
+      <>
+        <Chip tone={a.base_plate_status === "Manufactured" ? "done" : "pending"}>{a.base_plate_status || "Pending"}</Chip>
+        {a.base_plate_date && <span className="text-muted"> {formatDate(a.base_plate_date)}</span>}
+        {/* The steps before this one, each with its day. */}
+        {a.base_plate_steps.filter((s) => s.status !== a.base_plate_status).map((s) => (
+          <span key={s.status} className="block pl-1 text-[11px] text-muted">
+            {s.status} {formatDate(s.date)}
+          </span>
+        ))}
+      </>
+    ) : (
+      <span className="text-muted">{a.base_plate === "No" ? "No" : "—"}</span>
+    );
+  const boxes = a.wooden_box === "Yes" ? a.wooden_boxes ?? [] : [];
+  const box =
+    a.wooden_box === "Yes" ? (
+      boxes.length ? (
+        boxes.map((b) => (
+          <span key={b.source} className="block">
+            <span className="text-muted">{b.source}</span>{" "}
+            <Chip tone={b.status === "Received" ? "done" : "pending"}>{b.status || "Pending"}</Chip>
+            <span className="text-muted">
+              {" "}Req {b.required_qty ?? 0} · Stock {b.stock_qty ?? 0}
+              {b.status === "Received" && b.received_date ? ` · ${formatDate(b.received_date)}` : ""}
+            </span>
+          </span>
+        ))
+      ) : (
+        <Chip tone="pending">Pending</Chip>
+      )
+    ) : (
+      <span className="text-muted">{a.wooden_box === "No" ? "No" : "—"}</span>
+    );
+  return (
+    <div className="space-y-1.5">
+      {line("Base plate", plate)}
+      {line("Wooden box", box)}
+    </div>
+  );
+}
+
 function Chip({ tone, children }: { tone: "done" | "part" | "pending" | "danger"; children: React.ReactNode }) {
   const cls = {
     done: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
@@ -156,7 +206,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className="w-full min-w-[1650px] text-sm">
+          <table className="w-full min-w-[1900px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
@@ -169,6 +219,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3 text-right">Pumps</th>
                 <th className="px-4 py-3">Readiness</th>
                 <th className="px-4 py-3">BOI</th>
+                <th className="px-4 py-3">Alignment</th>
                 <th className="px-4 py-3">Assembly</th>
                 <th className="px-4 py-3">Packing</th>
                 <th className="px-4 py-3">Dispatch Target</th>
@@ -259,6 +310,10 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                           </ul>
                         </>
                       )}
+                    </td>
+                    {/* Base plate and wooden box, as Assembly & Packing has them. */}
+                    <td className="px-4 py-3">
+                      <Alignment a={r.alignment} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <Stage st={r.assembly} now={now} />

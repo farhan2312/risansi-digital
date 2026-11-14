@@ -1,7 +1,7 @@
 import "server-only";
 import { query } from "@/lib/db";
 import { PUMP_LIKE } from "@/lib/order-schema";
-import { soStageStatusSql } from "@/lib/assembly";
+import { basePlateSql, basePlateStepsSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
 import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
 // The Dispatch Plan: the pump SOs that can go out within the next two weeks,
@@ -75,6 +75,15 @@ export type DispatchPlanRow = {
   /** Central Visibility's Final Dispatch Target, and who set it. */
   final_dispatch_target: string | null;
   final_dispatch_target_by: string | null;
+  /** The SO's Alignment: base plate and wooden box, whether needed and where each stands (as Assembly & Packing's). */
+  alignment: {
+    base_plate: string | null;
+    base_plate_status: string | null;
+    base_plate_date: string | null;
+    base_plate_steps: { status: string; date: string | null }[];
+    wooden_box: string | null;
+    wooden_boxes: { source: string; required_qty: number | null; stock_qty: number | null; status: string | null; received_date: string | null; received_qty: number | null }[] | null;
+  };
   /** On Dispatch hold (the SO's status set to Hold), and why. */
   dispatch_hold: boolean;
   hold_reason: string | null;
@@ -179,6 +188,16 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
             to_char(COALESCE(so.dispatch_target_revised_date, so.dispatch_target_date), 'YYYY-MM-DD') AS dispatch_target,
             to_char(so.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target,
             so.final_dispatch_target_by,
+            jsonb_build_object(
+              'base_plate', ${basePlateSql("so")}, 'base_plate_status', so.base_plate_status,
+              'base_plate_date', to_char(so.base_plate_date, 'YYYY-MM-DD'),
+              'base_plate_steps', ${basePlateStepsSql("so")},
+              'wooden_box', ${woodenBoxSql("so")},
+              'wooden_boxes', (SELECT jsonb_agg(jsonb_build_object(
+                                 'source', wb.source, 'required_qty', wb.required_qty, 'stock_qty', wb.stock_qty,
+                                 'status', wb.status, 'received_date', to_char(wb.received_date, 'YYYY-MM-DD'),
+                                 'received_qty', wb.received_qty) ORDER BY wb.source DESC)
+                                FROM order_wooden_boxes wb WHERE wb.order_id = so.id)) AS alignment,
             (COALESCE(so.status_override, '') = 'Hold') AS dispatch_hold,
             CASE WHEN so.status_override = 'Hold' THEN NULLIF(btrim(so.status_reason), '') END AS hold_reason,
             ${orderStatusSql("so")} AS status
