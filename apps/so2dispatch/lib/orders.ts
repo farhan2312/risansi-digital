@@ -5109,14 +5109,7 @@ export async function listOrdersForOrderMaking(opts: {
         },
         { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
         { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
-        { key: "filled", label: "SO details filled", sql: `${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "filled", asg: null, missing: null }, tone: "done" },
-        {
-          key: "missing",
-          label: "Missing details",
-          sql: `(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL}) AND ${orderOpenSql("o")}`,
-          params: { sos: null, asg: null, missing: "1" },
-          tone: "danger",
-        },
+        // No SO details filled / Missing details cards: not needed on Order Making.
         // Order Making's own holds, and every hold on its SOs.
         {
           key: "omhold",
