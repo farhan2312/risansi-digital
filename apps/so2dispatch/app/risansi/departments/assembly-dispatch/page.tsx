@@ -31,6 +31,7 @@ import {
 } from "@/lib/assembly";
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
+import { ecDrawingRestrict, parseDrawingFilter } from "@/lib/drawing-filter";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
@@ -127,7 +128,8 @@ export default async function AssemblyDispatchWorkspacePage({
   };
   // The Pump view's SOs: those Planning has In plan, Partial or Fully ready.
   // …and the base plate and wooden box asked for (cards too: the filter bar's, not a card's).
-  const alignment = alignmentRestrict(pickAlignment((key) => params[key]));
+  // …and the drawings asked for: one pump EC both (GAD, Part drawing), as on Planning.
+  const alignment = `${alignmentRestrict(pickAlignment((key) => params[key]))} AND ${ecDrawingRestrict(parseDrawingFilter((key) => params[key]))}`;
   const pumpRestrict = ecKind === "pump" ? `${pumpViewRestrict(assemblyStatuses, packingStatuses)} AND ${alignment}` : undefined;
   // A notification links to an EC (item id) or an SO; either way the queue
   // must open on the page that holds it.

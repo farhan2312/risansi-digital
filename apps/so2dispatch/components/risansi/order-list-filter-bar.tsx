@@ -413,8 +413,8 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ pstat: next })}
           />
         )}
-        {/* The orders list: the SO's own Order Status (its column filters it too). */}
-        {noDispatchTarget && (
+        {/* The orders list (its column filters it too) and Accounts: the SO's own Order Status. */}
+        {(noDispatchTarget || dept === "accounts") && (
           <MultiSelectFilter
             label="Order status"
             allLabel="Any"

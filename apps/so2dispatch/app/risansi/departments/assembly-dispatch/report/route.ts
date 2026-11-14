@@ -7,6 +7,7 @@ import { parseQuery } from "@/lib/pagination";
 import { describeOrderListFilter, parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { ASSEMBLY_CONTEXT_FIELDS } from "@/lib/order-schema";
 import { alignmentLine, alignmentRestrict, pickAlignment, pickStageStatuses, pumpViewRestrict } from "@/lib/assembly";
+import { ecDrawingLine, ecDrawingRestrict, parseDrawingFilter } from "@/lib/drawing-filter";
 import { buildAssemblyReportPdf } from "@/lib/dept-report-pdf";
 import { buildPlanningReportXlsx } from "@/lib/planning-report-xlsx";
 import { assemblyPumpSheet, assemblySpareSheet } from "@/lib/assembly-report-sheet";
@@ -50,11 +51,11 @@ export async function GET(request: Request) {
       // The Pump view's SOs, at the assembly and packing statuses picked.
       extraRestrict:
         kind === "pump"
-          ? `${pumpViewRestrict(pickStageStatuses(get, "assembly"), pickStageStatuses(get, "packing"))} AND ${alignmentRestrict(pickAlignment(get))}`
+          ? `${pumpViewRestrict(pickStageStatuses(get, "assembly"), pickStageStatuses(get, "packing"))} AND ${alignmentRestrict(pickAlignment(get))} AND ${ecDrawingRestrict(parseDrawingFilter(get))}`
           : undefined,
     }
   );
-  const filterLine = [describeOrderListFilter(filter), kind === "pump" && alignmentLine(pickAlignment(get)), search && `Search: ${search}`]
+  const filterLine = [describeOrderListFilter(filter), kind === "pump" && alignmentLine(pickAlignment(get)), kind === "pump" && ecDrawingLine(parseDrawingFilter(get)), search && `Search: ${search}`]
     .filter(Boolean)
     .join("  ·  ");
   const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });

@@ -777,7 +777,8 @@ export function DepartmentWorkspace({
             extraKeys={[
               ...(assemblyPump ? [ASSEMBLY_STATUS_KEY, PACKING_STATUS_KEY] : []),
               ...(alignmentFilters ? [BASE_PLATE_KEY, WOODEN_BOX_KEY] : []),
-              ...(planningPump ? [PURCHASE_FILTER_KEYS.item, PURCHASE_FILTER_KEYS.boi, DRAWING_FILTER_KEYS.gad, DRAWING_FILTER_KEYS.part] : []),
+              ...(planningPump ? [PURCHASE_FILTER_KEYS.item, PURCHASE_FILTER_KEYS.boi] : []),
+              ...(planningPump || assemblyPump ? [DRAWING_FILTER_KEYS.gad, DRAWING_FILTER_KEYS.part] : []),
             ]}
             extraFilters={
               alignmentFilters ? (
@@ -832,7 +833,11 @@ export function DepartmentWorkspace({
                         selected={getList(PURCHASE_FILTER_KEYS.boi)}
                         onChange={(next) => setParams({ [PURCHASE_FILTER_KEYS.boi]: next })}
                       />
-                      {/* …and the drawings: one EC both. */}
+                    </>
+                  )}
+                  {/* The drawings, Planning's and Assembly & Packing's Pump views: one EC both. */}
+                  {(planningPump || assemblyPump) && (
+                    <>
                       <MultiSelectFilter
                         label="GAD"
                         allLabel="Any GAD"

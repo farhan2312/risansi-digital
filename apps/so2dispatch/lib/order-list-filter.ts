@@ -319,7 +319,8 @@ export function parseOrderListFilter(
         : [],
     paymentStatuses: !queue ? list(get("pstat")).filter((v) => PAYMENT_STATUS_FILTER_OPTIONS.includes(v)) : [],
     categories: !queue ? list(get("socat")).filter((v) => SO_CATEGORY_FILTER_OPTIONS.includes(v)) : [],
-    orderStatuses: opts.noDispatchTarget ? list(get("ost")).filter((v) => ORDER_STATUS_OPTIONS.includes(v)) : [],
+    // The Orders list, and Accounts' queue.
+    orderStatuses: opts.noDispatchTarget || queue === "accounts" ? list(get("ost")).filter((v) => ORDER_STATUS_OPTIONS.includes(v)) : [],
     dispatchStatuses:
       queue && DISPATCH_STATUS_FILTER_DEPTS.includes(queue)
         ? list(get("dispst")).filter((v) => statusesFor("dispatch").includes(v))
