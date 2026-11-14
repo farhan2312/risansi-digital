@@ -49,6 +49,8 @@ import { OrderChildList } from "./order-children";
 import { SortHeader } from "./sort-header";
 import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
 import { VersionTag } from "./version-tag";
+import { OrderStatusPill } from "./order-status-pill";
+import { orderStatusOf } from "@/lib/order-row-view";
 import { AccountsClearBadge, AccountsHoldButton } from "./accounts-hold";
 import { TermPis } from "./term-pis";
 import { OrderValueDetails } from "./order-value-details";
@@ -393,6 +395,9 @@ export function DepartmentWorkspace({
   // Accounts: the client sits beside the SO No., the two fixed together while
   // the table scrolls sideways (the SO No. a set width, the client after it).
   const acctPinned = table === "order_accounts";
+  // Accounts: Sales Order Date under SO No. (no column of its own), and an Order Status column.
+  const soCols = acctPinned ? soContext.filter((f) => f.column !== "so_date") : soContext;
+  const soDateField = soContext.find((f) => f.column === "so_date");
   const chatCellFor = (order: Row) => (
     <td className="px-4 py-3">
       <ChatButton
@@ -911,7 +916,9 @@ export function DepartmentWorkspace({
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {groupBySo && <th className="w-8 px-2 py-3" />}
                 <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className={`sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : ""}`} style={acctPinned ? { boxShadow: "none" } : undefined}>SO No.</th>
+                <th className={`sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : ""}`} style={acctPinned ? { boxShadow: "none" } : undefined}>
+                  {acctPinned ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : "SO No."}
+                </th>
                 {!acctPinned && <th className="px-4 py-3">Chat</th>}
                 {!groupBySo && showEcNo && <th className="px-4 py-3">EC No.</th>}
                 {showParty && (
@@ -920,7 +927,8 @@ export function DepartmentWorkspace({
                   </th>
                 )}
                 {acctPinned && <th className="px-4 py-3">Chat</th>}
-                {soContext.map((f) => (
+                {acctPinned && <th className="px-4 py-3 whitespace-nowrap">Order Status</th>}
+                {soCols.map((f) => (
                   <Fragment key={f.column}>
                   <th
                     className="px-3 py-3 whitespace-nowrap text-muted-foreground"
@@ -1041,6 +1049,9 @@ export function DepartmentWorkspace({
                       style={acctPinned ? { boxShadow: "none" } : undefined}
                     >
                       {toInput(order.so_no) || "—"}
+                      {acctPinned && soDateField && toInput(order.so_date) && (
+                        <span className="block text-[11px] font-normal text-muted">{contextValue(soDateField, order)}</span>
+                      )}
                       <VersionTag order={order} />
 <HoldBadge order={order} />
                       {/* Accounts can hold the SO for a payment reason. */}
@@ -1063,7 +1074,20 @@ export function DepartmentWorkspace({
                       </td>
                     )}
                     {acctPinned && chatCellFor(order)}
-                    {soContext.map((f) =>
+                    {/* Worked out, never set: Active, Active-Hold, Canceled, Diverted or Closed. */}
+                    {acctPinned && (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <OrderStatusPill
+                          status={orderStatusOf({
+                            dispatch_status: toInput(order.so_dispatch_status),
+                            clearance_status: toInput(order.clearance_status),
+                            om_status: toInput(order.om_status),
+                            accounts_hold_status: toInput(order.accounts_hold_status),
+                          })}
+                        />
+                      </td>
+                    )}
+                    {soCols.map((f) =>
                       // The order value to its gross, as Dispatch shows it.
                       f.column === "order_value_details" ? (
                         <td key={f.column} className="px-3 py-3 align-top">
