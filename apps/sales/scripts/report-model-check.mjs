@@ -35,7 +35,7 @@ const ROOT = path.resolve(HERE, '..');
 const SRC = path.join(ROOT, 'lib', 'custom-analytics');
 
 // A closed graph: each of these imports only the others, by relative path.
-const MODULES = ['types', 'model', 'sql', 'doc', 'templates', 'fmt', 'shape', 'build', 'sheet'];
+const MODULES = ['types', 'model', 'sql', 'doc', 'templates', 'fmt', 'shape', 'build', 'sheet', 'learn'];
 
 const dir = mkdtempSync(path.join(tmpdir(), 'risansi-report-model-'));
 let failed = 0;
@@ -61,6 +61,17 @@ try {
   const shape = await import(pathToFileURL(path.join(dir, 'shape.mjs')).href);
   const build = await import(pathToFileURL(path.join(dir, 'build.mjs')).href);
   const sheetMod = await import(pathToFileURL(path.join(dir, 'sheet.mjs')).href);
+  const learn = await import(pathToFileURL(path.join(dir, 'learn.mjs')).href);
+
+  // The date presets live outside this graph (the filter bar and half the app
+  // read them), and import nothing, so they transpile on their own. The
+  // training page names ranges by their exact label, which is the one thing
+  // about them that can be typed wrongly.
+  writeFileSync(path.join(dir, 'presets.mjs'), ts.transpileModule(
+    readFileSync(path.join(ROOT, 'lib', 'risansi-date-presets.ts'), 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+      fileName: 'presets.ts' }).outputText);
+  const { DATE_PRESETS } = await import(pathToFileURL(path.join(dir, 'presets.mjs')).href);
 
   const { DATASETS } = model;
   const { DATASET_SQL } = sql;
@@ -861,6 +872,111 @@ try {
     v = B.addToWell(v, 'values', 'orders', 'order_value');
     eq('a number from another table cannot be dragged into Group by',
        B.moveChip(v, 'values', 0, 'dims', 'orders', 'order_value'), v);
+  }
+
+  // ── 10. the training page cannot describe a screen that moved ──
+  //
+  // lib/custom-analytics/learn.ts is the training material, and every field,
+  // well, table, template, date range, grain and aggregation its words name
+  // is declared in that topic's `names`. The point is this block: rename
+  // "Legend" and the build stops with the topic that still calls it
+  // something else, rather than a page of confident instructions nobody can
+  // follow. Training that is wrong is worse than training that is missing —
+  // the reader assumes they are the one making the mistake.
+
+  {
+    const { TOPICS, SKETCH_KINDS, topicsFor } = learn;
+    const { WELL_LABEL } = build;
+    const { VISUAL_TYPES, GRAINS, AGGS } = T;
+    const sketchSrc = readFileSync(
+      path.join(ROOT, 'components', 'risansi', 'reports', 'LearnSketch.tsx'), 'utf8');
+
+    if (!TOPICS.length) bad('learn.ts has no topics');
+
+    const ids = new Set();
+    for (const t of TOPICS) {
+      const where = `topic "${t.id || '(no id)'}"`;
+      if (!t.id || !/^[a-z][a-z0-9-]*$/.test(t.id)) bad(`${where} needs a lower-case slug id`);
+      if (ids.has(t.id)) bad(`${where} is declared twice`);
+      ids.add(t.id);
+      if (t.who !== 'everyone' && t.who !== 'builders') bad(`${where} has who "${t.who}"`);
+      if (!t.title) bad(`${where} has no title`);
+      // A topic with no lead is a heading, and a heading teaches nobody.
+      if (!t.lead || t.lead.length < 80) bad(`${where} has no real lead paragraph`);
+      if (!Array.isArray(t.steps) || t.steps.length < 2) bad(`${where} needs at least two steps`);
+
+      if (t.sketch) {
+        if (!SKETCH_KINDS.includes(t.sketch.kind)) {
+          bad(`${where} names sketch "${t.sketch.kind}", which is not a SketchKind`);
+        } else if (!sketchSrc.includes(`case '${t.sketch.kind}':`)) {
+          // Declared and not drawn renders a blank box where the explanation
+          // should be, and nothing fails.
+          bad(`${where} names sketch "${t.sketch.kind}" and LearnSketch.tsx does not draw it`);
+        }
+        if (!t.sketch.caption) bad(`${where} has a sketch with no caption`);
+      }
+
+      const n = t.names ?? {};
+      for (const w of n.wells ?? []) {
+        if (!(w in WELL_LABEL)) bad(`${where} names well "${w}", which no longer exists`);
+      }
+      for (const v of n.visuals ?? []) {
+        if (!VISUAL_TYPES.includes(v)) bad(`${where} names visual type "${v}", which no longer exists`);
+      }
+      for (const ds of n.datasets ?? []) {
+        if (!DATASETS.some(d => d.id === ds)) bad(`${where} names table "${ds}", which no longer exists`);
+      }
+      for (const [ds, f] of n.fields ?? []) {
+        if (!model.fieldOf(ds, f)) bad(`${where} names ${ds}.${f}, which no longer exists`);
+      }
+      for (const k of n.templates ?? []) {
+        if (!TEMPLATES.some(x => x.key === k)) bad(`${where} names template "${k}", which no longer exists`);
+      }
+      for (const p of n.presets ?? []) {
+        if (!DATE_PRESETS.includes(p)) bad(`${where} names the date range "${p}", which the filter bar does not offer`);
+      }
+      for (const g of n.grains ?? []) {
+        if (!GRAINS.includes(g)) bad(`${where} names grain "${g}", which no longer exists`);
+      }
+      for (const a of n.aggs ?? []) {
+        if (!AGGS.includes(a)) bad(`${where} names aggregation "${a}", which no longer exists`);
+      }
+    }
+
+    // A drawing nothing points at is dead weight that still has to be kept
+    // true in both themes.
+    for (const k of SKETCH_KINDS) {
+      if (!TOPICS.some(t => t.sketch?.kind === k)) bad(`sketch "${k}" is declared and no topic uses it`);
+    }
+
+    // All four wells have to be explained somewhere, because a fifth one
+    // added later would otherwise go untaught.
+    const wellsNamed = new Set(TOPICS.flatMap(t => t.names?.wells ?? []));
+    for (const w of Object.keys(WELL_LABEL)) {
+      if (!wellsNamed.has(w)) bad(`well "${w}" (${WELL_LABEL[w]}) is not explained by any topic`);
+    }
+
+    // Somebody who cannot build still has to be given a page worth reading,
+    // and a builder has to be given everything.
+    const forEveryone = topicsFor('everyone');
+    if (forEveryone.length < 3) bad('fewer than three topics are shown to somebody who cannot build');
+    if (forEveryone.some(t => t.who !== 'everyone')) bad('topicsFor("everyone") returned a builders-only topic');
+    eq('a builder is shown every topic', topicsFor('builders').length, TOPICS.length);
+
+    // The entry points. A training page nothing links to is a training page
+    // nobody reads.
+    const LINKS = [
+      ['components/risansi/reports/ReportsHome.tsx', '/risansi/reports/learn'],
+      ['components/risansi/reports/ReportBuilder.tsx', '/risansi/reports/learn'],
+      ['components/risansi/reports/ReportViewer.tsx', '/risansi/reports/learn#whose-numbers'],
+    ];
+    for (const [file, href] of LINKS) {
+      if (!readFileSync(path.join(ROOT, file), 'utf8').includes(href)) {
+        bad(`${file} no longer links to ${href}`);
+      }
+    }
+    // And the anchor that link points at has to be a topic id.
+    if (!ids.has('whose-numbers')) bad('the viewer links to #whose-numbers and no topic has that id');
   }
 } finally {
   rmSync(dir, { recursive: true, force: true });

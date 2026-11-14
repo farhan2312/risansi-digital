@@ -64,7 +64,10 @@ export function ReportsHome({ mine, shared, canBuild }: {
           <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--fg-3)', maxWidth: 640 }}>
             Build a report once and read it every month. Every figure is computed against
             the accounts you can see, so a report shared with you shows your own numbers,
-            not the author&apos;s.
+            not the author&apos;s.{' '}
+            <Link href="/risansi/reports/learn" style={{ color: 'var(--accent)' }}>
+              How reports work
+            </Link>
           </p>
         </div>
         {canBuild && (

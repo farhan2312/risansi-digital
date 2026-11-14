@@ -24,6 +24,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   MAX_PAGES, MAX_VISUALS_PER_PAGE, VISUAL_META,
   type ReportDoc, type ReportPage, type Visual, type VisualType,
@@ -316,6 +317,13 @@ export function ReportBuilder({ id, title: title0, description: description0, do
                   title="Who else can read this report">
             Share{shares.length ? ` (${shares.length})` : ''}
           </button>
+          {/* A new tab on purpose: following a link out of here would throw
+              away everything not yet saved. */}
+          <Link href="/risansi/reports/learn" target="_blank" rel="noopener"
+                style={{ ...BTN, textDecoration: 'none', display: 'inline-block' }}
+                title="How reports work — the wells, the grid, two tables on one card. Opens in a new tab.">
+            Help
+          </Link>
           <button type="button" onClick={leave} style={BTN} title="Back to reading it">Done</button>
         </div>
       </header>

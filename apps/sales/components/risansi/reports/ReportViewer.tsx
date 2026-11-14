@@ -129,9 +129,13 @@ export function ReportViewer(p: ReportViewerProps) {
             {p.description && <span>{p.description} · </span>}
             {p.mine ? 'Yours' : `Shared by ${p.ownerName ?? 'a colleague'}`}
             {' · '}
-            <span title="Every figure here is computed against the accounts you can see, not the author's.">
+            {/* The link goes where the question comes up, rather than adding a
+                sixth button nobody reads. */}
+            <Link href="/risansi/reports/learn#whose-numbers"
+              title="Every figure here is computed against the accounts you can see, not the author's. This explains it."
+              style={{ color: 'inherit', textDecoration: 'underline dotted', textUnderlineOffset: 2 }}>
               your own figures
-            </span>
+            </Link>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
