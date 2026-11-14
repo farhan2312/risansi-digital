@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CalendarRange } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
@@ -8,6 +7,9 @@ import { FinalDispatchTarget } from "@/components/risansi/final-dispatch-target"
 import { DISPATCH_PLAN_DAYS, listDispatchPlan, type DispatchPlanRow, type DispatchPlanStage } from "@/lib/dispatch-plan";
 import { boiStatus } from "@/lib/dept-view";
 import { UrlSearchInput } from "@/components/risansi/url-table";
+import { SortHeader } from "@/components/risansi/sort-header";
+import { DispatchPlanFilters } from "@/components/risansi/dispatch-plan-filters";
+import { applyDispatchPlanFilter, parseDispatchPlanFilter, sortDispatchPlan } from "@/lib/dispatch-plan-filter";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 
 export const metadata: Metadata = {
@@ -25,14 +27,6 @@ function formatDate(value: string | null): string {
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
-/** The views the tiles switch between. */
-const SHOWS = {
-  ready: { label: "Fully ready", test: (r: DispatchPlanRow) => r.fully_ready },
-  plan: { label: `In plan · ${DISPATCH_PLAN_DAYS} days`, test: (r: DispatchPlanRow) => !r.fully_ready },
-  boi: { label: "BOI to arrive", test: (r: DispatchPlanRow) => r.boi_in_hand < r.boi_total },
-  hold: { label: "Dispatch hold", test: (r: DispatchPlanRow) => r.dispatch_hold },
-} as const;
-type Show = keyof typeof SHOWS;
 
 /** What the search reads: the SO, rep, zone, PO, PIs, its ECs and models, and its BOI items. */
 const haystack = (r: DispatchPlanRow) =>
@@ -121,32 +115,27 @@ function Chip({ tone, children }: { tone: "done" | "part" | "pending" | "danger"
   return <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{children}</span>;
 }
 
-export default async function DispatchPlanPage({ searchParams }: { searchParams: Promise<{ show?: string; q?: string }> }) {
+export default async function DispatchPlanPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!canSeeDispatchPlan(user.role)) redirect("/risansi/dashboard");
   // 360° View: only the pages picked for them.
   if (!mayOpenPage(user, "/risansi/dispatch-plan")) redirect(homeFor(user));
 
-  const { show: asked, q: rawQ } = await searchParams;
-  const show = asked && asked in SHOWS ? (asked as Show) : null;
-  const q = (rawQ ?? "").trim().toLowerCase();
-  // The tiles count what the search leaves; a tile then narrows it further.
-  const all = (await listDispatchPlan()).filter((r) => !q || haystack(r).includes(q));
-  const rows = show ? all.filter(SHOWS[show].test) : all;
-  const href = (k: Show | null) => {
-    const p = new URLSearchParams();
-    if (rawQ?.trim()) p.set("q", rawQ.trim());
-    if (k) p.set("show", k);
-    return `?${p.toString()}`;
-  };
+  const params = await searchParams;
+  const q = (params.q ?? "").trim().toLowerCase();
   const now = today();
-  const pumps = (list: DispatchPlanRow[]) => list.reduce((n, r) => n + r.pumps, 0);
+  // The search, then the filter bar and its date range, then the sort.
+  const searched = (await listDispatchPlan()).filter((r) => !q || haystack(r).includes(q));
+  const filter = parseDispatchPlanFilter((k) => params[k]);
+  const rows = sortDispatchPlan(applyDispatchPlanFilter(searched, filter, now), params.sort);
+  // The filters' choices: what the plan holds.
+  const uniq = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b));
+  const reps = uniq(searched.map((r) => r.reps));
+  const zones = uniq(searched.map((r) => r.zone));
+  const statuses = uniq([...searched.map((r) => r.status), ...(searched.some((r) => r.dispatch_hold) ? ["Dispatch hold"] : [])]);
+  const pumpCount = rows.reduce((n, r) => n + r.pumps, 0);
 
-  const tiles: { key: Show | null; label: string; list: DispatchPlanRow[] }[] = [
-    { key: null, label: "On the plan", list: all },
-    ...(Object.keys(SHOWS) as Show[]).map((k) => ({ key: k, label: SHOWS[k].label, list: all.filter(SHOWS[k].test) })),
-  ];
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
@@ -167,33 +156,10 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         <UrlSearchInput placeholder="Search SO, rep, zone, PO, PI, EC, model, BOI item…" />
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        {tiles.map((t) => {
-          const on = show === t.key;
-          return (
-            <Link
-              key={t.label}
-              href={href(t.key && !on ? t.key : null)}
-              aria-pressed={on}
-              className={`rounded-xl border bg-surface px-3.5 py-2.5 shadow-sm transition-colors ${
-                on ? "border-transparent ring-2 ring-primary/40" : "border-card-border hover:bg-background"
-              }`}
-            >
-              <span className="block text-[11px] font-medium text-muted">{t.label}</span>
-              <span className="mt-1 flex items-baseline gap-2 font-display text-xl font-bold tabular-nums text-foreground">
-                <span>
-                  {t.list.length}
-                  <span className="ml-0.5 text-[10px] font-semibold text-muted">SO{t.list.length === 1 ? "" : "s"}</span>
-                </span>
-                <span className="text-[0.8em]">
-                  {pumps(t.list)}
-                  <span className="ml-0.5 text-[10px] font-semibold text-muted">pumps</span>
-                </span>
-              </span>
-            </Link>
-          );
-        })}
-      </div>
+      <DispatchPlanFilters reps={reps} zones={zones} statuses={statuses} total={rows.length} />
+      <p className="-mt-2 mb-3 text-xs text-muted">
+        <span className="font-semibold text-foreground">{pumpCount}</span> pump{pumpCount === 1 ? "" : "s"} on these SOs
+      </p>
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-card-border bg-surface px-6 py-16 text-center shadow-sm">
@@ -211,20 +177,20 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
                 <th className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3">Sl.</th>
-                <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">SO</th>
+                <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]"><SortHeader label="SO / Date" sortKey="so_date" /></th>
                 <th className="px-4 py-3">Rep · Zone</th>
-                <th className="px-4 py-3">PO</th>
-                <th className="whitespace-nowrap px-4 py-3">SO Sent to PPC</th>
+                <th className="px-4 py-3"><SortHeader label="PO / Date" sortKey="po_date" /></th>
+                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Sent to PPC" sortKey="ppc" /></th>
                 <th className="px-4 py-3">ECs · Model</th>
                 <th className="px-4 py-3 text-right">Pumps</th>
-                <th className="px-4 py-3">Readiness</th>
+                <th className="px-4 py-3"><SortHeader label="Readiness" sortKey="readiness" /></th>
                 <th className="px-4 py-3">BOI</th>
                 <th className="px-4 py-3">Alignment</th>
-                <th className="px-4 py-3">Assembly</th>
-                <th className="px-4 py-3">Packing</th>
-                <th className="px-4 py-3">Dispatch Target</th>
+                <th className="px-4 py-3"><SortHeader label="Assembly" sortKey="asm" /></th>
+                <th className="px-4 py-3"><SortHeader label="Packing" sortKey="pkg" /></th>
+                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Dispatch Target" sortKey="dispatch_target" /></th>
                 {/* Central Visibility's own, after the department's. */}
-                <th className="whitespace-nowrap px-4 py-3">Final Dispatch Target</th>
+                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Final Dispatch Target" sortKey="final_target" /></th>
                 <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
