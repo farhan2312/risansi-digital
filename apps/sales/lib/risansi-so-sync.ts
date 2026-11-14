@@ -60,7 +60,7 @@ export async function syncSalesOrders(): Promise<SyncResult> {
   // invoice value by four, which is the classic way a mirror like this ends up
   // reporting a book several times its real size.
   const { rows } = await ecPool().query<Row>(`
-    SELECT o.so_no,
+    SELECT COALESCE(NULLIF(BTRIM(o.so_no), ''), '(no SO number) ' || o.id::text) AS so_no,
            NULLIF(BTRIM(o.client_code), '')            AS client_code,
            o.so_date::text                             AS so_date,
            o.customer_po_date::text                    AS po_date,
@@ -91,8 +91,12 @@ export async function syncSalesOrders(): Promise<SyncResult> {
                COUNT(*) FILTER (WHERE it.item_type = 'Spare')           AS spare_lines
           FROM order_items it WHERE it.order_id = o.id
       ) items ON TRUE
-     WHERE o.so_no IS NOT NULL AND BTRIM(o.so_no) <> ''
-       AND ${NOT_A_TEST}`);
+     WHERE ${NOT_A_TEST}`);
+  // Eleven orders carry no SO number at all. They are real orders — ten of
+  // them are open — so they are keyed on the dispatch portal's own id under a
+  // label that says what is missing, rather than dropped. Dropped, the report
+  // table read 243 open against the Opportunities row's 253 and there was
+  // nothing on either screen to explain the ten.
 
   // ── write, in here ──
   const client = await risansiPool.connect();

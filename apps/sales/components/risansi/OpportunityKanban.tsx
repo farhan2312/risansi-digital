@@ -21,6 +21,12 @@ export interface KanbanOpp extends EditableOpp {
   created_at?: string | null;   // ISO; cards sort newest-first within a column
   updated_at?: string | null;   // bumped on every edit; drives the server re-sync below
   so_sum_cr?: number | null;    // Σ of this opp's Sales Order values (Cr) — drives Won Open/Closed
+  /**
+   * The account's country. Shown on the card only when it is not India:
+   * two thousand cards reading "India" is not information, and the one
+   * reading "Kenya" is the whole point.
+   */
+  country?: string | null;
 }
 
 const STAGES = ['Prospect', 'Budgetary Quotation', 'Quoted', 'Negotiating', 'On Hold', 'Won', 'Lost', 'Dropped'] as const;
@@ -403,7 +409,17 @@ export function OpportunityKanban({ initialOpps, stageTotals, usdRate = 86, filt
                       </div>
                     )}
                     <div style={{ fontSize: 10, color: 'var(--fg-3)', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
-                      <span style={{ flexShrink: 0 }}>{opp.client_code}</span>
+                      <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {opp.client_code}
+                        {opp.country && !/^india$/i.test(opp.country) && (
+                          <span title={`Export account — ${opp.country}`}
+                            style={{ fontFamily: 'inherit', fontSize: 9, padding: '0 4px', borderRadius: 3,
+                                     border: '1px solid var(--accent-line)', color: 'var(--accent)',
+                                     whiteSpace: 'nowrap' }}>
+                            {opp.country}
+                          </span>
+                        )}
+                      </span>
                       <span title={opp.tour_name ? `Tour: ${opp.tour_name}` : 'No tour assigned'} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{opp.tour_name || '—'}</span>
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.3, marginBottom: 4, color: 'var(--fg)', overflowWrap: 'anywhere' }}>{opp.client_name}</div>

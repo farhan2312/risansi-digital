@@ -46,6 +46,7 @@ interface OppRow {
   client_name:         string;
   client_code:         string;
   industry:            string;
+  country:             string | null;
   rep_id:              number | null;
   rep_name:            string | null;
   tour_name:           string | null;
@@ -121,6 +122,7 @@ export default async function PipelinePage({
   // literally named "all" (which returned zero results for "All Opportunities").
   const repFilts      = typeof sp.rep          === 'string' && sp.rep && sp.rep !== 'all' ? sp.rep.split(',').filter(Boolean)          : [];
   const indFilts      = typeof sp.industry     === 'string' && sp.industry     ? sp.industry.split(',').filter(Boolean)     : [];
+  const cntryFilts    = typeof sp.country      === 'string' && sp.country      ? sp.country.split(',').filter(Boolean)      : [];
   const ctypeFilts    = typeof sp.ctype        === 'string' && sp.ctype        ? sp.ctype.split(',').filter(Boolean)        : [];
   // Client STATUS — where the account sits in its own life (Prospective-Lead →
   // Prospective-Client → Active), which is a different question from
@@ -232,6 +234,10 @@ export default async function PipelinePage({
     conds.push(`c.industry = ANY($${idx}::text[])`);
     vals.push(indFilts); idx++;
   }
+  if (cntryFilts.length > 0) {
+    conds.push(`c.country = ANY($${idx}::text[])`);
+    vals.push(cntryFilts); idx++;
+  }
   if (ctypeFilts.length > 0) {
     conds.push(`c.client_type = ANY($${idx}::text[])`);
     vals.push(ctypeFilts); idx++;
@@ -315,6 +321,10 @@ export default async function PipelinePage({
     revConds.push(`c.industry = ANY($${rIdx}::text[])`);
     revVals.push(indFilts); rIdx++;
   }
+  if (cntryFilts.length > 0) {
+    revConds.push(`c.country = ANY($${rIdx}::text[])`);
+    revVals.push(cntryFilts); rIdx++;
+  }
   if (ctypeFilts.length > 0) {
     revConds.push(`c.client_type = ANY($${rIdx}::text[])`);
     revVals.push(ctypeFilts); rIdx++;
@@ -342,6 +352,7 @@ export default async function PipelinePage({
     if (prodTypeFilts.length)   { c.push(`${a}.product_type = ANY($${v.length + 1}::text[])`);                                 v.push(prodTypeFilts); }
     if (repFilts.length)        { c.push(`${a}.client_id IN (SELECT c.id FROM clients c WHERE ${repBookSql(`$${v.length + 1}::text[]`)})`);  v.push(repFilts); }
     if (indFilts.length)        { c.push(`${a}.client_id IN (SELECT id FROM clients WHERE industry = ANY($${v.length + 1}::text[]))`); v.push(indFilts); }
+    if (cntryFilts.length)      { c.push(`${a}.client_id IN (SELECT id FROM clients WHERE country = ANY($${v.length + 1}::text[]))`); v.push(cntryFilts); }
     if (ctypeFilts.length)      { c.push(`${a}.client_id IN (SELECT id FROM clients WHERE client_type = ANY($${v.length + 1}::text[]))`); v.push(ctypeFilts); }
     if (cstatFilts.length)      { c.push(`${a}.client_id IN (SELECT id FROM clients WHERE status = ANY($${v.length + 1}::text[]))`); v.push(cstatFilts); }
     if (probFilts.length)       { c.push(`${a}.probability_code = ANY($${v.length + 1}::text[])`);                             v.push(probFilts); }
@@ -409,7 +420,7 @@ export default async function PipelinePage({
           ELSE FALSE
         END AS can_edit`;
 
-  const [openOpps, closedOpps, bookedYTD, annualTarget, winLossRows, lostToRows, stageOptions, productTypeOptions, repOptions, industryOptions, clientTypeOptions, clientStatusOptions, wonTotal, orderInHand, orderBooked, wonQuotedPo, stageTotals, usdRate, dispatch, invoicesBeganIn] = await Promise.all([
+  const [openOpps, closedOpps, bookedYTD, annualTarget, winLossRows, lostToRows, stageOptions, productTypeOptions, repOptions, industryOptions, countryOptions, clientTypeOptions, clientStatusOptions, wonTotal, orderInHand, orderBooked, wonQuotedPo, stageTotals, usdRate, dispatch, invoicesBeganIn] = await Promise.all([
 
     // 1. Open opportunities with filters + sort. Feeds the KPIs, the kanban (every
     //    open card must show), and the Active Opportunities table — so NO row cap
@@ -443,7 +454,7 @@ export default async function PipelinePage({
                         UNION ALL
                         SELECT s.rep_id, 1 FROM client_secondary_reps s WHERE s.client_id = c.id) r2
                   JOIN users u2 ON u2.id = r2.user_id) AS tour_people,
-               c.legal_name AS client_name, c.code AS client_code, c.industry,
+               c.legal_name AS client_name, c.code AS client_code, c.industry, c.country,
                -- The client's owner, which is the only rep an opportunity has
                -- under the attribution rule (lib/risansi-attribution.ts). It
                -- was o.rep_id, so a board filtered to one rep showed cards
@@ -495,7 +506,7 @@ export default async function PipelinePage({
                         UNION ALL
                         SELECT s.rep_id, 1 FROM client_secondary_reps s WHERE s.client_id = c.id) r2
                   JOIN users u2 ON u2.id = r2.user_id) AS tour_people,
-               c.legal_name AS client_name, c.code AS client_code, c.industry,
+               c.legal_name AS client_name, c.code AS client_code, c.industry, c.country,
                -- The client's owner, which is the only rep an opportunity has
                -- under the attribution rule (lib/risansi-attribution.ts). It
                -- was o.rep_id, so a board filtered to one rep showed cards
@@ -619,6 +630,20 @@ export default async function PipelinePage({
         `SELECT DISTINCT c.industry FROM clients c WHERE c.industry IS NOT NULL${ownerVisCIdAnd} ORDER BY c.industry`,
       );
       return rows.map(r => r.industry);
+    }, []),
+
+    // Countries, from accounts that actually carry an opportunity. The whole
+    // client list would offer forty-odd countries to choose between on a
+    // board that holds four of them.
+    q<string[]>(async () => {
+      const { rows } = await risansiPool.query<{ country: string }>(
+        `SELECT DISTINCT c.country
+           FROM clients c
+          WHERE c.country IS NOT NULL AND c.country <> ''
+            AND EXISTS (SELECT 1 FROM opportunities o WHERE o.client_id = c.id)${ownerVisCIdAnd}
+          ORDER BY c.country`,
+      );
+      return rows.map(r => r.country);
     }, []),
 
     // Client-type options, derived from the data (so legacy values like
@@ -835,7 +860,7 @@ export default async function PipelinePage({
     ? Math.round((totalWon / (totalWon + totalLost)) * 100)
     : 0;
 
-  const anyFilter = stageFilts.length > 0 || marketFilts.length > 0 || prodTypeFilts.length > 0 || repFilts.length > 0 || indFilts.length > 0 || ctypeFilts.length > 0 || cstatFilts.length > 0 || probFilts.length > 0 || valFilts.length > 0 || !!soFilt || !!qname || !!qfrom || !!qto || !!efrom || !!eto;
+  const anyFilter = stageFilts.length > 0 || marketFilts.length > 0 || prodTypeFilts.length > 0 || repFilts.length > 0 || indFilts.length > 0 || cntryFilts.length > 0 || ctypeFilts.length > 0 || cstatFilts.length > 0 || probFilts.length > 0 || valFilts.length > 0 || !!soFilt || !!qname || !!qfrom || !!qto || !!efrom || !!eto;
   // Revenue (Invoiced) is client_revenue_monthly, which has no opportunity on it,
   // so only the client-level filters can reach it. When one of the others is in
   // force every tile around it moves and that one does not — say so on the tile
@@ -849,7 +874,7 @@ export default async function PipelinePage({
 
   // Carry the active filters onto the Excel export so it matches what's on screen.
   const exportParams = new URLSearchParams();
-  for (const k of ['stage', 'product_type', 'rep', 'industry', 'ctype', 'cstat', 'so', 'prob', 'val', 'qname', 'qfrom', 'qto', 'efrom', 'eto']) {
+  for (const k of ['stage', 'product_type', 'rep', 'industry', 'country', 'ctype', 'cstat', 'so', 'prob', 'val', 'qname', 'qfrom', 'qto', 'efrom', 'eto']) {
     const v = sp[k];
     if (typeof v === 'string' && v) exportParams.set(k, v);
   }
@@ -931,6 +956,12 @@ export default async function PipelinePage({
           <MultiSelectFilter param="market"       label="Market"       options={MARKET_OPTIONS.map(o => ({ value: o.value, label: o.label }))} selected={marketFilts} />
           <MultiSelectFilter param="rep"          label="Rep"          options={repOptions}          selected={repFilts}      />
           <MultiSelectFilter param="industry"     label="Industry"     options={industryOptions}     selected={indFilts}      />
+          {/* Only where there is something to choose between: on a board
+              holding one country, a country filter is a dropdown that
+              cannot change the answer. */}
+          {countryOptions.length > 1 && (
+            <MultiSelectFilter param="country"      label="Country"      options={countryOptions}      selected={cntryFilts}   />
+          )}
           {/* One dropdown, two questions. Status (where the account is in its
               life) and Type (what kind of buyer it is) live in different columns
               and in different URL params, so ticking Active and OEM asks for OEM
@@ -957,6 +988,7 @@ export default async function PipelinePage({
                 valueLabels: MARKET_LABELS },
               { param: 'rep',          label: 'Rep',      values: repFilts      },
               { param: 'industry',     label: 'Industry', values: indFilts      },
+              { param: 'country',      label: 'Country',  values: cntryFilts    },
               { param: 'ctype',        label: 'Client Type', values: ctypeFilts },
               { param: 'cstat',        label: 'Client Status', values: cstatFilts,
                 valueLabels: CLIENT_STATUS_LABELS },

@@ -81,8 +81,20 @@ export default async function ExhibitionDetailPage({ params }: { params: Promise
                 m.follow_up_type, m.follow_up_owner_id, fo.name AS follow_up_owner_name,
                 m.follow_up_note, m.linked_visit_id, m.linked_task_id, m.linked_opportunity_id,
                 m.high_potential, m.lead_client_id, lc.code AS lead_client_code,
-                m.lead_opportunity_id, m.lead_skipped_reason
+                m.lead_opportunity_id, m.lead_skipped_reason,
+                -- A meeting carries a city and no country of its own. The
+                -- account it matched knows one; the lead it became knows one;
+                -- failing both, the show itself was held somewhere, and a
+                -- company met at the Nairobi stand is overwhelmingly Kenyan.
+                -- Which of the three answered is on the row, so nobody reads
+                -- a guess as a fact.
+                COALESCE(c.country, lc.country, e.country) AS country,
+                CASE WHEN c.country IS NOT NULL THEN 'client'
+                     WHEN lc.country IS NOT NULL THEN 'lead'
+                     WHEN e.country IS NOT NULL THEN 'event'
+                     ELSE NULL END AS country_from
            FROM exhibition_meetings m
+           JOIN exhibitions e ON e.id = m.exhibition_id
            LEFT JOIN clients c ON c.id = m.client_id
            LEFT JOIN clients lc ON lc.id = m.lead_client_id
            LEFT JOIN users fo ON fo.id = m.follow_up_owner_id

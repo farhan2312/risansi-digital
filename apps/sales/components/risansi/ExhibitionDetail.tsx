@@ -72,6 +72,10 @@ export interface MeetingRow {
   /** Set once this meeting has been turned into a Prospective-Lead client. */
   lead_client_id?: number | null;
   lead_client_code?: string | null;
+  /** The account's country, the lead's, or failing both the event's own. */
+  country?: string | null;
+  /** Which of the three answered: 'client', 'lead' or 'event'. */
+  country_from?: 'client' | 'lead' | 'event' | null;
 }
 export interface ExpenseRow {
   id: number; category: string; description: string | null; vendor: string | null;
@@ -688,7 +692,7 @@ function TeamTab({ exhibitionId, team, users, canManage, attendFrom, attendTo }:
  */
 function meetingHaystack(m: MeetingRow): string {
   return [
-    m.company_name, m.client_legal_name, m.client_code, m.city,
+    m.company_name, m.client_legal_name, m.client_code, m.city, m.country,
     m.contact_person, m.designation, m.phone, m.email,
     ...(m.contacts ?? []).flatMap(c => [c.name, c.designation, c.phone, c.email]),
     m.discussion, m.requirement, m.outcome, m.next_action, m.interest, m.met_by_name,
@@ -713,10 +717,21 @@ function MeetingsTab({ exhibitionId, meetings, users, canManage, canConvert }: {
   // is already on the page, so this filters what is in hand — no navigation, no
   // round trip, nothing to echo.
   const [query, setQuery] = useState('');
+  const [country, setCountry] = useState('');
   const needle = query.trim().toLowerCase();
+
+  // Only the countries these meetings actually came from, and only once there
+  // is more than one: a dropdown holding a single value cannot narrow
+  // anything, and most shows are held in one country.
+  const countries = useMemo(
+    () => [...new Set(meetings.map(m => (m.country ?? '').trim()).filter(Boolean))].sort(),
+    [meetings],
+  );
   const shown = useMemo(
-    () => (needle === '' ? meetings : meetings.filter(m => meetingHaystack(m).includes(needle))),
-    [meetings, needle],
+    () => meetings.filter(m =>
+      (needle === '' || meetingHaystack(m).includes(needle))
+      && (country === '' || (m.country ?? '') === country)),
+    [meetings, needle, country],
   );
 
   return (
@@ -780,13 +795,21 @@ function MeetingsTab({ exhibitionId, meetings, users, canManage, canConvert }: {
               fontSize: 13, color: 'var(--fg-3)', pointerEvents: 'none',
             }}>⌕</span>
           </div>
+          {countries.length > 1 && (
+            <select value={country} onChange={e => setCountry(e.target.value)}
+              aria-label="Filter by country"
+              style={{ ...INPUT, width: 'auto', minWidth: 150 }}>
+              <option value="">Every country</option>
+              {countries.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
           <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
-            {needle === ''
+            {needle === '' && country === ''
               ? `${meetings.length} meeting${meetings.length === 1 ? '' : 's'}`
               : `${shown.length} of ${meetings.length}`}
           </span>
-          {needle !== '' && (
-            <button onClick={() => setQuery('')} style={LINK_BTN}>clear</button>
+          {(needle !== '' || country !== '') && (
+            <button onClick={() => { setQuery(''); setCountry(''); }} style={LINK_BTN}>clear</button>
           )}
         </div>
       )}
@@ -794,7 +817,10 @@ function MeetingsTab({ exhibitionId, meetings, users, canManage, canConvert }: {
       {meetings.length === 0 ? (
         <div style={PANEL}><Blank>No meetings captured yet.</Blank></div>
       ) : shown.length === 0 ? (
-        <div style={PANEL}><Blank>No meeting matches “{query.trim()}”.</Blank></div>
+        <div style={PANEL}><Blank>
+          No meeting matches{query.trim() ? ` “${query.trim()}”` : ''}
+          {country ? `${query.trim() ? ' in ' : ' '}${country}` : ''}.
+        </Blank></div>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {/* The whole list stays put while a meeting is being edited — the
@@ -806,6 +832,20 @@ function MeetingsTab({ exhibitionId, meetings, users, canManage, canConvert }: {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <strong style={{ fontSize: 14, color: 'var(--title)' }}>{m.company_name}</strong>
+                    {m.country && (
+                      <span
+                        title={m.country_from === 'client' ? `${m.country} — from the matched account`
+                          : m.country_from === 'lead' ? `${m.country} — from the lead this became`
+                          : `${m.country} — where the event was held; this meeting has no country of its own`}
+                        style={{
+                          fontSize: 10, padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap',
+                          border: '1px solid var(--accent-line)',
+                          color: m.country_from === 'event' ? 'var(--fg-3)' : 'var(--accent)',
+                          borderStyle: m.country_from === 'event' ? 'dashed' : 'solid',
+                        }}>
+                        {m.country}
+                      </span>
+                    )}
                     {/* The flag. A matched company is marked; an unmatched one is
                         simply left plain — not an error, just a company we do not
                         already work with. */}
