@@ -155,7 +155,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className="w-full min-w-[1800px] text-sm">
+          <table className="w-full min-w-[1650px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
@@ -170,7 +170,6 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3">BOI</th>
                 <th className="px-4 py-3">Assembly</th>
                 <th className="px-4 py-3">Packing</th>
-                <th className="px-4 py-3">Account</th>
                 <th className="px-4 py-3">Dispatch Target</th>
                 {/* Central Visibility's own, after the department's. */}
                 <th className="whitespace-nowrap px-4 py-3">Final Dispatch Target</th>
@@ -265,16 +264,6 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <Stage st={r.packing} now={now} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {r.accounts_status === "Clear" ? (
-                        <>
-                          <Chip tone="done">Clear</Chip>
-                          {r.accounts_remarks && <div className="mt-1 max-w-[14rem] text-xs text-muted">{r.accounts_remarks}</div>}
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted">Not set</span>
-                      )}
                     </td>
                     <td className={`whitespace-nowrap px-4 py-3 ${targetLate ? "font-medium text-rose-700 dark:text-rose-300" : ""}`}>
                       {formatDate(r.dispatch_target)}
