@@ -517,6 +517,37 @@ export function DepartmentWorkspace({
     };
     return { status: one("status"), date: one("date") };
   };
+  /** The SO's readiness (Planning) or ready / packed date (Assembly), with how late it is. */
+  const readinessTd = (g: { head: Row; ecs: Row[] }) => {
+    const sum = soSummary(g.ecs);
+    return (
+      <td className="px-4 py-3 whitespace-nowrap text-muted">
+        {/* Planning and Central can see how the lots moved; Assembly
+            works from the latest. */}
+        {/* A Fully ready SO has no date left to show, but its
+            history still says when it moved. */}
+        {table === "order_planning" &&
+        (role === "planning" || role === "central_visibility" || role === "admin") &&
+        (sum.date !== "—" || sum.status === "Fully ready") ? (
+          <ReadyLotHistoryButton
+            orderId={String(g.head.order_id)}
+            label={sum.date === "—" ? "History" : sum.date}
+            soLabel={toInput(g.head.so_no) || String(g.head.sl_no ?? "")}
+          />
+        ) : (
+          sum.date
+        )}
+        {(table === "order_planning" || table === "order_assembly_dispatch") && (() => {
+          const late = readinessOverdueDays(g.ecs);
+          return late > 0 ? (
+            <div className="mt-0.5 text-[11px] font-medium text-rose-600">
+              Overdue by {late} day{late === 1 ? "" : "s"}
+            </div>
+          ) : null;
+        })()}
+      </td>
+    );
+  };
   /**
    * The SO's packing plan for its Spare lots: the earliest packing date among
    * lots not packed yet (with that lot's shift and PDI); once everything is
@@ -874,8 +905,8 @@ export function DepartmentWorkspace({
                 )}
                 {acctPinned && <th className="px-4 py-3">Chat</th>}
                 {soContext.map((f) => (
+                  <Fragment key={f.column}>
                   <th
-                    key={f.column}
                     className="px-3 py-3 whitespace-nowrap text-muted-foreground"
                   >
                     {f.column === "so_date" ? (
@@ -886,6 +917,13 @@ export function DepartmentWorkspace({
                       fieldHead(f)
                     )}
                   </th>
+                  {/* Planning: the readiness date right after SO Date. */}
+                  {f.column === "so_date" && table === "order_planning" && groupBySo && soEdit && (
+                    <th className="px-4 py-3 whitespace-nowrap">
+                      <SortHeader label={soDateLabel} sortKey="readiness" />
+                    </th>
+                  )}
+                  </Fragment>
                 ))}
                 {groupBySo ? (
                   <>
@@ -893,13 +931,11 @@ export function DepartmentWorkspace({
                     {soEdit && (
                       <>
                         <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3 whitespace-nowrap">
-                          {table === "order_planning" || table === "order_assembly_dispatch" ? (
-                            <SortHeader label={soDateLabel} sortKey="readiness" />
-                          ) : (
-                            soDateLabel
-                          )}
-                        </th>
+                        {table !== "order_planning" && (
+                          <th className="px-4 py-3 whitespace-nowrap">
+                            {table === "order_assembly_dispatch" ? <SortHeader label={soDateLabel} sortKey="readiness" /> : soDateLabel}
+                          </th>
+                        )}
                         {/* Planning sees how far Assembly & Packing and Dispatch have got. */}
                         {table === "order_planning" && (
                           <>
@@ -1137,12 +1173,11 @@ export function DepartmentWorkspace({
                           </td>
                         )}
                         {soContext.map((f) => (
-                          <td
-                            key={f.column}
-                            className="px-3 py-3 whitespace-nowrap text-muted"
-                          >
-                            {contextCell(f, g.head)}
-                          </td>
+                          <Fragment key={f.column}>
+                            <td className="px-3 py-3 whitespace-nowrap text-muted">{contextCell(f, g.head)}</td>
+                            {/* Planning: the readiness date right after SO Date. */}
+                            {f.column === "so_date" && table === "order_planning" && soEdit && readinessTd(g)}
+                          </Fragment>
                         ))}
                         <td className="px-4 py-3 text-center tabular-nums">
                           {g.ecs.length}
@@ -1153,31 +1188,8 @@ export function DepartmentWorkspace({
                           return (
                             <>
                               <td className="px-4 py-3 whitespace-nowrap">{cvHeld(g.head) ? <HoldChip /> : sum.status}</td>
-                              <td className="px-4 py-3 whitespace-nowrap text-muted">
-                                {/* Planning and Central can see how the lots moved; Assembly
-                                    works from the latest. */}
-                                {/* A Fully ready SO has no date left to show, but its
-                                    history still says when it moved. */}
-                                {table === "order_planning" &&
-                                (role === "planning" || role === "central_visibility" || role === "admin") &&
-                                (sum.date !== "—" || sum.status === "Fully ready") ? (
-                                  <ReadyLotHistoryButton
-                                    orderId={String(g.head.order_id)}
-                                    label={sum.date === "—" ? "History" : sum.date}
-                                    soLabel={toInput(g.head.so_no) || String(g.head.sl_no ?? "")}
-                                  />
-                                ) : (
-                                  sum.date
-                                )}
-                                {(table === "order_planning" || table === "order_assembly_dispatch") && (() => {
-                                  const late = readinessOverdueDays(g.ecs);
-                                  return late > 0 ? (
-                                    <div className="mt-0.5 text-[11px] font-medium text-rose-600">
-                                      Overdue by {late} day{late === 1 ? "" : "s"}
-                                    </div>
-                                  ) : null;
-                                })()}
-                              </td>
+                              {/* Planning has it after SO Date. */}
+                              {table !== "order_planning" && readinessTd(g)}
                               {table === "order_planning" && (() => {
                                 const asm = soSummary(g.ecs, "order_assembly_dispatch");
                                 return (

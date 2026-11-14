@@ -136,6 +136,7 @@ export function PlanningPumpTable({
           <th className={`${th} sticky-so`}>SO No.</th>
           <th className={th}>Chat</th>
           <th className={th}><SortHeader label="SO Date" sortKey="so_date" /></th>
+          <th className={th}><SortHeader label="Assembly Readiness Date" sortKey="readiness" /></th>
           {soColumns.map((f) => (
             <th key={f.column} className={th}>
               {/* The SO's own dates sort the queue. */}
@@ -143,7 +144,6 @@ export function PlanningPumpTable({
             </th>
           ))}
           <th className={th}>Status</th>
-          <th className={th}><SortHeader label="Assembly Readiness Date" sortKey="readiness" /></th>
           {LOT_COLUMNS.map((n) => (
             <th key={n} className={th}>Lot {n}</th>
           ))}
@@ -226,6 +226,20 @@ export function PlanningPumpTable({
                         <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                           {str(head.so_date) ? shortDate(str(head.so_date)) : "—"}
                         </td>
+                        <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                          {/* How the readiness date moved, as on a Spare SO. */}
+                          {seesReadinessHistory ? (
+                            <ReadyLotHistoryButton
+                              orderId={orderId}
+                              label={str(head.planning_readiness_date) ? shortDate(str(head.planning_readiness_date)) : "History"}
+                              soLabel={soLabel}
+                            />
+                          ) : str(head.planning_readiness_date) ? (
+                            shortDate(str(head.planning_readiness_date))
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         {soColumns.map((f) => (
                           <td key={f.column} rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>
                             {formatDisplay(f, head[f.column]) || "—"}
@@ -246,20 +260,6 @@ export function PlanningPumpTable({
                             <span className="block max-w-[14rem] whitespace-normal text-[11px] text-muted">
                               {str(head.pump_readiness_remarks)}
                             </span>
-                          )}
-                        </td>
-                        <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                          {/* How the readiness date moved, as on a Spare SO. */}
-                          {seesReadinessHistory ? (
-                            <ReadyLotHistoryButton
-                              orderId={orderId}
-                              label={str(head.planning_readiness_date) ? shortDate(str(head.planning_readiness_date)) : "History"}
-                              soLabel={soLabel}
-                            />
-                          ) : str(head.planning_readiness_date) ? (
-                            shortDate(str(head.planning_readiness_date))
-                          ) : (
-                            "—"
                           )}
                         </td>
                         {/* Lot 1 to 3, then the latest however many there are (col 0). */}
