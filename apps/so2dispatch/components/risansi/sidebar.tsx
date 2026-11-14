@@ -146,7 +146,7 @@ export function Sidebar({
 
   return (
     <aside
-      className={`sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar transition-[width] duration-200 lg:flex ${collapsed ? "w-16" : "w-64"}`}
+      className={`sticky top-0 z-30 hidden h-screen shrink-0 flex-col bg-sidebar transition-[width] duration-200 lg:flex ${collapsed ? "w-16" : "w-64"}`}
     >
       {/* brand, and the collapse toggle */}
       {collapsed ? (
@@ -185,7 +185,7 @@ export function Sidebar({
       {!collapsed && <RoleSwitcher role={user.role} roles={user.roles ?? []} variant="sidebar" />}
 
       {/* nav */}
-      <nav className={`flex-1 overflow-y-auto py-2 ${collapsed ? "px-2" : "px-3"}`}>
+      <nav className={`min-h-0 flex-1 overflow-y-auto py-2 ${collapsed ? "px-2" : "px-3"}`}>
         <div className="mb-6">
           {collapsed ? null : (
             <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">

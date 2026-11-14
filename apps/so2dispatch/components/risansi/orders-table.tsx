@@ -1256,7 +1256,7 @@ export function OrdersTable({
       {split &&
         (panel.collapsed ? (
           // Collapsed: a slim rail — the SO it holds, and the way back.
-          <aside className={`${panel.pinned ? "sticky top-20" : ""} flex flex-col items-center gap-3 rounded-xl border border-card-border bg-surface py-3 shadow-sm`}>
+          <aside className={`${panel.pinned ? "sticky top-20 z-30" : ""} flex flex-col items-center gap-3 rounded-xl border border-card-border bg-surface py-3 shadow-sm`}>
             <button
               type="button"
               onClick={() => setSplitPanelPrefs({ collapsed: false })}
@@ -1276,7 +1276,10 @@ export function OrdersTable({
           <aside
             ref={panelRef}
             className={`rounded-xl border border-card-border bg-surface shadow-sm ${
-              panel.pinned ? "sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto" : ""
+              // Pinned, it is a layer of its own: lifted above the table (whose SO No.
+              // column is sticky too) so a pop-up opened in it covers the whole page.
+              // Unpinned, it is no layer, and its pop-ups cover the page anyway.
+              panel.pinned ? "sticky top-20 z-30 max-h-[calc(100vh-6rem)] overflow-y-auto" : ""
             }`}
           >
             {/* The panel's own bar: pin it in view, or collapse it to give the table the room. */}
