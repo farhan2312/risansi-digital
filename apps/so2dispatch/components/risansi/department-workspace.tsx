@@ -18,7 +18,7 @@ import {
   WOODEN_BOX_FILTER,
   WOODEN_BOX_KEY,
 } from "@/lib/assembly";
-import { PUMP_SO_PLANNING_FIELDS, SORTABLE_DATE_COLUMNS } from "@/lib/order-schema";
+import { LD_DATE_FIELD, PUMP_SO_PLANNING_FIELDS, SORTABLE_DATE_COLUMNS, withLdCombined } from "@/lib/order-schema";
 import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS } from "@/lib/purchase-filter";
 import { DRAWING_FILTER_KEYS, GAD_STATUSES, PART_STATUSES } from "@/lib/drawing-filter";
 import { isCentral } from "@/lib/roles";
@@ -360,12 +360,23 @@ export function DepartmentWorkspace({
     );
   }
 
-  const soContext = readonlyFields.filter((f) => !f.from || f.from === "orders");
+  // LD and LD Date in one column.
+  const soContext = withLdCombined(readonlyFields.filter((f) => !f.from || f.from === "orders"));
 
   // A department works to its target dates but cannot set them, so the value
   // carries the history behind it — a date that has moved twice reads very
   // differently from one that never has.
   function contextCell(f: OrderField, row: Row) {
+    // LD with its date under it.
+    if (f.column === "ld") {
+      const date = toInput(row.ld_date) ? contextValue(LD_DATE_FIELD, row) : null;
+      return (
+        <>
+          {contextValue(f, row)}
+          {date && <span className="block text-[11px]">{date}</span>}
+        </>
+      );
+    }
     const value = contextValue(f, row);
     const target = targetForColumn(f.column);
     const orderId = toInput(row.order_id ?? row.id);

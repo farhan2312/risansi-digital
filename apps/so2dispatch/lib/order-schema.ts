@@ -1935,6 +1935,16 @@ export const PLANNING_CONTEXT_FIELDS: OrderField[] = [
   { column: "so_handover_date", label: "SO Sent to PPC Date", type: "date" },
 ];
 
+/**
+ * LD and LD Date as one column: LD (Yes / No) with its date under it. Where a
+ * list shows both, LD Date's own column goes and LD's is headed for both.
+ */
+export const LD_DATE_FIELD: OrderField = { column: "ld_date", label: "LD Date", type: "date" };
+export function withLdCombined(fields: OrderField[]): OrderField[] {
+  if (!fields.some((f) => f.column === "ld") || !fields.some((f) => f.column === "ld_date")) return fields;
+  return fields.filter((f) => f.column !== "ld_date").map((f) => (f.column === "ld" ? { ...f, label: "LD / LD Date" } : f));
+}
+
 /** Coerce a raw form string to the storable value for a field type. */
 export function coerceField(
   type: OrderFieldType,

@@ -3,7 +3,7 @@
 import { EcLink } from "./ec-link";
 import { Fragment, useState } from "react";
 import { MessageSquare, PackageX, Pencil } from "lucide-react";
-import { ADD_ON_PUMP_FIELDS, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, SORTABLE_DATE_COLUMNS, pumpEcStatus, type OrderField } from "@/lib/order-schema";
+import { ADD_ON_PUMP_FIELDS, LD_DATE_FIELD, withLdCombined, PUMP_EC_PLANNING_COLUMNS, PUMP_LIKE, READY_LOT_LIMIT, SORTABLE_DATE_COLUMNS, pumpEcStatus, type OrderField } from "@/lib/order-schema";
 import { lotsFromRows } from "@/lib/ready-lots";
 import { ecDone, pumpEcStage, pumpLotsFromEcs } from "@/lib/assembly";
 import { boiInHand, dispatchRowTone } from "@/lib/dept-view";
@@ -111,7 +111,9 @@ export function PlanningPumpTable({
 
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
-  const soSpan = 6 + soColumns.length + LOT_COLUMNS.length + 1 + (canEdit ? 1 : 0);
+  // LD and LD Date in one column.
+  const soCols = withLdCombined(soColumns);
+  const soSpan = 6 + soCols.length + LOT_COLUMNS.length + 1 + (canEdit ? 1 : 0);
   // After Planning, once per SO, right after its lots.
   // After Planning, as Assembly & Packing lays it out: the Alignment, then a column per lot.
   const AFTER = ["Base Plate", "Wooden Box", ...LOT_COLUMNS.map((n) => `Lot ${n}`), "Latest Lot", "Packing Slips", "Dispatch Status"];
@@ -137,7 +139,7 @@ export function PlanningPumpTable({
           <th className={th}>Chat</th>
           <th className={th}><SortHeader label="SO Date" sortKey="so_date" /></th>
           <th className={th}><SortHeader label="Assembly Readiness Date" sortKey="readiness" /></th>
-          {soColumns.map((f) => (
+          {soCols.map((f) => (
             <th key={f.column} className={th}>
               {/* The SO's own dates sort the queue. */}
               {f.type === "date" && SORTABLE_DATE_COLUMNS.has(f.column) ? <SortHeader label={f.label} sortKey={f.column} /> : f.label}
@@ -240,9 +242,13 @@ export function PlanningPumpTable({
                             "—"
                           )}
                         </td>
-                        {soColumns.map((f) => (
+                        {soCols.map((f) => (
                           <td key={f.column} rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>
                             {formatDisplay(f, head[f.column]) || "—"}
+                            {/* LD with its date under it. */}
+                            {f.column === "ld" && str(head.ld_date) && (
+                              <span className="block text-[11px]">{formatDisplay(LD_DATE_FIELD, head.ld_date)}</span>
+                            )}
                           </td>
                         ))}
                         {/* The SO's own status (as a Spare's) and its readiness date. */}
