@@ -14,8 +14,11 @@ import {
 import {
   addPartExtraAction,
   deletePartExtraAction,
+  deletePumpPartAction,
   listPartExtrasAction,
+  listPumpPartListsAction,
   updatePartExtraAction,
+  updatePumpPartAction,
   savePartProgressAction,
   savePartSelectionAction,
   saveShortageAction,
@@ -151,8 +154,19 @@ export function PartPickerModal({
   const router = useRouter();
   // Parts named under Others before: a list of their own, to tick like the rest.
   const [extras, setExtras] = useState<(PartListItem & { id: string })[]>([]);
+  // The pump's lists (MMP / PCP) as kept in the database; the code's copy until read.
+  const [pumpLists, setPumpLists] = useState<{ title: string; parts: (PartListItem & { id?: string })[] }[]>(() => partListsFor(pumpType));
+  useEffect(() => {
+    let live = true;
+    listPumpPartListsAction(String(pumpType ?? ""))
+      .then((r) => live && r.length > 0 && setPumpLists(r))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [pumpType]);
   // The added part being corrected, and the one being taken off the list.
-  const [editingExtra, setEditingExtra] = useState<{ id: string; part_no: string; part_name: string } | null>(null);
+  const [editingExtra, setEditingExtra] = useState<{ id: string; part_no: string; part_name: string; pump: boolean } | null>(null);
   const [busyExtra, setBusyExtra] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -163,7 +177,7 @@ export function PartPickerModal({
       live = false;
     };
   }, []);
-  const lists = [...partListsFor(pumpType), ...(extras.length ? [{ title: "Others (added)", parts: extras }] : [])];
+  const lists = [...pumpLists, ...(extras.length ? [{ title: "Others (added)", parts: extras }] : [])];
   const shortage = mode === "shortage";
   // A shortage is just its parts: there is no Yes / No to it.
   // Null until Drawing has chosen.
@@ -209,17 +223,28 @@ export function PartPickerModal({
   const matches = (p: PartListItem) => !q || p.part_name.toLowerCase().includes(q) || p.part_no.includes(q);
 
   const [adding, setAdding] = useState(false);
-  const extraOf = (p: PartListItem) => extras.find((x) => keyOf(x) === keyOf(p));
+  const extraOf = (p: PartListItem & { id?: string }): (PartListItem & { id: string; pump: boolean }) | undefined => {
+    const x = extras.find((e) => keyOf(e) === keyOf(p));
+    if (x) return { ...x, pump: false };
+    return p.id ? { ...p, id: p.id, pump: true } : undefined;
+  };
   /** Correct an added part; ticked, it stays ticked under its new name. */
   async function saveExtra() {
     if (!editingExtra) return;
-    const was = extras.find((x) => x.id === editingExtra.id);
+    const was = editingExtra.pump
+      ? pumpLists.flatMap((l) => l.parts).find((x) => x.id === editingExtra.id)
+      : extras.find((x) => x.id === editingExtra.id);
     setBusyExtra(editingExtra.id);
     setError(null);
-    const res = await updatePartExtraAction(editingExtra.id, { part_no: editingExtra.part_no, part_name: editingExtra.part_name });
+    const input = { part_no: editingExtra.part_no, part_name: editingExtra.part_name };
+    const res = editingExtra.pump ? await updatePumpPartAction(editingExtra.id, input) : await updatePartExtraAction(editingExtra.id, input);
     setBusyExtra(null);
     if (!res.ok) return setError(res.error);
-    setExtras((xs) => xs.map((x) => (x.id === res.item.id ? res.item : x)).sort((a, b) => a.part_name.localeCompare(b.part_name)));
+    if (editingExtra.pump) {
+      setPumpLists((ls) => ls.map((l) => ({ ...l, parts: l.parts.map((x) => (x.id === res.item.id ? res.item : x)) })));
+    } else {
+      setExtras((xs) => xs.map((x) => (x.id === res.item.id ? res.item : x)).sort((a, b) => a.part_name.localeCompare(b.part_name)));
+    }
     if (was && picked.has(keyOf(was))) {
       setPicked((m) => {
         const next = new Map(m);
@@ -232,14 +257,15 @@ export function PartPickerModal({
     setEditingExtra(null);
   }
   /** Take an added part off the list (an EC that has it keeps it). */
-  async function removeExtra(x: PartListItem & { id: string }) {
+  async function removeExtra(x: PartListItem & { id: string; pump: boolean }) {
     if (!confirm(`Take "${x.part_name}" off the parts list? ECs that already have it keep it.`)) return;
     setBusyExtra(x.id);
     setError(null);
-    const res = await deletePartExtraAction(x.id);
+    const res = x.pump ? await deletePumpPartAction(x.id) : await deletePartExtraAction(x.id);
     setBusyExtra(null);
     if (!res.ok) return setError(res.error);
-    setExtras((xs) => xs.filter((e) => e.id !== x.id));
+    if (x.pump) setPumpLists((ls) => ls.map((l) => ({ ...l, parts: l.parts.filter((e) => e.id !== x.id) })));
+    else setExtras((xs) => xs.filter((e) => e.id !== x.id));
   }
   /** A part named here joins the list for next time, and is ticked now. */
   async function addOther() {
@@ -383,7 +409,7 @@ export function PartPickerModal({
                                     type="button"
                                     onClick={(e) => {
                                       e.preventDefault();
-                                      setEditingExtra({ id: extra.id, part_no: extra.part_no, part_name: extra.part_name });
+                                      setEditingExtra({ id: extra.id, part_no: extra.part_no, part_name: extra.part_name, pump: extra.pump });
                                     }}
                                     aria-label={`Edit ${extra.part_name}`}
                                     className="rounded p-0.5 text-muted hover:text-foreground"
