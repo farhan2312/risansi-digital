@@ -23,6 +23,7 @@
 
 import { useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { ReportDoc, PageFilters } from '@/lib/custom-analytics/types';
 import type { CrossFilter } from '@/lib/custom-analytics/engine';
 import { DATASET_BY_ID } from '@/lib/custom-analytics/model';
@@ -116,6 +117,15 @@ export function ReportViewer(p: ReportViewerProps) {
               title="A report of your own, starting from this one. The original is untouched.">
               Make a copy
             </button>
+          )}
+          {/* Only the owner, and only because the save would refuse anyway:
+              the button is absent rather than present and failing. */}
+          {p.mine && p.canBuild && (
+            <Link href={`/risansi/reports/${p.id}/edit`}
+              style={{ ...BTN, textDecoration: 'none', display: 'inline-block' }}
+              title="Change the cards, the pages and the filters this report opens on">
+              Edit
+            </Link>
           )}
         </div>
       </header>

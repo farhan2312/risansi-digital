@@ -35,7 +35,7 @@ const ROOT = path.resolve(HERE, '..');
 const SRC = path.join(ROOT, 'lib', 'custom-analytics');
 
 // A closed graph: each of these imports only the others, by relative path.
-const MODULES = ['types', 'model', 'sql', 'doc', 'templates', 'fmt', 'shape'];
+const MODULES = ['types', 'model', 'sql', 'doc', 'templates', 'fmt', 'shape', 'build'];
 
 const dir = mkdtempSync(path.join(tmpdir(), 'risansi-report-model-'));
 let failed = 0;
@@ -59,6 +59,7 @@ try {
   const T = await import(pathToFileURL(path.join(dir, 'types.mjs')).href);
   const fmt = await import(pathToFileURL(path.join(dir, 'fmt.mjs')).href);
   const shape = await import(pathToFileURL(path.join(dir, 'shape.mjs')).href);
+  const build = await import(pathToFileURL(path.join(dir, 'build.mjs')).href);
 
   const { DATASETS } = model;
   const { DATASET_SQL } = sql;
@@ -357,6 +358,214 @@ try {
     eq('year', bucketLabel('year', '2026'), '2026');
     eq('financial year is already readable', bucketLabel('fy', 'FY26-27'), 'FY26-27');
     eq('a blank bucket', bucketLabel('month', null), '(none)');
+  }
+
+  // ── 7. the builder's own operations ─────────────────────────
+  //
+  // Every edit the builder makes is a function in build.ts, pinned here for
+  // the same reason as the chart arithmetic: these have wrong answers that
+  // look like design choices. A card settled on top of another one reads as
+  // a deliberate overlap; a type change that quietly drops the number the
+  // card was showing reads as an empty card somebody forgot to finish.
+
+  const B = build;
+  const lay = (x, y, w, h) => ({ x, y, w, h });
+  const card = (id, x, y, w, h, type = 'column') =>
+    ({ id, type, dataset: 'revenue', values: [], layout: lay(x, y, w, h) });
+  const anyOverlap = (vs) => vs.some((a, ai) =>
+    vs.some((b, bi) => bi > ai && B.overlaps(a.layout, b.layout)));
+
+  // settle: the dropped card keeps where it was dropped, the rest move.
+  {
+    const vs = B.settle([card('a', 0, 0, 6, 6), card('b', 0, 0, 6, 6)], 'b');
+    eq('the card being moved keeps its position', vs.find(v => v.id === 'b').layout.y, 0);
+    eq('the card it landed on is pushed below it', vs.find(v => v.id === 'a').layout.y, 6);
+    eq('settling leaves nothing overlapping', anyOverlap(vs), false);
+    eq('settling keeps the document order', vs.map(v => v.id), ['a', 'b']);
+  }
+  {
+    // A cascade: three cards stacked on one spot each clear the one before.
+    const vs = B.settle([card('a', 0, 0, 12, 4), card('b', 0, 0, 12, 4), card('c', 0, 0, 12, 4)], 'a');
+    eq('a collision cascades rather than stopping at the first card',
+       vs.map(v => v.layout.y).sort((x, y) => x - y), [0, 4, 8]);
+    eq('a cascade still leaves nothing overlapping', anyOverlap(vs), false);
+  }
+  {
+    // Side by side is not a collision. Two cards on one row must stay there.
+    const vs = B.settle([card('a', 0, 0, 6, 6), card('b', 6, 0, 6, 6)], 'b');
+    eq('cards beside each other are left alone', vs.map(v => v.layout.y), [0, 0]);
+  }
+
+  // tidy: the gaps close, the reading order does not change.
+  {
+    // Gravity is per column, not per row: a card floats up as far as the
+    // cards above IT allow, so a short card beside a tall one rises past it.
+    const vs = B.tidy([card('a', 0, 0, 6, 4), card('b', 0, 20, 6, 4), card('c', 6, 20, 6, 4)]);
+    eq('tidy pulls a stranded card up behind the one above it', vs.find(v => v.id === 'b').layout.y, 4);
+    eq('tidy pulls a card with nothing above it to the top', vs.find(v => v.id === 'c').layout.y, 0);
+    eq('tidy leaves nothing overlapping', anyOverlap(vs), false);
+  }
+
+  // freeSpot: a new card fills a hole before it goes to the bottom.
+  {
+    const spot = B.freeSpot([card('a', 0, 0, 6, 6)], 6, 6);
+    eq('a new card fills the gap beside an existing one', spot, { x: 6, y: 0 });
+    eq('a card too wide for the gap goes underneath',
+       B.freeSpot([card('a', 0, 0, 6, 6)], 12, 4), { x: 0, y: 6 });
+  }
+
+  // moveTo and resizeTo: never off the right-hand edge, never smaller than 2.
+  {
+    const vs = B.moveTo([card('a', 0, 0, 6, 6)], 'a', 99, 3);
+    eq('a card dragged past the edge stops at it', vs[0].layout.x, 6);
+    const r = B.resizeTo([card('a', 8, 0, 4, 6)], 'a', 99, 0);
+    eq('a card cannot be widened past the grid', r[0].layout.w, 4);
+    eq('a card cannot be resized to nothing', r[0].layout.h, 2);
+  }
+
+  // changeType: the contents are re-dealt, and what cannot be kept is dropped.
+  {
+    const col = {
+      id: 'a', type: 'column', dataset: 'revenue',
+      axis: { field: 'month', grain: 'month' }, split: { field: 'state' },
+      values: [{ field: 'revenue' }], layout: lay(0, 0, 6, 6),
+    };
+    const asTable = B.changeType(col, 'table');
+    eq('column to table puts both categories in the columns',
+       asTable.dims.map(d => d.field), ['month', 'state']);
+    eq('column to table keeps the number', asTable.values.map(v => v.field), ['revenue']);
+    eq('column to table leaves nothing in the axis', asTable.axis, undefined);
+
+    const back = B.changeType(asTable, 'column');
+    eq('and back again puts the first column on the axis', back.axis.field, 'month');
+    eq('and the second on the legend', back.split.field, 'state');
+    eq('the grain survives the round trip', back.axis.grain, 'month');
+
+    const asKpi = B.changeType(col, 'kpi');
+    eq('a KPI keeps the number and drops the categories',
+       [asKpi.values.length, asKpi.axis, asKpi.split], [1, undefined, undefined]);
+  }
+  {
+    // A card at the right-hand edge grown by a type change must not hang off.
+    const k = { id: 'a', type: 'kpi', dataset: 'revenue',
+                values: [{ field: 'revenue' }], layout: lay(9, 0, 3, 3) };
+    const t = B.changeType(k, 'table');
+    eq('a type change cannot push a card off the edge', t.layout.x + t.layout.w <= 12, true);
+  }
+  {
+    // Three numbers on a table, drawn as a column chart with a legend: the
+    // legend wins and the extra numbers go, because they cannot share a scale.
+    const tbl = {
+      id: 'a', type: 'table', dataset: 'revenue',
+      dims: [{ field: 'state' }, { field: 'industry' }],
+      values: [{ field: 'revenue' }, { field: 'pump_revenue' }, { field: 'spare_revenue' }],
+      layout: lay(0, 0, 8, 7),
+    };
+    const col = B.changeType(tbl, 'column');
+    eq('a legend drops the card to one number, and it is the first one',
+       col.values.map(v => v.field), ['revenue']);
+  }
+
+  // addToWell: where a field lands, and what it arrives with.
+  {
+    const base = B.newVisual('column', null);
+    const a = B.addToWell(base, 'axis', 'revenue', 'month');
+    eq('the first field sets the table the card is built on', a.dataset, 'revenue');
+    eq('a date arrives bucketed by month', a.axis, { field: 'month', grain: 'month' });
+
+    const b = B.addToWell(a, 'values', 'revenue', 'revenue');
+    eq('a measure arrives with no aggregation to pick', b.values, [{ field: 'revenue' }]);
+
+    const c = B.addToWell(b, 'values', 'revenue', 'total_value');
+    eq('a plain column arrives with its own default aggregation',
+       c.values[1], { field: 'total_value', agg: 'sum' });
+
+    const d = B.addToWell(c, 'values', 'revenue', 'client');
+    eq('a category counted in the Numbers well counts distinct things',
+       d.values[2], { field: 'client', agg: 'countd' });
+
+    const e = B.addToWell(d, 'values', 'orders', 'order_value');
+    eq('a number from another table says which table it came from',
+       e.values.filter(v => v.dataset).map(v => v.dataset), ['orders']);
+
+    const f = B.addToWell(e, 'axis', 'orders', 'financial_year');
+    eq('a category from another table is refused', f, e);
+
+    const g = B.addToWell(b, 'split', 'revenue', 'state');
+    eq('adding a legend drops the card to one number', g.values.length, 1);
+  }
+  {
+    // The same field twice is one field, not two columns of the same thing.
+    let t = B.newVisual('table', 'revenue');
+    t = B.addToWell(t, 'values', 'revenue', 'revenue');
+    t = B.addToWell(t, 'values', 'revenue', 'revenue');
+    eq('the same number added twice is added once', t.values.length, 1);
+
+    let d = B.newVisual('table', 'revenue');
+    for (const id of ['state', 'industry', 'city', 'client', 'tier']) {
+      d = B.addToWell(d, 'dims', 'revenue', id);
+    }
+    eq('a table holds four columns, oldest out first',
+       d.dims.map(x => x.field), ['industry', 'city', 'client', 'tier']);
+  }
+
+  // bestWell: where a clicked field goes when nobody said.
+  {
+    const num = model.fieldOf('revenue', 'revenue');
+    const dim = model.fieldOf('revenue', 'state');
+    const col = B.newVisual('column', 'revenue');
+    eq('a number goes to the Numbers well', B.bestWell(col, num), 'values');
+    eq('a category goes to the empty axis', B.bestWell(col, dim), 'axis');
+    eq('and then to the legend', B.bestWell({ ...col, axis: { field: 'month' } }, dim), 'split');
+    eq('a table groups by it instead', B.bestWell(B.newVisual('table', 'revenue'), dim), 'dims');
+    eq('a KPI can only count it', B.bestWell(B.newVisual('kpi', 'revenue'), dim), 'values');
+    eq('a date is drawn as a line, a category as a column',
+       [B.suggestType(model.fieldOf('revenue', 'month')), B.suggestType(dim), B.suggestType(num)],
+       ['line', 'column', 'kpi']);
+  }
+
+  // problems: what the card says about itself before it can draw.
+  {
+    eq('an empty column card asks for a number and a category',
+       B.problems(B.newVisual('column', 'revenue')).length, 2);
+    const ok = B.addToWell(
+      B.addToWell(B.newVisual('column', 'revenue'), 'axis', 'revenue', 'month'),
+      'values', 'revenue', 'revenue');
+    eq('a finished card has nothing to say', B.problems(ok), []);
+    eq('and is runnable', B.isRunnable(ok), true);
+    eq('a matrix wants its columns too',
+       B.problems({ ...ok, type: 'matrix' }).includes('Add a second category for the columns.'), true);
+  }
+
+  // Anything the builder can produce has to survive the save path, or the
+  // card comes back changed and nobody knows why.
+  {
+    let vs = [];
+    const kpi = B.addToWell(B.newVisual('kpi', 'revenue'), 'values', 'revenue', 'revenue');
+    vs = B.addVisual(vs, kpi);
+    let line = B.newVisual('line', 'revenue');
+    line = B.addToWell(line, 'axis', 'revenue', 'month');
+    line = B.addToWell(line, 'split', 'revenue', 'state');
+    line = B.addToWell(line, 'values', 'revenue', 'revenue');
+    vs = B.addVisual(vs, line);
+    let tab = B.newVisual('table', 'orders');
+    tab = B.addToWell(tab, 'dims', 'orders', 'client');
+    tab = B.addToWell(tab, 'values', 'orders', 'order_value');
+    tab = B.addToWell(tab, 'values', 'revenue', 'revenue');
+    vs = B.addVisual(vs, tab);
+
+    const built = { version: 1, pages: [{ id: 'p1', name: 'Page 1', filters: {}, visuals: vs }] };
+    const after = sanitizeDoc(built);
+    eq('nothing the builder makes is lost on save', after.pages[0].visuals.length, 3);
+    // Compared key-insensitively: the sanitiser rebuilds the layout object
+    // and so writes its four numbers in its own order, which is not a change
+    // to the card.
+    const sorted = (x) => JSON.stringify(x, (k, v) =>
+      v && typeof v === 'object' && !Array.isArray(v)
+        ? Object.fromEntries(Object.keys(v).sort().map(j => [j, v[j]]))
+        : v);
+    eq('and nothing about it is rewritten', sorted(after.pages[0].visuals), sorted(vs));
+    eq('a built page has nothing overlapping', anyOverlap(vs), false);
   }
 } finally {
   rmSync(dir, { recursive: true, force: true });

@@ -13,7 +13,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TEMPLATES } from '@/lib/custom-analytics/templates';
-import { createFromTemplate, deleteReport, pinReport } from '@/app/actions/risansi-reports';
+import { createFromTemplate, createReport, deleteReport, pinReport } from '@/app/actions/risansi-reports';
 import type { ReportSummary } from '@/app/actions/risansi-reports';
 
 type Tab = 'mine' | 'shared' | 'templates';
@@ -37,6 +37,14 @@ export function ReportsHome({ mine, shared, canBuild }: {
     else setNote(r.error);
   });
 
+  // A blank report opens in the builder, not the viewer: there is nothing to
+  // read yet, and the empty canvas is the point of asking for one.
+  const blank = () => start(async () => {
+    const r = await createReport('Untitled report');
+    if (r.ok) router.push(`/risansi/reports/${r.data.id}/edit`);
+    else setNote(r.error);
+  });
+
   const remove = (r: ReportSummary) => start(async () => {
     if (!window.confirm(`Delete "${r.title}"? Anybody it was shared with loses it too. This cannot be undone.`)) return;
     const res = await deleteReport(r.id);
@@ -50,13 +58,22 @@ export function ReportsHome({ mine, shared, canBuild }: {
 
   return (
     <div style={{ padding: '18px 22px 40px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <header>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--fg)' }}>Reports</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--fg-3)', maxWidth: 640 }}>
-          Build a report once and read it every month. Every figure is computed against
-          the accounts you can see, so a report shared with you shows your own numbers,
-          not the author&apos;s.
-        </p>
+      <header style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 260 }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: 'var(--fg)' }}>Reports</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--fg-3)', maxWidth: 640 }}>
+            Build a report once and read it every month. Every figure is computed against
+            the accounts you can see, so a report shared with you shows your own numbers,
+            not the author&apos;s.
+          </p>
+        </div>
+        {canBuild && (
+          <button type="button" onClick={blank} disabled={busy}
+            style={{ ...BTN, flexShrink: 0 }}
+            title="An empty page, and the fields down the side">
+            New blank report
+          </button>
+        )}
       </header>
 
       {note && (
@@ -175,6 +192,10 @@ function Card({ r, mine, busy, onPin, onDelete }: {
         </span>
         <button type="button" onClick={onPin} disabled={busy} style={SMALL}
           title={r.pinned ? 'Unpin' : 'Pin this to the top'}>{r.pinned ? '★' : '☆'}</button>
+        {mine && (
+          <Link href={`/risansi/reports/${r.id}/edit`} style={{ ...SMALL, textDecoration: 'none' }}
+            title="Change the cards on it">Edit</Link>
+        )}
         {onDelete && (
           <button type="button" onClick={onDelete} disabled={busy}
             style={{ ...SMALL, color: 'var(--neg)' }} title="Delete this report">Delete</button>
