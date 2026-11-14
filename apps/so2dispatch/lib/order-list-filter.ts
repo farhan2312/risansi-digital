@@ -149,6 +149,11 @@ export type OrderListFilter = {
    * (cardBaseGet). Unset, the cards leave out every status a card sets.
    */
   kpiFilter?: OrderListFilter;
+  /**
+   * The card clicked (its params as the URL's kc names them), while they still
+   * stand: the list is then exactly what that card counted.
+   */
+  kpiPicked?: string | null;
   /** Only SOs on hold — by Central Visibility, by Accounts or by Dispatch. */
   onHold: boolean;
   /** …and only that kind of hold, when one is picked (a hold card). */
@@ -303,6 +308,13 @@ export function parseOrderListFilter(
     holdBy: listHold(get("hold"), dept) ? (get("hold") as HoldBy) : null,
     onlyBilling: get("ob") === "1" && !dept,
     sentPpc: opts.noDispatchTarget && (get("ppc") === "yes" || get("ppc") === "no") ? (get("ppc") as "yes" | "no") : null,
+    // A card clicked, as long as every filter it set still stands (else it is no longer on).
+    kpiPicked: (() => {
+      const raw = get("kc");
+      if (!raw) return null;
+      const set = [...new URLSearchParams(raw)];
+      return set.length && set.every(([k, v]) => get(k) === v) ? raw : null;
+    })(),
     field,
     // Only where the controls are shown — a hidden filter would narrow
     // without saying so.

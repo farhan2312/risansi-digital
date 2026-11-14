@@ -62,7 +62,7 @@ import { ecQcStatusSql, qcEcReadySql, soQcStateSql } from "@/lib/qc-filter";
 import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
-import { toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
+import { pickedValue, toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
 import {
   CHILD_FIELDS,
   ORDER_SECTIONS,
@@ -4553,11 +4553,37 @@ async function pageOfOrderIds(opts: {
 }): Promise<{ ids: string[]; total: number; page: number; kpis?: KpiCard[]; inHand?: number }> {
   const search = opts.search ? likePattern(opts.search) : null;
   const kpis = opts.kpis ? await countKpis(opts.kpis, opts.filter, search, opts.searchable) : undefined;
-  const facets = opts.filter
-    ? orderListClauses({ ...(await withRepTeams(opts.filter)), search: "" })
+  // A card clicked: the list is exactly what it counted — the card's own
+  // condition over the filter bar less what the card sets (as countKpis reads
+  // it), and no test SO (no card counts one). Otherwise a card and the list
+  // after clicking it could read a status two different ways.
+  const f = opts.filter;
+  const picked =
+    opts.kpis && f?.kpiPicked && f.kpiFilter
+      ? opts.kpis.cards.find((c) => !c.measure && pickedValue(c.params) === f.kpiPicked)
+      : undefined;
+  const kf = f?.kpiFilter;
+  const listFilter =
+    picked && f && kf
+      ? {
+          ...f,
+          dept: kf.dept,
+          deptStatuses: kf.deptStatuses,
+          deptStatusMulti: kf.deptStatusMulti,
+          packingStatuses: kf.packingStatuses,
+          dispatchStatuses: kf.dispatchStatuses,
+          overdue: kf.overdue,
+          onHold: kf.onHold,
+          holdBy: kf.holdBy ?? null,
+          accountsHold: kf.accountsHold,
+        }
+      : f;
+  const restrict = picked ? `${opts.restrict} AND (${picked.sql ?? "TRUE"}) AND NOT ${TEST_SO_SQL("o")}` : opts.restrict;
+  const facets = listFilter
+    ? orderListClauses({ ...(await withRepTeams(listFilter)), search: "" })
     : { clauses: [], params: [] };
   const own = (n: number) => `$${facets.params.length + n}`;
-  const where = `WHERE ${opts.restrict}
+  const where = `WHERE ${restrict}
         ${facets.clauses.map((c) => `AND ${c}`).join("\n        ")}
         AND (${own(1)}::text IS NULL OR ${opts.searchable(own(1))})`;
 
