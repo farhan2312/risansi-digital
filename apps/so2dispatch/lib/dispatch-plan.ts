@@ -16,6 +16,8 @@ import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSq
 //
 // It also leaves out what nobody should dispatch: an SO held by Order Making
 // or Central, cancelled, diverted, Only Billing, or already fully dispatched.
+// An SO on Dispatch hold stays on, marked so with its reason (it is ready,
+// waiting on a payment or a slip — what Central chases).
 
 /** How far ahead the plan looks, in days. */
 export const DISPATCH_PLAN_DAYS = 14;
@@ -73,6 +75,9 @@ export type DispatchPlanRow = {
   /** Central Visibility's Final Dispatch Target, and who set it. */
   final_dispatch_target: string | null;
   final_dispatch_target_by: string | null;
+  /** On Dispatch hold (the SO's status set to Hold), and why. */
+  dispatch_hold: boolean;
+  hold_reason: string | null;
   status: string;
 };
 
@@ -91,7 +96,6 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
         WHERE ${releasedSql("o")} AND ${clearedSql("o")} AND ${orderOpenSql("o")} AND NOT ${onlyBillingSql("o")}
           -- A test SO (its SO No. says TEST) is not to be dispatched.
           AND COALESCE(o.so_no, '') !~* 'test'
-          AND COALESCE(o.status_override, '') <> 'Hold'
           AND ${orderStatusSql("o")} <> 'Fully dispatch'
           AND COALESCE(o.accounts_hold_status, '') <> 'Hold'
           AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${PUMP_EC})
@@ -175,6 +179,8 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
             to_char(COALESCE(so.dispatch_target_revised_date, so.dispatch_target_date), 'YYYY-MM-DD') AS dispatch_target,
             to_char(so.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target,
             so.final_dispatch_target_by,
+            (COALESCE(so.status_override, '') = 'Hold') AS dispatch_hold,
+            CASE WHEN so.status_override = 'Hold' THEN NULLIF(btrim(so.status_reason), '') END AS hold_reason,
             ${orderStatusSql("so")} AS status
        FROM so
        JOIN ready r ON r.order_id = so.id

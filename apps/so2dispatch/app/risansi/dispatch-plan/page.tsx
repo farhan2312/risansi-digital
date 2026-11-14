@@ -30,6 +30,7 @@ const SHOWS = {
   ready: { label: "Fully ready", test: (r: DispatchPlanRow) => r.fully_ready },
   plan: { label: `In plan · ${DISPATCH_PLAN_DAYS} days`, test: (r: DispatchPlanRow) => !r.fully_ready },
   boi: { label: "BOI to arrive", test: (r: DispatchPlanRow) => r.boi_in_hand < r.boi_total },
+  hold: { label: "Dispatch hold", test: (r: DispatchPlanRow) => r.dispatch_hold },
 } as const;
 type Show = keyof typeof SHOWS;
 
@@ -116,7 +117,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         <UrlSearchInput placeholder="Search SO, rep, zone, PO, PI, EC, model, BOI item…" />
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {tiles.map((t) => {
           const on = show === t.key;
           return (
@@ -278,7 +279,14 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                       />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <Chip tone={r.status === "LOT dispatch" ? "part" : "pending"}>{r.status === "LOT dispatch" ? "Lot dispatch" : r.status}</Chip>
+                      {r.dispatch_hold ? (
+                        <>
+                          <Chip tone="danger">Dispatch hold</Chip>
+                          {r.hold_reason && <div className="mt-1 max-w-[14rem] whitespace-normal text-xs text-rose-700 dark:text-rose-300">{r.hold_reason}</div>}
+                        </>
+                      ) : (
+                        <Chip tone={r.status === "LOT dispatch" ? "part" : "pending"}>{r.status === "LOT dispatch" ? "Lot dispatch" : r.status}</Chip>
+                      )}
                     </td>
                   </tr>
                 );
