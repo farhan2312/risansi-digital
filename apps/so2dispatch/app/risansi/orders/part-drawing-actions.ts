@@ -256,3 +256,40 @@ export async function saveShortageAction(
     return { ok: false, error: "Could not save the shortage." };
   }
 }
+
+/** The parts named under Others before, to tick from the list. */
+export async function listPartExtrasAction(): Promise<PartListItem[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const r = await query<{ part_no: string; part_name: string }>(
+    `SELECT part_no, part_name FROM part_list_extras ORDER BY lower(part_name), part_no`
+  );
+  return r.rows.map((p) => ({ section: OTHER_PART_SECTION, part_no: p.part_no, part_name: p.part_name }));
+}
+
+/** A part named under Others joins the list (once), for everyone to tick next time. */
+export async function addPartExtraAction(input: { part_no: string; part_name: string }): Promise<{ ok: true; item: PartListItem } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!canEditChild(user.role, "order_drawing_revisions") && !canEditSection(user.role, "order_planning")) {
+    return { ok: false, error: "Only Drawing or Planning add parts." };
+  }
+  const part_name = String(input?.part_name ?? "").trim().slice(0, 200);
+  const part_no = String(input?.part_no ?? "").trim().slice(0, 50);
+  if (!part_name) return { ok: false, error: "Give the part a name." };
+  // Already there (any case): the one in the list stands.
+  const r = await query<{ part_no: string; part_name: string }>(
+    `WITH ins AS (
+       INSERT INTO part_list_extras (part_no, part_name, created_by_name) VALUES ($1, $2, $3)
+       ON CONFLICT (lower(btrim(part_name)), lower(btrim(part_no))) DO NOTHING
+       RETURNING part_no, part_name)
+     SELECT part_no, part_name FROM ins
+     UNION ALL
+     SELECT part_no, part_name FROM part_list_extras
+      WHERE lower(btrim(part_name)) = lower($2) AND lower(btrim(part_no)) = lower($1)
+     LIMIT 1`,
+    [part_no, part_name, user.full_name || user.email]
+  );
+  const p = r.rows[0] ?? { part_no, part_name };
+  return { ok: true, item: { section: OTHER_PART_SECTION, part_no: p.part_no, part_name: p.part_name } };
+}

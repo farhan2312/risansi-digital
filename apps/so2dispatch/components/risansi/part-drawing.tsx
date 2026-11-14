@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Plus, Search, X } from "lucide-react";
 import {
@@ -11,7 +11,13 @@ import {
   type PartDrawingTone,
   type PartListItem,
 } from "@/lib/part-drawings";
-import { savePartProgressAction, savePartSelectionAction, saveShortageAction } from "@/app/risansi/orders/part-drawing-actions";
+import {
+  addPartExtraAction,
+  listPartExtrasAction,
+  savePartProgressAction,
+  savePartSelectionAction,
+  saveShortageAction,
+} from "@/app/risansi/orders/part-drawing-actions";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -141,7 +147,18 @@ export function PartPickerModal({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const lists = partListsFor(pumpType);
+  // Parts named under Others before: a list of their own, to tick like the rest.
+  const [extras, setExtras] = useState<PartListItem[]>([]);
+  useEffect(() => {
+    let live = true;
+    listPartExtrasAction()
+      .then((r) => live && setExtras(r))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  const lists = [...partListsFor(pumpType), ...(extras.length ? [{ title: "Others (added)", parts: extras }] : [])];
   const shortage = mode === "shortage";
   // A shortage is just its parts: there is no Yes / No to it.
   // Null until Drawing has chosen.
@@ -186,10 +203,18 @@ export function PartPickerModal({
   const q = find.trim().toLowerCase();
   const matches = (p: PartListItem) => !q || p.part_name.toLowerCase().includes(q) || p.part_no.includes(q);
 
-  function addOther() {
+  const [adding, setAdding] = useState(false);
+  /** A part named here joins the list for next time, and is ticked now. */
+  async function addOther() {
     const name = other.part_name.trim();
-    if (!name) return;
-    const item = { section: OTHER_PART_SECTION, part_no: other.part_no.trim(), part_name: name };
+    if (!name || adding) return;
+    setAdding(true);
+    setError(null);
+    const res = await addPartExtraAction({ part_no: other.part_no.trim(), part_name: name });
+    setAdding(false);
+    if (!res.ok) return setError(res.error);
+    const item = res.item;
+    setExtras((xs) => (xs.some((x) => keyOf(x) === keyOf(item)) ? xs : [...xs, item].sort((a, b) => a.part_name.localeCompare(b.part_name))));
     setPicked((m) => new Map(m).set(keyOf(item), item));
     setOther({ part_no: "", part_name: "" });
   }

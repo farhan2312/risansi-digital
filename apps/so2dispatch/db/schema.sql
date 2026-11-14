@@ -3313,3 +3313,22 @@ CREATE TABLE IF NOT EXISTS order_ec_version_acks (
     PRIMARY KEY (item_id, version_no, dept)
 );
 CREATE INDEX IF NOT EXISTS order_ec_version_acks_order_idx ON order_ec_version_acks (order_id, version_no, dept);
+
+-- Parts named under Others in the part picker (Drawing's part drawings,
+-- Planning's shortages): kept, so they are in the list to tick next time.
+CREATE TABLE IF NOT EXISTS part_list_extras (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    part_no         TEXT NOT NULL DEFAULT '',
+    part_name       TEXT NOT NULL,
+    created_by_name TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS part_list_extras_uidx ON part_list_extras (lower(btrim(part_name)), lower(btrim(part_no)));
+-- Those already named on an EC join the list. Idempotent.
+INSERT INTO part_list_extras (part_no, part_name)
+SELECT DISTINCT ON (lower(btrim(x.part_name)), lower(btrim(COALESCE(x.part_no, ''))))
+       btrim(COALESCE(x.part_no, '')), btrim(x.part_name)
+  FROM (SELECT section, part_no, part_name FROM order_part_drawings
+        UNION ALL SELECT section, part_no, part_name FROM order_part_shortages) x
+ WHERE x.section = 'Others' AND NULLIF(btrim(x.part_name), '') IS NOT NULL
+ON CONFLICT DO NOTHING;
