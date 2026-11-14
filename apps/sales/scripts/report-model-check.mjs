@@ -35,7 +35,7 @@ const ROOT = path.resolve(HERE, '..');
 const SRC = path.join(ROOT, 'lib', 'custom-analytics');
 
 // A closed graph: each of these imports only the others, by relative path.
-const MODULES = ['types', 'model', 'sql', 'doc', 'templates', 'fmt', 'shape', 'build'];
+const MODULES = ['types', 'model', 'sql', 'doc', 'templates', 'fmt', 'shape', 'build', 'sheet'];
 
 const dir = mkdtempSync(path.join(tmpdir(), 'risansi-report-model-'));
 let failed = 0;
@@ -60,6 +60,7 @@ try {
   const fmt = await import(pathToFileURL(path.join(dir, 'fmt.mjs')).href);
   const shape = await import(pathToFileURL(path.join(dir, 'shape.mjs')).href);
   const build = await import(pathToFileURL(path.join(dir, 'build.mjs')).href);
+  const sheetMod = await import(pathToFileURL(path.join(dir, 'sheet.mjs')).href);
 
   const { DATASETS } = model;
   const { DATASET_SQL } = sql;
@@ -566,6 +567,140 @@ try {
         : v);
     eq('and nothing about it is rewritten', sorted(after.pages[0].visuals), sorted(vs));
     eq('a built page has nothing overlapping', anyOverlap(vs), false);
+  }
+
+  // ── 8. a card, as a sheet ───────────────────────────────────
+  //
+  // The export is the copy of a figure that outlives the screen: it gets
+  // emailed on, pasted into a deck, and read six months later by somebody
+  // who never saw the report. So the things that would make it quietly wrong
+  // are pinned — a date bucket written as the engine's sort key, a matrix
+  // exporting a column of the word "__total", a rupee figure written as text
+  // so the column cannot be summed, a blank cell exported as a zero.
+
+  const { sheetFor, filterWords, numFmtOf, cardNote } = sheetMod;
+
+  eq('rupees are grouped, with the unit left in the heading', numFmtOf('inr'), '#,##0');
+  eq('crores keep two decimals', numFmtOf('cr'), '#,##0.00');
+  eq('a percentage keeps one', numFmtOf('pct'), '0.0');
+
+  // A KPI: one number, named, and written as a number.
+  {
+    const v = { id: 'a', type: 'kpi', dataset: 'revenue',
+                values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 3, h: 3 } };
+    const s = sheetFor(v, { ok: true, rows: [{ m0: '123456' }] }, 'Revenue');
+    eq('a KPI is one column and one row', [s.cols.length, s.rows.length], [1, 1]);
+    eq('its heading carries the unit', s.cols[0].label, 'Revenue ₹');
+    eq('and the figure is a number, not a formatted string', s.rows[0][0], 123456);
+  }
+
+  // A chart with a legend exports long, and the date is readable.
+  {
+    const v = {
+      id: 'a', type: 'column', dataset: 'revenue',
+      axis: { field: 'month', grain: 'month' }, split: { field: 'state' },
+      values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 6, h: 6 },
+    };
+    const s = sheetFor(v, { ok: true, rows: [
+      { d0: '2026-10', d1: 'Maharashtra', m0: 10 },
+      { d0: '2026-11', d1: null, m0: null },
+    ] }, 'Revenue by month');
+    eq('the columns are the axis, the legend and the number',
+       s.cols.map(c => c.label), ['Revenue month', 'State', 'Revenue ₹']);
+    eq('the kinds are right, so the route knows what to format',
+       s.cols.map(c => c.kind), ['text', 'text', 'number']);
+    eq('a date bucket is written readably, not as the sort key',
+       s.rows[0][0], 'Oct 26');
+    eq('a blank category says so', s.rows[1][1], '(none)');
+    eq('and a blank figure stays blank rather than becoming a zero', s.rows[1][2], null);
+    eq('the sheet says what the card was', cardNote(v, 'Revenue by month'),
+       'Revenue by month — Revenue, by Revenue month and State');
+  }
+
+  // A table exports its columns in the order they are on the card.
+  {
+    const v = {
+      id: 'a', type: 'table', dataset: 'orders',
+      dims: [{ field: 'client' }, { field: 'product_category' }],
+      values: [{ field: 'orders' }, { field: 'order_value' }],
+      layout: { x: 0, y: 0, w: 8, h: 7 },
+    };
+    const s = sheetFor(v, { ok: true, rows: [{ d0: 'ACME', d1: 'Pump', m0: 3, m1: 90 }] }, 'Orders');
+    eq('dimensions first, then the numbers',
+       s.cols.map(c => c.label), ['Client', 'Product category', 'Orders', 'Order value ₹']);
+    eq('and the row matches that order', s.rows[0], ['ACME', 'Pump', 3, 90]);
+  }
+
+  // A matrix exports as the cross-tab it looks like, totals and all.
+  {
+    const v = {
+      id: 'a', type: 'matrix', dataset: 'complaints',
+      axis: { field: 'category' }, split: { field: 'severity' },
+      values: [{ field: 'complaints' }], layout: { x: 0, y: 0, w: 8, h: 7 },
+    };
+    const s = sheetFor(v, { ok: true, rows: [
+      { d0: 'Leak', d1: 'High', m0: 2 },
+      { d0: 'Leak', d1: 'Low', m0: 7 },
+      { d0: 'Noise', d1: 'Low', m0: 4 },
+      { d0: 'Leak', d1: '__total', m0: 9 },
+      { d0: 'Noise', d1: '__total', m0: 4 },
+      { d0: '__total', d1: 'High', m0: 2 },
+      { d0: '__total', d1: 'Low', m0: 11 },
+      { d0: '__total', d1: '__total', m0: 13 },
+    ] }, 'Complaints by category');
+    eq('the word "__total" never reaches a cell',
+       JSON.stringify(s).includes('__total'), false);
+    eq('the heading is the row dimension, the columns, then Total',
+       s.cols.map(c => c.label), ['Category', 'Low', 'High', 'Total']);
+    eq('each row carries its own total from the database',
+       s.rows[0], ['Leak', 7, 2, 9]);
+    eq('a combination the query never returned is blank, not nought',
+       s.rows[1], ['Noise', 4, null, 4]);
+    eq('and the last row is the column totals and the grand total',
+       s.rows[2], ['Total', 11, 2, 13]);
+  }
+
+  // A card that could not run says why, on its own sheet, rather than
+  // vanishing from the workbook and leaving a gap nobody can account for.
+  {
+    const v = { id: 'a', type: 'kpi', dataset: 'revenue', values: [],
+                layout: { x: 0, y: 0, w: 3, h: 3 } };
+    const s = sheetFor(v, { ok: false, error: 'Add a number to this visual.' }, 'Empty');
+    eq('a card that failed is skipped with its reason', s.skipped, 'Add a number to this visual.');
+    eq('and writes no table', [s.cols.length, s.rows.length], [0, 0]);
+  }
+
+  // The provenance line. A sheet two forwards from home has to say what it
+  // was filtered to or the figures on it mean nothing.
+  {
+    const names = new Map([[7, 'Anil Kumar']]);
+    eq('no filters at all is still stated', filterWords({}, names), 'All time');
+    eq('a preset reads as itself',
+       filterWords({ datePreset: 'This FY' }, names), 'This FY');
+    eq('a custom range reads as a range',
+       filterWords({ datePreset: 'Custom', dateFrom: '2026-04-01' }, names),
+       '2026-04-01 to today');
+    eq('every filter on the bar is named, and reps by name not id',
+       filterWords({ datePreset: 'Last FY', states: ['Maharashtra', 'Gujarat'],
+                     industries: ['Sugar'], tiers: ['A'], clientTypes: ['Direct'], reps: [7, 9] }, names),
+       'Last FY · State: Maharashtra, Gujarat · Industry: Sugar · Direct / OEM: Direct · '
+       + 'Tier: A · Sales rep: Anil Kumar, #9');
+    eq('a cross-filter is part of the provenance',
+       filterWords({ datePreset: 'This FY' }, names, { label: 'State: Gujarat' }),
+       'This FY · filtered to State: Gujarat');
+  }
+
+  // defaultTitle is shared between the card and the sheet on purpose: a
+  // sheet called something else from the card it came from is a sheet
+  // somebody has to work out.
+  {
+    const v = { id: 'a', type: 'column', dataset: 'revenue',
+                axis: { field: 'state' }, values: [{ field: 'revenue' }],
+                layout: { x: 0, y: 0, w: 6, h: 6 } };
+    eq('a card names itself after what it shows', fmt.defaultTitle(v), 'Revenue ₹ by State');
+    eq('a KPI is just the number', fmt.defaultTitle(
+       { id: 'b', type: 'kpi', dataset: 'revenue', values: [{ field: 'revenue' }], layout: v.layout }),
+       'Revenue ₹');
   }
 } finally {
   rmSync(dir, { recursive: true, force: true });

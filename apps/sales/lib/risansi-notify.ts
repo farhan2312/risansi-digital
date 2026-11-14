@@ -516,6 +516,54 @@ export async function notifyNewLead(clientId: number, creatorEmail: string) {
  * still fires immediately, so nothing is slower to find out about, and
  * runWeeklyBugDigest sends one mail on Friday morning.
  */
+// A report was shared → tell the people it was shared with, once.
+//
+// Only the newly added are passed in: re-saving a share list must not notify
+// everybody on it again, which is the sort of thing that teaches people to
+// filter the portal's mail into a folder they never open.
+//
+// The one thing the email has to say, and the reason it says it twice, is
+// whose figures the recipient will see. A report is not a snapshot of the
+// author's numbers: every figure in it is recomputed under whoever has it
+// open. A manager sharing their book with a rep is not leaking it, and a rep
+// opening it has not been given a wider view — and neither party can be
+// expected to work that out from a link.
+export async function notifyReportShared(
+  reportId: number, title: string, recipientIds: number[], actorEmail: string,
+) {
+  try {
+    const ids = [...new Set(recipientIds.filter(n => Number.isInteger(n)))];
+    if (!ids.length) return;
+    const { rows } = await risansiPool.query<{ id: number; name: string | null; email: string | null }>(
+      `SELECT id, name, email FROM users
+        WHERE id = ANY($1::int[]) AND is_active = TRUE`, [ids]);
+    const who = (await nameForEmail(actorEmail)) || actorEmail;
+
+    for (const r of rows) {
+      if (!r.email || r.email.toLowerCase() === actorEmail.toLowerCase()) continue;
+      await sendNotification({
+        to: r.email, section: 'Reports', accent: BRAND, greetingName: firstName(r.name),
+        subject: `${who} shared a report with you — ${title}`,
+        intro: `${who} has shared a report with you in the sales portal.`,
+        title,
+        body: 'Every figure in it is computed against the accounts you can see, so you will '
+            + 'see your own numbers rather than theirs. You can read it and take your own '
+            + 'copy; changing it is the author’s to do.',
+        meta: [['Report', title], ['Shared by', who]],
+        ctaLabel: 'Open the report', ctaPath: `/risansi/reports/${reportId}`,
+      });
+    }
+
+    await pushInApp(rows.map(r => r.id), {
+      kind: 'report_shared', section: 'Reports', actor: actorEmail,
+      title: `${who} shared a report with you`,
+      body: `${title} — your own figures, not theirs.`,
+      link: `/risansi/reports/${reportId}`,
+      entityType: 'custom_report', entityId: String(reportId),
+    });
+  } catch (e) { console.error('[notify] report shared failed', e); }
+}
+
 export async function notifyBugReported(a: { title: string; severity?: string | null; reporterName?: string | null; reporterEmail?: string | null; pageUrl?: string | null }) {
   try {
     const admins = await sysadmins();

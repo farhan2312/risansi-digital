@@ -53,6 +53,7 @@ export default async function EditReportPage({ params }: { params: Promise<{ id:
         title={r.title}
         description={r.description}
         doc={r.doc}
+        shares={(r.shares ?? []).map(s => s.userId)}
         options={options.ok ? options.data
           : { states: [], industries: [], clientTypes: [], tiers: [], reps: [] }}
       />

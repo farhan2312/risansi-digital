@@ -16,7 +16,7 @@
 // carries the exact figure in its title attribute.
 
 import { fieldOf, type Format } from './model';
-import type { Grain, ValueRef } from './types';
+import type { FieldRef, Grain, ValueRef, Visual } from './types';
 
 const IN = 'en-IN';
 
@@ -110,6 +110,33 @@ export function exact(format: Format, v: unknown): string {
     case 'num': return n % 1 === 0 ? n.toLocaleString(IN) : n.toLocaleString(IN, { maximumFractionDigits: 2 });
     default:    return String(v);
   }
+}
+
+// ── naming a card nobody named ────────────────────────────────
+
+/**
+ * What a card is called when its author did not name it.
+ *
+ * Lives here rather than in the card component because the export needs the
+ * same words: a sheet called "Sheet3" and a card called "Revenue by month"
+ * are the same card, and a person pasting one into an email should not have
+ * to work that out.
+ */
+export function defaultTitle(v: Visual): string {
+  const first = (v.values ?? [])[0];
+  const val = first ? labelOf(v.dataset, first) : 'Value';
+  const name = (ref?: FieldRef | null) =>
+    ref ? fieldOf(v.dataset ?? '', ref.field)?.label ?? ref.field : null;
+
+  if (v.type === 'kpi') return val;
+  if (v.type === 'table') {
+    const dims = (v.dims ?? []).map(d => name(d)).filter(Boolean);
+    return dims.length ? `${val} by ${dims.join(' and ')}` : val;
+  }
+  const axis = name(v.axis), split = name(v.split);
+  if (axis && split) return `${val} by ${axis} and ${split}`;
+  if (axis) return `${val} by ${axis}`;
+  return val;
 }
 
 // ── date buckets ──────────────────────────────────────────────

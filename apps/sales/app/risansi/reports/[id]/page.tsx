@@ -48,6 +48,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         canBuild={hasRole(user.role, 'rep')}
         pinned={!!r.pinned}
         doc={r.doc}
+        // Only ever set for the owner: getReport leaves it off for a
+        // recipient, so the viewer cannot show one reader who else can read it.
+        shares={(r.shares ?? []).map(s => s.userId)}
         options={options.ok ? options.data
           : { states: [], industries: [], clientTypes: [], tiers: [], reps: [] }}
       />

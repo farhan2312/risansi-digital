@@ -19,7 +19,7 @@ import { runReportVisual } from '@/app/actions/risansi-reports';
 import { VISUAL_META, type Visual, type PageFilters, type Grain } from '@/lib/custom-analytics/types';
 import type { CrossFilter, RunResult } from '@/lib/custom-analytics/engine';
 import { fieldOf, type Format } from '@/lib/custom-analytics/model';
-import { formatOf, labelOf } from '@/lib/custom-analytics/fmt';
+import { formatOf, labelOf, defaultTitle } from '@/lib/custom-analytics/fmt';
 import {
   normalise, Kpi, Columns, Bars, Lines, DonutChart, Treemap, DataTable, Matrix,
   Empty, TruncNote, type SeriesDef, type TableCol,
@@ -91,7 +91,7 @@ export function VisualCard({ visual, filters, cross, onPick, actions, selected, 
 
   const axisField = visual.axis ? fieldOf(visual.dataset ?? '', visual.axis.field) : null;
   const splitField = visual.split ? fieldOf(visual.dataset ?? '', visual.split.field) : null;
-  const heading = visual.title || defaultTitle(visual, series);
+  const heading = visual.title || defaultTitle(visual);
 
   return (
     <section
@@ -271,20 +271,4 @@ function Skeleton({ type }: { type: Visual['type'] }) {
       ))}
     </div>
   );
-}
-
-// ── naming a card nobody named ────────────────────────────────
-
-function defaultTitle(visual: Visual, series: SeriesDef[]): string {
-  const v = series[0]?.label ?? 'Value';
-  const axis = visual.axis ? fieldOf(visual.dataset ?? '', visual.axis.field)?.label : null;
-  const split = visual.split ? fieldOf(visual.dataset ?? '', visual.split.field)?.label : null;
-  if (visual.type === 'kpi') return v;
-  if (visual.type === 'table') {
-    const dims = (visual.dims ?? []).map(d => fieldOf(visual.dataset ?? '', d.field)?.label).filter(Boolean);
-    return dims.length ? `${v} by ${dims.join(' and ')}` : v;
-  }
-  if (axis && split) return `${v} by ${axis} and ${split}`;
-  if (axis) return `${v} by ${axis}`;
-  return v;
 }

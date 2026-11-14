@@ -15,7 +15,7 @@
 import { revalidatePath } from 'next/cache';
 import risansiPool from '@/lib/db-risansi';
 import { getCurrentUser, hasRole, type CurrentUser } from '@/lib/risansi-auth';
-import { pushInApp } from '@/lib/risansi-inapp';
+import { notifyReportShared } from '@/lib/risansi-notify';
 import { recordAudit } from '@/lib/audit';
 import { runVisual, type CrossFilter, type RunOpts, type RunResult } from '@/lib/custom-analytics/engine';
 import { buildScope } from '@/lib/custom-analytics/scope';
@@ -288,17 +288,12 @@ export async function setReportShares(reportId: number, userIds: number[]): Prom
 
   // Only the newly added hear about it. Re-saving a share list should not
   // notify everybody on it again.
+  //
+  // Through the same sender as every other event in the portal rather than a
+  // bell row of its own: a share that only appears behind the bell is a share
+  // nobody discovers until they next happen to look.
   if (added.length) {
-    await pushInApp(added, {
-      kind: 'report_shared',
-      section: 'Reports',
-      title: 'A report was shared with you',
-      body: `${user.email} shared "${own[0].title}" with you.`,
-      link: `/risansi/reports/${reportId}`,
-      actor: user.email,
-      entityType: 'custom_report',
-      entityId: String(reportId),
-    });
+    await notifyReportShared(reportId, String(own[0].title), added, user.email!);
   }
   await recordAudit({ entityType: 'custom_report', entityId: reportId, action: 'update',
     summary: `Shared "${own[0].title}" with ${ids.length} ${ids.length === 1 ? 'person' : 'people'}`,

@@ -41,15 +41,17 @@ import { DataPanel } from './DataPanel';
 import { WellsPanel } from './WellsPanel';
 import { GridCanvas } from './GridCanvas';
 import { FilterBar, type FilterOptions } from './FilterBar';
+import { ShareDialog } from './ShareDialog';
 
 const UNDO_DEPTH = 40;
 
-export function ReportBuilder({ id, title: title0, description: description0, doc: doc0, options }: {
+export function ReportBuilder({ id, title: title0, description: description0, doc: doc0, options, shares: shares0 }: {
   id: number;
   title: string;
   description: string | null;
   doc: ReportDoc;
   options: FilterOptions;
+  shares: number[];
 }) {
   const router = useRouter();
   const [doc, setDoc] = useState<ReportDoc>(doc0);
@@ -61,6 +63,8 @@ export function ReportBuilder({ id, title: title0, description: description0, do
   const [history, setHistory] = useState<ReportDoc[]>([]);
   const [mark, setMark] = useState(() => JSON.stringify({ t: title0, d: description0 ?? '', doc: doc0 }));
   const [note, setNote] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shares, setShares] = useState(shares0);
   const [busy, start] = useTransition();
 
   const i = Math.min(tab, Math.max(0, doc.pages.length - 1));
@@ -264,6 +268,10 @@ export function ReportBuilder({ id, title: title0, description: description0, do
             style={{ ...BTN, background: dirty ? 'var(--accent-fill)' : 'var(--bg-paper)',
                      color: dirty ? '#fff' : 'var(--fg-3)', borderColor: dirty ? 'transparent' : 'var(--line)' }}
             title="Save (Ctrl+S)">{busy ? 'Saving…' : 'Save'}</button>
+          <button type="button" onClick={() => setShareOpen(true)} style={BTN}
+                  title="Who else can read this report">
+            Share{shares.length ? ` (${shares.length})` : ''}
+          </button>
           <button type="button" onClick={leave} style={BTN} title="Back to reading it">Done</button>
         </div>
       </header>
@@ -379,6 +387,13 @@ export function ReportBuilder({ id, title: title0, description: description0, do
         </div>
       </div>
       </div>
+
+      {shareOpen && (
+        <ShareDialog
+          reportId={id} title={title} initial={shares}
+          onClose={() => setShareOpen(false)}
+          onDone={(message, picked) => { setShares(picked); setShareOpen(false); setNote(message); }} />
+      )}
     </div>
   );
 }

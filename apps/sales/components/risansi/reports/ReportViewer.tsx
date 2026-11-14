@@ -30,6 +30,8 @@ import { DATASET_BY_ID } from '@/lib/custom-analytics/model';
 import { pinReport, copyReport } from '@/app/actions/risansi-reports';
 import { VisualCard, type PickedCategory } from './VisualCard';
 import { FilterBar, type FilterOptions } from './FilterBar';
+import { ShareDialog } from './ShareDialog';
+import { downloadReportSheet } from './download';
 
 export interface ReportViewerProps {
   id: number;
@@ -41,6 +43,8 @@ export interface ReportViewerProps {
   pinned: boolean;
   doc: ReportDoc;
   options: FilterOptions;
+  /** Who it is shared with. Only ever populated for the owner. */
+  shares: number[];
 }
 
 export function ReportViewer(p: ReportViewerProps) {
@@ -48,6 +52,12 @@ export function ReportViewer(p: ReportViewerProps) {
   const [tab, setTab] = useState(0);
   const [cross, setCross] = useState<CrossFilter | null>(null);
   const [pinned, setPinned] = useState(p.pinned);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shares, setShares] = useState(p.shares);
+  const [exporting, setExporting] = useState<string | null>(null);
+  // Kept apart from `note`: "shared with three people" in the red box reads
+  // as something having gone wrong.
+  const [flash, setFlash] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const [note, setNote] = useState<string | null>(null);
 
@@ -85,6 +95,25 @@ export function ReportViewer(p: ReportViewerProps) {
     else setNote(r.error);
   });
 
+  /**
+   * The page, or one card of it, as a workbook.
+   *
+   * The filters and the cross-filter go with it, so what arrives is what is
+   * on screen — except that it is not folded into "Other" and not paged at
+   * fifty rows, which is the whole reason for wanting it in Excel.
+   */
+  const download = (visualId?: string) => {
+    if (!page) return;
+    setExporting(visualId ?? 'page');
+    void (async () => {
+      const err = await downloadReportSheet({
+        id: p.id, pageId: page.id, visualId, filters, cross,
+      });
+      setExporting(null);
+      if (err) setNote(err);
+    })();
+  };
+
   const makeCopy = () => start(async () => {
     const r = await copyReport(p.id);
     if (r.ok) router.push(`/risansi/reports/${r.data.id}`);
@@ -112,6 +141,17 @@ export function ReportViewer(p: ReportViewerProps) {
                      color: pinned ? 'var(--accent)' : 'var(--fg-2)' }}>
             {pinned ? '★ Pinned' : '☆ Pin'}
           </button>
+          <button type="button" onClick={() => download()} disabled={!page || exporting === 'page'}
+            style={BTN}
+            title="This page as an Excel workbook, one sheet per card, with every row rather than the top fifteen">
+            {exporting === 'page' ? 'Building…' : 'Excel'}
+          </button>
+          {p.mine && (
+            <button type="button" onClick={() => setShareOpen(true)} style={BTN}
+              title="Who else can read this report">
+              Share{shares.length ? ` (${shares.length})` : ''}
+            </button>
+          )}
           {p.canBuild && (
             <button type="button" onClick={makeCopy} disabled={busy} style={BTN}
               title="A report of your own, starting from this one. The original is untouched.">
@@ -134,6 +174,17 @@ export function ReportViewer(p: ReportViewerProps) {
         <div role="alert" style={{ fontSize: 12, color: 'var(--neg)', background: 'var(--neg-soft)',
                                    border: '1px solid var(--neg)', borderRadius: 5, padding: '6px 10px' }}>
           {note}
+        </div>
+      )}
+
+      {flash && (
+        <div role="status" style={{ fontSize: 12, color: 'var(--fg-2)', background: 'var(--accent-soft)',
+                                    border: '1px solid var(--accent-line)', borderRadius: 5,
+                                    padding: '6px 10px', display: 'flex', gap: 8 }}>
+          <span style={{ flex: 1 }}>{flash}</span>
+          <button type="button" onClick={() => setFlash(null)}
+            style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer',
+                     fontFamily: 'inherit', fontSize: 12 }}>✕</button>
         </div>
       )}
 
@@ -182,10 +233,33 @@ export function ReportViewer(p: ReportViewerProps) {
               gridRow: `${v.layout.y + 1} / span ${v.layout.h}`,
               minWidth: 0, minHeight: 0,
             }}>
-              <VisualCard visual={v} filters={filters} cross={cross} onPick={pick} />
+              <VisualCard visual={v} filters={filters} cross={cross} onPick={pick}
+                actions={
+                  <button type="button"
+                    onClick={e => { e.stopPropagation(); download(v.id); }}
+                    disabled={exporting === v.id}
+                    title="Just this card, as a sheet"
+                    aria-label="Export this card to Excel"
+                    style={{ background: 'none', border: 'none', padding: '0 2px', cursor: 'pointer',
+                             color: 'var(--fg-4)', fontSize: 11, fontFamily: 'inherit' }}>
+                    {exporting === v.id ? '…' : '⤓'}
+                  </button>
+                } />
             </div>
           ))}
         </div>
+      )}
+
+      {shareOpen && (
+        <ShareDialog
+          reportId={p.id} title={p.title} initial={shares}
+          onClose={() => setShareOpen(false)}
+          onDone={(message, picked) => {
+            setShares(picked);
+            setShareOpen(false);
+            setFlash(message);
+            router.refresh();
+          }} />
       )}
     </div>
   );
