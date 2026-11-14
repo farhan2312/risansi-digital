@@ -28,8 +28,6 @@ export function basePlateStepsSql(o = "o"): string {
 }
 export const WOODEN_BOX_SOURCES = ["In house", "Bought out"];
 export const WOODEN_BOX_STATUSES = ["Pending", "In plan", "Received"];
-/** In house: no status or received date — the boxes are there once saved. */
-export const IN_HOUSE_BOX = "In house";
 
 /** What the ECs say: Yes when an EC of the SO (alias o) needs a base plate, else No. */
 export const basePlateFromEcsSql = (o: string) =>
@@ -44,15 +42,14 @@ export const basePlateSql = (o: string) => `COALESCE(${o}.base_plate_override, $
  * before any is entered.
  */
 export const woodenBoxStatusSql = (o: string) =>
-  // An in-house box has no status to track: it counts as there once saved.
-  `(SELECT CASE WHEN count(*) = 0 THEN NULL WHEN bool_and(wb.status = 'Received' OR wb.source = 'In house') THEN 'Received'
-               WHEN bool_and(wb.status = 'Pending' OR wb.source = 'In house') THEN 'Pending' ELSE 'In plan' END
+  `(SELECT CASE WHEN count(*) = 0 THEN NULL WHEN bool_and(wb.status = 'Received') THEN 'Received'
+               WHEN bool_and(wb.status = 'Pending') THEN 'Pending' ELSE 'In plan' END
       FROM order_wooden_boxes wb WHERE wb.order_id = ${o}.id)`;
 
 /** When the last of the SO's (alias o) wooden boxes came in, once all have. */
 export const woodenBoxReceivedSql = (o: string) =>
   `(SELECT to_char(max(wb.received_date), 'YYYY-MM-DD') FROM order_wooden_boxes wb
-     WHERE wb.order_id = ${o}.id HAVING bool_and(wb.status = 'Received' OR wb.source = 'In house'))`;
+     WHERE wb.order_id = ${o}.id HAVING bool_and(wb.status = 'Received'))`;
 
 /** What the Packing Requirement says: Yes for a wooden box, No for other packing, null before it is said. */
 export const woodenBoxFromPackingSql = (o: string) =>

@@ -369,10 +369,8 @@ export async function saveWoodenBoxAction(orderId: string, required: string, sen
     if (!w) continue;
     const required = qty(w.required_qty);
     const stock = qty(w.stock_qty);
-    // In house has no status, date or quantity received: saved, it is there.
-    const inHouse = source === "In house";
-    const status = inHouse ? "Received" : WOODEN_BOX_STATUSES.includes(w.status) ? w.status : "Pending";
-    const received = status === "Received" && !inHouse;
+    const status = WOODEN_BOX_STATUSES.includes(w.status) ? w.status : "Pending";
+    const received = status === "Received";
     const date = received ? (w.received_date ?? "").trim() : "";
     const got = received ? qty(w.received_qty) : null;
     if (required === false || stock === false || got === false) return { ok: false, error: `${source}: quantities are whole numbers.` };
@@ -415,7 +413,7 @@ export async function saveWoodenBoxAction(orderId: string, required: string, sen
     details: `Wooden box: ${boxes
       .map(
         (b) =>
-          `${b.source} ${b.required} required${b.stock ? `, ${b.stock} in stock` : ""}${b.source === "In house" ? "" : `, ${b.status}`}${
+          `${b.source} ${b.required} required${b.stock ? `, ${b.stock} in stock` : ""}, ${b.status}${
             b.date ? ` ${b.got} on ${b.date}` : ""
           }${b.remarks ? ` (${b.remarks})` : ""}`
       )

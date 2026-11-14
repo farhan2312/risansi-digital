@@ -12,7 +12,7 @@ import {
   type BasePlate,
   type WoodenBox,
 } from "@/app/risansi/orders/assembly-actions";
-import { BASE_PLATE_STATUSES, IN_HOUSE_BOX, WOODEN_BOX_SOURCES, WOODEN_BOX_STATUSES } from "@/lib/assembly";
+import { BASE_PLATE_STATUSES, WOODEN_BOX_SOURCES, WOODEN_BOX_STATUSES } from "@/lib/assembly";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? "" : String(v));
@@ -304,14 +304,11 @@ export function WoodenBoxForm({ orderId, soLabel, alignment, onClose }: FormProp
               <input type="number" min={0} step={1} value={b.stock_qty} onChange={(e) => setBox(b.source, { stock_qty: e.target.value })} className={input} />
             </Field>
           </div>
-          {/* In house: no status or received date — saved, the boxes are there. */}
-          {b.source !== IN_HOUSE_BOX && (
           <Field label="Status" required group>
             <Pills options={WOODEN_BOX_STATUSES} on={(o) => b.status === o} pick={(o) => setBox(b.source, { status: o })} />
           </Field>
-          )}
           {/* Received on a day, in a quantity. */}
-          {b.source !== IN_HOUSE_BOX && b.status === "Received" && (
+          {b.status === "Received" && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Received Date" required>
                 <input type="date" value={b.received_date} onChange={(e) => setBox(b.source, { received_date: e.target.value })} className={input} />
@@ -360,17 +357,6 @@ export function AlignmentValue({
           {boxes.map((b) => {
             const st = str(b.status) || "Pending";
             const n = (v: unknown) => str(v) || "0";
-            const inHouse = str(b.source) === IN_HOUSE_BOX;
-            if (inHouse) {
-              return (
-                <span key={str(b.source)} className="flex flex-col items-start gap-0.5">
-                  <span className="text-[11px] font-semibold text-foreground">{str(b.source)}</span>
-                  <span className="whitespace-nowrap text-[11px] text-muted">
-                    Required {n(b.required_qty)} · Stock {n(b.stock_qty)}
-                  </span>
-                </span>
-              );
-            }
             return (
               <span key={str(b.source)} className="flex flex-col items-start gap-0.5">
                 <span className="flex items-center gap-1.5 whitespace-nowrap">

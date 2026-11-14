@@ -124,8 +124,6 @@ export function alignmentText(a: PumpSummary["alignment"] | undefined, which: "b
       .map((b) => {
         const st = str(b.status) || "Pending";
         const n = (v: unknown) => str(v) || "0";
-        // In house: no status or received to report.
-        if (str(b.source) === "In house") return `In house · Required ${n(b.required_qty)} · Stock ${n(b.stock_qty)}`;
         return `${str(b.source)}: ${st} · Required ${n(b.required_qty)} · Stock ${n(b.stock_qty)} · Received ${n(b.received_qty)}${
           st === "Received" && str(b.received_date) ? ` · ${day(b.received_date)}` : ""
         }`;
