@@ -292,11 +292,25 @@ export async function saveBasePlateAction(orderId: string, p: BasePlate): Promis
   const remarks = text(p.remarks);
 
   try {
+    const was = (
+      await query<{ status: string | null; date: string | null; remarks: string | null }>(
+        `SELECT base_plate_status AS status, to_char(base_plate_date, 'YYYY-MM-DD') AS date, base_plate_remarks AS remarks FROM orders WHERE id = $1`,
+        [orderId]
+      )
+    ).rows[0];
     await query(
       `UPDATE orders SET base_plate_override = $5, base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4, updated_at = now()
         WHERE id = $1`,
       [orderId, status, date || null, remarks, override]
     );
+    // Each step kept with its own day: moving on to the next adds to the history.
+    if (!was || was.status !== status || (was.date ?? "") !== date || (was.remarks ?? null) !== remarks) {
+      await query(
+        `INSERT INTO order_base_plate_history (order_id, status, stage_date, remarks, prev_status, prev_date, changed_by, changed_by_name)
+         VALUES ($1, $2, NULLIF($3, '')::date, $4, $5, NULLIF($6, '')::date, $7, $8)`,
+        [orderId, status, date, remarks, was?.status ?? null, was?.date ?? "", UUID_RE.test(gate.user.id) ? gate.user.id : null, gate.user.full_name || gate.user.email]
+      );
+    }
   } catch (error) {
     console.error("saveBasePlateAction failed:", error);
     return { ok: false, error: "Could not save the base plate." };
@@ -408,4 +422,27 @@ export async function saveWoodenBoxAction(orderId: string, required: string, sen
   });
   revalidatePath("/risansi/departments/assembly-dispatch");
   return { ok: true };
+}
+
+export type BasePlateEvent = {
+  status: string;
+  stage_date: string | null;
+  remarks: string | null;
+  prev_status: string | null;
+  prev_date: string | null;
+  changed_by_name: string | null;
+  changed_at: string;
+};
+
+/** The base plate's history on a pump SO, newest first. */
+export async function basePlateHistoryAction(orderId: string): Promise<BasePlateEvent[]> {
+  const user = await getCurrentUser();
+  if (!user || !UUID_RE.test(orderId)) return [];
+  const r = await query<BasePlateEvent>(
+    `SELECT status, to_char(stage_date, 'YYYY-MM-DD') AS stage_date, remarks, prev_status,
+            to_char(prev_date, 'YYYY-MM-DD') AS prev_date, changed_by_name, changed_at::text AS changed_at
+       FROM order_base_plate_history WHERE order_id = $1 ORDER BY changed_at DESC`,
+    [orderId]
+  );
+  return r.rows;
 }

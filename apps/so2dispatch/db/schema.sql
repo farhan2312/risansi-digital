@@ -3425,3 +3425,25 @@ SELECT v.list, v.section, v.part_no, v.part_name, v.seq
   ) AS v(list, section, part_no, part_name, seq)
  WHERE NOT EXISTS (SELECT 1 FROM part_list_items x WHERE x.list = v.list)
 ON CONFLICT DO NOTHING;
+
+-- A pump SO's base plate, step by step: each status it reached (Fabrication,
+-- Marking, …) with its day, who set it and when — the SO keeps only the latest.
+-- Seeded with each SO's current step. Idempotent.
+CREATE TABLE IF NOT EXISTS order_base_plate_history (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id        UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    status          TEXT NOT NULL,
+    stage_date      DATE,
+    remarks         TEXT,
+    prev_status     TEXT,
+    prev_date       DATE,
+    changed_by      UUID,
+    changed_by_name TEXT,
+    changed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_base_plate_history_order_idx ON order_base_plate_history (order_id, changed_at);
+INSERT INTO order_base_plate_history (order_id, status, stage_date, remarks, changed_at)
+SELECT o.id, o.base_plate_status, o.base_plate_date, o.base_plate_remarks, o.updated_at
+  FROM orders o
+ WHERE o.base_plate_status IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM order_base_plate_history h WHERE h.order_id = o.id);

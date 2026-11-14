@@ -5,7 +5,7 @@
 import { query } from "@/lib/db";
 import { spareEcSql, boiReceivedSql, boiStatus, orderStatusSql } from "@/lib/dept-view";
 import { linksFromRows, qcDocsStatus, requiredQcDocs } from "@/lib/qc-docs";
-import { pumpLotsFromEcs, type PumpLot } from "@/lib/assembly";
+import { basePlateStepsSql, pumpLotsFromEcs, type PumpLot } from "@/lib/assembly";
 import { curveStatusSql, ecDrawingDoneSql, ecGadStatusSql, partStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
@@ -55,6 +55,8 @@ export type PumpSummary = {
     base_plate: string | null;
     base_plate_status: string | null;
     base_plate_date: string | null;
+    /** Each step it reached, with its day. */
+    base_plate_steps?: { status: string; date: string | null }[];
     wooden_box: string | null;
     wooden_box_status: string | null;
     wooden_box_received_date: string | null;
@@ -122,6 +124,7 @@ type Raw = {
   base_plate: string | null;
   base_plate_status: string | null;
   base_plate_date: string | null;
+  base_plate_steps: { status: string; date: string | null }[] | null;
   wooden_box: string | null;
   wooden_box_status: string | null;
   wooden_box_received_date: string | null;
@@ -193,6 +196,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
             (SELECT to_char(min(rl.packing_plan_date), 'YYYY-MM-DD') ${lots} AND rl.packed_date IS NULL) AS packing_next,
             (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${lots}) AS packing_last,
             ${basePlateSql("o")} AS base_plate, o.base_plate_status, to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date,
+            ${basePlateStepsSql("o")} AS base_plate_steps,
             ${woodenBoxSql("o")} AS wooden_box, ${woodenBoxStatusSql("o")} AS wooden_box_status,
             ${woodenBoxReceivedSql("o")} AS wooden_box_received_date,
             (SELECT jsonb_agg(jsonb_build_object('source', wb.source, 'required_qty', wb.required_qty,
@@ -282,6 +286,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
         base_plate: x.base_plate,
         base_plate_status: x.base_plate_status,
         base_plate_date: x.base_plate_date,
+        base_plate_steps: x.base_plate_steps ?? [],
         wooden_box: x.wooden_box,
         wooden_box_status: x.wooden_box_status,
         wooden_box_received_date: x.wooden_box_received_date,

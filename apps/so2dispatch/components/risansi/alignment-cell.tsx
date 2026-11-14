@@ -4,7 +4,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Pencil, X } from "lucide-react";
 import {
+  basePlateHistoryAction,
   saveBasePlateAction,
+  type BasePlateEvent,
   saveWoodenBoxAction,
   type AssemblyResult,
   type BasePlate,
@@ -214,7 +216,41 @@ export function BasePlateForm({ orderId, soLabel, alignment, onClose }: FormProp
           </Field>
         </>
       )}
+      <BasePlateHistory orderId={orderId} />
     </AlignmentDialog>
+  );
+}
+
+/** The base plate's steps so far: each status with its day, who set it and when. */
+function BasePlateHistory({ orderId }: { orderId: string }) {
+  const [rows, setRows] = useState<BasePlateEvent[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    basePlateHistoryAction(orderId)
+      .then((r) => live && setRows(r))
+      .catch(() => live && setRows([]));
+    return () => {
+      live = false;
+    };
+  }, [orderId]);
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-card-border/70 p-3">
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">History</p>
+      <ul className="space-y-1">
+        {rows.map((h, i) => (
+          <li key={i} className="text-xs">
+            <span className="font-semibold text-foreground">{h.status}</span>
+            {h.stage_date && <span className="text-foreground"> · {shortDate(h.stage_date)}</span>}
+            {h.prev_status && h.prev_status !== h.status && <span className="text-muted"> (from {h.prev_status})</span>}
+            {h.remarks && <span className="text-muted"> · {h.remarks}</span>}
+            <span className="block text-[11px] text-muted">
+              {[h.changed_by_name, shortDate(h.changed_at)].filter(Boolean).join(" · ")}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -346,6 +382,18 @@ export function AlignmentValue({
       ) : (
         <span className="inline-flex items-center gap-1">
           <Value yes={str(a[which])} status={str(a[`${which}_status`])} done={DONE[which]} date={which === "base_plate" ? str(a.base_plate_date) : ""} />
+          {/* The steps before this one, each with its day. */}
+          {which === "base_plate" && needed && Array.isArray(a.base_plate_steps) && (a.base_plate_steps as Row[]).length > 1 && (
+            <span className="ml-1 flex flex-col items-start gap-0.5 border-l border-card-border pl-2">
+              {(a.base_plate_steps as Row[])
+                .filter((s) => str(s.status) !== str(a.base_plate_status))
+                .map((s) => (
+                  <span key={str(s.status)} className="whitespace-nowrap text-[11px] text-muted">
+                    {str(s.status)} {str(s.date) ? shortDate(str(s.date)) : ""}
+                  </span>
+                ))}
+            </span>
+          )}
           {canEdit && !needed && <Pencil className="h-3 w-3 text-muted" aria-hidden />}
         </span>
       )}

@@ -16,6 +16,16 @@ export type Stage = "assembly" | "packing";
  * over either (base_plate_override, wooden_box_override).
  */
 export const BASE_PLATE_STATUSES = ["Pending", "Fabrication", "Marking", "Drilling", "Painting", "Manufactured"];
+
+/** A pump SO's base plate steps over an SO alias: each status reached with its latest day, in process order. */
+export function basePlateStepsSql(o = "o"): string {
+  return `(SELECT COALESCE(jsonb_agg(jsonb_build_object('status', s.status, 'date', to_char(s.stage_date, 'YYYY-MM-DD')) ORDER BY s.ord), '[]'::jsonb)
+                    FROM (SELECT DISTINCT ON (h.status) h.status, h.stage_date,
+                                 array_position(ARRAY['Pending','Fabrication','Marking','Drilling','Painting','Manufactured'], h.status) AS ord
+                            FROM order_base_plate_history h
+                           WHERE h.order_id = ${o}.id AND h.stage_date IS NOT NULL
+                           ORDER BY h.status, h.changed_at DESC) s)`;
+}
 export const WOODEN_BOX_SOURCES = ["In house", "Bought out"];
 export const WOODEN_BOX_STATUSES = ["Pending", "In plan", "Received"];
 

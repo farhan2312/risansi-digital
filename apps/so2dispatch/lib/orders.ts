@@ -59,7 +59,7 @@ import {
 import { ecDrawingDoneSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, qcEcReadySql, soQcStateSql } from "@/lib/qc-filter";
-import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, basePlateSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
+import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
 import { toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
@@ -2918,6 +2918,8 @@ export async function listItemsForSection(
                  -- The SO's Alignment: base plate and wooden box, whether needed and where each stands.
                  (SELECT jsonb_build_object('base_plate', ${basePlateSql("oa")}, 'base_plate_status', oa.base_plate_status,
                                             'base_plate_date', to_char(oa.base_plate_date, 'YYYY-MM-DD'),
+                                            -- Every step it reached, each with its day.
+                                            'base_plate_steps', ${basePlateStepsSql("oa")},
                                             'base_plate_remarks', oa.base_plate_remarks,
                                             'wooden_box', ${woodenBoxSql("oa")},
                                             -- A row per way: in house, bought out.
