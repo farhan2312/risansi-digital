@@ -16,7 +16,7 @@
 // value on a real dimension. "Other" never is — it is a bucket this page
 // invented, not a value in the database, so there is nothing to filter on.
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { OTHER, type Grain, type Visual } from '@/lib/custom-analytics/types';
 import type { Row, Cell } from '@/lib/custom-analytics/engine';
 import { compact, exact, bucketLabel, tick } from '@/lib/custom-analytics/fmt';
@@ -109,20 +109,55 @@ export function Kpi({ value, format, label }: { value: Cell; format: Format; lab
 // ── columns (vertical) ────────────────────────────────────────
 
 export function Columns({ n, onPick, stacked }: { n: Normalised; onPick?: OnPick; stacked?: boolean }) {
+  // How wide one column actually is, measured.
+  //
+  // The figures used to be hidden on a count — more than ten categories and
+  // they went. That is the wrong test: seven months in a half-width card
+  // gives each column 48px and the figure "₹2.06 Cr" is 46px, so they sat
+  // two pixels apart and read as one long smear. What decides whether a
+  // figure fits is the room it has, and in a builder where cards are resized
+  // by dragging, that room changes under it.
+  const box = useRef<HTMLDivElement | null>(null);
+  const [room, setRoom] = useState(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([e]) => setRoom(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   if (!n.cats.length) return <Empty />;
   const stack = stacked || n.isSplit;
   const max = Math.max(
     ...n.cats.map(c => stack ? c.total : Math.max(...c.parts.map(p => p.value ?? 0), 0)), 1);
   const many = n.cats.length > 10;
+  // Unmeasured, assume there is room: one frame of crowding beats every
+  // figure flashing into place on a page of ten cards.
+  const per = room ? room / n.cats.length : 999;
+  const showFigures = per >= 52;
+  const ticks = Math.max(4, Math.min(11, Math.floor(per / 6)));
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: many ? 3 : 8, minHeight: 90 }}>
+      {/* There is no y-axis on these charts — the figure on each column IS
+          the scale. So when the columns are too narrow to carry one, the
+          tallest is named instead, and the chart keeps its size rather than
+          becoming a row of shapes. Every column still carries its exact
+          figure in its tooltip. */}
+      {!showFigures && (
+        <div style={{ fontSize: 9.5, color: 'var(--fg-4)', fontFamily: 'var(--font-mono)',
+                      marginBottom: 2, flexShrink: 0 }}
+             title={`The tallest column is ${exact(n.formats[0], max)}`}>
+          tallest {compact(n.formats[0], max)}
+        </div>
+      )}
+      <div ref={box} style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: many ? 3 : 8, minHeight: 90 }}>
         {n.cats.map(c => (
           <Pickable key={c.label} cat={c} onPick={onPick}
             style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
                      alignItems: 'center', justifyContent: 'flex-end', gap: 3, height: '100%' }}>
-            {!many && (
+            {showFigures && (
               <span style={{ fontSize: 9.5, fontWeight: 600, fontFamily: 'var(--font-mono)',
                              color: 'var(--fg-2)', whiteSpace: 'nowrap' }}>
                 {stack ? compact(n.formats[0], c.total) : compact(n.formats[0], c.parts[0]?.value)}
@@ -149,7 +184,7 @@ export function Columns({ n, onPick, stacked }: { n: Normalised; onPick?: OnPick
             )}
             <span style={{ fontSize: 10, color: 'var(--fg-3)', whiteSpace: 'nowrap',
                            overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
-              {tick(c.label, many ? 7 : 11)}
+              {tick(c.label, ticks)}
             </span>
           </Pickable>
         ))}

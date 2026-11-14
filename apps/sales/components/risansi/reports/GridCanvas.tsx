@@ -139,7 +139,13 @@ export function GridCanvas({
     <div
       ref={boxRef}
       className="rpt-grid-build"
-      onClick={() => onSelect(null)}
+      // Only a click on the canvas ITSELF clears the selection. Without the
+      // target test this fired on every click that bubbled up out of a card,
+      // so selecting a card selected and then instantly deselected it — the
+      // right-hand panel flashed open and shut and no card could be edited
+      // at all. Reported from the live app; it could not have been found any
+      // other way than by clicking one.
+      onClick={e => { if (e.target === e.currentTarget) onSelect(null); }}
       style={{ minHeight: 240, alignContent: 'start' }}
     >
       {visuals.map(v => {
@@ -152,6 +158,9 @@ export function GridCanvas({
             aria-label={v.title || v.type}
             onKeyDown={e => onKey(e, v)}
             onFocus={() => onSelect(v.id)}
+            // Belt and braces with the canvas's target test above: a click
+            // anywhere on a card selects that card and goes no further.
+            onClick={e => { e.stopPropagation(); onSelect(v.id); }}
             onDragOver={e => {
               if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
               e.preventDefault();

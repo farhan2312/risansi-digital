@@ -266,7 +266,13 @@ export function ReportBuilder({ id, title: title0, description: description0, do
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      const typing = el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+      // A text box has its own undo and should keep it. A <select> has no
+      // text to undo, so leaving it in this list meant Ctrl+Z did nothing at
+      // all after using any dropdown in the panel — change a card's table or
+      // a date grain and the undo you reach for next is swallowed by the
+      // control you just used.
+      const typing = el && /^(INPUT|TEXTAREA)$/.test(el.tagName)
+                        && (el as HTMLInputElement).type !== 'checkbox';
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === 'z' && !typing) { e.preventDefault(); undo(); }
       if (e.key === 's') { e.preventDefault(); save(); }
