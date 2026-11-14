@@ -70,6 +70,9 @@ export type DispatchPlanRow = {
   assembly: DispatchPlanStage;
   packing: DispatchPlanStage;
   dispatch_target: string | null;
+  /** Central Visibility's Final Dispatch Target, and who set it. */
+  final_dispatch_target: string | null;
+  final_dispatch_target_by: string | null;
   status: string;
 };
 
@@ -170,6 +173,8 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
               'next', (SELECT to_char(min(rl.packing_plan_date), 'YYYY-MM-DD') ${LOTS} AND rl.packed_date IS NULL),
               'last', (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${LOTS})) AS packing,
             to_char(COALESCE(so.dispatch_target_revised_date, so.dispatch_target_date), 'YYYY-MM-DD') AS dispatch_target,
+            to_char(so.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target,
+            so.final_dispatch_target_by,
             ${orderStatusSql("so")} AS status
        FROM so
        JOIN ready r ON r.order_id = so.id

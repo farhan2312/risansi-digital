@@ -3447,3 +3447,9 @@ SELECT o.id, o.base_plate_status, o.base_plate_date, o.base_plate_remarks, o.upd
   FROM orders o
  WHERE o.base_plate_status IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM order_base_plate_history h WHERE h.order_id = o.id);
+
+-- The Dispatch Plan: Central Visibility's Final Dispatch Target Date for an
+-- SO, beside the department's Dispatch Target, and who set it when.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_dispatch_target_date DATE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_dispatch_target_by TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_dispatch_target_at TIMESTAMPTZ;

@@ -3,7 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CalendarRange } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
-import { canSeeDispatchPlan } from "@/lib/roles";
+import { canSeeDispatchPlan, isCentral } from "@/lib/roles";
+import { FinalDispatchTarget } from "@/components/risansi/final-dispatch-target";
 import { DISPATCH_PLAN_DAYS, listDispatchPlan, type DispatchPlanRow, type DispatchPlanStage } from "@/lib/dispatch-plan";
 import { boiStatus } from "@/lib/dept-view";
 import { UrlSearchInput } from "@/components/risansi/url-table";
@@ -155,7 +156,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className="w-full min-w-[2000px] text-sm">
+          <table className="w-full min-w-[2160px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
@@ -173,6 +174,8 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3">Packing</th>
                 <th className="px-4 py-3">Account</th>
                 <th className="px-4 py-3">Dispatch Target</th>
+                {/* Central Visibility's own, after the department's. */}
+                <th className="whitespace-nowrap px-4 py-3">Final Dispatch Target</th>
                 <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
@@ -292,6 +295,15 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                     </td>
                     <td className={`whitespace-nowrap px-4 py-3 ${targetLate ? "font-medium text-rose-700 dark:text-rose-300" : ""}`}>
                       {formatDate(r.dispatch_target)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <FinalDispatchTarget
+                        orderId={r.id}
+                        value={r.final_dispatch_target}
+                        by={r.final_dispatch_target_by}
+                        canEdit={isCentral(user.role)}
+                        late={!!r.final_dispatch_target && r.final_dispatch_target < now}
+                      />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <Chip tone={r.status === "LOT dispatch" ? "part" : "pending"}>{r.status === "LOT dispatch" ? "Lot dispatch" : r.status}</Chip>
