@@ -3186,3 +3186,32 @@ export async function ackEcVersionChangesAction(orderId: string): Promise<{ ok: 
   await ackEcVersionChanges(orderId, dept, { id: user.id, name: user.full_name || user.email });
   return { ok: true };
 }
+
+/**
+ * What an invoice's value is checked against as it is typed: the SO's Gross
+ * value, what its other dispatches already invoiced, and its quantity.
+ */
+export async function invoiceCheckFactsAction(
+  orderId: string,
+  invoiceId: string | null
+): Promise<{ gross: number | null; others: number; quantity: number | null; othersQty: number; currency: string } | null> {
+  const user = await getCurrentUser();
+  if (!user || !/^[0-9a-f-]{36}$/i.test(orderId)) return null;
+  const r = await query<{ gross: string | null; others: string | null; quantity: number | null; others_qty: number | null; currency: string | null }>(
+    `SELECT o.taxable_value::text AS gross, o.total_quantity AS quantity,
+            CASE WHEN upper(COALESCE(o.order_currency, '')) = 'USD' THEN 'INR' ELSE COALESCE(NULLIF(o.order_currency, ''), 'INR') END AS currency,
+            (SELECT sum(iv.invoice_value)::text FROM order_invoices iv WHERE iv.order_id = o.id AND iv.id IS DISTINCT FROM $2::uuid) AS others,
+            (SELECT sum(COALESCE(iv.invoice_quantity, 0))::int FROM order_invoices iv WHERE iv.order_id = o.id AND iv.id IS DISTINCT FROM $2::uuid) AS others_qty
+       FROM orders o WHERE o.id = $1`,
+    [orderId, invoiceId && /^[0-9a-f-]{36}$/i.test(invoiceId) ? invoiceId : null]
+  );
+  const x = r.rows[0];
+  if (!x) return null;
+  return {
+    gross: x.gross == null ? null : Number(x.gross),
+    others: Number(x.others ?? 0) || 0,
+    quantity: x.quantity == null ? null : Number(x.quantity),
+    othersQty: Number(x.others_qty ?? 0) || 0,
+    currency: x.currency ?? "INR",
+  };
+}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Loader2, X } from "lucide-react";
 import {
   createDispatchAction,
+  invoiceCheckFactsAction,
   updateOrderChildAction,
 } from "@/app/risansi/orders/actions";
 import { INVOICE_FIELDS, dependsOnSatisfied, selectOptionsFor } from "@/lib/order-schema";
@@ -55,6 +56,46 @@ export function DispatchWizard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // The SO's Gross value and what its other dispatches invoiced: the invoice value is checked against them.
+  const [facts, setFacts] = useState<Awaited<ReturnType<typeof invoiceCheckFactsAction>>>(null);
+  useEffect(() => {
+    if (str(billType) === "Challan") return;
+    let live = true;
+    invoiceCheckFactsAction(orderId, invoiceId)
+      .then((r) => live && setFacts(r))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [orderId, invoiceId, billType]);
+  const money = (n: number) => `${(facts?.currency ?? "INR") === "INR" ? "₹" : `${facts?.currency} `}${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  /**
+   * The invoice value against the Gross value: more than it, all invoices
+   * together (red); or the dispatch that completes the SO's quantity leaving
+   * the total off the Gross value (amber). Within a rupee is a match.
+   */
+  const valueCheck = (() => {
+    if (!facts || facts.gross == null || step !== "invoice" || str(billType) === "Challan") return null;
+    const raw = (values.invoice_value ?? "").trim();
+    if (!raw || !Number.isFinite(Number(raw))) return null;
+    const total = facts.others + Number(raw);
+    const diff = total - facts.gross;
+    const qty = Number((values.invoice_quantity ?? "").trim()) || 0;
+    const completes = facts.quantity != null && facts.quantity > 0 && facts.othersQty + qty >= facts.quantity;
+    if (diff >= 1) {
+      return {
+        tone: "danger" as const,
+        text: `Invoiced total ${money(total)} is more than the Gross value ${money(facts.gross)} by ${money(diff)}.`,
+      };
+    }
+    if (completes && Math.abs(diff) >= 1) {
+      return {
+        tone: "warn" as const,
+        text: `This dispatch completes the SO's quantity, but the invoiced total ${money(total)} is ${money(-diff)} short of the Gross value ${money(facts.gross)}.`,
+      };
+    }
+    return { tone: "ok" as const, text: `Gross value ${money(facts.gross)} · invoiced with this ${money(total)} · left ${money(Math.max(0, -diff))}` };
+  })();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && close();
@@ -77,6 +118,9 @@ export function DispatchWizard({
   }
 
   async function save(next: boolean) {
+    if (valueCheck && valueCheck.tone !== "ok" && !confirm(`${valueCheck.text}
+
+Save this invoice value anyway?`)) return;
     setSaving(true);
     setError(null);
     let id = invoiceId;
@@ -206,6 +250,22 @@ export function DispatchWizard({
             </label>
           ))}
         </div>
+
+        {/* The invoice value against the SO's Gross value, as it is typed. */}
+        {valueCheck && (
+          <div
+            role={valueCheck.tone === "ok" ? undefined : "alert"}
+            className={`mt-3 rounded-[10px] border px-3 py-2 text-sm ${
+              valueCheck.tone === "danger"
+                ? "border-danger-border bg-danger-bg text-danger"
+                : valueCheck.tone === "warn"
+                  ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+                  : "border-card-border bg-background text-muted"
+            }`}
+          >
+            {valueCheck.text}
+          </div>
+        )}
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button
