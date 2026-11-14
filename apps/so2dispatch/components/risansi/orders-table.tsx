@@ -2,7 +2,8 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { History, Layers, Loader2, MessageSquare, Trash2 } from "lucide-react";
+import { History, Layers, Loader2, MessageSquare, PanelRightClose, PanelRightOpen, Pin, PinOff, Trash2 } from "lucide-react";
+import { setSplitPanelPrefs, useSplitPanelPrefs } from "./split-panel-prefs";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
@@ -696,13 +697,23 @@ export function OrdersTable({
   const focusOrder = split ? (pageRows.find((o) => o.id === focus?.id) ?? pageRows[0] ?? null) : null;
   const focusDept = focusOrder && focus?.id === focusOrder.id ? focus.dept : null;
   const panelRef = useRef<HTMLElement | null>(null);
-  // A department picked: its part of the portrait scrolled to the top.
+  // The panel pinned (in view as the page scrolls) and / or collapsed to a rail.
+  const panel = useSplitPanelPrefs();
+  // An SO or a department picked opens a collapsed panel again.
   useEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-    const el = focusDept ? panel.querySelector<HTMLElement>(`[data-sec~="${focusDept}"]`) : null;
-    panel.scrollTo({ top: el ? el.offsetTop - 12 : 0, behavior: "smooth" });
-  }, [focusDept, focusOrder?.id]);
+    if (focus && panel.collapsed) setSplitPanelPrefs({ collapsed: false });
+    // Only on a pick, not when the viewer collapses it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus]);
+  // A department picked: its part of the portrait scrolled to the top —
+  // within a pinned panel, or the page itself for one that scrolls with it.
+  useEffect(() => {
+    const box = panelRef.current;
+    if (!box || panel.collapsed) return;
+    const el = focusDept ? box.querySelector<HTMLElement>(`[data-sec~="${focusDept}"]`) : null;
+    if (panel.pinned) box.scrollTo({ top: el ? el.offsetTop - 56 : 0, behavior: "smooth" });
+    else if (el) el.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [focusDept, focusOrder?.id, panel.pinned, panel.collapsed]);
 
   /** The portrait: one SO, every department column of the table, section by section. */
   function portrait(order: OrderListRow) {
@@ -923,7 +934,13 @@ export function OrdersTable({
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} />
 
-      <div className={split ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start gap-4" : ""}>
+      <div
+        className={
+          split
+            ? `grid items-start gap-4 ${panel.collapsed ? "grid-cols-[minmax(0,1fr)_2.75rem]" : "grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"}`
+            : ""
+        }
+      >
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
@@ -1236,14 +1253,62 @@ export function OrdersTable({
           total={result.total}
         />
       </div>
-      {split && (
-        <aside
-          ref={panelRef}
-          className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-card-border bg-surface p-4 shadow-sm"
-        >
-          {focusOrder ? portrait(focusOrder) : <p className="text-sm text-muted">No SO on this page.</p>}
-        </aside>
-      )}
+      {split &&
+        (panel.collapsed ? (
+          // Collapsed: a slim rail — the SO it holds, and the way back.
+          <aside className={`${panel.pinned ? "sticky top-20" : ""} flex flex-col items-center gap-3 rounded-xl border border-card-border bg-surface py-3 shadow-sm`}>
+            <button
+              type="button"
+              onClick={() => setSplitPanelPrefs({ collapsed: false })}
+              title="Expand the SO panel"
+              aria-label="Expand the SO panel"
+              className="rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+            {focusOrder && (
+              <span className="text-xs font-semibold text-foreground [writing-mode:vertical-rl]">
+                {focusOrder.so_no ?? `#${focusOrder.sl_no}`}
+              </span>
+            )}
+          </aside>
+        ) : (
+          <aside
+            ref={panelRef}
+            className={`rounded-xl border border-card-border bg-surface shadow-sm ${
+              panel.pinned ? "sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto" : ""
+            }`}
+          >
+            {/* The panel's own bar: pin it in view, or collapse it to give the table the room. */}
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-t-xl border-b border-card-border bg-surface px-4 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">SO details</span>
+              <span className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSplitPanelPrefs({ pinned: !panel.pinned })}
+                  title={panel.pinned ? "Unpin: scroll with the page" : "Pin: keep in view as the page scrolls"}
+                  aria-label={panel.pinned ? "Unpin the SO panel" : "Pin the SO panel"}
+                  aria-pressed={panel.pinned}
+                  className={`rounded-lg p-1.5 transition-colors hover:bg-background ${panel.pinned ? "text-primary" : "text-muted hover:text-foreground"}`}
+                >
+                  {panel.pinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSplitPanelPrefs({ collapsed: true })}
+                  title="Collapse the SO panel"
+                  aria-label="Collapse the SO panel"
+                  className="rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground"
+                >
+                  <PanelRightClose className="h-4 w-4" />
+                </button>
+              </span>
+            </div>
+            <div className="p-4">
+              {focusOrder ? portrait(focusOrder) : <p className="text-sm text-muted">No SO on this page.</p>}
+            </div>
+          </aside>
+        ))}
       </div>
 
       {ecsFor && <EcsPopup order={ecsFor} canManage={!readOnly && canManageEcs(role)} onClose={() => setEcsFor(null)} />}

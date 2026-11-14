@@ -8,6 +8,8 @@ import { ensurePlanningAlerts } from "@/lib/planning-alerts";
 import { countOpenBugReports } from "@/lib/bug-reports";
 import { countDiscussionUnread } from "@/lib/order-messages";
 import { AppShell } from "@/components/risansi/app-shell";
+import { cookies } from "next/headers";
+import { SIDEBAR_COOKIE } from "@/lib/view-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +49,7 @@ export default async function RisansiLayout({
 
   return (
     <AppShell
+      sidebarCollapsed={(await cookies()).get(SIDEBAR_COOKIE)?.value === "collapsed"}
       user={{ name: user.full_name, email: user.email, role: user.role, roles: user.roles, view_pages: user.view_pages }}
       alertCount={alertCount}
       reminderCount={reminderCount}

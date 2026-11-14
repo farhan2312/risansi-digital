@@ -68,6 +68,7 @@ function crumbsFor(pathname: string): { label: string; href?: string }[] {
 }
 
 export function AppShell({
+  sidebarCollapsed = false,
   user,
   alertCount,
   reminderCount,
@@ -76,6 +77,8 @@ export function AppShell({
   discussionUnread,
   children,
 }: {
+  /** The sidebar collapsed to its icons (the viewer's cookie). */
+  sidebarCollapsed?: boolean;
   user: ShellUser;
   alertCount: number;
   reminderCount: number;
@@ -106,6 +109,7 @@ export function AppShell({
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar
+        initialCollapsed={sidebarCollapsed}
         user={user}
         alertCount={alertCount}
         reminderCount={reminderCount}
