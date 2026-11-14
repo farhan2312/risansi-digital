@@ -91,17 +91,59 @@ export function Empty({ note }: { note?: string }) {
 
 // ── KPI ───────────────────────────────────────────────────────
 
+const KPI_MAX = 28;
+const KPI_MIN = 13;
+// IBM Plex Mono advances 0.6em per character, and these figures are rendered
+// with tabular-nums, so every glyph is that wide — the width of the line is
+// exactly length x 0.6 x font-size. No measuring of the text itself needed.
+const MONO_ADVANCE = 0.6;
+
+/**
+ * One big figure, shrunk to fit rather than cut off.
+ *
+ * At 28px fixed, a three-column card on a 1200px laptop showed "₹20… Cr":
+ * the ellipsis landed in the middle of the number, so the card's entire
+ * reason for existing was the part that got dropped. A KPI at 19px is still
+ * the biggest thing on the card and still says ₹20.0 Cr.
+ *
+ * The width is measured rather than guessed at, because cards are resized by
+ * dragging and the room changes under the figure. Same pattern as Columns
+ * below. With no ResizeObserver, or before the first measurement, it renders
+ * at full size and clips as it used to — never smaller than it should be.
+ */
 export function Kpi({ value, format, label }: { value: Cell; format: Format; label?: string }) {
   const n = typeof value === 'number' ? value : value == null ? null : Number(value);
+  const text = n == null ? '—' : compact(format, n);
+
+  const box = useRef<HTMLDivElement | null>(null);
+  const [room, setRoom] = useState(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([e]) => setRoom(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const fits = room ? room / (text.length * MONO_ADVANCE) : KPI_MAX;
+  const size = Math.max(KPI_MIN, Math.min(KPI_MAX, Math.floor(fits)));
+
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, minWidth: 0 }}>
+    <div ref={box}
+         style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, minWidth: 0 }}>
       <div title={n == null ? undefined : exact(format, n)}
-           style={{ fontFamily: 'var(--font-mono)', fontSize: 28, lineHeight: 1.05,
+           style={{ fontFamily: 'var(--font-mono)', fontSize: size, lineHeight: 1.05,
                     letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums',
-                    color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {n == null ? '—' : compact(format, n)}
+                    color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap' }}>
+        {text}
       </div>
-      {label && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{label}</div>}
+      {label && (
+        <div style={{ fontSize: 11, color: 'var(--fg-3)', overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={label}>
+          {label}
+        </div>
+      )}
     </div>
   );
 }
