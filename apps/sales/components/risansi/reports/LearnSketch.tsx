@@ -152,10 +152,10 @@ export function LearnSketch({ kind }: { kind: SketchKind }) {
     // Four templates, each with what it answers.
     case 'templates':
       return svg(<>
-        {[['Sales overview', 'Where is revenue coming from?'],
-          ['Pipeline health', 'What is our win rate?'],
-          ['Service and complaints', 'Which models come back?'],
-          ['Coverage and visits', 'Who is getting out?']].map(([title, ans], i) => {
+        {[['Sales overview', 'Where is revenue coming from?', '2 pages, 9 cards'],
+          ['Pipeline health', 'What is our win rate?', '2 pages, 8 cards'],
+          ['Service and complaints', 'Which models come back?', '2 pages, 8 cards'],
+          ['Coverage and visits', 'Who is getting out?', '2 pages, 7 cards']].map(([title, ans, size], i) => {
           const x = 8 + (i % 2) * 156, y = 8 + Math.floor(i / 2) * 68;
           return (
             <g key={title}>
@@ -164,29 +164,39 @@ export function LearnSketch({ kind }: { kind: SketchKind }) {
               <T x={x + 8} y={y + 28} size={6}>{ans}</T>
               <rect x={x + 8} y={y + 38} width={46} height={12} rx={3} fill={FILL} />
               <T x={x + 31} y={y + 46.5} size={6} fill="#fff" anchor="middle">Use this</T>
-              <T x={x + 62} y={y + 46.5} size={5.5} fill={FAINT}>2 pages, 9 cards</T>
+              <T x={x + 62} y={y + 46.5} size={5.5} fill={FAINT}>{size}</T>
             </g>
           );
         })}
       </>);
 
-    // The right-hand panel: one chip per well.
+    // The card on the left, the panel that edits it on the right.
     case 'wells':
       return svg(<>
-        <Box x={80} y={2} w={160} h={146} fill={BG} stroke={STRONG} r={5} />
-        <T x={90} y={16} size={7} fill={FG} weight={600}>Column chart</T>
-        <T x={90} y={26} size={6} fill={FAINT}>Revenue</T>
+        <Box x={6} y={16} w={104} h={116} stroke={ACCENT} />
+        <T x={14} y={30} size={5.5} fill={FAINT}>REVENUE BY MONTH</T>
+        <Bars x={14} y={40} h={68} heights={[0.5, 0.72, 0.58, 0.88, 0.66, 0.8, 0.6, 0.95]} w={8} gap={4} />
+        <T x={14} y={122} size={5.5} fill={FAINT}>selected</T>
+        <path d="M112 74 L 122 74" stroke={ACCENT} strokeWidth={1.2} markerEnd="url(#lsArrowW)" />
+        <defs>
+          <marker id="lsArrowW" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill={ACCENT} />
+          </marker>
+        </defs>
+        <Box x={126} y={2} w={188} h={146} fill={BG} stroke={STRONG} r={5} />
+        <T x={136} y={16} size={7} fill={FG} weight={600}>Column chart</T>
+        <T x={136} y={26} size={6} fill={FAINT}>Revenue</T>
         {[['Axis', 'What runs along the bottom', 'Revenue month · Month'],
           ['Legend', 'Splits each bar into parts', 'Direct / OEM'],
           ['Numbers', 'What is being measured', 'Revenue ₹ · Sum']].map(([well, hint, chip], i) => {
           const y = 36 + i * 36;
           return (
             <g key={well}>
-              <T x={90} y={y + 6} size={6.5} fill={FG} weight={600}>{well}</T>
-              <T x={124} y={y + 6} size={5.5} fill={FAINT}>{hint}</T>
-              <Box x={90} y={y + 10} w={140} h={18} fill={PAPER} dash />
-              <Chip x={95} y={y + 14} w={96} label={chip} />
-              <T x={222} y={y + 23} size={7} fill={FAINT} anchor="middle">✕</T>
+              <T x={136} y={y + 6} size={6.5} fill={FG} weight={600}>{well}</T>
+              <T x={170} y={y + 6} size={5.5} fill={FAINT}>{hint}</T>
+              <Box x={136} y={y + 10} w={168} h={18} fill={PAPER} dash />
+              <Chip x={141} y={y + 14} w={140} label={chip} />
+              <T x={294} y={y + 23} size={7} fill={FAINT} anchor="middle">✕</T>
             </g>
           );
         })}
