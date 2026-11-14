@@ -22,7 +22,9 @@ import {
   type Visual, type VisualType, type FieldRef, type ValueRef, type Layout,
   type Agg, type Grain,
 } from './types';
-import { fieldOf, type ModelField } from './model';
+import {
+  fieldOf, mapDim, combinableOn, DATASETS, DATASET_BY_ID, type ModelField,
+} from './model';
 
 /** The four places a field can sit on a card. */
 export type Well = 'axis' | 'split' | 'dims' | 'values';
@@ -327,6 +329,166 @@ export function duplicate(visuals: Visual[], id: string): { visuals: Visual[]; i
   if (!src) return { visuals, id: null };
   const copy: Visual = { ...src, id: newId('v'), layout: { ...src.layout } };
   return { visuals: addVisual(visuals, copy), id: copy.id };
+}
+
+// ── two tables on one card ────────────────────────────────────
+//
+// A card is built on one table and may carry numbers from others. The engine
+// matches them on whatever the tables share — a client, a month — and refuses
+// when they share nothing. Both of those are worth knowing BEFORE the card is
+// built rather than after: the refusal arrives as a red card, and a card that
+// works does not say what it was matched on, which leaves the reader to guess
+// whether "revenue and orders by client" lined the clients up or just put two
+// columns beside each other.
+
+/** Every dimension on a card, in the order the engine will see them. */
+export function dimsOf(v: Visual): FieldRef[] {
+  return v.type === 'table'
+    ? [...(v.dims ?? [])]
+    : ([v.axis, v.split].filter(Boolean) as FieldRef[]);
+}
+
+/** The tables a card's numbers come from, other than its own. */
+export function foreignDatasets(v: Visual): string[] {
+  const home = v.dataset;
+  return [...new Set(v.values.map(x => x.dataset).filter((d): d is string => !!d && d !== home))];
+}
+
+export interface CombinedInfo {
+  /** The shared dimensions the tables are matched on, in words. */
+  on: string[];
+  /** A table that cannot be matched on one of this card's dimensions. */
+  refused: { dataset: string; dim: string; only: string }[];
+}
+
+/**
+ * How this card's tables line up, or why they do not.
+ *
+ * Null for the ordinary single-table card, which is most of them.
+ */
+export function combinedInfo(v: Visual): CombinedInfo | null {
+  const home = v.dataset;
+  const others = foreignDatasets(v);
+  if (!home || !others.length) return null;
+
+  const on: string[] = [];
+  const refused: CombinedInfo['refused'] = [];
+
+  for (const d of dimsOf(v)) {
+    const label = fieldOf(home, d.field)?.label ?? d.field;
+    const bad = others.find(ds => !mapDim(home, d.field, ds));
+    if (bad) {
+      refused.push({
+        dataset: DATASET_BY_ID.get(bad)?.label ?? bad,
+        dim: label,
+        only: combinableOn(bad),
+      });
+    } else {
+      on.push(label);
+    }
+  }
+  return { on, refused };
+}
+
+/**
+ * The other tables whose numbers could go on this card as it stands.
+ *
+ * A table is offered only when every dimension already on the card maps into
+ * it, so the Numbers well cannot be used to build a card the engine is going
+ * to refuse. A card with no dimensions at all — a KPI — can take a number
+ * from anywhere, because there is nothing to line up.
+ */
+export function combinableDatasets(v: Visual): string[] {
+  const home = v.dataset;
+  if (!home) return [];
+  const dims = dimsOf(v);
+  return DATASETS
+    .filter(d => d.id !== home)
+    .filter(d => dims.every(x => !!mapDim(home, x.field, d.id)))
+    .map(d => d.id);
+}
+
+/**
+ * The same card, built on a different table.
+ *
+ * Without this, picking the wrong table means deleting the card and starting
+ * again — which is also how you lose the size and the position you had just
+ * settled on. Shared dimensions travel: "by state" on Revenue becomes "by
+ * state" on Complaints, through the same mapping the engine uses to combine
+ * two tables. Everything the new table does not have is dropped AND named,
+ * because a field that quietly disappears is a card that quietly changes
+ * what it means.
+ */
+export function changeDataset(v: Visual, ds: string): { visual: Visual; dropped: string[] } {
+  const home = v.dataset;
+  if (!home || home === ds || !DATASET_BY_ID.has(ds)) return { visual: v, dropped: [] };
+  const dropped: string[] = [];
+
+  const move = (ref: FieldRef): FieldRef | null => {
+    const mapped = mapDim(home, ref.field, ds);
+    const f = mapped ? fieldOf(ds, mapped) : null;
+    if (!mapped || !f) {
+      dropped.push(fieldOf(home, ref.field)?.label ?? ref.field);
+      return null;
+    }
+    return f.date && ref.grain ? { field: mapped, grain: ref.grain } : { field: mapped };
+  };
+
+  const out: Visual = { ...v, dataset: ds };
+  if (v.axis) {
+    const a = move(v.axis);
+    if (a) out.axis = a; else delete out.axis;
+  }
+  if (v.split) {
+    const sp = move(v.split);
+    if (sp) out.split = sp; else delete out.split;
+  }
+  if (v.dims?.length) out.dims = v.dims.map(move).filter((x): x is FieldRef => !!x);
+
+  // A number is a measure, not a dimension, so it does not map: "win rate"
+  // has no counterpart on Revenue. A number survives only if the new table
+  // has a field of the same id — and a number already borrowed from a third
+  // table survives as long as that table still lines up with the new one.
+  const stillCombinable = new Set(combinableDatasets({ ...out, values: [] }));
+  const kept: ValueRef[] = [];
+  for (const x of v.values) {
+    const label = fieldOf(x.dataset ?? home, x.field)?.label ?? x.field;
+    if (x.dataset && x.dataset !== ds) {
+      if (stillCombinable.has(x.dataset)) kept.push(x);
+      else dropped.push(`${DATASET_BY_ID.get(x.dataset)?.label ?? x.dataset} · ${label}`);
+      continue;
+    }
+    // Either the card's own number, or one borrowed from the table we are
+    // moving to — which is now simply a number on the card's own table.
+    const f = fieldOf(ds, x.field);
+    const countable = x.agg === 'count' || x.agg === 'countd';
+    if (f && (f.kind !== 'dim' || countable)) {
+      kept.push({ field: x.field, ...(f.kind !== 'measure' && x.agg ? { agg: x.agg } : {}) });
+    } else {
+      dropped.push(label);
+    }
+  }
+  out.values = kept.slice(0, maxValuesFor(out));
+
+  return { visual: out, dropped: [...new Set(dropped)] };
+}
+
+/**
+ * A chip dragged from one well to another.
+ *
+ * Refused moves leave the card alone rather than removing the chip and
+ * failing to re-add it, which is how a gesture that looks like nothing
+ * happened turns out to have deleted something.
+ */
+export function moveChip(
+  v: Visual, from: Well, index: number, to: Well, dataset: string, field: string,
+): Visual {
+  if (from === to) return v;
+  const f = fieldOf(dataset, field);
+  if (!f || !accepts(v.type, to, f)) return v;
+  // A grouping field has to belong to the card's own table.
+  if (to !== 'values' && v.dataset && dataset !== v.dataset) return v;
+  return addToWell(removeAt(v, from, index), to, dataset, field);
 }
 
 // ── what is still missing ─────────────────────────────────────

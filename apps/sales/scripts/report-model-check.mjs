@@ -702,6 +702,166 @@ try {
        { id: 'b', type: 'kpi', dataset: 'revenue', values: [{ field: 'revenue' }], layout: v.layout }),
        'Revenue ₹');
   }
+
+  // ── 9. two tables on one card, and changing the one it is on ──
+  //
+  // mapDim is what makes both of these work, and what makes them quietly
+  // wrong when they do not: a card whose table was switched keeps a field
+  // the new table happens to have under the same name but not the same
+  // meaning, or drops one it could have kept and says nothing. The engine
+  // refuses the impossible cases — after a round trip, as a red card. These
+  // are the answers the panel gives before that.
+
+  {
+    // A card on Revenue, by client, borrowing Orders' own number. Both tables
+    // reach `clients`, so they line up.
+    const v = {
+      id: 'a', type: 'table', dataset: 'revenue',
+      dims: [{ field: 'client' }],
+      values: [{ field: 'revenue' }, { field: 'order_value', dataset: 'orders' }],
+      layout: { x: 0, y: 0, w: 8, h: 7 },
+    };
+    eq('the borrowed table is named', B.foreignDatasets(v), ['orders']);
+    const info = B.combinedInfo(v);
+    eq('and the card says what they were matched on', info.on, ['Client']);
+    eq('with nothing refused', info.refused, []);
+    eq('a single-table card has nothing to say about it',
+       B.combinedInfo({ ...v, values: [{ field: 'revenue' }] }), null);
+  }
+  {
+    // By drop reason — which is a Pipeline column and nothing else's. Orders
+    // cannot be split by it, and the panel has to say so rather than letting
+    // the engine say it later.
+    const v = {
+      id: 'a', type: 'table', dataset: 'pipeline',
+      dims: [{ field: 'drop_reason' }],
+      values: [{ field: 'opportunities' }, { field: 'order_value', dataset: 'orders' }],
+      layout: { x: 0, y: 0, w: 8, h: 7 },
+    };
+    const info = B.combinedInfo(v);
+    eq('a category only one table has is refused, by name',
+       [info.on.length, info.refused.length, info.refused[0].dim, info.refused[0].dataset],
+       [0, 1, 'Drop reason', 'Order in hand']);
+    eq('and the refusal says what they could be matched on instead',
+       info.refused[0].only.includes('Client'), true);
+  }
+  {
+    // Which tables may be offered depends on what is already on the card.
+    const byClient = {
+      id: 'a', type: 'table', dataset: 'revenue', dims: [{ field: 'client' }],
+      values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 8, h: 7 },
+    };
+    const offered = B.combinableDatasets(byClient);
+    eq('every table reaches clients, so all seven others are offered', offered.length, 7);
+    eq('the card\'s own table is never offered to itself', offered.includes('revenue'), false);
+
+    const byDropReason = { ...byClient, dataset: 'pipeline', dims: [{ field: 'drop_reason' }],
+                           values: [{ field: 'opportunities' }] };
+    eq('a card grouped by something only one table has can borrow from none',
+       B.combinableDatasets(byDropReason), []);
+
+    const kpi = { id: 'b', type: 'kpi', dataset: 'revenue',
+                  values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 3, h: 3 } };
+    eq('a KPI has nothing to line up, so it can borrow from anywhere',
+       B.combinableDatasets(kpi).length, 7);
+
+    // The dateless tables cannot be matched on a month, and must not be offered.
+    const byMonth = { ...byClient, dims: [{ field: 'month', grain: 'month' }] };
+    const onMonth = B.combinableDatasets(byMonth);
+    eq('a card by month is not offered the two tables with no date',
+       [onMonth.includes('pumps'), onMonth.includes('competitors'), onMonth.includes('orders')],
+       [false, false, true]);
+  }
+
+  // changeDataset: shared categories travel, the rest is dropped and named.
+  {
+    const v = {
+      id: 'a', type: 'column', dataset: 'revenue',
+      axis: { field: 'state' }, split: { field: 'industry' },
+      values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 6, h: 6 },
+    };
+    const r = B.changeDataset(v, 'complaints');
+    eq('a shared category keeps its place', [r.visual.axis.field, r.visual.split.field],
+       ['state', 'industry']);
+    eq('the card is on the new table', r.visual.dataset, 'complaints');
+    eq('a measure the new table does not have is dropped and named',
+       [r.visual.values.length, r.dropped], [0, ['Revenue ₹']]);
+    eq('the size and position are untouched', r.visual.layout, v.layout);
+  }
+  {
+    // A date travels to the other table's OWN date, with its grain, because
+    // "by month" means each table's own month and not a join nobody asked for.
+    const v = {
+      id: 'a', type: 'line', dataset: 'revenue',
+      axis: { field: 'month', grain: 'quarter' },
+      values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 6, h: 6 },
+    };
+    const r = B.changeDataset(v, 'complaints');
+    eq('the axis becomes the new table\'s own date', r.visual.axis.field, 'complaint_date');
+    eq('and keeps the grain that was chosen', r.visual.axis.grain, 'quarter');
+  }
+  {
+    // A card by drop reason moved to Orders loses the category too, and both
+    // losses are reported rather than one.
+    const v = {
+      id: 'a', type: 'bar', dataset: 'pipeline',
+      axis: { field: 'drop_reason' },
+      values: [{ field: 'opportunities' }], layout: { x: 0, y: 0, w: 6, h: 6 },
+    };
+    const r = B.changeDataset(v, 'orders');
+    eq('a category the new table has no counterpart for goes',
+       [r.visual.axis, r.dropped], [undefined, ['Drop reason', 'Opportunities']]);
+  }
+  {
+    // Moving ONTO the table a number was borrowed from makes it an ordinary
+    // number of the card's own, not a borrowing from itself.
+    const v = {
+      id: 'a', type: 'table', dataset: 'revenue', dims: [{ field: 'client' }],
+      values: [{ field: 'order_value', dataset: 'orders' }], layout: { x: 0, y: 0, w: 8, h: 7 },
+    };
+    const r = B.changeDataset(v, 'orders');
+    eq('a borrowed number comes home', r.visual.values, [{ field: 'order_value' }]);
+    eq('with nothing reported lost', r.dropped, []);
+    eq('and the card is no longer a two-table card', B.combinedInfo(r.visual), null);
+  }
+  {
+    // Nothing happens where nothing should.
+    const v = { id: 'a', type: 'kpi', dataset: 'revenue',
+                values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 3, h: 3 } };
+    eq('switching to the table it is already on changes nothing',
+       B.changeDataset(v, 'revenue').visual, v);
+    eq('and a table that does not exist is refused',
+       B.changeDataset(v, 'nonsense').visual, v);
+  }
+
+  // moveChip: a field dragged from one well to another.
+  {
+    let v = B.newVisual('column', 'revenue');
+    v = B.addToWell(v, 'axis', 'revenue', 'state');
+    v = B.addToWell(v, 'values', 'revenue', 'revenue');
+
+    const toSplit = B.moveChip(v, 'axis', 0, 'split', 'revenue', 'state');
+    eq('a category moved from the axis to the legend leaves the axis empty',
+       [toSplit.axis, toSplit.split.field], [undefined, 'state']);
+
+    // A move the target cannot take must leave the card exactly as it was,
+    // rather than removing the chip and failing to re-add it.
+    const kpi = B.changeType(v, 'kpi');
+    eq('a refused move loses nothing', B.moveChip(v, 'axis', 0, 'dims', 'revenue', 'state'), v);
+    eq('and a well the type does not have is a refusal, not a crash',
+       B.moveChip(kpi, 'values', 0, 'axis', 'revenue', 'revenue'), kpi);
+    eq('moving a chip to the well it is already in is a no-op',
+       B.moveChip(v, 'axis', 0, 'axis', 'revenue', 'state'), v);
+  }
+  {
+    // A borrowed number cannot become a category: the card groups rows of its
+    // own table, and there is no honest answer to give.
+    let v = B.newVisual('table', 'revenue');
+    v = B.addToWell(v, 'dims', 'revenue', 'client');
+    v = B.addToWell(v, 'values', 'orders', 'order_value');
+    eq('a number from another table cannot be dragged into Group by',
+       B.moveChip(v, 'values', 0, 'dims', 'orders', 'order_value'), v);
+  }
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

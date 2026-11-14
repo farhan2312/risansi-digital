@@ -20,6 +20,7 @@ import { VISUAL_META, type Visual, type PageFilters, type Grain } from '@/lib/cu
 import type { CrossFilter, RunResult } from '@/lib/custom-analytics/engine';
 import { fieldOf, type Format } from '@/lib/custom-analytics/model';
 import { formatOf, labelOf, defaultTitle } from '@/lib/custom-analytics/fmt';
+import { problems, combinedInfo } from '@/lib/custom-analytics/build';
 import {
   normalise, Kpi, Columns, Bars, Lines, DonutChart, Treemap, DataTable, Matrix,
   Empty, TruncNote, type SeriesDef, type TableCol,
@@ -52,29 +53,52 @@ export function VisualCard({ visual, filters, cross, onPick, actions, selected, 
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
 
-  // The request, as a string, so the effect has one stable dependency. The
-  // cosmetic parts of a cross-filter are left out: re-labelling a chip is not
-  // a reason to re-run eleven queries.
+  // The request, as a string, so the effect has one stable dependency — and
+  // built from ONLY what the engine reads.
+  //
+  // Keying it on the whole visual was wrong in a way that is invisible until
+  // you watch the network tab: dragging a card changes its layout, settling
+  // changes the layout of every card it pushed, and typing a title changes a
+  // string the query has never seen. All three re-ran the query. A page of
+  // ten cards nudged one column was ten aggregations nobody asked for, and
+  // naming a card was one per keystroke.
+  //
+  // So: type, table, wells and top-N, which are the query. Not the title,
+  // not `stacked`, not the layout. The cosmetic parts of a cross-filter go
+  // the same way — re-labelling a chip is not a reason to re-run anything.
   const req = useMemo(() => JSON.stringify({
-    v: visual, f: filters, p: page, s: sort,
+    v: {
+      t: visual.type, d: visual.dataset, a: visual.axis, s: visual.split,
+      m: visual.dims, n: visual.values, top: visual.topN,
+    },
+    f: filters, p: page, s: sort,
     x: cross ? { d: cross.dataset, f: cross.field, g: cross.grain, v: cross.value, c: cross.common } : null,
-  }), [visual, filters, page, sort, cross]);
+  }), [visual.type, visual.dataset, visual.axis, visual.split, visual.dims, visual.values,
+       visual.topN, filters, page, sort, cross]);
 
   const [got, setGot] = useState<{ key: string; result: RunResult } | null>(null);
 
+  // What is still missing, answered here rather than by the server. The
+  // engine refuses an unfinished card with the same words, but only after a
+  // round trip — and a card being built is unfinished most of the time, so
+  // that is a query per keystroke to be told something this file already
+  // knows.
+  const unfinished = problems(visual);
+
   useEffect(() => {
+    if (unfinished.length) return;
     let alive = true;
     void (async () => {
-      const parsed = JSON.parse(req) as { v: Visual; f: PageFilters; p: number; s: { key: string; dir: 'asc' | 'desc' } | null };
       const result = await runReportVisual(
-        parsed.v, parsed.f, cross ?? undefined,
-        { page: parsed.p, sortKey: parsed.s?.key, sortDir: parsed.s?.dir },
+        visual, filters, cross ?? undefined,
+        { page, sortKey: sort?.key, sortDir: sort?.dir },
       ).catch((): RunResult => ({ ok: false, error: 'Could not reach the server.' }));
       if (alive) setGot({ key: req, result });
     })();
     return () => { alive = false; };
-    // `cross` is read inside but is already part of `req`; depending on the
-    // object as well would re-run the query every time the parent re-renders.
+    // Everything read inside is already encoded in `req`, so the effect re-runs
+    // exactly when the ANSWER would change. Depending on the objects as well
+    // would re-run it whenever the parent re-rendered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [req]);
 
@@ -89,6 +113,7 @@ export function VisualCard({ visual, filters, cross, onPick, actions, selected, 
     [visual.values, visual.dataset, meta.maxValues],
   );
 
+  const combined = combinedInfo(visual);
   const axisField = visual.axis ? fieldOf(visual.dataset ?? '', visual.axis.field) : null;
   const splitField = visual.split ? fieldOf(visual.dataset ?? '', visual.split.field) : null;
   const heading = visual.title || defaultTitle(visual);
@@ -116,7 +141,9 @@ export function VisualCard({ visual, filters, cross, onPick, actions, selected, 
         {actions}
       </header>
 
-      {!result ? (
+      {unfinished.length ? (
+        <Unfinished list={unfinished} />
+      ) : !result ? (
         <Skeleton type={visual.type} />
       ) : !result.ok ? (
         <Empty note={result.error ?? 'Could not load this visual.'} />
@@ -129,10 +156,23 @@ export function VisualCard({ visual, filters, cross, onPick, actions, selected, 
         />
       )}
 
-      {result?.ok && (result.truncated || result.ignoredFilters?.length) && (
+      {(combined || (result?.ok && (result.truncated || result.ignoredFilters?.length))) && (
         <footer style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {result.truncated && <TruncNote visual={visual} />}
-          {!!result.ignoredFilters?.length && (
+          {combined && (
+            combined.on.length ? (
+              <span style={{ fontSize: 10, color: 'var(--fg-4)' }}
+                    title="Two tables on one card. They are lined up on the categories they share, so each row carries both tables' own figure for it.">
+                Two tables, matched on {combined.on.join(' and ').toLowerCase()}
+              </span>
+            ) : (
+              <span style={{ fontSize: 10, color: 'var(--fg-4)' }}
+                    title="Nothing to line the two tables up on, because the card is not broken down by anything. Each figure is its own table's total.">
+                Two tables, each its own total
+              </span>
+            )
+          )}
+          {result?.truncated && <TruncNote visual={visual} />}
+          {!!result?.ignoredFilters?.length && (
             <span style={{ fontSize: 10, color: 'var(--warn)' }}
                   title="This table has no column the filter could be applied to, so it was left out rather than quietly ignored.">
               ⚠ {result.ignoredFilters.join(', ')} {result.ignoredFilters.length === 1 ? 'filter does' : 'filters do'} not apply here
@@ -236,6 +276,27 @@ function Body({ visual, result, series, axis, split, page, setPage, sort, setSor
     default:
       return <Empty note="This card has a type this version does not draw." />;
   }
+}
+
+/**
+ * A card that cannot be drawn yet, saying so in the words of whatever is
+ * missing.
+ *
+ * It appears in the viewer too, where it is not actionable — but "this card
+ * is not finished" is still the honest thing to show a reader, and better
+ * than the blank frame or the server's "Add a number to this visual", which
+ * reads like an instruction to somebody who cannot act on it.
+ */
+function Unfinished({ list }: { list: string[] }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                  gap: 4, padding: '4px 2px' }}>
+      <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>This card is not finished.</span>
+      {list.map(x => (
+        <span key={x} style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>· {x}</span>
+      ))}
+    </div>
+  );
 }
 
 // ── waiting ───────────────────────────────────────────────────

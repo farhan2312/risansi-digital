@@ -31,14 +31,15 @@ import {
 } from '@/lib/custom-analytics/types';
 import { fieldOf } from '@/lib/custom-analytics/model';
 import {
-  addToWell, addVisual, bestWell, changeType, duplicate, moveTo, moveWithin,
-  newVisual, removeAt, resizeTo, setAgg, setGrain, suggestType, tidy,
+  addToWell, addVisual, bestWell, changeDataset, changeType, duplicate, moveChip,
+  moveTo, moveWithin, newId, newVisual, removeAt, resizeTo, setAgg, setGrain, suggestType, tidy,
   type Well,
 } from '@/lib/custom-analytics/build';
 import { emptyPage } from '@/lib/custom-analytics/doc';
+import { DATASET_BY_ID } from '@/lib/custom-analytics/model';
 import { saveReport } from '@/app/actions/risansi-reports';
 import { DataPanel } from './DataPanel';
-import { WellsPanel } from './WellsPanel';
+import { WellsPanel, type ChipDrag } from './WellsPanel';
 import { GridCanvas } from './GridCanvas';
 import { FilterBar, type FilterOptions } from './FilterBar';
 import { ShareDialog } from './ShareDialog';
@@ -145,11 +146,33 @@ export function ReportBuilder({ id, title: title0, description: description0, do
     if (well) onCard(cardId, v => addToWell(v, well, dataset, field));
   };
 
-  const removeCard = () => {
-    if (!selectedId) return;
-    onVisuals(vs => vs.filter(v => v.id !== selectedId));
-    setSelectedId(null);
+  const removeCard = (cardId?: string) => {
+    const target = cardId ?? selectedId;
+    if (!target) return;
+    onVisuals(vs => vs.filter(v => v.id !== target));
+    if (target === selectedId) setSelectedId(null);
   };
+
+  /**
+   * The card, on a different table.
+   *
+   * Whatever the new table does not have is named rather than left to be
+   * noticed. Undo puts it back, which is why this does not stop to ask —
+   * a confirmation dialog on an action with a working undo is a dialog
+   * people learn to click through.
+   */
+  const switchDataset = (ds: string) => {
+    if (!selected || !ds || ds === selected.dataset) return;
+    const r = changeDataset(selected, ds);
+    onSelected(() => r.visual);
+    const name = DATASET_BY_ID.get(ds)?.label ?? ds;
+    setNote(r.dropped.length
+      ? `Now on ${name}. ${r.dropped.join(', ')} ${r.dropped.length === 1 ? 'is' : 'are'} not on that table, so ${r.dropped.length === 1 ? 'it was' : 'they were'} taken off. Ctrl+Z puts it back.`
+      : `Now on ${name}.`);
+  };
+
+  const chipTo = (d: ChipDrag, to: Well) =>
+    onSelected(v => moveChip(v, d.from, d.index, to, d.dataset, d.field));
 
   const duplicateCard = () => {
     if (!selectedId) return;
@@ -173,6 +196,21 @@ export function ReportBuilder({ id, title: title0, description: description0, do
     if (!window.confirm(`Delete the page “${page?.name}” and the ${page?.visuals.length ?? 0} cards on it?`)) return;
     apply({ ...doc, pages: doc.pages.filter((_, j) => j !== i) });
     setTab(Math.max(0, i - 1));
+    setSelectedId(null);
+  };
+
+  /** A page's worth of cards, copied, with fresh ids throughout. */
+  const copyPage = () => {
+    if (!page) return;
+    if (doc.pages.length >= MAX_PAGES) { setNote(`A report holds ${MAX_PAGES} pages.`); return; }
+    const copy: ReportPage = {
+      id: newId('p'),
+      name: `${page.name} (copy)`.slice(0, 60),
+      filters: { ...page.filters },
+      visuals: page.visuals.map(v => ({ ...v, id: newId('v'), layout: { ...v.layout } })),
+    };
+    apply({ ...doc, pages: [...doc.pages.slice(0, i + 1), copy, ...doc.pages.slice(i + 1)] });
+    setTab(i + 1);
     setSelectedId(null);
   };
 
@@ -314,6 +352,8 @@ export function ReportBuilder({ id, title: title0, description: description0, do
                        width: 150, marginBottom: 3 }} />
             <button type="button" onClick={() => movePage(-1)} disabled={i === 0} style={TAB_ICON} title="Move this page left">←</button>
             <button type="button" onClick={() => movePage(1)} disabled={i >= doc.pages.length - 1} style={TAB_ICON} title="Move this page right">→</button>
+            <button type="button" onClick={copyPage} style={TAB_ICON}
+                    title="A copy of this page, cards and all">Duplicate page</button>
             <button type="button" onClick={deletePage} style={{ ...TAB_ICON, color: 'var(--neg)' }}
                     title="Delete this page">Delete page</button>
           </>
@@ -357,6 +397,7 @@ export function ReportBuilder({ id, title: title0, description: description0, do
                 onSelect={setSelectedId}
                 onMove={(cardId, x, y) => onVisuals(vs => moveTo(vs, cardId, x, y))}
                 onResize={(cardId, w, h) => onVisuals(vs => resizeTo(vs, cardId, w, h))}
+                onDelete={removeCard}
                 onDropField={dropOnCard}
               />
             </>
@@ -376,13 +417,15 @@ export function ReportBuilder({ id, title: title0, description: description0, do
           <WellsPanel
             visual={selected}
             onChangeType={t => onSelected(v => changeType(v, t))}
+            onChangeDataset={switchDataset}
             onDropField={dropOnWell}
+            onMoveChip={chipTo}
             onRemove={(well, j) => onSelected(v => removeAt(v, well, j))}
             onGrain={(well, j, g: Grain) => onSelected(v => setGrain(v, well, j, g))}
             onAgg={(j, a: Agg) => onSelected(v => setAgg(v, j, a))}
             onMove={(well, j, d) => onSelected(v => moveWithin(v, well, j, d))}
             onPatch={patch => onSelected(v => ({ ...v, ...patch }))}
-            onDelete={removeCard}
+            onDelete={() => removeCard()}
             onDuplicate={duplicateCard} />
         </div>
       </div>

@@ -25,7 +25,7 @@ import { DRAG_TYPE, type FieldDrag } from './DataPanel';
 type Mode = 'move' | 'size';
 
 export function GridCanvas({
-  visuals, selectedId, filters, onSelect, onMove, onResize, onDropField,
+  visuals, selectedId, filters, onSelect, onMove, onResize, onDelete, onDropField,
 }: {
   visuals: Visual[];
   selectedId: string | null;
@@ -33,6 +33,7 @@ export function GridCanvas({
   onSelect: (id: string | null) => void;
   onMove: (id: string, x: number, y: number) => void;
   onResize: (id: string, w: number, h: number) => void;
+  onDelete: (id: string) => void;
   /** A field dragged from the panel onto a card, rather than onto a well. */
   onDropField: (id: string, dataset: string, field: string) => void;
 }) {
@@ -104,6 +105,36 @@ export function GridCanvas({
   // document still says it is.
   const layoutOf = (v: Visual) => (ghost?.id === v.id ? ghost.layout : v.layout);
 
+  /**
+   * The same moves from the keyboard.
+   *
+   * A builder whose only gesture is a drag is a builder some people cannot
+   * use at all, and fiddly for everybody else — nudging a card one column is
+   * a thing a pointer is bad at. Arrows move, shift and an arrow resizes,
+   * Delete removes, Escape lets go.
+   */
+  function onKey(e: React.KeyboardEvent, v: Visual) {
+    const l = v.layout;
+    if (e.key === 'Escape') {
+      onSelect(null);
+      (e.currentTarget as HTMLElement).blur();
+      return;
+    }
+    if (e.key === 'Delete') {
+      e.preventDefault();
+      onDelete(v.id);
+      return;
+    }
+    const step: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+    };
+    const d = step[e.key];
+    if (!d) return;
+    e.preventDefault();
+    if (e.shiftKey) onResize(v.id, l.w + d[0], l.h + d[1]);
+    else onMove(v.id, l.x + d[0], l.y + d[1]);
+  }
+
   return (
     <div
       ref={boxRef}
@@ -116,6 +147,11 @@ export function GridCanvas({
         const dragging = ghost?.id === v.id;
         return (
           <div key={v.id}
+            tabIndex={0}
+            role="group"
+            aria-label={v.title || v.type}
+            onKeyDown={e => onKey(e, v)}
+            onFocus={() => onSelect(v.id)}
             onDragOver={e => {
               if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
               e.preventDefault();
