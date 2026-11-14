@@ -5011,7 +5011,9 @@ export async function listOrdersForOrderMaking(opts: {
       !SO_DETAIL_COLUMNS.includes(x.column) &&
       x.group !== "Handover" &&
       x.group !== "Order Making Hold" &&
-      x.column !== "po_received_date"
+      x.column !== "po_received_date" &&
+      // A USD SO's rate goes with its Sales Order details, not its PO.
+      x.column !== "order_fx_rate"
   );
   const missingSql = `array_remove(ARRAY[
       ${own.map((x) => `CASE WHEN (${appliesSql(x)}) AND NOT (${filledSql(x)}) THEN ${lit(x.label)} END`).join(",\n      ")}

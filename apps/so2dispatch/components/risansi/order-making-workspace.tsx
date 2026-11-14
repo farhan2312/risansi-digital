@@ -1,7 +1,6 @@
 "use client";
 
 import { OrderValueDetails, type OrderValueRow } from "./order-value-details";
-import { useUsdRate } from "./use-usd-rate";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
@@ -934,8 +933,9 @@ export function OrderMakingWorkspace({
 /** The form's parts: the Client, the PO's own details, the Sales Order details, and the Handover. */
 const FORM_SECTIONS: { title: string; fields: (f: OrderField) => boolean }[] = [
   { title: "Client", fields: (f) => f.group === "Client" },
-  { title: "Purchase Order", fields: (f) => f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) },
-  { title: "Sales Order", fields: (f) => SO_DETAIL_COLUMNS.includes(f.column) },
+  { title: "Purchase Order", fields: (f) => f.group === "Purchase Order" && !SO_DETAIL_COLUMNS.includes(f.column) && f.column !== "order_fx_rate" },
+  // A USD SO's rate sits with its currency and value.
+  { title: "Sales Order", fields: (f) => SO_DETAIL_COLUMNS.includes(f.column) || f.column === "order_fx_rate" },
   { title: "Handover", fields: (f) => f.group === "Handover" },
 ];
 
@@ -981,7 +981,6 @@ function OrderMakingEdit({
     return () => document.removeEventListener("keydown", onKey);
   }, [saving, onClose]);
 
-  useUsdRate(values.order_currency, setValues);
   const read = (c: string) => values[c] ?? "";
   // The SO as last saved: once its Sales Order details were in, SO Sent to Operation is owed.
   const saved = row ? (c: string) => str(row[c as keyof OrderMakingRow]) : undefined;
@@ -1209,7 +1208,7 @@ function OrderMakingEdit({
                       {input(f)}
                       {usd && f.column === "taxable_value" && (
                         <span className="mt-1 block text-[11px] text-muted">
-                          {read("order_fx_rate") ? `Auto, at USD → INR ${read("order_fx_rate")}` : "Auto, on save, once a rate is set in Settings"}
+                          {read("order_fx_rate") ? `Auto, at USD → INR ${read("order_fx_rate")}` : "Auto, once the USD → INR rate is entered"}
                         </span>
                       )}
                       {challanLocked(f) && (
