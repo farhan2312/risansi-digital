@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/bugs",
       "schedule": "30 2 * * 5"
+    },
+    {
+      "path": "/api/cron/so-sync",
+      "schedule": "0 1,7,10,13 * * *"
     }
   ]
 }

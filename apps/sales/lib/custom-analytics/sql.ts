@@ -164,6 +164,44 @@ export const DATASET_SQL: Record<string, DatasetSql> = {
     nums: { order_value_inr: 'od.order_value_inr' },
   },
 
+  // The mirror of the SO portal's book (migrations/0132, refreshed by
+  // /api/cron/so-sync). An inner join on clients, like every other table here,
+  // which also means an SO whose client code matches nothing in this portal is
+  // not counted — one order today, and it cannot be scoped to anybody anyway.
+  so_orders: {
+    from: `so_orders so ${CLIENT_JOIN.replace('%FK%', 'so.client_id')}`,
+    where: `c.deleted_at IS NULL`,
+    scopeCol: 'so.client_id',
+    dates: {
+      so_date:      { expr: 'so.so_date',      tz: false },
+      po_date:      { expr: 'so.po_date',      tz: false },
+      last_invoice: { expr: 'so.last_invoice', tz: false },
+    },
+    dims: {
+      status:      'so.dispatch_status',
+      open_closed: `CASE WHEN so.is_open THEN 'Open' ELSE 'Dispatched or closed' END`,
+      product_mix: 'so.product_mix',
+      so_rep:      'so.rep_name',
+      zone:        'so.zone',
+      order_type:  'so.order_type',
+      ...CLIENT_DIMS,
+    },
+    measures: {
+      sos:        `count(*)`,
+      so_value:   `sum(so.order_value_inr)`,
+      open_value: `sum(so.order_value_inr) FILTER (WHERE so.is_open)`,
+      open_sos:   `count(*) FILTER (WHERE so.is_open)`,
+      invoiced:   `sum(so.invoiced_inr)`,
+      avg_so:     `avg(so.order_value_inr)`,
+      pumps:      `sum(so.pump_qty)`,
+    },
+    nums: {
+      so_value_inr:       'so.order_value_inr',
+      invoiced_value_inr: 'so.invoiced_inr',
+      pump_qty:           'so.pump_qty',
+    },
+  },
+
   visits: {
     from: `visits v ${CLIENT_JOIN.replace('%FK%', 'v.client_id')}
            LEFT JOIN users vr ON vr.id = v.rep_id`,

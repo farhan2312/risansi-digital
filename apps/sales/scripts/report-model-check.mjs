@@ -763,7 +763,11 @@ try {
       values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 8, h: 7 },
     };
     const offered = B.combinableDatasets(byClient);
-    eq('every table reaches clients, so all seven others are offered', offered.length, 7);
+    // Every table reaches clients, so every OTHER table is offered. Counted
+    // against DATASETS rather than written as a number: adding a table should
+    // not fail this, and removing the client join from one should.
+    eq('every table reaches clients, so all the others are offered',
+       offered.length, DATASETS.length - 1);
     eq('the card\'s own table is never offered to itself', offered.includes('revenue'), false);
 
     const byDropReason = { ...byClient, dataset: 'pipeline', dims: [{ field: 'drop_reason' }],
@@ -774,7 +778,7 @@ try {
     const kpi = { id: 'b', type: 'kpi', dataset: 'revenue',
                   values: [{ field: 'revenue' }], layout: { x: 0, y: 0, w: 3, h: 3 } };
     eq('a KPI has nothing to line up, so it can borrow from anywhere',
-       B.combinableDatasets(kpi).length, 7);
+       B.combinableDatasets(kpi).length, DATASETS.length - 1);
 
     // The dateless tables cannot be matched on a month, and must not be offered.
     const byMonth = { ...byClient, dims: [{ field: 'month', grain: 'month' }] };

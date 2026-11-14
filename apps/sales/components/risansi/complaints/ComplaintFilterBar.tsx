@@ -66,7 +66,7 @@ export function ComplaintFilterBar({ value, options, basePath }: {
   // The second row: everything that is not the question people open the page
   // with. Opened automatically when one of its filters is already in force, so
   // a shared link never hides the filter that is shaping the table.
-  const MORE = ['dept', 'holder', 'dcat', 'resp', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'ctype', 'action', 'capa', 'capastage', 'pa', 'visit', 'mver', 'mseries', 'era', 'client', 'rep', 'linked'];
+  const MORE = ['dept', 'holder', 'dcat', 'resp', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'ctype', 'action', 'capa', 'capastage', 'pa', 'capadocs', 'visit', 'mver', 'mseries', 'era', 'client', 'rep', 'linked'];
   const moreOn = MORE.filter(k => value[k]).length;
   // Read through the old flat values too, so a link carrying ?capa=pending
   // shows as Yes + Nothing back rather than as an unrecognised choice.
@@ -162,6 +162,12 @@ export function ComplaintFilterBar({ value, options, basePath }: {
               opts={[[capa.vendor, VENDOR_CAPA_LABEL[capa.vendor]]]}
               title="From an older link — clear it to leave the vendor CAPA out of this" />
           )}
+          {/* Next to the CAPA question, because it is the other half of it:
+              one asks whether a CAPA was called for, this asks whether
+              anything was actually filed against it. */}
+          <Sel label="CAPA documents" v={value.capadocs} onChange={v => set({ capadocs: v })}
+            opts={[['yes', 'CAPA documents attached'], ['no', 'No CAPA document']]}
+            title="Whether anything has been attached under CAPA. A complaint can need a CAPA and have nothing filed — that is the pile worth chasing." />
           <Sel label="Preventive action" v={value.pa} onChange={v => set({ pa: v })} opts={[['pending', 'Preventive action pending']]} title="Owed — a root cause, a corrective action or a CAPA — and not yet written" />
           <Sel label="Visit" v={value.visit} onChange={v => set({ visit: v })} opts={[['pending', 'Visit pending'], ['planned', 'Visit planned — any']]} />
           <Sel label="Responsible" v={value.resp} onChange={v => set({ resp: v })} opts={options.responsibles.map(t => [t, t])} />

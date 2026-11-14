@@ -115,6 +115,8 @@ export interface ComplaintListRow {
   fr_transport_value: string | null; fr_material_value: string | null;
   /** Customer communication files (letters, emails, confirmations), for a link straight from the list. */
   customer_files: { id: number; file_name: string }[];
+  /** How many documents are attached under CAPA. */
+  capa_docs: number;
 }
 
 export interface ComplaintFilters {
@@ -157,6 +159,15 @@ export interface ComplaintFilters {
   capastage?: string;
   /** 'pending' — nothing written in either preventive-action field. */
   pa?: string;
+  /**
+   * 'yes' — at least one document attached under CAPA; 'no' — none.
+   *
+   * The attachment itself is the evidence the CAPA was actually done, which
+   * is a different question from whether one was asked for (`capa`). A
+   * complaint can be CAPA-required with nothing attached, and that pile is
+   * the one somebody has to chase.
+   */
+  capadocs?: string;
   /** 'pending' — Visit Planned and the complaint is still live. */
   visit?: string;
   /** '1' — Severe / Immediate Response. */
@@ -183,7 +194,7 @@ export interface ComplaintFilters {
 export const FILTER_KEYS: (keyof ComplaintFilters)[] = [
   'state', 'headline', 'status', 'sev', 'dept', 'holder', 'cat', 'subcat', 'dcat', 'resp', 'rep', 'era', 'q',
   'overdue', 'from', 'to', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'client', 'ind', 'ctype', 'action',
-  'capa', 'capastage', 'pa', 'visit', 'severe', 'unregistered', 'linked', 'mver', 'mseries',
+  'capa', 'capastage', 'pa', 'capadocs', 'visit', 'severe', 'unregistered', 'linked', 'mver', 'mseries',
 ];
 
 /*
@@ -288,8 +299,11 @@ export const preventiveActionPending = (c: {
   && !(c.preventive_action_remarks ?? '').trim();
 
 /** A visit was the action taken and the complaint has not closed out. */
-export const visitPending = (c: { status: string; action_category: string | null }): boolean =>
-  c.action_category === 'Visit Planned' && isOpenStatus(c.status);
+export const visitPending = (c: {
+  status: string; action_category: string | null; action_categories?: string[] | null;
+}): boolean =>
+  (c.action_category === 'Visit Planned' || (c.action_categories ?? []).includes('Visit Planned'))
+  && isOpenStatus(c.status);
 
 // ── The rows ───────────────────────────────────────────────────────────────
 
@@ -373,7 +387,14 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
   if (f.ctype) add('c.client_type = ?', f.ctype);
   if (f.rcc) add('c.root_cause_category = ?', f.rcc);
   if (f.rcs) add('c.root_cause_sub = ?', f.rcs);
-  if (f.action) add('c.action_category = ?', f.action);
+  // Same reason as free_replacement above: the live value is in the array.
+  // One parameter used twice, so it is pushed by hand — `add` replaces a
+  // single placeholder.
+  if (f.action) {
+    params.push(f.action);
+    const i = params.length;
+    conds.push(`(c.action_category = $${i} OR $${i} = ANY(c.action_categories))`);
+  }
   if (f.mver) add('c.model_version = ?', f.mver);
   if (f.mseries) add('c.model_series = ?', f.mseries);
   // Part type / name / MOC read page 2's own columns and the complaint_parts
@@ -425,7 +446,18 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
              c.client_type, c.pump_model, c.model_version, c.model_series,
              -- COALESCE, because a complaint with no action decided yet gives
              -- NULL here, not false, and the row's type says boolean.
-             COALESCE(c.action_category = 'Free Replacement', FALSE) AS free_replacement,
+             -- Action taken became a LIST (action_categories) and the old
+             -- singular column stopped being filled: 411 complaints carry the
+             -- array, 80 of them also carry the legacy value. Asking the old
+             -- column alone found 44 free replacements where there are 343,
+             -- so 299 complaints with a replacement on them read "No" in the
+             -- table. Both columns are asked, and against every FR action
+             -- rather than the one spelling — Replace Material and Paid
+             -- Replacement are replacements too.
+             COALESCE(
+               c.action_category = ANY(ARRAY['Free Replacement','Replace Material','Paid Replacement'])
+               OR c.action_categories && ARRAY['Free Replacement','Replace Material','Paid Replacement'],
+               FALSE) AS free_replacement,
              c.fr_ec_no, c.fr_ec_date::text AS fr_ec_date,
              c.target_dispatch_date::text AS target_dispatch_date,
              c.challan_no, c.challan_date::text AS challan_date,
@@ -454,7 +486,9 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
                          ORDER BY p.sort_order, p.id)
                          FROM complaint_parts p WHERE p.complaint_id = c.id), '[]'::json) AS parts,
              COALESCE((SELECT json_agg(json_build_object('id', a.id, 'file_name', a.file_name) ORDER BY a.uploaded_at)
-                         FROM complaint_attachments a WHERE a.complaint_id = c.id AND a.category = 'customer'), '[]'::json) AS customer_files
+                         FROM complaint_attachments a WHERE a.complaint_id = c.id AND a.category = 'customer'), '[]'::json) AS customer_files,
+             (SELECT count(*)::int FROM complaint_attachments a
+               WHERE a.complaint_id = c.id AND a.category = 'capa') AS capa_docs
         FROM complaints c
         LEFT JOIN clients cl ON cl.id = c.client_id
         LEFT JOIN clients oem ON oem.id = c.oem_client_id
@@ -493,6 +527,7 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
       capa_state: capaStateOf(r),
       parts: Array.isArray(r.parts) ? r.parts : [],
       customer_files: Array.isArray(r.customer_files) ? r.customer_files : [],
+      capa_docs: Number(r.capa_docs ?? 0),
     };
   });
 
@@ -511,8 +546,13 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
   else if (capa.progress === 'done') rows = rows.filter(r => !isOpenStatus(r.status));
   if (capa.vendor) rows = rows.filter(r => r.capa_state === capa.vendor);
   if (f.pa === 'pending') rows = rows.filter(preventiveActionPending);
+  // Attached, or not. Applied here beside the other post-query filters rather
+  // than in the WHERE, so it narrows exactly the set the page already has.
+  if (f.capadocs === 'yes') rows = rows.filter(r => r.capa_docs > 0);
+  if (f.capadocs === 'no')  rows = rows.filter(r => r.capa_docs === 0);
   if (f.visit === 'pending') rows = rows.filter(visitPending);
-  else if (f.visit === 'planned') rows = rows.filter(r => r.action_category === 'Visit Planned');
+  else if (f.visit === 'planned') rows = rows.filter(r =>
+    r.action_category === 'Visit Planned' || (r.action_categories ?? []).includes('Visit Planned'));
 
   return opts.sort ? rows : defaultOrder(rows);
 }
