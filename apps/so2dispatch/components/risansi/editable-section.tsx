@@ -11,6 +11,7 @@ import {
   afterOperationRequired,
   canonicalSelectValue,
   firstAfterOperationMissing,
+  closedForOperation,
   dependsOnSatisfied,
   readyLotsOpen,
   selectOptionsFor,
@@ -185,7 +186,7 @@ export function EditableSection({
   const readNow = (c: string) => (c in values ? values[c] : c in targetsSet ? targetsSet[c] : toInput(data?.[c]));
   // Gone to Operation: the fields Central must fill (marked *).
   const afterOps =
-    section.table === "orders" && readNow("ec_sent_operation_date").trim()
+    section.table === "orders" && readNow("ec_sent_operation_date").trim() && !closedForOperation(readNow)
       ? new Set(afterOperationRequired().filter((f) => dependsOnSatisfied(f, readNow)).map((f) => f.column))
       : new Set<string>();
 

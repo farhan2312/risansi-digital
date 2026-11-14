@@ -1062,8 +1062,18 @@ export function afterOperationRequired(): OrderField[] {
  * Operation — else null. `hasTermLines`: its payment terms are kept as lines
  * (the prose field may be blank).
  */
+/**
+ * An SO already done with — fully dispatched, cancelled or diverted — owes
+ * nothing more for having gone to Operation: no target is left to plan.
+ */
+export function closedForOperation(read: (column: string) => string): boolean {
+  const closed = ["Fully dispatch", "Cancelled by client", "Diverted"];
+  return closed.includes(String(read("status_override") ?? "").trim()) || closed.includes(String(read("dispatch_status") ?? "").trim());
+}
+
 export function firstAfterOperationMissing(read: (column: string) => string, hasTermLines = false): OrderField | null {
   if (!String(read("ec_sent_operation_date") ?? "").trim()) return null;
+  if (closedForOperation(read)) return null;
   return (
     afterOperationRequired().find((f) => {
       if (!dependsOnSatisfied(f, read)) return false;
