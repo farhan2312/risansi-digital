@@ -3453,3 +3453,9 @@ SELECT o.id, o.base_plate_status, o.base_plate_date, o.base_plate_remarks, o.upd
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_dispatch_target_date DATE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_dispatch_target_by TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_dispatch_target_at TIMESTAMPTZ;
+
+-- Drawing says an EC needs no GAD: its GAD reads Not required (done for
+-- Drawing, nothing to send). NULL or Yes is a GAD as usual.
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS gad_required TEXT;
+ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_gad_required_check;
+ALTER TABLE order_items ADD CONSTRAINT order_items_gad_required_check CHECK (gad_required IS NULL OR gad_required IN ('Yes', 'No'));

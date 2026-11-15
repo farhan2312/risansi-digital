@@ -397,9 +397,13 @@ export type DrawingStatusTone = "done" | "part" | "pending" | "rework";
  */
 export function drawingDocStatus(
   rows: Record<string, unknown>[],
-  docType: string
+  docType: string,
+  /** The EC's gad_required: 'No' — Drawing says it needs no GAD. */
+  gadRequired?: unknown
 ): { label: string; tone: DrawingStatusTone; version: number } {
   const versions = drawingVersions(rows, docType);
+  // No GAD wanted on this EC: nothing for Drawing to send, done.
+  if (docType === "GAD" && String(gadRequired ?? "").trim() === "No") return { label: "Not required", tone: "done", version: versions.length };
   const last = versions[versions.length - 1];
   const gad = docType === "GAD";
   const yes = (v: unknown) => String(v ?? "").trim().toLowerCase() === "yes";

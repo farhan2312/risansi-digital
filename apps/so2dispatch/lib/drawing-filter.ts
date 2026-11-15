@@ -10,6 +10,7 @@ import { inListNotHeld, soWorkHoldSql } from "@/lib/dept-status";
 export const NOT_REQUIRED = "Not required";
 
 export const GAD_STATUSES = [
+  NOT_REQUIRED,
   "Pending",
   "Sent to client – approval pending",
   "Resubmit",
@@ -49,7 +50,7 @@ const partsOf = (r: Row) => (Array.isArray(r.part_drawings) ? (r.part_drawings a
 /** An EC's three statuses, as the table shows them. */
 export function ecDrawingStatuses(r: Row): { gad: string; curve: string; part: string } {
   return {
-    gad: drawingDocStatus(versionsOf(r), "GAD").label,
+    gad: drawingDocStatus(versionsOf(r), "GAD", r.gad_required).label,
     curve: yes(r.performance_curve_required) ? drawingDocStatus(versionsOf(r), "Performance Curve").label : NOT_REQUIRED,
     part: partDrawingStatus(r.part_drawing, partsOf(r))?.label ?? NOT_REQUIRED,
   };
@@ -59,7 +60,7 @@ export function ecDrawingStatuses(r: Row): { gad: string; curve: string; part: s
 export function ecDrawingDone(r: Row): boolean {
   const s = ecDrawingStatuses(r);
   return (
-    s.gad === "Issued to planning" &&
+    [NOT_REQUIRED, "Issued to planning"].includes(s.gad) &&
     [NOT_REQUIRED, "Approved by client"].includes(s.curve) &&
     [NOT_REQUIRED, "Fully complete"].includes(s.part)
   );
@@ -75,7 +76,7 @@ export function ecDrawingDoneDate(r: Row): string {
   const last = (rows: Row[]) => rows.sort((a, b) => Number(a.seq ?? 0) - Number(b.seq ?? 0))[rows.length - 1];
   const dates: string[] = [];
   const gad = last(versionsOf(r).filter((v) => String(v.doc_type ?? "GAD") === "GAD"));
-  if (gad) dates.push(day(gad.issued_to_production_date));
+  if (gad && String(r.gad_required ?? "").trim() !== "No") dates.push(day(gad.issued_to_production_date));
   if (yes(r.performance_curve_required)) {
     const pc = last(versionsOf(r).filter((v) => v.doc_type === "Performance Curve"));
     if (pc) dates.push(day(pc.approved_date));
@@ -120,6 +121,7 @@ export function ecGadStatusSql(it: string): string {
 function docStatusSql(it: string, doc: "GAD" | "Performance Curve"): string {
   const gad = doc === "GAD";
   return `(SELECT CASE
+             ${gad ? `WHEN COALESCE(${it}.gad_required, '') = 'No' THEN ${lit(NOT_REQUIRED)}` : ""}
              WHEN lv.id IS NULL OR lower(COALESCE(lv.issued_to_client, '')) <> 'yes' THEN 'Pending'
              WHEN ${gad ? "TRUE" : "FALSE"} AND lower(COALESCE(lv.approved, '')) = 'yes'
                   AND lower(COALESCE(lv.issued_to_production, '')) = 'yes' THEN 'Issued to planning'
@@ -178,7 +180,7 @@ export function ecDrawingDoneSql(it: string, o: string): string {
 }
 
 function ecDoneSql(it: string, o: string): string {
-  return `(${docStatusSql(it, "GAD")} = 'Issued to planning'
+  return `(${inList(docStatusSql(it, "GAD"), [NOT_REQUIRED, "Issued to planning"])}
            AND ${inList(curveStatusSql(it, o), [NOT_REQUIRED, "Approved by client"])}
            AND ${inList(partStatusSql(it), [NOT_REQUIRED, "Fully complete"])})`;
 }

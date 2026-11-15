@@ -233,7 +233,10 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
     const needed = requiredQcDocs({ qc_documents: x.qc_documents });
     out[x.id] = {
       drawing: {
-        gad: stage(x.gad, GAD_ORDER, "Issued to planning"),
+        // The ECs that need a GAD (Not required ones are done, nothing to stage).
+        gad: x.gad.some((g) => g !== "Not required")
+          ? stage(x.gad.filter((g) => g !== "Not required"), GAD_ORDER, "Issued to planning")
+          : { label: x.gad.length ? "Not required" : "—", done: 0, total: 0 },
         curve: curves.length ? stage(curves, CURVE_ORDER, "Approved by client") : null,
         part: parts.length ? stage(parts, PART_ORDER, "Fully complete") : null,
         readiness: x.drg_readiness,

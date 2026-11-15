@@ -14,8 +14,8 @@ function shortDate(v: string): string {
  * The EC's GAD as Planning and Quality need it: once Drawing issues it to
  * Planning, the date and its SharePoint links; until then, where it stands.
  */
-export function GadCell({ versions }: { versions: Row[] }) {
-  const st = drawingDocStatus(versions, "GAD");
+export function GadCell({ versions, gadRequired }: { versions: Row[]; gadRequired?: unknown }) {
+  const st = drawingDocStatus(versions, "GAD", gadRequired);
   const all = drawingVersions(versions, "GAD");
   const last = all[all.length - 1];
   const issued = st.label === "Issued to planning";

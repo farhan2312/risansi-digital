@@ -2948,6 +2948,8 @@ export async function listItemsForSection(
             it.ec_link_at,
             it.ec_links,
             it.item_type,
+            -- Drawing says no GAD is needed on the EC ('No').
+            it.gad_required,
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,

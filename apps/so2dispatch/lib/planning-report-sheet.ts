@@ -277,7 +277,7 @@ export function pumpSheet(
         })
         .join("\n");
       const versions = (Array.isArray(r.gad_versions) ? r.gad_versions : []) as Row[];
-      const gadSt = drawingDocStatus(versions, "GAD");
+      const gadSt = drawingDocStatus(versions, "GAD", r.gad_required);
       const all = drawingVersions(versions, "GAD");
       const last = all[all.length - 1];
       const gad =

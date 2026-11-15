@@ -377,7 +377,7 @@ export function AssemblyPumpTable({
                       </td>
                       {/* Drawing, as on Planning: the GAD, and the part drawings to read. */}
                       <td className={`${ecCell} whitespace-nowrap border-l border-card-border`}>
-                        <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} />
+                        <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} gadRequired={r.gad_required} />
                       </td>
                       <td className={ecCell}>
                         {str(r.part_drawing).toLowerCase() === "yes" ? (

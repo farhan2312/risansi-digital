@@ -34,7 +34,7 @@ import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { DrawingReadinessCell } from "./drawing-readiness-cell";
 import { PendencyCell } from "./pendency-cell";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
-import { applyDrawingVersionToSoAction } from "@/app/risansi/orders/drawing-readiness-actions";
+import { applyDrawingVersionToSoAction, setGadRequiredAction } from "@/app/risansi/orders/drawing-readiness-actions";
 
 type Row = Record<string, unknown>;
 /** The SO No. column's set width, and so where the PO column pinned beside it starts. */
@@ -425,7 +425,7 @@ export function DrawingWorkspace({
                           const p = partDrawingStatus(ec.part_drawing, partsOf(ec));
                           return { version: 0, label: p ? `${p.label} · ${p.done}/${p.total}` : "" };
                         })()
-                      : drawingDocStatus(versionsOf(ec), d);
+                      : drawingDocStatus(versionsOf(ec), d, ec.gad_required);
                   return (
                     <button
                       key={d}
@@ -510,7 +510,7 @@ function StatusPill({ label, tone }: { label: string; tone: DrawingStatusTone })
 /** A document on the front: its status, its version and the date that matters. */
 function DocCell({ row, doc, onOpen }: { row: Row; doc: DrawingDocType; onOpen: () => void }) {
   const versions = drawingVersions(versionsOf(row), doc);
-  const st = drawingDocStatus(versionsOf(row), doc);
+  const st = drawingDocStatus(versionsOf(row), doc, row.gad_required);
   const last = versions[versions.length - 1];
   const when = last
     ? yes(last.issued_to_production) && last.issued_to_production_date
@@ -554,8 +554,52 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
     router.refresh();
   }
 
+  // GAD only: Drawing may say this EC needs none.
+  const gadOff = doc === "GAD" && str(ec.gad_required) === "No";
+  async function setGadRequired(required: boolean) {
+    setBusy(true);
+    setError(null);
+    const res = await setGadRequiredAction(str(ec.id), required);
+    setBusy(false);
+    if (!res.ok) setError(res.error);
+    else router.refresh();
+  }
+  if (gadOff) {
+    return (
+      <div className="space-y-3">
+        <p className="rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground">
+          <span className="font-semibold">GAD not required</span> for this EC — nothing to send; it counts as done for Drawing.
+        </p>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setGadRequired(true)}
+            disabled={busy}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-3 text-sm font-medium text-foreground hover:bg-background disabled:opacity-60"
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            GAD is required after all
+          </button>
+        )}
+        {error && <p className="text-sm text-danger">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {doc === "GAD" && canEdit && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => confirm("Mark this EC's GAD as not required? It then counts as done for Drawing.") && setGadRequired(false)}
+            disabled={busy}
+            className="text-xs font-medium text-muted underline-offset-2 hover:text-foreground hover:underline disabled:opacity-60"
+          >
+            GAD not required for this EC
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {versions.map((v, i) => {
           const on = shown && str(v.id) === str(shown.id);
