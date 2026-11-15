@@ -4589,7 +4589,9 @@ async function pageOfOrderIds(opts: {
   // after clicking it could read a status two different ways.
   const f = opts.filter;
   const pickedKey = opts.kpiPicked ?? (f?.kpiFilter ? f.kpiPicked : null);
-  const picked = opts.kpis && pickedKey ? opts.kpis.cards.find((c) => !c.measure && pickedValue(c.params) === pickedKey) : undefined;
+  const pickedAny = opts.kpis && pickedKey ? opts.kpis.cards.find((c) => pickedValue(c.params) === pickedKey) : undefined;
+  // An EC / BOI item card (it counts ECs or items) lists the SOs holding them, by its filter.
+  const picked = pickedAny && !pickedAny.measure ? pickedAny : undefined;
   const kf = f?.kpiFilter;
   const listFilter =
     picked && f && kf
@@ -4608,7 +4610,13 @@ async function pageOfOrderIds(opts: {
       : f;
   // …over the cards' own condition (kpiRestrict, not the list's), so the list is
   // the very count the card shows, whatever the page's own filters.
-  const restrict = picked && opts.kpis ? `${opts.kpis.restrict} AND (${picked.sql ?? "TRUE"}) AND NOT ${TEST_SO_SQL("o")}` : opts.restrict;
+  const restrict =
+    picked && opts.kpis
+      ? `${opts.kpis.restrict} AND (${picked.sql ?? "TRUE"}) AND NOT ${TEST_SO_SQL("o")}`
+      : // …and, as no card counts a test SO, an EC / item card lists none either.
+        pickedAny
+        ? `${opts.restrict} AND NOT ${TEST_SO_SQL("o")}`
+        : opts.restrict;
   const facets = listFilter
     ? orderListClauses({ ...(await withRepTeams(listFilter)), search: "" })
     : { clauses: [], params: [] };
