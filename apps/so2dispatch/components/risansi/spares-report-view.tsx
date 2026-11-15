@@ -20,6 +20,7 @@ import {
   type SpareStage,
 } from "@/lib/spares-report-filter";
 import { SparesReportFilters } from "./spares-report-filters";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 const money = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
 
@@ -299,11 +300,8 @@ export function SparesReportView({ report }: { report: SparesReport }) {
 
   return (
     <div className="space-y-6 px-4 py-6 sm:px-8 sm:py-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Spares report</h1>
-          <p className="text-sm text-muted">{describeSparesReportFilter(filter)}</p>
-        </div>
+      <PageHeading title="Spares report" description={describeSparesReportFilter(filter)} />
+      <div className="flex flex-wrap items-end justify-end gap-4">
         <div className="flex gap-2">
           <a
             href={pdf}

@@ -5,6 +5,7 @@ import { Truck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { canSeeDispatched } from "@/lib/roles";
 import { listDispatchRegister } from "@/lib/orders";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Dispatched | Risansi",
@@ -48,20 +49,11 @@ export default async function DispatchedPage() {
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Truck className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Dispatched
-          </h1>
-          <p className="text-sm text-muted">
-            Completed dispatches with LR &amp; invoice details —{" "}
-            {rows.length} {rows.length === 1 ? "lot" : "lots"}.
-          </p>
-        </div>
-      </div>
+      <PageHeading
+        icon={<Truck />}
+        title="Dispatched"
+        description={<>Completed dispatches with LR &amp; invoice details — {rows.length} {rows.length === 1 ? "lot" : "lots"}.</>}
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-card-border bg-surface px-6 py-16 text-center shadow-sm">

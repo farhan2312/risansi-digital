@@ -22,6 +22,7 @@ import { OneClickButton } from "@/components/risansi/one-click-modal";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { cardBaseGet } from "@/lib/kpis";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Orders | Risansi",
@@ -101,21 +102,12 @@ export default async function OrdersPage({
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
       {/* header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <ClipboardList className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-              Orders
-            </h1>
-            <p className="text-sm text-muted">
-              Master Order-to-Dispatch tracker — {result.total}{" "}
-              {result.total === 1 ? "order" : "orders"}.
-            </p>
-          </div>
-        </div>
+      <PageHeading
+        icon={<ClipboardList />}
+        title="Orders"
+        description={<>Master Order-to-Dispatch tracker — {result.total} {result.total === 1 ? "order" : "orders"}.</>}
+      />
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {/* What the tracker is still waiting on, across every SO — see

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { isCentral } from "@/lib/roles";
 import { listConversations } from "@/lib/chat";
 import { MessagesView } from "@/components/risansi/messages-view";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Messages | Risansi",
@@ -21,21 +22,11 @@ export default async function MessagesPage() {
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <MessageSquare className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Messages
-          </h1>
-          <p className="text-sm text-muted">
-            {central
-              ? "Search for a department user and start a conversation."
-              : "Message Central Visibility about your orders."}
-          </p>
-        </div>
-      </div>
+      <PageHeading
+        icon={<MessageSquare />}
+        title="Messages"
+        description={<>{central ? "Search for a department user and start a conversation." : "Message Central Visibility about your orders."}</>}
+      />
 
       <MessagesView
         initialConversations={conversations}

@@ -21,6 +21,7 @@ import { BillingWorkspace } from "@/components/risansi/billing-workspace";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { deptKpiCards } from "@/lib/orders";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Dispatch | Risansi",
@@ -87,21 +88,12 @@ export default async function DispatchWorkspacePage({
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <PackageCheck className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Dispatch
-          </h1>
-          <p className="text-sm text-muted">
-            What leaves the works, once Assembly &amp; Packing has packed it: an
-            invoice (or challan) card per dispatch, its transporter and vehicle,
-            the docket and charges, and the LR. The order&apos;s dispatch status
-            follows from these.
-          </p>
-        </div>
+      <PageHeading
+        icon={<PackageCheck />}
+        title="Dispatch"
+        description={<>What leaves the works, once Assembly &amp; Packing has packed it: an invoice (or challan) card per dispatch, its transporter and vehicle, the docket and charges, and the LR. The order&apos;s dispatch status follows from these.</>}
+      />
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
         {/* Every SO in the queue as filtered: the PDF or the Excel. */}
         <div className="ml-auto flex items-center gap-2">
           <ReportDialogButton title="Dispatch report" href={reportHref} />

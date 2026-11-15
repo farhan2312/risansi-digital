@@ -8,6 +8,7 @@ import { canSeeEscalations } from "@/lib/roles";
 import { listPaymentHoldsPage } from "@/lib/orders";
 import { parsePage } from "@/lib/pagination";
 import { UrlPagination } from "@/components/risansi/url-table";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Payment Holds | Risansi",
@@ -31,20 +32,11 @@ export default async function EscalationsPage({
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500 text-white">
-          <AlertTriangle className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Payment Holds
-          </h1>
-          <p className="text-sm text-muted">
-            Orders escalated by Accounts because payment is not confirmed —{" "}
-            {result.total} {result.total === 1 ? "order" : "orders"}.
-          </p>
-        </div>
-      </div>
+      <PageHeading amber
+        icon={<AlertTriangle />}
+        title="Payment Holds"
+        description={<>Orders escalated by Accounts because payment is not confirmed — {result.total} {result.total === 1 ? "order" : "orders"}.</>}
+      />
 
       {result.total === 0 ? (
         <div className="rounded-xl border border-card-border bg-surface px-6 py-16 text-center shadow-sm">

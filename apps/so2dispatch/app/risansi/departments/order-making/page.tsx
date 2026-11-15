@@ -11,6 +11,7 @@ import { cardBaseGet } from "@/lib/kpis";
 import { unreadByOrder } from "@/lib/order-messages";
 import { OrderMakingWorkspace } from "@/components/risansi/order-making-workspace";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Order Making | Risansi",
@@ -66,19 +67,15 @@ export default async function OrderMakingPage({
     <div className="px-4 py-6 sm:px-8 sm:py-8">
       <OrderMakingWorkspace
         heading={
-          <div className="flex min-w-0 flex-1 basis-[28rem] items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <FilePlus2 className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Order Making</h1>
-              <p className="text-sm text-muted">
-                {soMember
-                  ? "Every SO, to view; fill the SO details (SO No., date, value, currency and quantity) of those assigned to you. Central Visibility is told once they are in."
-                  : "Create SOs with their client and purchase order details and assign each one's SO details to an Order Making SO member. Central Visibility is told once the SO details are in."}
-              </p>
-            </div>
-          </div>
+          <PageHeading
+            icon={<FilePlus2 />}
+            title="Order Making"
+            description={
+              soMember
+                ? "Every SO, to view; fill the SO details (SO No., date, value, currency and quantity) of those assigned to you. Central Visibility is told once they are in."
+                : "Create SOs with their client and purchase order details and assign each one's SO details to an Order Making SO member. Central Visibility is told once the SO details are in."
+            }
+          />
         }
         queue={queue}
         kpis={queue.kpis}

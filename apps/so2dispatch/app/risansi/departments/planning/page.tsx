@@ -32,6 +32,7 @@ import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { alignmentRestrict, pickAlignment } from "@/lib/assembly";
 import { boiItemRestrict, parsePurchaseFilter } from "@/lib/purchase-filter";
 import { ecDrawingRestrict, parseDrawingFilter } from "@/lib/drawing-filter";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Planning | Risansi",
@@ -132,19 +133,12 @@ export default async function PlanningWorkspacePage({
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <CalendarClock className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Planning
-          </h1>
-          <p className="text-sm text-muted">
-            Dispatch dates (set by Central Visibility) are shown for reference;
-            update readiness dates and planning status.
-          </p>
-        </div>
+      <PageHeading
+        icon={<CalendarClock />}
+        title="Planning"
+        description="Dispatch dates (set by Central Visibility) are shown for reference; update readiness dates and planning status."
+      />
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
         {/* Every SO in the queue as filtered: a pop-up to view, then PDF or Excel. */}
         <div className="ml-auto flex items-center gap-2">
           <ReportDialogButton title={ecKind === "pump" ? "Pump planning report" : "Spare planning report"} href={reportHref} />

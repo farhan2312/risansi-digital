@@ -34,6 +34,7 @@ import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
 import { CURVE_STATUSES, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Drawing | Risansi",
@@ -188,21 +189,11 @@ export default async function DrawingWorkspacePage({
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <PenTool className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Drawing
-          </h1>
-          <p className="text-sm text-muted">
-            Every pump EC&apos;s GAD, and its Performance Curve when the SO asks
-            for one — each kept as versions: sent to the client, approved or
-            resubmitted, and the GAD issued to the workshop.
-          </p>
-        </div>
-      </div>
+      <PageHeading
+        icon={<PenTool />}
+        title="Drawing"
+        description={<>Every pump EC&apos;s GAD, and its Performance Curve when the SO asks for one — each kept as versions: sent to the client, approved or resubmitted, and the GAD issued to the workshop.</>}
+      />
 
       <RemindersPanel reminders={reminders} focusInQueue />
 

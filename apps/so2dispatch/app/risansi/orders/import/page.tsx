@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { canImportOrders } from "@/lib/roles";
 import { OrderImport } from "@/components/risansi/order-import";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Import orders | Risansi",
@@ -26,15 +27,7 @@ export default async function ImportOrdersPage() {
         Back to orders
       </Link>
 
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-          Import orders
-        </h1>
-        <p className="text-sm text-muted">
-          Upload the daily sheet to create one SO per row. Client details are
-          filled in from the client directory using the client code.
-        </p>
-      </div>
+      <PageHeading title="Import orders" description="Upload the daily sheet to create one SO per row. Client details are filled in from the client directory using the client code." />
 
       <OrderImport />
     </div>

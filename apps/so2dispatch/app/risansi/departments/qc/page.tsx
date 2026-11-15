@@ -39,6 +39,7 @@ import {
   soQcState,
 } from "@/lib/qc-filter";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Quality | Risansi",
@@ -180,21 +181,11 @@ export default async function QcWorkspacePage({
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <ClipboardCheck className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Quality
-          </h1>
-          <p className="text-sm text-muted">
-            The QC documents each SO needs (MTC, IIR, Test Report, QAP and the rest) are set
-            on the order. Give each one per EC as a SharePoint link; the EC is
-            submitted once all are in.
-          </p>
-        </div>
-      </div>
+      <PageHeading
+        icon={<ClipboardCheck />}
+        title="Quality"
+        description="The QC documents each SO needs (MTC, IIR, Test Report, QAP and the rest) are set on the order. Give each one per EC as a SharePoint link; the EC is submitted once all are in."
+      />
 
       <RemindersPanel reminders={reminders} focusInQueue />
 

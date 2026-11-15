@@ -11,6 +11,7 @@ import { SortHeader } from "@/components/risansi/sort-header";
 import { DispatchPlanFilters } from "@/components/risansi/dispatch-plan-filters";
 import { applyDispatchPlanFilter, parseDispatchPlanFilter, sortDispatchPlan } from "@/lib/dispatch-plan-filter";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Dispatch Plan | Risansi",
@@ -139,18 +140,11 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <CalendarRange className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Dispatch Plan</h1>
-          <p className="text-sm text-muted">
-            Pump SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready or In plan, BOI in hand or
-            expected, not held by Accounts. Filled in automatically.
-          </p>
-        </div>
-      </div>
+      <PageHeading
+        icon={<CalendarRange />}
+        title="Dispatch Plan"
+        description={<>Pump SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready or In plan, BOI in hand or expected, not held by Accounts. Filled in automatically.</>}
+      />
 
       <div className="mb-3">
         <UrlSearchInput placeholder="Search SO, rep, zone, PO, PI, EC, model, BOI item…" />

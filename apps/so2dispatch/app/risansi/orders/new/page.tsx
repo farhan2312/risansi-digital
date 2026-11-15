@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { canCreateOrders } from "@/lib/roles";
 import { OrderForm } from "@/components/risansi/order-form";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "New order | Risansi",
@@ -28,14 +29,7 @@ export default async function NewOrderPage() {
         Back to orders
       </Link>
 
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-          New order
-        </h1>
-        <p className="text-sm text-muted">
-          Enter the core order details. Department sections are filled in later.
-        </p>
-      </div>
+      <PageHeading title="New order" description="Enter the core order details. Department sections are filled in later." />
 
       <OrderForm />
     </div>

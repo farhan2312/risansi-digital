@@ -12,6 +12,7 @@ import { hasNoChat } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
 import { RoleSwitcher } from "./role-switcher";
 import { BottomNav } from "./bottom-nav";
+import { PAGE_HEADING_SLOT } from "./page-heading";
 
 // SharePoint-hosted demo walkthrough. Opens in a new tab; noopener/noreferrer
 // so we don't hand the target a window.opener reference or leak Referer.
@@ -123,6 +124,10 @@ export function AppShell({
             breadcrumb on the left and Demo / Report a Bug / Bug bell on the
             right. */}
         <header ref={headerRef} className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-card-border bg-surface px-4">
+          {/* The page's own title and description (PageHeading) sit here;
+              a page without one shows its title / breadcrumb instead. */}
+          <div id={PAGE_HEADING_SLOT} className="peer min-w-0 flex-1 empty:hidden" />
+          <div className="hidden min-w-0 items-center peer-empty:flex">
           <span className="min-w-0 truncate font-display text-[15px] font-semibold text-foreground lg:hidden">
             {mobileTitle}
           </span>
@@ -166,10 +171,11 @@ export function AppShell({
               })}
             </nav>
           )}
+          </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             {/* The queues are wide: a smaller browser zoom shows whole rows. Desktop only. */}
-            <span className="hidden items-center gap-1.5 rounded-lg bg-primary/[0.08] px-2.5 py-1 text-xs font-medium text-primary xl:inline-flex">
+            <span className="hidden items-center gap-1.5 rounded-lg bg-primary/[0.08] px-2.5 py-1 text-xs font-medium text-primary 2xl:inline-flex">
               <ZoomOut className="h-3.5 w-3.5" aria-hidden />
               Use browser zoom below 75% for a better view
             </span>

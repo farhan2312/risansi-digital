@@ -264,7 +264,7 @@ export function OrderMakingWorkspace({
     <div>
       {/* The heading, with the report (a pop-up, downloaded from there) and New order. */}
       {showReport && <OmReportModal query={excelQuery} onClose={() => setShowReport(false)} />}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         {heading}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => setShowReport(true)} className={headButton}>

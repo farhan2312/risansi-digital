@@ -23,6 +23,7 @@ import { listPendency, pendencyFilterSql } from "@/lib/pendency-db";
 import { deptKpiCards } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Proforma Invoice | Risansi",
@@ -82,21 +83,11 @@ export default async function BillingWorkspacePage({
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Receipt className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Proforma Invoice
-          </h1>
-          <p className="text-sm text-muted">
-            Add one or more PIs per SO and fill their document fields (PI
-            No./Date/Value). Challan orders are not listed here — Dispatch
-            files their challans. Payment fields are filled by Accounts.
-          </p>
-        </div>
-      </div>
+      <PageHeading
+        icon={<Receipt />}
+        title="Proforma Invoice"
+        description="Add one or more PIs per SO and fill their document fields (PI No./Date/Value). Challan orders are not listed here — Dispatch files their challans. Payment fields are filled by Accounts."
+      />
 
       <BillingWorkspace
         completions={completions}

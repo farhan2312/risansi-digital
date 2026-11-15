@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, LayoutDashboard } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { DEPARTMENT_NAV } from "@/components/risansi/nav-config";
 import { canSeeCentralDashboard, canViewAll, canViewDepartment, roleLabel } from "@/lib/roles";
@@ -16,6 +16,7 @@ import { SpareDashboardView } from "@/components/risansi/spare-dashboard/spare-d
 import { PumpDashboardView } from "@/components/risansi/spare-dashboard/pump-dashboard";
 import { cardBaseGet } from "@/lib/kpis";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "Dashboard | Risansi",
@@ -50,12 +51,10 @@ export default async function DashboardPage({
     const reminders = await listRemindersForRole(user.role);
     return (
       <div className="px-4 py-6 sm:px-8 sm:py-8">
-        <div className="mb-6">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Welcome, {user.full_name}</h1>
-          <p className="mt-1 text-sm text-muted">
-            You&apos;re signed in as {roleLabel(user.role)}. Use the sidebar to open your department workspace.
-          </p>
-        </div>
+        <PageHeading
+          title={<>Welcome, {user.full_name}</>}
+          description={<>You&apos;re signed in as {roleLabel(user.role)}. Use the sidebar to open your department workspace.</>}
+        />
         <RemindersPanel reminders={reminders} />
       </div>
     );
@@ -74,17 +73,19 @@ export default async function DashboardPage({
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{kindLabel}</p>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted">
+      <PageHeading
+        icon={<LayoutDashboard />}
+        title={`${kindLabel} Dashboard`}
+        description={
+          <>
             {kind === "pump"
               ? "Where every pump SO stands, department by department, from drawing to dispatch"
               : "Where every Spare SO stands, from planning to dispatch"}{" "}
             · as of {data.asOf} IST
-          </p>
-        </div>
+          </>
+        }
+      />
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
         <Link
           href={kind === "pump" ? "/risansi/orders?type=pump" : "/risansi/orders?type=spare"}
           className="inline-flex h-10 items-center gap-2 rounded-lg border border-input-border bg-surface px-4 text-sm font-semibold text-foreground transition-colors hover:bg-background"

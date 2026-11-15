@@ -6,6 +6,7 @@ import { isCentral } from "@/lib/roles";
 import { getSetting, USD_INR_RATE } from "@/lib/settings";
 import { query } from "@/lib/db";
 import { UsdRateForm } from "@/components/risansi/usd-rate-form";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 export const metadata: Metadata = {
   title: "USD to INR | Risansi",
@@ -32,17 +33,11 @@ export default async function SettingsPage() {
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Settings className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            USD to INR
-          </h1>
-          <p className="text-sm text-muted">The conversion rate USD orders are valued in INR at.</p>
-        </div>
-      </div>
+      <PageHeading
+        icon={<Settings />}
+        title="USD to INR"
+        description="The conversion rate USD orders are valued in INR at."
+      />
 
       <UsdRateForm
         rate={rate.value}

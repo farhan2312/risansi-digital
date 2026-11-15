@@ -17,6 +17,7 @@ import {
   formatActiveMinutes,
   type AuditTone,
 } from "@/lib/audit-labels";
+import { PageHeading } from "@/components/risansi/page-heading";
 
 function fmt(iso: string | null): string {
   if (!iso) return "—";
@@ -221,15 +222,8 @@ export function AuditLogView({
     : `${result.total} event${result.total === 1 ? "" : "s"}`;
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Audit Log
-          </h1>
-          <p className="text-sm text-muted">
-            Full activity trail · who signed in, when, and everything they did
-          </p>
-        </div>
+      <PageHeading title="Audit Log" description="Full activity trail · who signed in, when, and everything they did" />
+      <div className="mb-3 flex flex-wrap items-end justify-end gap-4">
         {/* A plain link: the route answers with the file, and the browser
             downloads it without leaving the page. */}
         <a
