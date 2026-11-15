@@ -13,17 +13,22 @@ const TONE: Record<KpiTone, { dot: string; ring: string; bar: string; on: string
 };
 
 /** The card's count — and, when it has one, its second figure (the pumps those SOs hold). */
-function Count({ c, className }: { c: KpiCard; className: string }) {
+function Count({ c, className, reserve = false }: { c: KpiCard; className: string; reserve?: boolean }) {
+  // One block at the card's foot: the figure, and under it how many CV holds.
+  // reserve: another card of the strip has that line, so this one keeps its
+  // room too — every figure then sits on the same line.
   return (
-    <>
+    <span className="flex flex-col items-start">
       <CountFigures c={c} className={className} />
       {/* Held by Central Visibility: counted in the card (its status is its own), said here. */}
-      {!!c.heldCount && (
-        <span className="mt-0.5 block text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+      {c.heldCount ? (
+        <span className="mt-0.5 block text-[10px] font-semibold leading-tight text-rose-600 dark:text-rose-400">
           {c.heldCount} on CV hold
         </span>
-      )}
-    </>
+      ) : reserve ? (
+        <span className="mt-0.5 block text-[10px] leading-tight" aria-hidden>&nbsp;</span>
+      ) : null}
+    </span>
   );
 }
 
@@ -66,6 +71,8 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
     setAsked(null);
   }
   const shown = asked ?? onKey;
+  // Any card saying how many CV holds: every card keeps room for that line.
+  const reserve = cards.some((c) => !!c.heldCount);
   if (cards.length === 0) return null;
   // Cards with a group sit under its heading, groups side by side.
   const groups: { name: string | undefined; cards: KpiCard[] }[] = [];
@@ -100,7 +107,7 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
                   <>
                     <span className={`absolute inset-y-2 left-0 w-[3px] rounded-r-full ${tone.bar} ${ro ? "opacity-40" : ""}`} aria-hidden />
                     <span className="line-clamp-2 min-h-[2.1em] text-[11px] font-medium leading-tight text-muted">{c.label}</span>
-                    <Count c={c} className="mt-1 font-display text-[1.35rem] font-bold leading-none tabular-nums text-foreground" />
+                    <Count c={c} reserve={reserve} className="mt-1 font-display text-[1.35rem] font-bold leading-none tabular-nums text-foreground" />
                   </>
                 );
                 const cell = "relative flex min-w-0 flex-col justify-between rounded-xl px-3 py-2 text-left";
@@ -134,13 +141,13 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
       <div data-url-dim className="mb-3 flex flex-wrap items-stretch gap-x-4 gap-y-1.5">
         {groups.map((g, i) => (
           <div key={g.name ?? i} className="flex flex-wrap items-stretch gap-1.5">
-            <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} compact />
+            <KpiStripRow cards={g.cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} reserve={reserve} compact />
           </div>
         ))}
       </div>
     );
   }
-  return <KpiStripRow cards={cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} className="mb-3" />;
+  return <KpiStripRow cards={cards} keys={keys} shown={shown} onPick={setAsked} setParams={setParams} reserve={reserve} className="mb-3" />;
 }
 
 function KpiStripRow({
@@ -151,7 +158,10 @@ function KpiStripRow({
   setParams,
   className = "",
   compact = false,
+  reserve = false,
 }: {
+  /** Some card of the strip says how many CV holds: every card keeps that line's room. */
+  reserve?: boolean;
   /** Small cards that share one row. */
   compact?: boolean;
   cards: KpiCard[];
@@ -179,7 +189,7 @@ function KpiStripRow({
                 <span className={`mt-[0.3em] h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden />
                 {c.label}
               </span>
-              <Count c={c} className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`} />
+              <Count c={c} reserve={reserve} className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`} />
             </div>
           );
         }
@@ -201,7 +211,7 @@ function KpiStripRow({
               <span className={`mt-[0.3em] h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden />
               {c.label}
             </span>
-            <Count c={c} className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`} />
+            <Count c={c} reserve={reserve} className={`font-display ${countCls} font-bold tabular-nums leading-tight text-foreground`} />
           </button>
         );
       })}
