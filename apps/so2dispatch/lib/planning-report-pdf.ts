@@ -230,7 +230,8 @@ export function pumpLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>):
   }
   return [...groups.values()].flatMap((ecs) => {
     const head = ecs[0];
-    const held = str(head.clearance_status) === "Hold";
+    // Central Visibility's hold is a badge on the SO, not a status: every department reads its own.
+    const held = false;
     const soStatus = held ? "HOLD" : str(head.actual_spare_status) || "Date awaited";
     const summary = readinessSummary(histories.get(str(head.order_id)) ?? []);
     const lots = pumpLotsFromEcs(ecs);

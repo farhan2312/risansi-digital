@@ -112,6 +112,8 @@ export default async function AssemblyDispatchWorkspacePage({
         sql: `${soStageStatusSql("assembly", "o")} = '${st}'`,
         params: { ...clear, asm: st },
         tone: toneFor(st),
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: "COALESCE(o.clearance_status, '') = 'Hold'",
       })),
       ...SO_PACKING_STATUSES.map((st) => ({
         key: `p:${st}`,
@@ -119,6 +121,7 @@ export default async function AssemblyDispatchWorkspacePage({
         sql: `${soStageStatusSql("packing", "o")} = '${st}'`,
         params: { ...clear, pkg: st },
         tone: toneFor(st),
+        held: "COALESCE(o.clearance_status, '') = 'Hold'",
       })),
       // Its SOs on any hold.
       ...totalHoldCard("assembly", clear),

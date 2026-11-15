@@ -192,8 +192,8 @@ const DISPATCH_STAGES: readonly PumpStage[] = ["Fully dispatched", "Lot dispatch
 function restStage(o: OrderListRow): "Cancelled / Diverted" | "No EC yet" | "On hold" | "Packed, no slip yet" {
   if (CLOSED.includes(o.dispatch_status ?? "")) return "Cancelled / Diverted";
   if (Number(o.ec_count ?? 0) === 0) return "No EC yet";
-  // The Orders page's SO hold: Central Visibility's, Order Making's, Dispatch's or Accounts'.
-  if (o.clearance_status === "Hold" || o.om_status === "Hold" || o.dispatch_status === "Hold" || o.accounts_hold_status === "Hold") return "On hold";
+  // A work hold: Order Making's, Dispatch's or Accounts' (Central Visibility's is a badge; the SO stays at its stage).
+  if (o.om_status === "Hold" || o.dispatch_status === "Hold" || o.accounts_hold_status === "Hold") return "On hold";
   return "Packed, no slip yet";
 }
 
@@ -277,7 +277,8 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
       zone: str(o.zone) || "No zone",
       value_inr: inr,
       stage: staged.get(o.id) ?? restStage(o),
-      dispatch: o.clearance_status === "Hold" && !CLOSED.includes(str(o.dispatch_status)) ? "Hold" : str(o.dispatch_status) || "Pending",
+      // Central Visibility's hold is a badge on the SO, not a status: every department reads its own.
+      dispatch: str(o.dispatch_status) || "Pending",
       delivery_date: f?.delivery ?? null,
       first_dispatch: f?.first ?? null,
       no_slip: !!f?.no_slip,

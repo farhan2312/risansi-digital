@@ -69,7 +69,7 @@ export type PumpSummary = {
   sentToAssembly: boolean;
   /** It has reached Dispatch: a numbered packing slip filed (what puts it on Dispatch's queue). */
   sentToDispatch: boolean;
-  /** Central Visibility holds the SO: every department reads Hold until it is cleared. */
+  /** No longer set: Central Visibility's hold is a badge on the SO; the departments read their own status. */
   held: boolean;
   /** Any EC yet: with none it reaches Drawing, Purchase, Quality and Planning not at all. */
   hasEcs: boolean;
@@ -295,7 +295,8 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
       dispatch: x.dispatch || "Pending",
       sentToAssembly: !!x.sent_asm,
       sentToDispatch: !!x.sent_dsp,
-      held: !!x.held,
+      // Central Visibility's hold is a badge on the SO, not a status: every department reads its own.
+      held: false,
       hasEcs: !!x.has_ecs,
       slips: Array.isArray(x.slips) ? x.slips : [],
       lots: pumpLotsFromEcs(x.lot_ecs ?? []),

@@ -12,7 +12,7 @@ import type { PageResult } from "@/lib/pagination";
 import type { DeptCompletion } from "@/lib/dept-completion";
 import type { KpiCard } from "@/lib/kpis";
 import { saveQcLinksAction } from "@/app/risansi/orders/qc-actions";
-import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { HoldBadge } from "./hold-badge";
 import { VersionTag } from "./version-tag";
 import { SortHeader } from "./sort-header";
 import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
@@ -266,9 +266,7 @@ export function QcWorkspace({
                               </td>
                               <td rowSpan={span} className={soCell}>
                                 {/* Closed once every EC has all its documents in — from all its ECs, before a filter. */}
-                                {cvHeld(g.head) ? (
-                                  <HoldChip />
-                                ) : (str(g.head.qc_so_state) || soQcState(g.ecs)) === "Closed" ? (
+                                {(str(g.head.qc_so_state) || soQcState(g.ecs)) === "Closed" ? (
                                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
                                 ) : (
                                   // Open: why, in Quality's remarks.
@@ -329,7 +327,7 @@ export function QcWorkspace({
                           })()}
                           <td className={ecCell}>
                             <button type="button" onClick={() => setDocsFor(ecId)} className="flex flex-col items-start gap-0.5 text-left" title="Open the QC documents">
-                              {cvHeld(g.head) ? <HoldChip /> : <Chip label={st.label} tone={st.tone} />}
+                              {<Chip label={st.label} tone={st.tone} />}
                               {st.total > 0 && <span className="text-[11px] text-muted">{st.done}/{st.total} in</span>}
                             </button>
                           </td>

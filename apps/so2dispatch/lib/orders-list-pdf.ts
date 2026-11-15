@@ -84,7 +84,11 @@ const TONE: Record<DeptCell["state"] | "hold", { fg: RGB; bg: RGB; line: RGB }> 
 };
 
 /** Central Visibility holds the SO: every department reads Hold until cleared (as on the Orders list). */
-const cvHeld = (o: OrderListRow) => !CLOSED.includes(o.dispatch_status ?? "") && o.clearance_status === "Hold";
+/** Central Visibility's hold is a badge on the SO, not a status: no department reads Hold for it. */
+function cvHeld(o: OrderListRow): boolean {
+  void o;
+  return false;
+}
 const HOLD: Line[] = [{ text: "Hold", bold: true, color: C.red }];
 const NOT_YET: Line[] = [{ text: "—", color: C.muted }];
 
@@ -428,14 +432,15 @@ function buildRow(o: OrderListRow, status: SoDeptStatus | undefined, billing?: B
   const closed = CLOSED.includes(dispatch);
   const planning = planningText(o, status);
   const assembly = assemblyView(o, status, dayOrBlank);
-  const held = cvHeld(o);
+  // Central Visibility's hold is a badge on the SO, not a status: every department reads its own.
+  const held = false;
   // Not reached Dispatch yet (nothing packed, no status set): "—".
   const atDispatch = closed || (pump ? pump.sentToDispatch : reachedDispatch(o));
 
   // SO No. with its clearance and any Accounts hold beneath.
   const so: Line[] = [{ text: str(o.so_no) || `#${o.sl_no}`, bold: true }];
   if (o.clearance_status === "Hold") {
-    so.push({ text: `Hold${o.clearance_hold_reason ? `: ${o.clearance_hold_reason}` : ""}`, color: C.red, size: 6.5 });
+    so.push({ text: `CV hold${o.clearance_hold_reason ? `: ${o.clearance_hold_reason}` : ""}`, color: C.red, size: 6.5 });
   } else so.push({ text: "Clear", color: C.green, size: 6.5 });
   if (o.accounts_hold_status === "Hold") {
     so.push({ text: `Accounts hold${o.accounts_hold_reason ? `: ${o.accounts_hold_reason}` : ""}`, color: C.red, size: 6.5 });

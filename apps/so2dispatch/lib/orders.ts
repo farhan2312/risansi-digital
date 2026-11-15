@@ -33,6 +33,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
   HOLD,
   isPerEcDept,
   soHoldSql,
+  soWorkHoldSql,
   NOT_APPLICABLE,
   NOT_AT_DISPATCH,
   PENDING,
@@ -3667,6 +3668,11 @@ function ecDonePredicate(dept: DeptFilterKey): string {
  * escalation list chased it.
  */
 function deptOverduePredicate(dept: DeptFilterKey): string {
+  // Held by Central Visibility, no department may work on it: nothing is late.
+  return `(COALESCE(o.clearance_status, '') <> 'Hold' AND ${deptOverdueOwn(dept)})`;
+}
+
+function deptOverdueOwn(dept: DeptFilterKey): string {
   // Planning is late against its own readiness date: an EC whose date has
   // passed and that is not ready as planned — a Spare Fully ready, a Pump
   // at least Partial ready (its date is its lot's).
@@ -3697,16 +3703,16 @@ function deptOverduePredicate(dept: DeptFilterKey): string {
 const CV_HOLD_SQL = `COALESCE(o.clearance_status, '') = 'Hold'`;
 
 /**
- * A department status, with Central Visibility's hold over it: a held SO is
- * Hold in every department (N/A stays N/A) and none of its other statuses
- * until it is cleared. Dispatch's Hold is its own hold or this one.
+ * A department status. Central Visibility's hold is a badge on the SO, not a
+ * status: the department's status stays what its work says, held or not
+ * ("Hold" — from an old link — still finds the SOs CV holds; Dispatch's Hold
+ * is its own). An SO on a work hold (Accounts, Dispatch) is no department's Pending.
  */
 function withCvHold(dept: DeptFilterKey, status: string, own: () => string): string {
   if (status === NOT_APPLICABLE) return own();
-  if (status === HOLD) return dept === "dispatch" ? `((${CV_HOLD_SQL} AND ${SO_REACHED_DISPATCH}) OR (${own()}))` : CV_HOLD_SQL;
-  // Nor is an SO on hold any department's Pending.
-  const pending = toneFor(status) === "pending" ? ` AND NOT ${soHoldSql("o", dept)}` : "";
-  return `(NOT ${CV_HOLD_SQL}${pending} AND (${own()}))`;
+  if (status === HOLD) return dept === "dispatch" ? own() : CV_HOLD_SQL;
+  const pending = toneFor(status) === "pending" ? ` AND NOT ${soWorkHoldSql("o", dept)}` : "";
+  return `(TRUE${pending} AND (${own()}))`;
 }
 
 function deptStatusPredicate(dept: DeptFilterKey, status: string): string {
@@ -4583,7 +4589,9 @@ async function pageOfOrderIds(opts: {
   // after clicking it could read a status two different ways.
   const f = opts.filter;
   const pickedKey = opts.kpiPicked ?? (f?.kpiFilter ? f.kpiPicked : null);
-  const picked = opts.kpis && pickedKey ? opts.kpis.cards.find((c) => !c.measure && pickedValue(c.params) === pickedKey) : undefined;
+  const pickedAny = opts.kpis && pickedKey ? opts.kpis.cards.find((c) => pickedValue(c.params) === pickedKey) : undefined;
+  // An EC / BOI item card (it counts ECs or items) lists the SOs holding them, by its filter.
+  const picked = pickedAny && !pickedAny.measure ? pickedAny : undefined;
   const kf = f?.kpiFilter;
   const listFilter =
     picked && f && kf
@@ -4602,7 +4610,13 @@ async function pageOfOrderIds(opts: {
       : f;
   // …over the cards' own condition (kpiRestrict, not the list's), so the list is
   // the very count the card shows, whatever the page's own filters.
-  const restrict = picked && opts.kpis ? `${opts.kpis.restrict} AND (${picked.sql ?? "TRUE"}) AND NOT ${TEST_SO_SQL("o")}` : opts.restrict;
+  const restrict =
+    picked && opts.kpis
+      ? `${opts.kpis.restrict} AND (${picked.sql ?? "TRUE"}) AND NOT ${TEST_SO_SQL("o")}`
+      : // …and, as no card counts a test SO, an EC / item card lists none either.
+        pickedAny
+        ? `${opts.restrict} AND NOT ${TEST_SO_SQL("o")}`
+        : opts.restrict;
   const facets = listFilter
     ? orderListClauses({ ...(await withRepTeams(listFilter)), search: "" })
     : { clauses: [], params: [] };
@@ -4701,6 +4715,8 @@ async function countKpis(
         : `count(*)::int AS k${i}`,
     // The card's second figure, summed over the same SOs.
     ...(c.also ? [`COALESCE(sum(${c.also.measure})${c.sql ? ` FILTER (WHERE ${c.sql})` : ""}, 0)::int AS a${i}`] : []),
+    // How many of the card's SOs Central Visibility holds (still counted in it: the hold is a badge).
+    ...(c.held ? [`count(*) FILTER (WHERE (${c.sql ?? "TRUE"}) AND (${c.held}))::int AS h${i}`] : []),
   ]);
   try {
     const r = await query<Record<string, number>>(`SELECT ${cols.join(", ")} FROM orders o ${where}`, [...base.params, search]);
@@ -4714,6 +4730,7 @@ async function countKpis(
       measure: c.measure ? "sum" : undefined,
       count: Number(row[`k${i}`] ?? 0),
       ...(c.also ? { also: { label: c.also.label, count: Number(row[`a${i}`] ?? 0) } } : {}),
+      ...(c.held ? { heldCount: Number(row[`h${i}`] ?? 0) } : {}),
     }));
   } catch (error) {
     console.error("countKpis failed:", error);
@@ -4752,9 +4769,9 @@ export function pumpOrderCards(): KpiCardDef[] {
     sql: `(${sql}) AND ${open} AND NOT ${onlyBillingSql("o")}${
       ["Purchase", "Quality", "Planning"].includes(group) ? ` AND ${HAS_EC_SQL}` : ""
     }${
-      key === "dsp_hold"
+      key === "dsp_hold" || tone !== "pending"
         ? ""
-        : ` AND NOT ${CV_HOLD_SQL}${tone === "pending" ? ` AND NOT ${soHoldSql("o", PUMP_CARD_DEPT[group])}` : ""}`
+        : ` AND NOT ${soWorkHoldSql("o", PUMP_CARD_DEPT[group])}`
     }`,
     params: { ...clear, pk: key },
     tone,
@@ -4897,7 +4914,7 @@ export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
       "Fully ready",
       "Ready, not packed",
       { pack: "Not packed" },
-      `${SO_PLANNING_STATUS} = 'Fully ready' AND NOT ${CV_HOLD_SQL}
+      `${SO_PLANNING_STATUS} = 'Fully ready'
                 AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND (${packingState("Not packed")})) AND ${open}`
     ),
     card("Assembly & Packing", "assembly", "In Progress", "Packing on"),
@@ -5010,7 +5027,9 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
     // Every department: its SOs on any hold, and on each kind.
     ...totalHoldCard(dept, clear),
   ];
-  return pumpPlanning ? cards.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } })) : cards;
+  // Each status card says how many of its SOs Central Visibility holds — counted in it, the hold a badge.
+  const withHeld = cards.map((c) => (c.key.startsWith("s:") ? { ...c, held: CV_HOLD_SQL } : c));
+  return pumpPlanning ? withHeld.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } })) : withHeld;
 }
 
 // Matches the SO's own identity columns or any of its ECs.
@@ -5788,8 +5807,7 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
 
     // PIs and payments are recorded on every order, whatever its terms.
     const paidAfterReceipt = false;
-    // Held by Central Visibility: Hold in every department until cleared.
-    const hold = (c: DeptCell): DeptCell => (head.held && c.state !== "na" ? pending(HOLD) : c);
+    // Central Visibility's hold is a badge on the SO: every department's cell stays its real status.
     out.set(head.order_id, {
       billing:
         paidAfterReceipt || head.billing_state === "N/A"
@@ -5821,23 +5839,8 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
         dispatchRevised: head.dispatch_target_revised_date,
         drawingReadiness: head.drg_readiness_date ?? null,
       },
-      ecs: head.held
-        ? ecs.map((e) => ({
-            ...e,
-            drawing: hold(e.drawing),
-            purchase: hold(e.purchase),
-            quality: hold(e.quality),
-            planning: hold(e.planning),
-            assembly: hold(e.assembly),
-          }))
-        : ecs,
+      ecs,
     });
-    if (head.held) {
-      const s = out.get(head.order_id)!;
-      s.billing = hold(s.billing);
-      s.accounts = hold(s.accounts);
-      s.dispatch = hold(s.dispatch);
-    }
   }
   return out;
 }

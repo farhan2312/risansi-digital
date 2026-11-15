@@ -20,6 +20,8 @@ export type KpiCardDef = {
   group?: string;
   /** A second figure over the card's SOs, beside the count (Planning's Pump view: the pumps they hold). */
   also?: { label: string; measure: string };
+  /** SQL over o: how many of the card's SOs are on Central Visibility's hold, shown small under its count. */
+  held?: string;
 };
 
 /** The URL param holding what the card clicked set (as a query string). */
@@ -56,7 +58,7 @@ export function cardBaseGet(get: (key: string) => string | undefined): (key: str
 }
 
 /** A card as shown: its count (and its second figure, when it has one). */
-export type KpiCard = Omit<KpiCardDef, "sql" | "also"> & { count: number; also?: { label: string; count: number } };
+export type KpiCard = Omit<KpiCardDef, "sql" | "also" | "held"> & { count: number; also?: { label: string; count: number }; heldCount?: number };
 
 /** What counts the cards: the queue's own condition, and the cards. */
 export type KpiRequest = { restrict: string; cards: KpiCardDef[] };

@@ -5,7 +5,7 @@
 
 import { drawingDocStatus, spareEcSql } from "@/lib/dept-view";
 import { partDrawingStatus } from "@/lib/part-drawings";
-import { inListNotHeld, soHoldSql } from "@/lib/dept-status";
+import { inListNotHeld, soWorkHoldSql } from "@/lib/dept-status";
 
 export const NOT_REQUIRED = "Not required";
 
@@ -203,7 +203,7 @@ export function drawingFilterSql(f: DrawingFilter, o = "o"): string {
     const open = `EXISTS (SELECT 1 FROM order_items s
                            WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})
                              AND NOT ${ecDoneSql("s", o)})`;
-    parts.push(f.so[0] === "Open" ? `${open} AND NOT ${soHoldSql(o, "drawing")}` : `NOT ${open}`);
+    parts.push(f.so[0] === "Open" ? `${open} AND NOT ${soWorkHoldSql(o, "drawing")}` : `NOT ${open}`);
   }
   return parts.length ? parts.join(" AND ") : "TRUE";
 }

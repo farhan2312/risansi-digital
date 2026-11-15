@@ -4,7 +4,8 @@ import { ecDrawingDoneSql } from "@/lib/drawing-filter";
 
 /** A cancelled or diverted order raises no escalation. `a.id` is the SO. */
 // An Only Billing SO is no department's, so nobody's alert either.
-const OPEN_ONLY = `EXISTS (SELECT 1 FROM orders oo WHERE oo.id = a.id AND ${orderOpenSql("oo")} AND NOT ${onlyBillingSql("oo")})`;
+const OPEN_ONLY = `EXISTS (SELECT 1 FROM orders oo WHERE oo.id = a.id AND ${orderOpenSql("oo")} AND NOT ${onlyBillingSql("oo")}
+  AND (a.type = 'hold' OR COALESCE(oo.clearance_status, '') <> 'Hold'))`;
 import {
   offsetFor,
   pageResult,

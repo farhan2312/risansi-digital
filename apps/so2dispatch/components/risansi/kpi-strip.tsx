@@ -14,6 +14,20 @@ const TONE: Record<KpiTone, { dot: string; ring: string; bar: string; on: string
 
 /** The card's count — and, when it has one, its second figure (the pumps those SOs hold). */
 function Count({ c, className }: { c: KpiCard; className: string }) {
+  return (
+    <>
+      <CountFigures c={c} className={className} />
+      {/* Held by Central Visibility: counted in the card (its status is its own), said here. */}
+      {!!c.heldCount && (
+        <span className="mt-0.5 block text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+          {c.heldCount} on CV hold
+        </span>
+      )}
+    </>
+  );
+}
+
+function CountFigures({ c, className }: { c: KpiCard; className: string }) {
   if (!c.also) return <span className={className}>{c.count}</span>;
   return (
     <span className={`${className} flex flex-wrap items-baseline gap-x-1.5`}>
