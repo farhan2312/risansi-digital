@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUrlTableBusy } from "./url-table";
-import { Bell, ChevronRight, PlayCircle, RotateCw, ZoomOut } from "lucide-react";
+import { Bell, ChevronRight, RotateCw, ZoomOut } from "lucide-react";
 import { ReportBugTrigger } from "./report-bug";
 import { DiscussionBell } from "./discussion-bell";
 import { AllChatsPanel } from "./all-chats";
@@ -13,11 +13,6 @@ import { Sidebar } from "./sidebar";
 import { RoleSwitcher } from "./role-switcher";
 import { BottomNav } from "./bottom-nav";
 import { PAGE_HEADING_SLOT } from "./page-heading";
-
-// SharePoint-hosted demo walkthrough. Opens in a new tab; noopener/noreferrer
-// so we don't hand the target a window.opener reference or leak Referer.
-const DEMO_VIDEO_URL =
-  "https://risansi-my.sharepoint.com/personal/asad_risansi_com/_layouts/15/stream.aspx?id=%2Fpersonal%2Fasad%5Frisansi%5Fcom%2FDocuments%2FSOdispatchDemo%2FSODispatch%2Emp4&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&ga=1&referrer=StreamWebApp%2EWeb&referrerScenario=AddressBarCopied%2Eview%2E4d270a1e%2Ddb24%2D4b77%2Da8f7%2D3e728102fe28";
 
 /** `roles`: every department they may work as (the switcher shows for more than one). */
 /** `view_pages`: working as 360° View, the pages picked for them (the nav shows only those). */
@@ -121,7 +116,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar — mobile shows the current page title; desktop shows the
-            breadcrumb on the left and Demo / Report a Bug / Bug bell on the
+            breadcrumb on the left and Report a Bug / Bug bell on the
             right. */}
         <header ref={headerRef} className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-card-border bg-surface px-4">
           {/* The page's own title and description (PageHeading) sit here;
@@ -193,15 +188,6 @@ export function AppShell({
                 {refreshing ? "Refreshing…" : "Refresh"}
               </span>
             </button>
-            <a
-              href={DEMO_VIDEO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-card-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background"
-            >
-              <PlayCircle className="h-4 w-4 text-primary" />
-              <span className="hidden sm:inline">Demo</span>
-            </a>
             {/* Below lg, where the sidebar is hidden: the department switcher here. */}
             <span className="lg:hidden">
               <RoleSwitcher role={user.role} roles={user.roles ?? []} variant="header" />
