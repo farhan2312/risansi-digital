@@ -41,6 +41,9 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/** Central Visibility holds the SO (alias o): its cards say how many, the hold a badge. */
+const CV_HELD = "COALESCE(o.clearance_status, '') = 'Hold'";
+
 const TABLE = "order_drawing" as const;
 
 export default async function DrawingWorkspacePage({
@@ -86,6 +89,8 @@ export default async function DrawingWorkspacePage({
         group: "SO",
         sql: drawingFilterSql({ ...none, so: [st] }),
         params: { ...clear, drg_so: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: st === "Closed" ? ("done" as const) : ("pending" as const),
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
@@ -97,6 +102,8 @@ export default async function DrawingWorkspacePage({
         group: "GAD",
         sql: drawingFilterSql({ ...none, gad: [st] }),
         params: { ...clear, drg_gad: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: toneFor(st),
       })),
       ...CURVE_STATUSES.filter((st) => st !== NOT_REQUIRED).map((st) => ({
@@ -105,6 +112,8 @@ export default async function DrawingWorkspacePage({
         group: "Performance Curve",
         sql: drawingFilterSql({ ...none, curve: [st] }),
         params: { ...clear, drg_pc: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: toneFor(st),
       })),
       ...PART_STATUSES.filter((st) => st !== NOT_REQUIRED).map((st) => ({
@@ -113,6 +122,8 @@ export default async function DrawingWorkspacePage({
         group: "Part Drawing",
         sql: drawingFilterSql({ ...none, part: [st] }),
         params: { ...clear, drg_part: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: toneFor(st),
       })),
     ];

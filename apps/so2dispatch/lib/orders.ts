@@ -4716,7 +4716,14 @@ async function countKpis(
     // The card's second figure, summed over the same SOs.
     ...(c.also ? [`COALESCE(sum(${c.also.measure})${c.sql ? ` FILTER (WHERE ${c.sql})` : ""}, 0)::int AS a${i}`] : []),
     // How many of the card's SOs Central Visibility holds (still counted in it: the hold is a badge).
-    ...(c.held ? [`count(*) FILTER (WHERE (${c.sql ?? "TRUE"}) AND (${c.held}))::int AS h${i}`] : []),
+    ...(c.held
+      ? [
+          c.measure
+            ? // A sum card (ECs, BOI items): those of the held SOs.
+              `COALESCE(sum(${c.measure}) FILTER (WHERE ${c.held}), 0)::int AS h${i}`
+            : `count(*) FILTER (WHERE (${c.sql ?? "TRUE"}) AND (${c.held}))::int AS h${i}`,
+        ]
+      : []),
   ]);
   try {
     const r = await query<Record<string, number>>(`SELECT ${cols.join(", ")} FROM orders o ${where}`, [...base.params, search]);

@@ -48,6 +48,9 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/** Central Visibility holds the SO (alias o): its cards say how many, the hold a badge. */
+const CV_HELD = "COALESCE(o.clearance_status, '') = 'Hold'";
+
 const TABLE = "order_purchase" as const;
 
 export default async function PurchaseWorkspacePage({
@@ -93,6 +96,8 @@ export default async function PurchaseWorkspacePage({
         group: "SO",
         sql: purchaseFilterSql({ ...none, so: [st] }),
         params: { ...clear, pur_so: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: tone(st),
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
@@ -105,6 +110,8 @@ export default async function PurchaseWorkspacePage({
         group: "EC",
         sql: null,
         params: { ...clear, pur_ec: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: tone(st),
         measure: ecCountSql("o", st),
       })),
@@ -115,6 +122,8 @@ export default async function PurchaseWorkspacePage({
         group: "BOI",
         sql: null,
         params: { ...clear, pur_boi: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: toneFor(st),
         measure: boiCountSql("o", st, purchaseFilter.vendor, purchaseFilter.item),
       })),

@@ -46,6 +46,9 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/** Central Visibility holds the SO (alias o): its cards say how many, the hold a badge. */
+const CV_HELD = "COALESCE(o.clearance_status, '') = 'Hold'";
+
 const TABLE = "order_qc" as const;
 
 export default async function QcWorkspacePage({
@@ -90,6 +93,8 @@ export default async function QcWorkspacePage({
         group: "SO",
         sql: qcFilterSql({ so: [st], ec: [], asm: [] }),
         params: { ...clear, qc_so: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: st === "Closed" ? ("done" as const) : ("pending" as const),
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
@@ -102,6 +107,8 @@ export default async function QcWorkspacePage({
         group: "EC",
         sql: null,
         params: { ...clear, qc_ec: st },
+        // How many of them Central Visibility holds (a badge: they count here).
+        held: CV_HELD,
         tone: st === "Docs not specified" ? ("neutral" as const) : toneFor(st),
         measure: qcEcCountSql("o", st),
       })),
