@@ -482,7 +482,8 @@ export function OrdersTable({
     // A cancelled or diverted SO is nobody's work: no departments, no progress.
     const closed = CLOSED.includes(dispatch);
     // Central Visibility holds it: every department reads Hold until cleared.
-    const held = !closed && order.clearance_status === "Hold";
+    // Central Visibility's hold is a badge on the SO, not a status: every department reads its own.
+    const held = false;
     const lots = order.lots ?? [];
     const hasLots = lots.length > 0;
     const planDate =

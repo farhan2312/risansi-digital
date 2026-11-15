@@ -175,7 +175,9 @@ export async function listReminders(
         WHERE ($1::text[] IS NULL OR r.dept = ANY($1))
           -- A cancelled or diverted order has no deadlines left.
           -- Nor one Central Visibility has not yet cleared or held: no department sees it.
-          AND EXISTS (SELECT 1 FROM orders oo WHERE oo.id = r.id AND ${orderOpenSql("oo")} AND ${releasedSql("oo")} AND NOT ${onlyBillingSql("oo")})
+          -- Held by Central Visibility, no one may work on it: no reminders until cleared.
+          AND EXISTS (SELECT 1 FROM orders oo WHERE oo.id = r.id AND ${orderOpenSql("oo")} AND ${releasedSql("oo")} AND NOT ${onlyBillingSql("oo")}
+                        AND COALESCE(oo.clearance_status, '') <> 'Hold')
         ORDER BY r.days_left ASC, r.sl_no ASC`,
       [filter]
     );

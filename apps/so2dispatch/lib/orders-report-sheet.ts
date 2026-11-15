@@ -212,7 +212,8 @@ export function ordersSheet(opts: {
     const status = statuses.get(o.id);
     const dispatch = o.dispatch_status || "Pending";
     const closed = CLOSED.includes(dispatch);
-    const held = !closed && o.clearance_status === "Hold";
+    // Central Visibility's hold is a badge on the SO, not a status: every department reads its own.
+    const held = false;
     const hand = closed ? null : orderInHand(o as unknown as Record<string, unknown>);
     const left = hand && !("replacement" in hand) ? hand : null;
     const onlyBilling = o.only_billing === "Yes";
@@ -227,7 +228,7 @@ export function ordersSheet(opts: {
     const leadCells: [SheetCell, Tone | null][] = [
       [Number(o.sl_no) || str(o.sl_no) || null, null],
       [str(o.so_no) || `#${o.sl_no}`, null],
-      o.clearance_status === "Hold" ? [`Hold${o.clearance_hold_reason ? `: ${o.clearance_hold_reason}` : ""}`, "red"] : ["Clear", "green"],
+      o.clearance_status === "Hold" ? [`CV hold${o.clearance_hold_reason ? `: ${o.clearance_hold_reason}` : ""}`, "red"] : ["Clear", "green"],
       o.accounts_hold_status === "Hold"
         ? [lines([`Hold${o.accounts_hold_reason ? `: ${o.accounts_hold_reason}` : ""}`, o.accounts_hold_remarks]), "red"]
         : [null, null],

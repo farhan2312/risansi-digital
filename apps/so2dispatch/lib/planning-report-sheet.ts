@@ -188,7 +188,8 @@ export function pumpSheet(
   for (const ecs of groups.values()) {
     const head = ecs[0];
     const orderId = str(head.order_id);
-    const held = str(head.clearance_status) === "Hold";
+    // Central Visibility's hold is a badge on the SO, not a status: every department reads its own.
+    const held = false;
     const s = summaries[orderId];
     const lots = pumpLotsFromEcs(ecs);
     const slips = (Array.isArray(head.so_slips) ? head.so_slips : []) as Row[];

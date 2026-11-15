@@ -76,12 +76,26 @@ export function soHoldSql(o = "o", dept?: string | null): string {
   return `(${holdBySql("cv", o)}${om ? ` OR COALESCE(${o}.om_status, '') = 'Hold'` : ""}${others})`;
 }
 
+/**
+ * The holds that keep an SO out of a department's Open / Pending: Order
+ * Making's (where it counts), Accounts' and Dispatch's. Central Visibility's
+ * hold is a badge only — the department's status stays what its work says.
+ */
+export function soWorkHoldSql(o = "o", dept?: string | null): string {
+  const om = !dept || dept === "order_making";
+  const parts = [
+    ...(om ? [`COALESCE(${o}.om_status, '') = 'Hold'`] : []),
+    ...(dept === "order_making" ? [] : [holdBySql("accounts", o), holdBySql("dispatch", o)]),
+  ];
+  return parts.length ? `(${parts.join(" OR ")})` : "FALSE";
+}
+
 /** `expr IN values`, a held SO (alias o) left out of the open words. */
 export function inListNotHeld(expr: string, values: string[], open: string[], o: string, dept: string): string {
   const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
   const list = `${expr} IN (${values.map(lit).join(", ")})`;
   return values.some((v) => open.includes(v))
-    ? `(${list} AND (${expr} NOT IN (${open.map(lit).join(", ")}) OR NOT ${soHoldSql(o, dept)}))`
+    ? `(${list} AND (${expr} NOT IN (${open.map(lit).join(", ")}) OR NOT ${soWorkHoldSql(o, dept)}))`
     : list;
 }
 /**
@@ -169,18 +183,20 @@ export const DEPTS_WITHOUT_PARTY: ReadonlySet<DeptFilterKey> = new Set<DeptFilte
 export function statusesFor(dept: DeptFilterKey, types: string[] = []): string[] {
   if (dept === "planning" && types.length === 1) {
     const t = types[0].trim().toLowerCase();
-    if (t === "spare") return [...SPARE_PLANNING_STATUSES, HOLD];
-    if (t === "pump" || t === "rolb") return [...PUMP_PLANNING_STATUSES, HOLD];
+    if (t === "spare") return [...SPARE_PLANNING_STATUSES];
+    if (t === "pump" || t === "rolb") return [...PUMP_PLANNING_STATUSES];
   }
   // Assembly & Packing: a Pump's words or a Spare's, when only one kind is shown.
   if (dept === "assembly" && types.length > 0) {
     const spare = types.some((t) => t.trim().toLowerCase() === "spare");
     const pump = types.some((t) => /^(pump|rolb)$/i.test(t.trim()));
-    if (spare && !pump) return [...SPARE_ASSEMBLY_WORDS, HOLD];
-    if (pump && !spare) return [...PUMP_ASSEMBLY_WORDS, HOLD];
+    if (spare && !pump) return [...SPARE_ASSEMBLY_WORDS];
+    if (pump && !spare) return [...PUMP_ASSEMBLY_WORDS];
   }
+  // Central Visibility's hold is a badge, not a status: only Dispatch has a Hold (its own).
   const list = DEPT_STATUSES[dept];
-  return list.includes(HOLD) ? list : [...list, HOLD];
+  if (dept === "dispatch") return list.includes(HOLD) ? list : [...list, HOLD];
+  return list.filter((s) => s !== HOLD);
 }
 
 /** Drawing…Assembly are tracked per EC; the rest sit on the SO. */

@@ -47,7 +47,7 @@ import {
 } from "@/lib/order-schema";
 import { OrderChildList } from "./order-children";
 import { SortHeader } from "./sort-header";
-import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { HoldBadge } from "./hold-badge";
 import { VersionTag } from "./version-tag";
 import { OrderStatusPill } from "./order-status-pill";
 import { orderStatusOf } from "@/lib/order-row-view";
@@ -1118,8 +1118,6 @@ export function DepartmentWorkspace({
                       <td key={f.column} className="px-3 py-3 whitespace-nowrap">
                         {!fieldApplies(f, order)
                           ? "—"
-                          : f.column === "payment_status" && cvHeld(order)
-                            ? <HoldChip />
                           : table === "order_accounts"
                             ? contextValue(f, order)
                             : formatValue(f, order[f.column])}
@@ -1227,7 +1225,7 @@ export function DepartmentWorkspace({
                           const mixed = new Set(g.ecs.map(isSpareRow)).size > 1;
                           return (
                             <>
-                              <td className="px-4 py-3 whitespace-nowrap">{cvHeld(g.head) ? <HoldChip /> : sum.status}</td>
+                              <td className="px-4 py-3 whitespace-nowrap">{sum.status}</td>
                               {/* Planning has it after SO Date. */}
                               {table !== "order_planning" && readinessTd(g)}
                               {table === "order_planning" && (() => {
@@ -1241,7 +1239,7 @@ export function DepartmentWorkspace({
                                     ))}
                                     <td className="px-4 py-3 whitespace-nowrap">
                                       {/* Not sent on to Assembly & Packing yet: "—". */}
-                                      {cvHeld(g.head) ? <HoldChip /> : sentToAssembly(g.ecs) ? asm.status : <span className="text-muted">—</span>}
+                                      {sentToAssembly(g.ecs) ? asm.status : <span className="text-muted">—</span>}
                                       {asm.date !== "—" && asm.date !== "Mixed" && (
                                         <div className="text-[11px] text-muted">{asm.date}</div>
                                       )}
@@ -1264,9 +1262,7 @@ export function DepartmentWorkspace({
                                       )}
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      {cvHeld(g.head) ? (
-                                        <HoldChip />
-                                      ) : sentToDispatch(g.head) ? (
+                                      {sentToDispatch(g.head) ? (
                                         <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
                                       ) : (
                                         <NotAtDispatch />
@@ -1306,9 +1302,7 @@ export function DepartmentWorkspace({
                               })()}
                               {table === "order_assembly_dispatch" && (
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                  {cvHeld(g.head) ? (
-                                    <HoldChip />
-                                  ) : atDispatch(g.head, g.ecs) ? (
+                                  {atDispatch(g.head, g.ecs) ? (
                                     <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
                                   ) : (
                                     <NotAtDispatch />

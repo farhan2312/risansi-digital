@@ -30,7 +30,7 @@ import { PackingSlipsInline } from "./packing-slips-inline";
 import { AlignmentValue, BasePlateForm, WoodenBoxForm } from "./alignment-cell";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { Chip, LatestLot, LotCell } from "./lot-cell";
-import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { HoldBadge } from "./hold-badge";
 import { VersionTag } from "./version-tag";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
 import { SortHeader } from "./sort-header";
@@ -297,14 +297,14 @@ export function AssemblyPumpTable({
                             <AlignmentValue alignment={head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor({ orderId, which: "wooden_box" })} />
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            {cvHeld(head) ? <HoldChip /> : <Chip label={so.assembly} />}
+                            {<Chip label={so.assembly} />}
                             <PendingRemarks lots={lots} stage="assembly" />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
                             <PlannedCell lots={lots} stage="assembly" orderId={orderId} soLabel={soLabel} />
                           </td>
                           <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            {cvHeld(head) ? <HoldChip /> : <Chip label={so.packing} />}
+                            {<Chip label={so.packing} />}
                             <PendingRemarks lots={lots} stage="packing" />
                           </td>
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
@@ -337,9 +337,7 @@ export function AssemblyPumpTable({
                           </td>
                           {/* Where Dispatch has got to: — until it has the SO (a numbered packing slip). */}
                           <td rowSpan={span} className={`${soCell} whitespace-nowrap border-l border-card-border`}>
-                            {cvHeld(head) ? (
-                              <HoldChip />
-                            ) : ((head.so_child_rows ?? []) as Row[]).some((sl) => str(sl.packing_slip_no).trim() !== "") ? (
+                            {((head.so_child_rows ?? []) as Row[]).some((sl) => str(sl.packing_slip_no).trim() !== "") ? (
                               <DispatchStatusPill status={str(head.so_dispatch_status) || "Pending"} />
                             ) : (
                               <NotAtDispatch />
@@ -371,11 +369,11 @@ export function AssemblyPumpTable({
                       <td className={`${ecCell} tabular-nums`}>{e.ready}</td>
                       <td className={`${ecCell} tabular-nums`}>{d.assembled}</td>
                       <td className={ecCell}>
-                        {cvHeld(head) ? <HoldChip /> : <Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} />}
+                        {<Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} />}
                       </td>
                       <td className={`${ecCell} tabular-nums`}>{d.packed}</td>
                       <td className={ecCell}>
-                        {cvHeld(head) ? <HoldChip /> : <Chip label={ecStageStatus(d.packed, e.quantity, "packing")} />}
+                        {<Chip label={ecStageStatus(d.packed, e.quantity, "packing")} />}
                       </td>
                       {/* Drawing, as on Planning: the GAD, and the part drawings to read. */}
                       <td className={`${ecCell} whitespace-nowrap border-l border-card-border`}>

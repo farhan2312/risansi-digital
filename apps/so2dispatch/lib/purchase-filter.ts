@@ -5,7 +5,7 @@
 
 import { BOI_ITEM_OPTIONS } from "@/lib/order-schema";
 import { boiInHand, boiPartSql, boiReceivedSql, boiStatus, spareEcSql } from "@/lib/dept-view";
-import { inListNotHeld, soHoldSql } from "@/lib/dept-status";
+import { inListNotHeld, soWorkHoldSql } from "@/lib/dept-status";
 
 export const PURCHASE_STATES = ["Open", "Closed"];
 export const BOI_STATUSES = ["Pending", "Order placed", "Partially received", "Fully received"];
@@ -152,7 +152,7 @@ export function boiItemLine(f: Pick<PurchaseFilter, "item" | "boi">): string {
 /** How many of the SO's (alias o) pump ECs are in this state — a card's figure. */
 export function ecCountSql(o: string, state?: string): string {
   return `(SELECT count(*) FROM order_items s WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})${
-    state ? ` AND ${ecPurchaseStateSql("s")} = ${lit(state)}${state === "Open" ? ` AND NOT ${soHoldSql(o, "purchase")}` : ""}` : ""
+    state ? ` AND ${ecPurchaseStateSql("s")} = ${lit(state)}${state === "Open" ? ` AND NOT ${soWorkHoldSql(o, "purchase")}` : ""}` : ""
   })`;
 }
 
@@ -160,7 +160,7 @@ export function ecCountSql(o: string, state?: string): string {
 export function boiCountSql(o: string, status: string | null, vendors: string[] = [], items: string[] = []): string {
   const c: string[] = [];
   if (items.length) c.push(inList("TRIM(COALESCE(cb.boi_item, ''))", items));
-  if (status) c.push(`${boiStatusSql("cb")} = ${lit(status)}${status === "Pending" || status === "Order placed" ? ` AND NOT ${soHoldSql(o, "purchase")}` : ""}`);
+  if (status) c.push(`${boiStatusSql("cb")} = ${lit(status)}${status === "Pending" || status === "Order placed" ? ` AND NOT ${soWorkHoldSql(o, "purchase")}` : ""}`);
   if (vendors.length) c.push(`cb.vendor_order = 'Yes' AND ${inList("TRIM(COALESCE(cb.vendor_name, ''))", vendors)}`);
   return `(SELECT count(*) FROM order_boi_items cb JOIN order_items s ON s.id = cb.item_id
             WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})${c.length ? ` AND ${c.join(" AND ")}` : ""})`;

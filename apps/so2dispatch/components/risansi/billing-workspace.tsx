@@ -14,7 +14,7 @@ import { billModeLabel } from "@/lib/order-schema";
 import { OrderDetailsModal } from "./order-details-modal";
 import { DispatchInline } from "./dispatch-inline";
 import { SortHeader } from "./sort-header";
-import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { HoldBadge } from "./hold-badge";
 import { VersionTag } from "./version-tag";
 import { DispatchStatusPill, NotAtDispatch, atDispatch } from "./dispatch-status-pill";
 import { DispatchStatusControl } from "./order-status-panel";
@@ -303,9 +303,7 @@ export function BillingWorkspace({
                       )}
                       {mode === "billing" && (
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {cvHeld(row) ? (
-                            <HoldChip />
-                          ) : ["Pending", "Readiness date awaited", "Partially raised"].includes((row.billing_state ?? "").trim() || "Pending") ? (
+                          {["Pending", "Readiness date awaited", "Partially raised"].includes((row.billing_state ?? "").trim() || "Pending") ? (
                             // Still a PI to raise: why, with remarks.
                             <PendencyCell
                               orderId={String(row.id)}
@@ -322,13 +320,10 @@ export function BillingWorkspace({
                         </td>
                       )}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {cvHeld(row) && mode !== "dispatch" ? (
-                          <HoldChip />
-                        ) : mode === "dispatch" ? (
+                        {mode === "dispatch" ? (
                           // Dispatch may set it by hand, as well as by its invoices
                           // (Hold above it while Central Visibility holds the SO).
                           <>
-                          {cvHeld(row) && <HoldChip />}
                           <DispatchStatusControl
                             orderId={row.id}
                             status={row.dispatch_status}

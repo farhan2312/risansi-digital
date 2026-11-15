@@ -28,7 +28,7 @@ export function HoldBadge({ order }: { order: Record<string, unknown> }) {
           title={[`On hold by ${h.by}`, h.reason, h.remarks].filter(Boolean).join(" — ")}
           className="mt-1 flex w-fit max-w-[14rem] flex-col rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] leading-tight text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"
         >
-          <span className="font-semibold">{h.by === "Accounts" ? "Accounts hold" : "On hold"}</span>
+          <span className="font-semibold">{h.by === "Accounts" ? "Accounts hold" : "CV hold"}</span>
           {h.reason && <span className="whitespace-normal">{h.reason}</span>}
         </span>
       ))}
@@ -58,7 +58,7 @@ export function HoldBanner({ order }: { order: Record<string, unknown> }) {
   );
 }
 
-/** Central Visibility (Mitali) holds the SO: every department reads Hold until it is cleared. */
+/** Central Visibility holds the SO: a badge on it — every department's status stays its own. */
 export const cvHeld = (order: Record<string, unknown> | null | undefined) => String(order?.clearance_status ?? "").trim() === "Hold";
 
 /** A department's status while Central Visibility holds the SO. */

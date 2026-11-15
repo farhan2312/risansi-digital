@@ -14,7 +14,7 @@ import { PartDrawingCell, PartDrawingView, PartPickerModal, ShortageCell } from 
 import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
 import { PumpAfterPlanningCells } from "./pump-dept-cells";
-import { cvHeld, HoldBadge, HoldChip } from "./hold-badge";
+import { HoldBadge } from "./hold-badge";
 import { VersionTag } from "./version-tag";
 import { SortHeader } from "./sort-header";
 import type { PumpSummary } from "@/lib/pump-summary";
@@ -253,9 +253,7 @@ export function PlanningPumpTable({
                         ))}
                         {/* The SO's own status (as a Spare's) and its readiness date. */}
                         <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                          {cvHeld(head) ? (
-                            <HoldChip />
-                          ) : (
+                          {(
                             <span
                               className={`font-medium ${/ready/i.test(str(head.actual_spare_status)) ? "text-emerald-700" : "text-foreground"}`}
                             >
@@ -368,7 +366,7 @@ export function PlanningPumpTable({
                                 <span className="truncate font-medium text-foreground">{boiName(b)}</span>
                                 <span className="tabular-nums text-muted">{str(b.boi_qty) ? `×${str(b.boi_qty)}` : ""}</span>
                                 <span>
-                                  {cvHeld(head) ? <HoldChip small /> : <BoiStatusTag item={b} small />}
+                                  {<BoiStatusTag item={b} small />}
                                 </span>
                                 <span
                                   title={inHand ? "Received on" : "Vendor expected date"}
@@ -404,9 +402,7 @@ export function PlanningPumpTable({
                           <span className="text-muted">—</span>
                         ) : f.column === "actual_pump_status" ? (
                           // Ready Qty against the EC's quantity, then how far Assembly & Packing has got (shown only).
-                          cvHeld(head) ? (
-                            <HoldChip />
-                          ) : (
+                          (
                             <PumpStatus
                               status={pumpEcStage(pumpEcStatus(r.ready_qty, ec.quantity), Number(ec.quantity ?? 0) || 0, ecDone(lots, str(r.id)))}
                             />
