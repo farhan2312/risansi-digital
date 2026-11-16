@@ -3459,3 +3459,6 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_dispatch_target_at TIMESTAMPTZ
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS gad_required TEXT;
 ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_gad_required_check;
 ALTER TABLE order_items ADD CONSTRAINT order_items_gad_required_check CHECK (gad_required IS NULL OR gad_required IN ('Yes', 'No'));
+
+-- Part drawing: each part's DOCs link (SharePoint), given by Drawing.
+ALTER TABLE order_part_drawings ADD COLUMN IF NOT EXISTS doc_link TEXT;
