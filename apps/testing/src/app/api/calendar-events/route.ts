@@ -68,6 +68,9 @@ export async function POST(req: Request) {
     return error(`'responsible_person' must be one of: ${RESPONSIBLE_PERSONS.join(", ")}`, 400);
   }
   const status = typeof body.status === "string" && CALENDAR_EVENT_STATUSES.includes(body.status as never) ? body.status : "Planned";
+  // A Failed event must say why; any other status carries no failure reason.
+  const failureReason = status === "Failed" && typeof body.failure_reason === "string" ? body.failure_reason.trim() : "";
+  if (status === "Failed" && !failureReason) return error("Enter the failure reason for a Failed event.", 400);
 
   // Every event is a Test unless marked a Meeting / Calibration. A Test must name its requisition, and can
   // only be created already Completed if that requisition's report is filed.
@@ -104,6 +107,7 @@ export async function POST(req: Request) {
       startTime: typeof body.start_time === "string" && body.start_time.trim() ? body.start_time.trim() : null,
       endTime: typeof body.end_time === "string" && body.end_time.trim() ? body.end_time.trim() : null,
       notes: typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null,
+      failureReason: failureReason || null,
       createdBy: claims.sub,
       createdByName,
     })

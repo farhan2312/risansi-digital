@@ -44,7 +44,11 @@ const STATUS_STYLE: Record<CalendarEvent["status"], { border: string; bg: string
   Completed: { border: "border-l-pos-strong", bg: "bg-pos-soft", badge: "text-pos-strong" },
   "In Testing": { border: "border-l-warn", bg: "bg-warn-soft", badge: "text-warn" },
   Planned: { border: "border-l-accent", bg: "bg-bg-sunk", badge: "text-text-muted" },
+  Failed: { border: "border-l-neg-strong", bg: "bg-neg-soft", badge: "text-neg-strong" },
 };
+
+/** The badge word: a failed Test reads "Failed test" so it stands out as a failed testing event. */
+const statusLabel = (e: CalendarEvent) => (e.status === "Failed" && e.event_type === "Test" ? "Failed test" : e.status);
 
 /** "% done" chip: red while most of the week is still ahead, amber midway, green when mostly done. */
 const doneChipClass = (pct: number) =>
@@ -263,7 +267,12 @@ const CalendarPage = () => {
                                   {e.ec_quotation_no ? e.ec_quotation_no : e.model ? e.model : "Event"}
                                   {formatTimeRange(e) && ` · ${formatTimeRange(e)}`}
                                 </div>
-                                <div className={`mt-1.5 text-[11px] font-bold uppercase tracking-wider ${STATUS_STYLE[e.status].badge}`}>{e.status}{e.event_type !== "Test" ? ` · ${e.event_type}` : ""}</div>
+                                <div className={`mt-1.5 text-[11px] font-bold uppercase tracking-wider ${STATUS_STYLE[e.status].badge}`}>{statusLabel(e)}{e.event_type !== "Test" ? ` · ${e.event_type}` : ""}</div>
+                                {e.status === "Failed" && e.failure_reason && (
+                                  <div className="mt-1 line-clamp-2 text-[11px] leading-snug text-neg-strong" title={e.failure_reason}>
+                                    {e.failure_reason}
+                                  </div>
+                                )}
                               </button>
                               {canManage && (
                                 <button
@@ -340,9 +349,10 @@ const CalendarPage = () => {
                         type="button"
                         onClick={() => setEditing(e)}
                         className={`truncate rounded-md border-l-2 ${STATUS_STYLE[e.status].border} ${STATUS_STYLE[e.status].bg} px-1.5 py-0.5 text-left text-[11px] font-semibold text-text-h hover:brightness-95`}
-                        title={`${e.title}${formatTimeRange(e) ? ` · ${formatTimeRange(e)}` : ""}${e.model ? ` · ${e.model}` : ""} · ${e.status}`}
+                        title={`${e.title}${formatTimeRange(e) ? ` · ${formatTimeRange(e)}` : ""}${e.model ? ` · ${e.model}` : ""} · ${statusLabel(e)}${e.status === "Failed" && e.failure_reason ? ` · Reason: ${e.failure_reason}` : ""}`}
                       >
                         {formatTimeRange(e) && <span className="mr-1 font-normal text-text-muted">{e.start_time}</span>}
+                        {e.status === "Failed" && <span className="mr-1 font-bold text-neg-strong">✕</span>}
                         {e.title}
                       </button>
                     ))}

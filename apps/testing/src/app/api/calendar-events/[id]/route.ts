@@ -91,7 +91,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     throw e;
   }
 
+  // A Failed event must say why (the reason from this edit, or the one already saved); moving off Failed
+  // clears it, so a reason never lingers on a Planned / In Testing / Completed event.
+  const finalStatus = body.status !== undefined ? String(body.status) : existing.status;
+  let failureReasonValue: string | null | undefined;
+  if (finalStatus === "Failed") {
+    const reason = body.failure_reason !== undefined ? (typeof body.failure_reason === "string" ? body.failure_reason.trim() : "") : (existing.failureReason ?? "").trim();
+    if (!reason) return error("Enter the failure reason for a Failed event.", 400);
+    if (body.failure_reason !== undefined) failureReasonValue = reason;
+  } else if (existing.failureReason !== null || body.failure_reason !== undefined) {
+    failureReasonValue = null;
+  }
+
   const values: Record<string, unknown> = {};
+  if (failureReasonValue !== undefined) values.failureReason = failureReasonValue;
   if (linkValue !== undefined) values.requisitionNo = linkValue;
   if (body.event_type !== undefined) values.eventType = String(body.event_type);
   for (const [snakeKey, camelKey] of Object.entries(FIELD_MAP)) {

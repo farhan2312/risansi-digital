@@ -253,6 +253,7 @@ export function calendarEventToDict(e: CalendarEventRow) {
     start_time: e.startTime,
     end_time: e.endTime,
     notes: e.notes,
+    failure_reason: e.failureReason,
     created_by: e.createdBy,
     created_by_name: e.createdByName,
     created_at: e.createdAt,

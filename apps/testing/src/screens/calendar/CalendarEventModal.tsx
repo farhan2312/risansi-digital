@@ -98,6 +98,9 @@ const CalendarEventModal = ({ event, defaultDate, canManage, onClose, onSaved, o
   const [startTime, setStartTime] = useState(event?.start_time ?? "");
   const [endTime, setEndTime] = useState(event?.end_time ?? "");
   const [notes, setNotes] = useState(event?.notes ?? "");
+  // Required while the status is Failed; not sent for any other status.
+  const [failureReason, setFailureReason] = useState(event?.failure_reason ?? "");
+  const isFailed = status === "Failed";
 
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [ecOptions, setEcOptions] = useState<CalendarEcOption[]>([]);
@@ -199,6 +202,10 @@ const CalendarEventModal = ({ event, defaultDate, canManage, onClose, onSaved, o
       setFormError(`Fill the test report for ${linkedNo} first -- a test is completed by filing its report.`);
       return;
     }
+    if (isFailed && !failureReason.trim()) {
+      setFormError("Failure reason is required when the status is Failed.");
+      return;
+    }
     setFormError("");
     setIsSubmitting(true);
     try {
@@ -214,6 +221,7 @@ const CalendarEventModal = ({ event, defaultDate, canManage, onClose, onSaved, o
         start_time: startTime,
         end_time: endTime,
         notes,
+        failure_reason: isFailed ? failureReason.trim() : "",
       };
       if (event) await updateCalendarEvent(event.id, payload);
       else await createCalendarEvent(payload);
@@ -376,12 +384,31 @@ const CalendarEventModal = ({ event, defaultDate, canManage, onClose, onSaved, o
               <select id="cal-event-status" value={status} onChange={(e) => setStatus(e.target.value as CalendarEventStatus)} disabled={!canManage} className={inputClasses}>
                 {CALENDAR_EVENT_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {s === "Failed" ? "Failed (needs a reason)" : s}
                   </option>
                 ))}
               </select>
             </div>
           </div>
+
+          {isFailed && (
+            <div className="mt-3.5 rounded-lg border border-neg bg-neg-soft px-3.5 py-3">
+              <label htmlFor="cal-event-failure" className="mb-1.5 block text-[13px] font-semibold text-neg-strong">
+                Failure reason *
+              </label>
+              <textarea
+                id="cal-event-failure"
+                value={failureReason}
+                onChange={(e) => setFailureReason(e.target.value)}
+                disabled={!canManage}
+                required
+                rows={3}
+                placeholder="Why did this test fail? e.g. head not achieved, seal leakage, motor tripped"
+                className="w-full resize-none rounded-lg border border-neg/40 bg-bg-app px-3.5 py-2.5 text-[15px] text-text-h outline-none focus:border-neg focus:ring-2 focus:ring-neg/30 disabled:cursor-not-allowed disabled:opacity-70"
+              />
+              {canManage && <p className="mt-1.5 mb-0 text-xs text-neg-strong">Required -- this event will show on the calendar as a failed testing event.</p>}
+            </div>
+          )}
 
           <div className="flex gap-3">
             <div className="min-w-0 flex-1">
