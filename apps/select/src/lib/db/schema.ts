@@ -1407,6 +1407,21 @@ export const clientPriceRef = pgTable("client_price_ref", {
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
+// Client SPARE price reference files on SharePoint ("Client Spare Price Ref", user
+// 2026-11-16; source docs/SPARE_REF.xlsx). Same shape and rules as client_price_ref:
+// one row per file, its SharePoint link, and the sales client it belongs to - matched by
+// the code ending in the file's prefix (HOSH01A001 <- A001_...) with the name agreeing;
+// blank when not confidently matched. Read-only links; the files are never touched.
+export const clientSpareRef = pgTable("client_spare_ref", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  clientCode: varchar("client_code", { length: 100 }),
+  clientName: varchar("client_name", { length: 255 }),
+  fileName: varchar("file_name", { length: 300 }).notNull().unique(),
+  url: text("url").notNull(),
+  fileDate: date("file_date", { mode: "string" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
+});
+
 // BOI Master — bought-out items priced from a supplier list. One table per
 // item type, each a tab on /admin/boi-master (VFD only for now).
 //

@@ -9,6 +9,7 @@ import { browserViewUrl } from "../commercial/ClientPriceRefModal";
 import { listClientPriceRefs, type ClientPriceRef } from "../../services/clientPriceRefService";
 import {
   DRIVE_GROUP_LABEL,
+  SPARE_GROUP,
   boiTotal,
   finalBoi,
   finalPa,
@@ -24,6 +25,7 @@ import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { Card } from "@/components/shadcn/card";
 import { Input } from "@/components/shadcn/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn/tabs";
 import { cn } from "@/lib/utils";
 
 // Client Quoted Prices (sidebar): search a client, see every price quoted to
@@ -51,11 +53,18 @@ export default function ClientPricesPage() {
   const [hits, setHits] = useState<ClientQuoteHit[] | null>(null);
   const [searchError, setSearchError] = useState(false);
   // SharePoint price files whose file name (or client) matches the search.
-  const [fileHits, setFileHits] = useState<ClientPriceRef[] | null>(null);
+  const [fileHits, setFileHits] = useState<(ClientPriceRef & { spare?: boolean })[] | null>(null);
   const [client, setClient] = useState<ClientQuoteHit | null>(null);
   const [history, setHistory] = useState<ClientQuoteHistory | null>(null);
   const [historyError, setHistoryError] = useState(false);
   const [sentOnly, setSentOnly] = useState(false);
+  // Pump or Spare (user, 2026-11-16): which quotations and price sheets the page shows.
+  const [kind, setKind] = useState<"pump" | "spare">("pump");
+  const spare = kind === "spare";
+  // A client's counts of this kind; clients with none of it are left off the list.
+  const countsOf = (h: ClientQuoteHit) => (spare ? { q: h.spareQuotations ?? 0, f: h.spareFiles ?? 0 } : { q: h.quotations, f: h.files });
+  const shownHits = hits?.filter((h) => countsOf(h).q + countsOf(h).f > 0) ?? null;
+  const shownFiles = fileHits?.filter((f) => Boolean(f.spare) === spare) ?? null;
 
   useEffect(() => {
     const t = setTimeout(() => setQuery(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -78,8 +87,11 @@ export default function ClientPricesPage() {
         setSearchError(true);
         setHits([]);
       });
-    listClientPriceRefs({ q: query }, controller.signal)
-      .then(setFileHits)
+    Promise.all([
+      listClientPriceRefs({ q: query }, controller.signal),
+      listClientPriceRefs({ q: query }, controller.signal, "spare").then((r) => r.map((f) => ({ ...f, spare: true }))),
+    ])
+      .then(([pump, spare]) => setFileHits([...pump, ...spare]))
       .catch((e) => {
         if (controller.signal.aborted || e?.code === "ERR_CANCELED") return;
         setFileHits([]);
@@ -112,7 +124,13 @@ export default function ClientPricesPage() {
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[340px_1fr]">
           {/* Search */}
           <Card className="flex flex-col overflow-hidden lg:sticky lg:top-4">
-            <div className="border-b border-border p-3">
+            <div className="flex flex-col gap-2 border-b border-border p-3">
+              <Tabs value={kind} onValueChange={(v) => setKind(v === "spare" ? "spare" : "pump")}>
+                <TabsList className="w-full" aria-label="Pump or spare prices">
+                  <TabsTrigger value="pump" className="flex-1">Pump</TabsTrigger>
+                  <TabsTrigger value="spare" className="flex-1">Spare</TabsTrigger>
+                </TabsList>
+              </Tabs>
               <Input
                 type="search"
                 icon={<Search />}
@@ -127,13 +145,13 @@ export default function ClientPricesPage() {
               {!query && <p className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">Type to search clients.</p>}
               {query && hits === null && <p className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">Searching…</p>}
               {searchError && <p className="px-4 py-6 text-center text-[12.5px] font-medium text-destructive">Couldn&apos;t search right now.</p>}
-              {hits && hits.length === 0 && !searchError && fileHits?.length === 0 && (
-                <p className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">No client or price file matches.</p>
+              {shownHits && shownHits.length === 0 && !searchError && shownFiles?.length === 0 && (
+                <p className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">No client or {spare ? "spare " : ""}price file matches.</p>
               )}
-              {query && hits && hits.length > 0 && <p className={cn(groupCls, "px-4 pt-3 pb-1")}>Clients</p>}
-              {hits && hits.length > 0 && (
+              {query && shownHits && shownHits.length > 0 && <p className={cn(groupCls, "px-4 pt-3 pb-1")}>Clients</p>}
+              {shownHits && shownHits.length > 0 && (
                 <ul className="divide-y divide-border">
-                  {hits.map((h) => {
+                  {shownHits.map((h) => {
                     const active = client?.clientCode === h.clientCode && client?.clientName === h.clientName;
                     return (
                       <li key={`${h.clientCode ?? ""}|${h.clientName}`}>
@@ -150,7 +168,7 @@ export default function ClientPricesPage() {
                           <span className="min-w-0">
                             <span className="block text-[13px] font-medium text-foreground">{h.clientName}</span>
                             <span className="block text-[11.5px] text-muted-foreground">
-                              {[h.clientCode, h.quotations ? `${h.quotations} quotation${h.quotations === 1 ? "" : "s"}` : null, h.files ? `${h.files} price file${h.files === 1 ? "" : "s"}` : null]
+                              {[h.clientCode, countsOf(h).q ? `${countsOf(h).q} quotation${countsOf(h).q === 1 ? "" : "s"}` : null, countsOf(h).f ? `${countsOf(h).f} price file${countsOf(h).f === 1 ? "" : "s"}` : null]
                                 .filter(Boolean)
                                 .join(" · ")}
                             </span>
@@ -162,12 +180,12 @@ export default function ClientPricesPage() {
                 </ul>
               )}
               {/* Price files by file name (or client) — open in SharePoint, or pick the linked client. */}
-              {query && fileHits && fileHits.length > 0 && (
+              {query && shownFiles && shownFiles.length > 0 && (
                 <>
-                  <p className={cn(groupCls, "border-t border-border px-4 pt-3 pb-1")}>Price files ({fileHits.length === 100 ? "first 100" : fileHits.length})</p>
+                  <p className={cn(groupCls, "border-t border-border px-4 pt-3 pb-1")}>{spare ? "Spare price files" : "Price files"} ({shownFiles.length >= 100 ? `first ${shownFiles.length}` : shownFiles.length})</p>
                   <ul className="divide-y divide-border">
-                    {fileHits.map((f) => (
-                      <li key={f.id} className="flex items-center justify-between gap-2 px-4 py-2">
+                    {shownFiles.map((f) => (
+                      <li key={`${f.spare ? "s" : "p"}-${f.id}`} className="flex items-center justify-between gap-2 px-4 py-2">
                         <div className="flex min-w-0 items-start gap-2">
                           <FileSpreadsheet className="mt-0.5 size-3.5 shrink-0 text-success" />
                           <div className="min-w-0">
@@ -219,7 +237,7 @@ export default function ClientPricesPage() {
             )}
             {client && historyError && <Card className="p-6 text-[13px] font-medium text-destructive">Couldn&apos;t load this client&apos;s prices.</Card>}
             {client && !history && !historyError && <Card className="p-8 text-center text-[13px] text-muted-foreground">Loading…</Card>}
-            {history && <History history={history} sentOnly={sentOnly} onSentOnly={setSentOnly} />}
+            {history && <History history={history} spare={spare} sentOnly={sentOnly} onSentOnly={setSentOnly} />}
           </section>
         </div>
       </div>
@@ -229,20 +247,25 @@ export default function ClientPricesPage() {
 
 function History({
   history,
+  spare,
   sentOnly,
   onSentOnly,
 }: {
   history: ClientQuoteHistory;
+  /** Spare quotations and spare price sheets; otherwise the pump ones. */
+  spare: boolean;
   sentOnly: boolean;
   onSentOnly: (v: boolean) => void;
 }) {
+  const quotations = history.quotations.filter((q) => (q.info.driveGroup === SPARE_GROUP) === spare);
+  const files = spare ? history.spareFiles : history.files;
   return (
     <>
       <Card className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
         <div className="min-w-0">
           <h2 className="text-[15px] font-semibold text-foreground">{history.client.name}</h2>
           <p className="text-[12px] text-muted-foreground">
-            {[history.client.code, `${history.quotations.length} quotation${history.quotations.length === 1 ? "" : "s"}`, `${history.files.length} price file${history.files.length === 1 ? "" : "s"}`]
+            {[history.client.code, spare ? "Spare" : "Pump", `${quotations.length} quotation${quotations.length === 1 ? "" : "s"}`, `${files.length} price file${files.length === 1 ? "" : "s"}`]
               .filter(Boolean)
               .join(" · ")}
           </p>
@@ -261,8 +284,8 @@ function History({
       {/* Portal quotations */}
       <div className="flex flex-col gap-3">
         <h3 className={groupCls}>Quoted from the portal</h3>
-        {history.quotations.length === 0 && <Card className="p-4 text-[12.5px] text-muted-foreground">No portal quotation for this client yet.</Card>}
-        {history.quotations.map((q) => {
+        {quotations.length === 0 && <Card className="p-4 text-[12.5px] text-muted-foreground">No {spare ? "spare" : "pump"} quotation for this client from the portal yet.</Card>}
+        {quotations.map((q) => {
           const versions = [...q.info.versions]
             .filter((v) => !sentOnly || v.track === "client")
             .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
@@ -300,6 +323,7 @@ function History({
       </div>
 
       {/* SharePoint files */}
+      {!spare && (
       <div className="flex flex-col gap-2">
         <h3 className={groupCls}>Past price sheets (SharePoint)</h3>
         {history.files.length === 0 ? (
@@ -329,6 +353,40 @@ function History({
           </Card>
         )}
       </div>
+      )}
+
+      {/* SharePoint spare price sheets (user, 2026-11-16) */}
+      {spare && (
+      <div className="flex flex-col gap-2">
+        <h3 className={groupCls}>Past spare price sheets (SharePoint)</h3>
+        {history.spareFiles.length === 0 ? (
+          <Card className="p-4 text-[12.5px] text-muted-foreground">No spare price reference files for this client.</Card>
+        ) : (
+          <Card className="overflow-hidden">
+            <ul className="divide-y divide-border">
+              {history.spareFiles.map((f) => (
+                <li key={f.id} className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-muted/50">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <FileSpreadsheet className="mt-0.5 size-3.5 shrink-0 text-success" />
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-[12.5px] text-foreground" title={f.fileName}>
+                        {f.fileName}
+                      </p>
+                      <p className="text-[11.5px] text-muted-foreground">{fmtDate(f.fileDate)}</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" asChild className="shrink-0">
+                    <a href={browserViewUrl(f.url)} target="_blank" rel="noopener noreferrer">
+                      Open <ExternalLink />
+                    </a>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+      </div>
+      )}
     </>
   );
 }

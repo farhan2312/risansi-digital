@@ -40,11 +40,15 @@ export default function ClientPriceRefModal({
   clientCode,
   clientName,
   onClose,
+  kind = "pump",
 }: {
   clientCode: string | null;
   clientName: string | null;
   onClose: () => void;
+  /** "spare": the client's spare price sheets (spare quotation, user 2026-11-16). */
+  kind?: "pump" | "spare";
 }) {
+  const spare = kind === "spare";
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<ClientPriceRef[] | null>(null);
@@ -65,7 +69,7 @@ export default function ClientPriceRefModal({
     const controller = new AbortController();
     setRows(null);
     setFailed(false);
-    listClientPriceRefs(searching ? { q: query } : { clientCode: clientCode ?? "" }, controller.signal)
+    listClientPriceRefs(searching ? { q: query } : { clientCode: clientCode ?? "" }, controller.signal, kind)
       .then(setRows)
       .catch((e) => {
         if (controller.signal.aborted || e?.code === "ERR_CANCELED") return;
@@ -73,7 +77,7 @@ export default function ClientPriceRefModal({
         setRows([]);
       });
     return () => controller.abort();
-  }, [query, searching, clientCode]);
+  }, [query, searching, clientCode, kind]);
 
   // A Radix Dialog: nothing opens on top of it (each file opens in a new tab). Escape, the X
   // or a click outside close it, as before.
@@ -81,10 +85,10 @@ export default function ClientPriceRefModal({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent size="lg" className="max-h-[85vh] max-w-[820px]" onInteractOutside={() => {}}>
         <DialogHeader>
-          <DialogTitle>Client Price Reference</DialogTitle>
+          <DialogTitle>{spare ? "Client Spare Reference" : "Client Price Reference"}</DialogTitle>
           <DialogDescription className="truncate">
             {clientName || "—"}
-            {clientCode ? ` · ${clientCode}` : ""} · past price sheets on SharePoint (view only)
+            {clientCode ? ` · ${clientCode}` : ""} · past {spare ? "spare " : ""}price sheets on SharePoint (view only)
           </DialogDescription>
         </DialogHeader>
 
@@ -94,7 +98,7 @@ export default function ClientPriceRefModal({
             icon={<Search />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by file name, client name or code, e.g. athani or A037"
+            placeholder={`Search by file name, client name or code, e.g. ${spare ? "athani or A001" : "athani or A037"}`}
             aria-label="Search price reference files"
           />
           <p className="mt-1.5 text-[11.5px] text-muted-foreground">
@@ -111,7 +115,7 @@ export default function ClientPriceRefModal({
           {failed && <p className="px-5 py-6 text-center text-[13px] text-destructive">Couldn&apos;t load the reference files.</p>}
           {rows && !failed && rows.length === 0 && (
             <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">
-              {searching ? "No file matches that search." : clientCode ? "No price reference files for this client." : ""}
+              {searching ? "No file matches that search." : clientCode ? `No ${spare ? "spare " : ""}price reference files for this client.` : ""}
             </p>
           )}
           {rows && rows.length > 0 && (
