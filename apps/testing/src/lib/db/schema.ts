@@ -428,9 +428,12 @@ export const calendarEvents = pgTable("calendar_events", {
   // Who the event is for -- the calendar's row grouping (RESPONSIBLE_PERSONS, "Sachin" / "Vikash"),
   // same free-text convention as test_requisitions.responsible_person; null = unassigned, its own row.
   responsiblePerson: varchar("responsible_person", { length: 100 }),
-  // 'Planned' | 'In Testing' | 'Completed' -- app-level enum (see CALENDAR_EVENT_STATUSES in types/testing.ts), not
+  // 'Planned' | 'In Testing' | 'Completed' | 'Failed' -- app-level enum (see CALENDAR_EVENT_STATUSES in types/testing.ts), not
   // a DB constraint, same convention this schema uses everywhere else for a fixed-choice text column.
   status: varchar("status", { length: 20 }).notNull().default("Planned"),
+  // Why the event failed -- required by the API when status is 'Failed', cleared otherwise
+  // (scripts/add-calendar-events-failure-reason-column.mjs).
+  failureReason: text("failure_reason"),
   eventDate: date("event_date").notNull(),
   // Free text like "10:00 AM", same convention as pump_test_reports.pump_started_at -- both optional,
   // an all-day event has neither.

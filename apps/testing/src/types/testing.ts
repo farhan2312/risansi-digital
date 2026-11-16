@@ -880,7 +880,8 @@ export interface ImprovementModelsResult {
 export const CALENDAR_EVENT_TYPES = ["Test", "Meeting", "Calibration"] as const;
 export type CalendarEventType = (typeof CALENDAR_EVENT_TYPES)[number];
 
-export const CALENDAR_EVENT_STATUSES = ["Planned", "In Testing", "Completed"] as const;
+/** "Failed" needs a failure reason (CalendarEvent.failure_reason) -- enforced by the API and the form. */
+export const CALENDAR_EVENT_STATUSES = ["Planned", "In Testing", "Completed", "Failed"] as const;
 export type CalendarEventStatus = (typeof CALENDAR_EVENT_STATUSES)[number];
 
 /** One event on the Testing Calendar. Everyone signed in can see it; only Admin can create/update/
@@ -903,6 +904,8 @@ export interface CalendarEvent {
   start_time: string | null;
   end_time: string | null;
   notes: string | null;
+  /** Why it failed -- set only while status is "Failed" (required then). */
+  failure_reason: string | null;
   created_by: string | null;
   created_by_name: string;
   created_at: string;
@@ -922,6 +925,8 @@ export interface NewCalendarEventInput {
   start_time?: string;
   end_time?: string;
   notes?: string;
+  /** Required when status is "Failed"; ignored (and cleared) for every other status. */
+  failure_reason?: string;
 }
 
 /** One row of GET /api/calendar-events/requisition-options. */
