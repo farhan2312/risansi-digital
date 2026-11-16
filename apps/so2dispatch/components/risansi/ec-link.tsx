@@ -47,10 +47,55 @@ function newest(list: { url: string; at: unknown }[]): { url: string; at: unknow
  * beside the EC No. that opens it in a new tab, with when it was attached in
  * small type after it. Nothing when the EC has none. `label` shows the words
  * too, for the EC's own details, each on its own line. `latest`: only the
- * newest one — what the departments work from.
+ * newest one — what the departments work from. `newestFirst`: every one,
+ * one under another, the newest on top (marked Latest); each keeps its number.
  */
-export function EcLink({ href, label, at, links, latest }: { href: unknown; label?: boolean; at?: unknown; links?: unknown; latest?: boolean }) {
+export function EcLink({
+  href,
+  label,
+  at,
+  links,
+  latest,
+  newestFirst,
+}: {
+  href: unknown;
+  label?: boolean;
+  at?: unknown;
+  links?: unknown;
+  latest?: boolean;
+  newestFirst?: boolean;
+}) {
   const all = ecLinksOf(href, at, links);
+  if (newestFirst && all.length > 1) {
+    const t = (v: unknown) => (v ? new Date(String(v)).getTime() || 0 : 0);
+    // Newest on top; with no times, the last attached first.
+    const order = all.map((l, i) => ({ l, n: i + 1 })).sort((a, b) => t(b.l.at) - t(a.l.at) || b.n - a.n);
+    return (
+      <span className="mt-1 flex flex-col items-start gap-1 font-normal">
+        {order.map(({ l, n }, k) => {
+          const when = ecLinkWhen(l.at);
+          return (
+            <span key={`${l.url}-${n}`} className="flex items-center gap-1.5">
+              <a
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={`Open EC attachment ${n} (SharePoint)`}
+                aria-label={`Open EC attachment ${n}`}
+                className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-1.5 py-0.5 font-medium text-primary transition-colors hover:bg-primary/15"
+              >
+                <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                <span className="text-[10px] font-semibold">{n}</span>
+              </a>
+              {k === 0 && <span className="rounded bg-emerald-100 px-1 text-[9px] font-semibold uppercase text-emerald-700">Latest</span>}
+              {when && <span title="Attached on" className="whitespace-nowrap text-[10px] text-muted">{when}</span>}
+            </span>
+          );
+        })}
+      </span>
+    );
+  }
   const list = latest && all.length > 1 ? [newest(all)] : all;
   if (list.length === 0) return null;
   const many = list.length > 1;
