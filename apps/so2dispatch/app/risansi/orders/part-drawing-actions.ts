@@ -123,10 +123,10 @@ export async function savePartSelectionAction(
   }
 }
 
-/** Drawing marks parts drawn: each part's Complete, date and remarks. */
+/** Drawing marks parts drawn: each part's Complete, date, DOCs link and remarks. */
 export async function savePartProgressAction(
   itemId: string,
-  rows: { id: string; completed: string; completed_date: string; remarks: string }[]
+  rows: { id: string; completed: string; completed_date: string; doc_link?: string; remarks: string }[]
 ): Promise<PartDrawingResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
@@ -139,6 +139,10 @@ export async function savePartProgressAction(
     if (r.completed === "Yes" && r.completed_date && !/^\d{4}-\d{2}-\d{2}$/.test(r.completed_date)) {
       return { ok: false, error: "A completed date is not a date." };
     }
+    const link = String(r.doc_link ?? "").trim();
+    if (link && !/^https?:\/\/\S+$/i.test(link)) {
+      return { ok: false, error: "A DOCs link must be a web address (https://…)." };
+    }
   }
   try {
     const before = partDrawingStatus(ec.part_drawing, await partRows(itemId));
@@ -147,9 +151,16 @@ export async function savePartProgressAction(
       const done = r.completed === "Yes";
       await query(
         `UPDATE order_part_drawings
-            SET completed = $3, completed_date = $4::date, remarks = NULLIF($5, '')
+            SET completed = $3, completed_date = $4::date, remarks = NULLIF($5, ''), doc_link = NULLIF($6, '')
           WHERE id = $1 AND item_id = $2`,
-        [r.id, itemId, done ? "Yes" : null, done && r.completed_date ? r.completed_date : null, String(r.remarks ?? "").trim().slice(0, 1000)]
+        [
+          r.id,
+          itemId,
+          done ? "Yes" : null,
+          done && r.completed_date ? r.completed_date : null,
+          String(r.remarks ?? "").trim().slice(0, 1000),
+          String(r.doc_link ?? "").trim().slice(0, 2000),
+        ]
       );
     }
     const after = partDrawingStatus(ec.part_drawing, await partRows(itemId));

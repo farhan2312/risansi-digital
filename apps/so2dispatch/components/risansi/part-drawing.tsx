@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, CheckCircle2, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Check, CheckCircle2, ExternalLink, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import {
   gadStandardOf,
   OTHER_PART_SECTION,
@@ -526,6 +526,7 @@ export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts
       id: str(p.id),
       completed: str(p.completed).toLowerCase() === "yes" ? "Yes" : "",
       completed_date: str(p.completed_date).slice(0, 10),
+      doc_link: str(p.doc_link),
       remarks: str(p.remarks),
     }));
   const [rows, setRows] = useState(initial);
@@ -575,6 +576,7 @@ export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts
               <th className="px-3 py-2">Part</th>
               <th className="px-3 py-2">Complete</th>
               <th className="px-3 py-2">Completed Date</th>
+              <th className="px-3 py-2">DOCs link</th>
               <th className="px-3 py-2">Remarks</th>
             </tr>
           </thead>
@@ -603,6 +605,34 @@ export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts
                   </td>
                   <td className="px-3 py-2">
                     <input type="date" value={r.completed_date} disabled={ro || !done} onChange={(e) => set(i, { completed_date: e.target.value })} className={`${input} h-9 w-40`} />
+                  </td>
+                  <td className="px-3 py-2">
+                    {/* The part's documents on SharePoint. Read-only: the link itself. */}
+                    {ro ? (
+                      r.doc_link ? (
+                        <a href={r.doc_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Open
+                        </a>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="url"
+                          value={r.doc_link}
+                          onChange={(e) => set(i, { doc_link: e.target.value })}
+                          placeholder="SharePoint link"
+                          className={`${input} h-9 min-w-[14rem]`}
+                        />
+                        {/^https?:\/\//i.test(r.doc_link.trim()) && (
+                          <a href={r.doc_link.trim()} target="_blank" rel="noopener noreferrer" title="Open the link" className="text-primary hover:opacity-80">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <input value={r.remarks} disabled={ro} onChange={(e) => set(i, { remarks: e.target.value })} className={`${input} h-9 min-w-[12rem]`} />
