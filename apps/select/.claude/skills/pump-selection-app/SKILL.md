@@ -1294,3 +1294,16 @@ never auto-filled from the AI result.
 - Capacity unit MT/Hr (user, 2026-11-13): metric tonnes per hour, treated exactly as TPH (m3/hr = value / SG; SG
   required): GeneralInformationStep option + sgNeeded, recommendation-engine and utils/units toM3PerHr, head-calc-store
   seeds the calculator as TPH, azure-functions recommendation_engine.py. No DB constraint on capacity_unit.
+
+## Client Spare Reference files (user, 2026-11-16)
+- Table client_spare_ref (APPLIED 2026-11-16; 576 linked, = docs/Client Spare Ref - Links.xlsx; review: docs/Client Spare Files - Sales Match.xlsx)
+  (same shape as client_price_ref): 699 SharePoint files of 'Client Spare Price Ref'
+  (source docs/SPARE_REF.xlsx). Client matched by MI code ending in the file prefix (HOSH01A001 <- A001_...)
+  + the name agreeing (spelling-tolerant); 9 hand-accepted; the rest blank (searchable by file name).
+  file_date from the name's date (ddmmyyyy / DTddmmyyyy / ddmmyy / 23MAY23 ...; year ranges null).
+- GET /api/client-price-refs?kind=spare; ClientPriceRefModal kind="spare" (spare quotation's
+  'Client Spare Ref' button); Client Quoted Prices shows spare files (search hits, history section).
+  READ-ONLY links; never change the SharePoint files.
+- Client Quoted Prices has a Pump | Spare switch (user, 2026-11-16): filters the client list (counts per kind;
+  search API splits quotations vs spareQuotations by drive_group 'SP'), the file hits, the client's portal
+  quotations (driveGroup SP = spare) and shows the pump OR spare SharePoint price sheets.

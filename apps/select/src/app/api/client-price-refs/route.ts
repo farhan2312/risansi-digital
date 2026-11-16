@@ -2,7 +2,7 @@ import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
-import { clientPriceRef } from "@/lib/db/schema";
+import { clientPriceRef as pumpRef, clientSpareRef } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,8 @@ export const dynamic = "force-dynamic";
 // At least one is required. Newest file date first; undated names last.
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
+  // kind=spare: the client SPARE price reference files (same shape, user 2026-11-16).
+  const clientPriceRef = params.get("kind") === "spare" ? (clientSpareRef as unknown as typeof pumpRef) : pumpRef;
   const clientCode = (params.get("clientCode") ?? "").trim();
   const words = (params.get("q") ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 6);
   if (!clientCode && words.length === 0) return error("Give 'clientCode' or 'q'", 400);

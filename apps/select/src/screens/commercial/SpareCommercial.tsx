@@ -27,6 +27,7 @@ import { setPricesReviewed } from "../../services/commercialService";
 import { createQuotation, getQuotation, listTsmOptions } from "../../services/quotationService";
 import { getSpareQuote, saveSpareDocEdits, saveSpareQuote } from "../../services/spareQuoteService";
 import QuotationPanel from "./QuotationPanel";
+import ClientPriceRefModal from "./ClientPriceRefModal";
 // shadcn/ui (user, 2026-11-13: the spare quotation in the new look, branch select-shadcn).
 import { ArrowLeft, Eye, FileSpreadsheet, ListChecks, Plus, Printer, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
@@ -326,7 +327,10 @@ export default function SpareCommercial({
     ? (spareQuoteProblem(saved) ?? (project.versionNo > 0 && !project.pricesReviewedAt ? "Tick Prices reviewed first." : null))
     : null;
 
+  // The client's old spare price sheets on SharePoint (user, 2026-11-16).
+  const [showSpareRef, setShowSpareRef] = useState(false);
   const header = (
+    <>
     <PageHeader
       icon={<PartsIcon />}
       title="Spare Quotation"
@@ -350,12 +354,17 @@ export default function SpareCommercial({
               <Save /> {saving ? "Saving…" : "Save"}
             </button>
           )}
+          <button type="button" className={btn} onClick={() => setShowSpareRef(true)} title="The client's past spare price sheets on SharePoint">
+            <FileSpreadsheet /> Client Spare Ref
+          </button>
           <Link href="/projects" className={buttonVariants({ variant: "ghost" })}>
             <ArrowLeft /> Back to Enquiries
           </Link>
         </div>
       }
     />
+    {showSpareRef && <ClientPriceRefModal kind="spare" clientCode={project.clientCode} clientName={project.name} onClose={() => setShowSpareRef(false)} />}
+    </>
   );
 
   if (loadError || !draft || !quoteLoaded) {

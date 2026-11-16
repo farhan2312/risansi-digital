@@ -14,8 +14,10 @@ export interface ClientPriceRef {
 export const listClientPriceRefs = async (
   query: { clientCode?: string; q?: string },
   signal?: AbortSignal,
+  /** "spare": the client spare price reference files. */
+  kind: "pump" | "spare" = "pump",
 ): Promise<ClientPriceRef[]> => {
-  const params = Object.fromEntries(Object.entries(query).filter(([, v]) => v && v.trim()));
+  const params = { ...Object.fromEntries(Object.entries(query).filter(([, v]) => v && v.trim())), ...(kind === "spare" ? { kind } : {}) };
   const { data } = await apiClient.get<ClientPriceRef[]>("/client-price-refs", { params, signal });
   return data;
 };

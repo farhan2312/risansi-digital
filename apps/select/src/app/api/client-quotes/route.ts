@@ -3,7 +3,7 @@ import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import type { ClientQuoteHistory } from "@/lib/client-quotes";
 import { db } from "@/lib/db";
-import { clientPriceRef, projects, quotation } from "@/lib/db/schema";
+import { clientPriceRef, clientSpareRef, projects, quotation } from "@/lib/db/schema";
 import { loadQuotation } from "@/lib/quotation-server";
 
 export const dynamic = "force-dynamic";
@@ -46,12 +46,20 @@ export async function GET(req: Request) {
         .where(eq(clientPriceRef.clientCode, code))
         .orderBy(sql`${clientPriceRef.fileDate} desc nulls last`, asc(clientPriceRef.fileName))
     : [];
+  const spareFiles = code
+    ? await db
+        .select({ id: clientSpareRef.id, fileName: clientSpareRef.fileName, url: clientSpareRef.url, fileDate: clientSpareRef.fileDate })
+        .from(clientSpareRef)
+        .where(eq(clientSpareRef.clientCode, code))
+        .orderBy(sql`${clientSpareRef.fileDate} desc nulls last`, asc(clientSpareRef.fileName))
+    : [];
   let clientName = rows[0]?.clientName ?? name;
   if (!clientName && code) {
     const [f] = await db.select({ n: clientPriceRef.clientName }).from(clientPriceRef).where(eq(clientPriceRef.clientCode, code)).limit(1);
-    clientName = f?.n ?? code;
+    const [s] = f ? [] : await db.select({ n: clientSpareRef.clientName }).from(clientSpareRef).where(eq(clientSpareRef.clientCode, code)).limit(1);
+    clientName = f?.n ?? s?.n ?? code;
   }
 
-  const data: ClientQuoteHistory = { client: { code: code || null, name: clientName || code }, quotations, files };
+  const data: ClientQuoteHistory = { client: { code: code || null, name: clientName || code }, quotations, files, spareFiles };
   return json(data);
 }
