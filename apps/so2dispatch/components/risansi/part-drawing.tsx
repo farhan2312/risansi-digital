@@ -33,11 +33,12 @@ const TONE: Record<PartDrawingTone, string> = {
   done: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   part: "bg-sky-50 text-sky-700 ring-sky-200",
   pending: "bg-amber-50 text-amber-700 ring-amber-200",
+  awaited: "bg-slate-100 text-slate-600 ring-slate-200",
 };
 
 /** An EC's part drawings on the front: status and parts drawn of parts picked. */
-export function PartDrawingCell({ required, parts }: { required: unknown; parts: Row[] }) {
-  const st = partDrawingStatus(required, parts);
+export function PartDrawingCell({ required, parts, ecLink }: { required: unknown; parts: Row[]; ecLink?: unknown }) {
+  const st = partDrawingStatus(required, parts, ecLink);
   if (!st) {
     return <span className="text-xs text-muted">{str(required).toLowerCase() === "no" ? "Not required" : "Not selected"}</span>;
   }

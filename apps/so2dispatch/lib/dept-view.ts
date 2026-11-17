@@ -388,7 +388,15 @@ export function drawingVersions(rows: Record<string, unknown>[], docType: string
     .sort((x, y) => Number(x.seq ?? 0) - Number(y.seq ?? 0));
 }
 
-export type DrawingStatusTone = "done" | "part" | "pending" | "rework";
+export type DrawingStatusTone = "done" | "part" | "pending" | "rework" | "awaited";
+
+/** Drawing cannot start an EC with nothing attached to it (its EC from Order Making): EC awaited, not Pending. */
+export const EC_AWAITED = "EC awaited";
+
+/** The EC has an attachment. Unknown (the row does not carry ec_link): taken as attached. */
+export function ecAttached(ecLink: unknown): boolean {
+  return ecLink === undefined || String(ecLink ?? "").trim() !== "";
+}
 
 /**
  * Where a drawing document stands, from its latest version: pending until a
@@ -399,7 +407,9 @@ export function drawingDocStatus(
   rows: Record<string, unknown>[],
   docType: string,
   /** The EC's gad_required: 'No' — Drawing says it needs no GAD. */
-  gadRequired?: unknown
+  gadRequired?: unknown,
+  /** The EC's ec_link: none attached, nothing sent yet reads EC awaited. */
+  ecLink?: unknown
 ): { label: string; tone: DrawingStatusTone; version: number } {
   const versions = drawingVersions(rows, docType);
   // No GAD wanted on this EC: nothing for Drawing to send, done.
@@ -410,6 +420,7 @@ export function drawingDocStatus(
   const no = (v: unknown) => String(v ?? "").trim().toLowerCase() === "no";
   const version = versions.length;
   if (!last || !yes(last.issued_to_client)) {
+    if (!ecAttached(ecLink)) return { label: EC_AWAITED, tone: "awaited", version };
     return { label: "Pending", tone: "pending", version };
   }
   if (gad && yes(last.approved) && yes(last.issued_to_production)) {

@@ -385,7 +385,7 @@ export function PlanningPumpTable({
                       )}
                     </td>
                     <td className={`${ecCell} whitespace-nowrap border-l border-card-border`}>
-                      <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} gadRequired={r.gad_required} />
+                      <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} gadRequired={r.gad_required} ecLink={r.ec_link} />
                     </td>
                     <td className={ecCell}>
                       {str(r.part_drawing).toLowerCase() === "yes" ? (

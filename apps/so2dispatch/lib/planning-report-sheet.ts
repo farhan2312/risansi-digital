@@ -277,7 +277,7 @@ export function pumpSheet(
         })
         .join("\n");
       const versions = (Array.isArray(r.gad_versions) ? r.gad_versions : []) as Row[];
-      const gadSt = drawingDocStatus(versions, "GAD", r.gad_required);
+      const gadSt = drawingDocStatus(versions, "GAD", r.gad_required, r.ec_link);
       const all = drawingVersions(versions, "GAD");
       const last = all[all.length - 1];
       const gad =
@@ -286,7 +286,7 @@ export function pumpSheet(
               .filter(Boolean)
               .join("\n")
           : `${gadSt.version ? `${versionLabel(gadSt.version)} · ` : ""}${gadSt.label}`;
-      const part = partDrawingStatus(r.part_drawing, (Array.isArray(r.part_drawings) ? r.part_drawings : []) as Row[]);
+      const part = partDrawingStatus(r.part_drawing, (Array.isArray(r.part_drawings) ? r.part_drawings : []) as Row[], r.ec_link);
       const partText = part
         ? `${part.label}\n${part.done}/${part.total} part${part.total === 1 ? "" : "s"}`
         : str(r.part_drawing).toLowerCase() === "no"
