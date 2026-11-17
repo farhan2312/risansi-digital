@@ -5206,15 +5206,15 @@ export async function listOrdersForOrderMaking(opts: {
   const kf = f.kpiFilter;
   const base = buildClauses(
     kf
-      ? { ...f, assignees: kf.assignees, soState: kf.soState, missingOnly: kf.missingOnly, hold: kf.hold, checklist: kf.checklist }
-      : { ...f, assignees: [], soState: null, missingOnly: false, hold: null, checklist: null }
+      ? { ...f, assignees: kf.assignees, soState: kf.soState, missingOnly: kf.missingOnly, hold: kf.hold }
+      : { ...f, assignees: [], soState: null, missingOnly: false, hold: null }
   );
   const omSpare = f.types.some((t) => t.toLowerCase() === "spare");
   const omPump = f.types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
   const omEcKind = omSpare && !omPump ? spareEcSql("s", "o") : omPump && !omSpare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
   const omCards: KpiCardDef[] | undefined = opts.withKpis
     ? [
-        { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null, omhold: null, ckl: null }, tone: "neutral" },
+        { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null, omhold: null }, tone: "neutral" },
         // How many ECs those SOs hold, of the kind shown: a figure, not a filter.
         {
           key: "ecs",
@@ -5224,30 +5224,15 @@ export async function listOrdersForOrderMaking(opts: {
           tone: "neutral",
           measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${omEcKind})`,
         },
-        { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null, ckl: null }, tone: "pending" },
-        { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null, ckl: null }, tone: "pending" },
-        // The checklist, each team's part still to fill (SOs still worked on).
-        {
-          key: "ckl_so",
-          label: "Checklist SO pending",
-          sql: `${assignableSql("o")} AND NOT ${checklistDoneSql("o", "SO")}`,
-          params: { sos: null, asg: null, missing: null, omhold: null, ckl: "so_pending" },
-          tone: "pending",
-        },
-        {
-          key: "ckl_po",
-          label: "Checklist PO pending",
-          sql: `${assignableSql("o")} AND NOT ${checklistDoneSql("o", "PO")}`,
-          params: { sos: null, asg: null, missing: null, omhold: null, ckl: "po_pending" },
-          tone: "pending",
-        },
+        { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
+        { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
         // No SO details filled / Missing details cards: not needed on Order Making.
         // Order Making's own holds, and every hold on its SOs.
         {
           key: "omhold",
           label: "Order Making hold",
           sql: `COALESCE(o.om_status, '') = 'Hold' AND ${orderOpenSql("o")}`,
-          params: { sos: null, asg: null, missing: null, omhold: "om", ckl: null },
+          params: { sos: null, asg: null, missing: null, omhold: "om" },
           tone: "danger",
         },
         // …and each other kind, as the departments show them (no card for every hold together).
@@ -5256,7 +5241,7 @@ export async function listOrdersForOrderMaking(opts: {
             key: `hold:${by}`,
             label: HOLD_BY_LABEL[by],
             sql: `${holdBySql(by)} AND ${orderOpenSql("o")}`,
-            params: { sos: null, asg: null, missing: null, omhold: by, ckl: null },
+            params: { sos: null, asg: null, missing: null, omhold: by },
             tone: "danger",
           })
         ),
