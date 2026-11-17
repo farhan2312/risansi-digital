@@ -44,7 +44,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   return json(rows.map((r) => ({ ...projectToDict(r.project, r.createdByName, r.assignedToName), ...enquiryStatusFields(r.project, r) })));
 }
 
-/** POST {enquiryDate, assignedTo, note?} - the next version of a technically Completed
+/** POST {enquiryDate, assignedTo, note} - the next version of a technically Completed
  *  enquiry, copied from its latest version (lib/enquiry-revision.ts). User-Master
  *  and system admins only. Audited; the assignee is told by the portal's bell. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -81,6 +81,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const target = await findAssignee(claims.sub, String(body.assignedTo ?? "").trim());
   if (!target) return error("Pick a worker (or yourself) to assign the new version to", 400);
   const note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
+  if (!note) return error("Enter what the client asked to change - it is the reason for the new version.", 400);
 
   let created;
   try {

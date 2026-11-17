@@ -94,6 +94,9 @@ export const projects = pgTable("projects", {
   /** Pump: pcp | mmp | barrel | online_blind; spare: spare | retrofit_spare
    *  (CHECK pairs it with order_type). Older enquiries backfilled to pcp. */
   orderSubtype: varchar("order_subtype", { length: 20 }).notNull().default("pcp"),
+  /** "regular" | "project" (CHECK; user, 2026-11-17). Project needs remarks.
+   *  Older enquiries default to regular. */
+  enquiryCategory: varchar("enquiry_category", { length: 20 }).notNull().default("regular"),
   /** Two statuses, each worked out automatically (lib/enquiry-filters-server.ts)
    *  but editable on the Edit form (user, 2026-11-03). The override is set only
    *  when what was picked there differs from the automatic status. */

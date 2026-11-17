@@ -2,6 +2,7 @@ import apiClient from "./apiClient";
 import type { SavedDocs } from "../lib/saved-docs";
 import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
+import type { EnquiryCategory } from "../lib/enquiry-fields";
 import { filterParams, type EnquiryFilters, sortParam, type EnquirySort } from "../lib/enquiry-filters";
 
 // Matches projectToDict() in lib/api.ts — raw snake_case columns plus the
@@ -32,6 +33,8 @@ export interface ProjectRecord {
   order_type: string;
   /** PCP / MMP / Barrel / Online blind, or Spare / Retrofit spare (lib/roles.ts). */
   order_subtype: string;
+  /** "regular" | "project"; a Project enquiry has remarks. */
+  enquiry_category: string;
   /** Lists: the Commercial status - Completed when Technical is Completed, every
    *  tag has a P&A price and the quotations are sent to the client, or what was
    *  picked on the Edit form. */
@@ -157,6 +160,9 @@ export interface CreateProjectInput {
   enquiryDate: string;
   orderType: OrderType;
   orderSubtype: OrderSubtype;
+  enquiryCategory: EnquiryCategory;
+  /** Required when the category is Project. */
+  remarks: string;
   /** User id; the creator when empty. */
   assignedTo: string;
   clientPrimaryRep: string;
@@ -196,6 +202,7 @@ export interface UpdateProjectInput {
   remarks?: string;
   orderType?: OrderType;
   orderSubtype?: OrderSubtype;
+  enquiryCategory?: EnquiryCategory;
   clientPrimaryRep?: string;
   clientSecondaryReps?: string;
   clientMarketType?: string;

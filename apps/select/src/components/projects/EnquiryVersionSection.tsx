@@ -45,6 +45,7 @@ export default function EnquiryVersionSection({
 
   const next = project.version_no + 1;
   const isSpare = project.order_type === "spare";
+  const noteMissing = !note.trim();
   const tooEarly = Boolean(project.enquiry_date && enquiryDate && enquiryDate < project.enquiry_date);
 
   const create = async () => {
@@ -52,7 +53,7 @@ export default function EnquiryVersionSection({
     onBusyChange(true);
     setErr("");
     try {
-      await createEnquiryRevision(project.id, { enquiryDate, assignedTo: pick, note });
+      await createEnquiryRevision(project.id, { enquiryDate, assignedTo: pick, note: note.trim() });
       onCreated();
     } catch (e) {
       setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Couldn't create the new version.");
@@ -91,13 +92,13 @@ export default function EnquiryVersionSection({
               ))}
             </NativeSelect>
           </Field>
-          <Field label="What did the client ask to change?" wide>
+          <Field label="What did the client ask to change?" required wide hint={noteMissing ? "Required: why this version is being made." : undefined}>
             <Textarea rows={2} maxLength={2000} value={note} disabled={busy} onChange={(e) => setNote(e.target.value)} />
           </Field>
           <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
             <Button
               size="lg"
-              disabled={busy || hasUnsavedChanges || !enquiryDate || tooEarly || !pick}
+              disabled={busy || hasUnsavedChanges || !enquiryDate || tooEarly || !pick || noteMissing}
               onClick={create}
             >
               {busy ? "Creating…" : `Create V${next}`}
