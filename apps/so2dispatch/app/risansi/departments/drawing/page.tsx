@@ -75,11 +75,14 @@ export default async function DrawingWorkspacePage({
   // Drawing's own filters: the SO Open / Closed, and each EC's GAD,
   // Performance Curve and Part Drawing status.
   const drawingFilter = parseDrawingFilter((key) => params[key]);
+  // SO versions card: SOs made into a new version (v1 on; a new SO is v0).
+  const VERSIONED_SQL = "COALESCE(o.version_no, 0) > 0";
+  const versioned = (get: (k: string) => string | string[] | undefined) => (get("drg_ver") === "1" ? ` AND ${VERSIONED_SQL}` : "");
   // Drawing's cards: its SOs open and closed, where their GADs, Performance
   // Curves and Part Drawings stand, and what is overdue against the Drawing
   // target — one compact row, a hairline between the groups.
   const drawingKpiCards = (): KpiCardDef[] => {
-    const clear = { drg_so: null, drg_gad: null, drg_pc: null, drg_part: null, overdue: null, hold: null } as Record<string, string | null>;
+    const clear = { drg_so: null, drg_gad: null, drg_pc: null, drg_part: null, drg_ver: null, overdue: null, hold: null } as Record<string, string | null>;
     const none = { so: [] as string[], gad: [] as string[], curve: [] as string[], part: [] as string[] };
     const overdue = deptKpiCards("drawing").find((c) => c.key === "overdue");
     return [
@@ -97,6 +100,15 @@ export default async function DrawingWorkspacePage({
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
       // Its SOs on any hold.
       ...totalHoldCard("drawing", clear, "SO"),
+      {
+        key: "versioned",
+        label: "SO versions",
+        group: "SO",
+        sql: VERSIONED_SQL,
+        params: { ...clear, drg_ver: "1" },
+        held: CV_HELD,
+        tone: "part" as const,
+      },
       ...GAD_STATUSES.map((st) => ({
         key: `gad:${st}`,
         label: `GAD ${st}`,
@@ -147,8 +159,8 @@ export default async function DrawingWorkspacePage({
         focusOrderId,
         filter,
         sort: parseQueueSort(params.sort),
-        extraRestrict: `${drawingFilterSql(drawingFilter)} AND ${pendencyFilterSql("drawing", parsePendencyFilter((key) => params[key], "drawing"))}`,
-        kpiRestrict: `${drawingFilterSql(parseDrawingFilter(cardGet))} AND ${pendencyFilterSql("drawing", parsePendencyFilter(cardGet, "drawing"))}`,
+        extraRestrict: `${drawingFilterSql(drawingFilter)} AND ${pendencyFilterSql("drawing", parsePendencyFilter((key) => params[key], "drawing"))}${versioned((key) => params[key])}`,
+        kpiRestrict: `${drawingFilterSql(parseDrawingFilter(cardGet))} AND ${pendencyFilterSql("drawing", parsePendencyFilter(cardGet, "drawing"))}${versioned(cardGet)}`,
       }
     ),
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),
