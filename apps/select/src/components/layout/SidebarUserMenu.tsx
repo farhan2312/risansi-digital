@@ -37,7 +37,7 @@ const roleLabel = (role: string | undefined) => (role ? appRoleLabel(role) : "Us
 /** User profile block pinned to the bottom of the sidebar — avatar, name,
  * role, and an expand chevron that opens an upward popup (theme toggle,
  * change password, log out). Tailwind-styled. */
-const SidebarUserMenu = () => {
+const SidebarUserMenu = ({ collapsed = false }: { /** The sidebar shows icons only. */ collapsed?: boolean }) => {
   const { theme, toggleTheme } = useTheme();
   const { user: currentUser } = useCurrentUser();
 
@@ -56,7 +56,8 @@ const SidebarUserMenu = () => {
   return (
     <div className="relative mt-auto border-t border-white/10 pt-[8px]">
       {open && (
-        <div className="absolute bottom-[calc(100%+6px)] left-0 right-0 z-20 rounded-md border border-white/10 bg-[#132240] pl-[8px] pr-[8px] pt-[8px] pb-[8px] shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+        // Collapsed: beside the narrow sidebar (fixed, so its overflow doesn't clip it).
+        <div className={`${collapsed ? "fixed bottom-[12px] left-[72px] w-[230px]" : "absolute bottom-[calc(100%+6px)] left-0 right-0"} z-20 rounded-md border border-white/10 bg-[#132240] pl-[8px] pr-[8px] pt-[8px] pb-[8px] shadow-[0_8px_24px_rgba(0,0,0,0.35)]`}>
           <div className="pl-[8px] pr-[8px] pt-[6px] pb-[6px]">
             <p className="text-[13px] font-semibold text-white truncate">{userName}</p>
             <p className="text-[11px] text-sidebar-fg/80 truncate">{userEmail}</p>
@@ -123,11 +124,14 @@ const SidebarUserMenu = () => {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
-        className="flex w-full items-center gap-[10px] rounded-md pl-[8px] pr-[8px] pt-[8px] pb-[8px] text-left hover:bg-white/5 transition-colors"
+        title={collapsed ? userName : undefined}
+        className={`flex w-full items-center ${collapsed ? "justify-center" : ""} gap-[10px] rounded-md pl-[8px] pr-[8px] pt-[8px] pb-[8px] text-left hover:bg-white/5 transition-colors`}
       >
         <span className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-semibold text-white">
           {initial}
         </span>
+        {!collapsed && (
+        <>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold text-white">{userName}</span>
           <span className="block truncate text-[11px] text-sidebar-fg/80">{roleLabel(currentUser?.role)}</span>
@@ -141,6 +145,8 @@ const SidebarUserMenu = () => {
         >
           <path d="M6 9l6-6 6 6M6 15l6 6 6-6" />
         </svg>
+        </>
+        )}
       </button>
 
       {showEditPassword && <EditPasswordModal onClose={() => setShowEditPassword(false)} />}

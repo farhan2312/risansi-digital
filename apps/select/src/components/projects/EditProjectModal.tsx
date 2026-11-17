@@ -39,7 +39,8 @@ type Props = {
       orderType: OrderType;
       orderSubtype: OrderSubtype;
       enquiryCategory: EnquiryCategory;
-      remarks: string;
+      /** Left out: unchanged. */
+      remarks?: string;
     } & ClientForm,
   ) => void;
   /** A new version was made from this enquiry (the form's New version section). */
@@ -165,7 +166,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
     orderType !== savedType ||
     orderSubtype !== subtypeOf(project, savedType) ||
     category !== categoryOf(project) ||
-    remarks.trim() !== (project.remarks ?? "").trim() ||
+    (category === "project" && remarks.trim() !== (project.remarks ?? "").trim()) ||
     (Object.keys(savedClient) as (keyof ClientForm)[]).some((k) => (client[k] ?? "") !== savedClient[k]);
 
   return (
@@ -198,7 +199,8 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
                 orderType,
                 orderSubtype,
                 enquiryCategory: category,
-                remarks: remarks.trim(),
+                // A Project's details; made Regular, they go. A Regular one keeps what it had.
+                ...(category === "project" ? { remarks: remarks.trim() } : categoryOf(project) === "project" ? { remarks: "" } : {}),
                 ...client,
               })
             }

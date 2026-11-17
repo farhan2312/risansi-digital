@@ -170,7 +170,8 @@ function OrderTypeToggle({ value, onChange }: { value: OrderType; onChange: (v: 
   );
 }
 
-/** Regular / Project, then the remarks - required for a Project enquiry. */
+/** Regular / Project, then a Project's details (required; projects.remarks). A
+ *  Regular enquiry has no such field. */
 export function EnquiryCategoryFields({
   category,
   remarks,
@@ -209,22 +210,19 @@ export function EnquiryCategoryFields({
           })}
         </div>
       </Field>
-      <Field
-        label="Remarks"
-        required={isProject}
-        wide
-        hint={missing && showErrors ? <span className="text-destructive">{PROJECT_REMARKS_REQUIRED}</span> : isProject ? "Required for a Project enquiry." : undefined}
-      >
-        <textarea
-          rows={2}
-          maxLength={2000}
-          value={remarks}
-          aria-invalid={missing && showErrors ? true : undefined}
-          onChange={(e) => onRemarks(e.target.value)}
-          placeholder={isProject ? "About the project" : "Optional"}
-          className={`${inputCls} h-auto min-h-[60px] py-2 ${missing && showErrors ? "border-destructive" : ""}`}
-        />
-      </Field>
+      {isProject && (
+        <Field label="Project details" required wide hint={missing && showErrors ? <span className="text-destructive">{PROJECT_REMARKS_REQUIRED}</span> : undefined}>
+          <textarea
+            rows={2}
+            maxLength={2000}
+            value={remarks}
+            aria-invalid={missing && showErrors ? true : undefined}
+            onChange={(e) => onRemarks(e.target.value)}
+            placeholder="About the project"
+            className={`${inputCls} h-auto min-h-[60px] py-2 ${missing && showErrors ? "border-destructive" : ""}`}
+          />
+        </Field>
+      )}
     </>
   );
 }
