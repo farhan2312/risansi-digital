@@ -37,3 +37,20 @@ export function clientDetailsFrom(body: Record<string, unknown>): {
   if ("clientZone" in body) out.clientZone = text(body.clientZone, 50);
   return out;
 }
+
+/** Enquiry category (user, 2026-11-17): Regular or Project. A Project
+ *  enquiry needs remarks (projects.remarks). */
+export const ENQUIRY_CATEGORIES = [
+  { value: "regular", label: "Regular" },
+  { value: "project", label: "Project" },
+] as const;
+export type EnquiryCategory = (typeof ENQUIRY_CATEGORIES)[number]["value"];
+
+/** Missing = "regular"; anything else = null (invalid). */
+export function enquiryCategoryFrom(v: unknown): EnquiryCategory | null {
+  if (v === undefined || v === null || v === "") return "regular";
+  const s = String(v).trim().toLowerCase();
+  return s === "regular" || s === "project" ? s : null;
+}
+
+export const PROJECT_REMARKS_REQUIRED = "Remarks are required for a Project enquiry.";

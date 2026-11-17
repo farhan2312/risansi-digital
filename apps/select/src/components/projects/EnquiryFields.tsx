@@ -9,6 +9,7 @@ import { buttonVariants } from "@/components/shadcn/button";
 import ClientLookup from "./ClientLookup";
 import { ORDER_SUBTYPES, ORDER_TYPES, defaultSubtype, type OrderSubtype, type OrderType } from "../../lib/roles";
 import type { ClientLookupRow } from "../../services/clientsService";
+import { ENQUIRY_CATEGORIES, PROJECT_REMARKS_REQUIRED, type EnquiryCategory } from "../../lib/enquiry-fields";
 
 // Building blocks shared by Create and Edit Enquiry (shadcn/ui look, user 2026-11-13): the modal
 // shell, sections, labelled fields, the Order Type toggle and the client block
@@ -166,6 +167,65 @@ function OrderTypeToggle({ value, onChange }: { value: OrderType; onChange: (v: 
         );
       })}
     </div>
+  );
+}
+
+/** Regular / Project, then the remarks - required for a Project enquiry. */
+export function EnquiryCategoryFields({
+  category,
+  remarks,
+  showErrors,
+  onCategory,
+  onRemarks,
+}: {
+  category: EnquiryCategory;
+  remarks: string;
+  /** Marks a missing Project remark in red (after a save was tried). */
+  showErrors?: boolean;
+  onCategory: (c: EnquiryCategory) => void;
+  onRemarks: (r: string) => void;
+}) {
+  const isProject = category === "project";
+  const missing = isProject && !remarks.trim();
+  return (
+    <>
+      <Field label="Enquiry category" required wide group>
+        <div className="grid grid-cols-2 gap-0.5 rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="group" aria-label="Enquiry category">
+          {ENQUIRY_CATEGORIES.map((o) => {
+            const on = category === o.value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => onCategory(o.value)}
+                className={`flex h-8 items-center justify-center rounded-[5px] text-[13px] font-medium transition-colors ${
+                  on ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+      <Field
+        label="Remarks"
+        required={isProject}
+        wide
+        hint={missing && showErrors ? <span className="text-destructive">{PROJECT_REMARKS_REQUIRED}</span> : isProject ? "Required for a Project enquiry." : undefined}
+      >
+        <textarea
+          rows={2}
+          maxLength={2000}
+          value={remarks}
+          aria-invalid={missing && showErrors ? true : undefined}
+          onChange={(e) => onRemarks(e.target.value)}
+          placeholder={isProject ? "About the project" : "Optional"}
+          className={`${inputCls} h-auto min-h-[60px] py-2 ${missing && showErrors ? "border-destructive" : ""}`}
+        />
+      </Field>
+    </>
   );
 }
 

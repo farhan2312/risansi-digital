@@ -12,7 +12,7 @@ import { filtersFromParams, sortFromParam, type EnquirySortKey } from "@/lib/enq
 import { enquiryFilterSql, enquiryStatusColumns, enquiryStatusFields } from "@/lib/enquiry-filters-server";
 import { repScope } from "@/lib/rep-scope";
 import { orderSubtypeLabel, orderTypeLabel } from "@/lib/roles";
-import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
+import { PROJECT_REMARKS_REQUIRED, clientDetailsFrom, enquiryCategoryFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 
 const assignee = alias(users, "assignee");
 
@@ -202,6 +202,10 @@ export async function POST(req: Request) {
   if (!orderType) return error("'orderType' must be pump or spare", 400);
   const orderSubtype = orderSubtypeFrom(orderType, body.orderSubtype);
   if (!orderSubtype) return error(`Pick a ${orderTypeLabel(orderType).toLowerCase()} type`, 400);
+  const enquiryCategory = enquiryCategoryFrom(body.enquiryCategory);
+  if (!enquiryCategory) return error("'enquiryCategory' must be regular or project", 400);
+  const remarks = typeof body.remarks === "string" ? body.remarks.trim().slice(0, 2000) : "";
+  if (enquiryCategory === "project" && !remarks) return error(PROJECT_REMARKS_REQUIRED, 400);
 
   // Assigned to a worker or the master; the creator when none is picked.
   const assignedToId = String(body.assignedTo ?? "").trim() || createdBy;
@@ -218,7 +222,8 @@ export async function POST(req: Request) {
         customerName: (body.customer as string) ?? null,
         industry: (body.industry as string) ?? null,
         enquiryDate,
-        remarks: (body.remarks as string) ?? null,
+        remarks: remarks || null,
+        enquiryCategory,
         clientCode: (body.clientCode as string) ?? "Pending",
         // New projects start "Pending" — flips to "In Progress" once General
         // Information is saved, "Completed" once the final report is generated.
@@ -259,7 +264,7 @@ export async function POST(req: Request) {
     action: "enquiry.create",
     entity: "projects",
     entityId: project.id,
-    detail: `Created enquiry ${project.projectCode} (${orderTypeLabel(orderType)} - ${orderSubtypeLabel(orderSubtype)}), assigned to ${assignedName}`,
+    detail: `Created enquiry ${project.projectCode} (${orderTypeLabel(orderType)} - ${orderSubtypeLabel(orderSubtype)}, ${enquiryCategory === "project" ? "Project" : "Regular"}), assigned to ${assignedName}`,
   });
 
   return json(projectToDict(project, createdByName, assignedTo.name), 201);

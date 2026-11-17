@@ -50,6 +50,7 @@ export function projectToDict(p: ProjectRow, createdByName?: string | null, assi
   return {
     order_type: p.orderType,
     order_subtype: p.orderSubtype,
+    enquiry_category: p.enquiryCategory,
     completed_on: p.completedOn,
     commercial_completed_on: p.commercialCompletedOn,
     reviewed_at: p.reviewedAt,

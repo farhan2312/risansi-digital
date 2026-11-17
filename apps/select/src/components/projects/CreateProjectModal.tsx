@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   ClientFields,
   EMPTY_CLIENT,
+  EnquiryCategoryFields,
   Field,
   ModalShell,
   OrderTypePicker,
@@ -15,6 +16,7 @@ import {
 } from "./EnquiryFields";
 import { listAssignees, type Assignee, type CreateProjectInput } from "../../services/projectService";
 import { roleLabel, type OrderSubtype, type OrderType } from "../../lib/roles";
+import { PROJECT_REMARKS_REQUIRED, type EnquiryCategory } from "../../lib/enquiry-fields";
 
 type Props = {
   isOpen: boolean;
@@ -43,6 +45,9 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
   const [enquiryDate, setEnquiryDate] = useState(() => todayYmd());
   const [orderType, setOrderType] = useState<OrderType>(startAsSpare ? "spare" : "pump");
   const [orderSubtype, setOrderSubtype] = useState<OrderSubtype>(startAsSpare ? "spare" : "pcp");
+  const [category, setCategory] = useState<EnquiryCategory>("regular");
+  const [remarks, setRemarks] = useState("");
+  const [triedSave, setTriedSave] = useState(false);
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   // Who works the enquiry: a worker, or the master herself.
   const [assignees, setAssignees] = useState<Assignee[] | null>(null);
@@ -74,6 +79,11 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
       setError("Enquiry date is required.");
       return;
     }
+    if (category === "project" && !remarks.trim()) {
+      setTriedSave(true);
+      setError(PROJECT_REMARKS_REQUIRED);
+      return;
+    }
     if (!assignedTo) {
       setError("Pick who the enquiry is assigned to.");
       return;
@@ -85,6 +95,8 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
       enquiryDate,
       orderType,
       orderSubtype,
+      enquiryCategory: category,
+      remarks: remarks.trim(),
       assignedTo,
       ...client,
     });
@@ -155,6 +167,7 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
         <Field label="Enquiry date" required hint="The date the enquiry was received.">
           <input type="date" className={inputCls} value={enquiryDate} max={todayYmd()} onChange={(e) => setEnquiryDate(e.target.value)} />
         </Field>
+        <EnquiryCategoryFields category={category} remarks={remarks} showErrors={triedSave} onCategory={setCategory} onRemarks={setRemarks} />
       </Section>
 
       <Section step={2} title="Client" subtitle="Pick from the client master to fill everything, or type it in">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   ClientFields,
   EMPTY_CLIENT,
+  EnquiryCategoryFields,
   Field,
   ModalShell,
   OrderTypePicker,
@@ -17,6 +18,7 @@ import { todayYmd } from "./CreateProjectModal";
 import EnquiryVersionSection from "./EnquiryVersionSection";
 import type { ProjectRecord } from "../../services/projectService";
 import { ORDER_SUBTYPES, defaultSubtype, type OrderSubtype, type OrderType } from "../../lib/roles";
+import { enquiryCategoryFrom, type EnquiryCategory } from "../../lib/enquiry-fields";
 
 type Props = {
   isOpen: boolean;
@@ -36,6 +38,8 @@ type Props = {
       commercialCompletedOn: string;
       orderType: OrderType;
       orderSubtype: OrderSubtype;
+      enquiryCategory: EnquiryCategory;
+      remarks: string;
     } & ClientForm,
   ) => void;
   /** A new version was made from this enquiry (the form's New version section). */
@@ -102,6 +106,8 @@ const clientOf = (project: ProjectRecord): ClientForm => ({
 const subtypeOf = (project: ProjectRecord, t: OrderType): OrderSubtype =>
   ORDER_SUBTYPES[t].find((o) => o.value === project.order_subtype)?.value ?? defaultSubtype(t);
 
+const categoryOf = (project: ProjectRecord): EnquiryCategory => enquiryCategoryFrom(project.enquiry_category) ?? "regular";
+
 const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSave, onVersionCreated }: Props) => {
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   const [enquiryNo, setEnquiryNo] = useState("");
@@ -112,6 +118,8 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
   const [commercialCompletedOn, setCommercialCompletedOn] = useState("");
   const [orderType, setOrderType] = useState<OrderType>("pump");
   const [orderSubtype, setOrderSubtype] = useState<OrderSubtype>("pcp");
+  const [category, setCategory] = useState<EnquiryCategory>("regular");
+  const [remarks, setRemarks] = useState("");
   const [creatingVersion, setCreatingVersion] = useState(false);
 
   // Re-seed the fields whenever a different project is opened for editing.
@@ -127,6 +135,8 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
     const t: OrderType = project.order_type === "spare" ? "spare" : "pump";
     setOrderType(t);
     setOrderSubtype(subtypeOf(project, t));
+    setCategory(categoryOf(project));
+    setRemarks(project.remarks ?? "");
   }, [project]);
 
   if (!isOpen || !project) return null;
@@ -137,6 +147,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
   const badDay = (status: string, day: string, saved: string) =>
     status === "Completed" && (!day || (day !== saved && Boolean(enquiryDate && day < enquiryDate)));
   const isSpare = project.order_type === "spare";
+  const remarksMissing = category === "project" && !remarks.trim();
   const datesBad = (!isSpare && badDay(technicalStatus, completedOn, savedTechnicalDay)) || badDay(commercialStatus, commercialCompletedOn, savedCommercialDay);
 
   const savedType: OrderType = project.order_type === "spare" ? "spare" : "pump";
@@ -153,6 +164,8 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
     (commercialStatus === "Completed" && commercialCompletedOn !== savedCommercialDay) ||
     orderType !== savedType ||
     orderSubtype !== subtypeOf(project, savedType) ||
+    category !== categoryOf(project) ||
+    remarks.trim() !== (project.remarks ?? "").trim() ||
     (Object.keys(savedClient) as (keyof ClientForm)[]).some((k) => (client[k] ?? "") !== savedClient[k]);
 
   return (
@@ -174,7 +187,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
           <button
             type="button"
             className={btnPrimary}
-            disabled={isSaving || creatingVersion || !client.name.trim() || !newNo || datesBad}
+            disabled={isSaving || creatingVersion || !client.name.trim() || !newNo || datesBad || remarksMissing}
             onClick={() =>
               onSave({
                 ...(noChanged ? { projectCode: newNo } : {}),
@@ -184,6 +197,8 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
                 commercialCompletedOn: commercialStatus === "Completed" ? commercialCompletedOn : "",
                 orderType,
                 orderSubtype,
+                enquiryCategory: category,
+                remarks: remarks.trim(),
                 ...client,
               })
             }
@@ -240,6 +255,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
           }}
           onDay={setCommercialCompletedOn}
         />
+        <EnquiryCategoryFields category={category} remarks={remarks} showErrors onCategory={setCategory} onRemarks={setRemarks} />
       </Section>
 
       {/* Keyed by enquiry so each edit starts with fresh choices. */}

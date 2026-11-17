@@ -6,7 +6,7 @@ import { logAudit } from "@/lib/audit";
 import { AuthError, decodeToken, requireEnquiryManager, type TokenClaims } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enquiryTags, projects, quotation, quotationVersion, users } from "@/lib/db/schema";
-import { clientDetailsFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
+import { PROJECT_REMARKS_REQUIRED, clientDetailsFrom, enquiryCategoryFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 import { ENQUIRY_STATUSES, versionReady } from "@/lib/enquiry-filters";
 import { enquiryStatusColumns } from "@/lib/enquiry-filters-server";
 import { versionLocked, viewDenied } from "@/lib/enquiry-access";
@@ -171,6 +171,19 @@ export async function PATCH(
     const s = orderSubtypeFrom(t, body.orderSubtype);
     if (!s) return error(`'orderSubtype' does not belong to a ${t} order`, 400);
     patch.orderSubtype = s;
+  }
+  if ("enquiryCategory" in body) {
+    const c = enquiryCategoryFrom(body.enquiryCategory);
+    if (!c) return error("'enquiryCategory' must be regular or project", 400);
+    patch.enquiryCategory = c;
+  }
+  if ("enquiryCategory" in body || "remarks" in body) {
+    // A Project enquiry always has remarks, whichever of the two changes.
+    const [cur] = await db.select({ category: projects.enquiryCategory, remarks: projects.remarks }).from(projects).where(eq(projects.id, id)).limit(1);
+    if (!cur) return error("Project not found", 404);
+    const category = patch.enquiryCategory ?? cur.category;
+    const remarks = "remarks" in body ? patch.remarks : cur.remarks;
+    if (category === "project" && !remarks?.trim()) return error(PROJECT_REMARKS_REQUIRED, 400);
   }
   Object.assign(patch, clientDetailsFrom(body));
   // A quotation is made for one kind of order, so the kind stays once there is one.
