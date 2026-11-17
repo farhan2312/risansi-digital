@@ -201,6 +201,12 @@ export function ecDrawingLine(f: Pick<DrawingFilter, "gad" | "part">): string {
     .join("  ·  ");
 }
 
+/** How many of an SO's pump ECs stand at a GAD, curve or part status: the EC figure on Drawing's cards. */
+export function ecStatusCountSql(doc: "gad" | "curve" | "part", status: string, o = "o"): string {
+  const expr = doc === "gad" ? docStatusSql("s", "GAD") : doc === "curve" ? curveStatusSql("s", o) : partStatusSql("s");
+  return `(SELECT count(*) FROM order_items s WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)}) AND ${expr} = ${lit(status)})`;
+}
+
 /** Drawing is done with an EC (alias it, its SO o): the SQL twin of ecDrawingDone. */
 /** SQL twin of ecDrawingSent: Drawing owes nothing more on the EC, so it is not overdue. */
 export function ecDrawingSentSql(it: string, o: string): string {
