@@ -3465,3 +3465,17 @@ ALTER TABLE order_part_drawings ADD COLUMN IF NOT EXISTS doc_link TEXT;
 
 -- GAD not required: Drawing's remark on why (order_items.gad_remarks).
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS gad_remarks TEXT;
+
+-- Order Making's checklist for each SO (lib/so-checklist.ts): one answer and
+-- remark per point, per SO version (a new version starts a fresh checklist).
+CREATE TABLE IF NOT EXISTS order_so_checklist (
+    order_id        UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    version_no      INTEGER NOT NULL DEFAULT 0,
+    point_key       TEXT NOT NULL,
+    answer          TEXT,
+    remarks         TEXT,
+    filled_by       UUID REFERENCES users(id) ON DELETE SET NULL,
+    filled_by_name  TEXT,
+    filled_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (order_id, version_no, point_key)
+);

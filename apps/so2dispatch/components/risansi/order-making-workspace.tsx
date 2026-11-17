@@ -18,6 +18,8 @@ import { OmEcsModal } from "./om-ecs-modal";
 import { OrderOperationPopup } from "./order-operation-popup";
 import { useSoNoTaken } from "./use-so-no-taken";
 import { OmReportModal } from "./om-report-modal";
+import { SoChecklistModal } from "./so-checklist-modal";
+import { CHECKLIST_STATES } from "@/lib/so-checklist";
 import { OmReportPanel } from "./om-report-panel";
 import {
   BILL_MODE_FILTER_OPTIONS,
@@ -229,6 +231,8 @@ export function OrderMakingWorkspace({
   const [viewing, setViewing] = useState<OrderMakingRow | null>(null);
   // The SO whose versions are open in the pop-up.
   const [versionsFor, setVersionsFor] = useState<OrderMakingRow | null>(null);
+  // The SO checklist pop-up.
+  const [checklistFor, setChecklistFor] = useState<string | null>(null);
   // The assigned SO whose Reassign is open.
   const [reassigning, setReassigning] = useState<string | null>(null);
   async function assign(row: OrderMakingRow, assigneeId: string) {
@@ -482,6 +486,14 @@ export function OrderMakingWorkspace({
           selected={filter.sentPpc}
           onChange={(next) => setParams({ ppc: next, page: null })}
         />
+        {/* The SO checklist: either team's part still to fill, or all done. */}
+        <SingleSelectFilter
+          label="Checklist"
+          allLabel="Any"
+          options={CHECKLIST_STATES.map((s) => ({ value: s.value, label: s.label }))}
+          selected={filter.checklist}
+          onChange={(next) => setParams({ ckl: next, page: null })}
+        />
         <button
           type="button"
           onClick={() => setParams({ missing: missingOnly ? null : "1" })}
@@ -577,13 +589,14 @@ export function OrderMakingWorkspace({
                 <th className="px-4 py-3">Operation</th>
                 <th className="px-4 py-3"><SortHeader label="ECs" sortKey="ecs" /></th>
                 <th className="px-4 py-3"><SortHeader label="Assigned to" sortKey="assignee" /></th>
+                <th className="px-4 py-3">Checklist</th>
                 {canEdit && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border">
               {queue.rows.length === 0 && (
                 <tr>
-                  <td colSpan={cols.length + 7} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={cols.length + 8} className="px-4 py-10 text-center text-sm text-muted">
                     {mode === "so"
                       ? "No SOs assigned to you match."
                       : missingOnly
@@ -768,6 +781,34 @@ export function OrderMakingWorkspace({
                       )}
                     </td>
                   )}
+                  {/* The SO checklist: the SO team's (green) and the PO team's points answered. */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setChecklistFor(row.id)}
+                      title="Open the SO checklist"
+                      className="inline-flex flex-col items-start rounded-lg border border-input-border px-2.5 py-1 text-left text-[11px] font-medium transition-colors hover:bg-background"
+                    >
+                      {(["so", "po"] as const).map((t) => {
+                        const done = Number(row[`ckl_${t}`] ?? 0);
+                        const total = Number(row[`ckl_${t}_total`] ?? 0);
+                        return (
+                          <span
+                            key={t}
+                            className={`tabular-nums ${
+                              done >= total
+                                ? "text-emerald-700 dark:text-emerald-300"
+                                : done > 0
+                                  ? "text-amber-700 dark:text-amber-300"
+                                  : "text-muted"
+                            }`}
+                          >
+                            {t.toUpperCase()} {done}/{total}
+                          </span>
+                        );
+                      })}
+                    </button>
+                  </td>
                   {canEdit && (
                     <td className="px-4 py-3 text-right">
                       {/* An SO not assigned to an SO member: View, not edit. */}
@@ -831,6 +872,7 @@ export function OrderMakingWorkspace({
           </table>
         </div>
         {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
+        {checklistFor && <SoChecklistModal orderId={checklistFor} onClose={() => setChecklistFor(null)} />}
         {versionsFor && (
           <VersionsModal
             orderId={versionsFor.id}

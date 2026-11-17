@@ -47,6 +47,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
 } from "@/lib/dept-status";
 import { BILL_MODE_FILTER_OPTIONS, FIELD_FILTER_FIELDS, NOT_SET, ORDER_STATUS_OPTIONS, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
 import { sharedFacets, UNASSIGNED, type OrderMakingFilter } from "@/lib/order-making-filter";
+import { checklistAnsweredSql, checklistDoneSql, checklistTotalSql } from "@/lib/so-checklist";
 import { appliesSql, filledSql, SO_DETAILS_FILLED_SQL, SO_DETAILS_MISSING_SQL } from "@/lib/order-gaps";
 import {
   PAGE_SIZE,
@@ -5086,6 +5087,11 @@ export type OrderMakingRow = Record<string, unknown> & {
   boi: string | null;
   /** The SO's ECs with their Add-On fields, for Order Making to edit or delete. */
   items: Record<string, unknown>[];
+  /** The checklist on its current version: points answered and to answer, the SO team's and the PO team's. */
+  ckl_so: number;
+  ckl_so_total: number;
+  ckl_po: number;
+  ckl_po_total: number;
 };
 
 /**
@@ -5155,6 +5161,12 @@ export async function listOrdersForOrderMaking(opts: {
     // SO Sent to PPC: Yes once its date is entered; blank is No.
     if (ff.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
     if (ff.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
+    // The checklist. Pending: only SOs still worked on (open, not dispatched,
+    // not carried in by the migration) — as for assigning.
+    if (ff.checklist === "done") clauses.push(checklistDoneSql("o"));
+    if (ff.checklist === "pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o")}`);
+    if (ff.checklist === "so_pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o", "SO")}`);
+    if (ff.checklist === "po_pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o", "PO")}`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
     if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);
@@ -5194,15 +5206,15 @@ export async function listOrdersForOrderMaking(opts: {
   const kf = f.kpiFilter;
   const base = buildClauses(
     kf
-      ? { ...f, assignees: kf.assignees, soState: kf.soState, missingOnly: kf.missingOnly, hold: kf.hold }
-      : { ...f, assignees: [], soState: null, missingOnly: false, hold: null }
+      ? { ...f, assignees: kf.assignees, soState: kf.soState, missingOnly: kf.missingOnly, hold: kf.hold, checklist: kf.checklist }
+      : { ...f, assignees: [], soState: null, missingOnly: false, hold: null, checklist: null }
   );
   const omSpare = f.types.some((t) => t.toLowerCase() === "spare");
   const omPump = f.types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
   const omEcKind = omSpare && !omPump ? spareEcSql("s", "o") : omPump && !omSpare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
   const omCards: KpiCardDef[] | undefined = opts.withKpis
     ? [
-        { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null, omhold: null }, tone: "neutral" },
+        { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null, omhold: null, ckl: null }, tone: "neutral" },
         // How many ECs those SOs hold, of the kind shown: a figure, not a filter.
         {
           key: "ecs",
@@ -5212,15 +5224,30 @@ export async function listOrdersForOrderMaking(opts: {
           tone: "neutral",
           measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${omEcKind})`,
         },
-        { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
-        { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
+        { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null, ckl: null }, tone: "pending" },
+        { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null, ckl: null }, tone: "pending" },
+        // The checklist, each team's part still to fill (SOs still worked on).
+        {
+          key: "ckl_so",
+          label: "Checklist SO pending",
+          sql: `${assignableSql("o")} AND NOT ${checklistDoneSql("o", "SO")}`,
+          params: { sos: null, asg: null, missing: null, omhold: null, ckl: "so_pending" },
+          tone: "pending",
+        },
+        {
+          key: "ckl_po",
+          label: "Checklist PO pending",
+          sql: `${assignableSql("o")} AND NOT ${checklistDoneSql("o", "PO")}`,
+          params: { sos: null, asg: null, missing: null, omhold: null, ckl: "po_pending" },
+          tone: "pending",
+        },
         // No SO details filled / Missing details cards: not needed on Order Making.
         // Order Making's own holds, and every hold on its SOs.
         {
           key: "omhold",
           label: "Order Making hold",
           sql: `COALESCE(o.om_status, '') = 'Hold' AND ${orderOpenSql("o")}`,
-          params: { sos: null, asg: null, missing: null, omhold: "om" },
+          params: { sos: null, asg: null, missing: null, omhold: "om", ckl: null },
           tone: "danger",
         },
         // …and each other kind, as the departments show them (no card for every hold together).
@@ -5229,7 +5256,7 @@ export async function listOrdersForOrderMaking(opts: {
             key: `hold:${by}`,
             label: HOLD_BY_LABEL[by],
             sql: `${holdBySql(by)} AND ${orderOpenSql("o")}`,
-            params: { sos: null, asg: null, missing: null, omhold: by },
+            params: { sos: null, asg: null, missing: null, omhold: by, ckl: null },
             tone: "danger",
           })
         ),
@@ -5289,6 +5316,9 @@ export async function listOrdersForOrderMaking(opts: {
             o.version_no,
             (SELECT count(*)::int FROM order_items i WHERE i.order_id = o.id) AS ec_count,
             o.boi,
+            -- The checklist on the current version, each team's part.
+            ${checklistAnsweredSql("o", "SO")} AS ckl_so, ${checklistTotalSql("o", "SO")} AS ckl_so_total,
+            ${checklistAnsweredSql("o", "PO")} AS ckl_po, ${checklistTotalSql("o", "PO")} AS ckl_po_total,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(
                         'id', i.id, 'ec_no', i.ec_no, 'ec_date', to_char(i.ec_date, 'YYYY-MM-DD'),
                         -- Every field of the EC form: one missing here opens blank, and saves blank.
