@@ -10,7 +10,10 @@ import { setQuoteCurrency } from "../../services/commercialService";
 import { getUsdInrSetting } from "../../services/settingsService";
 import UsdToggle from "./UsdToggle";
 import { printHtml } from "../../lib/enquiry-print";
-import { OTHER_PART_SECTION, partListFor, type SparePumpKind } from "../../lib/spare-parts";
+import { OTHER_PART_SECTION, type SparePart, type SparePumpKind } from "../../lib/spare-parts";
+import { canEditSpareParts } from "../../lib/roles";
+import { useCurrentUser } from "../../contexts/CurrentUserContext";
+import { addSparePart, deleteSparePart, listSpareParts, updateSparePart } from "../../services/sparePartsService";
 import { lineAmount, quoteDiscount, quoteSubtotal, shareSamePo, spareQuoteProblem, type SpareDocEdits, type SpareLine, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
 import {
   buildSpareQuoteHtml,
@@ -30,7 +33,7 @@ import { getSpareQuote, saveSpareDocEdits, saveSpareQuote } from "../../services
 import QuotationPanel from "./QuotationPanel";
 import ClientPriceRefModal from "./ClientPriceRefModal";
 // shadcn/ui (user, 2026-11-13: the spare quotation in the new look, branch select-shadcn).
-import { ArrowLeft, Eye, FileSpreadsheet, ListChecks, Plus, Printer, RotateCcw, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Eye, FileSpreadsheet, ListChecks, Loader2, Pencil, Plus, Printer, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
 import { Button, buttonVariants } from "@/components/shadcn/button";
 import { ConfirmDialog } from "@/components/shadcn/alert-dialog";
@@ -896,31 +899,111 @@ function TermsSection({
 }
 
 /** Tick the parts of this model from its parts list, or name others. */
+/** Picks a model's parts from its parts list (spare_part_list_items). A part named under
+ *  Others joins that list for next time; a part of the list can be corrected or deleted
+ *  (pencil / bin), as on SO to Dispatch's part drawings. Quotations keep their parts as
+ *  they were named. */
 function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: () => void; onSave: (lines: LineDraft[]) => void }) {
-  const list = partListFor(model.pumpKind);
-  const listKeys = useMemo(() => new Set(list.map((p) => partKey({ partNo: p.part_no, partName: p.part_name }))), [list]);
+  const { user } = useCurrentUser();
+  const canEdit = canEditSpareParts(user?.role);
+  const [list, setList] = useState<SparePart[] | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const listKeys = useMemo(() => new Set((list ?? []).map((p) => partKey({ partNo: p.part_no, partName: p.part_name }))), [list]);
   const [picked, setPicked] = useState<LineDraft[]>(model.lines);
   const [find, setFind] = useState("");
   const [otherNo, setOtherNo] = useState("");
   const [otherName, setOtherName] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<{ id: string; partNo: string; partName: string } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<SparePart | null>(null);
+  const [actionError, setActionError] = useState("");
 
+  useEffect(() => {
+    let cancelled = false;
+    listSpareParts(model.pumpKind)
+      .then((parts) => !cancelled && setList(parts))
+      .catch(() => !cancelled && setLoadError("Couldn't load the parts list."));
+    return () => {
+      cancelled = true;
+    };
+  }, [model.pumpKind]);
+
+  const errorText = (e: unknown, fallback: string) => (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
   const q = find.trim().toLowerCase();
   const matches = (p: { part_no: string; part_name: string }) => !q || p.part_no.toLowerCase().includes(q) || p.part_name.toLowerCase().includes(q);
-  const sections = [...new Set(list.map((p) => p.section))];
+  const parts = list ?? [];
+  const sections = [...new Set(parts.map((p) => p.section))];
+  // Picked but not in the list (deleted from it, or quoted before it was kept).
   const others = picked.filter((l) => !listKeys.has(partKey(l)));
+  const newLine = (partNo: string, partName: string): LineDraft => ({ partNo, partName, poNo: "", poDate: "", poSame: false, qty: "", unitPrice: "" });
 
   const toggle = (partNo: string, partName: string) => {
     const key = partKey({ partNo, partName });
-    setPicked((cur) => (cur.some((l) => partKey(l) === key) ? cur.filter((l) => partKey(l) !== key) : [...cur, { partNo, partName, poNo: "", poDate: "", poSame: false, qty: "", unitPrice: "" }]));
+    setPicked((cur) => (cur.some((l) => partKey(l) === key) ? cur.filter((l) => partKey(l) !== key) : [...cur, newLine(partNo, partName)]));
   };
-  const addOther = () => {
+  // A part named here joins the list for next time, and is ticked now.
+  const addOther = async () => {
     const partName = otherName.trim();
-    if (!partName) return;
+    if (!partName || adding) return;
     const partNo = otherNo.trim();
-    if (!picked.some((l) => partKey(l) === partKey({ partNo, partName }))) setPicked((cur) => [...cur, { partNo, partName, poNo: "", poDate: "", poSame: false, qty: "", unitPrice: "" }]);
+    setActionError("");
+    let item = { part_no: partNo, part_name: partName };
+    if (canEdit) {
+      setAdding(true);
+      try {
+        const saved = await addSparePart(model.pumpKind, partNo, partName);
+        item = saved;
+        setList((cur) => (cur && !cur.some((p) => p.id === saved.id) ? [...cur, saved] : cur));
+      } catch (e) {
+        setActionError(errorText(e, "Couldn't add the part to the list."));
+        setAdding(false);
+        return;
+      }
+      setAdding(false);
+    }
+    if (!picked.some((l) => partKey(l) === partKey({ partNo: item.part_no, partName: item.part_name }))) setPicked((cur) => [...cur, newLine(item.part_no, item.part_name)]);
     setOtherNo("");
     setOtherName("");
   };
+  // Corrected: ticked, it stays ticked under its new name (its qty and price kept).
+  const saveEdit = async () => {
+    if (!editing) return;
+    const was = parts.find((p) => p.id === editing.id);
+    setBusyId(editing.id);
+    setActionError("");
+    try {
+      const saved = await updateSparePart(editing.id, editing.partNo.trim(), editing.partName.trim());
+      setList((cur) => cur && cur.map((p) => (p.id === saved.id ? saved : p)));
+      if (was) {
+        const oldKey = partKey({ partNo: was.part_no, partName: was.part_name });
+        setPicked((cur) => cur.map((l) => (partKey(l) === oldKey ? { ...l, partNo: saved.part_no, partName: saved.part_name } : l)));
+      }
+      setEditing(null);
+    } catch (e) {
+      setActionError(errorText(e, "Couldn't save the part."));
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    const part = deleting;
+    setDeleting(null);
+    setBusyId(part.id);
+    setActionError("");
+    try {
+      await deleteSparePart(part.id);
+      setList((cur) => cur && cur.filter((p) => p.id !== part.id));
+    } catch (e) {
+      setActionError(errorText(e, "Couldn't delete the part."));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const smallInput = "h-7 rounded-md border border-input bg-card px-2 text-[12.5px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25";
+  const iconBtn = "rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50";
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -928,7 +1011,7 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
         <DialogHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <DialogTitle>{list.length ? "Select parts" : "Add parts"}</DialogTitle>
+              <DialogTitle>{parts.length ? "Select parts" : "Add parts"}</DialogTitle>
               <DialogDescription className="font-mono break-all">{model.code || "No code yet"}</DialogDescription>
             </div>
             <Badge tone={picked.length ? "primary" : "neutral"} className="mt-0.5 shrink-0">
@@ -937,36 +1020,106 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
           </div>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-4">
-          {list.length > 0 && (
-          <>
-          <input className={inputCls} type="search" value={find} placeholder="Find a part by name or number…" aria-label="Find a part" onChange={(e) => setFind(e.target.value)} />
-          <section className="rounded-md border border-border p-3">
-            {sections.map((sec) => {
-              const shown = list.filter((p) => p.section === sec && matches(p));
-              if (shown.length === 0) return null;
-              return (
-                <div key={sec} className="mb-3 last:mb-0">
-                  <p className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{sec}</p>
-                  <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
-                    {shown.map((p) => {
-                      const on = picked.some((l) => partKey(l) === partKey({ partNo: p.part_no, partName: p.part_name }));
-                      return (
-                        <label key={`${p.part_no}-${p.part_name}`} className={`flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-[12.5px] transition-colors ${on ? "bg-primary/6" : "hover:bg-muted"}`}>
-                          <input type="checkbox" className={checkCls} checked={on} onChange={() => toggle(p.part_no, p.part_name)} />
-                          <span className="w-[46px] shrink-0 font-mono text-[12px] text-muted-foreground">{p.part_no}</span>
-                          <span className="min-w-0 text-foreground">{p.part_name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-          </>
+          {loadError && <Alert>{loadError}</Alert>}
+          {actionError && <Alert>{actionError}</Alert>}
+          {!list && !loadError && <p className="py-4 text-center text-[13px] text-muted-foreground">Loading the parts list…</p>}
+          {parts.length > 0 && (
+            <>
+              <input className={inputCls} type="search" value={find} placeholder="Find a part by name or number…" aria-label="Find a part" onChange={(e) => setFind(e.target.value)} />
+              <section className="rounded-md border border-border p-3">
+                {sections.map((sec) => {
+                  const shown = parts.filter((p) => p.section === sec && matches(p));
+                  if (shown.length === 0) return null;
+                  return (
+                    <div key={sec} className="mb-3 last:mb-0">
+                      <p className="mb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{sec}</p>
+                      <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+                        {shown.map((p) => {
+                          if (editing?.id === p.id) {
+                            return (
+                              <div key={p.id} className="flex items-center gap-1.5 rounded-md border border-primary/40 px-2 py-1">
+                                <input
+                                  className={`${smallInput} w-[64px] font-mono`}
+                                  value={editing.partNo}
+                                  maxLength={40}
+                                  placeholder="No."
+                                  aria-label="Part No."
+                                  onChange={(e) => setEditing({ ...editing, partNo: e.target.value })}
+                                />
+                                <input
+                                  className={`${smallInput} min-w-0 flex-1`}
+                                  value={editing.partName}
+                                  maxLength={200}
+                                  aria-label="Part name"
+                                  autoFocus
+                                  onChange={(e) => setEditing({ ...editing, partName: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      void saveEdit();
+                                    } else if (e.key === "Escape") {
+                                      e.stopPropagation();
+                                      setEditing(null);
+                                    }
+                                  }}
+                                />
+                                <button type="button" className={`${iconBtn} text-success hover:text-success`} onClick={() => void saveEdit()} disabled={busyId === p.id || !editing.partName.trim()} aria-label="Save part">
+                                  {busyId === p.id ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                                </button>
+                                <button type="button" className={iconBtn} onClick={() => setEditing(null)} aria-label="Cancel">
+                                  <X className="size-4" />
+                                </button>
+                              </div>
+                            );
+                          }
+                          const on = picked.some((l) => partKey(l) === partKey({ partNo: p.part_no, partName: p.part_name }));
+                          return (
+                            <label key={p.id} className={`group flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-[12.5px] transition-colors ${on ? "bg-primary/6" : "hover:bg-muted"}`}>
+                              <input type="checkbox" className={checkCls} checked={on} onChange={() => toggle(p.part_no, p.part_name)} />
+                              <span className="w-[46px] shrink-0 font-mono text-[12px] text-muted-foreground">{p.part_no || "—"}</span>
+                              <span className="min-w-0 flex-1 text-foreground">{p.part_name}</span>
+                              {canEdit && (
+                                <span className="flex shrink-0 items-center gap-1">
+                                  <button
+                                    type="button"
+                                    className={iconBtn}
+                                    aria-label={`Edit ${p.part_name}`}
+                                    title="Edit this part in the list"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setEditing({ id: p.id, partNo: p.part_no, partName: p.part_name });
+                                    }}
+                                  >
+                                    <Pencil className="size-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`${iconBtn} hover:text-destructive`}
+                                    aria-label={`Delete ${p.part_name}`}
+                                    title="Delete this part from the list"
+                                    disabled={busyId === p.id}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setDeleting(p);
+                                    }}
+                                  >
+                                    {busyId === p.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                                  </button>
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            </>
           )}
           <section className="flex flex-col gap-2 rounded-md border border-border p-3">
-            <h4 className="text-[12.5px] font-semibold text-foreground">{list.length ? OTHER_PART_SECTION : "Add parts - part name, part no. if there is one"}</h4>
+            <h4 className="text-[12.5px] font-semibold text-foreground">{parts.length ? OTHER_PART_SECTION : "Add parts - part name, part no. if there is one"}</h4>
+            {canEdit && <p className="text-[11.5px] text-muted-foreground">A part added here joins this parts list, ready to tick next time.</p>}
             {others.map((l) => (
               <label key={partKey(l)} className="flex cursor-pointer items-center gap-2.5 rounded-md bg-primary/6 px-2 py-1 text-[12.5px]">
                 <input type="checkbox" className={checkCls} checked onChange={() => toggle(l.partNo, l.partName)} />
@@ -986,12 +1139,12 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    addOther();
+                    void addOther();
                   }
                 }}
               />
-              <button type="button" className={btn} onClick={addOther} disabled={!otherName.trim()}>
-                <Plus /> Add
+              <button type="button" className={btn} onClick={() => void addOther()} disabled={!otherName.trim() || adding}>
+                {adding ? <Loader2 className="animate-spin" /> : <Plus />} Add
               </button>
             </div>
           </section>
@@ -1002,6 +1155,15 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
           </Button>
           <Button onClick={() => onSave(picked)}>Done</Button>
         </DialogFooter>
+        <ConfirmDialog
+          open={deleting !== null}
+          title="Delete this part from the list?"
+          description={`"${deleting?.part_name ?? ""}" leaves the parts list for everyone. Quotations that already have it keep it.`}
+          confirmLabel="Delete part"
+          tone="danger"
+          onConfirm={() => void confirmDelete()}
+          onClose={() => setDeleting(null)}
+        />
       </DialogContent>
     </Dialog>
   );

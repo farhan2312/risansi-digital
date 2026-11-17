@@ -88,6 +88,9 @@ export const isCrmRole = (role: string | null | undefined): boolean => role === 
 export const CRM_PAGES = ["/dashboard", "/projects", "/pump-selection", "/client-operation-docs", "/my-bug-reports"] as const;
 /** View only everywhere: the reps and CRM (nothing to work on, nothing to copy). */
 export const isViewOnlyRole = (role: string | null | undefined): boolean => isRepRole(role) || isCrmRole(role);
+/** Add, correct and delete parts of the spare parts lists: whoever can quote a spare
+ *  (not the view-only roles or operation). */
+export const canEditSpareParts = (role: string | null | undefined): boolean => Boolean(role) && !isViewOnlyRole(role) && !isOperationRole(role);
 
 /** Operation's only pages. */
 export const OPERATION_PAGES = ["/pump-docs", "/spare-docs"] as const;
