@@ -1,6 +1,6 @@
 import { query } from "@/lib/db";
 import { assemblyDueSql, boiReceivedSql, onlyBillingSql, orderOpenSql, orderStatusSql, spareEcSql } from "@/lib/dept-view";
-import { ecDrawingDoneSql } from "@/lib/drawing-filter";
+import { ecDrawingSentSql } from "@/lib/drawing-filter";
 
 /** A cancelled or diverted order raises no escalation. `a.id` is the SO. */
 // An Only Billing SO is no department's, so nobody's alert either.
@@ -47,9 +47,9 @@ const ALERTS_SQL = `
    WHERE o.drg_readiness_date < ${TODAY_IST}
      -- A Spare EC needs no drawing, so it is never late for one.
      AND NOT (${spareEcSql("it", "o")})
-     -- Late until Drawing is done with the EC: GAD issued to Planning,
-     -- curve approved and parts drawn where asked (lib/drawing-filter).
-     AND NOT ${ecDrawingDoneSql("it", "o")}
+     -- Late until Drawing has sent what it owes: the GAD (and the curve where
+     -- asked) sent to the client, parts all drawn where asked (lib/drawing-filter).
+     AND NOT ${ecDrawingSentSql("it", "o")}
 
   UNION ALL
   -- Purchase: an EC's BOI items not all received by the target date.

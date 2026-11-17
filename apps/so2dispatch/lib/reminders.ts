@@ -1,6 +1,6 @@
 import { query } from "@/lib/db";
 import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, onlyBillingSql, releasedSql, spareEcSql } from "@/lib/dept-view";
-import { ecDrawingDoneSql } from "@/lib/drawing-filter";
+import { ecDrawingSentSql } from "@/lib/drawing-filter";
 import { isCentral, reminderDeptForRole, type ReminderDept } from "@/lib/roles";
 
 // The DB session runs in UTC, but the business operates on IST days. Deadlines
@@ -68,8 +68,8 @@ const REMINDERS_SQL = `
         WHERE it.order_id = o.id
           -- Spares need no drawing.
           AND NOT (${spareEcSql("it", "o")})
-          -- Due until Drawing is done with the EC (lib/drawing-filter).
-          AND NOT ${ecDrawingDoneSql("it", "o")}
+          -- Due until Drawing has sent what it owes on the EC (lib/drawing-filter).
+          AND NOT ${ecDrawingSentSql("it", "o")}
      )
 
   UNION ALL

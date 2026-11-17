@@ -67,6 +67,21 @@ export function ecDrawingDone(r: Row): boolean {
 }
 
 /**
+ * Drawing has sent what it owes on an EC, so it is not overdue (whether or not
+ * the client has approved yet): the GAD sent to the client, the curve too
+ * where the SO asks for one, and the part drawings all complete where asked.
+ * A Resubmit is Drawing's to send again, so still owed.
+ */
+export const GAD_SENT = [NOT_REQUIRED, "Sent to client – approval pending", "Approved by client", "Issued to planning"];
+export const CURVE_SENT = [NOT_REQUIRED, "Sent to client for approval", "Approved by client"];
+export const PART_SENT = [NOT_REQUIRED, "Fully complete"];
+
+export function ecDrawingSent(r: Row): boolean {
+  const s = ecDrawingStatuses(r);
+  return GAD_SENT.includes(s.gad) && CURVE_SENT.includes(s.curve) && PART_SENT.includes(s.part);
+}
+
+/**
  * When Drawing finished an EC: the last of its GAD issued to Planning, its
  * curve approved and its last part drawn (each where asked). "" until done.
  */
@@ -89,9 +104,14 @@ export function ecDrawingDoneDate(r: Row): string {
  * The SO's Open / Closed from all its pump ECs, and the day it closed — the
  * latest day one of its ECs was finished.
  */
-export function soDrawingState(ecs: Row[]): { closed: boolean; date: string } {
+export function soDrawingState(ecs: Row[]): { closed: boolean; date: string; sent: boolean } {
   const closed = ecs.length > 0 && ecs.every(ecDrawingDone);
-  return { closed, date: closed ? ecs.map(ecDrawingDoneDate).filter(Boolean).sort().pop() ?? "" : "" };
+  return {
+    closed,
+    date: closed ? ecs.map(ecDrawingDoneDate).filter(Boolean).sort().pop() ?? "" : "",
+    // Everything owed sent: no Overdue, however the SO stands.
+    sent: ecs.every(ecDrawingSent),
+  };
 }
 
 /** The EC row matches the EC-level filters (an empty list matches all). */
@@ -175,6 +195,13 @@ export function ecDrawingLine(f: Pick<DrawingFilter, "gad" | "part">): string {
 }
 
 /** Drawing is done with an EC (alias it, its SO o): the SQL twin of ecDrawingDone. */
+/** SQL twin of ecDrawingSent: Drawing owes nothing more on the EC, so it is not overdue. */
+export function ecDrawingSentSql(it: string, o: string): string {
+  return `(${inList(docStatusSql(it, "GAD"), GAD_SENT)}
+           AND ${inList(curveStatusSql(it, o), CURVE_SENT)}
+           AND ${inList(partStatusSql(it), PART_SENT)})`;
+}
+
 export function ecDrawingDoneSql(it: string, o: string): string {
   return ecDoneSql(it, o);
 }

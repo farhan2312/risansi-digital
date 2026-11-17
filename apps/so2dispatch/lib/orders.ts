@@ -57,7 +57,7 @@ import {
   type PageResult,
   pageWithTotal,
 } from "@/lib/pagination";
-import { ecDrawingDoneSql, ecGadStatusSql } from "@/lib/drawing-filter";
+import { ecDrawingDoneSql, ecDrawingSentSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, qcEcReadySql, soQcStateSql } from "@/lib/qc-filter";
 import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql } from "@/lib/assembly";
@@ -3692,8 +3692,15 @@ function deptOverdueOwn(dept: DeptFilterKey): string {
                     WHERE it.order_id = o.id
                       AND ${assemblyDueSql("it")} < ${TODAY_IST})`;
   }
-  // Drawing is late against its own readiness date only (none set, not late).
-  const column = dept === "drawing" ? "o.drg_readiness_date" : DEPT_TARGET_COLUMN[dept];
+  // Drawing is late against its own readiness date only (none set, not late),
+  // while an EC still waits on it to send its GAD, curve (where asked) or part
+  // drawings — not on the client's approval, nor the SO's Open / Closed.
+  if (dept === "drawing") {
+    return `(o.drg_readiness_date < ${TODAY_IST}
+             AND EXISTS (SELECT 1 FROM order_items it
+                          WHERE it.order_id = o.id AND NOT (${NO_DRG}) AND NOT ${ecDrawingSentSql("it", "o")}))`;
+  }
+  const column = DEPT_TARGET_COLUMN[dept];
   if (!column) return "FALSE";
   const outstanding = isPerEcDept(dept)
     ? `EXISTS (SELECT 1 FROM order_items it
