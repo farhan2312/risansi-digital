@@ -3462,3 +3462,6 @@ ALTER TABLE order_items ADD CONSTRAINT order_items_gad_required_check CHECK (gad
 
 -- Part drawing: each part's DOCs link (SharePoint), given by Drawing.
 ALTER TABLE order_part_drawings ADD COLUMN IF NOT EXISTS doc_link TEXT;
+
+-- GAD not required: Drawing's remark on why (order_items.gad_remarks).
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS gad_remarks TEXT;

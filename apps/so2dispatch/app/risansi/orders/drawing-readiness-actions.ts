@@ -169,15 +169,20 @@ export async function applyDrawingVersionToSoAction(
  * Drawing says an EC needs no GAD (or needs one after all): its GAD reads Not
  * required and counts as done for Drawing. Drawing (and Central / Admin) only.
  */
-export async function setGadRequiredAction(itemId: string, required: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function setGadRequiredAction(
+  itemId: string,
+  required: boolean,
+  /** Why it needs none (kept while not required; cleared when required again). */
+  remarks?: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
   if (!canEditChild(user.role, "order_drawing_revisions")) return { ok: false, error: "Only Drawing sets whether a GAD is needed." };
   if (!/^[0-9a-f-]{36}$/i.test(itemId)) return { ok: false, error: "EC not found." };
   const r = await query<{ ec_no: string | null; so_no: string | null }>(
-    `UPDATE order_items it SET gad_required = $2 FROM orders o
+    `UPDATE order_items it SET gad_required = $2, gad_remarks = NULLIF($3, '') FROM orders o
       WHERE it.id = $1 AND o.id = it.order_id RETURNING it.ec_no, o.so_no`,
-    [itemId, required ? null : "No"]
+    [itemId, required ? null : "No", required ? "" : String(remarks ?? "").trim().slice(0, 1000)]
   );
   const row = r.rows[0];
   if (!row) return { ok: false, error: "EC not found." };
@@ -186,7 +191,7 @@ export async function setGadRequiredAction(itemId: string, required: boolean): P
     action: "order.update",
     category: "activity",
     target: row.ec_no ?? "EC",
-    details: `${row.ec_no ?? "EC"} of ${row.so_no ?? "SO"}: GAD ${required ? "required" : "not required"}`,
+    details: `${row.ec_no ?? "EC"} of ${row.so_no ?? "SO"}: GAD ${required ? "required" : "not required"}${!required && String(remarks ?? "").trim() ? ` (${String(remarks).trim().slice(0, 200)})` : ""}`,
   });
   revalidatePath("/risansi/departments/drawing");
   revalidatePath("/risansi/departments/planning");

@@ -536,6 +536,9 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // GAD not required: the form open, and its remark as typed (null: untouched).
+  const [marking, setMarking] = useState(false);
+  const [gadRemark, setGadRemark] = useState<string | null>(null);
   const shown = versions.find((v) => str(v.id) === picked) ?? versions[versions.length - 1];
   const latest = versions[versions.length - 1];
   // A new version follows a resubmit; the first one starts the document.
@@ -556,20 +559,53 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
 
   // GAD only: Drawing may say this EC needs none.
   const gadOff = doc === "GAD" && str(ec.gad_required) === "No";
-  async function setGadRequired(required: boolean) {
+  async function setGadRequired(required: boolean, remarks?: string) {
     setBusy(true);
     setError(null);
-    const res = await setGadRequiredAction(str(ec.id), required);
+    const res = await setGadRequiredAction(str(ec.id), required, remarks);
     setBusy(false);
     if (!res.ok) setError(res.error);
-    else router.refresh();
+    else {
+      setMarking(false);
+      setGadRemark(null);
+      router.refresh();
+    }
   }
   if (gadOff) {
+    const savedRemark = str(ec.gad_remarks);
     return (
       <div className="space-y-3">
         <p className="rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground">
           <span className="font-semibold">GAD not required</span> for this EC — nothing to send; it counts as done for Drawing.
         </p>
+        {/* Why it needs none: Drawing's remark, editable while it stays not required. */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Remarks</label>
+          {canEdit ? (
+            <div className="flex flex-wrap items-start gap-2">
+              <textarea
+                value={gadRemark ?? savedRemark}
+                onChange={(e) => setGadRemark(e.target.value)}
+                rows={2}
+                placeholder="Why the GAD is not required"
+                className="min-w-[16rem] flex-1 rounded-lg border border-input-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+              />
+              {gadRemark !== null && gadRemark.trim() !== savedRemark && (
+                <button
+                  type="button"
+                  onClick={() => setGadRequired(false, gadRemark)}
+                  disabled={busy}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+                >
+                  {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save remark
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap text-sm text-foreground">{savedRemark || "—"}</p>
+          )}
+        </div>
         {canEdit && (
           <button
             type="button"
@@ -588,16 +624,52 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
 
   return (
     <div className="space-y-4">
-      {doc === "GAD" && canEdit && (
+      {doc === "GAD" && canEdit && !marking && (
         <div className="flex justify-end">
           <button
             type="button"
-            onClick={() => confirm("Mark this EC's GAD as not required? It then counts as done for Drawing.") && setGadRequired(false)}
+            onClick={() => setMarking(true)}
             disabled={busy}
             className="text-xs font-medium text-muted underline-offset-2 hover:text-foreground hover:underline disabled:opacity-60"
           >
             GAD not required for this EC
           </button>
+        </div>
+      )}
+      {/* Marking it not required: a remark on why, then confirm. */}
+      {doc === "GAD" && canEdit && marking && (
+        <div className="space-y-2 rounded-lg border border-card-border bg-background p-3">
+          <p className="text-sm text-foreground">Mark this EC&apos;s GAD as not required? It then counts as done for Drawing.</p>
+          <textarea
+            autoFocus
+            value={gadRemark ?? ""}
+            onChange={(e) => setGadRemark(e.target.value)}
+            rows={2}
+            placeholder="Remarks — why the GAD is not required (optional)"
+            className="w-full rounded-lg border border-input-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMarking(false);
+                setGadRemark(null);
+              }}
+              disabled={busy}
+              className="inline-flex h-9 items-center rounded-lg border border-input-border px-3 text-sm font-medium text-foreground hover:bg-surface disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => setGadRequired(false, gadRemark ?? "")}
+              disabled={busy}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+            >
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              Mark not required
+            </button>
+          </div>
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
