@@ -3,6 +3,7 @@ import type { SavedDocs } from "../lib/saved-docs";
 import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
 import type { EnquiryCategory } from "../lib/enquiry-fields";
+import type { DocLinks } from "../lib/doc-links";
 import { filterParams, type EnquiryFilters, sortParam, type EnquirySort } from "../lib/enquiry-filters";
 
 // Matches projectToDict() in lib/api.ts — raw snake_case columns plus the
@@ -35,6 +36,8 @@ export interface ProjectRecord {
   order_subtype: string;
   /** "regular" | "project"; a Project enquiry has remarks. */
   enquiry_category: string;
+  /** The client's documents are SharePoint links, not generated (lib/doc-links.ts). */
+  non_standard_format: boolean;
   /** Lists: the Commercial status - Completed when Technical is Completed, every
    *  tag has a P&A price and the quotations are sent to the client, or what was
    *  picked on the Edit form. */
@@ -163,6 +166,7 @@ export interface CreateProjectInput {
   enquiryCategory: EnquiryCategory;
   /** Required when the category is Project. */
   remarks: string;
+  nonStandardFormat: boolean;
   /** User id; the creator when empty. */
   assignedTo: string;
   clientPrimaryRep: string;
@@ -203,6 +207,7 @@ export interface UpdateProjectInput {
   orderType?: OrderType;
   orderSubtype?: OrderSubtype;
   enquiryCategory?: EnquiryCategory;
+  nonStandardFormat?: boolean;
   clientPrimaryRep?: string;
   clientSecondaryReps?: string;
   clientMarketType?: string;
@@ -264,6 +269,12 @@ export const assignProject = async (
 export const getReviewState = async (projectId: string): Promise<{ missing: string | null; docs: SavedDocs }> => {
   const { data } = await apiClient.get<{ missing: string | null; docs: SavedDocs }>(`/projects/${projectId}/review`);
   return data;
+};
+
+/** Non-standard format: the SharePoint links of this version's documents ("" clears one). */
+export const saveDocLinks = async (projectId: string, links: DocLinks): Promise<DocLinks> => {
+  const { data } = await apiClient.put<{ links: DocLinks }>(`/projects/${projectId}/doc-links`, links);
+  return data.links;
 };
 
 /** Marks the saved versions as reviewed, then records them as sent to operation. */

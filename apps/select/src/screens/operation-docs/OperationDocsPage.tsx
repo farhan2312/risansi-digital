@@ -11,7 +11,7 @@ import { isOperationRole } from "../../lib/roles";
 import type { OperationDoc, SavedDocs } from "../../lib/saved-docs";
 import { TECHNO_COMMERCIAL_TITLE } from "../../lib/techno-commercial";
 import { getOperationDocs, listOperationDocs, markOperationDocMailed } from "../../services/operationDocsService";
-import { CircleAlert, Eye, Mail, Search, X } from "lucide-react";
+import { CircleAlert, ExternalLink, Eye, Mail, Search, X } from "lucide-react";
 // shadcn/ui (user, 2026-11-13: the new look, branch select-shadcn).
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -363,8 +363,24 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
                     </td>
                     {docColumns.map((c) => (
                       <td key={c.label} className={td}>
-                        {/* No Technical Data Sheet saved means no Techno-Commercial either. */}
-                        {c.key !== "commercial" && !r.hasTechnical ? (
+                        {/* Non-standard format: the file made by hand, on SharePoint. */}
+                        {r.nonStandard ? (
+                          r.links[c.key] ? (
+                            <a
+                              href={r.links[c.key]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Non-standard format: opens the SharePoint file"
+                              aria-label={`${c.label} V${r.version} of ${r.projectCode} (SharePoint)`}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12.5px] font-medium whitespace-nowrap text-foreground shadow-xs hover:bg-muted"
+                            >
+                              <ExternalLink className="size-3.5" /> SharePoint
+                            </a>
+                          ) : (
+                            <span className="text-[12.5px] text-muted-foreground">—</span>
+                          )
+                        ) : /* No Technical Data Sheet saved means no Techno-Commercial either. */
+                        c.key !== "commercial" && !r.hasTechnical ? (
                           <span className="text-[12.5px] text-muted-foreground">—</span>
                         ) : (
                           <Button

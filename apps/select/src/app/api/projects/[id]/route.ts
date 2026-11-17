@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { enquiryTags, projects, quotation, quotationVersion, users } from "@/lib/db/schema";
 import { PROJECT_REMARKS_REQUIRED, clientDetailsFrom, enquiryCategoryFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 import { ENQUIRY_STATUSES, versionReady } from "@/lib/enquiry-filters";
-import { enquiryStatusColumns } from "@/lib/enquiry-filters-server";
+import { REVIEW_CLEARED, enquiryStatusColumns } from "@/lib/enquiry-filters-server";
 import { versionLocked, viewDenied } from "@/lib/enquiry-access";
 
 const assignee = alias(users, "assignee");
@@ -184,6 +184,13 @@ export async function PATCH(
     const category = patch.enquiryCategory ?? cur.category;
     const remarks = "remarks" in body ? patch.remarks : cur.remarks;
     if (category === "project" && !remarks?.trim()) return error(PROJECT_REMARKS_REQUIRED, 400);
+  }
+  if ("nonStandardFormat" in body) {
+    if (typeof body.nonStandardFormat !== "boolean") return error("'nonStandardFormat' must be true or false", 400);
+    const [cur] = await db.select({ was: projects.nonStandardFormat }).from(projects).where(eq(projects.id, id)).limit(1);
+    if (!cur) return error("Project not found", 404);
+    // What the client gets changes (generated or SharePoint), so it is reviewed and sent again.
+    if (cur.was !== body.nonStandardFormat) Object.assign(patch, { nonStandardFormat: body.nonStandardFormat }, REVIEW_CLEARED);
   }
   Object.assign(patch, clientDetailsFrom(body));
   // A quotation is made for one kind of order, so the kind stays once there is one.

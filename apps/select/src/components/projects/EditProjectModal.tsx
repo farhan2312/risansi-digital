@@ -6,6 +6,7 @@ import {
   EMPTY_CLIENT,
   EnquiryCategoryFields,
   Field,
+  NonStandardFormatField,
   ModalShell,
   OrderTypePicker,
   Section,
@@ -40,6 +41,7 @@ type Props = {
       orderSubtype: OrderSubtype;
       enquiryCategory: EnquiryCategory;
       remarks: string;
+      nonStandardFormat: boolean;
     } & ClientForm,
   ) => void;
   /** A new version was made from this enquiry (the form's New version section). */
@@ -120,6 +122,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
   const [orderSubtype, setOrderSubtype] = useState<OrderSubtype>("pcp");
   const [category, setCategory] = useState<EnquiryCategory>("regular");
   const [remarks, setRemarks] = useState("");
+  const [nonStandard, setNonStandard] = useState(false);
   const [creatingVersion, setCreatingVersion] = useState(false);
 
   // Re-seed the fields whenever a different project is opened for editing.
@@ -137,6 +140,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
     setOrderSubtype(subtypeOf(project, t));
     setCategory(categoryOf(project));
     setRemarks(project.remarks ?? "");
+    setNonStandard(Boolean(project.non_standard_format));
   }, [project]);
 
   if (!isOpen || !project) return null;
@@ -166,6 +170,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
     orderSubtype !== subtypeOf(project, savedType) ||
     category !== categoryOf(project) ||
     remarks.trim() !== (project.remarks ?? "").trim() ||
+    nonStandard !== Boolean(project.non_standard_format) ||
     (Object.keys(savedClient) as (keyof ClientForm)[]).some((k) => (client[k] ?? "") !== savedClient[k]);
 
   return (
@@ -199,6 +204,7 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
                 orderSubtype,
                 enquiryCategory: category,
                 remarks: remarks.trim(),
+                nonStandardFormat: nonStandard,
                 ...client,
               })
             }
@@ -256,6 +262,16 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
           onDay={setCommercialCompletedOn}
         />
         <EnquiryCategoryFields category={category} remarks={remarks} showErrors onCategory={setCategory} onRemarks={setRemarks} />
+        <NonStandardFormatField
+          value={nonStandard}
+          isSpare={orderType === "spare"}
+          onChange={setNonStandard}
+          hint={
+            nonStandard !== Boolean(project.non_standard_format) && (project.reviewed_at || project.released_to_operation_at)
+              ? "Changing this means the version is reviewed and sent to operation again."
+              : undefined
+          }
+        />
       </Section>
 
       {/* Keyed by enquiry so each edit starts with fresh choices. */}

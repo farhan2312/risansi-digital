@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CircleCheck, Send, X } from "lucide-react";
 
 import { Button } from "@/components/shadcn/button";
+import DocLinksForm from "./DocLinksForm";
 import SavedDocsViewer from "./SavedDocsViewer";
 import type { SavedDocs } from "../../lib/saved-docs";
 import { getReviewState, reviewEnquiry, type ProjectRecord } from "../../services/projectService";
@@ -32,6 +33,8 @@ export default function EnquiryReviewModal({
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
+  // Bumped after the links are saved: what is missing, and the viewer, follow them.
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     let cancelled = false;
     getReviewState(project.id)
@@ -44,7 +47,7 @@ export default function EnquiryReviewModal({
     return () => {
       cancelled = true;
     };
-  }, [project.id]);
+  }, [project.id, reload]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -100,7 +103,20 @@ export default function EnquiryReviewModal({
             </p>
           )}
           {!docs && !loadError && <p className="py-8 text-center text-[13px] text-muted-foreground">Loading…</p>}
-          {docs && <SavedDocsViewer docs={docs} />}
+          {docs?.nonStandard && (
+            <DocLinksForm
+              projectId={project.id}
+              orderType={docs.orderType}
+              links={docs.links}
+              wasReviewed={Boolean(project.reviewed_at || project.released_to_operation_at)}
+              onSaved={(links, changed) => {
+                setDocs({ ...docs, links });
+                if (changed) onChanged({ reviewed_at: null, released_to_operation_at: null });
+                setReload((n) => n + 1);
+              }}
+            />
+          )}
+          {docs && <SavedDocsViewer key={JSON.stringify(docs.links)} docs={docs} />}
         </div>
 
         <footer className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-border bg-muted/40 px-5 py-3">

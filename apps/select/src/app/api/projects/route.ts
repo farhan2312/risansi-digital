@@ -224,6 +224,7 @@ export async function POST(req: Request) {
         enquiryDate,
         remarks: remarks || null,
         enquiryCategory,
+        nonStandardFormat: body.nonStandardFormat === true,
         clientCode: (body.clientCode as string) ?? "Pending",
         // New projects start "Pending" — flips to "In Progress" once General
         // Information is saved, "Completed" once the final report is generated.

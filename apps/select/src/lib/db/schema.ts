@@ -97,6 +97,12 @@ export const projects = pgTable("projects", {
   /** "regular" | "project" (CHECK; user, 2026-11-17). Project needs remarks.
    *  Older enquiries default to regular. */
   enquiryCategory: varchar("enquiry_category", { length: 20 }).notNull().default("regular"),
+  /** Non-standard format (user, 2026-11-17): the client's documents are made by hand
+   *  and linked from SharePoint (doc_links) instead of generated - lib/doc-links.ts.
+   *  Carried to a new version; the links are not. */
+  nonStandardFormat: boolean("non_standard_format").notNull().default(false),
+  /** {technical?, commercial?, techno?}: SharePoint links, a spare's quotation as commercial. */
+  docLinks: jsonb("doc_links").$type<Record<string, string>>(),
   /** Two statuses, each worked out automatically (lib/enquiry-filters-server.ts)
    *  but editable on the Edit form (user, 2026-11-03). The override is set only
    *  when what was picked there differs from the automatic status. */

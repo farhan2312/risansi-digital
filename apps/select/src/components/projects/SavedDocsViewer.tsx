@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileX, Printer } from "lucide-react";
+import { ExternalLink, FileX, Printer } from "lucide-react";
 
 import { Button } from "@/components/shadcn/button";
 import PrintPageSizeSelect, { usePrintPageSize } from "../reports/PrintPageSize";
@@ -24,6 +24,31 @@ const DOCS: { key: SavedDocKind; label: string }[] = [
   { key: "techno", label: TECHNO_COMMERCIAL_TITLE },
 ];
 
+/** Non-standard format: the file made by hand, on SharePoint, for the picked document. */
+function LinkedDoc({ label, url }: { label: string; url?: string }) {
+  return url ? (
+    <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-muted/30 px-4 py-10 text-center">
+      <p className="text-[13px] text-muted-foreground">
+        Non-standard format: the client's <strong className="font-semibold text-foreground">{label}</strong> document was made by hand and is on SharePoint.
+      </p>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+      >
+        <ExternalLink className="size-4" /> Open {label} in SharePoint
+      </a>
+      <span className="max-w-full font-mono text-[11px] break-all text-muted-foreground">{url}</span>
+    </div>
+  ) : (
+    <p className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-[13px] text-muted-foreground">
+      <FileX className="size-5 text-muted-foreground/70" />
+      Non-standard format: no SharePoint link for {label} yet.
+    </p>
+  );
+}
+
 export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { docs: SavedDocs; /** Opens on this one. */ initialDoc?: SavedDocKind }) {
   const isSpare = docs.orderType === "spare";
   const [activeGroup, setActiveGroup] = useState<TechDocGroup | null>(null);
@@ -31,15 +56,17 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
   const [printing, setPrinting] = useState(false);
   const [pageSize, setPageSize] = usePrintPageSize();
 
+  const linked = docs.nonStandard;
   const current = docs.groups.find((g) => g.group === activeGroup) ?? docs.groups[0] ?? null;
   const html = useMemo(() => {
+    if (linked) return "";
     const logo = `${window.location.origin}/logo.png`;
     if (isSpare) return docs.spare ? buildSpareQuoteHtml(docs.spare, logo) : "";
     if (!current) return "";
     if (doc === "technical") return current.tech ? buildTechDocHtml(current.tech, logo) : "";
     if (doc === "commercial") return current.offer ? buildOfferHtml(current.offer, logo) : "";
     return current.tech && current.offer ? buildTechnoCommercialHtml(current.tech, current.offer, logo) : "";
-  }, [isSpare, docs.spare, current, doc]);
+  }, [linked, isSpare, docs.spare, current, doc]);
 
   const emptyText = isSpare
     ? "The quotation has no saved version yet. Use Save Version on the Quotation page."
@@ -79,7 +106,7 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
             ))}
           </div>
         )}
-        {docs.groups.length > 1 && (
+        {!linked && docs.groups.length > 1 && (
           <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Drive system">
             {docs.groups.map((g) => (
               <button
@@ -99,14 +126,18 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
             ))}
           </div>
         )}
-        <span className="ml-auto flex flex-wrap items-center gap-2">
-          <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
-          <Button variant="outline" disabled={!html || printing} onClick={() => void handlePrint()}>
-            <Printer /> {printing ? "Preparing…" : "Print / Save as PDF"}
-          </Button>
-        </span>
+        {!linked && (
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
+            <Button variant="outline" disabled={!html || printing} onClick={() => void handlePrint()}>
+              <Printer /> {printing ? "Preparing…" : "Print / Save as PDF"}
+            </Button>
+          </span>
+        )}
       </div>
-      {html ? (
+      {linked ? (
+        <LinkedDoc label={isSpare ? "Quotation" : (DOCS.find((d) => d.key === doc)?.label ?? "")} url={docs.links[isSpare ? "commercial" : doc]} />
+      ) : html ? (
         <iframe
           title={isSpare ? "Quotation" : DOCS.find((d) => d.key === doc)?.label}
           srcDoc={html}

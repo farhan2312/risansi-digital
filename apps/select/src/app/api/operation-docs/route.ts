@@ -9,6 +9,7 @@ import { projects, quotation, quotationVersion, techDocVersion, users } from "@/
 import { canSeeOperationDocs, orderSubtypeLabel } from "@/lib/roles";
 import type { OperationDoc } from "@/lib/saved-docs";
 import { dotDate } from "@/lib/tech-doc";
+import { normalizeDocLinks } from "@/lib/doc-links";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,8 @@ export async function GET(req: Request) {
       mailedByName: mailer.name,
       // A pump other than PCP may have no Technical Data Sheet to save.
       hasTechnical: sql<boolean>`exists (select 1 from ${techDocVersion} s where s.project_id = ${projects.id})`,
+      nonStandard: projects.nonStandardFormat,
+      links: projects.docLinks,
     })
     .from(projects)
     .leftJoin(reviewer, eq(reviewer.id, projects.reviewedBy))
@@ -93,8 +96,9 @@ export async function GET(req: Request) {
     .orderBy(desc(projects.releasedToOperationAt));
 
   const quotations = await savedQuotationLines(rows.map((r) => r.id));
-  const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, subtype, ...r }) => ({
+  const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, subtype, links, ...r }) => ({
     ...r,
+    links: r.nonStandard ? normalizeDocLinks(links) : {},
     subtype: orderSubtypeLabel(subtype),
     quotations: typedOnSpareDoc ? [typedOnSpareDoc] : (quotations.get(r.id) ?? []),
     version: type === "spare" ? commercialVersion : version,

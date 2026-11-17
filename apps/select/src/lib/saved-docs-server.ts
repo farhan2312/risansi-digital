@@ -10,6 +10,7 @@ import { projectDriveGroups } from "./commercial-server";
 import { db } from "./db";
 import { projects, quotation, quotationVersion, techDocVersion } from "./db/schema";
 import type { SavedDocs, SavedGroupDocs } from "./saved-docs";
+import { normalizeDocLinks } from "./doc-links";
 import { normalizeSpareDocEdits, normalizeSpareQuote } from "./spare-quote";
 import { termsMarketOf } from "./spare-terms";
 import { dotDate, visibleTags, type TechDocGroup, type TechDocSheet } from "./tech-doc";
@@ -26,11 +27,14 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
       market: projects.clientMarketType,
       quote: projects.spareQuote,
       docEdits: projects.spareDocEdits,
+      nonStandard: projects.nonStandardFormat,
+      links: projects.docLinks,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
   if (!p) return null;
+  const format = { nonStandard: p.nonStandard, links: p.nonStandard ? normalizeDocLinks(p.links) : {} };
 
   const quotes = await db.select().from(quotation).where(eq(quotation.projectId, projectId));
   const clientRows = quotes.length
@@ -51,6 +55,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
     const keptSnap = q ? (savedOn(q.id)?.snapshot as QuotationSnapshot | undefined) : undefined;
     const kept = keptSnap?.spare;
     return {
+      ...format,
       orderType: "spare",
       groups: [],
       spare:
@@ -132,5 +137,5 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
   for (const s of sheets) {
     if (!groups.some((g) => g.group === s.group)) groups.push({ group: s.group as TechDocGroup, tech: sheetOf(s.group), offer: null });
   }
-  return { orderType: "pump", groups, spare: null };
+  return { ...format, orderType: "pump", groups, spare: null };
 }

@@ -9,12 +9,26 @@ import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion, techDocVersion } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
 import { loadSavedDocs } from "@/lib/saved-docs-server";
+import { missingDocLinks, normalizeDocLinks } from "@/lib/doc-links";
 import { techDocGroups, techDocSheet } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
 
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f-]{36}$/i;
+
+/** What still needs doing before this enquiry version can be reviewed, or null: Save
+ *  Version (it still records the sheets and prices), then, for a non-standard format,
+ *  the SharePoint links of the documents made by hand. */
+async function notReady(projectId: string): Promise<string | null> {
+  const [p] = await db
+    .select({ orderType: projects.orderType, nonStandard: projects.nonStandardFormat, links: projects.docLinks })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!p) return "Project not found";
+  return (await notSaved(projectId, p.orderType)) ?? (p.nonStandard ? missingDocLinks(p.orderType, normalizeDocLinks(p.links)) : null);
+}
 
 /** What still needs Save Version before this enquiry version can be reviewed, or null. */
 async function notSaved(projectId: string, orderType: string): Promise<string | null> {
@@ -44,9 +58,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!UUID.test(id)) return error("Invalid project id", 400);
   const notYours = await viewDenied(req, { projectId: id });
   if (notYours) return notYours;
-  const [p] = await db.select({ orderType: projects.orderType }).from(projects).where(eq(projects.id, id)).limit(1);
+  const [p] = await db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).limit(1);
   if (!p) return error("Project not found", 404);
-  const [missing, docs] = await Promise.all([notSaved(id, p.orderType), loadSavedDocs(id)]);
+  const [missing, docs] = await Promise.all([notReady(id), loadSavedDocs(id)]);
   return json({ missing, docs });
 }
 
@@ -93,7 +107,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const now = new Date();
   if (action === "reviewed") {
     if (p.reviewedAt) return error("This version is already reviewed.", 409);
-    const missing = await notSaved(id, p.orderType);
+    const missing = await notReady(id);
     if (missing) return error(missing, 409);
     await db.update(projects).set({ reviewedAt: now, reviewedBy: who }).where(eq(projects.id, id));
   } else {

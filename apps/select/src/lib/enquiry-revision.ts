@@ -99,6 +99,8 @@ export async function createRevision(
         reportFilename: null,
         reportGeneratedAt: null,
         reportSummary: null,
+        // Non-standard format carries on; this version's files are linked again.
+        docLinks: null,
       })
       .returning();
 
