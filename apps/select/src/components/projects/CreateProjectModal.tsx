@@ -96,7 +96,8 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
       orderType,
       orderSubtype,
       enquiryCategory: category,
-      remarks: remarks.trim(),
+      // Only a Project has its details.
+      remarks: category === "project" ? remarks.trim() : "",
       assignedTo,
       ...client,
     });

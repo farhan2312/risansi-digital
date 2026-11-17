@@ -199,7 +199,8 @@ export const projects = pgTable("projects", {
    *  never silently re-prices a quote. */
   usdInrRate: numeric("usd_inr_rate", { precision: 12, scale: 4 }),
 }, (t) => [
-  unique("projects_project_code_version_no_key").on(t.projectCode, t.versionNo),
+  // An enquiry no. once for a pump and once for a spare (user, 2026-11-17), each with its versions.
+  unique("projects_project_code_order_type_version_no_key").on(t.projectCode, t.orderType, t.versionNo),
   unique("projects_root_project_id_version_no_key").on(t.rootProjectId, t.versionNo),
 ]);
 

@@ -231,8 +231,11 @@ export async function PATCH(
       return row;
     });
   } catch (e) {
+    // An enquiry no. once per order type (a pump and a spare may share it).
     if (isUniqueViolation(e)) {
-      return error(`Enquiry no. "${patch.projectCode}" already exists`, 409);
+      const [cur] = await db.select({ code: projects.projectCode, orderType: projects.orderType }).from(projects).where(eq(projects.id, id)).limit(1);
+      const type = (patch.orderType ?? cur?.orderType) === "spare" ? "spare" : "pump";
+      return error(`A ${type} enquiry with no. "${patch.projectCode ?? cur?.code ?? ""}" already exists`, 409);
     }
     throw e;
   }

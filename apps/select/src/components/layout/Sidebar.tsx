@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import "./Sidebar.css";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import SidebarUserMenu from "./SidebarUserMenu";
@@ -17,23 +18,48 @@ import {
 } from "./navLinks";
 import { canApprove } from "../../lib/approval";
 
+/** Collapsed to its icons (user, 2026-11-17), remembered on this browser. */
+const COLLAPSED_KEY = "sidebar-collapsed";
+
 const Sidebar = () => {
   const pathname = usePathname();
   const { user } = useCurrentUser();
+  // Read after mount, so the server's render (always open) matches the first paint.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
+  }, []);
+  const toggle = () =>
+    setCollapsed((c) => {
+      localStorage.setItem(COLLAPSED_KEY, c ? "0" : "1");
+      return !c;
+    });
 
+  // Collapsed: the icon only, its name on hover.
   const navLink = (href: string, label: string, ic: ReactNode) => (
-    <Link key={href} href={href} className={pathname === href ? "active-link" : ""}>
+    <Link key={href} href={href} className={pathname === href ? "active-link" : ""} title={collapsed ? label : undefined} aria-label={collapsed ? label : undefined}>
       {ic}
       <span>{label}</span>
     </Link>
   );
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="logo">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Risansi Industries" className="sidebar-logo" />
+        <img src={collapsed ? "/icon.png" : "/logo.png"} alt="Risansi Industries" className="sidebar-logo" />
       </div>
+
+      <button
+        type="button"
+        className="sidebar-toggle"
+        onClick={toggle}
+        aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
+        title={collapsed ? "Expand" : "Collapse"}
+      >
+        {collapsed ? <PanelLeftOpen className="nav-icon" /> : <PanelLeftClose className="nav-icon" />}
+        <span>Collapse</span>
+      </button>
 
       <nav className="flex-1">
         <p className="sidebar-group-label">Main</p>
@@ -78,7 +104,7 @@ const Sidebar = () => {
         )}
       </nav>
 
-      <SidebarUserMenu />
+      <SidebarUserMenu collapsed={collapsed} />
     </aside>
   );
 };

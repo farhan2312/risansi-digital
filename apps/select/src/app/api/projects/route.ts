@@ -240,10 +240,10 @@ export async function POST(req: Request) {
       })
       .returning();
   } catch (e) {
-    // unique_violation on project_code (the DB constraint enforces Enquiry-no.
-    // uniqueness; the client sees a friendly 409 rather than a 500).
+    // unique_violation on (project_code, order_type, version_no): an enquiry no. once per
+    // order type - one pump and one spare may share it. A friendly 409, not a 500.
     if (isUniqueViolation(e)) {
-      return error(`Enquiry no. "${projectCode}" already exists`, 409);
+      return error(`A ${orderType === "spare" ? "spare" : "pump"} enquiry with no. "${projectCode}" already exists`, 409);
     }
     throw e;
   }
