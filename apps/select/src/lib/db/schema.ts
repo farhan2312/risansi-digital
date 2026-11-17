@@ -68,6 +68,22 @@ export const users = pgTable("users_pump", {
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
+/** The parts lists a spare quotation's part picker ticks from (user, 2026-11-17), as SO to
+ *  Dispatch keeps its own: PCP (Screw pump), MMP (Rota pump), OTHER (the "Others - type
+ *  the parts" kind). Seeded from lib/spare-parts.ts; a part named under Others joins its
+ *  model's list for next time; every part can be corrected or deleted. A quotation keeps
+ *  its parts as they were named. Unique per list on lower(btrim(name)), lower(btrim(no)). */
+export const sparePartListItems = pgTable("spare_part_list_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  list: varchar("list", { length: 10 }).notNull(),
+  section: text("section").notNull(),
+  partNo: text("part_no").notNull().default(""),
+  partName: text("part_name").notNull(),
+  seq: integer("seq").notNull().default(0),
+  updatedBy: uuid("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   /** The Enquiry no. Every version of an enquiry has the same one. */
