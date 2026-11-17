@@ -317,7 +317,8 @@ export function DrawingWorkspace({
                                     >
                                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
                                     </PendencyCell>
-                                    <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />
+                                    {/* Overdue while Drawing still owes something (GAD / curve not sent, parts not all drawn). */}
+                                    {!g.head.so_drawing_sent && <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />}
                                   </span>
                                 )}
                               </td>

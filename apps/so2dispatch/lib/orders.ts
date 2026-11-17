@@ -57,7 +57,7 @@ import {
   type PageResult,
   pageWithTotal,
 } from "@/lib/pagination";
-import { ecDrawingDoneSql, ecGadStatusSql } from "@/lib/drawing-filter";
+import { ecDrawingDoneSql, ecDrawingSentSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, qcEcReadySql, soQcStateSql } from "@/lib/qc-filter";
 import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql } from "@/lib/assembly";
@@ -3692,8 +3692,15 @@ function deptOverdueOwn(dept: DeptFilterKey): string {
                     WHERE it.order_id = o.id
                       AND ${assemblyDueSql("it")} < ${TODAY_IST})`;
   }
-  // Drawing is late against its own readiness date only (none set, not late).
-  const column = dept === "drawing" ? "o.drg_readiness_date" : DEPT_TARGET_COLUMN[dept];
+  // Drawing is late against its own readiness date only (none set, not late),
+  // while an EC still waits on it to send its GAD, curve (where asked) or part
+  // drawings — not on the client's approval, nor the SO's Open / Closed.
+  if (dept === "drawing") {
+    return `(o.drg_readiness_date < ${TODAY_IST}
+             AND EXISTS (SELECT 1 FROM order_items it
+                          WHERE it.order_id = o.id AND NOT (${NO_DRG}) AND NOT ${ecDrawingSentSql("it", "o")}))`;
+  }
+  const column = DEPT_TARGET_COLUMN[dept];
   if (!column) return "FALSE";
   const outstanding = isPerEcDept(dept)
     ? `EXISTS (SELECT 1 FROM order_items it
@@ -3858,6 +3865,13 @@ function orderListClauses(
   if (f.accountsHold.length) {
     // Blank is Not set: Accounts has said neither Clear nor Hold.
     clauses.push(`COALESCE(NULLIF(TRIM(o.accounts_hold_status), ''), ${lit(NOT_SET)}) = ANY(${p(f.accountsHold)}::text[])`);
+  }
+  // Dispatch's own Hold (the SO's status), by its reason ("reason · remarks" saved).
+  if (f.dispatchHoldReasons?.length) {
+    clauses.push(`(COALESCE(o.status_override, '') = 'Hold' AND (${f.dispatchHoldReasons
+      // The reasons are a fixed list (no % or _), so LIKE needs no escaping.
+      .map((r) => `(btrim(COALESCE(o.status_reason, '')) = ${lit(r)} OR btrim(COALESCE(o.status_reason, '')) LIKE ${lit(`${r} · %`)})`)
+      .join(" OR ")}))`);
   }
   if (f.accountsHoldReasons.length) {
     clauses.push(`(COALESCE(o.accounts_hold_status, '') = 'Hold' AND ${facet("o.accounts_hold_reason", f.accountsHoldReasons)})`);
@@ -6010,7 +6024,7 @@ export const dispatchStageSql = (o: string) => `(CASE
       THEN 'Invoice pending'
     WHEN EXISTS (SELECT 1 FROM order_invoices sv WHERE sv.order_id = ${o}.id
                     AND ${INVOICE_STEP_DONE("sv", o)} AND NULLIF(btrim(sv.delivery_mode), '') IS NULL)
-      THEN 'Dispatch pending'
+      THEN 'Transporter pending'
     WHEN EXISTS (SELECT 1 FROM order_invoices sv WHERE sv.order_id = ${o}.id
                     AND ${INVOICE_STEP_DONE("sv", o)} AND NULLIF(btrim(sv.docket_no), '') IS NULL)
       THEN 'Docket & LR pending'

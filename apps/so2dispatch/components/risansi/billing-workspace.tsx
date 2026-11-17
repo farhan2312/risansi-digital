@@ -405,7 +405,7 @@ function StagePill({ stage }: { stage: string | null | undefined }) {
       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
       : s === "Docket & LR pending"
         ? "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300"
-        : s === "Dispatch pending"
+        : s === "Transporter pending"
           ? "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300"
           : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300";
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{s}</span>;

@@ -184,7 +184,7 @@ export default async function DrawingWorkspacePage({
     }
     for (const [, ecs] of byOrder) {
       const st = soDrawingState(ecs);
-      for (const r of ecs) Object.assign(r, { so_drawing_closed: st.closed, so_drawing_closed_date: st.date });
+      for (const r of ecs) Object.assign(r, { so_drawing_closed: st.closed, so_drawing_closed_date: st.date, so_drawing_sent: st.sent });
     }
   }
   // An SO matched on one of its ECs: show the ECs that match. Open / Closed is

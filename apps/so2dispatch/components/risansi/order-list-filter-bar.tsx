@@ -38,6 +38,7 @@ import {
 import type { OrderListOptions } from "@/lib/orders";
 import { SIGN_OFF_ENABLED } from "@/lib/dept-completion";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
+import { DISPATCH_HOLD_REASONS } from "@/lib/order-schema";
 import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
 
 /** Every parameter the filter owns — what "Clear all" empties. */
@@ -361,6 +362,17 @@ export function OrderListFilterBar({
             options={DISPATCH_STAGES}
             selected={filter.dispatchStages}
             onChange={(next) => setParams({ dstage: next })}
+          />
+        )}
+        {/* Dispatch: why it holds an SO (its status Hold). */}
+        {dept === "dispatch" && (
+          <MultiSelectFilter
+            label="Dispatch hold reason"
+            allLabel="Any reason"
+            options={DISPATCH_HOLD_REASONS}
+            selected={filter.dispatchHoldReasons ?? []}
+            // Kept apart by "|": a reason can hold a comma.
+            onChange={(next) => setParams({ dhreason: next.length ? next.join("|") : null })}
           />
         )}
         {/* Billing, Planning, Assembly & Packing: where Dispatch has got to on the SO. */}
