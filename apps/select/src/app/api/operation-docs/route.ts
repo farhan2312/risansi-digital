@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { erpQuotationNumber, quotationNumber } from "@/lib/commercial";
 import { projects, quotation, quotationVersion, techDocVersion, users } from "@/lib/db/schema";
 import { canSeeOperationDocs, orderSubtypeLabel } from "@/lib/roles";
-import type { OperationDoc } from "@/lib/saved-docs";
+import { SAVED_DOC_KINDS, operationDocKinds, type OperationDoc } from "@/lib/saved-docs";
 import { dotDate } from "@/lib/tech-doc";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +76,7 @@ export async function GET(req: Request) {
       sentByName: sender.name,
       mailedAt: projects.mailedAt,
       mailedByName: mailer.name,
+      operationDocs: projects.operationDocs,
       // A pump other than PCP may have no Technical Data Sheet to save.
       hasTechnical: sql<boolean>`exists (select 1 from ${techDocVersion} s where s.project_id = ${projects.id})`,
     })
@@ -93,8 +94,9 @@ export async function GET(req: Request) {
     .orderBy(desc(projects.releasedToOperationAt));
 
   const quotations = await savedQuotationLines(rows.map((r) => r.id));
-  const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, subtype, ...r }) => ({
+  const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, subtype, operationDocs, ...r }) => ({
     ...r,
+    sentDocs: type === "spare" ? ["commercial"] : (operationDocKinds(operationDocs) ?? SAVED_DOC_KINDS),
     subtype: orderSubtypeLabel(subtype),
     quotations: typedOnSpareDoc ? [typedOnSpareDoc] : (quotations.get(r.id) ?? []),
     version: type === "spare" ? commercialVersion : version,

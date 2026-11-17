@@ -8,26 +8,38 @@ import PrintPageSizeSelect, { usePrintPageSize } from "../reports/PrintPageSize"
 import { DRIVE_GROUP_LABEL } from "../../lib/commercial";
 import { buildOfferHtml } from "../../lib/commercial-offer";
 import { printHtml } from "../../lib/enquiry-print";
-import type { SavedDocs } from "../../lib/saved-docs";
+import { savedDocFileName, type SavedDocKind, type SavedDocs } from "../../lib/saved-docs";
 import { buildSpareQuoteHtml } from "../../lib/spare-quote-doc";
 import { buildTechDocHtml, techDocGroupLabel, type TechDocGroup } from "../../lib/tech-doc";
 import { TECHNO_COMMERCIAL_TITLE, buildTechnoCommercialHtml } from "../../lib/techno-commercial";
 
 // The saved documents, read-only, on Review and on Pump Docs / Spare Docs: a toggle
 // between Technical, Commercial and Techno-Commercial for a pump (per drive group), or
-// the quotation for a spare. They can be printed, not edited.
+// the quotation for a spare. They can be printed, not edited. Save as PDF names the file
+// Risansi_Pump/Spare_..._<client>_Dt. <enquiry date>_ENQ. No.<no> (savedDocFileName).
 
-export type SavedDocKind = "technical" | "commercial" | "techno";
-const DOCS: { key: SavedDocKind; label: string }[] = [
+export type { SavedDocKind };
+const ALL_DOCS: { key: SavedDocKind; label: string }[] = [
   { key: "technical", label: "Technical" },
   { key: "commercial", label: "Commercial" },
   { key: "techno", label: TECHNO_COMMERCIAL_TITLE },
 ];
 
-export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { docs: SavedDocs; /** Opens on this one. */ initialDoc?: SavedDocKind }) {
+export default function SavedDocsViewer({
+  docs,
+  initialDoc = "technical",
+  only,
+}: {
+  docs: SavedDocs;
+  /** Opens on this one. */
+  initialDoc?: SavedDocKind;
+  /** Only these (a pump's documents sent to operation); all when left out. */
+  only?: SavedDocKind[];
+}) {
   const isSpare = docs.orderType === "spare";
+  const DOCS = only?.length ? ALL_DOCS.filter((d) => only.includes(d.key)) : ALL_DOCS;
   const [activeGroup, setActiveGroup] = useState<TechDocGroup | null>(null);
-  const [doc, setDoc] = useState<SavedDocKind>(initialDoc);
+  const [doc, setDoc] = useState<SavedDocKind>(DOCS.some((d) => d.key === initialDoc) ? initialDoc : DOCS[0].key);
   const [printing, setPrinting] = useState(false);
   const [pageSize, setPageSize] = usePrintPageSize();
 
@@ -52,7 +64,8 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
   const handlePrint = async () => {
     setPrinting(true);
     try {
-      await printHtml(html, pageSize);
+      const group = docs.groups.length > 1 && current ? (current.group === "NONE" ? techDocGroupLabel(current.group) : DRIVE_GROUP_LABEL[current.group]) : undefined;
+      await printHtml(html, pageSize, savedDocFileName(docs, isSpare ? "commercial" : doc, group));
     } finally {
       setPrinting(false);
     }

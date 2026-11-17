@@ -9,7 +9,7 @@ import { isGearedGroup, normalizeOfferConfig } from "./commercial-offer";
 import { projectDriveGroups } from "./commercial-server";
 import { db } from "./db";
 import { projects, quotation, quotationVersion, techDocVersion } from "./db/schema";
-import type { SavedDocs, SavedGroupDocs } from "./saved-docs";
+import { operationDocKinds, type SavedDocs, type SavedGroupDocs } from "./saved-docs";
 import { normalizeSpareDocEdits, normalizeSpareQuote } from "./spare-quote";
 import { termsMarketOf } from "./spare-terms";
 import { dotDate, visibleTags, type TechDocGroup, type TechDocSheet } from "./tech-doc";
@@ -26,6 +26,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
       market: projects.clientMarketType,
       quote: projects.spareQuote,
       docEdits: projects.spareDocEdits,
+      operationDocs: projects.operationDocs,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -44,6 +45,8 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
   const enquiry = [p.code, p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", ");
   // The Client Name box: with the city and country from sales.
   const clientName = await docClientName(p.name, p.clientCode);
+  // The file name: the client's name as on the enquiry (no city / country).
+  const about = { enquiry: { code: p.code, clientName: p.name ?? "", enquiryDate: p.enquiryDate }, sent: p.orderType === "spare" ? null : operationDocKinds(p.operationDocs) };
 
   if (p.orderType === "spare") {
     const q = quotes.find((x) => x.driveGroup === SPARE_GROUP);
@@ -52,6 +55,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
     const kept = keptSnap?.spare;
     return {
       orderType: "spare",
+      ...about,
       groups: [],
       spare:
         q && savedOn(q.id)
@@ -132,5 +136,5 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
   for (const s of sheets) {
     if (!groups.some((g) => g.group === s.group)) groups.push({ group: s.group as TechDocGroup, tech: sheetOf(s.group), offer: null });
   }
-  return { orderType: "pump", groups, spare: null };
+  return { orderType: "pump", ...about, groups, spare: null };
 }
