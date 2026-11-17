@@ -8,8 +8,24 @@ import type { TechDocGroup, TechDocSheet } from "./tech-doc";
 /** One drive group's saved Technical Data Sheet and Commercial Offer; null = not saved. */
 export type SavedGroupDocs = { group: TechDocGroup; tech: TechDocSheet | null; offer: OfferSheet | null };
 
+/** A pump's three documents; a spare has only the quotation ("commercial"). */
+export type SavedDocKind = "technical" | "commercial" | "techno";
+export const SAVED_DOC_KINDS: SavedDocKind[] = ["technical", "commercial", "techno"];
+
+/** projects.operation_docs as read: the documents picked on Review to go to operation,
+ *  or null (not picked - older enquiries, a spare: all of them). */
+export function operationDocKinds(raw: unknown): SavedDocKind[] | null {
+  if (!Array.isArray(raw)) return null;
+  const kinds = SAVED_DOC_KINDS.filter((k) => raw.includes(k));
+  return kinds.length > 0 ? kinds : null;
+}
+
 export type SavedDocs = {
   orderType: "pump" | "spare";
+  /** For the file name a document saves as (savedDocFileName). */
+  enquiry: { code: string; clientName: string; enquiryDate: string | null };
+  /** The documents picked on Review to go to operation; null = all of them. */
+  sent: SavedDocKind[] | null;
   /** A pump's. */
   groups: SavedGroupDocs[];
   /** A spare's quotation, once saved. */
@@ -45,4 +61,30 @@ export type OperationDoc = {
   mailedByName: string | null;
   /** A Technical Data Sheet was saved (so Technical and Techno-Commercial open). */
   hasTechnical: boolean;
+  /** The documents sent: what was picked on Review, else all of them. */
+  sentDocs: SavedDocKind[];
 };
+
+/** The file name a printed document saves as (user, 2026-11-17):
+ *  "Risansi_Spare_Quotation_BANNARI AMMAN SUGARS LTD_Dt. 24-10-2026_ENQ. No.2026".
+ *  A pump's: Risansi_Pump_Technical / Quotation (the Commercial) / Techno-Commercial, and
+ *  its drive system when it has more than one. Characters Windows won't take become "-". */
+export function savedDocFileName(docs: Pick<SavedDocs, "orderType" | "enquiry">, kind: SavedDocKind, group?: string): string {
+  const { code, clientName, enquiryDate: d } = docs.enquiry;
+  const spare = docs.orderType === "spare";
+  const doc = spare || kind === "commercial" ? "Quotation" : kind === "technical" ? "Technical" : "Techno-Commercial";
+  return [
+    "Risansi",
+    spare ? "Spare" : "Pump",
+    doc,
+    group ?? "",
+    clientName.trim(),
+    d ? `Dt. ${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(0, 4)}` : "",
+    `ENQ. No.${code}`,
+  ]
+    .filter(Boolean)
+    .join("_")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}

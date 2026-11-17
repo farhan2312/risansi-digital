@@ -11,13 +11,14 @@ import { getUsdInrSetting } from "../../services/settingsService";
 import UsdToggle from "./UsdToggle";
 import { printHtml } from "../../lib/enquiry-print";
 import { OTHER_PART_SECTION, partListFor, type SparePumpKind } from "../../lib/spare-parts";
-import { lineAmount, quoteDiscount, quoteSubtotal, spareQuoteProblem, type SpareDocEdits, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
+import { lineAmount, quoteDiscount, quoteSubtotal, shareSamePo, spareQuoteProblem, type SpareDocEdits, type SpareLine, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
 import {
   buildSpareQuoteHtml,
   downloadSpareQuoteExcel,
   spareDiscountAuto,
   spareDocModels,
   spareDocTerms,
+  spareMergedPoKeys,
   type SpareDocTerm,
   type SpareQuoteSheet,
 } from "../../lib/spare-quote-doc";
@@ -51,7 +52,7 @@ const labelCls = "text-[12px] font-medium text-foreground";
 const cardCls = "rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]";
 const checkCls = "size-3.5 cursor-pointer accent-[var(--sc-primary)]";
 
-type LineDraft = { partNo: string; partName: string; poNo: string; poDate: string; qty: string; unitPrice: string };
+type LineDraft = { partNo: string; partName: string; poNo: string; poDate: string; poSame: boolean; qty: string; unitPrice: string };
 type ModelDraft = { id: string; code: string; pumpKind: SparePumpKind; lines: LineDraft[] };
 type Draft = { hasPo: boolean; discountPct: string; note: string; termsMarket: TermsMarket; termsOff: string[]; models: ModelDraft[] };
 
@@ -67,7 +68,7 @@ const toDraft = (q: SpareQuote): Draft => ({
     id: m.id,
     code: m.productCode,
     pumpKind: m.pumpKind,
-    lines: m.lines.map((l) => ({ partNo: l.partNo, partName: l.partName, poNo: l.poNo, poDate: l.poDate, qty: numText(l.qty), unitPrice: numText(l.unitPrice) })),
+    lines: m.lines.map((l) => ({ partNo: l.partNo, partName: l.partName, poNo: l.poNo, poDate: l.poDate, poSame: l.poSame, qty: numText(l.qty), unitPrice: numText(l.unitPrice) })),
   })),
 });
 
@@ -84,7 +85,8 @@ const toQuote = (d: Draft): SpareQuote => ({
   note: d.note.trim(),
   termsMarket: d.termsMarket,
   termsOff: [...d.termsOff].sort(),
-  models: d.models.map(
+  // "Same as above" parts take the PO of the part above.
+  models: shareSamePo(d.models.map(
     (m): SpareModel => ({
       id: m.id,
       productCode: m.code.trim(),
@@ -94,11 +96,12 @@ const toQuote = (d: Draft): SpareQuote => ({
         partName: l.partName,
         poNo: d.hasPo ? l.poNo.trim() : "",
         poDate: d.hasPo ? l.poDate : "",
+        poSame: d.hasPo && l.poSame,
         qty: parseAmount(l.qty),
         unitPrice: parseAmount(l.unitPrice),
       })),
     }),
-  ),
+  )),
 });
 
 const partKey = (p: { partNo: string; partName: string }) => `${p.partNo}|${p.partName}`;
@@ -386,7 +389,34 @@ export default function SpareCommercial({
       <input type="checkbox" className={checkCls} checked={draft.hasPo} onChange={(e) => update({ hasPo: e.target.checked })} />
       Reference PO
     </label>
-    {draft.hasPo && <p className="text-[12.5px] text-muted-foreground">Each part&apos;s reference PO No. and date go in its row below.</p>}
+    {draft.hasPo && (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className="text-[12.5px] text-muted-foreground">
+          Each part&apos;s reference PO No. and date go in its row below. Tick <b className="font-medium text-foreground">Same as above</b> on a part to use the PO of the part above it - the documents print them as one PO cell.
+        </p>
+        {draft.models.reduce((n, m) => n + m.lines.length, 0) > 1 && (
+          <button
+            type="button"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+            onClick={() => {
+              let first = true;
+              update({
+                models: draft.models.map((m) => ({
+                  ...m,
+                  lines: m.lines.map((l) => {
+                    const poSame = !first;
+                    first = false;
+                    return { ...l, poSame };
+                  }),
+                })),
+              });
+            }}
+          >
+            Same PO for all parts
+          </button>
+        )}
+      </div>
+    )}
     </>
   );
 
@@ -479,6 +509,8 @@ export default function SpareCommercial({
                 model={m}
                 showErrors={showErrors}
                 hasPo={draft.hasPo}
+                resolved={current?.models[index]?.lines ?? []}
+                partAbove={draft.models.slice(0, index).some((x) => x.lines.length > 0)}
                 fx={fx}
                 onChange={(patch) => updateModel(m.id, patch)}
                 onLineChange={(i, patch) => updateLine(m.id, i, patch)}
@@ -585,6 +617,8 @@ function ModelCard({
   index,
   model,
   hasPo,
+  resolved,
+  partAbove,
   fx,
   showErrors,
   onChange,
@@ -596,6 +630,10 @@ function ModelCard({
   model: ModelDraft;
   /** Reference PO ticked: each part has its PO No. and date. */
   hasPo: boolean;
+  /** The lines as saved: a "same as above" part's PO resolved from the part above. */
+  resolved: SpareLine[];
+  /** An earlier model has parts: this model's first part can be "same as above". */
+  partAbove: boolean;
   /** Quoted in USD: amounts also in USD. */
   fx: QuoteFx | undefined;
   showErrors: boolean;
@@ -648,11 +686,12 @@ function ModelCard({
 
       {model.lines.length > 0 && (
         <div className="overflow-x-auto border-t border-border">
-          <table className={`w-full text-[13px] ${hasPo ? "min-w-[960px]" : "min-w-[640px]"}`}>
+          <table className={`w-full text-[13px] ${hasPo ? "min-w-[1040px]" : "min-w-[640px]"}`}>
             <thead>
               <tr className="border-b border-border bg-muted/60 text-left text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                 <th className="px-4 py-2">Part No.</th>
                 <th className="px-4 py-2">Description (editable)</th>
+                {hasPo && <th className="w-[80px] px-2 py-2 text-center" title="Same reference PO No. / date as the part above">Same as above</th>}
                 {hasPo && <th className="w-[160px] px-2 py-2">Ref. PO No.</th>}
                 {hasPo && <th className="w-[150px] px-2 py-2">PO date</th>}
                 <th className="w-[110px] px-2 py-2 text-right">Qty</th>
@@ -665,6 +704,10 @@ function ModelCard({
               {model.lines.map((l, i) => {
                 const qty = parseAmount(l.qty);
                 const price = parseAmount(l.unitPrice);
+                // "Same as above": the PO of the part above, shown but not editable here.
+                const canSame = i > 0 || partAbove;
+                const same = hasPo && canSame && l.poSame;
+                const po = same ? (resolved[i] ?? l) : l;
                 return (
                   <tr key={i} className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/50">
                     <td className="px-4 py-1.5 font-mono text-[12.5px] text-muted-foreground">{l.partNo || "—"}</td>
@@ -678,10 +721,28 @@ function ModelCard({
                       />
                     </td>
                     {hasPo && (
+                      <td className="px-2 py-1.5 text-center">
+                        {canSame && (
+                          <input
+                            type="checkbox"
+                            className={checkCls}
+                            checked={same}
+                            title="Same reference PO No. / date as the part above"
+                            aria-label={`${l.partName}: same reference PO as the part above`}
+                            onChange={(e) =>
+                              // Unticked: starts from the shared PO, to edit.
+                              onLineChange(i, e.target.checked ? { poSame: true } : { poSame: false, poNo: po.poNo, poDate: po.poDate })
+                            }
+                          />
+                        )}
+                      </td>
+                    )}
+                    {hasPo && (
                       <td className="px-2 py-1.5">
                         <input
-                          className={`${inputCls} py-1.5 ${showErrors && !l.poNo.trim() && l.poDate ? "border-destructive" : ""}`}
-                          value={l.poNo}
+                          className={`${inputCls} py-1.5 ${!same && showErrors && !l.poNo.trim() && l.poDate ? "border-destructive" : ""}`}
+                          value={po.poNo}
+                          disabled={same}
                           maxLength={120}
                           placeholder="e.g. 2025-26/106"
                           aria-label={`Reference PO No. of ${l.partName}`}
@@ -693,8 +754,9 @@ function ModelCard({
                       <td className="px-2 py-1.5">
                         <input
                           type="date"
-                          className={`${inputCls} py-1.5 ${showErrors && l.poNo.trim() && !l.poDate ? "border-destructive" : ""}`}
-                          value={l.poDate}
+                          className={`${inputCls} py-1.5 ${!same && showErrors && l.poNo.trim() && !l.poDate ? "border-destructive" : ""}`}
+                          value={po.poDate}
+                          disabled={same}
                           aria-label={`Reference PO date of ${l.partName}`}
                           onChange={(e) => onLineChange(i, { poDate: e.target.value })}
                         />
@@ -849,13 +911,13 @@ function PartPicker({ model, onClose, onSave }: { model: ModelDraft; onClose: ()
 
   const toggle = (partNo: string, partName: string) => {
     const key = partKey({ partNo, partName });
-    setPicked((cur) => (cur.some((l) => partKey(l) === key) ? cur.filter((l) => partKey(l) !== key) : [...cur, { partNo, partName, poNo: "", poDate: "", qty: "", unitPrice: "" }]));
+    setPicked((cur) => (cur.some((l) => partKey(l) === key) ? cur.filter((l) => partKey(l) !== key) : [...cur, { partNo, partName, poNo: "", poDate: "", poSame: false, qty: "", unitPrice: "" }]));
   };
   const addOther = () => {
     const partName = otherName.trim();
     if (!partName) return;
     const partNo = otherNo.trim();
-    if (!picked.some((l) => partKey(l) === partKey({ partNo, partName }))) setPicked((cur) => [...cur, { partNo, partName, poNo: "", poDate: "", qty: "", unitPrice: "" }]);
+    if (!picked.some((l) => partKey(l) === partKey({ partNo, partName }))) setPicked((cur) => [...cur, { partNo, partName, poNo: "", poDate: "", poSame: false, qty: "", unitPrice: "" }]);
     setOtherNo("");
     setOtherName("");
   };
@@ -968,6 +1030,8 @@ function QuotePreview({
   const html = useMemo(() => buildSpareQuoteHtml(current, `${window.location.origin}/logo.png`), [current]);
   const models = useMemo(() => spareDocModels(sheet.quote, edits), [sheet.quote, edits]);
   const docTerms = useMemo(() => spareDocTerms(sheet.quote, edits), [sheet.quote, edits]);
+  // Rows that print in the PO cell of the row above.
+  const mergedPo = useMemo(() => spareMergedPoKeys(models), [models]);
 
   const change = (next: SpareDocEdits) => {
     setEdits(next);
@@ -1103,7 +1167,13 @@ function QuotePreview({
                               <td className="px-2 py-1"><input className={`${cell} font-mono`} value={l.partNo} aria-label="Part No." onChange={(e) => setLine(l.key, { partNo: e.target.value })} /></td>
                               <td className="px-2 py-1"><input className={cell} value={l.name} aria-label="Description" onChange={(e) => setLine(l.key, { name: e.target.value })} /></td>
                               {sheet.quote.hasPo && (
-                                <td className="px-2 py-1"><input className={cell} value={l.po} aria-label="Reference PO No. / Date" onChange={(e) => setLine(l.key, { po: e.target.value })} /></td>
+                                <td className="px-2 py-1">
+                                  {mergedPo.has(l.key) ? (
+                                    <span className="px-1 text-[12px] text-muted-foreground">Same as above</span>
+                                  ) : (
+                                    <input className={cell} value={l.po} aria-label="Reference PO No. / Date" onChange={(e) => setLine(l.key, { po: e.target.value })} />
+                                  )}
+                                </td>
                               )}
                               <td className="px-2 py-1"><input className={`${cell} text-right font-mono`} value={l.qty} aria-label="Quantity" onChange={(e) => setLine(l.key, { qty: e.target.value })} /></td>
                               <td className="px-2 py-1"><input className={`${cell} text-right font-mono`} value={l.unit} aria-label="Unit cost" onChange={(e) => setLine(l.key, { unit: e.target.value })} /></td>

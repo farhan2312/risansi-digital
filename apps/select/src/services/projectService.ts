@@ -1,5 +1,5 @@
 import apiClient from "./apiClient";
-import type { SavedDocs } from "../lib/saved-docs";
+import type { SavedDocKind, SavedDocs } from "../lib/saved-docs";
 import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
 import type { EnquiryCategory } from "../lib/enquiry-fields";
@@ -266,11 +266,13 @@ export const getReviewState = async (projectId: string): Promise<{ missing: stri
   return data;
 };
 
-/** Marks the saved versions as reviewed, then records them as sent to operation. */
+/** Marks the saved versions as reviewed, then records them as sent to operation.
+ *  docs: a pump's documents picked to go to operation. */
 export const reviewEnquiry = async (
   projectId: string,
   action: "reviewed" | "send",
-): Promise<Pick<ProjectRecord, "reviewed_at" | "released_to_operation_at">> => {
-  const { data } = await apiClient.post(`/projects/${projectId}/review`, { action });
+  docs?: SavedDocKind[],
+): Promise<Pick<ProjectRecord, "reviewed_at" | "released_to_operation_at"> & { operation_docs: SavedDocKind[] | null }> => {
+  const { data } = await apiClient.post(`/projects/${projectId}/review`, { action, ...(docs ? { docs } : {}) });
   return data;
 };

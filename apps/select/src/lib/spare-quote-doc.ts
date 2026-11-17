@@ -59,7 +59,8 @@ export const spareDiscountAuto = (q: SpareQuote) => (q.discountPct === null ? ""
 /** A part's reference PO as printed: "2025-26/106, Date 04.11.2026". */
 export const sparePoAuto = (l: { poNo: string; poDate: string }) => [l.poNo, l.poDate ? `Date ${dotDate(l.poDate)}` : ""].filter(Boolean).join(", ");
 
-export type SpareDocLine = { key: string; partNo: string; name: string; po: string; qty: string; unit: string; amount: number | null; removed: boolean };
+/** poSame: the part shares the PO of the part above it (SpareLine.poSame). */
+export type SpareDocLine = { key: string; partNo: string; name: string; po: string; poSame: boolean; qty: string; unit: string; amount: number | null; removed: boolean };
 export type SpareDocModel = { id: string; auto: string; model: string; lines: SpareDocLine[] };
 
 /** The document's rows with the edits applied; removed lines are kept, flagged. */
@@ -76,9 +77,39 @@ export function spareDocModels(quote: SpareQuote, edits: SpareDocEdits): SpareDo
       const unit = e.unit ?? (l.unitPrice === null ? "" : String(l.unitPrice));
       const q = toNumber(qty);
       const u = toNumber(unit);
-      return { key, partNo: e.partNo ?? l.partNo, name: e.name ?? l.partName, po: e.po ?? sparePoAuto(l), qty, unit, amount: q === null || u === null ? null : q * u, removed: removed.has(key) };
+      return { key, partNo: e.partNo ?? l.partNo, name: e.name ?? l.partName, po: e.po ?? sparePoAuto(l), poSame: quote.hasPo && l.poSame, qty, unit, amount: q === null || u === null ? null : q * u, removed: removed.has(key) };
     }),
   }));
+}
+
+/** The keys of the rows whose PO cell merges into the row above: a "same as
+ *  above" part with a printed part above it (removed rows left out, across
+ *  models in order). The merged cell prints the first row's PO. */
+export function spareMergedPoKeys(models: SpareDocModel[]): Set<string> {
+  const merged = new Set<string>();
+  let above = false;
+  for (const m of models)
+    for (const l of m.lines) {
+      if (l.removed) continue;
+      if (l.poSame && above) merged.add(l.key);
+      above = true;
+    }
+  return merged;
+}
+
+/** Per printed row in order: how many rows its PO cell spans (0 = merged into
+ *  the row above). */
+function poSpans(models: { lines: SpareDocLine[] }[], merged: Set<string>): number[] {
+  const keys = models.flatMap((m) => m.lines.map((l) => l.key));
+  const spans = keys.map(() => 1);
+  let lead = 0;
+  keys.forEach((k, i) => {
+    if (i > 0 && merged.has(k)) {
+      spans[i] = 0;
+      spans[lead] += 1;
+    } else lead = i;
+  });
+  return spans;
 }
 
 export type SpareDocTerm = { id: string; auto: string; text: string };
@@ -100,17 +131,20 @@ function printed(sheet: SpareQuoteSheet) {
   const conv = (n: number | null) => (n === null ? null : fx ? n / fx.rate : n);
   const usdFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmt = (n: number | null) => (n === null ? "-" : fx ? usdFmt.format(n) : money(n));
-  const models = spareDocModels(sheet.quote, sheet.edits)
+  const all = spareDocModels(sheet.quote, sheet.edits);
+  const models = all
     .map((m) => ({
       ...m,
       lines: m.lines.filter((l) => !l.removed).map((l) => ({ ...l, unitNum: conv(toNumber(l.unit)), amount: conv(l.amount) })),
     }))
     .filter((m) => m.lines.length > 0);
+  // Parts with the same PO as the part above share one PO cell.
+  const poSpan = poSpans(models, spareMergedPoKeys(all));
   const { header, edits } = sheet;
   const subtotal = models.reduce((s, m) => s + m.lines.reduce((x, l) => x + (l.amount ?? 0), 0), 0);
   const discountPct = toNumber(edits.discount ?? spareDiscountAuto(sheet.quote)) ?? 0;
   const discount = (subtotal * discountPct) / 100;
-  // No PO tick: no column for it. Each row prints its own part's PO.
+  // No PO tick: no column for it. Each row prints its own part's PO, or shares the row above's.
   const showPo = sheet.quote.hasPo;
   // No part with a part no. (as printed, edits applied): no Part No. column (user, 2026-11-13).
   const showPartNo = models.some((m) => m.lines.some((l) => l.partNo.trim() !== ""));
@@ -119,6 +153,7 @@ function printed(sheet: SpareQuoteSheet) {
   const printable = (list: SpareDocTerm[]) => list.map((t) => t.text.trim()).filter(Boolean);
   return {
     models,
+    poSpan,
     subtotal,
     discountPct,
     discount,
@@ -151,8 +186,9 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
   const rows = d.models.flatMap((m) =>
     m.lines.map((l, i) => {
       sl += 1;
+      const span = d.poSpan[sl - 1];
       return `<tr><td>${sl}</td><td class="l">${esc(l.name)}</td>${i === 0 ? `<td rowspan="${m.lines.length}" class="m">${esc(m.model)}</td>` : ""}${
-        d.showPo ? `<td>${esc(l.po || "-")}</td>` : ""
+        d.showPo && span > 0 ? `<td${span > 1 ? ` rowspan="${span}"` : ""}>${esc(l.po || "-")}</td>` : ""
       }${d.showPartNo ? `<td>${esc(l.partNo)}</td>` : ""}<td>${esc(l.qty || "-")}</td><td class="r">${d.fmt(l.unitNum)}</td><td class="r">${d.fmt(l.amount)}</td></tr>`;
     }),
   );
@@ -226,7 +262,8 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
           { value: String(sl) },
           { value: l.name },
           { value: i === 0 ? m.model : "", bold: true },
-          ...(d.showPo ? [{ value: l.po || "-" }] : []),
+          // A merged PO: the first row holds it, merged down; the rows below keep an empty cell.
+          ...(d.showPo ? [d.poSpan[sl - 1] > 1 ? { value: l.po || "-", rowSpan: d.poSpan[sl - 1], wrap: true } : { value: d.poSpan[sl - 1] === 0 ? "" : l.po || "-" }] : []),
           ...(d.showPartNo ? [{ value: l.partNo }] : []),
           { value: l.qty },
           { value: d.fmt(l.unitNum) },

@@ -19,6 +19,8 @@ export type EnquiryReportRow = {
   /** YYYY-MM-DD, or "" when there is none: what the date sort goes by. */
   sortDate: string;
   category: string;
+  /** Regular / Project (projects.enquiry_category). */
+  enqCategory: string;
   enquiryNo: string;
   assignee: string;
   /** When it was (re)assigned, dd.mm.yyyy in IST; "" when not known. */
@@ -27,20 +29,21 @@ export type EnquiryReportRow = {
   onHold: boolean;
 };
 
-type TextKey = "rilRep" | "client" | "type" | "date" | "category" | "enquiryNo" | "assignee" | "remark";
+type TextKey = "rilRep" | "client" | "type" | "date" | "category" | "enqCategory" | "enquiryNo" | "assignee" | "remark";
 export type ColumnKey = TextKey | "status";
 
 /** pct: share of the printed sheet's width. width: the Excel's, in characters. */
 export const REPORT_COLUMNS: { key: ColumnKey; label: string; pct: number; width: number }[] = [
   { key: "rilRep", label: "RIL REP.", pct: 7, width: 11 },
-  { key: "client", label: "CLIENT", pct: 21, width: 38 },
+  { key: "client", label: "CLIENT", pct: 18, width: 38 },
   { key: "type", label: "ENQUIRY TYPE", pct: 8, width: 13 },
   { key: "status", label: "ENQUIRY STATUS", pct: 14, width: 24 },
   { key: "date", label: "ENQUIRY DATE", pct: 7, width: 12 },
   { key: "category", label: "TYPE", pct: 7, width: 11 },
+  { key: "enqCategory", label: "ENQ. CATEGORY", pct: 7, width: 13 },
   { key: "enquiryNo", label: "ENQ. NO.", pct: 12, width: 22 },
   { key: "assignee", label: "ASSIGNED TO", pct: 9, width: 18 },
-  { key: "remark", label: "REMARKS", pct: 15, width: 40 },
+  { key: "remark", label: "REMARKS", pct: 11, width: 40 },
 ];
 
 const ZONE_CODES: Record<string, string> = { north: "NI", south: "SI", east: "EI", west: "WI", central: "CI", export: "EX" };
@@ -84,6 +87,7 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
       sortDate: p.enquiry_date ?? "",
       // A retrofit spare says so; a plain spare and every pump keep Spare / Pump.
       category: spare && p.order_subtype === "retrofit_spare" ? orderSubtypeLabel(p.order_subtype) : orderTypeLabel(p.order_type),
+      enqCategory: p.enquiry_category === "project" ? "Project" : "Regular",
       enquiryNo: p.project_code,
       assignee: p.assigned_to_name ?? "",
       // The (re)assigned date under the name, as on the Enquiries list (user, 2026-11-12).

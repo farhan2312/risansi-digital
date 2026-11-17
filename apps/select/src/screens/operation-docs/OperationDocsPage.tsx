@@ -110,7 +110,7 @@ function DocsModal({ opened, onClose }: { opened: Opened; onClose: () => void })
             </p>
           )}
           {!docs && !loadError && <p className="py-8 text-center text-[13px] text-muted-foreground">Loading…</p>}
-          {docs && <SavedDocsViewer docs={docs} initialDoc={opened.doc} />}
+          {docs && <SavedDocsViewer docs={docs} initialDoc={opened.doc} only={docs.orderType === "spare" ? undefined : (docs.sent ?? undefined)} />}
         </div>
       </div>
     </div>
@@ -363,8 +363,9 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
                     </td>
                     {docColumns.map((c) => (
                       <td key={c.label} className={td}>
-                        {/* No Technical Data Sheet saved means no Techno-Commercial either. */}
-                        {c.key !== "commercial" && !r.hasTechnical ? (
+                        {/* No Technical Data Sheet saved means no Techno-Commercial either. Not
+                            picked on Review: not sent. */}
+                        {(c.key !== "commercial" && !r.hasTechnical) || !r.sentDocs.includes(c.key) ? (
                           <span className="text-[12.5px] text-muted-foreground">—</span>
                         ) : (
                           <Button

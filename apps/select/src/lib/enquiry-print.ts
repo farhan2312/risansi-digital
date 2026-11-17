@@ -33,8 +33,16 @@ function withPageSize(html: string, size: PrintPageSize): string {
 /** Renders `html` into an off-screen iframe and opens the print dialog.
  *  Resolves once the dialog has been dismissed (or immediately on browsers
  *  that don't block on print). */
-export function printHtml(html: string, pageSize: PrintPageSize = ""): Promise<void> {
+export function printHtml(html: string, pageSize: PrintPageSize = "", fileName?: string): Promise<void> {
   html = withPageSize(html, pageSize);
+  // Save as PDF names the file after the document's title (and, in some browsers, the
+  // page's), so both carry the file name while the dialog is open.
+  const pageTitle = document.title;
+  if (fileName) {
+    const t = `<title>${fileName.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</title>`;
+    html = /<title>[\s\S]*?<\/title>/i.test(html) ? html.replace(/<title>[\s\S]*?<\/title>/i, () => t) : html.replace("</head>", `${t}</head>`);
+    document.title = fileName;
+  }
   return new Promise((resolve) => {
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
@@ -47,6 +55,7 @@ export function printHtml(html: string, pageSize: PrintPageSize = ""): Promise<v
       // Give the print job time to spool before tearing the frame down.
       setTimeout(() => {
         frame.remove();
+        if (fileName) document.title = pageTitle;
         resolve();
       }, 500);
     };

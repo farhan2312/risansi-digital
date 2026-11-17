@@ -123,6 +123,10 @@ export const projects = pgTable("projects", {
   /** Operation confirmed it was mailed to the client (the portal sends no mail). Cleared with them. */
   mailedAt: timestamp("mailed_at", { withTimezone: true }),
   mailedBy: uuid("mailed_by"),
+  /** The pump documents picked on Review to go to operation ("technical", "commercial",
+   *  "techno"); null = all of them (older enquiries; a spare has one). Kept across a
+   *  Save Version, as the picks for the next review (lib/saved-docs operationDocKinds). */
+  operationDocs: text("operation_docs").array(),
   /** The Prices reviewed tick, needed on a new version before Send to client. */
   pricesReviewedAt: timestamp("prices_reviewed_at", { withTimezone: true }),
   pricesReviewedBy: uuid("prices_reviewed_by"),
