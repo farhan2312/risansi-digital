@@ -16,16 +16,8 @@ import {
 import { OrderThread } from "./order-thread";
 import { stamp } from "./discussion-bell";
 
-type Filter = "all" | "unread" | "waiting";
+type Filter = "all" | "unread";
 type OpenChat = { orderId: string; soLabel: string; peer?: string };
-
-/** How long a chat has waited: 45m, 5h, 3d. */
-function waited(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${mins}m`;
-  if (mins < 1440) return `${Math.round(mins / 60)}h`;
-  return `${Math.round(mins / 1440)}d`;
-}
 
 const count = (n: number) => (n > 99 ? "99+" : n);
 
@@ -50,7 +42,6 @@ export function AllChatsPanel({
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [unread, setUnread] = useState(0);
-  const [waiting, setWaiting] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   // The search as sent, a moment after typing stops.
@@ -80,7 +71,6 @@ export function AllChatsPanel({
         // Departments whose name the search matches.
         peerHits: term ? ALL_ROLES.filter((r) => roleLabel(r).toLowerCase().includes(term)) : [],
         unreadOnly: filter === "unread",
-        waitingOnly: filter === "waiting",
       });
       if (id !== seq.current) return;
       setLoading(false);
@@ -88,7 +78,6 @@ export function AllChatsPanel({
         setChats((prev) => (more ? [...(prev ?? []), ...res.chats] : res.chats));
         setHasMore(res.hasMore);
         setUnread(res.unread);
-        setWaiting(res.waiting);
         setError(null);
       } else setError(res.error);
     },
@@ -220,7 +209,6 @@ export function AllChatsPanel({
             </label>
             <div className="flex flex-wrap items-center gap-1.5">
               {tab("unread", "Unread", unread)}
-              {tab("waiting", "Waiting on me", waiting)}
               {unread > 0 && (
                 <button
                   type="button"
@@ -265,9 +253,7 @@ export function AllChatsPanel({
               newSos.length === 0 && (
                 <p className="px-4 py-8 text-center text-sm text-muted">
                   {search || filter !== "all"
-                    ? filter === "waiting" && !search
-                      ? "Nothing is waiting on you."
-                      : "No chats match."
+                    ? "No chats match."
                     : "No chats yet. Search an SO to start one."}
                 </p>
               )
@@ -295,11 +281,6 @@ export function AllChatsPanel({
                           >
                             <span className="flex items-center gap-1.5">
                               <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{peerName(c.peer)}</span>
-                              {c.waiting && (
-                                <span className="shrink-0 rounded-full bg-amber-100 px-1.5 text-[10px] font-semibold text-amber-800" title="The last message is from them">
-                                  Waiting {waited(c.last_at)}
-                                </span>
-                              )}
                               <span className="shrink-0 text-[11px] text-muted">{stamp(c.last_at)}</span>
                               {c.unread > 0 && (
                                 <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
