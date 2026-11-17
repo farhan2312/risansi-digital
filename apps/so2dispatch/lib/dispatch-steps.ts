@@ -43,11 +43,11 @@ export function stepsDone(inv: Row, billType: unknown): Record<DispatchStepKey, 
 /**
  * Where an SO stands in the three steps, as one stage — its least advanced
  * slip or dispatch: a numbered slip not yet invoiced (or challaned) is
- * Invoice pending; a dispatch with no Delivery Mode, Dispatch pending; one
+ * Invoice pending; a dispatch with no Delivery Mode, Transporter pending; one
  * with no Docket No., Docket & LR pending. Worked out in SQL
  * (dispatchStageSql in lib/orders.ts).
  */
-export const DISPATCH_STAGES = ["Invoice pending", "Dispatch pending", "Docket & LR pending", "Docket & LR done"];
+export const DISPATCH_STAGES = ["Invoice pending", "Transporter pending", "Docket & LR pending", "Docket & LR done"];
 
 /** Where a dispatch stands, in one word for the slip list. */
 export function dispatchStage(inv: Row, billType: unknown): string {

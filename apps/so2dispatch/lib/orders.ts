@@ -3866,6 +3866,13 @@ function orderListClauses(
     // Blank is Not set: Accounts has said neither Clear nor Hold.
     clauses.push(`COALESCE(NULLIF(TRIM(o.accounts_hold_status), ''), ${lit(NOT_SET)}) = ANY(${p(f.accountsHold)}::text[])`);
   }
+  // Dispatch's own Hold (the SO's status), by its reason ("reason · remarks" saved).
+  if (f.dispatchHoldReasons?.length) {
+    clauses.push(`(COALESCE(o.status_override, '') = 'Hold' AND (${f.dispatchHoldReasons
+      // The reasons are a fixed list (no % or _), so LIKE needs no escaping.
+      .map((r) => `(btrim(COALESCE(o.status_reason, '')) = ${lit(r)} OR btrim(COALESCE(o.status_reason, '')) LIKE ${lit(`${r} · %`)})`)
+      .join(" OR ")}))`);
+  }
   if (f.accountsHoldReasons.length) {
     clauses.push(`(COALESCE(o.accounts_hold_status, '') = 'Hold' AND ${facet("o.accounts_hold_reason", f.accountsHoldReasons)})`);
   }
@@ -6017,7 +6024,7 @@ export const dispatchStageSql = (o: string) => `(CASE
       THEN 'Invoice pending'
     WHEN EXISTS (SELECT 1 FROM order_invoices sv WHERE sv.order_id = ${o}.id
                     AND ${INVOICE_STEP_DONE("sv", o)} AND NULLIF(btrim(sv.delivery_mode), '') IS NULL)
-      THEN 'Dispatch pending'
+      THEN 'Transporter pending'
     WHEN EXISTS (SELECT 1 FROM order_invoices sv WHERE sv.order_id = ${o}.id
                     AND ${INVOICE_STEP_DONE("sv", o)} AND NULLIF(btrim(sv.docket_no), '') IS NULL)
       THEN 'Docket & LR pending'

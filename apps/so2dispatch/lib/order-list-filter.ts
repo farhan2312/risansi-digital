@@ -13,6 +13,7 @@ import {
   BILL_MODE_OPTIONS,
   ONLY_BILLING,
   CLEARANCE_HOLD_REASONS,
+  DISPATCH_HOLD_REASONS,
   CLEARANCE_OPTIONS,
   PAYMENT_STATUS_OPTIONS,
   PAYMENT_TERM_OPTIONS,
@@ -196,6 +197,8 @@ export type OrderListFilter = {
   accountsHold: string[];
   /** Accounts: why the SOs it holds are held. */
   accountsHoldReasons: string[];
+  /** Dispatch: why the SOs it holds (status Hold) are held — DISPATCH_HOLD_REASONS. */
+  dispatchHoldReasons?: string[];
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -349,6 +352,11 @@ export function parseOrderListFilter(
     accountsHold: list(get("ahold")).filter((v) => v === "Hold" || v === "Clear" || v === NOT_SET),
     accountsHoldReasons:
       queue === "accounts" ? [...new Set((get("areason") ?? "").split("|").map((v) => v.trim()).filter(Boolean))] : [],
+    // Kept apart by "|": a reason can hold a comma.
+    dispatchHoldReasons:
+      queue === "dispatch"
+        ? [...new Set((get("dhreason") ?? "").split("|").map((v) => v.trim()))].filter((v) => DISPATCH_HOLD_REASONS.includes(v))
+        : [],
   };
 }
 
@@ -403,6 +411,7 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.holdReasons.length ||
     f.accountsHold.length ||
     f.accountsHoldReasons.length ||
+    f.dispatchHoldReasons?.length ||
     f.paymentTerms.length ||
     f.billModes.length ||
     f.orderStatuses.length ||
@@ -455,6 +464,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.holdReasons.length) p.set("hreason", f.holdReasons.join(","));
   if (f.accountsHold.length) p.set("ahold", f.accountsHold.join(","));
   if (f.accountsHoldReasons.length) p.set("areason", f.accountsHoldReasons.join("|"));
+  if (f.dispatchHoldReasons?.length) p.set("dhreason", f.dispatchHoldReasons.join("|"));
   if (f.paymentTerms.length) p.set("pterm", f.paymentTerms.join(","));
   if (f.billModes.length) p.set("bmode", f.billModes.join(","));
   if (f.orderStatuses.length) p.set("ost", f.orderStatuses.join(","));
@@ -500,6 +510,7 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.holdReasons.length) parts.push(`Hold reason: ${f.holdReasons.join(", ")}`);
   if (f.accountsHold.length) parts.push(`Accounts hold: ${f.accountsHold.join(", ")}`);
   if (f.accountsHoldReasons.length) parts.push(`Accounts hold reason: ${f.accountsHoldReasons.join(", ")}`);
+  if (f.dispatchHoldReasons?.length) parts.push(`Dispatch hold reason: ${f.dispatchHoldReasons.join(", ")}`);
   if (f.paymentTerms.length) parts.push(`Payment terms: ${f.paymentTerms.join(", ")}`);
   if (f.billModes.length) parts.push(`Bill mode: ${f.billModes.join(", ")}`);
   if (f.orderStatuses.length) parts.push(`Order status: ${f.orderStatuses.join(", ")}`);
