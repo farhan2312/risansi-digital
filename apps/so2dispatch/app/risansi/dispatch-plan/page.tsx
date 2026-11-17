@@ -184,7 +184,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3"><SortHeader label="Packing" sortKey="pkg" /></th>
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Dispatch Target" sortKey="dispatch_target" /></th>
                 {/* Central Visibility's own, after the department's. */}
-                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Final Dispatch Target" sortKey="final_target" /></th>
+                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="To Be Dispatch Date" sortKey="final_target" /></th>
                 <th className="px-4 py-3">Status</th>
               </tr>
             </thead>

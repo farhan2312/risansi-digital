@@ -72,7 +72,7 @@ export type DispatchPlanRow = {
   assembly: DispatchPlanStage;
   packing: DispatchPlanStage;
   dispatch_target: string | null;
-  /** Central Visibility's Final Dispatch Target, and who set it. */
+  /** Central Visibility's To Be Dispatch Date (final_dispatch_target_date), and who set it. */
   final_dispatch_target: string | null;
   final_dispatch_target_by: string | null;
   /** The SO's Alignment: base plate and wooden box, whether needed and where each stands (as Assembly & Packing's). */

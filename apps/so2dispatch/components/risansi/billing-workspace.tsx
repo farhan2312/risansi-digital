@@ -165,6 +165,7 @@ export function BillingWorkspace({
                 <th className="sticky-so px-4 py-3">SO No.</th>
                 <th className="px-4 py-3">Chat</th>
                 <th className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
+                {mode === "dispatch" && <th className="px-4 py-3 whitespace-nowrap">To Be Dispatch Date</th>}
                 {mode === "billing" && (
                   <th className="px-4 py-3 whitespace-nowrap">
                     <SortHeader label="Readiness Date" sortKey="readiness" />
@@ -234,6 +235,8 @@ export function BillingWorkspace({
                         </button>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-muted">{formatDate(row.so_date)}</td>
+                      {/* Central Visibility's date for it to go out (Dispatch Plan). */}
+                      {mode === "dispatch" && <td className="px-4 py-3 whitespace-nowrap">{formatDate(row.final_dispatch_target_date ?? null)}</td>}
                       {/* Planning's readiness date (a range when the ECs differ), and
                           the status when they all share it. */}
                       {mode === "billing" && (

@@ -3009,6 +3009,8 @@ export type BillingQueueRow = {
   status_override: string | null;
   /** Why it was set by hand (Hold: one of DISPATCH_HOLD_REASONS). */
   status_reason?: string | null;
+  /** Central Visibility's To Be Dispatch Date (Dispatch Plan). */
+  final_dispatch_target_date?: string | null;
   /** What the invoices alone make of it. */
   invoice_dispatch_status: string | null;
   pi_docs: Row[];
@@ -3073,6 +3075,7 @@ export async function listOrdersForBilling(
             ${DISPATCH_STATUS} AS dispatch_status,
             NULLIF(o.status_override, '') AS status_override,
             o.status_reason,
+            to_char(o.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target_date,
             COALESCE(NULLIF(o.invoice_dispatch_status, ''), NULLIF(o.dispatch_status, ''), 'Pending') AS invoice_dispatch_status,
             COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.seq)
                       FROM order_billing_docs d WHERE d.order_id = o.id),
@@ -3150,6 +3153,8 @@ export type PurchaseQueueRow = {
   ld: string | null;
   ld_date: string | null;
   purchase_target_date: string | null;
+  /** Central Visibility's To Be Dispatch Date (Dispatch Plan). */
+  final_dispatch_target_date?: string | null;
   boi_items: Row[];
   /** The EC itself: its type, model, qty and own BOI. */
   item_type?: string | null;
@@ -3188,6 +3193,7 @@ export async function listItemsForPurchase(
             o.ld,
             to_char(o.ld_date, 'YYYY-MM-DD') AS ld_date,
             to_char(o.purchase_target_date, 'YYYY-MM-DD') AS purchase_target_date,
+            to_char(o.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target_date,
             COALESCE((SELECT jsonb_agg(to_jsonb(bi) || jsonb_build_object('expected_history', COALESCE((
                         SELECT jsonb_agg(jsonb_build_object(
                                  'prev', to_char(h.prev_date, 'YYYY-MM-DD'),
