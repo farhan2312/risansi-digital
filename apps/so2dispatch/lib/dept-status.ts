@@ -137,7 +137,8 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   // The words each department's tag on the Orders list shows. Drawing: the
   // GAD's status until the EC's drawings are all done (Closed); once the GAD
   // is issued to Planning, its curve or parts still to come.
-  drawing: [PENDING, "Sent to client – approval pending", "Resubmit", "Approved by client", "Curve / parts pending", "Closed", NOT_APPLICABLE],
+  // EC awaited: no EC attached yet, so nothing for Drawing to start on.
+  drawing: ["EC awaited", PENDING, "Sent to client – approval pending", "Resubmit", "Approved by client", "Curve / parts pending", "Closed", NOT_APPLICABLE],
   // Open until every bought-out item is in hand, as Purchase's page says.
   purchase: ["Open", "Closed", NOT_APPLICABLE],
   // The EC's QC documents, as Quality's page reads them.

@@ -110,7 +110,7 @@ export function gadStandardOf(partDrawing: unknown): "Standard" | "Non Standard"
   return v === "yes" ? "Non Standard" : v === "no" ? "Standard" : null;
 }
 
-export type PartDrawingTone = "done" | "part" | "pending";
+export type PartDrawingTone = "done" | "part" | "pending" | "awaited";
 
 /**
  * Where an EC's part drawings stand: Pending until a part is drawn, Fully
@@ -119,12 +119,15 @@ export type PartDrawingTone = "done" | "part" | "pending";
  */
 export function partDrawingStatus(
   required: unknown,
-  parts: Record<string, unknown>[]
+  parts: Record<string, unknown>[],
+  /** The EC's ec_link: none attached, nothing drawn yet reads EC awaited. */
+  ecLink?: unknown
 ): { label: string; tone: PartDrawingTone; done: number; total: number } | null {
   if (String(required ?? "").trim().toLowerCase() !== "yes") return null;
   const total = parts.length;
   const done = parts.filter((p) => String(p.completed ?? "").trim().toLowerCase() === "yes").length;
   if (total > 0 && done === total) return { label: "Fully complete", tone: "done", done, total };
   if (done > 0) return { label: "Partial complete", tone: "part", done, total };
+  if (ecLink !== undefined && String(ecLink ?? "").trim() === "") return { label: "EC awaited", tone: "awaited", done, total };
   return { label: "Pending", tone: "pending", done, total };
 }

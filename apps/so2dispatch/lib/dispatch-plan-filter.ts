@@ -19,7 +19,7 @@ export const DP_OPTIONS = {
 /** The dates the range can read, the first the default. */
 export const DP_DATE_FIELDS = [
   { value: "dispatch_target", label: "Dispatch Target" },
-  { value: "final_target", label: "Final Dispatch Target" },
+  { value: "final_target", label: "To Be Dispatch Date" },
   { value: "readiness", label: "Readiness" },
   { value: "so_date", label: "SO Date" },
   { value: "ppc", label: "SO Sent to PPC" },

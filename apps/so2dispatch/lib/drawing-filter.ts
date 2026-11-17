@@ -3,22 +3,24 @@
 // (drawingDocStatus, partDrawingStatus) and in SQL here, so a filter matches
 // what the table shows.
 
-import { drawingDocStatus, spareEcSql } from "@/lib/dept-view";
+import { drawingDocStatus, EC_AWAITED, spareEcSql } from "@/lib/dept-view";
 import { partDrawingStatus } from "@/lib/part-drawings";
 import { inListNotHeld, soWorkHoldSql } from "@/lib/dept-status";
 
 export const NOT_REQUIRED = "Not required";
+export { EC_AWAITED };
 
 export const GAD_STATUSES = [
   NOT_REQUIRED,
+  EC_AWAITED,
   "Pending",
   "Sent to client – approval pending",
   "Resubmit",
   "Approved by client",
   "Issued to planning",
 ];
-export const CURVE_STATUSES = [NOT_REQUIRED, "Pending", "Sent to client for approval", "Resubmit", "Approved by client"];
-export const PART_STATUSES = [NOT_REQUIRED, "Pending", "Partial complete", "Fully complete"];
+export const CURVE_STATUSES = [NOT_REQUIRED, EC_AWAITED, "Pending", "Sent to client for approval", "Resubmit", "Approved by client"];
+export const PART_STATUSES = [NOT_REQUIRED, EC_AWAITED, "Pending", "Partial complete", "Fully complete"];
 export const SO_STATES = ["Open", "Closed"];
 
 /** The URL params Drawing's own filters live under. */
@@ -50,9 +52,9 @@ const partsOf = (r: Row) => (Array.isArray(r.part_drawings) ? (r.part_drawings a
 /** An EC's three statuses, as the table shows them. */
 export function ecDrawingStatuses(r: Row): { gad: string; curve: string; part: string } {
   return {
-    gad: drawingDocStatus(versionsOf(r), "GAD", r.gad_required).label,
-    curve: yes(r.performance_curve_required) ? drawingDocStatus(versionsOf(r), "Performance Curve").label : NOT_REQUIRED,
-    part: partDrawingStatus(r.part_drawing, partsOf(r))?.label ?? NOT_REQUIRED,
+    gad: drawingDocStatus(versionsOf(r), "GAD", r.gad_required, r.ec_link).label,
+    curve: yes(r.performance_curve_required) ? drawingDocStatus(versionsOf(r), "Performance Curve", undefined, r.ec_link).label : NOT_REQUIRED,
+    part: partDrawingStatus(r.part_drawing, partsOf(r), r.ec_link)?.label ?? NOT_REQUIRED,
   };
 }
 
@@ -70,11 +72,12 @@ export function ecDrawingDone(r: Row): boolean {
  * Drawing has sent what it owes on an EC, so it is not overdue (whether or not
  * the client has approved yet): the GAD sent to the client, the curve too
  * where the SO asks for one, and the part drawings all complete where asked.
- * A Resubmit is Drawing's to send again, so still owed.
+ * A Resubmit is Drawing's to send again, so still owed. EC awaited: nothing
+ * to work from yet (no EC attached), so not Drawing's delay either.
  */
-export const GAD_SENT = [NOT_REQUIRED, "Sent to client – approval pending", "Approved by client", "Issued to planning"];
-export const CURVE_SENT = [NOT_REQUIRED, "Sent to client for approval", "Approved by client"];
-export const PART_SENT = [NOT_REQUIRED, "Fully complete"];
+export const GAD_SENT = [NOT_REQUIRED, EC_AWAITED, "Sent to client – approval pending", "Approved by client", "Issued to planning"];
+export const CURVE_SENT = [NOT_REQUIRED, EC_AWAITED, "Sent to client for approval", "Approved by client"];
+export const PART_SENT = [NOT_REQUIRED, EC_AWAITED, "Fully complete"];
 
 export function ecDrawingSent(r: Row): boolean {
   const s = ecDrawingStatuses(r);
@@ -142,6 +145,9 @@ function docStatusSql(it: string, doc: "GAD" | "Performance Curve"): string {
   const gad = doc === "GAD";
   return `(SELECT CASE
              ${gad ? `WHEN COALESCE(${it}.gad_required, '') = 'No' THEN ${lit(NOT_REQUIRED)}` : ""}
+             -- Nothing sent and no EC attached: Drawing has nothing to work from.
+             WHEN (lv.id IS NULL OR lower(COALESCE(lv.issued_to_client, '')) <> 'yes')
+                  AND NULLIF(btrim(${it}.ec_link), '') IS NULL THEN ${lit(EC_AWAITED)}
              WHEN lv.id IS NULL OR lower(COALESCE(lv.issued_to_client, '')) <> 'yes' THEN 'Pending'
              WHEN ${gad ? "TRUE" : "FALSE"} AND lower(COALESCE(lv.approved, '')) = 'yes'
                   AND lower(COALESCE(lv.issued_to_production, '')) = 'yes' THEN 'Issued to planning'
@@ -165,6 +171,7 @@ export function partStatusSql(it: string): string {
              WHEN lower(COALESCE(pl.part_drawing, '')) <> 'yes' THEN ${lit(NOT_REQUIRED)}
              WHEN n.total > 0 AND n.done = n.total THEN 'Fully complete'
              WHEN n.done > 0 THEN 'Partial complete'
+             WHEN NULLIF(btrim(${it}.ec_link), '') IS NULL THEN ${lit(EC_AWAITED)}
              ELSE 'Pending' END
            FROM (SELECT 1) one
            LEFT JOIN order_planning pl ON pl.item_id = ${it}.id
@@ -194,6 +201,12 @@ export function ecDrawingLine(f: Pick<DrawingFilter, "gad" | "part">): string {
     .join("  ·  ");
 }
 
+/** How many of an SO's pump ECs stand at a GAD, curve or part status: the EC figure on Drawing's cards. */
+export function ecStatusCountSql(doc: "gad" | "curve" | "part", status: string, o = "o"): string {
+  const expr = doc === "gad" ? docStatusSql("s", "GAD") : doc === "curve" ? curveStatusSql("s", o) : partStatusSql("s");
+  return `(SELECT count(*) FROM order_items s WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)}) AND ${expr} = ${lit(status)})`;
+}
+
 /** Drawing is done with an EC (alias it, its SO o): the SQL twin of ecDrawingDone. */
 /** SQL twin of ecDrawingSent: Drawing owes nothing more on the EC, so it is not overdue. */
 export function ecDrawingSentSql(it: string, o: string): string {
@@ -220,9 +233,11 @@ function ecDoneSql(it: string, o: string): string {
 export function drawingFilterSql(f: DrawingFilter, o = "o"): string {
   const parts: string[] = [];
   const ec: string[] = [];
-  if (f.gad.length) ec.push(inListNotHeld(docStatusSql("s", "GAD"), f.gad, ["Pending"], o, "drawing"));
-  if (f.curve.length) ec.push(inListNotHeld(curveStatusSql("s", o), f.curve, ["Pending"], o, "drawing"));
-  if (f.part.length) ec.push(inListNotHeld(partStatusSql("s"), f.part, ["Pending"], o, "drawing"));
+  // Pending (and EC awaited) leave out an SO held from work.
+  const open = ["Pending", EC_AWAITED];
+  if (f.gad.length) ec.push(inListNotHeld(docStatusSql("s", "GAD"), f.gad, open, o, "drawing"));
+  if (f.curve.length) ec.push(inListNotHeld(curveStatusSql("s", o), f.curve, open, o, "drawing"));
+  if (f.part.length) ec.push(inListNotHeld(partStatusSql("s"), f.part, open, o, "drawing"));
   if (ec.length) {
     parts.push(`EXISTS (SELECT 1 FROM order_items s
                          WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)})

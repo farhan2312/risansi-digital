@@ -12,7 +12,7 @@ function formatDate(value: string | null): string {
 }
 
 /**
- * Central Visibility's Final Dispatch Target on the Dispatch Plan: a date it
+ * Central Visibility's To Be Dispatch Date on the Dispatch Plan: a date it
  * sets on the row (saved as it is picked); everyone else reads it.
  */
 export function FinalDispatchTarget({
@@ -61,7 +61,7 @@ export function FinalDispatchTarget({
           // A half-typed date is not a clearing: left as it was.
           onBlur={(e) => !e.currentTarget.validity.badInput && save(v)}
           onKeyDown={(e) => e.key === "Enter" && save(v)}
-          aria-label="Final Dispatch Target"
+          aria-label="To Be Dispatch Date"
           className={`h-8 rounded-md border bg-surface px-2 text-xs ${late ? "border-rose-300 text-rose-700" : "border-input-border text-foreground"}`}
         />
         {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
