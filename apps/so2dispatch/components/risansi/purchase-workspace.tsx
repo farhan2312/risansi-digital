@@ -742,11 +742,18 @@ function BoiListTable({
   const items = groups.flatMap((g) =>
     g.ecs.flatMap((ec) => ((ec.boi_items ?? []) as Row[]).map((b) => ({ so: g.head, ec, b }))),
   );
-  // Sorted by an item's own date: the server pages the SOs by it, and the page's items follow it (undated last).
+  // Sorted by an item's own date, or its SO's / EC's date: the server pages the SOs by it, and the page's items follow it (undated last).
   const sort = get("sort") ?? "";
-  const itemDate = ITEM_DATE_HEADS[sort.replace("-", "")] ? sort.replace("-", "") : "";
-  if (itemDate) {
-    const at = (x: { b: Row }) => String(x.b[itemDate] ?? "").slice(0, 10);
+  const key = sort.replace("-", "");
+  const dateOf: ((x: { so: PurchaseQueueRow; ec: PurchaseQueueRow; b: Row }) => unknown) | null = ITEM_DATE_HEADS[key]
+    ? (x) => x.b[key]
+    : key === "so_date"
+      ? (x) => x.so.so_date
+      : key === "ec_date"
+        ? (x) => x.ec.ec_date
+        : null;
+  if (dateOf) {
+    const at = (x: { so: PurchaseQueueRow; ec: PurchaseQueueRow; b: Row }) => String(dateOf(x) ?? "").slice(0, 10);
     items.sort((x, y) => {
       if (!at(x) || !at(y)) return at(x) ? -1 : at(y) ? 1 : 0;
       return sort.startsWith("-") ? at(y).localeCompare(at(x)) : at(x).localeCompare(at(y));
@@ -761,8 +768,8 @@ function BoiListTable({
     <table className="w-full min-w-[2300px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-          <th className={th}>SO</th>
-          <th className={th}>EC</th>
+          <th className={th}><SortHeader label="SO" sortKey="so_date" /></th>
+          <th className={th}><SortHeader label="EC" sortKey="ec_date" /></th>
           {itemHeads.map((h, i) => {
             const dateKey = Object.keys(ITEM_DATE_HEADS).find((k) => ITEM_DATE_HEADS[k] === h);
             return (
@@ -803,7 +810,7 @@ function BoiListTable({
                 </div>
                 <div className="text-xs text-muted">{formatDate(ec.ec_date ?? null)}</div>
               </td>
-              <td className="whitespace-nowrap border-l border-card-border px-3 py-2 font-semibold">{boiName(b)}</td>
+              <td className="min-w-[8rem] max-w-[12rem] break-words border-l border-card-border px-3 py-2 font-semibold">{boiName(b)}</td>
               <td className="whitespace-nowrap px-3 py-2">{t(b.boi_make)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.boi_qty)}</td>
               <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
