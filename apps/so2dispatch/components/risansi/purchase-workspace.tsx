@@ -252,25 +252,22 @@ export function PurchaseWorkspace({
               onHistory={(b) => setHistoryFor(b)}
             />
           ) : (
-          <table className="w-full min-w-[2200px] text-sm">
+          <table className="w-full min-w-[1900px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={10} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={7} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={8} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={6} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
                 <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="sticky-so px-3 py-2">SO No.</th>
+                <th className="sticky-so px-3 py-2 whitespace-nowrap"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2">Chat</th>
-                <th className="px-3 py-2"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 <th className="px-3 py-2">BOI</th>
-                <th className="px-3 py-2">LD</th>
-                <th className="px-3 py-2"><SortHeader label="LD Date" sortKey="ld_date" /></th>
+                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="LD / Date" sortKey="ld_date" /></th>
                 <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Purchase Target" sortKey="purchase_target_date" /></th>
                 <th className="px-3 py-2 whitespace-nowrap">To Be Dispatch Date</th>
                 <th className="px-3 py-2">SO Status</th>
-                <th className="border-l border-card-border px-3 py-2">EC No.</th>
-                <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
+                <th className="border-l border-card-border px-3 py-2 whitespace-nowrap"><SortHeader label="EC No. / Date" sortKey="ec_date" /></th>
                 <th className="px-3 py-2">Pump Type</th>
                 <th className="px-3 py-2">Model No.</th>
                 <th className="px-3 py-2">EC Status</th>
@@ -281,7 +278,7 @@ export function PurchaseWorkspace({
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={17} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -314,6 +311,7 @@ export function PurchaseWorkspace({
                                 {g.head.so_no ?? "—"}
                                 <VersionTag order={g.head} />
 <HoldBadge order={g.head} />
+                                <span className="block text-xs font-normal text-muted">{formatDate(g.head.so_date)}</span>
                               </td>
                               <td rowSpan={span} className={soCell}>
                                 <button
@@ -333,10 +331,11 @@ export function PurchaseWorkspace({
                                   )}
                                 </button>
                               </td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.so_date)}</td>
                               <td rowSpan={span} className={soCell}>{g.head.boi ?? "—"}</td>
-                              <td rowSpan={span} className={soCell}>{g.head.ld ?? "—"}</td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.ld_date)}</td>
+                              <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
+                                {g.head.ld ?? "—"}
+                                {g.head.ld_date && <span className="block text-xs text-muted">{formatDate(g.head.ld_date)}</span>}
+                              </td>
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.purchase_target_date)}</td>
                               <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.final_dispatch_target_date ?? null)}</td>
                               <td rowSpan={span} className={soCell}>
@@ -360,8 +359,8 @@ export function PurchaseWorkspace({
                           <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
                             {row.ec_no ?? "—"}
                             <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} latest />
+                            <span className="block text-xs font-normal text-muted">{formatDate(row.ec_date ?? null)}</span>
                           </td>
-                          <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date ?? null)}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.pump_type ?? "—"}</td>
                           <td className={`${ecCell} whitespace-nowrap`}>{row.model_no ?? "—"}</td>
                           <td className={ecCell}>
