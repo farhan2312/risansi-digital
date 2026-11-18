@@ -814,8 +814,8 @@ export function DepartmentWorkspace({
       ? [
           {
             key: "so:so_date",
-            label: soDateField.label,
-            head: <SortHeader label={soDateField.label} sortKey="so_date" />,
+            label: "SO Date",
+            head: <SortHeader label="SO Date" sortKey="so_date" />,
             thClass: `px-3 py-3 whitespace-nowrap text-muted-foreground ${acctPinned ? `sticky-so ${ACCT_DATE_W}` : ""}`,
             thStyle: acctPinned ? { left: ACCT_SO_LEFT, boxShadow: "none" } : undefined,
             tdClass: `px-3 py-3 whitespace-nowrap text-muted ${acctPinned ? `sticky-so ${ACCT_DATE_W}` : ""}`,
@@ -1009,8 +1009,8 @@ export function DepartmentWorkspace({
       ? [
           {
             key: "so:so_date",
-            label: soDateField.label,
-            head: <SortHeader label={soDateField.label} sortKey="so_date" />,
+            label: "SO Date",
+            head: <SortHeader label="SO Date" sortKey="so_date" />,
             thClass: "px-3 py-3 whitespace-nowrap text-muted-foreground",
             tdClass: "px-3 py-3 whitespace-nowrap text-muted",
             cell: (g: SoGroup) => contextCell(soDateField, g.head),

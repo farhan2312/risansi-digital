@@ -1048,8 +1048,8 @@ function BoiListTable({
     });
   }
   const th = "whitespace-nowrap px-3 py-2";
-  // SO, EC, Item and Make stay at the left as the table scrolls sideways: set widths, each one's offset the sum before it.
-  const STICK = [9, 9, 12, 8];
+  // SO No., SO Date, EC No., EC Date, Item and Make stay at the left as the table scrolls sideways: set widths, each one's offset the sum before it.
+  const STICK = [8.5, 6.5, 8.5, 6.5, 10, 7];
   const stick = (i: number) => ({
     left: `${STICK.slice(0, i).reduce((a, w) => a + w, 0)}rem`,
     width: `${STICK[i]}rem`,
@@ -1061,7 +1061,7 @@ function BoiListTable({
     `sticky z-[1] bg-surface group-hover:bg-background ${i === STICK.length - 1 ? "shadow-[inset_-1px_0_0_var(--color-card-border)]" : ""}`;
   const stickTh = (i: number) => `sticky z-[2] ${i === STICK.length - 1 ? "shadow-[inset_-1px_0_0_var(--color-card-border)]" : ""}`;
   const itemHeads = [
-    "Item", "Make", "SO Date", "EC Date", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO", "Vendor SO",
+    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO", "Vendor SO",
     "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
   ];
   // A number with its date under it (vendor figures only when an order is placed).
@@ -1079,13 +1079,13 @@ function BoiListTable({
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={`${th} ${stickTh(0)}`} style={stick(0)}><SortHeader label="SO No." sortKey="so_no" /></th>
-          <th className={`${th} ${stickTh(1)}`} style={stick(1)}>EC No.</th>
+          <th className={`${th} ${stickTh(1)}`} style={stick(1)}><SortHeader label="SO Date" sortKey="so_date" /></th>
+          <th className={`${th} ${stickTh(2)}`} style={stick(2)}>EC No.</th>
+          <th className={`${th} ${stickTh(3)}`} style={stick(3)}><SortHeader label="EC Date" sortKey="ec_date" /></th>
           {itemHeads.map((h, i) => {
-            // The SO's and EC's dates sort as the items' own dates do.
-            const dateKey =
-              h === "SO Date" ? "so_date" : h === "EC Date" ? "ec_date" : Object.keys(ITEM_DATE_HEADS).find((k) => ITEM_DATE_HEADS[k] === h);
+            const dateKey = Object.keys(ITEM_DATE_HEADS).find((k) => ITEM_DATE_HEADS[k] === h);
             return (
-              <th key={h} className={`${th} ${i < 2 ? stickTh(i + 2) : ""}`} style={i < 2 ? stick(i + 2) : undefined}>
+              <th key={h} className={`${th} ${i < 2 ? stickTh(i + 4) : ""}`} style={i < 2 ? stick(i + 4) : undefined}>
                 {dateKey ? <SortHeader label={h} sortKey={dateKey} /> : h}
               </th>
             );
@@ -1095,7 +1095,7 @@ function BoiListTable({
       <tbody className="divide-y divide-card-border">
         {items.length === 0 && (
           <tr>
-            <td colSpan={2 + itemHeads.length} className="px-4 py-10 text-center text-sm text-muted">
+            <td colSpan={4 + itemHeads.length} className="px-4 py-10 text-center text-sm text-muted">
               No bought-out items on these SOs.
             </td>
           </tr>
@@ -1114,16 +1114,16 @@ function BoiListTable({
               <td className={`whitespace-nowrap px-3 py-2 ${stickTd(0)}`} style={stick(0)}>
                 <div className="font-semibold">{so.so_no ?? `#${so.sl_no}`}</div>
               </td>
-              <td className={`whitespace-nowrap px-3 py-2 ${stickTd(1)}`} style={stick(1)}>
+              <td className={`whitespace-nowrap px-3 py-2 ${stickTd(1)}`} style={stick(1)}>{formatDate(so.so_date)}</td>
+              <td className={`whitespace-nowrap px-3 py-2 ${stickTd(2)}`} style={stick(2)}>
                 <div className="font-medium">
                   {ec.ec_no ?? "—"}
                   <EcLink href={ec.ec_link} at={ec.ec_link_at} links={ec.ec_links} latest />
                 </div>
               </td>
-              <td className={`break-words px-3 py-2 font-semibold ${stickTd(2)}`} style={stick(2)}>{boiName(b)}</td>
-              <td className={`break-words px-3 py-2 ${stickTd(3)}`} style={stick(3)}>{t(b.boi_make)}</td>
-              <td className="whitespace-nowrap px-3 py-2">{formatDate(so.so_date)}</td>
-              <td className="whitespace-nowrap px-3 py-2">{formatDate(ec.ec_date ?? null)}</td>
+              <td className={`whitespace-nowrap px-3 py-2 ${stickTd(3)}`} style={stick(3)}>{formatDate(ec.ec_date ?? null)}</td>
+              <td className={`break-words px-3 py-2 font-semibold ${stickTd(4)}`} style={stick(4)}>{boiName(b)}</td>
+              <td className={`break-words px-3 py-2 ${stickTd(5)}`} style={stick(5)}>{t(b.boi_make)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.boi_qty)}</td>
               <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.stock_allocated_qty)}</td>
