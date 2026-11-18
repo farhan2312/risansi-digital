@@ -29,7 +29,7 @@ import { ecStageStatus } from "@/lib/assembly";
 import { PendencyCell } from "./pendency-cell";
 import type { Pendency } from "@/lib/pendency";
 import type { EcAssembly } from "@/lib/ec-assembly";
-import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 type Row = Record<string, unknown>;
 type Group = { key: string; head: Row; ecs: Row[] };
@@ -531,11 +531,14 @@ export function QcWorkspace({
               <PanelSection title="SO">
                 <Portrait cols={soCols} row={focusGroup} />
               </PanelSection>
-              {focusGroup.ecs.map((ec) => (
+              {/* The ECs: all, or one picked from the chips. */}
+              <EcFocus key={focusGroup.key} ecs={focusGroup.ecs} keyOf={(ec) => str(ec.id)} labelOf={(ec) => str(ec.ec_no) || "—"}>
+                {(ec) => (
                 <PanelSection key={str(ec.id)} title={`EC ${str(ec.ec_no) || "—"}`}>
                   <Portrait cols={ecCols} row={ec} />
                 </PanelSection>
-              ))}
+                )}
+              </EcFocus>
             </>
           ) : null
         }

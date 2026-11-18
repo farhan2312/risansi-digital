@@ -26,7 +26,7 @@ import { MultiSelectFilter } from "./multi-select-filter";
 import { PendencyCell } from "./pendency-cell";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS, PURCHASE_STATES } from "@/lib/purchase-filter";
-import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 type Row = Record<string, unknown>;
 
@@ -563,11 +563,14 @@ export function PurchaseWorkspace({
               <PanelSection title="SO">
                 <Portrait cols={soCols} row={focusGroup} />
               </PanelSection>
-              {focusGroup.ecs.map((ec) => (
+              {/* The ECs: all, or one picked from the chips. */}
+              <EcFocus key={focusGroup.key} ecs={focusGroup.ecs} keyOf={(ec) => String(ec.id)} labelOf={(ec) => String(ec.ec_no ?? "—")}>
+                {(ec) => (
                 <PanelSection key={ec.id} title={`EC ${ec.ec_no ?? "—"}`}>
                   <Portrait cols={ecCols} row={ec} />
                 </PanelSection>
-              ))}
+                )}
+              </EcFocus>
             </>
           ) : null
         }

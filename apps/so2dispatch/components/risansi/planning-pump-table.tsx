@@ -14,7 +14,7 @@ import { PartDrawingCell, PartDrawingView, PartPickerModal, ShortageCell } from 
 import { BoiDetailModal, BoiStatusTag, boiName } from "./boi-detail-modal";
 import { OmEcsModal } from "./om-ecs-modal";
 import { PumpAfterPlanningCells, pumpAfterPlanningParts } from "./pump-dept-cells";
-import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 import { HoldBadge } from "./hold-badge";
 import { VersionTag } from "./version-tag";
 import { SortHeader } from "./sort-header";
@@ -621,7 +621,9 @@ export function PlanningPumpTable({
               <PanelSection title="SO">
                 <Portrait cols={soCols} row={focusGroup} />
               </PanelSection>
-              {focusGroup.rows.map((x) => (
+              {/* The ECs: all, or one picked from the chips. */}
+              <EcFocus key={focusGroup.key} ecs={focusGroup.rows} keyOf={(x) => String(x.id)} labelOf={(x) => str(x.ec.ec_no) || str(x.r.ec_no) || "—"}>
+                {(x) => (
                 <PanelSection
                   key={x.id}
                   title={`EC ${str(x.ec.ec_no) || str(x.r.ec_no) || "—"}`}
@@ -638,7 +640,8 @@ export function PlanningPumpTable({
                 >
                   <Portrait cols={ecCols} row={x} />
                 </PanelSection>
-              ))}
+                )}
+              </EcFocus>
             </>
           ) : null
         }

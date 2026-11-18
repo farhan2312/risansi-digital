@@ -35,7 +35,7 @@ import { VersionTag } from "./version-tag";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
 import { SortHeader } from "./sort-header";
 import { GadCell } from "./gad-cell";
-import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 import { PartDrawingCell, PartDrawingView } from "./part-drawing";
 
 type Row = Record<string, unknown>;
@@ -595,11 +595,14 @@ export function AssemblyPumpTable({
               <PanelSection title="SO">
                 <Portrait cols={soCols} row={focusGroup} />
               </PanelSection>
-              {focusGroup.rows.map((x) => (
+              {/* The ECs: all, or one picked from the chips. */}
+              <EcFocus key={focusGroup.key} ecs={focusGroup.rows} keyOf={(x) => String(x.e.id)} labelOf={(x) => String(x.e.label)}>
+                {(x) => (
                 <PanelSection key={x.e.id} title={`EC ${x.e.label}`}>
                   <Portrait cols={ecCols} row={x} />
                 </PanelSection>
-              ))}
+                )}
+              </EcFocus>
             </>
           ) : null
         }

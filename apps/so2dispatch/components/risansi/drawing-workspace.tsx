@@ -35,7 +35,7 @@ import { DrawingReadinessCell } from "./drawing-readiness-cell";
 import { PendencyCell } from "./pendency-cell";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { applyDrawingVersionToSoAction, setGadRequiredAction } from "@/app/risansi/orders/drawing-readiness-actions";
-import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 type Row = Record<string, unknown>;
 /** A split-view column with inline styles too: the pinned SO and PO columns need them in the table. */
@@ -524,11 +524,14 @@ export function DrawingWorkspace({
               <PanelSection title="SO">
                 <Portrait cols={soCols} row={focusGroup} />
               </PanelSection>
-              {focusGroup.ecs.map((ec) => (
+              {/* The ECs: all, or one picked from the chips. */}
+              <EcFocus key={focusGroup.key} ecs={focusGroup.ecs} keyOf={(ec) => str(ec.id)} labelOf={(ec) => str(ec.ec_no) || "—"}>
+                {(ec) => (
                 <PanelSection key={str(ec.id)} title={`EC ${str(ec.ec_no) || "—"}`}>
                   <Portrait cols={ecCols} row={ec} />
                 </PanelSection>
-              ))}
+                )}
+              </EcFocus>
             </>
           ) : null
         }

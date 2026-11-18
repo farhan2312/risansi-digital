@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { setSplitPanelPrefs, useSplitPanelPrefs } from "./split-panel-prefs";
 
@@ -136,6 +136,52 @@ export function SplitShell({
         </aside>
       )}
     </div>
+  );
+}
+
+/**
+ * The SO's ECs in the panel, with a row of EC chips to look at one at a time
+ * (the others fold away) or all of them. Give it `key` = the SO, so picking
+ * another SO starts again on All.
+ */
+export function EcFocus<E>({
+  ecs,
+  keyOf,
+  labelOf,
+  children,
+}: {
+  ecs: E[];
+  keyOf: (ec: E) => string;
+  labelOf: (ec: E) => string;
+  children: (ec: E) => ReactNode;
+}) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const shown = picked && ecs.some((e) => keyOf(e) === picked) ? ecs.filter((e) => keyOf(e) === picked) : ecs;
+  const chip = (on: boolean) =>
+    `inline-flex h-7 items-center rounded-full border px-3 text-xs font-semibold transition-colors ${
+      on ? "border-primary bg-primary text-primary-foreground" : "border-input-border bg-surface text-foreground hover:bg-background"
+    }`;
+  return (
+    <>
+      {ecs.length > 1 && (
+        <div role="tablist" aria-label="ECs" className="sticky top-11 z-[5] -mx-4 flex flex-wrap gap-1.5 border-b border-card-border bg-surface/95 px-4 py-2 backdrop-blur">
+          <button type="button" role="tab" aria-selected={shown === ecs} onClick={() => setPicked(null)} className={chip(shown === ecs)}>
+            All ECs ({ecs.length})
+          </button>
+          {ecs.map((e) => {
+            const on = shown !== ecs && keyOf(e) === picked;
+            return (
+              <button key={keyOf(e)} type="button" role="tab" aria-selected={on} onClick={() => setPicked(keyOf(e))} className={chip(on)}>
+                EC {labelOf(e)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {shown.map((e) => (
+        <Fragment key={keyOf(e)}>{children(e)}</Fragment>
+      ))}
+    </>
   );
 }
 
