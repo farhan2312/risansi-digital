@@ -767,6 +767,18 @@ function BoiListTable({
     });
   }
   const th = "whitespace-nowrap px-3 py-2";
+  // SO, EC, Item and Make stay at the left as the table scrolls sideways: set widths, each one's offset the sum before it.
+  const STICK = [9, 9, 12, 8];
+  const stick = (i: number) => ({
+    left: `${STICK.slice(0, i).reduce((a, w) => a + w, 0)}rem`,
+    width: `${STICK[i]}rem`,
+    minWidth: `${STICK[i]}rem`,
+    maxWidth: `${STICK[i]}rem`,
+  });
+  // Opaque, so the scrolled columns pass under; the last one edged.
+  const stickTd = (i: number) =>
+    `sticky z-[1] bg-surface group-hover:bg-background ${i === STICK.length - 1 ? "shadow-[inset_-1px_0_0_var(--color-card-border)]" : ""}`;
+  const stickTh = (i: number) => `sticky z-[2] ${i === STICK.length - 1 ? "shadow-[inset_-1px_0_0_var(--color-card-border)]" : ""}`;
   const itemHeads = [
     "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO", "Vendor SO",
     "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
@@ -785,12 +797,12 @@ function BoiListTable({
     <table className="w-full min-w-[1900px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-          <th className={th}><SortHeader label="SO" sortKey="so_date" /></th>
-          <th className={th}><SortHeader label="EC" sortKey="ec_date" /></th>
+          <th className={`${th} ${stickTh(0)}`} style={stick(0)}><SortHeader label="SO" sortKey="so_date" /></th>
+          <th className={`${th} ${stickTh(1)}`} style={stick(1)}><SortHeader label="EC" sortKey="ec_date" /></th>
           {itemHeads.map((h, i) => {
             const dateKey = Object.keys(ITEM_DATE_HEADS).find((k) => ITEM_DATE_HEADS[k] === h);
             return (
-              <th key={h} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>
+              <th key={h} className={`${th} ${i < 2 ? stickTh(i + 2) : ""}`} style={i < 2 ? stick(i + 2) : undefined}>
                 {dateKey ? <SortHeader label={h} sortKey={dateKey} /> : h}
               </th>
             );
@@ -814,21 +826,21 @@ function BoiListTable({
               key={String(b.id)}
               onClick={() => onOpen(ec.id, String(b.id))}
               title="Open this item"
-              className="cursor-pointer align-top text-foreground hover:bg-background/60"
+              className="group cursor-pointer align-top text-foreground hover:bg-background/60"
             >
-              <td className="whitespace-nowrap px-3 py-2">
+              <td className={`whitespace-nowrap px-3 py-2 ${stickTd(0)}`} style={stick(0)}>
                 <div className="font-semibold">{so.so_no ?? `#${so.sl_no}`}</div>
                 <div className="text-xs text-muted">{formatDate(so.so_date)}</div>
               </td>
-              <td className="whitespace-nowrap px-3 py-2">
+              <td className={`whitespace-nowrap px-3 py-2 ${stickTd(1)}`} style={stick(1)}>
                 <div className="font-medium">
                   {ec.ec_no ?? "—"}
                   <EcLink href={ec.ec_link} at={ec.ec_link_at} links={ec.ec_links} latest />
                 </div>
                 <div className="text-xs text-muted">{formatDate(ec.ec_date ?? null)}</div>
               </td>
-              <td className="min-w-[8rem] max-w-[12rem] break-words border-l border-card-border px-3 py-2 font-semibold">{boiName(b)}</td>
-              <td className="whitespace-nowrap px-3 py-2">{t(b.boi_make)}</td>
+              <td className={`break-words px-3 py-2 font-semibold ${stickTd(2)}`} style={stick(2)}>{boiName(b)}</td>
+              <td className={`break-words px-3 py-2 ${stickTd(3)}`} style={stick(3)}>{t(b.boi_make)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.boi_qty)}</td>
               <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.stock_allocated_qty)}</td>
