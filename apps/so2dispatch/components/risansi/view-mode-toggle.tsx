@@ -14,17 +14,47 @@ const subscribe = (fn: () => void) => {
 const read = (): ViewMode =>
   viewModeOf(document.cookie.match(new RegExp(`(?:^|; )${VIEW_MODE_COOKIE}=([^;]*)`))?.[1]);
 
-/** Table view or Split view, from the profile menu: a cookie, then the page drawn again. */
-export function ViewModeToggle({ large = false }: { large?: boolean }) {
+function useViewMode() {
   const router = useRouter();
   const mode = useSyncExternalStore(subscribe, read, () => "table" as ViewMode);
-
-  function toggle() {
-    const next: ViewMode = mode === "split" ? "table" : "split";
+  const set = (next: ViewMode) => {
+    if (next === mode) return;
     document.cookie = `${VIEW_MODE_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
     listeners.forEach((fn) => fn());
     router.refresh();
-  }
+  };
+  return { mode, set };
+}
+
+/** The same switch in the top bar: Table | Split, side by side. */
+export function ViewModeSwitch() {
+  const { mode, set } = useViewMode();
+  const btn = (m: ViewMode, label: string, Icon: typeof Table2) => (
+    <button
+      type="button"
+      onClick={() => set(m)}
+      aria-pressed={mode === m}
+      title={m === "split" ? "Split view: the SO list on the left, one SO upright on the right" : "Table view"}
+      className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors ${
+        mode === m ? "bg-primary text-primary-foreground" : "text-muted hover:bg-background hover:text-foreground"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
+  return (
+    <span role="group" aria-label="Table or split view" className="inline-flex items-center rounded-lg border border-card-border bg-surface p-0.5">
+      {btn("table", "Table", Table2)}
+      {btn("split", "Split", Columns2)}
+    </span>
+  );
+}
+
+/** Table view or Split view, from the profile menu: a cookie, then the page drawn again. */
+export function ViewModeToggle({ large = false }: { large?: boolean }) {
+  const { mode, set } = useViewMode();
+  const toggle = () => set(mode === "split" ? "table" : "split");
 
   const split = mode === "split";
   const Icon = split ? Columns2 : Table2;

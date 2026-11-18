@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { ViewModeSwitch } from "./view-mode-toggle";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUrlTableBusy } from "./url-table";
@@ -188,6 +189,10 @@ export function AppShell({
                 {refreshing ? "Refreshing…" : "Refresh"}
               </span>
             </button>
+            {/* Table or Split view, as in the profile menu. Not on phones (their menu has it). */}
+            <span className="hidden md:inline-flex">
+              <ViewModeSwitch />
+            </span>
             {/* Below lg, where the sidebar is hidden: the department switcher here. */}
             <span className="lg:hidden">
               <RoleSwitcher role={user.role} roles={user.roles ?? []} variant="header" />
