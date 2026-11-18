@@ -15,7 +15,9 @@ import {
   scopeToRep,
 } from "@/lib/order-list-filter";
 import { getCurrentUser } from "@/lib/session";
-import { canCreateOrders, canViewAll, isRep } from "@/lib/roles";
+import { canAddFollowup, canCreateOrders, canViewAll, isRep } from "@/lib/roles";
+import { FollowupsDueButton } from "@/components/risansi/followups-due";
+import { countFollowupsDue } from "./followup-actions";
 import { OrdersTable } from "@/components/risansi/orders-table";
 import { MissingDetailsButton } from "@/components/risansi/missing-details-modal";
 import { OneClickButton } from "@/components/risansi/one-click-modal";
@@ -77,7 +79,7 @@ export default async function OrdersPage({
   const pumpView = ordersKind(params.type) === "pump";
   const pageIds = result.rows.map((r) => r.id);
   // …and each SO's packing slips and dispatches, for their columns.
-  const [deptStatuses, pumpSummaries, dispatchDocs] = await Promise.all([
+  const [deptStatuses, pumpSummaries, dispatchDocs, followupsDue] = await Promise.all([
     listOrderDeptStatuses(pageIds).then((m) => Object.fromEntries(m)),
     pumpView ? listPumpSummaries(pageIds) : Promise.resolve(undefined),
     pageIds.length
@@ -85,6 +87,8 @@ export default async function OrdersPage({
           Object.fromEntries(rows.map((r) => [r.id, { packing_slips: r.packing_slips, invoices: r.invoices }]))
         )
       : Promise.resolve({}),
+    // The SOs whose next follow-up has come, for the alarm.
+    countFollowupsDue(),
   ]);
 
   // The export mirrors whatever the list is showing: with any filter on it
@@ -112,6 +116,8 @@ export default async function OrdersPage({
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {/* What the tracker is still waiting on, across every SO — see
               lib/order-gaps.ts. */}
+          {/* The SOs due a follow-up: rings while any are. */}
+          <FollowupsDueButton count={followupsDue} canAdd={canAddFollowup(user.role)} />
           {!rep && <MissingDetailsButton />}
           {/* Every SO the list selects: the Excel (all its columns but Chat) or the PDF. */}
           <ReportDialogButton title={pumpView ? "Pump order report" : "Spare order report"} href={pdfHref} />

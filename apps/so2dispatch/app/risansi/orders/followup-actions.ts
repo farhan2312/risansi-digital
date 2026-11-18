@@ -7,7 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { subjectForOrder } from "@/lib/audit-subject";
 import { getOrderLabel, getOrderRep } from "@/lib/orders";
 import { canAddFollowup, canViewAll, isRep } from "@/lib/roles";
-import { repMatches } from "@/lib/dept-view";
+import { orderOpenSql, repMatches } from "@/lib/dept-view";
 
 export type Followup = {
   id: string;
@@ -78,4 +78,73 @@ export async function addFollowupAction(
   });
   revalidatePath("/risansi/orders");
   return { ok: true };
+}
+
+/** An SO whose next follow-up has come: its latest follow-up, and how late it is. */
+export type FollowupDue = {
+  id: string;
+  so_no: string | null;
+  so_date: string | null;
+  client_name: string | null;
+  order_type: string | null;
+  spare_type: string | null;
+  reps: string | null;
+  followup_date: string;
+  remarks: string;
+  next_followup_date: string;
+  by: string | null;
+  count: number;
+  /** Days since the next follow-up fell due (0: due today). */
+  days_late: number;
+};
+
+/**
+ * The SOs due a follow-up: an open SO whose latest follow-up's next date is
+ * today or past (India time). A Rep: their own SOs (a Rep Manager's team too).
+ */
+async function followupsDue(user: { role: string; rep_names?: string[] }, countOnly: boolean) {
+  if (!canViewAll(user.role)) return { rows: [] as FollowupDue[], count: 0 };
+  const params: unknown[] = [];
+  let rep = "";
+  if (isRep(user.role)) {
+    params.push((user.rep_names ?? []).map((n) => n.trim().toLowerCase()));
+    rep = `AND LOWER(TRIM(COALESCE(o.reps, ''))) = ANY($1::text[])`;
+  }
+  const base = `
+      FROM orders o
+      JOIN LATERAL (SELECT fu.followup_date, fu.remarks, fu.next_followup_date, fu.created_by_name
+                      FROM order_followups fu WHERE fu.order_id = o.id
+                     ORDER BY fu.created_at DESC LIMIT 1) l ON true
+     WHERE ${orderOpenSql("o")} ${rep}
+       AND l.next_followup_date <= (now() AT TIME ZONE 'Asia/Kolkata')::date`;
+  if (countOnly) {
+    const r = await query<{ n: number }>(`SELECT count(*)::int AS n ${base}`, params);
+    return { rows: [], count: r.rows[0]?.n ?? 0 };
+  }
+  const r = await query<FollowupDue>(
+    `SELECT o.id, o.so_no, to_char(o.so_date, 'YYYY-MM-DD') AS so_date, o.client_name,
+            o.order_type, o.spare_type, o.reps,
+            to_char(l.followup_date, 'YYYY-MM-DD') AS followup_date, l.remarks,
+            to_char(l.next_followup_date, 'YYYY-MM-DD') AS next_followup_date, l.created_by_name AS by,
+            (SELECT count(*)::int FROM order_followups c WHERE c.order_id = o.id) AS count,
+            ((now() AT TIME ZONE 'Asia/Kolkata')::date - l.next_followup_date)::int AS days_late
+     ${base}
+     ORDER BY l.next_followup_date, o.so_no`,
+    params
+  );
+  return { rows: r.rows, count: r.rows.length };
+}
+
+/** How many SOs are due a follow-up, for the Orders page's button. */
+export async function countFollowupsDue(): Promise<number> {
+  const user = await getCurrentUser();
+  if (!user) return 0;
+  return (await followupsDue(user, true)).count;
+}
+
+/** The SOs due a follow-up, the longest waiting first. */
+export async function listFollowupsDueAction(): Promise<FollowupDue[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  return (await followupsDue(user, false)).rows;
 }

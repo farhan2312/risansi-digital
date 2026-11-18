@@ -189,3 +189,19 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+/* The Follow-ups due alarm: a bell that rocks, rests, and rocks again. */
+@keyframes alarm-ring {
+  0%, 60%, 100% { transform: rotate(0); }
+  5%, 15%, 25%, 35% { transform: rotate(-16deg); }
+  10%, 20%, 30%, 40% { transform: rotate(16deg); }
+  45% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+}
+.alarm-ring {
+  transform-origin: 50% 15%;
+  animation: alarm-ring 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .alarm-ring { animation: none; }
+}

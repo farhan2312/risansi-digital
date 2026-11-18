@@ -13,6 +13,13 @@ function day(v: string): string {
   return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 }
 const todayIso = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+/** A week on from a date: the next follow-up offered, unless another is picked. */
+const weekAfter = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setUTCDate(d.getUTCDate() + 7);
+  return d.toISOString().slice(0, 10);
+};
 
 /** The Orders list's Follow Up column: when the next is due (red once past), opening the follow-ups. */
 export function FollowupCell({
@@ -48,22 +55,27 @@ export function FollowupCell({
   );
 }
 
-function FollowupDialog({
+export function FollowupDialog({
   orderId,
   soLabel,
   canAdd,
   onClose,
+  onSaved,
 }: {
   orderId: string;
   soLabel: string;
   canAdd: boolean;
   onClose: () => void;
+  /** After a follow-up is added. */
+  onSaved?: () => void;
 }) {
   const router = useRouter();
   const [history, setHistory] = useState<Followup[] | null>(null);
   const [date, setDate] = useState(todayIso);
   const [remarks, setRemarks] = useState("");
-  const [next, setNext] = useState("");
+  // A week after the follow-up, until another date is picked.
+  const [next, setNext] = useState(() => weekAfter(todayIso()));
+  const [nextPicked, setNextPicked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,7 +102,9 @@ function FollowupDialog({
     setHistory(await listFollowupsAction(orderId));
     setSaving(false);
     setRemarks("");
-    setNext("");
+    setNext(weekAfter(date));
+    setNextPicked(false);
+    onSaved?.();
     router.refresh();
   }
 
@@ -134,13 +148,19 @@ function FollowupDialog({
                 <span className="mb-1 block text-xs font-medium text-muted-foreground">
                   Follow-up date <span className="text-danger">*</span>
                 </span>
-                <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${field} h-10`} />
+                <input type="date" required value={date} onChange={(e) => {
+                    setDate(e.target.value);
+                    if (!nextPicked) setNext(weekAfter(e.target.value));
+                  }} className={`${field} h-10`} />
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-muted-foreground">
                   Next follow-up date <span className="text-danger">*</span>
                 </span>
-                <input type="date" required min={date} value={next} onChange={(e) => setNext(e.target.value)} className={`${field} h-10`} />
+                <input type="date" required min={date} value={next} onChange={(e) => {
+                    setNext(e.target.value);
+                    setNextPicked(true);
+                  }} className={`${field} h-10`} />
               </label>
             </div>
             <label className="block">
