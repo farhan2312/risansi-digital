@@ -653,16 +653,24 @@ function BoiDetailTable({
   const d = (v: unknown) => (v ? formatDate(String(v)) : "—");
   const money = (v: unknown) =>
     v == null || v === "" ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
-  const head = [
-    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO No.", "RIL PO Date",
-    "Vendor SO No.", "Vendor SO Date", "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
+  // Fixed widths (rem), so every EC's list lines up under the one above it.
+  const head: [string, number][] = [
+    ["Item", 8], ["Make", 7], ["Qty", 3], ["Description", 14], ["RIL Alloc.", 4.5], ["Vendor", 12], ["RIL PO No.", 6],
+    ["RIL PO Date", 6.5], ["Vendor SO No.", 6.5], ["Vendor SO Date", 6.5], ["Order Qty", 4.5], ["Expected", 7.5],
+    ["Rate", 5], ["Total", 5.5], ["Recd Qty", 4.5], ["Recd Date", 6.5], ["Status", 7],
   ];
+  const width = head.reduce((s, [, w]) => s + w, 0);
   return (
-    <table className="w-full text-xs">
+    <table className="table-fixed text-xs" style={{ width: `${width}rem` }}>
+      <colgroup>
+        {head.map(([h, w]) => (
+          <col key={h} style={{ width: `${w}rem` }} />
+        ))}
+      </colgroup>
       <thead>
-        <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {head.map((h) => (
-            <th key={h} className="whitespace-nowrap px-1.5 pb-1">{h}</th>
+        <tr className="text-left align-bottom text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {head.map(([h]) => (
+            <th key={h} className="px-1.5 pb-1 leading-tight">{h}</th>
           ))}
         </tr>
       </thead>
@@ -677,12 +685,12 @@ function BoiDetailTable({
               title="Open this item"
               className="cursor-pointer align-top hover:bg-background"
             >
-              <td className="whitespace-nowrap px-1.5 py-1 font-semibold text-foreground">{boiName(b)}</td>
-              <td className="whitespace-nowrap px-1.5 py-1">{t(b.boi_make)}</td>
+              <td className="break-words px-1.5 py-1 font-semibold text-foreground">{boiName(b)}</td>
+              <td className="break-words px-1.5 py-1">{t(b.boi_make)}</td>
               <td className="px-1.5 py-1 tabular-nums">{t(b.boi_qty)}</td>
-              <td className="max-w-[14rem] px-1.5 py-1 text-muted">{t(b.boi_description)}</td>
+              <td className="break-words px-1.5 py-1 text-muted">{t(b.boi_description)}</td>
               <td className="px-1.5 py-1 tabular-nums">{t(b.stock_allocated_qty)}</td>
-              <td className="whitespace-nowrap px-1.5 py-1">
+              <td className="break-words px-1.5 py-1">
                 {vendor ? [b.vendor_code, b.vendor_name].filter((x) => x != null && String(x).trim()).join(" · ") || "—" : "No order"}
               </td>
               <td className="whitespace-nowrap px-1.5 py-1">{t(v(b.ril_po_no))}</td>
