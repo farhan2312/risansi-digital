@@ -137,6 +137,14 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
   // Assigned to: the assignee's name, whatever its spelling (user, 2026-11-13).
   const who = [...new Set((f.assignee ?? []).map(filterKey).filter(Boolean))];
   if (who.length) out.push(sql`EXISTS (SELECT 1 FROM ${users} au WHERE au.id = projects.assigned_to AND ${keyOf(sql`au.name`)} IN (${list(who)}))`);
+  // Sent to operation (user, 2026-11-19): any of sent / reviewed, not sent / not reviewed.
+  const OPERATION_SQL: Record<string, SQL> = {
+    "Sent to operation": sql`projects.released_to_operation_at IS NOT NULL`,
+    "Reviewed - not sent": sql`(projects.reviewed_at IS NOT NULL AND projects.released_to_operation_at IS NULL)`,
+    "Not reviewed": sql`(projects.reviewed_at IS NULL AND projects.released_to_operation_at IS NULL)`,
+  };
+  const ops = (f.operation ?? []).map((v) => OPERATION_SQL[v]).filter(Boolean);
+  if (ops.length) out.push(sql`(${sql.join(ops, sql` OR `)})`);
   // Pumps and spares filter by status independently (user, 2026-11-06): Technical and
   // Commercial pick pumps, Spare status picks spares. Once any is picked, a type with
   // none of its own picked is left off.

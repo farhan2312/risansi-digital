@@ -10,7 +10,7 @@ import { Button } from "@/components/shadcn/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/shadcn/dialog";
 import { Alert } from "@/components/shadcn/field";
 import { Input, NativeSelect } from "@/components/shadcn/input";
-import { DRIVE_GROUP_LABEL, type EnquiryQuotations, type TsmOption } from "../../lib/commercial";
+import { DRIVE_GROUP_LABEL, versionedQuotationNo, type EnquiryQuotations, type TsmOption } from "../../lib/commercial";
 import ScopeControls, { ScopeLines } from "../../screens/commercial/ScopeControls";
 import { EMPTY_OFFER_CONFIG, type OfferConfig } from "../../lib/commercial-offer";
 import { getCommercialOffer, saveCommercialOfferConfig } from "../../services/commercialOfferService";
@@ -19,6 +19,7 @@ import {
   getEnquiryQuotations,
   listTsmOptions,
   setQuotationErpSerial,
+  setQuotationDate,
 } from "../../services/quotationService";
 
 // The enquiry's Quotation step — between Technical and Commercial on the
@@ -48,6 +49,8 @@ export default function QuotationStepModal({
   const [options, setOptions] = useState<TsmOption[] | null>(null);
   const [tsmId, setTsmId] = useState("");
   const [erp, setErp] = useState<Record<string, string>>({});
+  // Each generated quotation's date, editable (user, 2026-11-19).
+  const [dates, setDates] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -80,6 +83,7 @@ export default function QuotationStepModal({
       const d = await getEnquiryQuotations(project.id);
       setData(d);
       setErp(Object.fromEntries(d.groups.map((g) => [g.group, g.quotation?.erpSerial ?? ""])));
+      setDates(Object.fromEntries(d.groups.map((g) => [g.group, g.quotation?.quoteDate ?? ""])));
       if (!d.clientTsm && d.groups.some((g) => !g.quotation)) {
         setOptions(await listTsmOptions().catch(() => []));
       }
@@ -96,11 +100,12 @@ export default function QuotationStepModal({
   const erpChanged = (data?.groups ?? []).filter(
     (g) => g.quotation && (erp[g.group] ?? "").trim().toUpperCase() !== (g.quotation.erpSerial ?? ""),
   );
+  const dateChanged = (data?.groups ?? []).filter((g) => g.quotation && dates[g.group] && dates[g.group] !== g.quotation.quoteDate);
   const needsTsm = missing.length > 0 && !data?.clientTsm;
   const scopeChanged = (data?.groups ?? [])
     .map((g) => g.group)
     .filter((g) => JSON.stringify(offerConfigs?.[g] ?? EMPTY_OFFER_CONFIG) !== JSON.stringify(savedConfigs[g] ?? EMPTY_OFFER_CONFIG));
-  const unsaved = erpChanged.length > 0 || scopeChanged.length > 0;
+  const unsaved = erpChanged.length > 0 || dateChanged.length > 0 || scopeChanged.length > 0;
   const canSubmit = !busy && (missing.length > 0 || unsaved) && (!needsTsm || !!tsmId);
   const allGenerated = !!data && data.groups.length > 0 && missing.length === 0;
 
@@ -116,6 +121,7 @@ export default function QuotationStepModal({
         await createQuotation(project.id, g.group, data.clientTsm ? undefined : Number(tsmId), serial || undefined);
       }
       for (const g of erpChanged) await setQuotationErpSerial(g.quotation!.id, (erp[g.group] ?? "").trim());
+      for (const g of dateChanged) await setQuotationDate(g.quotation!.id, dates[g.group]);
       for (const g of scopeChanged) {
         const config = offerConfigs?.[g] ?? EMPTY_OFFER_CONFIG;
         await saveCommercialOfferConfig(project.id, g, config);
@@ -230,11 +236,28 @@ export default function QuotationStepModal({
                               <Badge tone="success" dot>
                                 Generated
                               </Badge>
-                              {fmtDate(g.quotation.quoteDate)}
-                              {g.quotation.tsmName ? ` · TSM ${g.quotation.tsmName}` : ""}
+                              <Badge tone="primary" title="The enquiry's version; the documents print the quotation no. with _V1 from V1 on">
+                                Version V{data.version}
+                              </Badge>
+                              {g.quotation.tsmName ? `TSM ${g.quotation.tsmName}` : ""}
                             </p>
+                            <label className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
+                              Date
+                              <input
+                                type="date"
+                                className="h-7 rounded-md border border-input bg-card px-2 text-[12px] text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
+                                value={dates[g.group] ?? ""}
+                                aria-label={`Quotation date for ${DRIVE_GROUP_LABEL[g.group]}`}
+                                onChange={(e) => {
+                                  setDates((m) => ({ ...m, [g.group]: e.target.value }));
+                                  setSaved(false);
+                                }}
+                              />
+                            </label>
                             {g.quotation.erpNumber && (
-                              <p className="mt-0.5 font-mono text-[11.5px] break-all text-foreground/80">Quotation No.: {g.quotation.erpNumber}</p>
+                              <p className="mt-0.5 font-mono text-[11.5px] break-all text-foreground/80">
+                                Quotation No.: {versionedQuotationNo(g.quotation.erpNumber, data.version)}
+                              </p>
                             )}
                           </>
                         ) : (

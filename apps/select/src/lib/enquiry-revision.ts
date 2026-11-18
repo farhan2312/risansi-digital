@@ -99,6 +99,8 @@ export async function createRevision(
         reportFilename: null,
         reportGeneratedAt: null,
         reportSummary: null,
+        // A new version's documents are new: SharePoint links are added again.
+        docLinks: null,
       })
       .returning();
 

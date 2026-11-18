@@ -22,7 +22,7 @@ import {
   pumpModelQtyInput,
   quotation,
 } from "@/lib/db/schema";
-import { DRIVE_GROUPS, erpQuotationNumber, quotationNumber } from "@/lib/commercial";
+import { DRIVE_GROUPS, erpQuotationNumber, quotationNumber, versionedQuotationNo } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { normalizeOfferConfigs, offerOutOfScope, offerScope, pickedOutOfScope, pickedScope } from "@/lib/commercial-offer";
 import { dotDate, normalizeTechDocConfigs, type TechDocData, type TechDocForm, type TechDocPump } from "@/lib/tech-doc";
@@ -58,6 +58,7 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
     .select({
       code: projects.projectCode,
       versionNo: projects.versionNo,
+      commercialVersion: projects.commercialVersionNo,
       name: projects.name,
       clientCode: projects.clientCode,
       enquiryDate: projects.enquiryDate,
@@ -144,11 +145,12 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
     erpNumbers: Object.fromEntries(
       quotes.flatMap((q) => {
         const erp = erpQuotationNumber(q, mixed);
-        return erp ? [[q.driveGroup, `${erp}, Dt. ${dotDate(q.quoteDate)}`]] : [];
+        return erp ? [[q.driveGroup, `${versionedQuotationNo(erp, p.commercialVersion)}, Dt. ${dotDate(q.quoteDate)}`]] : [];
       }),
     ),
+    // "_V1" after the no. from Commercial version 1 on.
     quotations: Object.fromEntries(
-      quotes.map((q) => [q.driveGroup, `${quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`]),
+      quotes.map((q) => [q.driveGroup, `${versionedQuotationNo(quotationNumber(q, mixed), p.commercialVersion)}, Dt. ${dotDate(q.quoteDate)}`]),
     ),
     configs: normalizeTechDocConfigs(p.config, [...DRIVE_GROUPS, "NONE"]),
     // Same lines as the Commercial Offer (set on the Quotation step / Commercial).

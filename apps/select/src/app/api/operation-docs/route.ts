@@ -4,11 +4,12 @@ import { alias } from "drizzle-orm/pg-core";
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { erpQuotationNumber, quotationNumber } from "@/lib/commercial";
+import { erpQuotationNumber, quotationNumber, versionedQuotationNo } from "@/lib/commercial";
 import { projects, quotation, quotationVersion, techDocVersion, users } from "@/lib/db/schema";
 import { canSeeOperationDocs, orderSubtypeLabel } from "@/lib/roles";
 import { SAVED_DOC_KINDS, operationDocKinds, type OperationDoc } from "@/lib/saved-docs";
 import { dotDate } from "@/lib/tech-doc";
+import { docLinksOrNull } from "@/lib/doc-links";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ async function savedQuotationLines(projectIds: string[]): Promise<Map<string, st
   if (projectIds.length === 0) return lines;
   const quotes = await db.select().from(quotation).where(inArray(quotation.projectId, projectIds)).orderBy(asc(quotation.driveGroup));
   const saved = await db
-    .select({ quotationId: quotationVersion.quotationId, typed: sql<string | null>`${quotationVersion.snapshot}->'offer'->>'erpText'` })
+    .select({ quotationId: quotationVersion.quotationId, version: quotationVersion.version, typed: sql<string | null>`${quotationVersion.snapshot}->'offer'->>'erpText'` })
     .from(quotationVersion)
     .where(and(inArray(quotationVersion.quotationId, quotes.map((q) => q.id)), eq(quotationVersion.track, "client")))
     .orderBy(asc(quotationVersion.createdAt));
@@ -31,7 +32,8 @@ async function savedQuotationLines(projectIds: string[]): Promise<Map<string, st
     const rows = saved.filter((s) => s.quotationId === q.id);
     if (rows.length === 0) continue;
     const mixed = quotes.filter((x) => x.projectId === q.projectId).length > 1;
-    const line = rows.at(-1)!.typed || `${erpQuotationNumber(q, mixed) ?? quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`;
+    const last = rows.at(-1)!;
+    const line = last.typed || `${versionedQuotationNo(erpQuotationNumber(q, mixed) ?? quotationNumber(q, mixed), last.version)}, Dt. ${dotDate(q.quoteDate)}`;
     lines.set(q.projectId, [...(lines.get(q.projectId) ?? []), line]);
   }
   return lines;
@@ -79,6 +81,7 @@ export async function GET(req: Request) {
       operationDocs: projects.operationDocs,
       // A pump other than PCP may have no Technical Data Sheet to save.
       hasTechnical: sql<boolean>`exists (select 1 from ${techDocVersion} s where s.project_id = ${projects.id})`,
+      links: projects.docLinks,
     })
     .from(projects)
     .leftJoin(reviewer, eq(reviewer.id, projects.reviewedBy))
@@ -94,9 +97,10 @@ export async function GET(req: Request) {
     .orderBy(desc(projects.releasedToOperationAt));
 
   const quotations = await savedQuotationLines(rows.map((r) => r.id));
-  const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, subtype, operationDocs, ...r }) => ({
+  const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, subtype, operationDocs, links, ...r }) => ({
     ...r,
     sentDocs: type === "spare" ? ["commercial"] : (operationDocKinds(operationDocs) ?? SAVED_DOC_KINDS),
+    links: docLinksOrNull(links),
     subtype: orderSubtypeLabel(subtype),
     quotations: typedOnSpareDoc ? [typedOnSpareDoc] : (quotations.get(r.id) ?? []),
     version: type === "spare" ? commercialVersion : version,

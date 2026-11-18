@@ -4,12 +4,13 @@
 // Server-only.
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
-import { SPARE_GROUP, erpQuotationNumber, quotationNumber, type DriveGroup, type QuotationSnapshot } from "./commercial";
+import { SPARE_GROUP, erpQuotationNumber, quotationNumber, versionedQuotationNo, type DriveGroup, type QuotationSnapshot } from "./commercial";
 import { isGearedGroup, normalizeOfferConfig } from "./commercial-offer";
 import { projectDriveGroups } from "./commercial-server";
 import { db } from "./db";
 import { projects, quotation, quotationVersion, techDocVersion } from "./db/schema";
 import { operationDocKinds, type SavedDocs, type SavedGroupDocs } from "./saved-docs";
+import { docLinksOrNull } from "./doc-links";
 import { normalizeSpareDocEdits, normalizeSpareQuote } from "./spare-quote";
 import { termsMarketOf } from "./spare-terms";
 import { dotDate, visibleTags, type TechDocGroup, type TechDocSheet } from "./tech-doc";
@@ -27,6 +28,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
       quote: projects.spareQuote,
       docEdits: projects.spareDocEdits,
       operationDocs: projects.operationDocs,
+      links: projects.docLinks,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -46,7 +48,11 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
   // The Client Name box: with the city and country from sales.
   const clientName = await docClientName(p.name, p.clientCode);
   // The file name: the client's name as on the enquiry (no city / country).
-  const about = { enquiry: { code: p.code, clientName: p.name ?? "", enquiryDate: p.enquiryDate }, sent: p.orderType === "spare" ? null : operationDocKinds(p.operationDocs) };
+  const about = {
+    enquiry: { code: p.code, clientName: p.name ?? "", enquiryDate: p.enquiryDate },
+    sent: p.orderType === "spare" ? null : operationDocKinds(p.operationDocs),
+    links: docLinksOrNull(p.links),
+  };
 
   if (p.orderType === "spare") {
     const q = quotes.find((x) => x.driveGroup === SPARE_GROUP);
@@ -67,7 +73,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
               header: {
                 clientName,
                 enquiry,
-                quotation: `${erpQuotationNumber(q, false) ?? quotationNumber(q, false)}, Dt. ${dotDate(q.quoteDate)}`,
+                quotation: `${versionedQuotationNo(erpQuotationNumber(q, false) ?? quotationNumber(q, false), savedOn(q.id)?.version)}, Dt. ${dotDate(q.quoteDate)}`,
                 hidden: [],
               },
             }
@@ -119,7 +125,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
         header: {
           clientName,
           enquiry: config.enquiryText || enquiry,
-          quotation: config.erpText || (erp ? `${erp}, Dt. ${dotDate(q.quoteDate)}` : ""),
+          quotation: config.erpText || (erp ? `${versionedQuotationNo(erp, saved.version)}, Dt. ${dotDate(q.quoteDate)}` : ""),
           hidden: config.headerHidden ?? [],
         },
         tags: visibleTags(tags, config),

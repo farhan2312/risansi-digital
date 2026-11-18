@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import ProductCodeSelect from "../../components/pump-selection/ProductCodeSelect";
 import PageHeader from "../../components/ui/PageHeader";
-import { SPARE_GROUP, formatInr, formatUsdCents, quoteFxOf, type CommercialSummary, type QuoteFx, type QuotationInfo, type TsmOption } from "../../lib/commercial";
+import { SPARE_GROUP, formatInr, formatUsdCents, quoteFxOf, versionedQuotationNo, type CommercialSummary, type QuoteFx, type QuotationInfo, type TsmOption } from "../../lib/commercial";
 import { setQuoteCurrency } from "../../services/commercialService";
 import { getUsdInrSetting } from "../../services/settingsService";
 import UsdToggle from "./UsdToggle";
@@ -318,7 +318,8 @@ export default function SpareCommercial({
       header: {
         clientName: head.clientName ?? "",
         enquiry: [head.enquiryNo, head.enquiryDate ? `Dt. ${dotDate(head.enquiryDate)}` : ""].filter(Boolean).join(", "),
-        quotation: q ? `${q.erpNumber ?? q.number}, Dt. ${dotDate(q.quoteDate)}` : "",
+        // "_V1" after the no. from Commercial version 1 on.
+        quotation: q ? `${versionedQuotationNo(q.erpNumber ?? q.number, q.nextClientVersion)}, Dt. ${dotDate(q.quoteDate)}` : "",
         hidden: [],
       },
     });

@@ -113,6 +113,10 @@ export const projects = pgTable("projects", {
   /** "regular" | "project" (CHECK; user, 2026-11-17). Project needs remarks.
    *  Older enquiries default to regular. */
   enquiryCategory: varchar("enquiry_category", { length: 20 }).notNull().default("regular"),
+  /** {technical?, commercial?, techno?}: SharePoint links added on Review (user,
+   *  2026-11-18), a spare's quotation as commercial. A document with a link opens it
+   *  instead of the generated one (lib/doc-links.ts). A new version starts with none. */
+  docLinks: jsonb("doc_links").$type<Record<string, string>>(),
   /** Two statuses, each worked out automatically (lib/enquiry-filters-server.ts)
    *  but editable on the Edit form (user, 2026-11-03). The override is set only
    *  when what was picked there differs from the automatic status. */

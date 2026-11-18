@@ -4,7 +4,8 @@ import { error, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { projects, quotation } from "@/lib/db/schema";
-import { parseErpSerial, quotationNumber } from "@/lib/commercial";
+import { parseErpSerial, parseQuoteDate, quotationNumber } from "@/lib/commercial";
+import { REVIEW_CLEARED } from "@/lib/enquiry-filters-server";
 import { loadQuotation, suggestedTsm, tsmById } from "@/lib/quotation-server";
 import { workDenied } from "@/lib/enquiry-access";
 
@@ -32,6 +33,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const [current] = await db.select().from(quotation).where(eq(quotation.id, id)).limit(1);
   if (!current) return error("Quotation not found", 404);
+
+  // {quoteDate}: the quotation date, changed by hand (user, 2026-11-19; a new version sets
+  // it to the day it is made). The no. keeps its financial year. The documents print the
+  // date, so what was reviewed changed: reviewed and sent again (REVIEW_CLEARED).
+  if ("quoteDate" in body && !("tsmRepId" in body) && !("erpSerial" in body)) {
+    const quoteDate = parseQuoteDate(body.quoteDate);
+    if (!quoteDate) return error("Enter the quotation date as a valid date.", 400);
+    if (current.quoteDate !== quoteDate) {
+      await db.transaction(async (tx) => {
+        await tx.update(quotation).set({ quoteDate, updatedAt: sql`now()` }).where(eq(quotation.id, id));
+        await tx.update(projects).set(REVIEW_CLEARED).where(eq(projects.id, current.projectId));
+      });
+      await logAudit(req, {
+        action: "quotation.date",
+        entity: "quotation",
+        entityId: id,
+        detail: `Quotation ${quotationNumber(current, true)}: date ${current.quoteDate} → ${quoteDate}`,
+      });
+    }
+    return json(await loadQuotation(current.projectId, current.driveGroup));
+  }
 
   // {erpSerial}: the serial of this quotation in ERP, typed in by hand.
   if ("erpSerial" in body && !("tsmRepId" in body)) {

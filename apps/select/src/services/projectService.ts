@@ -3,6 +3,7 @@ import type { SavedDocKind, SavedDocs } from "../lib/saved-docs";
 import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
 import type { EnquiryCategory } from "../lib/enquiry-fields";
+import type { DocLinks } from "../lib/doc-links";
 import { filterParams, type EnquiryFilters, sortParam, type EnquirySort } from "../lib/enquiry-filters";
 
 // Matches projectToDict() in lib/api.ts — raw snake_case columns plus the
@@ -263,6 +264,13 @@ export const assignProject = async (
 /** The saved documents, and what still needs Save Version before this enquiry can be reviewed (or null). */
 export const getReviewState = async (projectId: string): Promise<{ missing: string | null; docs: SavedDocs }> => {
   const { data } = await apiClient.get<{ missing: string | null; docs: SavedDocs }>(`/projects/${projectId}/review`);
+  return data;
+};
+
+/** Client's own format on / off, and its documents' SharePoint links ("" clears one).
+ *  Returns the links, or null when off. */
+export const saveDocLinks = async (projectId: string, body: { clientFormat: boolean } & DocLinks): Promise<{ links: DocLinks | null; changed: boolean }> => {
+  const { data } = await apiClient.put<{ links: DocLinks | null; changed: boolean }>(`/projects/${projectId}/doc-links`, body);
   return data;
 };
 

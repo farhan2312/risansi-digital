@@ -647,6 +647,9 @@ export type EnquiryQuotations = {
   noDriveTags: string[];
   /** The client's rep in sales — the locked TSM; null when none. */
   clientTsm: TsmOption | null;
+  /** The enquiry version's Commercial version: the documents print "_V1" after the
+   *  quotation no. from V1 on. */
+  version: number;
 };
 
 /** Frozen copy of the prices when a version was made. */
@@ -778,6 +781,18 @@ export function parseErpSerial(raw: unknown): string | null | undefined {
   const v = String(raw ?? "").trim().toUpperCase();
   if (!v) return null;
   return /^[A-Z0-9][A-Z0-9/-]{0,29}$/.test(v) ? v : undefined;
+}
+
+/** A quotation no. as the documents print it (user, 2026-11-19): "_V1" after it from the
+ *  enquiry's Commercial version 1 on (its client version); V0 adds nothing. */
+export const versionedQuotationNo = (no: string, version: number | null | undefined): string => (version ? `${no}_V${version}` : no);
+
+/** A quotation date as typed: yyyy-mm-dd and a real day, else null. */
+export function parseQuoteDate(raw: unknown): string | null {
+  const v = String(raw ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : null;
 }
 
 /** "V0" / "V3"; "Not sent" for a client track that has no version yet. */

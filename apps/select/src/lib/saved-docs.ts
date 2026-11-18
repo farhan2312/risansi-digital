@@ -2,6 +2,7 @@
 // Review shows, and what Operation sees once it is sent to them. Client-safe; they are
 // loaded in saved-docs-server.ts.
 import type { OfferSheet } from "./commercial-offer";
+import type { DocLinks } from "./doc-links";
 import type { SpareQuoteSheet } from "./spare-quote-doc";
 import type { TechDocGroup, TechDocSheet } from "./tech-doc";
 
@@ -30,6 +31,9 @@ export type SavedDocs = {
   groups: SavedGroupDocs[];
   /** A spare's quotation, once saved. */
   spare: SpareQuoteSheet | null;
+  /** Client's own format (lib/doc-links.ts): null = off, the generated documents go; else
+   *  the SharePoint links, the only documents shared. */
+  links: DocLinks | null;
 };
 
 /** One enquiry version sent to operation, a row of Pump Docs, Spare Docs and Client
@@ -63,6 +67,9 @@ export type OperationDoc = {
   hasTechnical: boolean;
   /** The documents sent: what was picked on Review, else all of them. */
   sentDocs: SavedDocKind[];
+  /** Client's own format: the SharePoint links, the only documents shared; null = the
+   *  generated documents. */
+  links: DocLinks | null;
 };
 
 /** The file name a printed document saves as (user, 2026-11-17):

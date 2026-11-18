@@ -11,7 +11,7 @@ import { isOperationRole } from "../../lib/roles";
 import type { OperationDoc, SavedDocs } from "../../lib/saved-docs";
 import { TECHNO_COMMERCIAL_TITLE } from "../../lib/techno-commercial";
 import { getOperationDocs, listOperationDocs, markOperationDocMailed } from "../../services/operationDocsService";
-import { CircleAlert, Eye, Mail, Search, X } from "lucide-react";
+import { CircleAlert, ExternalLink, Eye, Mail, Search, X } from "lucide-react";
 // shadcn/ui (user, 2026-11-13: the new look, branch select-shadcn).
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
@@ -363,9 +363,23 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
                     </td>
                     {docColumns.map((c) => (
                       <td key={c.label} className={td}>
-                        {/* No Technical Data Sheet saved means no Techno-Commercial either. Not
-                            picked on Review: not sent. */}
-                        {(c.key !== "commercial" && !r.hasTechnical) || !r.sentDocs.includes(c.key) ? (
+                        {/* Not picked on Review: not sent. Client's own format: only its
+                            SharePoint links are shared, never the generated documents. No
+                            Technical Data Sheet saved means no Techno-Commercial either. */}
+                        {!r.sentDocs.includes(c.key) || (r.links && !r.links[c.key]) ? (
+                          <span className="text-[12.5px] text-muted-foreground">—</span>
+                        ) : r.links ? (
+                            <a
+                              href={r.links[c.key]!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Client's own format: opens the SharePoint file"
+                              aria-label={`${c.label} V${r.version} of ${r.projectCode} (SharePoint)`}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12.5px] font-medium whitespace-nowrap text-foreground shadow-xs hover:bg-muted"
+                            >
+                              <ExternalLink className="size-3.5" /> SharePoint
+                            </a>
+                        ) : c.key !== "commercial" && !r.hasTechnical ? (
                           <span className="text-[12.5px] text-muted-foreground">—</span>
                         ) : (
                           <Button

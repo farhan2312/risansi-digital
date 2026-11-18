@@ -33,6 +33,7 @@ import { SPARE_GROUP } from "../../lib/commercial";
 import {
   changeQuotationTsm,
   setQuotationErpSerial,
+  setQuotationDate,
   getQuotation,
   listTsmOptions,
   newInternalVersion,
@@ -112,6 +113,9 @@ export default function QuotationPanel({
   // ERP serial box (create form + existing quotation); follows the saved value.
   const [erpDraft, setErpDraft] = useState("");
   useEffect(() => setErpDraft(quotation?.erpSerial ?? ""), [quotation?.erpSerial]);
+  // The quotation date, editable (a new version sets it to the day it is made).
+  const [dateDraft, setDateDraft] = useState("");
+  useEffect(() => setDateDraft(quotation?.quoteDate ?? ""), [quotation?.quoteDate]);
   const [actionError, setActionError] = useState("");
   const [confirm, setConfirm] = useState<null | "tsm" | "send" | "internal">(null);
   const [viewing, setViewing] = useState<QuotationVersionInfo | null>(null);
@@ -343,7 +347,29 @@ export default function QuotationPanel({
           </span>
           <span className="font-mono text-[11.5px] break-all text-muted-foreground">{quotation.erpNumber ?? "—"}</span>
         </div>
-        <Info label="Date" value={new Date(quotation.quoteDate).toLocaleDateString("en-IN", { dateStyle: "medium" })} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className={labelCls}>Date</span>
+          <span className="flex flex-wrap items-center gap-1.5">
+            <input
+              type="date"
+              className="h-7 w-[150px] rounded-md border border-input bg-card px-2 text-[12.5px] text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
+              value={dateDraft}
+              aria-label="Quotation date"
+              onChange={(e) => setDateDraft(e.target.value)}
+            />
+            {dateDraft && dateDraft !== quotation.quoteDate && (
+              <button type="button" className={btnSm} disabled={busy} onClick={() => run(() => setQuotationDate(quotation.id, dateDraft), "Couldn't save the quotation date.")}>
+                Save
+              </button>
+            )}
+          </span>
+          {dateDraft !== quotation.quoteDate && quotation.sentThisVersion && (
+            <span className="text-[11.5px] text-warning">If it was reviewed, it is reviewed and sent to operation again.</span>
+          )}
+        </div>
+        {/* Set by itself: the enquiry's Commercial version. The documents print the no. with
+            "_V1" from V1 on (user, 2026-11-19). */}
+        <Info label="Version" value={`V${quotation.nextClientVersion}`} />
         <Info label="Client" value={[quotation.clientName, quotation.clientCode].filter(Boolean).join(" · ") || "—"} />
         <Info label="Region (TSM initials)" value={quotation.regionCode ?? "—"} />
         <div className="flex min-w-0 flex-col gap-1">

@@ -7,6 +7,7 @@ import apiClient from "../../services/apiClient";
 import { ORDER_SUBTYPES, ORDER_TYPES } from "../../lib/roles";
 import {
   ENQUIRY_STATUSES,
+  OPERATION_STATES,
   filterKey,
   hasEnquiryFilters,
   type EnquiryFilterOptions,
@@ -245,6 +246,7 @@ export default function EnquiryFilterBar({
       {multi("market", "Market", opts?.markets)}
       {multi("industry", "Industry", opts?.industries)}
       {multi("assignee", "Assigned to", opts?.assignees)}
+      {multi("operation", "Sent to operation", OPERATION_STATES)}
       {/* Pumps and spares filter by status independently. */}
       {!onlySpares && multi("status", "Technical status", ENQUIRY_STATUSES)}
       {!onlySpares && multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}

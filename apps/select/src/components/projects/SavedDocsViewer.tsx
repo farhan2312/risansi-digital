@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileX, Printer } from "lucide-react";
+import { ExternalLink, FileX, Printer } from "lucide-react";
 
 import { Button } from "@/components/shadcn/button";
 import PrintPageSizeSelect, { usePrintPageSize } from "../reports/PrintPageSize";
@@ -15,7 +15,8 @@ import { TECHNO_COMMERCIAL_TITLE, buildTechnoCommercialHtml } from "../../lib/te
 
 // The saved documents, read-only, on Review and on Pump Docs / Spare Docs: a toggle
 // between Technical, Commercial and Techno-Commercial for a pump (per drive group), or
-// the quotation for a spare. They can be printed, not edited. Save as PDF names the file
+// the quotation for a spare. They can be printed, not edited. A document with a SharePoint
+// link (added on Review) opens that file instead. Save as PDF names the file
 // Risansi_Pump/Spare_..._<client>_Dt. <enquiry date>_ENQ. No.<no> (savedDocFileName).
 
 export type { SavedDocKind };
@@ -24,6 +25,26 @@ const ALL_DOCS: { key: SavedDocKind; label: string }[] = [
   { key: "commercial", label: "Commercial" },
   { key: "techno", label: TECHNO_COMMERCIAL_TITLE },
 ];
+
+/** A document with a SharePoint link: the file made by hand opens instead of the generated one. */
+function LinkedDoc({ label, url }: { label: string; url: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-muted/30 px-4 py-10 text-center">
+      <p className="text-[13px] text-muted-foreground">
+        Client&apos;s own format: the <strong className="font-semibold text-foreground">{label}</strong> document is on SharePoint. It is shared instead of the generated one.
+      </p>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+      >
+        <ExternalLink className="size-4" /> Open {label} in SharePoint
+      </a>
+      <span className="max-w-full font-mono text-[11px] break-all text-muted-foreground">{url}</span>
+    </div>
+  );
+}
 
 export default function SavedDocsViewer({
   docs,
@@ -43,15 +64,20 @@ export default function SavedDocsViewer({
   const [printing, setPrinting] = useState(false);
   const [pageSize, setPageSize] = usePrintPageSize();
 
+  // Client's own format: this document's SharePoint link, the only thing shared - the
+  // generated one isn't shown.
+  const clientFormat = docs.links !== null;
+  const linked = docs.links?.[isSpare ? "commercial" : doc];
   const current = docs.groups.find((g) => g.group === activeGroup) ?? docs.groups[0] ?? null;
   const html = useMemo(() => {
+    if (clientFormat) return "";
     const logo = `${window.location.origin}/logo.png`;
     if (isSpare) return docs.spare ? buildSpareQuoteHtml(docs.spare, logo) : "";
     if (!current) return "";
     if (doc === "technical") return current.tech ? buildTechDocHtml(current.tech, logo) : "";
     if (doc === "commercial") return current.offer ? buildOfferHtml(current.offer, logo) : "";
     return current.tech && current.offer ? buildTechnoCommercialHtml(current.tech, current.offer, logo) : "";
-  }, [isSpare, docs.spare, current, doc]);
+  }, [clientFormat, isSpare, docs.spare, current, doc]);
 
   const emptyText = isSpare
     ? "The quotation has no saved version yet. Use Save Version on the Quotation page."
@@ -92,7 +118,7 @@ export default function SavedDocsViewer({
             ))}
           </div>
         )}
-        {docs.groups.length > 1 && (
+        {!clientFormat && docs.groups.length > 1 && (
           <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Drive system">
             {docs.groups.map((g) => (
               <button
@@ -112,14 +138,25 @@ export default function SavedDocsViewer({
             ))}
           </div>
         )}
-        <span className="ml-auto flex flex-wrap items-center gap-2">
-          <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
-          <Button variant="outline" disabled={!html || printing} onClick={() => void handlePrint()}>
-            <Printer /> {printing ? "Preparing…" : "Print / Save as PDF"}
-          </Button>
-        </span>
+        {!clientFormat && (
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
+            <Button variant="outline" disabled={!html || printing} onClick={() => void handlePrint()}>
+              <Printer /> {printing ? "Preparing…" : "Print / Save as PDF"}
+            </Button>
+          </span>
+        )}
       </div>
-      {html ? (
+      {clientFormat ? (
+        linked ? (
+          <LinkedDoc label={isSpare ? "Quotation" : (DOCS.find((d) => d.key === doc)?.label ?? "")} url={linked} />
+        ) : (
+          <p className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-[13px] text-muted-foreground">
+            <FileX className="size-5 text-muted-foreground/70" />
+            Client&apos;s own format: no SharePoint link for this document. Only the documents with a link are shared.
+          </p>
+        )
+      ) : html ? (
         <iframe
           title={isSpare ? "Quotation" : DOCS.find((d) => d.key === doc)?.label}
           srcDoc={html}
