@@ -6,7 +6,7 @@ import { Loader2, X } from "lucide-react";
 import { addFollowupAction, listFollowupsAction, type Followup } from "@/app/risansi/orders/followup-actions";
 
 /** The SO's latest follow-up, as the Orders list carries it. */
-export type LastFollowup = { followup_date: string; remarks: string; next_followup_date: string; count: number };
+export type LastFollowup = { followup_date: string; remarks: string; next_followup_date: string | null; count: number };
 
 function day(v: string): string {
   const d = new Date(`${v.slice(0, 10)}T00:00:00Z`);
@@ -34,7 +34,7 @@ export function FollowupCell({
   canAdd: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const late = !!last && last.next_followup_date < todayIso();
+  const late = !!last?.next_followup_date && last.next_followup_date < todayIso();
   return (
     <>
       <button
@@ -46,7 +46,7 @@ export function FollowupCell({
         {last ? `Follow-ups · ${last.count}` : canAdd ? "Add follow-up" : "No follow-up"}
         {last && (
           <span className={`text-[11px] font-normal ${late ? "font-medium text-rose-600" : "text-muted"}`}>
-            Next {day(last.next_followup_date)}
+            {last.next_followup_date ? `Next ${day(last.next_followup_date)}` : "No further follow-up"}
           </span>
         )}
       </button>
@@ -76,6 +76,8 @@ export function FollowupDialog({
   // A week after the follow-up, until another date is picked.
   const [next, setNext] = useState(() => weekAfter(todayIso()));
   const [nextPicked, setNextPicked] = useState(false);
+  // Whether another follow-up is needed: to be answered, Yes or No.
+  const [needNext, setNeedNext] = useState<"" | "Yes" | "No">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,9 +93,18 @@ export function FollowupDialog({
 
   async function save(e: FormEvent) {
     e.preventDefault();
+    if (!needNext) {
+      setError("Say whether a next follow-up is needed.");
+      return;
+    }
     setSaving(true);
     setError(null);
-    const res = await addFollowupAction(orderId, { followup_date: date, remarks, next_followup_date: next });
+    const res = await addFollowupAction(orderId, {
+      followup_date: date,
+      remarks,
+      next_needed: needNext,
+      next_followup_date: needNext === "Yes" ? next : "",
+    });
     if (!res.ok) {
       setSaving(false);
       setError(res.error);
@@ -104,6 +115,7 @@ export function FollowupDialog({
     setRemarks("");
     setNext(weekAfter(date));
     setNextPicked(false);
+    setNeedNext("");
     onSaved?.();
     router.refresh();
   }
@@ -153,15 +165,41 @@ export function FollowupDialog({
                     if (!nextPicked) setNext(weekAfter(e.target.value));
                   }} className={`${field} h-10`} />
               </label>
-              <label className="block">
+              <div>
                 <span className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Next follow-up date <span className="text-danger">*</span>
+                  Next follow-up <span className="text-danger">*</span>
                 </span>
-                <input type="date" required min={date} value={next} onChange={(e) => {
-                    setNext(e.target.value);
-                    setNextPicked(true);
-                  }} className={`${field} h-10`} />
-              </label>
+                <div role="radiogroup" aria-label="Next follow-up" className="inline-flex h-10 overflow-hidden rounded-lg border border-input-border">
+                  {(["Yes", "No"] as const).map((o) => (
+                    <button
+                      key={o}
+                      type="button"
+                      role="radio"
+                      aria-checked={needNext === o}
+                      onClick={() => {
+                        setNeedNext(o);
+                        setError(null);
+                      }}
+                      className={`w-16 text-sm font-semibold transition-colors ${
+                        needNext === o ? "bg-primary text-primary-foreground" : "bg-surface text-foreground hover:bg-background"
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {needNext === "Yes" && (
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Next follow-up date <span className="text-danger">*</span>
+                  </span>
+                  <input type="date" required min={date} value={next} onChange={(e) => {
+                      setNext(e.target.value);
+                      setNextPicked(true);
+                    }} className={`${field} h-10`} />
+                </label>
+              )}
             </div>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -197,7 +235,7 @@ export function FollowupDialog({
               <li key={f.id} className="rounded-lg border border-card-border px-3 py-2 text-sm">
                 <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs">
                   <span className="font-semibold text-foreground">{day(f.followup_date)}</span>
-                  <span className="text-muted">Next {day(f.next_followup_date)}</span>
+                  <span className="text-muted">{f.next_followup_date ? `Next ${day(f.next_followup_date)}` : "No further follow-up"}</span>
                 </div>
                 <p className="mt-1 whitespace-pre-wrap break-words text-foreground">{f.remarks}</p>
                 {f.by && <p className="mt-1 text-[11px] text-muted">{f.by}</p>}

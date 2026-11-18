@@ -13,7 +13,8 @@ export type Followup = {
   id: string;
   followup_date: string;
   remarks: string;
-  next_followup_date: string;
+  /** None: no further follow-up needed. */
+  next_followup_date: string | null;
   by: string | null;
   at: string;
 };
@@ -45,7 +46,7 @@ export async function listFollowupsAction(orderId: string): Promise<Followup[]> 
 /** Add a follow-up. Each one stays as it was entered: a new one is added, none is changed. */
 export async function addFollowupAction(
   orderId: string,
-  input: { followup_date: string; remarks: string; next_followup_date: string }
+  input: { followup_date: string; remarks: string; next_needed: string; next_followup_date: string }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
@@ -56,13 +57,16 @@ export async function addFollowupAction(
   const remarks = String(input.remarks ?? "").trim();
   if (!ISO.test(date)) return { ok: false, error: "Enter the follow-up date." };
   if (!remarks) return { ok: false, error: "Write the remarks." };
-  if (!ISO.test(next)) return { ok: false, error: "Enter the next follow-up date." };
-  if (next < date) return { ok: false, error: "The next follow-up cannot be before this one." };
+  // Another follow-up: Yes needs its date; No, none (the SO is not due again).
+  const needed = String(input.next_needed ?? "").trim();
+  if (needed !== "Yes" && needed !== "No") return { ok: false, error: "Say whether a next follow-up is needed." };
+  if (needed === "Yes" && !ISO.test(next)) return { ok: false, error: "Enter the next follow-up date." };
+  if (needed === "Yes" && next < date) return { ok: false, error: "The next follow-up cannot be before this one." };
   try {
     await query(
       `INSERT INTO order_followups (order_id, followup_date, remarks, next_followup_date, created_by, created_by_name)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [orderId, date, remarks, next, user.id, user.full_name || user.email]
+      [orderId, date, remarks, needed === "Yes" ? next : null, user.id, user.full_name || user.email]
     );
   } catch (error) {
     console.error("addFollowupAction failed:", error);
@@ -73,7 +77,7 @@ export async function addFollowupAction(
     action: "order.update",
     category: "activity",
     target: (await getOrderLabel(orderId)) ?? orderId,
-    details: `Follow-up on ${date}: ${remarks} · next ${next}`,
+    details: `Follow-up on ${date}: ${remarks} · ${needed === "Yes" ? `next ${next}` : "no further follow-up"}`,
     subject: await subjectForOrder(orderId),
   });
   revalidatePath("/risansi/orders");

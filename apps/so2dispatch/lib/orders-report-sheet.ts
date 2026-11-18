@@ -387,7 +387,7 @@ export function ordersSheet(opts: {
       [Number(o.ec_count ?? 0), null],
       [
         o.last_followup
-          ? lines([`${day(o.last_followup.followup_date)}: ${o.last_followup.remarks}`, `Next ${day(o.last_followup.next_followup_date)}`])
+          ? lines([`${day(o.last_followup.followup_date)}: ${o.last_followup.remarks}`, o.last_followup.next_followup_date ? `Next ${day(o.last_followup.next_followup_date)}` : "No further follow-up"])
           : null,
         null,
       ],

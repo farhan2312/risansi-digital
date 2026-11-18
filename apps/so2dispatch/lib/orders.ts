@@ -146,7 +146,7 @@ export type OrderListRow = {
   /** A Pump SO's current version (0 until a new one is made). */
   version_no?: number | null;
   /** The SO's latest follow-up, and how many it has. */
-  last_followup?: { followup_date: string; remarks: string; next_followup_date: string; count: number } | null;
+  last_followup?: { followup_date: string; remarks: string; next_followup_date: string | null; count: number } | null;
   id: string;
   sl_no: number;
   so_no: string | null;

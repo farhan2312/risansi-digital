@@ -3495,3 +3495,6 @@ DELETE FROM order_boi_items WHERE boi_item IN ('Dosing Pump', 'Stator', 'Gland P
 UPDATE boi_vendors SET items = ARRAY(SELECT x FROM unnest(items) x WHERE x NOT IN ('Dosing Pump', 'Stator', 'Gland Packing', 'Pulley')), updated_at = now()
  WHERE items && ARRAY['Dosing Pump', 'Stator', 'Gland Packing', 'Pulley'];
 DELETE FROM boi_vendors WHERE cardinality(items) = 0;
+
+-- A follow-up may say no further follow-up is needed: then it has no next date.
+ALTER TABLE order_followups ALTER COLUMN next_followup_date DROP NOT NULL;
