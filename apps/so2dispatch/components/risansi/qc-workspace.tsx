@@ -198,6 +198,14 @@ export function QcWorkspace({
       list: true,
     },
     {
+      // Central Visibility's date for it to go out (Dispatch Plan).
+      key: "tbd",
+      label: "To Be Dispatch Date",
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (g) => formatDate(g.head.final_dispatch_target_date as string | null ?? null),
+    },
+    {
       key: "needed",
       label: "Docs Needed",
       thClass: "whitespace-nowrap",

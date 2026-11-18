@@ -69,7 +69,7 @@ export const SPARE_CHECKLIST: ChecklistPoint[] = [
   SO("prev_pump_ec", "Previous pump EC check (if exact spare not available — EC No. & Dt.)"),
   SO("prev_spares_ec", "Previous spares EC check (EC No. & Dt.) / MOC"),
   SO("coupling_rod", "Type of coupling rod", ["Bush", "Pin", "NA"]),
-  SO("shaft_head", "Type of shaft head", ["Protector", "Pin"]),
+  SO("shaft_head", "Type of shaft head", ["Protector", "Pin", "N/A"]),
 ];
 
 export const PUMP_CHECKLIST: ChecklistPoint[] = [

@@ -2973,6 +2973,8 @@ export async function listItemsForSection(
             o.status_override, o.status_reason,
             -- Dispatch has it (a numbered packing slip): before that, Not at Dispatch yet.
             ${SO_REACHED_DISPATCH} AS in_dispatch,
+            -- Central Visibility's To Be Dispatch Date (Dispatch Plan): Quality reads it.
+            to_char(o.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target_date,
             o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks
             ${childSelect}${qcSelect}${soChildSelect}${readyLotsSelect}${detailSelects ? `,\n            ${detailSelects}` : ""}${contextSelects}
        FROM order_items it
