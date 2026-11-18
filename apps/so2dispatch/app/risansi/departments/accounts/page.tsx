@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Wallet } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
@@ -25,6 +26,7 @@ import { deptKpiCards } from "@/lib/orders";
 import { DEPT_VIEWS } from "@/lib/dept-view";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
+import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
 
 export const metadata: Metadata = {
   title: "Accounts | Risansi",
@@ -89,6 +91,7 @@ export default async function AccountsWorkspacePage({
       />
 
       <DepartmentWorkspace
+        split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}
         canEdit={canEditSection(user.role, TABLE)}
         completions={completions}
         openThreadId={thread}

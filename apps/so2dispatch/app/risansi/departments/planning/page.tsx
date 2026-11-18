@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { CalendarClock } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import { listPumpSummaries } from "@/lib/pump-summary";
@@ -33,6 +34,7 @@ import { alignmentRestrict, pickAlignment } from "@/lib/assembly";
 import { boiItemRestrict, parsePurchaseFilter } from "@/lib/purchase-filter";
 import { ecDrawingRestrict, parseDrawingFilter } from "@/lib/drawing-filter";
 import { PageHeading } from "@/components/risansi/page-heading";
+import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
 
 export const metadata: Metadata = {
   title: "Planning | Risansi",
@@ -148,6 +150,7 @@ export default async function PlanningWorkspacePage({
       <RemindersPanel reminders={reminders} showClient={false} focusInQueue />
 
       <DepartmentWorkspace
+        split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}
         canEdit={canEditSection(user.role, TABLE)}
         completions={completions}
         openThreadId={thread}

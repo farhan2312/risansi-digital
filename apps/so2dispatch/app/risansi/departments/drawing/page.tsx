@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
 import { PenTool } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
@@ -214,6 +216,7 @@ export default async function DrawingWorkspacePage({
       <RemindersPanel reminders={reminders} focusInQueue />
 
       <DrawingWorkspace
+        split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}
         canEdit={canEditChild(user.role, "order_drawing_revisions")}
         completions={completions}
         pendency={pendency}

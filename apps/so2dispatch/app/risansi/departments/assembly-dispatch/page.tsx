@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Boxes } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
@@ -38,6 +39,7 @@ import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
+import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
 
 export const metadata: Metadata = {
   title: "Assembly & Packing | Risansi",
@@ -213,6 +215,7 @@ export default async function AssemblyDispatchWorkspacePage({
       <RemindersPanel reminders={reminders} showClient={false} focusInQueue />
 
       <DepartmentWorkspace
+        split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}
         canEdit={canEditSection(user.role, TABLE)}
         completions={completions}
         openThreadId={thread}

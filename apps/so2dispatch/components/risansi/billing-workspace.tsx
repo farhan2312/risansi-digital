@@ -29,6 +29,7 @@ import type { PageResult } from "@/lib/pagination";
 import { OrderThreadModal } from "./order-thread-modal";
 import type { DeptCompletion } from "@/lib/dept-completion";
 import { RetrofitLine } from "./retrofit-line";
+import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 type Row = Record<string, unknown>;
 
@@ -60,7 +61,10 @@ export function BillingWorkspace({
   kpis = [],
   pendency = {},
   orderInHand,
+  split: splitView = false,
 }: {
+  /** The split view (the profile menu's switch): the SO list, the SO picked beside it. */
+  split?: boolean;
   /** Dispatch: the cumulative Order in Hand of every SO the filter bar matches. */
   orderInHand?: number;
   /** The summary cards under the filter bar. */
@@ -119,7 +123,218 @@ export function BillingWorkspace({
 
   const focusClass = useFocusRow([focusOrderId ?? openOrderId], rows.length > 0);
 
-
+  // The columns, listed once: the table draws them across, the split view's
+  // panel stands the same ones upright. Billing and Dispatch each have a few of their own.
+  const billing = mode === "billing";
+  const dispatch = mode === "dispatch";
+  const only = (on: boolean, col: SplitCol<BillingQueueRow>) => (on ? [col] : []);
+  const cols: SplitCol<BillingQueueRow>[] = [
+    { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, tdClass: "font-medium tabular-nums", cell: (row) => row.sl_no, list: true },
+    {
+      key: "so",
+      label: "SO No.",
+      thClass: "sticky-so",
+      tdClass: "sticky-so whitespace-nowrap",
+      cell: (row) => (
+        <>
+          {row.so_no ?? "—"}
+          <VersionTag order={row} />
+          <HoldBadge order={row} />
+        </>
+      ),
+      list: true,
+    },
+    {
+      key: "chat",
+      label: "Chat",
+      cell: (row) => (
+        <button
+          type="button"
+          onClick={() =>
+            setThreadFor({ orderId: String(row.id), soLabel: row.so_no ?? String(row.sl_no) })
+          }
+          aria-label="Chat"
+          title="Chat"
+          className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+          {(unreadThreads[String(row.id)] ?? 0) > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+              {unreadThreads[String(row.id)]}
+            </span>
+          )}
+        </button>
+      ),
+    },
+    {
+      key: "sodate",
+      label: "SO Date",
+      head: <SortHeader label="SO Date" sortKey="so_date" />,
+      tdClass: "whitespace-nowrap text-muted",
+      cell: (row) => formatDate(row.so_date),
+    },
+    // Central Visibility's date for it to go out (Dispatch Plan).
+    ...only(dispatch, {
+      key: "tbd",
+      label: "To Be Dispatch Date",
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => formatDate(row.final_dispatch_target_date ?? null),
+      list: true,
+    }),
+    // Planning's readiness date (a range when the ECs differ), and the status
+    // when they all share it.
+    ...only(billing, {
+      key: "readiness",
+      label: "Readiness Date",
+      head: <SortHeader label="Readiness Date" sortKey="readiness" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => (
+        <>
+          {row.readiness_from
+            ? row.readiness_to && row.readiness_to !== row.readiness_from
+              ? `${formatDate(row.readiness_from)} – ${formatDate(row.readiness_to)}`
+              : formatDate(row.readiness_from)
+            : "—"}
+          {row.readiness_status && (
+            <div className="text-[11px] text-muted">{row.readiness_status}</div>
+          )}
+        </>
+      ),
+      list: true,
+    }),
+    {
+      key: "type",
+      label: "Order Type",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => (
+        <>
+          {row.order_type ?? "—"}
+          <RetrofitLine row={row} />
+        </>
+      ),
+    },
+    { key: "client", label: "Client Name", cell: (row) => row.client_name ?? "—", list: true },
+    { key: "bill", label: "Bill Mode", cell: (row) => billModeLabel(null, row.bill_type) || "—" },
+    // Dispatch sees, read-only, each term line with its PI and payment. A
+    // Challan / FR SO is a replacement: no terms to pay against.
+    ...only(dispatch, {
+      key: "terms",
+      label: "Payment terms & PIs",
+      tdClass: "align-top",
+      wide: true,
+      cell: (row) =>
+        row.bill_type === "Challan" && !(row.term_lines ?? []).length ? (
+          <span className="whitespace-nowrap text-xs text-muted">REPLACEMENT - NO PAYMENT TERMS</span>
+        ) : (
+          <TermPis
+            orderId={row.id}
+            soLabel={row.so_no ?? String(row.sl_no)}
+            terms={(row.term_lines ?? []) as Row[]}
+            pis={(row.pi_docs ?? []) as Row[]}
+            canEdit={false}
+            payments={{ canEdit: false }}
+          />
+        ),
+    }),
+    // Billing: each term line with its PI, or "+ PI".
+    // Dispatch: each dispatch and the slips still waiting.
+    {
+      key: "work",
+      label: billing ? "Payment terms & PIs" : "Packing slips & dispatches",
+      tdClass: "align-top",
+      wide: true,
+      cell: (row) =>
+        billing ? (
+          <TermPis
+            orderId={row.id}
+            soLabel={row.so_no ?? String(row.sl_no)}
+            terms={(row.term_lines ?? []) as Row[]}
+            pis={(row.pi_docs ?? []) as Row[]}
+            canEdit={canEdit}
+          />
+        ) : (
+          <>
+            <PumpPackingLines lots={row.pump_lots} />
+            <DispatchInline
+              orderId={row.id}
+              slips={(row.packing_slips ?? []) as Row[]}
+              invoices={(row.invoices ?? []) as Row[]}
+              billType={row.bill_type}
+              canEdit={canEdit}
+            />
+          </>
+        ),
+    },
+    { key: "value", label: "Order Value Details", thClass: "whitespace-nowrap", tdClass: "align-top", cell: (row) => <OrderValueDetails row={row} /> },
+    ...only(dispatch, {
+      key: "inhand",
+      label: "Order in Hand",
+      head: <SortHeader label="Order in Hand" sortKey="in_hand" />,
+      thClass: "whitespace-nowrap text-right",
+      tdClass: "align-top text-right",
+      cell: (row) => <OrderInHand row={row} />,
+    }),
+    ...only(billing, {
+      key: "pi",
+      label: "PI Status",
+      tdClass: "whitespace-nowrap",
+      cell: (row) =>
+        ["Pending", "Readiness date awaited", "Partially raised"].includes((row.billing_state ?? "").trim() || "Pending") ? (
+          // Still a PI to raise: why, with remarks.
+          <PendencyCell
+            orderId={String(row.id)}
+            soLabel={row.so_no ?? String(row.sl_no)}
+            dept="billing"
+            pendency={pendency[String(row.id)]}
+            canEdit={canEdit}
+          >
+            <PiStatePill state={row.billing_state} />
+          </PendencyCell>
+        ) : (
+          <PiStatePill state={row.billing_state} />
+        ),
+      list: true,
+    }),
+    {
+      key: "dstatus",
+      label: "Dispatch Status",
+      tdClass: "whitespace-nowrap",
+      cell: (row) =>
+        dispatch ? (
+          // Dispatch may set it by hand, as well as by its invoices
+          // (Hold above it while Central Visibility holds the SO).
+          <>
+            <DispatchStatusControl
+              orderId={row.id}
+              status={row.dispatch_status}
+              override={row.status_override}
+              fromInvoices={row.invoice_dispatch_status}
+              reason={row.status_reason}
+              canSet={role === "dispatch" || isCentral(role)}
+            />
+          </>
+        ) : atDispatch(row as unknown as Record<string, unknown>) ? (
+          <DispatchStatusPill status={row.dispatch_status} />
+        ) : (
+          <NotAtDispatch />
+        ),
+    },
+    ...only(dispatch, {
+      key: "stage",
+      label: "Stage",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => <StagePill stage={row.dispatch_stage} />,
+      list: true,
+    }),
+  ];
+  const headOf = <R,>(c: SplitCol<R>) => ("head" in c ? c.head : c.label);
+  // Split view: the SO picked, the first until another is.
+  const split = splitView;
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const focusRow = split ? (pageRows.find((r) => String(r.id) === focusKey) ?? pageRows[0] ?? null) : null;
+  const listCols = cols.filter((c) => c.list);
 
   return (
     <div>
@@ -156,42 +371,63 @@ export function BillingWorkspace({
 
       <KpiStrip cards={kpis} />
 
+      <SplitShell
+        split={split}
+        focusKey={focusRow ? String(focusRow.id) : null}
+        focusLabel={focusRow ? (focusRow.so_no ?? `#${focusRow.sl_no}`) : null}
+        list={
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
+          {split ? (
+            // Split view: the SO's identity and state; the rest is the panel's.
+            <table className="w-full text-sm">
+              <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+                <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  {listCols.map((c) => (
+                    <th key={c.key} className={`px-3 py-2 ${c.thClass ?? ""}`}>{headOf(c)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.length === 0 && (
+                  <tr>
+                    <td colSpan={listCols.length} className="px-4 py-10 text-center text-sm text-muted">
+                      {emptyMessage}
+                    </td>
+                  </tr>
+                )}
+                {pageRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    data-focus-row={String(row.id)}
+                    onClick={() => setFocusKey(String(row.id))}
+                    className={`cursor-pointer text-foreground ${
+                      dispatchRowTone(row as unknown as Record<string, unknown>) ?? "hover:bg-background/40"
+                    } ${focusRow?.id === row.id ? "outline-2 -outline-offset-2 outline-primary/50" : ""} ${focusClass(String(row.id))}`}
+                  >
+                    {listCols.map((c) => (
+                      <td key={c.key} className={`border-b border-card-border px-3 py-2 align-top ${c.tdClass ?? ""}`}>
+                        {c.cell(row)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
           <table className="w-full min-w-[880px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="sticky-so px-4 py-3">SO No.</th>
-                <th className="px-4 py-3">Chat</th>
-                <th className="px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
-                {mode === "dispatch" && <th className="px-4 py-3 whitespace-nowrap">To Be Dispatch Date</th>}
-                {mode === "billing" && (
-                  <th className="px-4 py-3 whitespace-nowrap">
-                    <SortHeader label="Readiness Date" sortKey="readiness" />
-                  </th>
-                )}
-                <th className="px-4 py-3">Order Type</th>
-                <th className="px-4 py-3">Client Name</th>
-                <th className="px-4 py-3">Bill Mode</th>
-                {mode === "dispatch" && <th className="px-4 py-3">Payment terms &amp; PIs</th>}
-                <th className="px-4 py-3">{mode === "billing" ? "Payment terms & PIs" : "Packing slips & dispatches"}</th>
-                <th className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
-                {mode === "dispatch" && (
-                  <th className="px-4 py-3 whitespace-nowrap text-right">
-                    <SortHeader label="Order in Hand" sortKey="in_hand" />
-                  </th>
-                )}
-                {mode === "billing" && <th className="px-4 py-3">PI Status</th>}
-                <th className="px-4 py-3">Dispatch Status</th>
-                {mode === "dispatch" && <th className="px-4 py-3">Stage</th>}
+                {cols.map((c) => (
+                  <th key={c.key} className={`px-4 py-3 ${c.thClass ?? ""}`}>{headOf(c)}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border">
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={cols.length} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -212,151 +448,18 @@ export function BillingWorkspace({
                         dispatchRowTone(row as unknown as Record<string, unknown>) ?? "hover:bg-background/60"
                       } ${focusClass(String(row.id))}`}
                     >
-                      <td className="px-4 py-3 font-medium tabular-nums">{row.sl_no}</td>
-                      <td className="sticky-so px-4 py-3 whitespace-nowrap">{row.so_no ?? "—"}
-                        <VersionTag order={row} />
-<HoldBadge order={row} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setThreadFor({ orderId: String(row.id), soLabel: row.so_no ?? String(row.sl_no) })
-                          }
-                          aria-label="Chat"
-                          title="Chat"
-                          className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          {(unreadThreads[String(row.id)] ?? 0) > 0 && (
-                            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
-                              {unreadThreads[String(row.id)]}
-                            </span>
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-muted">{formatDate(row.so_date)}</td>
-                      {/* Central Visibility's date for it to go out (Dispatch Plan). */}
-                      {mode === "dispatch" && <td className="px-4 py-3 whitespace-nowrap">{formatDate(row.final_dispatch_target_date ?? null)}</td>}
-                      {/* Planning's readiness date (a range when the ECs differ), and
-                          the status when they all share it. */}
-                      {mode === "billing" && (
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {row.readiness_from
-                            ? row.readiness_to && row.readiness_to !== row.readiness_from
-                              ? `${formatDate(row.readiness_from)} – ${formatDate(row.readiness_to)}`
-                              : formatDate(row.readiness_from)
-                            : "—"}
-                          {row.readiness_status && (
-                            <div className="text-[11px] text-muted">{row.readiness_status}</div>
-                          )}
+                      {cols.map((c) => (
+                        <td key={c.key} className={`px-4 py-3 ${c.tdClass ?? ""}`}>
+                          {c.cell(row)}
                         </td>
-                      )}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {row.order_type ?? "—"}
-                        <RetrofitLine row={row} />
-                      </td>
-                      <td className="px-4 py-3">{row.client_name ?? "—"}</td>
-                      <td className="px-4 py-3">{billModeLabel(null, row.bill_type) || "—"}</td>
-                      {/* Dispatch sees, read-only, each term line with its PI and payment. A
-                          Challan / FR SO is a replacement: no terms to pay against. */}
-                      {mode === "dispatch" && (
-                        <td className="px-4 py-3 align-top">
-                          {row.bill_type === "Challan" && !(row.term_lines ?? []).length ? (
-                            <span className="whitespace-nowrap text-xs text-muted">REPLACEMENT - NO PAYMENT TERMS</span>
-                          ) : (
-                          <TermPis
-                            orderId={row.id}
-                            soLabel={row.so_no ?? String(row.sl_no)}
-                            terms={(row.term_lines ?? []) as Row[]}
-                            pis={(row.pi_docs ?? []) as Row[]}
-                            canEdit={false}
-                            payments={{ canEdit: false }}
-                          />
-                          )}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 align-top">
-                        {/* Billing: each term line with its PI, or "+ PI".
-                            Dispatch: each dispatch and the slips still waiting. */}
-                        {mode === "billing" ? (
-                          <TermPis
-                            orderId={row.id}
-                            soLabel={row.so_no ?? String(row.sl_no)}
-                            terms={(row.term_lines ?? []) as Row[]}
-                            pis={(row.pi_docs ?? []) as Row[]}
-                            canEdit={canEdit}
-                          />
-                        ) : (
-                          <>
-                          <PumpPackingLines lots={row.pump_lots} />
-                          <DispatchInline
-                            orderId={row.id}
-                            slips={(row.packing_slips ?? []) as Row[]}
-                            invoices={(row.invoices ?? []) as Row[]}
-                            billType={row.bill_type}
-                            canEdit={canEdit}
-                          />
-                          </>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <OrderValueDetails row={row} />
-                      </td>
-                      {mode === "dispatch" && (
-                        <td className="px-4 py-3 align-top text-right">
-                          <OrderInHand row={row} />
-                        </td>
-                      )}
-                      {mode === "billing" && (
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {["Pending", "Readiness date awaited", "Partially raised"].includes((row.billing_state ?? "").trim() || "Pending") ? (
-                            // Still a PI to raise: why, with remarks.
-                            <PendencyCell
-                              orderId={String(row.id)}
-                              soLabel={row.so_no ?? String(row.sl_no)}
-                              dept="billing"
-                              pendency={pendency[String(row.id)]}
-                              canEdit={canEdit}
-                            >
-                              <PiStatePill state={row.billing_state} />
-                            </PendencyCell>
-                          ) : (
-                            <PiStatePill state={row.billing_state} />
-                          )}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {mode === "dispatch" ? (
-                          // Dispatch may set it by hand, as well as by its invoices
-                          // (Hold above it while Central Visibility holds the SO).
-                          <>
-                          <DispatchStatusControl
-                            orderId={row.id}
-                            status={row.dispatch_status}
-                            override={row.status_override}
-                            fromInvoices={row.invoice_dispatch_status}
-                            reason={row.status_reason}
-                            canSet={role === "dispatch" || isCentral(role)}
-                          />
-                          </>
-                        ) : atDispatch(row as unknown as Record<string, unknown>) ? (
-                          <DispatchStatusPill status={row.dispatch_status} />
-                        ) : (
-                          <NotAtDispatch />
-                        )}
-                      </td>
-                      {mode === "dispatch" && (
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <StagePill stage={row.dispatch_stage} />
-                        </td>
-                      )}
+                      ))}
                     </tr>
                   </Fragment>
                 );
               })}
             </tbody>
           </table>
+          )}
         </div>
         <UrlPagination
           page={queue.page}
@@ -366,6 +469,27 @@ export function BillingWorkspace({
           total={queue.total}
         />
       </div>
+        }
+        panel={
+          focusRow ? (
+            <PanelSection
+              title="SO"
+              aside={
+                // The table opens it with a click on the row; here the click picks the SO.
+                <button
+                  type="button"
+                  onClick={() => setOrderDetailsFor(focusRow.id)}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Order details
+                </button>
+              }
+            >
+              <Portrait cols={cols} row={focusRow} />
+            </PanelSection>
+          ) : null
+        }
+      />
 
       {orderDetailsFor && (
         <OrderDetailsModal

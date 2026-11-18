@@ -35,6 +35,7 @@ import { VersionTag } from "./version-tag";
 import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
 import { SortHeader } from "./sort-header";
 import { GadCell } from "./gad-cell";
+import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 import { PartDrawingCell, PartDrawingView } from "./part-drawing";
 
 type Row = Record<string, unknown>;
@@ -122,10 +123,28 @@ function PendingRemarks({ lots, stage }: { lots: PumpLot[]; stage: "assembly" | 
   );
 }
 
+/** One SO and its pump ECs, as the table and the split view's panel read them. */
+type SoGroup = {
+  key: string;
+  head: Row;
+  ecs: Row[];
+  rows: EcRow[];
+  soLabel: string;
+  span: number;
+  pumpQty: number;
+  lots: PumpLot[];
+  so: ReturnType<typeof soStatuses>;
+};
+/** One pump EC, with how much of it is assembled and packed. */
+type EcRow = { r: Row; e: Ec; d: ReturnType<typeof ecDone>; g: SoGroup };
+const headOf = <R,>(c: SplitCol<R>) => (c.head === undefined ? c.label : c.head);
+
 /**
  * Assembly & Packing's Pump view: each SO once on the left — Planning's
  * status, its lots, and how far assembly and packing have got lot by lot —
  * and its pump ECs on the right with what is ready, assembled and packed.
+ * In split view, the SO list on the left and the SO picked on the right, the
+ * same columns upright.
  */
 export function AssemblyPumpTable({
   rows,
@@ -133,12 +152,15 @@ export function AssemblyPumpTable({
   canEdit,
   canEditCentral = false,
   onThread,
+  split = false,
 }: {
   rows: Row[];
   unreadThreads: Record<string, number>;
   canEdit: boolean;
   canEditCentral?: boolean;
   onThread: (orderId: string, soLabel: string) => void;
+  /** Split view: the SO list and the SO picked side by side. */
+  split?: boolean;
 }) {
   const pumps = rows.filter((r) => PUMP_LIKE.includes(str(r.item_type)));
   const sos: { orderId: string; ecs: Row[] }[] = [];
@@ -153,15 +175,403 @@ export function AssemblyPumpTable({
   const [partsFor, setPartsFor] = useState<string | null>(null);
   // The SO and the form open on it: base plate or wooden box, each filled by its own person.
   const [alignFor, setAlignFor] = useState<{ orderId: string; which: "base_plate" | "wooden_box" } | null>(null);
+  // The SO picked in split view: the first until another is.
+  const [focusKey, setFocusKey] = useState<string | null>(null);
   const alignSo = alignFor ? sos.find((x) => x.orderId === alignFor.orderId) : null;
   const AlignForm = alignFor?.which === "wooden_box" ? WoodenBoxForm : BasePlateForm;
+  const groups: SoGroup[] = sos.map(({ orderId, ecs }) => {
+    const head = ecs[0];
+    const lots = pumpLotsFromEcs(ecs);
+    const ecList = ecs.map(ecOf);
+    const g: SoGroup = {
+      key: orderId,
+      head,
+      ecs,
+      rows: [],
+      soLabel: str(head.so_no) || `#${str(head.sl_no)}`,
+      span: ecs.length,
+      pumpQty: ecList.reduce((t, e) => t + e.quantity, 0),
+      lots,
+      so: soStatuses(ecList, lots),
+    };
+    g.rows = ecs.map((r, k) => ({ r, e: ecList[k], d: ecDone(lots, ecList[k].id), g }));
+    return g;
+  });
+  const focusGroup = split ? (groups.find((g) => g.key === focusKey) ?? groups[0] ?? null) : null;
   // Lot 1 to n, each in its own column: as many as any SO here has, at least READY_LOT_LIMIT.
-  const lotCols = Array.from(
-    { length: Math.max(READY_LOT_LIMIT, ...sos.map((s) => pumpLotsFromEcs(s.ecs).length)) },
-    (_, i) => i + 1
-  );
+  const lotCols = Array.from({ length: Math.max(READY_LOT_LIMIT, ...groups.map((g) => g.lots.length)) }, (_, i) => i + 1);
   const th = "px-3 py-2 whitespace-nowrap";
   const group = "border-l border-card-border px-3 pt-2.5 pb-1 text-center";
+  const slipsOf = (g: SoGroup) => (g.head.so_child_rows ?? []) as Row[];
+
+  // The SO's columns, once down the left of all its EC rows; grouped as the table heads them.
+  const soIdCols: SplitCol<SoGroup>[] = [
+    { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, tdClass: "tabular-nums", cell: (g) => str(g.head.sl_no), list: true },
+    {
+      key: "so",
+      label: "SO No.",
+      thClass: "sticky-so",
+      tdClass: "sticky-so whitespace-nowrap font-semibold",
+      cell: (g) => (
+        <>
+          {g.soLabel}
+          {/* Its ECs, and the pumps they hold (their quantities summed), as on Planning. */}
+          <span className="block text-[11px] font-normal text-muted">
+            {g.span} EC{g.span === 1 ? "" : "s"} · {g.pumpQty} pump{g.pumpQty === 1 ? "" : "s"}
+          </span>
+          <VersionTag order={g.head} />
+          <HoldBadge order={g.head} />
+        </>
+      ),
+      list: true,
+    },
+    { key: "so_date", label: "SO Date", head: <SortHeader label="SO Date" sortKey="so_date" />, tdClass: "whitespace-nowrap text-muted", cell: (g) => shortDate(g.head.so_date) },
+    {
+      key: "chat",
+      label: "Chat",
+      cell: (g) => {
+        const unread = unreadThreads[g.key] ?? 0;
+        return (
+          <button
+            type="button"
+            onClick={() => onThread(g.key, g.soLabel)}
+            aria-label="Chat"
+            className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border hover:bg-background"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            {unread > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+                {unread}
+              </span>
+            )}
+          </button>
+        );
+      },
+    },
+    {
+      key: "ppc",
+      label: "PPC Status",
+      tdClass: "whitespace-nowrap",
+      cell: (g) => (
+        <>
+          <span className={`block font-medium ${str(g.head.ppc_status) === "Fully ready" ? "text-emerald-700" : ""}`}>{str(g.head.ppc_status) || "—"}</span>
+          <span className="block text-[11px] text-muted">{shortDate(g.head.planning_readiness_date)}</span>
+        </>
+      ),
+      list: true,
+    },
+  ];
+  const lotsCols: SplitCol<SoGroup>[] = [
+    // Each lot's work, a column per lot.
+    ...lotCols.map(
+      (n, i): SplitCol<SoGroup> => ({
+        key: `lot${n}`,
+        label: `Lot ${n}`,
+        thClass: i === 0 ? "border-l border-card-border" : "",
+        tdClass: i === 0 ? "border-l border-card-border" : "",
+        cell: (g) => <LotCell lot={g.lots.find((l) => l.n === n)} slips={slipsOf(g)} noRemarks />,
+      })
+    ),
+    // However many lots there are: the latest, whichever it is.
+    { key: "latest", label: "Latest Lot", cell: (g) => <LatestLot lot={latestPumpLot(g.lots)} slips={slipsOf(g)} noRemarks /> },
+  ];
+  // The SO's Alignment: base plate and wooden box.
+  const alignCols: SplitCol<SoGroup>[] = [
+    {
+      key: "base_plate",
+      label: "Base Plate",
+      thClass: "border-l border-card-border",
+      tdClass: "border-l border-card-border",
+      cell: (g) => <AlignmentValue alignment={g.head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "base_plate" })} />,
+    },
+    {
+      key: "wooden_box",
+      label: "Wooden Box",
+      cell: (g) => <AlignmentValue alignment={g.head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "wooden_box" })} />,
+    },
+  ];
+  const asmCols: SplitCol<SoGroup>[] = [
+    {
+      key: "asm_status",
+      label: "Assembly Status",
+      head: "Status",
+      thClass: "border-l border-card-border",
+      tdClass: "border-l border-card-border",
+      cell: (g) => (
+        <>
+          <Chip label={g.so.assembly} />
+          <PendingRemarks lots={g.lots} stage="assembly" />
+        </>
+      ),
+      list: true,
+    },
+    {
+      key: "asm_plan",
+      label: "Assembly Planned Date",
+      head: <SortHeader label="Planned Date" sortKey="asm_plan" />,
+      tdClass: "whitespace-nowrap",
+      cell: (g) => <PlannedCell lots={g.lots} stage="assembly" orderId={g.key} soLabel={g.soLabel} />,
+    },
+  ];
+  const packCols: SplitCol<SoGroup>[] = [
+    {
+      key: "pack_status",
+      label: "Packing Status",
+      head: "Status",
+      thClass: "border-l border-card-border",
+      tdClass: "border-l border-card-border",
+      cell: (g) => (
+        <>
+          <Chip label={g.so.packing} />
+          <PendingRemarks lots={g.lots} stage="packing" />
+        </>
+      ),
+      list: true,
+    },
+    {
+      key: "pack_plan",
+      label: "Packing Planned Date",
+      head: <SortHeader label="Planned Date" sortKey="packing" />,
+      tdClass: "whitespace-nowrap",
+      cell: (g) => <PlannedCell lots={g.lots} stage="packing" orderId={g.key} soLabel={g.soLabel} />,
+    },
+    {
+      key: "lots",
+      label: "Actions",
+      head: null,
+      cell: (g) => (
+        <button
+          type="button"
+          onClick={() => setLotsFor(g.key)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+        >
+          <Layers className="h-3.5 w-3.5" />
+          Lots
+        </button>
+      ),
+    },
+  ];
+  // The SO's packing slips, each naming the lots it carries.
+  const slipCols: SplitCol<SoGroup>[] = [
+    {
+      key: "slips",
+      label: "Packing Slips",
+      thClass: "border-l border-card-border",
+      tdClass: "border-l border-card-border",
+      wide: true,
+      cell: (g) => (
+        <PackingSlipsInline
+          orderId={g.key}
+          soLabel={g.soLabel}
+          slips={slipsOf(g)}
+          context={{ market_type: g.head.market_type, packing_details_required: g.head.packing_details_required }}
+          gateOk={str(g.head.market_type).trim() !== ""}
+          canEdit={canEdit}
+          canEditCentral={canEditCentral}
+          lotCount={g.lots.length}
+          packedLots={g.lots.filter((l) => l.packed_date).map((l) => l.n)}
+          lotPacking={Object.fromEntries(g.lots.filter((l) => l.pack_status).map((l) => [String(l.n), l.pack_status]))}
+        />
+      ),
+    },
+  ];
+  // Where Dispatch has got to: — until it has the SO (a numbered packing slip).
+  const dispatchCols: SplitCol<SoGroup>[] = [
+    {
+      key: "dispatch",
+      label: "Dispatch Status",
+      head: "Status",
+      thClass: "border-l border-card-border",
+      tdClass: "whitespace-nowrap border-l border-card-border",
+      cell: (g) =>
+        slipsOf(g).some((sl) => str(sl.packing_slip_no).trim() !== "") ? (
+          <DispatchStatusPill status={str(g.head.so_dispatch_status) || "Pending"} />
+        ) : (
+          <NotAtDispatch />
+        ),
+    },
+  ];
+  const soCols = [...soIdCols, ...lotsCols, ...alignCols, ...asmCols, ...packCols, ...slipCols, ...dispatchCols];
+
+  // Each EC's columns, a row each.
+  const ecMainCols: SplitCol<EcRow>[] = [
+    {
+      key: "ec",
+      label: "EC No. / Internal Model",
+      thClass: "border-l border-card-border",
+      tdClass: "whitespace-nowrap border-l border-card-border font-semibold",
+      cell: ({ e }) => (
+        <>
+          {e.label}
+          <EcLink href={e.link} at={e.linkAt} links={e.links} latest />
+          {e.model && <div className="text-xs font-normal text-muted">{e.model}</div>}
+        </>
+      ),
+    },
+    {
+      key: "ec_date",
+      label: "EC Date",
+      head: <SortHeader label="EC Date" sortKey="ec_date" />,
+      tdClass: "whitespace-nowrap text-muted",
+      cell: ({ r }) => shortDate(((r.ec ?? {}) as Row).ec_date),
+    },
+    {
+      // Planning's readiness for this EC, lot by lot: the lots it has a
+      // share in (its own date when it has no lots).
+      key: "readiness",
+      label: "Assembly Readiness Date",
+      head: <SortHeader label="Assembly Readiness Date" sortKey="readiness" />,
+      tdClass: "whitespace-nowrap",
+      cell: ({ r, e, g }) => {
+        const mine = ecReadyLots(g.lots, e.id);
+        if (mine.length === 0) return shortDate(r.planning_readiness_date);
+        return mine.map((l) => (
+          <div key={l.n} className="text-xs">
+            <span className="font-semibold">L{l.n}</span> {shortDate(l.date)}
+            <span className="text-muted"> ×{l.qty}</span>
+          </div>
+        ));
+      },
+    },
+    { key: "qty", label: "Qty", tdClass: "tabular-nums", cell: ({ e }) => e.quantity || "—" },
+    { key: "ready", label: "Ready", tdClass: "tabular-nums", cell: ({ e }) => e.ready },
+    { key: "assembled", label: "Assembled", tdClass: "tabular-nums", cell: ({ d }) => d.assembled },
+    { key: "assembly", label: "Assembly", cell: ({ e, d }) => <Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} /> },
+    { key: "packed", label: "Packed", tdClass: "tabular-nums", cell: ({ d }) => d.packed },
+    { key: "packing", label: "Packing", cell: ({ e, d }) => <Chip label={ecStageStatus(d.packed, e.quantity, "packing")} /> },
+  ];
+  // Drawing, as on Planning: the GAD, and the part drawings to read.
+  const drawingCols: SplitCol<EcRow>[] = [
+    {
+      key: "gad",
+      label: "GAD",
+      thClass: "border-l border-card-border",
+      tdClass: "whitespace-nowrap border-l border-card-border",
+      cell: ({ r }) => <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} gadRequired={r.gad_required} ecLink={r.ec_link} />,
+    },
+    {
+      key: "part",
+      label: "Part Drawing",
+      cell: ({ r, e }) =>
+        str(r.part_drawing).toLowerCase() === "yes" ? (
+          <button type="button" onClick={() => setPartsFor(e.id)} title="See the parts" className="text-left">
+            <PartDrawingCell required={r.part_drawing} parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []} />
+          </button>
+        ) : (
+          <PartDrawingCell required={r.part_drawing} parts={[]} />
+        ),
+    },
+  ];
+  const ecCols = [...ecMainCols, ...drawingCols];
+  const listCols = soCols.filter((c) => c.list);
+  // The table's top heading row, a title over each run of columns.
+  const heads: { title: string; span: number; className: string }[] = [
+    { title: "SO", span: soIdCols.length, className: "px-3 pt-2.5 pb-1" },
+    { title: "Lots", span: lotsCols.length, className: group },
+    { title: "Alignment", span: alignCols.length, className: group },
+    { title: "Assembly", span: asmCols.length, className: group },
+    { title: "Packing", span: packCols.length, className: group },
+    { title: "", span: slipCols.length, className: group },
+    { title: "Dispatch", span: dispatchCols.length, className: group },
+    { title: "EC", span: ecMainCols.length, className: group },
+    { title: "Drawing", span: drawingCols.length, className: group },
+  ];
+
+  const table = split ? (
+    // Split view: the SO's identity and state; the rest is the panel's.
+    <table className="w-full text-sm">
+      <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+        <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+          {listCols.map((c) => (
+            // A plain heading (Status) reads as its label here, away from its group.
+            <th key={c.key} className={`${th} ${c.thClass ?? ""}`}>{typeof c.head === "string" ? c.label : headOf(c)}</th>
+          ))}
+          <th className={th}>ECs</th>
+        </tr>
+      </thead>
+      <tbody>
+        {groups.length === 0 && (
+          <tr>
+            <td colSpan={listCols.length + 1} className="px-4 py-10 text-center text-sm text-muted">
+              No pump SO is ready to assemble.
+            </td>
+          </tr>
+        )}
+        {groups.map((g) => (
+          <tr
+            key={g.key}
+            data-focus-row={g.key}
+            onClick={() => setFocusKey(g.key)}
+            className={`cursor-pointer text-foreground transition-colors ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${
+              focusGroup?.key === g.key ? "outline-2 -outline-offset-2 outline-primary/50" : ""
+            }`}
+          >
+            {listCols.map((c) => (
+              <td key={c.key} className={`border-b border-card-border px-3 py-2 align-top ${c.tdClass ?? ""}`}>
+                {c.cell(g)}
+              </td>
+            ))}
+            <td className="border-b border-card-border px-3 py-2 align-top tabular-nums">{g.span}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ) : (
+    <table className="w-full min-w-[2000px] text-sm">
+      <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+        <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
+          {heads.map((h, i) => (
+            <th key={i} colSpan={h.span} className={h.className}>
+              {h.title || null}
+            </th>
+          ))}
+        </tr>
+        <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+          {soCols.map((c) => (
+            <th key={c.key} className={`${th} ${c.thClass ?? ""}`}>{headOf(c)}</th>
+          ))}
+          {ecCols.map((c) => (
+            <th key={c.key} className={`${th} ${c.thClass ?? ""}`}>{headOf(c)}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {groups.length === 0 && (
+          <tr>
+            <td colSpan={soCols.length + ecCols.length} className="px-4 py-10 text-center text-sm text-muted">
+              No pump SO is ready to assemble.
+            </td>
+          </tr>
+        )}
+        {groups.map((g) => {
+          const soCell = "px-3 py-2 align-top border-b border-card-border";
+          return (
+            <Fragment key={g.key}>
+              {g.rows.map((x, k) => {
+                const lastRow = k === g.rows.length - 1;
+                const ecCell = `px-3 py-2 ${lastRow ? "border-b border-card-border" : "border-b border-card-border/50"}`;
+                return (
+                  <tr key={x.e.id} className={`text-foreground transition-colors ${dispatchRowTone(g.head) ?? "hover:bg-background/40"}`}>
+                    {k === 0 &&
+                      soCols.map((c, i) => (
+                        <td key={c.key} rowSpan={g.span} data-focus-row={i === 0 ? g.key : undefined} className={`${soCell} ${c.tdClass ?? ""}`}>
+                          {c.cell(g)}
+                        </td>
+                      ))}
+                    {ecCols.map((c) => (
+                      <td key={c.key} className={`${ecCell} ${c.tdClass ?? ""}`}>
+                        {c.cell(x)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+  );
 
   return (
     <>
@@ -173,229 +583,27 @@ export function AssemblyPumpTable({
           onClose={() => setAlignFor(null)}
         />
       )}
-      <table className="w-full min-w-[2000px] text-sm">
-        <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
-          <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-            <th colSpan={5} className="px-3 pt-2.5 pb-1">SO</th>
-            <th colSpan={lotCols.length + 1} className={group}>Lots</th>
-            <th colSpan={2} className={group}>Alignment</th>
-            <th colSpan={2} className={group}>Assembly</th>
-            <th colSpan={3} className={group}>Packing</th>
-            <th colSpan={1} className={group} />
-            <th colSpan={1} className={group}>Dispatch</th>
-            <th colSpan={9} className={group}>EC</th>
-            <th colSpan={2} className={group}>Drawing</th>
-          </tr>
-          <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-            <th className={th}><SortHeader label="Sl." sortKey="sl" /></th>
-            <th className={`${th} sticky-so`}>SO No.</th>
-            <th className={th}><SortHeader label="SO Date" sortKey="so_date" /></th>
-            <th className={th}>Chat</th>
-            <th className={th}>PPC Status</th>
-            {lotCols.map((n, i) => (
-              <th key={n} className={`${th} ${i === 0 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
-            ))}
-            <th className={th}>Latest Lot</th>
-            <th className={`${th} border-l border-card-border`}>Base Plate</th>
-            <th className={th}>Wooden Box</th>
-            <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={th}><SortHeader label="Planned Date" sortKey="asm_plan" /></th>
-            <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={th}><SortHeader label="Planned Date" sortKey="packing" /></th>
-            <th className={th} />
-            <th className={`${th} border-l border-card-border`}>Packing Slips</th>
-            <th className={`${th} border-l border-card-border`}>Status</th>
-            <th className={`${th} border-l border-card-border`}>EC No. / Internal Model</th>
-            <th className={th}><SortHeader label="EC Date" sortKey="ec_date" /></th>
-            <th className={th}><SortHeader label="Assembly Readiness Date" sortKey="readiness" /></th>
-            <th className={th}>Qty</th>
-            <th className={th}>Ready</th>
-            <th className={th}>Assembled</th>
-            <th className={th}>Assembly</th>
-            <th className={th}>Packed</th>
-            <th className={th}>Packing</th>
-            <th className={`${th} border-l border-card-border`}>GAD</th>
-            <th className={th}>Part Drawing</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sos.length === 0 && (
-            <tr>
-              <td colSpan={26 + lotCols.length} className="px-4 py-10 text-center text-sm text-muted">
-                No pump SO is ready to assemble.
-              </td>
-            </tr>
-          )}
-          {sos.map(({ orderId, ecs }) => {
-            const head = ecs[0];
-            const soLabel = str(head.so_no) || `#${str(head.sl_no)}`;
-            const lots = pumpLotsFromEcs(ecs);
-            const ecList = ecs.map(ecOf);
-            const so = soStatuses(ecList, lots);
-            const span = ecs.length;
-            const pumpQty = ecList.reduce((t, e) => t + e.quantity, 0);
-            const soCell = "px-3 py-2 align-top border-b border-card-border";
-            const unread = unreadThreads[orderId] ?? 0;
-            return (
-              <Fragment key={orderId}>
-                {ecs.map((r, k) => {
-                  const e = ecList[k];
-                  const d = ecDone(lots, e.id);
-                  const lastRow = k === ecs.length - 1;
-                  const ecCell = `px-3 py-2 ${lastRow ? "border-b border-card-border" : "border-b border-card-border/50"}`;
-                  return (
-                    <tr key={e.id} className={`text-foreground transition-colors ${dispatchRowTone(head) ?? "hover:bg-background/40"}`}>
-                      {k === 0 && (
-                        <>
-                          <td rowSpan={span} data-focus-row={orderId} className={`${soCell} tabular-nums`}>{str(head.sl_no)}</td>
-                          <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap font-semibold`}>
-                            {soLabel}
-                            {/* Its ECs, and the pumps they hold (their quantities summed), as on Planning. */}
-                            <span className="block text-[11px] font-normal text-muted">
-                              {span} EC{span === 1 ? "" : "s"} · {pumpQty} pump{pumpQty === 1 ? "" : "s"}
-                            </span>
-                            <VersionTag order={head} />
-<HoldBadge order={head} />
-                          </td>
-                          <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{shortDate(head.so_date)}</td>
-                          <td rowSpan={span} className={soCell}>
-                            <button
-                              type="button"
-                              onClick={() => onThread(orderId, soLabel)}
-                              aria-label="Chat"
-                              className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border hover:bg-background"
-                            >
-                              <MessageSquare className="h-3.5 w-3.5" />
-                              {unread > 0 && (
-                                <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
-                                  {unread}
-                                </span>
-                              )}
-                            </button>
-                          </td>
-                          <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            <span className={`block font-medium ${str(head.ppc_status) === "Fully ready" ? "text-emerald-700" : ""}`}>
-                              {str(head.ppc_status) || "—"}
-                            </span>
-                            <span className="block text-[11px] text-muted">{shortDate(head.planning_readiness_date)}</span>
-                          </td>
-                          {/* Each lot's work, a column per lot. */}
-                          {lotCols.map((n, i) => (
-                            <td key={n} rowSpan={span} className={`${soCell} ${i === 0 ? "border-l border-card-border" : ""}`}>
-                              <LotCell lot={lots.find((l) => l.n === n)} slips={(head.so_child_rows ?? []) as Row[]} noRemarks />
-                            </td>
-                          ))}
-                          {/* However many lots there are: the latest, whichever it is. */}
-                          <td rowSpan={span} className={soCell}>
-                            <LatestLot lot={latestPumpLot(lots)} slips={(head.so_child_rows ?? []) as Row[]} noRemarks />
-                          </td>
-                          {/* The SO's Alignment: base plate and wooden box. */}
-                          <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            <AlignmentValue alignment={head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor({ orderId, which: "base_plate" })} />
-                          </td>
-                          <td rowSpan={span} className={soCell}>
-                            <AlignmentValue alignment={head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor({ orderId, which: "wooden_box" })} />
-                          </td>
-                          <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            {<Chip label={so.assembly} />}
-                            <PendingRemarks lots={lots} stage="assembly" />
-                          </td>
-                          <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            <PlannedCell lots={lots} stage="assembly" orderId={orderId} soLabel={soLabel} />
-                          </td>
-                          <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            {<Chip label={so.packing} />}
-                            <PendingRemarks lots={lots} stage="packing" />
-                          </td>
-                          <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                            <PlannedCell lots={lots} stage="packing" orderId={orderId} soLabel={soLabel} />
-                          </td>
-                          <td rowSpan={span} className={soCell}>
-                            <button
-                              type="button"
-                              onClick={() => setLotsFor(orderId)}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
-                            >
-                              <Layers className="h-3.5 w-3.5" />
-                              Lots
-                            </button>
-                          </td>
-                          {/* The SO's packing slips, each naming the lots it carries. */}
-                          <td rowSpan={span} className={`${soCell} border-l border-card-border`}>
-                            <PackingSlipsInline
-                              orderId={orderId}
-                              soLabel={soLabel}
-                              slips={(head.so_child_rows ?? []) as Row[]}
-                              context={{ market_type: head.market_type, packing_details_required: head.packing_details_required }}
-                              gateOk={str(head.market_type).trim() !== ""}
-                              canEdit={canEdit}
-                              canEditCentral={canEditCentral}
-                              lotCount={lots.length}
-                              packedLots={lots.filter((l) => l.packed_date).map((l) => l.n)}
-                              lotPacking={Object.fromEntries(lots.filter((l) => l.pack_status).map((l) => [String(l.n), l.pack_status]))}
-                            />
-                          </td>
-                          {/* Where Dispatch has got to: — until it has the SO (a numbered packing slip). */}
-                          <td rowSpan={span} className={`${soCell} whitespace-nowrap border-l border-card-border`}>
-                            {((head.so_child_rows ?? []) as Row[]).some((sl) => str(sl.packing_slip_no).trim() !== "") ? (
-                              <DispatchStatusPill status={str(head.so_dispatch_status) || "Pending"} />
-                            ) : (
-                              <NotAtDispatch />
-                            )}
-                          </td>
-                        </>
-                      )}
-                      <td className={`${ecCell} whitespace-nowrap border-l border-card-border font-semibold`}>
-                        {e.label}
-                        <EcLink href={e.link} at={e.linkAt} links={e.links} latest />
-                        {e.model && <div className="text-xs font-normal text-muted">{e.model}</div>}
-                      </td>
-                      <td className={`${ecCell} whitespace-nowrap text-muted`}>{shortDate(((r.ec ?? {}) as Row).ec_date)}</td>
-                      {/* Planning's readiness for this EC, lot by lot: the lots it has a
-                          share in (its own date when it has no lots). */}
-                      <td className={`${ecCell} whitespace-nowrap`}>
-                        {(() => {
-                          const mine = ecReadyLots(lots, e.id);
-                          if (mine.length === 0) return shortDate(r.planning_readiness_date);
-                          return mine.map((l) => (
-                            <div key={l.n} className="text-xs">
-                              <span className="font-semibold">L{l.n}</span> {shortDate(l.date)}
-                              <span className="text-muted"> ×{l.qty}</span>
-                            </div>
-                          ));
-                        })()}
-                      </td>
-                      <td className={`${ecCell} tabular-nums`}>{e.quantity || "—"}</td>
-                      <td className={`${ecCell} tabular-nums`}>{e.ready}</td>
-                      <td className={`${ecCell} tabular-nums`}>{d.assembled}</td>
-                      <td className={ecCell}>
-                        {<Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} />}
-                      </td>
-                      <td className={`${ecCell} tabular-nums`}>{d.packed}</td>
-                      <td className={ecCell}>
-                        {<Chip label={ecStageStatus(d.packed, e.quantity, "packing")} />}
-                      </td>
-                      {/* Drawing, as on Planning: the GAD, and the part drawings to read. */}
-                      <td className={`${ecCell} whitespace-nowrap border-l border-card-border`}>
-                        <GadCell versions={Array.isArray(r.gad_versions) ? (r.gad_versions as Row[]) : []} gadRequired={r.gad_required} ecLink={r.ec_link} />
-                      </td>
-                      <td className={ecCell}>
-                        {str(r.part_drawing).toLowerCase() === "yes" ? (
-                          <button type="button" onClick={() => setPartsFor(e.id)} title="See the parts" className="text-left">
-                            <PartDrawingCell required={r.part_drawing} parts={Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []} />
-                          </button>
-                        ) : (
-                          <PartDrawingCell required={r.part_drawing} parts={[]} />
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+      <SplitShell
+        split={split}
+        focusKey={focusGroup?.key ?? null}
+        focusLabel={focusGroup?.soLabel ?? null}
+        // Split view: the list in a card of its own (outside the workspace card), as on every page.
+        list={split ? <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm" data-sticky-head>{table}</div> : table}
+        panel={
+          focusGroup ? (
+            <>
+              <PanelSection title="SO">
+                <Portrait cols={soCols} row={focusGroup} />
+              </PanelSection>
+              {focusGroup.rows.map((x) => (
+                <PanelSection key={x.e.id} title={`EC ${x.e.label}`}>
+                  <Portrait cols={ecCols} row={x} />
+                </PanelSection>
+              ))}
+            </>
+          ) : null
+        }
+      />
       {(() => {
         const r = partsFor ? pumps.find((x) => str(x.id) === partsFor) : null;
         if (!r) return null;

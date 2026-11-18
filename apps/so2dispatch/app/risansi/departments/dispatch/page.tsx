@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
 import { PackageCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
@@ -113,6 +115,7 @@ export default async function DispatchWorkspacePage({
         filterOptions={filterOptions}
         canEdit={canEditChild(user.role, "order_invoices")}
         openOrderId={edit}
+        split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}
       />
     </div>
   );

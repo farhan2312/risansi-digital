@@ -3,7 +3,7 @@
 import { EcLink } from "./ec-link";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarCheck, CheckCircle2, FileText, Loader2, MessageSquare, PenTool, Plus, Send, Trash2, X } from "lucide-react";
 import { DRAWING_DOC_TYPES, type DrawingDocType } from "@/lib/order-schema";
@@ -35,8 +35,11 @@ import { DrawingReadinessCell } from "./drawing-readiness-cell";
 import { PendencyCell } from "./pendency-cell";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { applyDrawingVersionToSoAction, setGadRequiredAction } from "@/app/risansi/orders/drawing-readiness-actions";
+import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 type Row = Record<string, unknown>;
+/** A split-view column with inline styles too: the pinned SO and PO columns need them in the table. */
+type Col<R> = SplitCol<R> & { thStyle?: CSSProperties; tdStyle?: CSSProperties };
 /** The SO No. column's set width, and so where the PO column pinned beside it starts. */
 const SO_W = "w-44 min-w-44 max-w-44";
 const SO_LEFT = "11rem";
@@ -80,7 +83,10 @@ export function DrawingWorkspace({
   kpis = [],
   embedded = false,
   pendency = {},
+  split: splitView = false,
 }: {
+  /** Split view (the profile menu's): the SO list on the left, the SO picked upright on the right. */
+  split?: boolean;
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
   /** Why each Open SO is still pending with Drawing, by SO id. */
@@ -132,6 +138,213 @@ export function DrawingWorkspace({
     setDrawingsFor(ecId);
     setDocFor(doc);
   };
+
+  // The columns, listed once: the table draws them across, the split view's
+  // panel stands the same ones upright (SO, then each EC).
+  const soCols: Col<SoGroup>[] = [
+    { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, tdClass: "font-medium tabular-nums", cell: (g) => str(g.head.sl_no), list: true },
+    {
+      key: "so",
+      label: "SO No. / Date",
+      head: <SortHeader label="SO No. / Date" sortKey="so_date" />,
+      thClass: `sticky-so ${SO_W}`,
+      thStyle: { boxShadow: "none" },
+      tdClass: `sticky-so ${SO_W}`,
+      tdStyle: { boxShadow: "none" },
+      cell: (g) => (
+        <>
+          <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
+          <VersionTag order={g.head} />
+          <HoldBadge order={g.head} />
+          <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>
+        </>
+      ),
+      list: true,
+    },
+    {
+      // Pinned beside the SO No. as the table scrolls.
+      key: "po",
+      label: "PO No. / Date",
+      thClass: `sticky-so ${SO_W}`,
+      thStyle: { left: SO_LEFT },
+      tdClass: `sticky-so ${SO_W}`,
+      tdStyle: { left: SO_LEFT },
+      cell: (g) => (
+        <>
+          <span className="block break-words font-medium">{str(g.head.po_no) || "—"}</span>
+          {str(g.head.customer_po_date) && <span className="block text-xs text-muted">{formatDate(g.head.customer_po_date)}</span>}
+        </>
+      ),
+    },
+    {
+      key: "chat",
+      label: "Chat",
+      cell: (g) => (
+        <button
+          type="button"
+          onClick={() => setThreadFor({ orderId: str(g.head.order_id), soLabel: str(g.head.so_no ?? g.head.sl_no) })}
+          aria-label="Chat"
+          title="Chat"
+          className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+          {(unreadThreads[str(g.head.order_id)] ?? 0) > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+              {unreadThreads[str(g.head.order_id)]}
+            </span>
+          )}
+        </button>
+      ),
+    },
+    {
+      key: "client",
+      label: "Client",
+      cell: (g) => (
+        <span title={str(g.head.client_name)} className="line-clamp-2 w-32 text-xs leading-snug">
+          {str(g.head.client_name) || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "target",
+      label: "Drawing Target",
+      head: <SortHeader label="Drawing Target" sortKey="drg_target_date" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap text-muted",
+      cell: (g) => formatDate(g.head.drg_target_date),
+      list: true,
+    },
+    {
+      key: "readiness",
+      label: "Readiness",
+      head: <SortHeader label="Readiness" sortKey="drg_readiness_date" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      // Drawing's own date for the SO, with every value it has held.
+      cell: (g) => <DrawingReadinessCell orderId={str(g.head.order_id)} value={g.head.drg_readiness_date} canEdit={canEdit} />,
+    },
+    {
+      key: "perf",
+      label: "Perf. Curve",
+      thClass: "whitespace-nowrap",
+      cell: (g) => (wantsCurve(g.head) ? <span className="font-semibold text-foreground">Yes</span> : <span className="text-muted">No</span>),
+    },
+    {
+      key: "state",
+      label: "SO Status",
+      thClass: "whitespace-nowrap",
+      // Closed once Drawing is done with every EC on it.
+      cell: (g) =>
+        g.head.so_drawing_closed ? (
+          <span className="flex flex-col items-start gap-0.5">
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
+            {str(g.head.so_drawing_closed_date) && (
+              <span className="whitespace-nowrap text-[11px] text-muted">{formatDate(g.head.so_drawing_closed_date)}</span>
+            )}
+            <TargetNote target={g.head.drg_readiness_date} until={g.head.so_drawing_closed_date} closed />
+          </span>
+        ) : (
+          <span className="flex flex-col items-start gap-0.5">
+            {/* Open: why, with remarks. */}
+            <PendencyCell
+              orderId={str(g.head.order_id)}
+              soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
+              dept="drawing"
+              pendency={pendency[str(g.head.order_id)]}
+              canEdit={canEdit}
+            >
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+            </PendencyCell>
+            {/* Overdue while Drawing still owes something (GAD / curve not sent, parts not all drawn). */}
+            {!g.head.so_drawing_sent && <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />}
+          </span>
+        ),
+      list: true,
+    },
+  ];
+  const ecCols: Col<Row>[] = [
+    {
+      key: "ec",
+      label: "EC No.",
+      thClass: "border-l border-card-border",
+      tdClass: "border-l border-card-border whitespace-nowrap font-semibold",
+      cell: (row) => (
+        <>
+          {str(row.ec_no) || "—"}
+          <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} newestFirst />
+        </>
+      ),
+    },
+    {
+      key: "ecdate",
+      label: "EC Date",
+      head: <SortHeader label="EC Date" sortKey="ec_date" />,
+      tdClass: "whitespace-nowrap text-muted",
+      cell: (row) => formatDate(row.ec_date),
+    },
+    { key: "pump", label: "Pump Type", tdClass: "whitespace-nowrap", cell: (row) => str(row.pump_type) || "—" },
+    { key: "model", label: "Model No.", tdClass: "whitespace-nowrap", cell: (row) => str(row.model_no) || "—" },
+    {
+      key: "std",
+      label: "STD / Non STD",
+      thClass: "whitespace-nowrap",
+      cell: (row) => <GadStandardCell required={row.part_drawing} parts={partsOf(row)} canEdit={canEdit} onOpen={() => setStdFor(str(row.id))} />,
+    },
+    { key: "gad", label: "GAD", cell: (row) => <DocCell row={row} doc="GAD" onOpen={() => open(str(row.id), "GAD")} /> },
+    {
+      key: "curve",
+      label: "Performance Curve",
+      cell: (row) =>
+        wantsCurve(row) ? (
+          <DocCell row={row} doc="Performance Curve" onOpen={() => open(str(row.id), "Performance Curve")} />
+        ) : (
+          <span className="text-xs text-muted">Not required</span>
+        ),
+    },
+    {
+      key: "part",
+      label: "Part Drawing",
+      cell: (row) =>
+        wantsParts(row) ? (
+          <button type="button" onClick={() => open(str(row.id), "Part Drawing")} title="Open part drawings" className="text-left">
+            <PartDrawingCell required={row.part_drawing} parts={partsOf(row)} ecLink={row.ec_link} />
+          </button>
+        ) : (
+          <span className="text-xs text-muted">Not required</span>
+        ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      head: null,
+      tdClass: "whitespace-nowrap",
+      cell: (row) => (
+        <span className="inline-flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => open(str(row.id), "GAD")}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+          >
+            <PenTool className="h-3.5 w-3.5" />
+            Drawings
+          </button>
+          <DeptCompleteCheck
+            scopeId={str(row.id)}
+            dept="drawing"
+            label={str(row.ec_no ?? row.id)}
+            completion={completionFor(completions, "drawing", str(row.id), true)}
+            canEdit={canEdit}
+          />
+        </span>
+      ),
+    },
+  ];
+  const headOf = <R,>(c: SplitCol<R>) => ("head" in c ? c.head : c.label);
+  // Split view (not inside a pop-up): the SO picked, the first until another is.
+  const split = splitView && !embedded;
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const focusGroup = split ? (soGroups.find((g) => g.key === focusKey) ?? soGroups[0] ?? null) : null;
+  const listCols = soCols.filter((c) => c.list);
 
   return (
     <div>
@@ -193,40 +406,69 @@ export function DrawingWorkspace({
 
       {!embedded && <KpiStrip cards={kpis} />}
 
+      <SplitShell
+        split={split}
+        focusKey={focusGroup?.key ?? null}
+        focusLabel={focusGroup ? str(focusGroup.head.so_no) || `#${str(focusGroup.head.sl_no)}` : null}
+        list={
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
+          {split ? (
+            // Split view: the SO's identity and state; the rest is the panel's.
+            <table className="w-full text-sm">
+              <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+                <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  {listCols.map((c) => (
+                    <th key={c.key} className={`px-3 py-2 ${c.thClass ?? ""}`} style={c.thStyle}>{headOf(c)}</th>
+                  ))}
+                  <th className="px-3 py-2">ECs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {soGroups.length === 0 && (
+                  <tr>
+                    <td colSpan={listCols.length + 1} className="px-4 py-10 text-center text-sm text-muted">
+                      {emptyMessage}
+                    </td>
+                  </tr>
+                )}
+                {soGroups.map((g) => (
+                  <tr
+                    key={g.key}
+                    data-focus-row={str(g.head.order_id)}
+                    onClick={() => setFocusKey(g.key)}
+                    className={`cursor-pointer text-foreground ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${
+                      focusGroup?.key === g.key ? "outline-2 -outline-offset-2 outline-primary/50" : ""
+                    } ${focusClass(str(g.head.order_id))}`}
+                  >
+                    {listCols.map((c) => (
+                      <td key={c.key} className={`border-b border-card-border px-3 py-2 align-top ${c.tdClass ?? ""}`} style={c.tdStyle}>
+                        {c.cell(g)}
+                      </td>
+                    ))}
+                    <td className="border-b border-card-border px-3 py-2 align-top tabular-nums">{g.ecs.length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
           <table className="w-full min-w-[1600px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={9} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={9} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={soCols.length} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={ecCols.length} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-                <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className={`sticky-so px-3 py-2 ${SO_W}`} style={{ boxShadow: "none" }}><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
-                <th className={`sticky-so px-3 py-2 ${SO_W}`} style={{ left: SO_LEFT }}>PO No. / Date</th>
-                <th className="px-3 py-2">Chat</th>
-                <th className="px-3 py-2">Client</th>
-                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Drawing Target" sortKey="drg_target_date" /></th>
-                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Readiness" sortKey="drg_readiness_date" /></th>
-                <th className="px-3 py-2 whitespace-nowrap">Perf. Curve</th>
-                <th className="px-3 py-2 whitespace-nowrap">SO Status</th>
-                <th className="border-l border-card-border px-3 py-2">EC No.</th>
-                <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
-                <th className="px-3 py-2">Pump Type</th>
-                <th className="px-3 py-2">Model No.</th>
-                <th className="px-3 py-2 whitespace-nowrap">STD / Non STD</th>
-                <th className="px-3 py-2">GAD</th>
-                <th className="px-3 py-2">Performance Curve</th>
-                <th className="px-3 py-2">Part Drawing</th>
-                <th className="px-3 py-2" />
+                {[...soCols, ...ecCols].map((c) => (
+                  <th key={c.key} className={`px-3 py-2 ${c.thClass ?? ""}`} style={c.thStyle}>{headOf(c as SplitCol<unknown>)}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={18} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={soCols.length + ecCols.length} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -246,132 +488,23 @@ export function DrawingWorkspace({
                           data-focus-row={ecId}
                           className={`text-foreground ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${focusClass(ecId)}`}
                         >
-                          {k === 0 && (
-                            <>
-                              <td rowSpan={span} data-focus-row={str(g.head.order_id)} className={`${soCell} font-medium tabular-nums ${focusClass(str(g.head.order_id))}`}>
-                                {str(g.head.sl_no)}
-                              </td>
-                              <td rowSpan={span} className={`${soCell} sticky-so ${SO_W}`} style={{ boxShadow: "none" }}>
-                                <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
-                                <VersionTag order={g.head} />
-<HoldBadge order={g.head} />
-                                <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>
-                              </td>
-                              {/* Pinned beside the SO No. as the table scrolls. */}
-                              <td rowSpan={span} className={`${soCell} sticky-so ${SO_W}`} style={{ left: SO_LEFT }}>
-                                <span className="block break-words font-medium">{str(g.head.po_no) || "—"}</span>
-                                {str(g.head.customer_po_date) && <span className="block text-xs text-muted">{formatDate(g.head.customer_po_date)}</span>}
-                              </td>
-                              <td rowSpan={span} className={soCell}>
-                                <button
-                                  type="button"
-                                  onClick={() => setThreadFor({ orderId: str(g.head.order_id), soLabel: str(g.head.so_no ?? g.head.sl_no) })}
-                                  aria-label="Chat"
-                                  title="Chat"
-                                  className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
-                                >
-                                  <MessageSquare className="h-3.5 w-3.5" />
-                                  {(unreadThreads[str(g.head.order_id)] ?? 0) > 0 && (
-                                    <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
-                                      {unreadThreads[str(g.head.order_id)]}
-                                    </span>
-                                  )}
-                                </button>
-                              </td>
-                              <td rowSpan={span} className={soCell}>
-                                <span title={str(g.head.client_name)} className="line-clamp-2 w-32 text-xs leading-snug">
-                                  {str(g.head.client_name) || "—"}
-                                </span>
-                              </td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.drg_target_date)}</td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                                {/* Drawing's own date for the SO, with every value it has held. */}
-                                <DrawingReadinessCell orderId={str(g.head.order_id)} value={g.head.drg_readiness_date} canEdit={canEdit} />
-                              </td>
-                              <td rowSpan={span} className={soCell}>
-                                {wantsCurve(g.head) ? (
-                                  <span className="font-semibold text-foreground">Yes</span>
-                                ) : (
-                                  <span className="text-muted">No</span>
-                                )}
-                              </td>
-                              <td rowSpan={span} className={soCell}>
-                                {/* Closed once Drawing is done with every EC on it. */}
-                                {g.head.so_drawing_closed ? (
-                                  <span className="flex flex-col items-start gap-0.5">
-                                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
-                                    {str(g.head.so_drawing_closed_date) && (
-                                      <span className="whitespace-nowrap text-[11px] text-muted">{formatDate(g.head.so_drawing_closed_date)}</span>
-                                    )}
-                                    <TargetNote target={g.head.drg_readiness_date} until={g.head.so_drawing_closed_date} closed />
-                                  </span>
-                                ) : (
-                                  <span className="flex flex-col items-start gap-0.5">
-                                    {/* Open: why, with remarks. */}
-                                    <PendencyCell
-                                      orderId={str(g.head.order_id)}
-                                      soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
-                                      dept="drawing"
-                                      pendency={pendency[str(g.head.order_id)]}
-                                      canEdit={canEdit}
-                                    >
-                                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
-                                    </PendencyCell>
-                                    {/* Overdue while Drawing still owes something (GAD / curve not sent, parts not all drawn). */}
-                                    {!g.head.so_drawing_sent && <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />}
-                                  </span>
-                                )}
-                              </td>
-                            </>
-                          )}
-                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
-                            {str(row.ec_no) || "—"}
-                            <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} newestFirst />
-                          </td>
-                          <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
-                          <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>
-                          <td className={`${ecCell} whitespace-nowrap`}>{str(row.model_no) || "—"}</td>
-                          <td className={ecCell}>
-                            <GadStandardCell required={row.part_drawing} parts={partsOf(row)} canEdit={canEdit} onOpen={() => setStdFor(ecId)} />
-                          </td>
-                          <td className={ecCell}>
-                            <DocCell row={row} doc="GAD" onOpen={() => open(ecId, "GAD")} />
-                          </td>
-                          <td className={ecCell}>
-                            {wantsCurve(row) ? (
-                              <DocCell row={row} doc="Performance Curve" onOpen={() => open(ecId, "Performance Curve")} />
-                            ) : (
-                              <span className="text-xs text-muted">Not required</span>
-                            )}
-                          </td>
-                          <td className={ecCell}>
-                            {wantsParts(row) ? (
-                              <button type="button" onClick={() => open(ecId, "Part Drawing")} title="Open part drawings" className="text-left">
-                                <PartDrawingCell required={row.part_drawing} parts={partsOf(row)} ecLink={row.ec_link} />
-                              </button>
-                            ) : (
-                              <span className="text-xs text-muted">Not required</span>
-                            )}
-                          </td>
-                          <td className={`${ecCell} whitespace-nowrap`}>
-                            <span className="inline-flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => open(ecId, "GAD")}
-                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                          {k === 0 &&
+                            soCols.map((c, i) => (
+                              <td
+                                key={c.key}
+                                rowSpan={span}
+                                data-focus-row={i === 0 ? str(g.head.order_id) : undefined}
+                                className={`${soCell} ${c.tdClass ?? ""} ${i === 0 ? focusClass(str(g.head.order_id)) : ""}`}
+                                style={c.tdStyle}
                               >
-                                <PenTool className="h-3.5 w-3.5" />
-                                Drawings
-                              </button>
-                              <DeptCompleteCheck
-                                scopeId={ecId}
-                                dept="drawing"
-                                label={str(row.ec_no ?? row.id)}
-                                completion={completionFor(completions, "drawing", ecId, true)}
-                                canEdit={canEdit}
-                              />
-                            </span>
-                          </td>
+                                {c.cell(g)}
+                              </td>
+                            ))}
+                          {ecCols.map((c) => (
+                            <td key={c.key} className={`${ecCell} ${c.tdClass ?? ""}`} style={c.tdStyle}>
+                              {c.cell(row)}
+                            </td>
+                          ))}
                         </tr>
                       );
                     })}
@@ -380,9 +513,26 @@ export function DrawingWorkspace({
               })}
             </tbody>
           </table>
+          )}
         </div>
         {!embedded && <UrlPagination page={queue.page} totalPages={queue.totalPages} from={queue.from} to={queue.to} total={queue.total} />}
       </div>
+        }
+        panel={
+          focusGroup ? (
+            <>
+              <PanelSection title="SO">
+                <Portrait cols={soCols} row={focusGroup} />
+              </PanelSection>
+              {focusGroup.ecs.map((ec) => (
+                <PanelSection key={str(ec.id)} title={`EC ${str(ec.ec_no) || "—"}`}>
+                  <Portrait cols={ecCols} row={ec} />
+                </PanelSection>
+              ))}
+            </>
+          ) : null
+        }
+      />
 
       {(() => {
         const ec = drawingsFor ? rows.find((r) => r.id === drawingsFor) : null;

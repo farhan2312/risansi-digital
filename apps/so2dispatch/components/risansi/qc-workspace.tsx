@@ -1,7 +1,7 @@
 "use client";
 
 import { EcLink } from "./ec-link";
-import { Fragment, useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ExternalLink, FileCheck2, Link2, Loader2, MessageSquare, X } from "lucide-react";
 import { DEPT_VIEWS, dispatchRowTone } from "@/lib/dept-view";
@@ -29,8 +29,16 @@ import { ecStageStatus } from "@/lib/assembly";
 import { PendencyCell } from "./pendency-cell";
 import type { Pendency } from "@/lib/pendency";
 import type { EcAssembly } from "@/lib/ec-assembly";
+import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 type Row = Record<string, unknown>;
+type Group = { key: string; head: Row; ecs: Row[] };
+/**
+ * An EC column that, for some ECs, the table joins with the ones after it
+ * into one "—" cell (a Spare has no drawings, an EC no assembly yet): `join`
+ * says how many columns it spans. The panel still shows each column's "—".
+ */
+type EcCol = SplitCol<Row> & { join?: (row: Row) => number | null };
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 const rowsOf = (v: unknown) => (Array.isArray(v) ? (v as Row[]) : []);
 
@@ -87,7 +95,10 @@ export function QcWorkspace({
   embedded = false,
   assembly = {},
   pendency = {},
+  split: splitView = false,
 }: {
+  /** The split view (the profile menu's switch): the SO list, the SO picked beside it. */
+  split?: boolean;
   /** Why each Open SO is still pending with Quality (remarks), by SO id. */
   pendency?: Record<string, Pendency>;
   /** How far Assembly has got on each pump EC, by EC id. */
@@ -119,13 +130,252 @@ export function QcWorkspace({
   const focusClass = useFocusRow([openItemId, focusOrderId], rows.length > 0);
   useConsumeFocusParam(queue.page);
 
-  const groups: { key: string; head: Row; ecs: Row[] }[] = [];
+  const groups: Group[] = [];
   for (const r of rows) {
     const key = str(r.order_id);
     const last = groups[groups.length - 1];
     if (last && last.key === key) last.ecs.push(r);
     else groups.push({ key, head: r, ecs: [r] });
   }
+
+  // The columns, listed once: the table draws them across, the split view's
+  // panel stands the same ones upright (SO, then each EC).
+  const soCols: SplitCol<Group>[] = [
+    { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, tdClass: "font-medium tabular-nums", cell: (g) => str(g.head.sl_no), list: true },
+    {
+      key: "so",
+      label: "SO No. / Date",
+      head: <SortHeader label="SO No. / Date" sortKey="so_date" />,
+      thClass: "sticky-so",
+      tdClass: "sticky-so whitespace-nowrap",
+      cell: (g) => (
+        <>
+          <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
+          <VersionTag order={g.head} />
+          <HoldBadge order={g.head} />
+          <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>
+        </>
+      ),
+      list: true,
+    },
+    {
+      key: "chat",
+      label: "Chat",
+      cell: (g) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setThreadFor({ orderId: g.key, soLabel: str(g.head.so_no ?? g.head.sl_no) });
+          }}
+          aria-label="Chat"
+          className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border hover:bg-background"
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+          {(unreadThreads[g.key] ?? 0) > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+              {unreadThreads[g.key]}
+            </span>
+          )}
+        </button>
+      ),
+    },
+    {
+      key: "target",
+      label: "Quality Target",
+      head: <SortHeader label="Quality Target" sortKey="qc_doc_target_date" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap text-muted",
+      cell: (g) => formatDate(g.head.qc_doc_target_date),
+      list: true,
+    },
+    {
+      key: "needed",
+      label: "Docs Needed",
+      thClass: "whitespace-nowrap",
+      cell: (g) => {
+        const needed = requiredQcDocs(g.head);
+        return needed.length ? (
+          <span className="flex flex-wrap gap-1">
+            {needed.map((d) => (
+              <span key={d} className="rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-card-border">
+                {d}
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="text-xs text-muted">Not specified</span>
+        );
+      },
+    },
+    {
+      key: "state",
+      label: "SO Status",
+      thClass: "whitespace-nowrap",
+      cell: (g) =>
+        // Closed once every EC has all its documents in — from all its ECs, before a filter.
+        (str(g.head.qc_so_state) || soQcState(g.ecs)) === "Closed" ? (
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
+        ) : (
+          // Open: why, in Quality's remarks.
+          <PendencyCell
+            orderId={g.key}
+            soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
+            dept="qc"
+            pendency={pendency[g.key]}
+            canEdit={canEdit}
+          >
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+          </PendencyCell>
+        ),
+      list: true,
+    },
+  ];
+  // The documents each EC needs are the SO's (every EC row carries them).
+  const docsStatus = (row: Row) => qcDocsStatus(requiredQcDocs(row), linksFromRows(row.qc_links));
+  const ecCols: EcCol[] = [
+    {
+      key: "ec",
+      label: "EC No.",
+      thClass: "border-l border-card-border",
+      tdClass: "border-l border-card-border whitespace-nowrap font-semibold",
+      cell: (row) => (
+        <>
+          {str(row.ec_no) || "—"}
+          <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} latest />
+        </>
+      ),
+    },
+    { key: "ecdate", label: "EC Date", head: <SortHeader label="EC Date" sortKey="ec_date" />, tdClass: "whitespace-nowrap text-muted", cell: (row) => formatDate(row.ec_date) },
+    { key: "pump", label: "Pump Type", tdClass: "whitespace-nowrap", cell: (row) => str(row.pump_type) || "—" },
+    { key: "model", label: "Model No.", tdClass: "whitespace-nowrap", cell: (row) => str(row.model_no) || "—" },
+    // Drawing's work on the EC, to read: a Spare has none.
+    {
+      key: "gad",
+      label: "GAD",
+      tdClass: "whitespace-nowrap",
+      join: (row) => (row.is_spare ? 2 : null),
+      cell: (row) => (row.is_spare ? "—" : <GadCell versions={rowsOf(row.gad_versions)} gadRequired={row.gad_required} ecLink={row.ec_link} />),
+    },
+    {
+      key: "parts",
+      label: "Part Drawing",
+      thClass: "whitespace-nowrap",
+      cell: (row) =>
+        row.is_spare ? (
+          "—"
+        ) : rowsOf(row.part_drawings).length > 0 ? (
+          <button type="button" onClick={() => setPartsFor(str(row.id))} title="See the parts" className="text-left">
+            <PartDrawingCell required={row.part_drawing} parts={rowsOf(row.part_drawings)} />
+          </button>
+        ) : (
+          <PartDrawingCell required={row.part_drawing} parts={[]} />
+        ),
+    },
+    // Where Assembly has got with the EC, and the last day it assembled any.
+    {
+      key: "qty",
+      label: "Qty",
+      tdClass: "tabular-nums",
+      join: (row) => (assembly[str(row.id)] ? null : 4),
+      cell: (row) => assembly[str(row.id)]?.qty || "—",
+    },
+    { key: "ready", label: "Ready", tdClass: "tabular-nums", cell: (row) => assembly[str(row.id)]?.ready ?? "—" },
+    { key: "assembled", label: "Assembled", tdClass: "tabular-nums", cell: (row) => assembly[str(row.id)]?.assembled ?? "—" },
+    {
+      key: "assembly",
+      label: "Assembly",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => {
+        const a = assembly[str(row.id)];
+        if (!a) return "—";
+        return (
+          <>
+            <AssemblyChip label={ecStageStatus(a.assembled, a.qty, "assembly")} />
+            {a.lastAssembled && <span className="block text-[11px] text-muted">{formatDate(a.lastAssembled)}</span>}
+          </>
+        );
+      },
+    },
+    {
+      key: "docs",
+      label: "Documents",
+      cell: (row) => {
+        const st = docsStatus(row);
+        return (
+          <button type="button" onClick={() => setDocsFor(str(row.id))} className="flex flex-col items-start gap-0.5 text-left" title="Open the QC documents">
+            {<Chip label={st.label} tone={st.tone} />}
+            {st.total > 0 && <span className="text-[11px] text-muted">{st.done}/{st.total} in</span>}
+          </button>
+        );
+      },
+    },
+    {
+      key: "submitted",
+      label: "Submitted On",
+      head: <SortHeader label="Submitted On" sortKey="qc_submitted" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => formatDate(row.qc_doc_actual_date),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      head: null,
+      tdClass: "whitespace-nowrap",
+      cell: (row) => {
+        const ecId = str(row.id);
+        return (
+          <span className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setDocsFor(ecId)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+            >
+              <FileCheck2 className="h-3.5 w-3.5" />
+              QC Docs
+            </button>
+            <DeptCompleteCheck
+              scopeId={ecId}
+              dept="quality"
+              label={str(row.ec_no ?? row.id)}
+              completion={completionFor(completions, "quality", ecId, true)}
+              canEdit={canEdit}
+            />
+          </span>
+        );
+      },
+    },
+  ];
+  const headOf = <R,>(c: SplitCol<R>) => ("head" in c ? c.head : c.label);
+  // The EC cells of one row, with the joined ones drawn as one "—" cell.
+  const ecCells = (row: Row, ecCell: string) => {
+    const out: ReactNode[] = [];
+    for (let i = 0; i < ecCols.length; i++) {
+      const c = ecCols[i];
+      const span = c.join?.(row) ?? null;
+      if (span) {
+        out.push(
+          <td key={c.key} colSpan={span} className={`${ecCell} text-muted`}>
+            —
+          </td>
+        );
+        i += span - 1;
+      } else {
+        out.push(
+          <td key={c.key} className={`${ecCell} ${c.tdClass ?? ""}`}>
+            {c.cell(row)}
+          </td>
+        );
+      }
+    }
+    return out;
+  };
+  // Split view (not inside a pop-up): the SO picked, the first until another is.
+  const split = splitView && !embedded;
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const focusGroup = split ? (groups.find((g) => g.key === focusKey) ?? groups[0] ?? null) : null;
+  const listCols = soCols.filter((c) => c.list);
 
   return (
     <div>
@@ -173,40 +423,68 @@ export function QcWorkspace({
 
       {!embedded && <KpiStrip cards={kpis} />}
 
+      <SplitShell
+        split={split}
+        focusKey={focusGroup?.key ?? null}
+        focusLabel={focusGroup ? str(focusGroup.head.so_no) || `#${str(focusGroup.head.sl_no)}` : null}
+        list={
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
+          {split ? (
+            // Split view: the SO's identity and state; the rest is the panel's.
+            <table className="w-full text-sm">
+              <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+                <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  {listCols.map((c) => (
+                    <th key={c.key} className={`px-3 py-2 ${c.thClass ?? ""}`}>{headOf(c)}</th>
+                  ))}
+                  <th className="px-3 py-2">ECs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.length === 0 && (
+                  <tr>
+                    <td colSpan={listCols.length + 1} className="px-4 py-10 text-center text-sm text-muted">
+                      {emptyMessage}
+                    </td>
+                  </tr>
+                )}
+                {groups.map((g) => (
+                  <tr
+                    key={g.key}
+                    data-focus-row={g.key}
+                    onClick={() => setFocusKey(g.key)}
+                    className={`cursor-pointer text-foreground ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${
+                      focusGroup?.key === g.key ? "outline-2 -outline-offset-2 outline-primary/50" : ""
+                    } ${focusClass(g.key)}`}
+                  >
+                    {listCols.map((c) => (
+                      <td key={c.key} className={`border-b border-card-border px-3 py-2 align-top ${c.tdClass ?? ""}`}>
+                        {c.cell(g)}
+                      </td>
+                    ))}
+                    <td className="border-b border-card-border px-3 py-2 align-top tabular-nums">{g.ecs.length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
           <table className="w-full min-w-[1600px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={6} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={13} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={soCols.length} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={ecCols.length} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-                <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="sticky-so px-3 py-2"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
-                <th className="px-3 py-2">Chat</th>
-                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Quality Target" sortKey="qc_doc_target_date" /></th>
-                <th className="px-3 py-2 whitespace-nowrap">Docs Needed</th>
-                <th className="px-3 py-2 whitespace-nowrap">SO Status</th>
-                <th className="border-l border-card-border px-3 py-2">EC No.</th>
-                <th className="px-3 py-2"><SortHeader label="EC Date" sortKey="ec_date" /></th>
-                <th className="px-3 py-2">Pump Type</th>
-                <th className="px-3 py-2">Model No.</th>
-                <th className="px-3 py-2">GAD</th>
-                <th className="px-3 py-2 whitespace-nowrap">Part Drawing</th>
-                <th className="px-3 py-2">Qty</th>
-                <th className="px-3 py-2">Ready</th>
-                <th className="px-3 py-2">Assembled</th>
-                <th className="px-3 py-2">Assembly</th>
-                <th className="px-3 py-2">Documents</th>
-                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Submitted On" sortKey="qc_submitted" /></th>
-                <th className="px-3 py-2" />
+                {[...soCols, ...ecCols].map((c) => (
+                  <th key={c.key} className={`px-3 py-2 ${c.thClass ?? ""}`}>{headOf(c as SplitCol<unknown>)}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {groups.length === 0 && (
                 <tr>
-                  <td colSpan={19} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={soCols.length + ecCols.length} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -214,143 +492,26 @@ export function QcWorkspace({
               {groups.map((g) => {
                 const span = g.ecs.length;
                 const soCell = "px-3 py-2 align-top border-b border-card-border";
-                const needed = requiredQcDocs(g.head);
                 return (
                   <Fragment key={g.key}>
                     {g.ecs.map((row, k) => {
                       const last = k === g.ecs.length - 1;
                       const ecCell = `px-3 py-2 align-top ${last ? "border-b border-card-border" : "border-b border-card-border/50"}`;
                       const ecId = str(row.id);
-                      const st = qcDocsStatus(needed, linksFromRows(row.qc_links));
                       return (
                         <tr key={ecId} data-focus-row={ecId} className={`text-foreground ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${focusClass(ecId)}`}>
-                          {k === 0 && (
-                            <>
-                              <td rowSpan={span} data-focus-row={g.key} className={`${soCell} font-medium tabular-nums ${focusClass(g.key)}`}>
-                                {str(g.head.sl_no)}
-                              </td>
-                              <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap`}>
-                                <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
-                                <VersionTag order={g.head} />
-<HoldBadge order={g.head} />
-                                <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>
-                              </td>
-                              <td rowSpan={span} className={soCell}>
-                                <button
-                                  type="button"
-                                  onClick={() => setThreadFor({ orderId: g.key, soLabel: str(g.head.so_no ?? g.head.sl_no) })}
-                                  aria-label="Chat"
-                                  className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border hover:bg-background"
-                                >
-                                  <MessageSquare className="h-3.5 w-3.5" />
-                                  {(unreadThreads[g.key] ?? 0) > 0 && (
-                                    <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
-                                      {unreadThreads[g.key]}
-                                    </span>
-                                  )}
-                                </button>
-                              </td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.qc_doc_target_date)}</td>
-                              <td rowSpan={span} className={soCell}>
-                                {needed.length ? (
-                                  <span className="flex flex-wrap gap-1">
-                                    {needed.map((d) => (
-                                      <span key={d} className="rounded-full bg-background px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ring-card-border">
-                                        {d}
-                                      </span>
-                                    ))}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-muted">Not specified</span>
-                                )}
-                              </td>
-                              <td rowSpan={span} className={soCell}>
-                                {/* Closed once every EC has all its documents in — from all its ECs, before a filter. */}
-                                {(str(g.head.qc_so_state) || soQcState(g.ecs)) === "Closed" ? (
-                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
-                                ) : (
-                                  // Open: why, in Quality's remarks.
-                                  <PendencyCell
-                                    orderId={g.key}
-                                    soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
-                                    dept="qc"
-                                    pendency={pendency[g.key]}
-                                    canEdit={canEdit}
-                                  >
-                                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
-                                  </PendencyCell>
-                                )}
-                              </td>
-                            </>
-                          )}
-                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
-                            {str(row.ec_no) || "—"}
-                            <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} latest />
-                          </td>
-                          <td className={`${ecCell} whitespace-nowrap text-muted`}>{formatDate(row.ec_date)}</td>
-                          <td className={`${ecCell} whitespace-nowrap`}>{str(row.pump_type) || "—"}</td>
-                          <td className={`${ecCell} whitespace-nowrap`}>{str(row.model_no) || "—"}</td>
-                          {/* Drawing's work on the EC, to read: a Spare has none. */}
-                          {row.is_spare ? (
-                            <td colSpan={2} className={`${ecCell} text-muted`}>—</td>
-                          ) : (
-                            <>
-                              <td className={`${ecCell} whitespace-nowrap`}>
-                                <GadCell versions={rowsOf(row.gad_versions)} gadRequired={row.gad_required} ecLink={row.ec_link} />
-                              </td>
-                              <td className={ecCell}>
-                                {rowsOf(row.part_drawings).length > 0 ? (
-                                  <button type="button" onClick={() => setPartsFor(ecId)} title="See the parts" className="text-left">
-                                    <PartDrawingCell required={row.part_drawing} parts={rowsOf(row.part_drawings)} />
-                                  </button>
-                                ) : (
-                                  <PartDrawingCell required={row.part_drawing} parts={[]} />
-                                )}
-                              </td>
-                            </>
-                          )}
-                          {/* Where Assembly has got with the EC, and the last day it assembled any. */}
-                          {(() => {
-                            const a = assembly[ecId];
-                            if (!a) return <td colSpan={4} className={`${ecCell} text-muted`}>—</td>;
-                            return (
-                              <>
-                                <td className={`${ecCell} tabular-nums`}>{a.qty || "—"}</td>
-                                <td className={`${ecCell} tabular-nums`}>{a.ready}</td>
-                                <td className={`${ecCell} tabular-nums`}>{a.assembled}</td>
-                                <td className={`${ecCell} whitespace-nowrap`}>
-                                  <AssemblyChip label={ecStageStatus(a.assembled, a.qty, "assembly")} />
-                                  {a.lastAssembled && <span className="block text-[11px] text-muted">{formatDate(a.lastAssembled)}</span>}
-                                </td>
-                              </>
-                            );
-                          })()}
-                          <td className={ecCell}>
-                            <button type="button" onClick={() => setDocsFor(ecId)} className="flex flex-col items-start gap-0.5 text-left" title="Open the QC documents">
-                              {<Chip label={st.label} tone={st.tone} />}
-                              {st.total > 0 && <span className="text-[11px] text-muted">{st.done}/{st.total} in</span>}
-                            </button>
-                          </td>
-                          <td className={`${ecCell} whitespace-nowrap`}>{formatDate(row.qc_doc_actual_date)}</td>
-                          <td className={`${ecCell} whitespace-nowrap`}>
-                            <span className="inline-flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setDocsFor(ecId)}
-                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground"
+                          {k === 0 &&
+                            soCols.map((c, i) => (
+                              <td
+                                key={c.key}
+                                rowSpan={span}
+                                data-focus-row={i === 0 ? g.key : undefined}
+                                className={`${soCell} ${c.tdClass ?? ""} ${i === 0 ? focusClass(g.key) : ""}`}
                               >
-                                <FileCheck2 className="h-3.5 w-3.5" />
-                                QC Docs
-                              </button>
-                              <DeptCompleteCheck
-                                scopeId={ecId}
-                                dept="quality"
-                                label={str(row.ec_no ?? row.id)}
-                                completion={completionFor(completions, "quality", ecId, true)}
-                                canEdit={canEdit}
-                              />
-                            </span>
-                          </td>
+                                {c.cell(g)}
+                              </td>
+                            ))}
+                          {ecCells(row, ecCell)}
                         </tr>
                       );
                     })}
@@ -359,9 +520,26 @@ export function QcWorkspace({
               })}
             </tbody>
           </table>
+          )}
         </div>
         {!embedded && <UrlPagination page={queue.page} totalPages={queue.totalPages} from={queue.from} to={queue.to} total={queue.total} />}
       </div>
+        }
+        panel={
+          focusGroup ? (
+            <>
+              <PanelSection title="SO">
+                <Portrait cols={soCols} row={focusGroup} />
+              </PanelSection>
+              {focusGroup.ecs.map((ec) => (
+                <PanelSection key={str(ec.id)} title={`EC ${str(ec.ec_no) || "—"}`}>
+                  <Portrait cols={ecCols} row={ec} />
+                </PanelSection>
+              ))}
+            </>
+          ) : null
+        }
+      />
 
       {(() => {
         const ec = docsFor ? rows.find((r) => r.id === docsFor) : null;

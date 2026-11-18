@@ -3,7 +3,7 @@
 import { KpiStrip } from "./kpi-strip";
 import { MultiSelectField } from "./multi-select-field";
 import type { KpiCard } from "@/lib/kpis";
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { PlanningPumpTable } from "./planning-pump-table";
 import type { PumpSummary } from "@/lib/pump-summary";
 import { AssemblyPumpTable } from "./assembly-pump-table";
@@ -98,6 +98,7 @@ import {
 } from "@/lib/dept-completion";
 import type { QcDocTable } from "@/lib/orders";
 import { RetrofitLine } from "./retrofit-line";
+import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 // Only the QC workspace passes this today; kept generic (a list, so more than
 // one document set can be attached) in case another department needs file
@@ -225,7 +226,10 @@ export function DepartmentWorkspace({
   kpis = [],
   embedded = false,
   pumpSummaries,
+  split: splitView = false,
 }: {
+  /** Split view (the profile menu's): the SO list on the left, the SO picked upright on the right. */
+  split?: boolean;
   /** Planning's Pump view: each SO's Assembly & Packing, packing slips and dispatch. */
   pumpSummaries?: Record<string, PumpSummary>;
   /** The summary cards under the filter bar. */
@@ -294,6 +298,7 @@ export function DepartmentWorkspace({
     if (!openThreadId) return;
     const row = orders.find((r) => String(r.order_id ?? r.id) === openThreadId);
     if (!row) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- once, on arriving from a deep link
     setThreadFor({
       orderId: openThreadId,
       soLabel: String(row.so_no ?? row.sl_no ?? ""),
@@ -315,6 +320,7 @@ export function DepartmentWorkspace({
     // Expand that row's SO so the queue reveals it (and, with an edit form,
     // shows it once the modal is closed).
     const soKey = String(row.so_no ?? row.sl_no ?? "");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- once, on arriving from a deep link
     if (soKey) setExpanded((prev) => new Set(prev).add(soKey));
     if (canEdit && hasEditForm) setEditRow(row);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,6 +331,7 @@ export function DepartmentWorkspace({
     if (!focusOrderId) return;
     const row = orders.find((o) => String(o.order_id ?? o.id) === focusOrderId);
     const soKey = row ? String(row.so_no ?? row.sl_no ?? "") : "";
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- once, on arriving from a deep link
     if (soKey) setExpanded((prev) => new Set(prev).add(soKey));
   }, [focusOrderId, orders]);
 
@@ -408,14 +415,6 @@ export function DepartmentWorkspace({
   // Accounts: Sales Order Date under SO No. (no column of its own), and an Order Status column.
   const soCols = acctPinned ? soContext.filter((f) => f.column !== "so_date") : soContext;
   const soDateField = soContext.find((f) => f.column === "so_date");
-  const chatCellFor = (order: Row) => (
-    <td className="px-4 py-3">
-      <ChatButton
-        orderId={String(order.order_id ?? order.id)}
-        soLabel={toInput(order.so_no) || String(order.sl_no ?? "")}
-      />
-    </td>
-  );
 
   // SO-scope sections (Billing/Accounts) have no per-EC breakdown, so EC No.
   // would always be blank — hide the column entirely.
@@ -544,10 +543,10 @@ export function DepartmentWorkspace({
     return { status: one("status"), date: one("date") };
   };
   /** The SO's readiness (Planning) or ready / packed date (Assembly), with how late it is. */
-  const readinessTd = (g: { head: Row; ecs: Row[] }) => {
+  const readinessCell = (g: { head: Row; ecs: Row[] }) => {
     const sum = soSummary(g.ecs);
     return (
-      <td className="px-4 py-3 whitespace-nowrap text-muted">
+      <>
         {/* Planning and Central can see how the lots moved; Assembly
             works from the latest. */}
         {/* A Fully ready SO has no date left to show, but its
@@ -571,7 +570,7 @@ export function DepartmentWorkspace({
             </div>
           ) : null;
         })()}
-      </td>
+      </>
     );
   };
   /**
@@ -762,17 +761,537 @@ export function DepartmentWorkspace({
     ? "No orders match your search."
     : "No orders yet.";
 
-  const colCount = groupBySo
-    ? 4 + (showParty ? 1 : 0) + soContext.length + 1 + // toggle + Sl. + SO + client_name? + context + ECs + chat
-      (soEdit ? 2 + (canEdit ? 1 : 0) + (table === "order_planning" ? 3 + LOT_COLUMNS.length : table === "order_assembly_dispatch" ? 4 + LOT_COLUMNS.length : 0) : 0) + // SO status + date (+ assembly, dispatch) + edit
-      (section?.soChild ? 1 : 0) // packing slips on the row
-    : 3 +
-      (showEcNo ? 1 : 0) +
-      (showParty ? 1 : 0) +
-      soContext.length +
-      visibleFields.length +
-      (canEdit ? 1 : 0) +
-      documents.length;
+  // The columns, listed once: the table draws them across, the split view's
+  // panel stands the same ones upright. Each carries its cells' classes in full.
+  type Col<R> = SplitCol<R> & { thStyle?: CSSProperties; tdStyle?: CSSProperties };
+  const headOf = <R,>(c: Col<R>) => ("head" in c ? c.head : c.label);
+  const soLabelOf = (r: Row) => toInput(r.so_no) || String(r.sl_no ?? "");
+  const chatOf = (order: Row) => <ChatButton orderId={String(order.order_id ?? order.id)} soLabel={soLabelOf(order)} />;
+  const docButton = (row: Row, doc: DocumentsConfig, size: string) => (
+    <button
+      type="button"
+      onClick={() => setDocsPanel({ row, config: doc })}
+      className={`inline-flex ${size} items-center gap-1.5 rounded-lg border border-input-border text-xs font-medium text-foreground transition-colors hover:bg-background`}
+    >
+      <Paperclip className="h-3.5 w-3.5" />
+      {doc.counts[String(row.id)] ?? 0} file
+      {(doc.counts[String(row.id)] ?? 0) === 1 ? "" : "s"}
+    </button>
+  );
+
+  // SO-scope (Accounts): one row per SO.
+  const flatChat: Col<Row> = { key: "chat", label: "Chat", thClass: "px-4 py-3", tdClass: "px-4 py-3", cell: chatOf };
+  const flatCols: Col<Row>[] = [
+    { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, thClass: "px-4 py-3", tdClass: "px-4 py-3 font-medium tabular-nums", cell: (order) => String(order.sl_no ?? "—"), list: true },
+    {
+      key: "so",
+      label: acctPinned ? "SO No. / Date" : "SO No.",
+      head: acctPinned ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : "SO No.",
+      thClass: `sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : ""}`,
+      thStyle: acctPinned ? { boxShadow: "none" } : undefined,
+      tdClass: `sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : "whitespace-nowrap"}`,
+      tdStyle: acctPinned ? { boxShadow: "none" } : undefined,
+      cell: (order) => (
+        <>
+          {toInput(order.so_no) || "—"}
+          {acctPinned && soDateField && toInput(order.so_date) && (
+            <span className="block text-[11px] font-normal text-muted">{contextValue(soDateField, order)}</span>
+          )}
+          <VersionTag order={order} />
+          <HoldBadge order={order} />
+          {/* Accounts can hold the SO for a payment reason. */}
+          {/* Accounts: an SO it has cleared says so, here only. */}
+          {table === "order_accounts" && <AccountsClearBadge order={order} />}
+          {table === "order_accounts" && canEdit && <AccountsHoldButton order={order} />}
+        </>
+      ),
+      list: true,
+    },
+    ...(!acctPinned ? [flatChat] : []),
+    ...(showEcNo
+      ? [{ key: "ec", label: "EC No.", thClass: "px-4 py-3", tdClass: "px-4 py-3 whitespace-nowrap", cell: (order: Row) => toInput(order.ec_no) || "—" }]
+      : []),
+    ...(showParty
+      ? [
+          {
+            key: "party",
+            label: "Client Name",
+            thClass: acctPinned ? "sticky-so px-4 py-3" : "px-4 py-3",
+            thStyle: acctPinned ? { left: ACCT_SO_LEFT } : undefined,
+            tdClass: acctPinned ? "sticky-so min-w-[12rem] max-w-[16rem] px-4 py-3" : "px-4 py-3",
+            tdStyle: acctPinned ? { left: ACCT_SO_LEFT } : undefined,
+            cell: (order: Row) => toInput(order.client_name) || "—",
+            list: true,
+          },
+        ]
+      : []),
+    ...(acctPinned
+      ? [
+          flatChat,
+          {
+            // Worked out, never set: Active, Active-Hold, Canceled, Diverted or Closed.
+            key: "order_status",
+            label: "Order Status",
+            thClass: "px-4 py-3 whitespace-nowrap",
+            tdClass: "px-4 py-3 whitespace-nowrap",
+            cell: (order: Row) => (
+              <OrderStatusPill
+                status={orderStatusOf({
+                  dispatch_status: toInput(order.so_dispatch_status),
+                  clearance_status: toInput(order.clearance_status),
+                  om_status: toInput(order.om_status),
+                  accounts_hold_status: toInput(order.accounts_hold_status),
+                })}
+              />
+            ),
+            list: true,
+          },
+        ]
+      : []),
+    ...soCols.map((f): Col<Row> => {
+      const payTerms = table === "order_accounts" && f.column === "payment_terms";
+      return {
+        key: `so:${f.column}`,
+        label: payTerms ? "Payment terms & PIs" : f.label,
+        head: f.column === "so_date" ? <SortHeader label={f.label} sortKey="so_date" /> : payTerms ? "Payment terms & PIs" : fieldHead(f),
+        thClass: "px-3 py-3 whitespace-nowrap text-muted-foreground",
+        tdClass: f.column === "order_value_details" || payTerms ? "px-3 py-3 align-top" : "px-3 py-3 whitespace-nowrap text-muted",
+        // Each payment term with its PIs is a list: the panel gives it the width.
+        wide: payTerms,
+        cell: (order) =>
+          // The order value to its gross, as Dispatch shows it.
+          f.column === "order_value_details" ? (
+            <OrderValueDetails row={order} />
+          ) : // Accounts: each payment term with the PI raised against it.
+          payTerms ? (
+            <TermPis
+              orderId={String(order.id)}
+              soLabel={soLabelOf(order)}
+              terms={(order.term_lines ?? []) as Row[]}
+              pis={(order.pi_docs ?? []) as Row[]}
+              canEdit={false}
+              payments={{ canEdit: canEdit && !lockReason(table, order) }}
+            />
+          ) : (
+            contextCell(f, order)
+          ),
+      };
+    }),
+    ...visibleFields.map(
+      (f): Col<Row> => ({
+        key: `f:${f.column}`,
+        label: f.label,
+        head: fieldHead(f),
+        thClass: "px-3 py-3 whitespace-nowrap",
+        tdClass: "px-3 py-3 whitespace-nowrap",
+        cell: (order) =>
+          !fieldApplies(f, order) ? "—" : table === "order_accounts" ? contextValue(f, order) : formatValue(f, order[f.column]),
+      })
+    ),
+    ...documents.map(
+      (doc): Col<Row> => ({
+        key: `doc:${doc.table}`,
+        label: doc.label,
+        thClass: "px-3 py-3 whitespace-nowrap",
+        tdClass: "px-3 py-3 whitespace-nowrap",
+        cell: (order) => docButton(order, doc, "h-8 px-3"),
+      })
+    ),
+    ...(SIGN_OFF_ENABLED && dept && !completePerEc
+      ? [{ key: "complete", label: "Complete", thClass: "px-3 py-3", tdClass: "px-3 py-3", cell: (order: Row) => completeCell(String(order.id), soLabelOf(order)) }]
+      : []),
+    ...(canEdit
+      ? [
+          {
+            key: "edit",
+            label: "Edit",
+            thClass: "px-4 py-3 text-right",
+            tdClass: "px-4 py-3 text-right",
+            cell: (order: Row) =>
+              lockReason(table, order) ? (
+                // Accounts on an order paid after receipt: nothing
+                // to record, so no form to open.
+                <span className="text-xs text-muted-foreground">—</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditRow(order)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </button>
+              ),
+          },
+        ]
+      : []),
+  ];
+
+  // Item-scope (Planning / Assembly & Packing Spare): one row per SO, its ECs under it.
+  const readinessCol: Col<SoGroup> = {
+    key: "readiness",
+    label: soDateLabel,
+    head: table === "order_planning" || table === "order_assembly_dispatch" ? <SortHeader label={soDateLabel} sortKey="readiness" /> : soDateLabel,
+    thClass: "px-4 py-3 whitespace-nowrap",
+    tdClass: "px-4 py-3 whitespace-nowrap text-muted",
+    cell: readinessCell,
+    list: true,
+  };
+  const lotCols = (slipsOf?: (g: SoGroup) => Row[]): Col<SoGroup>[] =>
+    LOT_COLUMNS.map((n) => ({
+      key: `lot:${n}`,
+      label: `Lot ${n}`,
+      thClass: "px-4 py-3 whitespace-nowrap",
+      tdClass: "px-4 py-3 whitespace-nowrap text-xs",
+      cell: (g: SoGroup) => lotCell(g.ecs, n, slipsOf?.(g)),
+    }));
+  const groupCols: Col<SoGroup>[] = [
+    { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, thClass: "px-4 py-3", tdClass: "px-4 py-3 font-medium tabular-nums", cell: (g) => String(g.head.sl_no ?? "—"), list: true },
+    {
+      key: "so",
+      label: "SO No.",
+      thClass: "sticky-so px-4 py-3",
+      tdClass: "sticky-so px-4 py-3 whitespace-nowrap",
+      cell: (g) => (
+        <>
+          {toInput(g.head.so_no) || "—"}
+          <VersionTag order={g.head} />
+          <HoldBadge order={g.head} />
+        </>
+      ),
+      list: true,
+    },
+    { key: "chat", label: "Chat", thClass: "px-4 py-3", tdClass: "px-4 py-3", cell: (g) => chatOf(g.head) },
+    ...(showParty
+      ? [{ key: "party", label: "Client Name", thClass: "px-4 py-3", tdClass: "px-4 py-3", cell: (g: SoGroup) => toInput(g.head.client_name) || "—" }]
+      : []),
+    ...soContext.flatMap((f): Col<SoGroup>[] => [
+      {
+        key: `so:${f.column}`,
+        label: f.label,
+        head: f.column === "so_date" ? <SortHeader label={f.label} sortKey="so_date" /> : fieldHead(f),
+        thClass: "px-3 py-3 whitespace-nowrap text-muted-foreground",
+        tdClass: "px-3 py-3 whitespace-nowrap text-muted",
+        cell: (g) => contextCell(f, g.head),
+      },
+      // Planning: the readiness date right after SO Date.
+      ...(f.column === "so_date" && table === "order_planning" && soEdit ? [readinessCol] : []),
+    ]),
+    { key: "ecs", label: "ECs", thClass: "px-4 py-3 text-center normal-case", tdClass: "px-4 py-3 text-center tabular-nums", cell: (g) => g.ecs.length, list: true },
+    ...(soEdit
+      ? [
+          { key: "status", label: "Status", thClass: "px-4 py-3", tdClass: "px-4 py-3 whitespace-nowrap", cell: (g: SoGroup) => soSummary(g.ecs).status, list: true },
+          // Planning has it after SO Date.
+          ...(table !== "order_planning" ? [readinessCol] : []),
+          // Planning sees how far Assembly & Packing and Dispatch have got.
+          ...(table === "order_planning"
+            ? [
+                // A Spare's readiness lots, one column each.
+                ...lotCols(),
+                {
+                  key: "assembly",
+                  label: "Assembly & Packing",
+                  thClass: "px-4 py-3 whitespace-nowrap",
+                  tdClass: "px-4 py-3 whitespace-nowrap",
+                  cell: (g: SoGroup) => {
+                    const asm = soSummary(g.ecs, "order_assembly_dispatch");
+                    return (
+                      <>
+                        {/* Not sent on to Assembly & Packing yet: "—". */}
+                        {sentToAssembly(g.ecs) ? asm.status : <span className="text-muted">—</span>}
+                        {asm.date !== "—" && asm.date !== "Mixed" && <div className="text-[11px] text-muted">{asm.date}</div>}
+                      </>
+                    );
+                  },
+                },
+                {
+                  // The SO's packing slips, read-only: number, date, lots.
+                  key: "slips",
+                  label: "Packing slips",
+                  thClass: "px-4 py-3 whitespace-nowrap",
+                  tdClass: "px-4 py-3 whitespace-nowrap text-xs",
+                  cell: (g: SoGroup) =>
+                    Array.isArray(g.head.so_slips) && (g.head.so_slips as Row[]).length ? (
+                      <div className="space-y-0.5">
+                        {(g.head.so_slips as Row[]).map((s, i) => (
+                          <div key={i}>
+                            <span className="font-medium text-foreground">{toInput(s.packing_slip_no)}</span>
+                            <span className="text-muted">
+                              {[shortDate(s.packing_slip_date), lotNosLabel(s.lot_nos)].filter(Boolean).map((x) => ` · ${x}`).join("")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    ),
+                },
+                {
+                  key: "dispatch",
+                  label: "Dispatch",
+                  thClass: "px-4 py-3",
+                  tdClass: "px-4 py-3 whitespace-nowrap",
+                  cell: (g: SoGroup) =>
+                    sentToDispatch(g.head) ? <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} /> : <NotAtDispatch />,
+                },
+              ]
+            : []),
+          // Assembly & Packing's own plan for a Spare: packing date, shift, PDI.
+          ...(table === "order_assembly_dispatch"
+            ? [
+                ...lotCols((g) => (g.head.so_child_rows ?? []) as Row[]),
+                {
+                  key: "plan",
+                  label: "Packing Plan Date",
+                  head: <SortHeader label="Packing Plan Date" sortKey="packing" />,
+                  thClass: "px-4 py-3 whitespace-nowrap",
+                  tdClass: "px-4 py-3 whitespace-nowrap",
+                  cell: (g: SoGroup) => {
+                    const plan = packingPlanOf(g.ecs);
+                    return (
+                      <>
+                        {plan.date || plan.moves > 0 ? (
+                          <PackingPlanHistoryButton
+                            orderId={String(g.head.order_id)}
+                            label={plan.date ? shortDate(plan.date) : "History"}
+                            soLabel={soLabelOf(g.head)}
+                          />
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                        {plan.moves > 0 && <div className="text-[11px] font-medium text-amber-700">moved {plan.moves}×</div>}
+                      </>
+                    );
+                  },
+                },
+                { key: "shift", label: "Shift", thClass: "px-4 py-3", tdClass: "px-4 py-3 whitespace-nowrap", cell: (g: SoGroup) => packingPlanOf(g.ecs).shift || "—" },
+                { key: "pdi", label: "PDI", thClass: "px-4 py-3", tdClass: "px-4 py-3 whitespace-nowrap", cell: (g: SoGroup) => packingPlanOf(g.ecs).pdi || "—" },
+                {
+                  // Assembly & Packing sees where Dispatch has got to.
+                  key: "dispatch",
+                  label: "Dispatch",
+                  thClass: "px-4 py-3",
+                  tdClass: "px-4 py-3 whitespace-nowrap",
+                  cell: (g: SoGroup) =>
+                    atDispatch(g.head, g.ecs) ? <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} /> : <NotAtDispatch />,
+                },
+              ]
+            : []),
+          ...(canEdit
+            ? [
+                {
+                  key: "edit",
+                  label: "Edit",
+                  thClass: "px-4 py-3 text-right",
+                  tdClass: "px-4 py-3 text-right",
+                  cell: (g: SoGroup) => {
+                    const mixed = new Set(g.ecs.map(isSpareRow)).size > 1;
+                    return mixed || lockReason(table, g.head) ? (
+                      <span className="text-xs text-muted-foreground" title={mixed ? "Pump and Spare ECs — edit each EC" : undefined}>
+                        —
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditSo({
+                            orderId: String(g.head.order_id),
+                            head: g.ecs[0],
+                            count: g.ecs.length,
+                          })
+                        }
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit SO
+                      </button>
+                    );
+                  },
+                },
+              ]
+            : []),
+        ]
+      : []),
+    // Assembly & Packing: the SO's packing slips, on the row.
+    ...(section?.soChild
+      ? [
+          {
+            key: "so_child",
+            label: section.soChild.title,
+            thClass: "px-4 py-3",
+            tdClass: "px-4 py-3 align-top",
+            wide: true,
+            cell: (g: SoGroup) => (
+              <PackingSlipsInline
+                orderId={String(g.head.order_id)}
+                soLabel={soLabelOf(g.head)}
+                slips={(g.head.so_child_rows ?? []) as Row[]}
+                context={{
+                  market_type: g.head.market_type,
+                  packing_details_required: g.head.packing_details_required,
+                }}
+                gateOk={!section.soChild!.gate || toInput(g.head[section.soChild!.gate.column]).trim() !== ""}
+                canEdit={canEdit}
+                canEditCentral={canEditCentral}
+                {...slipLotsOf(g.ecs)}
+              />
+            ),
+          },
+        ]
+      : []),
+  ];
+  // An SO's ECs, the columns its own ECs need (a Spare SO no pump-only ones).
+  const ecColsFor = (g: SoGroup): Col<Row>[] => [
+    { key: "ec", label: "EC No.", thClass: "px-3 py-2", tdClass: "px-3 py-2 whitespace-nowrap font-medium", cell: (ec) => toInput(ec.ec_no) || "—" },
+    ...(showLots(g.ecs)
+      ? [
+          {
+            key: "lots",
+            label: "Readiness lots",
+            thClass: "px-3 py-2 whitespace-nowrap",
+            tdClass: "px-3 py-2",
+            cell: (ec: Row) => lotsCell(ec, (g.head.so_child_rows ?? []) as Row[]),
+          },
+        ]
+      : []),
+    ...ecContextFor(g.ecs).map(
+      (f): Col<Row> => ({
+        key: `x:${f.column}`,
+        label: f.label,
+        head: fieldHead(f),
+        thClass: "px-3 py-2 whitespace-nowrap",
+        tdClass: "px-3 py-2 whitespace-nowrap text-muted",
+        cell: (ec) => (fieldApplies(f, ec) ? formatValue(f, ec[f.column]) : "—"),
+      })
+    ),
+    ...fieldsFor(g.ecs).map(
+      (f): Col<Row> => ({
+        key: `f:${f.column}`,
+        label: f.label,
+        head: fieldHead(f),
+        thClass: "px-3 py-2 whitespace-nowrap",
+        tdClass: "px-3 py-2 whitespace-nowrap",
+        cell: (ec) => (fieldApplies(f, ec) ? formatValue(f, ec[f.column]) : "—"),
+      })
+    ),
+    ...documents.map(
+      (doc): Col<Row> => ({
+        key: `doc:${doc.table}`,
+        label: doc.label,
+        thClass: "px-3 py-2 whitespace-nowrap",
+        tdClass: "px-3 py-2 whitespace-nowrap",
+        cell: (ec) => docButton(ec, doc, "h-7 px-2.5"),
+      })
+    ),
+    ...(SIGN_OFF_ENABLED && dept && completePerEc
+      ? [{ key: "complete", label: "Complete", thClass: "px-3 py-2", tdClass: "px-3 py-2", cell: (ec: Row) => completeCell(String(ec.id), toInput(ec.ec_no) || String(ec.id)) }]
+      : []),
+    ...(canEdit && ecEditFor(g.ecs)
+      ? [
+          {
+            key: "edit",
+            label: "Edit",
+            thClass: "px-3 py-2 text-right",
+            tdClass: "px-3 py-2 text-right",
+            cell: (ec: Row) => (
+              <button
+                type="button"
+                onClick={() => setEditRow(ec)}
+                className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            ),
+          },
+        ]
+      : []),
+  ];
+  // An EC's child list (Drawing → revisions); the table and the panel alike.
+  const childListFor = (ec: Row) =>
+    childTable ? (
+      <OrderChildList
+        orderId={String(ec.id)}
+        table={childTable}
+        title={childTitle}
+        fields={CHILD_FIELDS[childTable]}
+        rows={childRowsFor(ec)}
+        canEdit={canEdit}
+        canEditCentral={canEditCentral}
+        kind={childKind}
+        context={{
+          market_type: ec.market_type,
+          packing_details_required: ec.packing_details_required,
+        }}
+        rowAction={
+          childTable === "order_drawing_revisions"
+            ? (rev) => <RevisionDocsButton revisionId={String(rev.id)} label={revisionDocsLabel(ec, rev)} count={Number(rev.doc_count ?? 0)} />
+            : undefined
+        }
+      />
+    ) : null;
+  // The chevron is the table's own; the rest are the SO's columns.
+  const colCount = groupBySo ? 1 + groupCols.length : flatCols.length;
+
+  // Split view (not inside a pop-up). The Pump views draw their own; here,
+  // the Spare SOs and Accounts' SOs. The SO picked: the deep-linked one, else the first.
+  const split = splitView && !embedded;
+  const ownSplit = split && ecKind !== "pump";
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const focusGroup =
+    ownSplit && groupBySo
+      ? (soGroups.find((g) => g.key === focusKey) ??
+        soGroups.find((g) => String(g.head.order_id ?? g.head.id) === focusOrderId) ??
+        soGroups[0] ??
+        null)
+      : null;
+  const focusRow =
+    ownSplit && !groupBySo
+      ? (pageRows.find((o) => String(o.id) === focusKey) ?? pageRows.find((o) => String(o.id) === focusOrderId) ?? pageRows[0] ?? null)
+      : null;
+  const focusHead = focusGroup?.head ?? focusRow;
+  const pickedRow = "outline-2 -outline-offset-2 outline-primary/50";
+  // The Pump views (one table per SO with its pump ECs) draw their own split.
+  const pumpTable = assemblyPump ? (
+    <AssemblyPumpTable
+      rows={orders}
+      unreadThreads={unreadThreads}
+      canEdit={canEdit}
+      canEditCentral={canEditCentral}
+      onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
+      split={split}
+    />
+  ) : ecKind === "pump" ? (
+    <PlanningPumpTable
+      rows={orders}
+      planningFields={fields}
+      soColumns={soContext.filter((f) => !["so_date", "order_type"].includes(f.column))}
+      unreadThreads={unreadThreads}
+      canEdit={canEdit}
+      fieldApplies={fieldApplies}
+      formatPlanning={formatValue}
+      seesReadinessHistory={isCentral(role) || role === "planning"}
+      summaries={pumpSummaries}
+      onEditSo={(orderId, ecs) =>
+        setEditSo({
+          orderId,
+          head: ecs[0],
+          count: ecs.length,
+          // The Spare SO form: status, readiness date, remarks; lots once ready.
+          fields: PUMP_SO_PLANNING_FIELDS,
+          spareLike: true,
+          // Its pump ECs, for each lot to name.
+          ecs,
+        })
+      }
+      onEditEc={(row) => {
+        setEditEcFields(fields.filter((f) => f.column === "ready_qty"));
+        setEditRow(row);
+      }}
+      onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
+      split={split}
+    />
+  ) : null;
   const title = SECTION_BY_TABLE.get(table)?.title ?? "Details";
 
   return (
@@ -880,144 +1399,99 @@ export function DepartmentWorkspace({
 
       {!embedded && <KpiStrip cards={kpis} />}
 
+      {split && pumpTable ? (
+        // Outside the card: the Pump view's own list and panel, the panel free to stick.
+        <>
+          {pumpTable}
+          <div className="mt-3 rounded-xl border border-card-border bg-surface shadow-sm">
+            <UrlPagination page={queue.page} totalPages={queue.totalPages} from={queue.from} to={queue.to} total={queue.total} />
+          </div>
+        </>
+      ) : (
+      <SplitShell
+        split={ownSplit}
+        focusKey={focusGroup?.key ?? (focusRow ? String(focusRow.id) : null)}
+        focusLabel={focusHead ? toInput(focusHead.so_no) || `#${String(focusHead.sl_no ?? "")}` : null}
+        list={
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
-          {assemblyPump ? (
-            <AssemblyPumpTable
-              rows={orders}
-              unreadThreads={unreadThreads}
-              canEdit={canEdit}
-              canEditCentral={canEditCentral}
-              onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
-            />
-          ) : ecKind === "pump" ? (
-            <PlanningPumpTable
-              rows={orders}
-              planningFields={fields}
-              soColumns={soContext.filter((f) => !["so_date", "order_type"].includes(f.column))}
-              unreadThreads={unreadThreads}
-              canEdit={canEdit}
-              fieldApplies={fieldApplies}
-              formatPlanning={formatValue}
-              seesReadinessHistory={isCentral(role) || role === "planning"}
-              summaries={pumpSummaries}
-              onEditSo={(orderId, ecs) =>
-                setEditSo({
-                  orderId,
-                  head: ecs[0],
-                  count: ecs.length,
-                  // The Spare SO form: status, readiness date, remarks; lots once ready.
-                  fields: PUMP_SO_PLANNING_FIELDS,
-                  spareLike: true,
-                  // Its pump ECs, for each lot to name.
-                  ecs,
-                })
-              }
-              onEditEc={(row) => {
-                setEditEcFields(fields.filter((f) => f.column === "ready_qty"));
-                setEditRow(row);
-              }}
-              onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
-            />
+          {pumpTable ? (
+            pumpTable
+          ) : ownSplit ? (
+            // Split view: the SO's identity and state; the rest is the panel's.
+            <table className="w-full text-sm">
+              <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+                <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                  {(groupBySo ? groupCols : flatCols)
+                    .filter((c) => c.list)
+                    .map((c) => (
+                      <th key={c.key} className={c.thClass} style={c.thStyle}>
+                        {headOf(c as Col<unknown>)}
+                      </th>
+                    ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-card-border">
+                {(groupBySo ? soGroups.length === 0 : pageRows.length === 0) && (
+                  <tr>
+                    <td
+                      colSpan={(groupBySo ? groupCols : flatCols).filter((c) => c.list).length}
+                      className="px-4 py-10 text-center text-sm text-muted"
+                    >
+                      {emptyMessage}
+                    </td>
+                  </tr>
+                )}
+                {groupBySo
+                  ? soGroups.map((g) => (
+                      <tr
+                        key={g.key}
+                        data-focus-row={String(g.head.order_id ?? g.head.id)}
+                        onClick={() => setFocusKey(g.key)}
+                        className={`cursor-pointer text-foreground transition-colors ${dispatchRowTone(g.head) ?? "hover:bg-background/60"} ${
+                          focusGroup?.key === g.key ? pickedRow : ""
+                        } ${focusClass(String(g.head.order_id ?? g.head.id))}`}
+                      >
+                        {groupCols
+                          .filter((c) => c.list)
+                          .map((c) => (
+                            <td key={c.key} className={c.tdClass} style={c.tdStyle}>
+                              {c.cell(g)}
+                            </td>
+                          ))}
+                      </tr>
+                    ))
+                  : pageRows.map((order) => (
+                      <tr
+                        key={String(order.id)}
+                        data-focus-row={String(order.id)}
+                        onClick={() => setFocusKey(String(order.id))}
+                        className={`cursor-pointer text-foreground ${dispatchRowTone(order) ?? "hover:bg-background/60"} ${
+                          focusRow && String(focusRow.id) === String(order.id) ? pickedRow : ""
+                        } ${focusClass(String(order.id))}`}
+                      >
+                        {flatCols
+                          .filter((c) => c.list)
+                          .map((c) => (
+                            <td key={c.key} className={c.tdClass} style={c.tdStyle}>
+                              {c.cell(order)}
+                            </td>
+                          ))}
+                      </tr>
+                    ))}
+              </tbody>
+            </table>
           ) : (
           <table className="w-full min-w-[900px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {groupBySo && <th className="w-8 px-2 py-3" />}
-                <th className="px-4 py-3"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className={`sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : ""}`} style={acctPinned ? { boxShadow: "none" } : undefined}>
-                  {acctPinned ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : "SO No."}
-                </th>
-                {!acctPinned && <th className="px-4 py-3">Chat</th>}
-                {!groupBySo && showEcNo && <th className="px-4 py-3">EC No.</th>}
-                {showParty && (
-                  <th className={acctPinned ? "sticky-so px-4 py-3" : "px-4 py-3"} style={acctPinned ? { left: ACCT_SO_LEFT } : undefined}>
-                    Client Name
+                {(groupBySo ? (groupCols as Col<unknown>[]) : (flatCols as Col<unknown>[])).map((c) => (
+                  <th key={c.key} className={c.thClass} style={c.thStyle}>
+                    {headOf(c)}
                   </th>
-                )}
-                {acctPinned && <th className="px-4 py-3">Chat</th>}
-                {acctPinned && <th className="px-4 py-3 whitespace-nowrap">Order Status</th>}
-                {soCols.map((f) => (
-                  <Fragment key={f.column}>
-                  <th
-                    className="px-3 py-3 whitespace-nowrap text-muted-foreground"
-                  >
-                    {f.column === "so_date" ? (
-                      <SortHeader label={f.label} sortKey="so_date" />
-                    ) : table === "order_accounts" && f.column === "payment_terms" ? (
-                      "Payment terms & PIs"
-                    ) : (
-                      fieldHead(f)
-                    )}
-                  </th>
-                  {/* Planning: the readiness date right after SO Date. */}
-                  {f.column === "so_date" && table === "order_planning" && groupBySo && soEdit && (
-                    <th className="px-4 py-3 whitespace-nowrap">
-                      <SortHeader label={soDateLabel} sortKey="readiness" />
-                    </th>
-                  )}
-                  </Fragment>
                 ))}
-                {groupBySo ? (
-                  <>
-                    <th className="px-4 py-3 text-center normal-case">ECs</th>
-                    {soEdit && (
-                      <>
-                        <th className="px-4 py-3">Status</th>
-                        {table !== "order_planning" && (
-                          <th className="px-4 py-3 whitespace-nowrap">
-                            {table === "order_assembly_dispatch" ? <SortHeader label={soDateLabel} sortKey="readiness" /> : soDateLabel}
-                          </th>
-                        )}
-                        {/* Planning sees how far Assembly & Packing and Dispatch have got. */}
-                        {table === "order_planning" && (
-                          <>
-                            {/* A Spare's readiness lots, one column each. */}
-                            {LOT_COLUMNS.map((n) => (
-                              <th key={n} className="px-4 py-3 whitespace-nowrap">Lot {n}</th>
-                            ))}
-                            <th className="px-4 py-3 whitespace-nowrap">Assembly &amp; Packing</th>
-                            <th className="px-4 py-3 whitespace-nowrap">Packing slips</th>
-                            <th className="px-4 py-3">Dispatch</th>
-                          </>
-                        )}
-                        {/* Assembly & Packing's own plan for a Spare: packing date, shift, PDI. */}
-                        {table === "order_assembly_dispatch" && (
-                          <>
-                            {LOT_COLUMNS.map((n) => (
-                              <th key={n} className="px-4 py-3 whitespace-nowrap">Lot {n}</th>
-                            ))}
-                            <th className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Plan Date" sortKey="packing" /></th>
-                            <th className="px-4 py-3">Shift</th>
-                            <th className="px-4 py-3">PDI</th>
-                          </>
-                        )}
-                        {/* Assembly & Packing sees where Dispatch has got to. */}
-                        {table === "order_assembly_dispatch" && <th className="px-4 py-3">Dispatch</th>}
-                        {canEdit && <th className="px-4 py-3 text-right">Edit</th>}
-                      </>
-                    )}
-                    {section?.soChild && <th className="px-4 py-3">{section.soChild.title}</th>}
-                  </>
-                ) : (
-                  <>
-                    {visibleFields.map((f) => (
-                      <th key={f.column} className="px-3 py-3 whitespace-nowrap">
-                        {fieldHead(f)}
-                      </th>
-                    ))}
-                    {documents.map((doc) => (
-                      <th key={doc.table} className="px-3 py-3 whitespace-nowrap">
-                        {doc.label}
-                      </th>
-                    ))}
-                    {SIGN_OFF_ENABLED && dept && !completePerEc && (
-                  <th className="px-3 py-3">Complete</th>
-                )}
-                {canEdit && <th className="px-4 py-3 text-right">Edit</th>}
-                  </>
-                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border">
@@ -1051,133 +1525,18 @@ export function DepartmentWorkspace({
                       dispatchRowTone(order) ?? (table === "order_accounts" ? "hover:bg-background/60" : "")
                     } ${table === "order_accounts" ? "cursor-pointer" : ""} ${focusClass(String(order.id))}`}
                   >
-                    <td className="px-4 py-3 font-medium tabular-nums">
-                      {String(order.sl_no ?? "—")}
-                    </td>
-                    <td
-                      className={`sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : "whitespace-nowrap"}`}
-                      style={acctPinned ? { boxShadow: "none" } : undefined}
-                    >
-                      {toInput(order.so_no) || "—"}
-                      {acctPinned && soDateField && toInput(order.so_date) && (
-                        <span className="block text-[11px] font-normal text-muted">{contextValue(soDateField, order)}</span>
-                      )}
-                      <VersionTag order={order} />
-<HoldBadge order={order} />
-                      {/* Accounts can hold the SO for a payment reason. */}
-                      {/* Accounts: an SO it has cleared says so, here only. */}
-                      {table === "order_accounts" && <AccountsClearBadge order={order} />}
-                      {table === "order_accounts" && canEdit && <AccountsHoldButton order={order} />}
-                    </td>
-                    {!acctPinned && chatCellFor(order)}
-                    {showEcNo && (
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {toInput(order.ec_no) || "—"}
-                      </td>
-                    )}
-                    {showParty && (
-                      <td
-                        className={acctPinned ? "sticky-so min-w-[12rem] max-w-[16rem] px-4 py-3" : "px-4 py-3"}
-                        style={acctPinned ? { left: ACCT_SO_LEFT } : undefined}
-                      >
-                        {toInput(order.client_name) || "—"}
-                      </td>
-                    )}
-                    {acctPinned && chatCellFor(order)}
-                    {/* Worked out, never set: Active, Active-Hold, Canceled, Diverted or Closed. */}
-                    {acctPinned && (
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <OrderStatusPill
-                          status={orderStatusOf({
-                            dispatch_status: toInput(order.so_dispatch_status),
-                            clearance_status: toInput(order.clearance_status),
-                            om_status: toInput(order.om_status),
-                            accounts_hold_status: toInput(order.accounts_hold_status),
-                          })}
-                        />
-                      </td>
-                    )}
-                    {soCols.map((f) =>
-                      // The order value to its gross, as Dispatch shows it.
-                      f.column === "order_value_details" ? (
-                        <td key={f.column} className="px-3 py-3 align-top">
-                          <OrderValueDetails row={order} />
-                        </td>
-                      ) : // Accounts: each payment term with the PI raised against it.
-                      table === "order_accounts" && f.column === "payment_terms" ? (
-                        <td key={f.column} className="px-3 py-3 align-top">
-                          <TermPis
-                            orderId={String(order.id)}
-                            soLabel={toInput(order.so_no) || String(order.sl_no ?? "")}
-                            terms={(order.term_lines ?? []) as Row[]}
-                            pis={(order.pi_docs ?? []) as Row[]}
-                            canEdit={false}
-                            payments={{ canEdit: canEdit && !lockReason(table, order) }}
-                          />
-                        </td>
-                      ) : (
-                      <td
-                        key={f.column}
-                        className="px-3 py-3 whitespace-nowrap text-muted"
-                      >
-                        {contextCell(f, order)}
-                      </td>
-                      )
-                    )}
-                    {visibleFields.map((f) => (
-                      <td key={f.column} className="px-3 py-3 whitespace-nowrap">
-                        {!fieldApplies(f, order)
-                          ? "—"
-                          : table === "order_accounts"
-                            ? contextValue(f, order)
-                            : formatValue(f, order[f.column])}
+                    {flatCols.map((c) => (
+                      <td key={c.key} className={c.tdClass} style={c.tdStyle}>
+                        {c.cell(order)}
                       </td>
                     ))}
-                    {documents.map((doc) => (
-                      <td key={doc.table} className="px-3 py-3 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => setDocsPanel({ row: order, config: doc })}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
-                        >
-                          <Paperclip className="h-3.5 w-3.5" />
-                          {doc.counts[String(order.id)] ?? 0} file
-                          {(doc.counts[String(order.id)] ?? 0) === 1 ? "" : "s"}
-                        </button>
-                      </td>
-                    ))}
-                    {SIGN_OFF_ENABLED && dept && !completePerEc && (
-                      <td className="px-3 py-3">
-                        {completeCell(
-                          String(order.id),
-                          toInput(order.so_no) || String(order.sl_no ?? "")
-                        )}
-                      </td>
-                    )}
-                    {canEdit && (
-                      <td className="px-4 py-3 text-right">
-                        {lockReason(table, order) ? (
-                          // Accounts on an order paid after receipt: nothing
-                          // to record, so no form to open.
-                          <span className="text-xs text-muted-foreground">—</span>
-                        ) : (
-                        <button
-                          type="button"
-                          onClick={() => setEditRow(order)}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </button>
-                        )}
-                      </td>
-                    )}
                   </tr>
                 ))}
 
               {groupBySo &&
                 soGroups.map((g) => {
                   const isOpen = expanded.has(g.key);
+                  const ecCols = ecColsFor(g);
                   return (
                     <Fragment key={g.key}>
                       <tr
@@ -1201,175 +1560,11 @@ export function DepartmentWorkspace({
                             )}
                           </button>
                         </td>
-                        <td className="px-4 py-3 font-medium tabular-nums">
-                          {String(g.head.sl_no ?? "—")}
-                        </td>
-                        <td className="sticky-so px-4 py-3 whitespace-nowrap">
-                          {toInput(g.head.so_no) || "—"}
-                          <VersionTag order={g.head} />
-<HoldBadge order={g.head} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <ChatButton
-                            orderId={String(g.head.order_id ?? g.head.id)}
-                            soLabel={toInput(g.head.so_no) || String(g.head.sl_no ?? "")}
-                          />
-                        </td>
-                        {showParty && (
-                          <td className="px-4 py-3">
-                            {toInput(g.head.client_name) || "—"}
+                        {groupCols.map((c) => (
+                          <td key={c.key} className={c.tdClass} style={c.tdStyle}>
+                            {c.cell(g)}
                           </td>
-                        )}
-                        {soContext.map((f) => (
-                          <Fragment key={f.column}>
-                            <td className="px-3 py-3 whitespace-nowrap text-muted">{contextCell(f, g.head)}</td>
-                            {/* Planning: the readiness date right after SO Date. */}
-                            {f.column === "so_date" && table === "order_planning" && soEdit && readinessTd(g)}
-                          </Fragment>
                         ))}
-                        <td className="px-4 py-3 text-center tabular-nums">
-                          {g.ecs.length}
-                        </td>
-                        {soEdit && (() => {
-                          const sum = soSummary(g.ecs);
-                          const mixed = new Set(g.ecs.map(isSpareRow)).size > 1;
-                          return (
-                            <>
-                              <td className="px-4 py-3 whitespace-nowrap">{sum.status}</td>
-                              {/* Planning has it after SO Date. */}
-                              {table !== "order_planning" && readinessTd(g)}
-                              {table === "order_planning" && (() => {
-                                const asm = soSummary(g.ecs, "order_assembly_dispatch");
-                                return (
-                                  <>
-                                    {LOT_COLUMNS.map((n) => (
-                                      <td key={n} className="px-4 py-3 whitespace-nowrap text-xs">
-                                        {lotCell(g.ecs, n)}
-                                      </td>
-                                    ))}
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                      {/* Not sent on to Assembly & Packing yet: "—". */}
-                                      {sentToAssembly(g.ecs) ? asm.status : <span className="text-muted">—</span>}
-                                      {asm.date !== "—" && asm.date !== "Mixed" && (
-                                        <div className="text-[11px] text-muted">{asm.date}</div>
-                                      )}
-                                    </td>
-                                    {/* The SO's packing slips, read-only: number, date, lots. */}
-                                    <td className="px-4 py-3 whitespace-nowrap text-xs">
-                                      {Array.isArray(g.head.so_slips) && (g.head.so_slips as Row[]).length ? (
-                                        <div className="space-y-0.5">
-                                          {(g.head.so_slips as Row[]).map((s, i) => (
-                                            <div key={i}>
-                                              <span className="font-medium text-foreground">{toInput(s.packing_slip_no)}</span>
-                                              <span className="text-muted">
-                                                {[shortDate(s.packing_slip_date), lotNosLabel(s.lot_nos)].filter(Boolean).map((x) => ` · ${x}`).join("")}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <span className="text-muted">—</span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                      {sentToDispatch(g.head) ? (
-                                        <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
-                                      ) : (
-                                        <NotAtDispatch />
-                                      )}
-                                    </td>
-                                  </>
-                                );
-                              })()}
-                              {table === "order_assembly_dispatch" && (() => {
-                                const plan = packingPlanOf(g.ecs);
-                                const soLabel = toInput(g.head.so_no) || String(g.head.sl_no ?? "");
-                                return (
-                                  <>
-                                    {LOT_COLUMNS.map((n) => (
-                                      <td key={n} className="px-4 py-3 whitespace-nowrap text-xs">
-                                        {lotCell(g.ecs, n, (g.head.so_child_rows ?? []) as Row[])}
-                                      </td>
-                                    ))}
-                                    <td className="px-4 py-3 whitespace-nowrap">
-                                      {plan.date || plan.moves > 0 ? (
-                                        <PackingPlanHistoryButton
-                                          orderId={String(g.head.order_id)}
-                                          label={plan.date ? shortDate(plan.date) : "History"}
-                                          soLabel={soLabel}
-                                        />
-                                      ) : (
-                                        <span className="text-muted">—</span>
-                                      )}
-                                      {plan.moves > 0 && (
-                                        <div className="text-[11px] font-medium text-amber-700">moved {plan.moves}×</div>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-3 whitespace-nowrap">{plan.shift || "—"}</td>
-                                    <td className="px-4 py-3 whitespace-nowrap">{plan.pdi || "—"}</td>
-                                  </>
-                                );
-                              })()}
-                              {table === "order_assembly_dispatch" && (
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                  {atDispatch(g.head, g.ecs) ? (
-                                    <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} />
-                                  ) : (
-                                    <NotAtDispatch />
-                                  )}
-                                </td>
-                              )}
-                              {canEdit && (
-                                <td className="px-4 py-3 text-right">
-                                  {mixed || lockReason(table, g.head) ? (
-                                    <span
-                                      className="text-xs text-muted-foreground"
-                                      title={mixed ? "Pump and Spare ECs — edit each EC" : undefined}
-                                    >
-                                      —
-                                    </span>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setEditSo({
-                                          orderId: String(g.head.order_id),
-                                          head: g.ecs[0],
-                                          count: g.ecs.length,
-                                        })
-                                      }
-                                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                      Edit SO
-                                    </button>
-                                  )}
-                                </td>
-                              )}
-                            </>
-                          );
-                        })()}
-                        {/* Assembly & Packing: the SO's packing slips, on the row. */}
-                        {section?.soChild && (
-                          <td className="px-4 py-3 align-top">
-                            <PackingSlipsInline
-                              orderId={String(g.head.order_id)}
-                              soLabel={toInput(g.head.so_no) || String(g.head.sl_no ?? "")}
-                              slips={(g.head.so_child_rows ?? []) as Row[]}
-                              context={{
-                                market_type: g.head.market_type,
-                                packing_details_required: g.head.packing_details_required,
-                              }}
-                              gateOk={
-                                !section.soChild.gate ||
-                                toInput(g.head[section.soChild.gate.column]).trim() !== ""
-                              }
-                              canEdit={canEdit}
-                              canEditCentral={canEditCentral}
-                              {...slipLotsOf(g.ecs)}
-                            />
-                          </td>
-                        )}
                       </tr>
                       {isOpen && (
                         <tr className="bg-background/40">
@@ -1379,40 +1574,11 @@ export function DepartmentWorkspace({
                               <table className="w-full text-sm">
                                 <thead>
                                   <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    <th className="px-3 py-2">EC No.</th>
-                                    {showLots(g.ecs) && (
-                                      <th className="px-3 py-2 whitespace-nowrap">Readiness lots</th>
-                                    )}
-                                    {ecContextFor(g.ecs).map((f) => (
-                                      <th
-                                        key={f.column}
-                                        className="px-3 py-2 whitespace-nowrap"
-                                      >
-                                        {fieldHead(f)}
+                                    {ecCols.map((c) => (
+                                      <th key={c.key} className={c.thClass} style={c.thStyle}>
+                                        {headOf(c)}
                                       </th>
                                     ))}
-                                    {fieldsFor(g.ecs).map((f) => (
-                                      <th
-                                        key={f.column}
-                                        className="px-3 py-2 whitespace-nowrap"
-                                      >
-                                        {fieldHead(f)}
-                                      </th>
-                                    ))}
-                                    {documents.map((doc) => (
-                                      <th
-                                        key={doc.table}
-                                        className="px-3 py-2 whitespace-nowrap"
-                                      >
-                                        {doc.label}
-                                      </th>
-                                    ))}
-                                    {SIGN_OFF_ENABLED && dept && completePerEc && (
-                                      <th className="px-3 py-2">Complete</th>
-                                    )}
-                                    {canEdit && ecEditFor(g.ecs) && (
-                                      <th className="px-3 py-2 text-right">Edit</th>
-                                    )}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1422,70 +1588,11 @@ export function DepartmentWorkspace({
                                       data-focus-row={String(ec.id)}
                                       className={`text-foreground ${focusClass(String(ec.id))}`}
                                     >
-                                      <td className="px-3 py-2 whitespace-nowrap font-medium">
-                                        {toInput(ec.ec_no) || "—"}
-                                      </td>
-                                      {showLots(g.ecs) && (
-                                        <td className="px-3 py-2">{lotsCell(ec, (g.head.so_child_rows ?? []) as Row[])}</td>
-                                      )}
-                                      {ecContextFor(g.ecs).map((f) => (
-                                        <td
-                                          key={f.column}
-                                          className="px-3 py-2 whitespace-nowrap text-muted"
-                                        >
-                                          {fieldApplies(f, ec) ? formatValue(f, ec[f.column]) : "—"}
+                                      {ecCols.map((c) => (
+                                        <td key={c.key} className={c.tdClass} style={c.tdStyle}>
+                                          {c.cell(ec)}
                                         </td>
                                       ))}
-                                      {fieldsFor(g.ecs).map((f) => (
-                                        <td
-                                          key={f.column}
-                                          className="px-3 py-2 whitespace-nowrap"
-                                        >
-                                          {fieldApplies(f, ec)
-                                            ? formatValue(f, ec[f.column])
-                                            : "—"}
-                                        </td>
-                                      ))}
-                                      {documents.map((doc) => (
-                                        <td
-                                          key={doc.table}
-                                          className="px-3 py-2 whitespace-nowrap"
-                                        >
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              setDocsPanel({ row: ec, config: doc })
-                                            }
-                                            className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-input-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
-                                          >
-                                            <Paperclip className="h-3.5 w-3.5" />
-                                            {doc.counts[String(ec.id)] ?? 0} file
-                                            {(doc.counts[String(ec.id)] ?? 0) === 1
-                                              ? ""
-                                              : "s"}
-                                          </button>
-                                        </td>
-                                      ))}
-                                      {SIGN_OFF_ENABLED && dept && completePerEc && (
-                                        <td className="px-3 py-2">
-                                          {completeCell(
-                                            String(ec.id),
-                                            toInput(ec.ec_no) || String(ec.id)
-                                          )}
-                                        </td>
-                                      )}
-                                      {canEdit && ecEditFor(g.ecs) && (
-                                        <td className="px-3 py-2 text-right">
-                                          <button
-                                            type="button"
-                                            onClick={() => setEditRow(ec)}
-                                            className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
-                                          >
-                                            <Pencil className="h-3.5 w-3.5" />
-                                            Edit
-                                          </button>
-                                        </td>
-                                      )}
                                     </tr>
                                   ))}
                                 </tbody>
@@ -1529,32 +1636,7 @@ export function DepartmentWorkspace({
                                         </div>
                                         {/* A Spare's readiness first: it is what
                                             the packing that follows depends on. */}
-                                        <OrderChildList
-                                          orderId={String(ec.id)}
-                                          table={childTable}
-                                          title={childTitle}
-                                          fields={CHILD_FIELDS[childTable]}
-                                          rows={childRowsFor(ec)}
-                                          canEdit={canEdit}
-                                          canEditCentral={canEditCentral}
-                                          kind={childKind}
-                                          context={{
-                                            market_type: ec.market_type,
-                                            packing_details_required:
-                                              ec.packing_details_required,
-                                          }}
-                                          rowAction={
-                                            childTable === "order_drawing_revisions"
-                                              ? (rev) => (
-                                                  <RevisionDocsButton
-                                                    revisionId={String(rev.id)}
-                                                    label={revisionDocsLabel(ec, rev)}
-                                                    count={Number(rev.doc_count ?? 0)}
-                                                  />
-                                                )
-                                              : undefined
-                                          }
-                                        />
+                                        {childListFor(ec)}
                                       </div>
                                     ))
                                   )}
@@ -1581,6 +1663,55 @@ export function DepartmentWorkspace({
           />
         )}
       </div>
+        }
+        panel={
+          focusGroup ? (
+            <>
+              <PanelSection title="SO">
+                <Portrait cols={groupCols} row={focusGroup} />
+              </PanelSection>
+              {/* What the SO's expanded row shows: each EC, and its child list. */}
+              {focusGroup.ecs.map((ec) => (
+                <PanelSection
+                  key={String(ec.id)}
+                  title={`EC ${toInput(ec.ec_no) || "—"}`}
+                  aside={hasFlatColumns ? undefined : completeCell(String(ec.id), toInput(ec.ec_no) || String(ec.id))}
+                >
+                  <div className="space-y-3">
+                    {hasFlatColumns && <Portrait cols={ecColsFor(focusGroup)} row={ec} />}
+                    {childTable &&
+                      (childGateOkFor(focusGroup.head) ? (
+                        childListFor(ec)
+                      ) : (
+                        <p className="text-xs text-muted">Packing Details Required is not set to Yes on this order.</p>
+                      ))}
+                  </div>
+                </PanelSection>
+              ))}
+            </>
+          ) : focusRow ? (
+            <PanelSection
+              title="SO"
+              aside={
+                // The table's row click opens these; in the split view a click picks the SO.
+                table === "order_accounts" ? (
+                  <button
+                    type="button"
+                    onClick={() => setDetailsFor(String(focusRow.id))}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-input-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Order details
+                  </button>
+                ) : undefined
+              }
+            >
+              <Portrait cols={flatCols} row={focusRow} />
+            </PanelSection>
+          ) : null
+        }
+      />
+      )}
 
       {editSo && canEdit && (
         <EditSectionModal

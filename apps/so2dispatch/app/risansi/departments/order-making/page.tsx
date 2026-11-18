@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { FilePlus2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
@@ -12,6 +13,7 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { OrderMakingWorkspace } from "@/components/risansi/order-making-workspace";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
+import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
 
 export const metadata: Metadata = {
   title: "Order Making | Risansi",
@@ -92,6 +94,7 @@ export default async function OrderMakingPage({
         role={user.role}
         unreadThreads={unreadThreads}
         viewerId={user.id}
+        split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}
       />
     </div>
   );

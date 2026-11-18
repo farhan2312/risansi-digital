@@ -3,7 +3,7 @@
 import { OrderValueDetails, type OrderValueRow } from "./order-value-details";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Ban, CopyPlus, Download, Eye, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Pencil, Plus, UserRound, Users, X } from "lucide-react";
 import { NewVersionDialog } from "./new-version-dialog";
@@ -67,6 +67,10 @@ import { MultiSelectFilter, SingleSelectFilter } from "./multi-select-filter";
 import { ClientLookup } from "./client-lookup";
 import { formatDisplay } from "./editable-section";
 import { dispatchRowTone, isClosedStatus } from "@/lib/dept-view";
+import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+
+/** A list column; `stop`: clicks in its cell do their own job, not open the SO's ECs. */
+type OmCol = SplitCol<OrderMakingRow> & { stop?: boolean };
 
 /** All, Spare or Pump — shows the choice at once; the list follows when it loads. */
 /** Worked out on save: the form holds them to show a USD order's gross, and does not send them. */
@@ -140,7 +144,10 @@ export function OrderMakingWorkspace({
   unreadThreads,
   kpis = [],
   heading,
+  split = false,
 }: {
+  /** Split view: the SO list on the left, the SO picked on the right. */
+  split?: boolean;
   /** The summary cards under the filter bar. */
   kpis?: KpiCard[];
   /** The page heading, sharing its row with the report and New order buttons. */
@@ -264,6 +271,307 @@ export function OrderMakingWorkspace({
 
   const headButton =
     "inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background";
+
+  // The list's columns, listed once: the table draws them across, the split
+  // view's panel stands the same ones upright.
+  const omCols: OmCol[] = [
+    { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, tdClass: "font-medium tabular-nums", cell: (row) => row.sl_no, list: true },
+    ...cols.flatMap((c): OmCol[] => {
+      const col: OmCol = {
+        key: c.column,
+        label: c.label,
+        ...(c.column === "so_no"
+          ? { head: <SortHeader label={c.label} sortKey="so_date" /> }
+          : ["po_received_date", "ec_sent_operation_date"].includes(c.column)
+            ? { head: <SortHeader label={c.label} sortKey={c.column} /> }
+            : {}),
+        thClass:
+          c.column === "order_value" ? "whitespace-nowrap" : c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : "",
+        tdClass: `${c.column === "order_value" ? "align-top" : c.column === "client_name" ? "" : "whitespace-nowrap"} ${
+          c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : ""
+        }`,
+        // The SO and its client say which SO a row is.
+        list: c.column === "so_no" || c.column === "client_name",
+        cell: (row) => (
+          <>
+            {c.column === "order_value" ? <OrderValueDetails row={row as OrderValueRow} /> : formatDisplay(field(c.column), row[c.column])}
+            {c.column === "order_type" && <RetrofitLine row={row} />}
+            {c.column === "so_no" && str(row.so_date) && (
+              <span className="block text-[11px] text-muted">{formatDisplay(field("so_date"), row.so_date)}</span>
+            )}
+            {c.column === "client_name" && str(row.client_code) && (
+              <span className="block text-[11px] text-muted">{str(row.client_code)}</span>
+            )}
+            {/* As in every department: Central's and Accounts' holds, and Only Billing. */}
+            {c.column === "so_no" && (
+              <>
+                {/* A Pump SO past its first version: which it is, and its history. */}
+                {Number(row.version_no ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setVersionsFor(row)}
+                    title="See the SO's versions"
+                    className="mt-1 flex w-fit items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                  >
+                    <History className="h-3 w-3" />v{Number(row.version_no)}
+                  </button>
+                )}
+                <HoldBadge order={row} />
+                {isOnlyBilling(row) && <OnlyBillingBadge order={row} />}
+              </>
+            )}
+          </>
+        ),
+      };
+      // Chat after the client: SO No. and the client stay at the left edge together.
+      if (c.column !== "client_name") return [col];
+      return [
+        col,
+        {
+          key: "chat",
+          label: "Chat",
+          // The SO's discussion with Central Visibility and the departments.
+          cell: (row) => (
+            <button
+              type="button"
+              onClick={() => setThreadFor({ orderId: row.id, soLabel: str(row.so_no) || String(row.sl_no) })}
+              aria-label="Chat"
+              title="Chat"
+              className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              {(unreadThreads[row.id] ?? 0) > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+                  {unreadThreads[row.id]}
+                </span>
+              )}
+            </button>
+          ),
+        },
+      ];
+    }),
+    // Order Making's own Clear / Hold, the first step. Central's clearance
+    // comes after and is not Order Making's to see.
+    { key: "status", label: "Status", cell: (row) => <OmHoldBadge order={row} />, list: true },
+    {
+      // Its handover, terms and target dates, in a pop-up. Only Billing has none of them.
+      key: "operation",
+      label: "Operation",
+      tdClass: "whitespace-nowrap",
+      stop: true,
+      cell: (row) =>
+        isOnlyBilling(row) ? (
+          <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOperationFor(row)}
+            className="inline-flex flex-col items-start rounded-lg border border-input-border px-2.5 py-1 text-left text-xs font-medium text-foreground transition-colors hover:bg-background"
+          >
+            Operation
+            <span className="text-[11px] font-normal text-muted">
+              {str(row.so_handover_date) ? `PPC ${formatDisplay(field("so_date"), row.so_handover_date)}` : "PPC not sent"}
+            </span>
+          </button>
+        ),
+    },
+    {
+      // The SO's ECs: the row itself opens them; the count is just the count.
+      key: "ecs",
+      label: "ECs",
+      head: <SortHeader label="ECs" sortKey="ecs" />,
+      tdClass: "whitespace-nowrap",
+      list: true,
+      cell: (row) => <span className={`text-sm tabular-nums ${row.ec_count > 0 ? "text-foreground" : "text-muted"}`}>{row.ec_count}</span>,
+    },
+    {
+      // Who has it — everyone sees; only those who assign change it.
+      key: "assignee",
+      label: "Assigned to",
+      head: <SortHeader label="Assigned to" sortKey="assignee" />,
+      tdClass: "whitespace-nowrap",
+      cell: (row) =>
+        /* Carried in by the migration: its SO details came with it. */
+        row.so_migrated && !row.so_assignee_id ? (
+          <span
+            title="Migrated from Excel — no assignment needed"
+            className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300"
+          >
+            Migrated
+          </span>
+        ) : /* Dispatched, cancelled or diverted: no one to assign now. */ notAssignable(row) && !row.so_assignee_id ? (
+          <span className="text-xs text-muted">Not needed</span>
+        ) : canAssign && !notAssignable(row) && row.so_assignee_id && reassigning !== row.id ? (
+          // Assigned: who has it, and Reassign to change or take it off them.
+          <span className="inline-flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                <UserRound className="h-3.5 w-3.5 text-primary" />
+                {(() => {
+                  const m = members.find((x) => x.id === row.so_assignee_id);
+                  return m ? memberLabel(m) : (row.so_assignee_name ?? "Former member");
+                })()}
+              </span>
+              <button
+                type="button"
+                onClick={() => setReassigning(row.id)}
+                className="rounded-md border border-input-border px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
+              >
+                Reassign
+              </button>
+            </span>
+            {row.so_assigned_at && <span className="text-[11px] text-muted">since {formatDisplay(field("so_date"), row.so_assigned_at)}</span>}
+          </span>
+        ) : canAssign && !notAssignable(row) ? (
+          <span className="inline-flex flex-col gap-0.5">
+            <span className="inline-flex items-center gap-1.5">
+              <select
+                autoFocus={reassigning === row.id}
+                onBlur={() => setReassigning((r) => (r === row.id ? null : r))}
+                value={row.so_assignee_id ?? ""}
+                disabled={assigning === row.id}
+                onChange={(e) => {
+                  setReassigning(null);
+                  assign(row, e.target.value);
+                }}
+                aria-label={`Assign SO details of ${str(row.so_no) || row.sl_no}`}
+                className={`h-8 max-w-[11rem] cursor-pointer rounded-lg border px-2 text-xs ${
+                  row.so_assignee_id
+                    ? "border-input-border bg-surface text-foreground"
+                    : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+                }`}
+              >
+                <option value="">{row.so_assignee_id ? "Unassign" : "Unassigned"}</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {memberLabel(m)}
+                  </option>
+                ))}
+                {/* Someone no longer active stays shown. */}
+                {row.so_assignee_id && !members.some((m) => m.id === row.so_assignee_id) && (
+                  <option value={row.so_assignee_id}>{row.so_assignee_name ?? "Former member"}</option>
+                )}
+              </select>
+              {assigning === row.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
+            </span>
+            {row.so_assigned_at && <span className="text-[11px] text-muted">since {formatDisplay(field("so_date"), row.so_assigned_at)}</span>}
+          </span>
+        ) : (
+          <span className="text-xs text-foreground">{row.so_assignee_name ?? "—"}</span>
+        ),
+    },
+    {
+      // The SO checklist: the SO team's (green) and the PO team's points answered, and those verified.
+      key: "checklist",
+      label: "Checklist",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => (
+        <button
+          type="button"
+          onClick={() => setChecklistFor(row.id)}
+          title="Open the SO checklist"
+          className="inline-flex flex-col items-start rounded-lg border border-input-border px-2.5 py-1 text-left text-[11px] font-medium transition-colors hover:bg-background"
+        >
+          {(["so", "po", "ver"] as const).map((t) => {
+            const done = Number(row[`ckl_${t}`] ?? 0);
+            const total = Number(row[`ckl_${t}_total`] ?? 0);
+            return (
+              <span
+                key={t}
+                className={`tabular-nums ${
+                  done >= total ? "text-emerald-700 dark:text-emerald-300" : done > 0 ? "text-amber-700 dark:text-amber-300" : "text-muted"
+                }`}
+              >
+                {t === "ver" ? "Verified" : t.toUpperCase()} {done}/{total}
+              </span>
+            );
+          })}
+        </button>
+      ),
+    },
+    ...(canEdit
+      ? [
+          {
+            key: "actions",
+            label: "Actions",
+            head: null,
+            tdClass: "text-right",
+            cell: (row: OrderMakingRow) => (
+              <>
+                {/* An SO not assigned to an SO member: View, not edit. */}
+                {!mine(row) ? (
+                  <button
+                    type="button"
+                    onClick={() => setViewing(row)}
+                    className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    View
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(row)}
+                    className={`inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-xs font-medium transition-colors ${
+                      mode === "so" && row.so_missing.length > 0
+                        ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground"
+                        : "border-input-border text-foreground hover:bg-background"
+                    }`}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    {mode === "so" ? "SO details" : "Edit"}
+                  </button>
+                )}
+                {/* A new version of a Pump SO, the current one kept read-only. */}
+                {mode === "po" && makesVersions && PUMP_LIKE.includes(str(row.order_type)) && !isClosedStatus(row.status_override) && (
+                  <button
+                    type="button"
+                    onClick={() => setVersioning(row)}
+                    title="Save the SO as it is as a read-only version, and go on editing the next one"
+                    className="ml-1.5 inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
+                  >
+                    <CopyPlus className="h-3.5 w-3.5" />
+                    New version
+                  </button>
+                )}
+                {/* Order Making PO cancels an SO; it stays on the list, red. */}
+                {mode === "po" &&
+                  canCreate &&
+                  (isClosedStatus(row.status_override) ? (
+                    <span className="ml-1.5 inline-flex h-8 items-center rounded-lg bg-rose-100 px-2.5 text-xs font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">
+                      {String(row.status_override)}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setCancelling(row)}
+                      className="ml-1.5 inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 px-3 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                      Cancel
+                    </button>
+                  ))}
+              </>
+            ),
+          },
+        ]
+      : []),
+  ];
+  const headOf = (c: OmCol) => ("head" in c ? c.head : c.label);
+  const listCols = omCols.filter((c) => c.list);
+  // Split view: the SO picked, the first until another is.
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const focusRow = split ? (queue.rows.find((r) => r.id === focusKey) ?? queue.rows[0] ?? null) : null;
+  // As on the Orders list: red when cancelled or diverted, green fully
+  // dispatched, blue lot dispatched.
+  const rowTone = (row: OrderMakingRow) =>
+    isClosedStatus(row.status_override)
+      ? "bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/15 dark:hover:bg-rose-500/20"
+      : (dispatchRowTone(row) ?? "hover:bg-background/60");
+  // A click on a control (or inside one of its pop-ups) does its own job.
+  const onControl = (e: React.MouseEvent) => !!(e.target as HTMLElement).closest("button, a, select, input, textarea, label, [role=dialog]");
+  const emptyMessage =
+    mode === "so" ? "No SOs assigned to you match." : missingOnly ? "Every SO has its client, PO and SO details filled." : "No SOs match.";
 
   return (
     <div>
@@ -558,320 +866,89 @@ export function OrderMakingWorkspace({
 
       <KpiStrip cards={kpis} />
 
+      <SplitShell
+        split={split}
+        focusKey={focusRow?.id ?? null}
+        focusLabel={focusRow ? str(focusRow.so_no) || `#${focusRow.sl_no}` : null}
+        list={
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
+          {split ? (
+            // Split view: the SO's identity and state; the rest is the panel's.
+            <table className="w-full text-sm">
+              <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+                <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                  {listCols.map((c) => (
+                    <th key={c.key} className={`px-4 py-3 ${c.thClass ?? ""}`}>{headOf(c)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-card-border">
+                {queue.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={listCols.length} className="px-4 py-10 text-center text-sm text-muted">
+                      {emptyMessage}
+                    </td>
+                  </tr>
+                )}
+                {queue.rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={(e) => {
+                      if (onControl(e)) return;
+                      setFocusKey(row.id);
+                    }}
+                    className={`cursor-pointer text-foreground transition-colors ${rowTone(row)} ${
+                      focusRow?.id === row.id ? "outline-2 -outline-offset-2 outline-primary/50" : ""
+                    }`}
+                  >
+                    {listCols.map((c) => (
+                      <td key={c.key} className={`px-4 py-3 ${c.tdClass ?? ""}`}>
+                        {c.cell(row)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
           <table className="w-full min-w-[960px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th className="px-4 py-3">
-                  <SortHeader label="Sl." sortKey="sl" />
-                </th>
-                {cols.map((c) => (
-                  <Fragment key={c.column}>
-                    <th
-                      className={`px-4 py-3 ${
-                        c.column === "order_value" ? "whitespace-nowrap" : c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : ""
-                      }`}
-                    >
-                      {c.column === "so_no" ? (
-                        <SortHeader label={c.label} sortKey="so_date" />
-                      ) : ["po_received_date", "ec_sent_operation_date"].includes(c.column) ? (
-                        <SortHeader label={c.label} sortKey={c.column} />
-                      ) : (
-                        c.label
-                      )}
-                    </th>
-                    {/* Chat after the client: SO No. and the client stay at the left edge together. */}
-                    {c.column === "client_name" && <th className="px-4 py-3">Chat</th>}
-                  </Fragment>
+                {omCols.map((c) => (
+                  <th key={c.key} className={`px-4 py-3 ${c.thClass ?? ""}`}>{headOf(c)}</th>
                 ))}
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Operation</th>
-                <th className="px-4 py-3"><SortHeader label="ECs" sortKey="ecs" /></th>
-                <th className="px-4 py-3"><SortHeader label="Assigned to" sortKey="assignee" /></th>
-                <th className="px-4 py-3">Checklist</th>
-                {canEdit && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-card-border">
               {queue.rows.length === 0 && (
                 <tr>
-                  <td colSpan={cols.length + 8} className="px-4 py-10 text-center text-sm text-muted">
-                    {mode === "so"
-                      ? "No SOs assigned to you match."
-                      : missingOnly
-                        ? "Every SO has its client, PO and SO details filled."
-                        : "No SOs match."}
+                  <td colSpan={omCols.length} className="px-4 py-10 text-center text-sm text-muted">
+                    {emptyMessage}
                   </td>
                 </tr>
               )}
               {queue.rows.map((row) => (
-                <Fragment key={row.id}>
                 <tr
+                  key={row.id}
                   onClick={(e) => {
-                    // A click on a control (or inside one of its pop-ups) does its own job.
-                    if ((e.target as HTMLElement).closest("button, a, select, input, textarea, label, [role=dialog]")) return;
+                    if (onControl(e)) return;
                     setEcsFor(row.id);
                   }}
                   title="Open the SO's ECs"
-                  // As on the Orders list: red when cancelled or diverted, green
-                  // fully dispatched, blue lot dispatched.
-                  className={`cursor-pointer text-foreground transition-colors ${
-                    isClosedStatus(row.status_override)
-                      ? "bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/15 dark:hover:bg-rose-500/20"
-                      : (dispatchRowTone(row) ?? "hover:bg-background/60")
-                  }`}
+                  className={`cursor-pointer text-foreground transition-colors ${rowTone(row)}`}
                 >
-                  <td className="px-4 py-3 font-medium tabular-nums">{row.sl_no}</td>
-                  {cols.map((c) => (
-                    <Fragment key={c.column}>
-                      <td
-                        className={`px-4 py-3 ${
-                          c.column === "order_value" ? "align-top" : c.column === "client_name" ? "" : "whitespace-nowrap"
-                        } ${c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : ""}`}
-                      >
-                        {c.column === "order_value" ? <OrderValueDetails row={row as OrderValueRow} /> : formatDisplay(field(c.column), row[c.column])}
-                        {c.column === "order_type" && <RetrofitLine row={row} />}
-                        {c.column === "so_no" && str(row.so_date) && (
-                          <span className="block text-[11px] text-muted">{formatDisplay(field("so_date"), row.so_date)}</span>
-                        )}
-                        {c.column === "client_name" && str(row.client_code) && (
-                          <span className="block text-[11px] text-muted">{str(row.client_code)}</span>
-                        )}
-                        {/* As in every department: Central's and Accounts' holds, and Only Billing. */}
-                        {c.column === "so_no" && (
-                          <>
-                            {/* A Pump SO past its first version: which it is, and its history. */}
-                            {Number(row.version_no ?? 0) > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => setVersionsFor(row)}
-                                title="See the SO's versions"
-                                className="mt-1 flex w-fit items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/20"
-                              >
-                                <History className="h-3 w-3" />v{Number(row.version_no)}
-                              </button>
-                            )}
-                            <HoldBadge order={row} />
-                            {isOnlyBilling(row) && <OnlyBillingBadge order={row} />}
-                          </>
-                        )}
-                      </td>
-                      {/* The SO's discussion with Central Visibility and the departments. */}
-                      {c.column === "client_name" && (
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => setThreadFor({ orderId: row.id, soLabel: str(row.so_no) || String(row.sl_no) })}
-                            aria-label="Chat"
-                            title="Chat"
-                            className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
-                          >
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            {(unreadThreads[row.id] ?? 0) > 0 && (
-                              <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
-                                {unreadThreads[row.id]}
-                              </span>
-                            )}
-                          </button>
-                        </td>
-                      )}
-                    </Fragment>
+                  {omCols.map((c) => (
+                    <td key={c.key} className={`px-4 py-3 ${c.tdClass ?? ""}`} onClick={c.stop ? (e) => e.stopPropagation() : undefined}>
+                      {c.cell(row)}
+                    </td>
                   ))}
-                  {/* Order Making's own Clear / Hold, the first step. Central's
-                      clearance comes after and is not Order Making's to see. */}
-                  <td className="px-4 py-3">
-                    <OmHoldBadge order={row} />
-                  </td>
-                  {/* Its handover, terms and target dates, in a pop-up. Only Billing has none of them. */}
-                  <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    {isOnlyBilling(row) ? (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setOperationFor(row)}
-                        className="inline-flex flex-col items-start rounded-lg border border-input-border px-2.5 py-1 text-left text-xs font-medium text-foreground transition-colors hover:bg-background"
-                      >
-                        Operation
-                        <span className="text-[11px] font-normal text-muted">
-                          {str(row.so_handover_date) ? `PPC ${formatDisplay(field("so_date"), row.so_handover_date)}` : "PPC not sent"}
-                        </span>
-                      </button>
-                    )}
-                  </td>
-                  {/* The SO's ECs: Order Making PO fills the EC form (Pump or Spare Add-On). */}
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {/* The row itself opens the ECs; the count is just the count. */}
-                    <span className={`text-sm tabular-nums ${row.ec_count > 0 ? "text-foreground" : "text-muted"}`}>{row.ec_count}</span>
-                  </td>
-                  {/* Who has it — everyone sees; only those who assign change it. */}
-                  {(
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {/* Carried in by the migration: its SO details came with it. */}
-                      {row.so_migrated && !row.so_assignee_id ? (
-                        <span
-                          title="Migrated from Excel — no assignment needed"
-                          className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300"
-                        >
-                          Migrated
-                        </span>
-                      ) : /* Dispatched, cancelled or diverted: no one to assign now. */ notAssignable(row) && !row.so_assignee_id ? (
-                        <span className="text-xs text-muted">Not needed</span>
-                      ) : canAssign && !notAssignable(row) && row.so_assignee_id && reassigning !== row.id ? (
-                        // Assigned: who has it, and Reassign to change or take it off them.
-                        <span className="inline-flex flex-col gap-0.5">
-                          <span className="inline-flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
-                              <UserRound className="h-3.5 w-3.5 text-primary" />
-                              {(() => {
-                                const m = members.find((x) => x.id === row.so_assignee_id);
-                                return m ? memberLabel(m) : (row.so_assignee_name ?? "Former member");
-                              })()}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setReassigning(row.id)}
-                              className="rounded-md border border-input-border px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
-                            >
-                              Reassign
-                            </button>
-                          </span>
-                          {row.so_assigned_at && (
-                            <span className="text-[11px] text-muted">since {formatDisplay(field("so_date"), row.so_assigned_at)}</span>
-                          )}
-                        </span>
-                      ) : canAssign && !notAssignable(row) ? (
-                        <span className="inline-flex flex-col gap-0.5">
-                          <span className="inline-flex items-center gap-1.5">
-                            <select
-                              autoFocus={reassigning === row.id}
-                              onBlur={() => setReassigning((r) => (r === row.id ? null : r))}
-                              value={row.so_assignee_id ?? ""}
-                              disabled={assigning === row.id}
-                              onChange={(e) => {
-                                setReassigning(null);
-                                assign(row, e.target.value);
-                              }}
-                              aria-label={`Assign SO details of ${str(row.so_no) || row.sl_no}`}
-                              className={`h-8 max-w-[11rem] cursor-pointer rounded-lg border px-2 text-xs ${
-                                row.so_assignee_id
-                                  ? "border-input-border bg-surface text-foreground"
-                                  : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
-                              }`}
-                            >
-                              <option value="">{row.so_assignee_id ? "Unassign" : "Unassigned"}</option>
-                              {members.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  {memberLabel(m)}
-                                </option>
-                              ))}
-                              {/* Someone no longer active stays shown. */}
-                              {row.so_assignee_id && !members.some((m) => m.id === row.so_assignee_id) && (
-                                <option value={row.so_assignee_id}>{row.so_assignee_name ?? "Former member"}</option>
-                              )}
-                            </select>
-                            {assigning === row.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
-                          </span>
-                          {row.so_assigned_at && (
-                            <span className="text-[11px] text-muted">since {formatDisplay(field("so_date"), row.so_assigned_at)}</span>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-foreground">{row.so_assignee_name ?? "—"}</span>
-                      )}
-                    </td>
-                  )}
-                  {/* The SO checklist: the SO team's (green) and the PO team's points answered, and those verified. */}
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => setChecklistFor(row.id)}
-                      title="Open the SO checklist"
-                      className="inline-flex flex-col items-start rounded-lg border border-input-border px-2.5 py-1 text-left text-[11px] font-medium transition-colors hover:bg-background"
-                    >
-                      {(["so", "po", "ver"] as const).map((t) => {
-                        const done = Number(row[`ckl_${t}`] ?? 0);
-                        const total = Number(row[`ckl_${t}_total`] ?? 0);
-                        return (
-                          <span
-                            key={t}
-                            className={`tabular-nums ${
-                              done >= total
-                                ? "text-emerald-700 dark:text-emerald-300"
-                                : done > 0
-                                  ? "text-amber-700 dark:text-amber-300"
-                                  : "text-muted"
-                            }`}
-                          >
-                            {t === "ver" ? "Verified" : t.toUpperCase()} {done}/{total}
-                          </span>
-                        );
-                      })}
-                    </button>
-                  </td>
-                  {canEdit && (
-                    <td className="px-4 py-3 text-right">
-                      {/* An SO not assigned to an SO member: View, not edit. */}
-                      {!mine(row) ? (
-                        <button
-                          type="button"
-                          onClick={() => setViewing(row)}
-                          className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </button>
-                      ) : (
-                      <button
-                        type="button"
-                        onClick={() => setEditing(row)}
-                        className={`inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-xs font-medium transition-colors ${
-                          mode === "so" && row.so_missing.length > 0
-                            ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground"
-                            : "border-input-border text-foreground hover:bg-background"
-                        }`}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        {mode === "so" ? "SO details" : "Edit"}
-                      </button>
-                      )}
-                      {/* A new version of a Pump SO, the current one kept read-only. */}
-                      {mode === "po" && makesVersions && PUMP_LIKE.includes(str(row.order_type)) && !isClosedStatus(row.status_override) && (
-                        <button
-                          type="button"
-                          onClick={() => setVersioning(row)}
-                          title="Save the SO as it is as a read-only version, and go on editing the next one"
-                          className="ml-1.5 inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-input-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-background"
-                        >
-                          <CopyPlus className="h-3.5 w-3.5" />
-                          New version
-                        </button>
-                      )}
-                      {/* Order Making PO cancels an SO; it stays on the list, red. */}
-                      {mode === "po" && canCreate &&
-                        (isClosedStatus(row.status_override) ? (
-                          <span className="ml-1.5 inline-flex h-8 items-center rounded-lg bg-rose-100 px-2.5 text-xs font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">
-                            {String(row.status_override)}
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setCancelling(row)}
-                            className="ml-1.5 inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg border border-rose-200 px-3 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
-                          >
-                            <Ban className="h-3.5 w-3.5" />
-                            Cancel
-                          </button>
-                        ))}
-                    </td>
-                  )}
                 </tr>
-                </Fragment>
               ))}
             </tbody>
           </table>
+          )}
         </div>
         {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
         {checklistFor && <SoChecklistModal orderId={checklistFor} onClose={() => setChecklistFor(null)} />}
@@ -943,6 +1020,27 @@ export function OrderMakingWorkspace({
           />
         </div>
       </div>
+        }
+        panel={
+          focusRow ? (
+            <PanelSection
+              title="SO"
+              aside={
+                // The row opens the ECs in table view; here the row picks the SO.
+                <button
+                  type="button"
+                  onClick={() => setEcsFor(focusRow.id)}
+                  className="inline-flex h-7 items-center rounded-lg border border-input-border px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-background"
+                >
+                  Open ECs ({focusRow.ec_count})
+                </button>
+              }
+            >
+              <Portrait cols={omCols} row={focusRow} />
+            </PanelSection>
+          ) : null
+        }
+      />
 
       {threadFor && (
         <OrderThreadModal

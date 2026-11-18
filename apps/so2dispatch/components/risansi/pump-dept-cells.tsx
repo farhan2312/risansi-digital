@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { PumpStage, PumpSummary } from "@/lib/pump-summary";
 import { latestPumpLot, type PumpLot } from "@/lib/assembly";
 import { AlignmentValue } from "./alignment-cell";
@@ -302,52 +303,83 @@ export function PumpAfterPlanningCells({
   className: string;
   rowSpan?: number;
 }) {
+  return (
+    <>
+      {pumpAfterPlanningParts({ s, lots, lotCount, slips }).map((p) => (
+        <td key={p.key} rowSpan={rowSpan} className={`${className} ${p.tdClass}`}>
+          {p.node}
+        </td>
+      ))}
+    </>
+  );
+}
+
+/**
+ * The same cells' contents, one per column (Base Plate, Wooden Box, Lot 1 to
+ * lotCount, Latest Lot, Packing Slips, Dispatch Status): the split view's
+ * panel stands them upright.
+ */
+export function pumpAfterPlanningParts({
+  s,
+  lots,
+  lotCount,
+  slips,
+}: {
+  s: PumpSummary;
+  lots: PumpLot[];
+  lotCount: number;
+  slips: Record<string, unknown>[];
+}): { key: string; tdClass: string; node: ReactNode }[] {
   const dispatched = /dispatched/i.test(s.dispatch) && !/partial|lot/i.test(s.dispatch);
   const holdText = <span className={`block text-[13px] font-medium ${TONE.hold}`}>Hold</span>;
   const none = <span className="text-xs text-muted">—</span>;
-  return (
-    <>
-      {(["base_plate", "wooden_box"] as const).map((which, i) => (
-        <td key={which} rowSpan={rowSpan} className={`${className} ${i === 0 ? "border-l border-card-border" : ""}`}>
-          <AlignmentValue alignment={s.alignment} which={which} canEdit={false} onOpen={() => {}} />
-        </td>
-      ))}
-      {/* Not sent on to Assembly & Packing yet: nothing there to show. */}
-      {Array.from({ length: lotCount }, (_, i) => i + 1).map((n, i) => (
-        <td key={n} rowSpan={rowSpan} className={`${className} ${i === 0 ? "border-l border-card-border" : ""}`}>
-          {s.held ? holdText : s.sentToAssembly ? <LotCell lot={lots.find((l) => l.n === n && l.ecs.length > 0)} slips={slips} /> : none}
-        </td>
-      ))}
-      <td rowSpan={rowSpan} className={className}>
-        {s.held ? holdText : s.sentToAssembly ? <LatestLot lot={latestPumpLot(lots)} slips={slips} /> : none}
-      </td>
-      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap border-l border-card-border`}>
-        {s.slips.length
-          ? s.slips.map((p, i) => (
-              <span key={`${p.no}-${i}`} className="block text-[12px] text-foreground">
-                {p.no}
-                <span className="text-muted">
-                  {p.date ? ` · ${formatDate(p.date)}` : ""}
-                  {p.qty != null ? ` · Qty ${p.qty}` : ""}
-                  {p.kind === "tentative" ? " · tentative" : ""}
-                </span>
+  return [
+    ...(["base_plate", "wooden_box"] as const).map((which, i) => ({
+      key: which,
+      tdClass: i === 0 ? "border-l border-card-border" : "",
+      node: <AlignmentValue alignment={s.alignment} which={which} canEdit={false} onOpen={() => {}} />,
+    })),
+    // Not sent on to Assembly & Packing yet: nothing there to show.
+    ...Array.from({ length: lotCount }, (_, i) => i + 1).map((n, i) => ({
+      key: String(n),
+      tdClass: i === 0 ? "border-l border-card-border" : "",
+      node: s.held ? holdText : s.sentToAssembly ? <LotCell lot={lots.find((l) => l.n === n && l.ecs.length > 0)} slips={slips} /> : none,
+    })),
+    {
+      key: "latest",
+      tdClass: "",
+      node: s.held ? holdText : s.sentToAssembly ? <LatestLot lot={latestPumpLot(lots)} slips={slips} /> : none,
+    },
+    {
+      key: "slips",
+      tdClass: "whitespace-nowrap border-l border-card-border",
+      node: s.slips.length
+        ? s.slips.map((p, i) => (
+            <span key={`${p.no}-${i}`} className="block text-[12px] text-foreground">
+              {p.no}
+              <span className="text-muted">
+                {p.date ? ` · ${formatDate(p.date)}` : ""}
+                {p.qty != null ? ` · Qty ${p.qty}` : ""}
+                {p.kind === "tentative" ? " · tentative" : ""}
               </span>
-            ))
-          : none}
-      </td>
-      <td rowSpan={rowSpan} className={`${className} whitespace-nowrap`}>
-        {s.held ? (
-          holdText
-        ) : s.sentToDispatch ? (
-          <span className={`text-[13px] font-medium ${dispatched ? TONE.done : /partial|lot/i.test(s.dispatch) ? TONE.part : TONE.pending}`}>
-            {s.dispatch}
-          </span>
-        ) : (
-          <span className="text-xs text-muted">Not at Dispatch yet</span>
-        )}
-      </td>
-    </>
-  );
+            </span>
+          ))
+        : none,
+    },
+    {
+      key: "dispatch",
+      tdClass: "whitespace-nowrap",
+      node: s.held ? (
+        holdText
+      ) : s.sentToDispatch ? (
+        <span className={`text-[13px] font-medium ${dispatched ? TONE.done : /partial|lot/i.test(s.dispatch) ? TONE.part : TONE.pending}`}>
+          {s.dispatch}
+        </span>
+      ) : (
+        <span className="text-xs text-muted">Not at Dispatch yet</span>
+      ),
+    },
+  ];
 }
 
 /** Assembly & Packing's cells on a pump SO: the Alignment, then each lot's assembly and packing. */

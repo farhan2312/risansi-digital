@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
 import { ClipboardCheck } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
@@ -202,6 +204,7 @@ export default async function QcWorkspacePage({
         unreadThreads={unreadThreads}
         filterOptions={filterOptions}
         pendency={pendency}
+        split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}
       />
     </div>
   );
