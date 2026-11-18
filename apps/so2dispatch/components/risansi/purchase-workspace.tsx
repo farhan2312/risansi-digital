@@ -26,6 +26,7 @@ import { MultiSelectFilter } from "./multi-select-filter";
 import { PendencyCell } from "./pendency-cell";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS, PURCHASE_STATES } from "@/lib/purchase-filter";
+import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 type Row = Record<string, unknown>;
 
@@ -56,7 +57,10 @@ export function PurchaseWorkspace({
   vendorList = [],
   embedded = false,
   pendency = {},
+  split: splitView = false,
 }: {
+  /** Split view (the profile menu's): the SO list on the left, the SO picked upright on the right. */
+  split?: boolean;
   /** Why each Open SO is still pending with Purchase, by SO id. */
   pendency?: Record<string, Pendency>;
   /** Purchase's vendor list, with the items each supplies. */
@@ -145,6 +149,193 @@ export function PurchaseWorkspace({
       return map;
     }, new Map<string, SoGroup>())
   ).map(([, g]) => g);
+
+  // The SO view's columns, listed once: the table draws them across, the split
+  // view's panel stands the same ones upright (SO, then each EC).
+  const chatButton = (head: PurchaseQueueRow) => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setThreadFor({ orderId: String(head.order_id), soLabel: head.so_no ?? String(head.sl_no) });
+      }}
+      aria-label="Chat"
+      title="Chat"
+      className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
+    >
+      <MessageSquare className="h-3.5 w-3.5" />
+      {(unreadThreads[String(head.order_id)] ?? 0) > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+          {unreadThreads[String(head.order_id)]}
+        </span>
+      )}
+    </button>
+  );
+  const soCols: SplitCol<SoGroup>[] = [
+    { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, tdClass: "font-medium tabular-nums", cell: (g) => g.head.sl_no, list: true },
+    {
+      key: "so",
+      label: "SO No. / Date",
+      head: <SortHeader label="SO No. / Date" sortKey="so_date" />,
+      thClass: "sticky-so whitespace-nowrap",
+      tdClass: "sticky-so whitespace-nowrap font-semibold",
+      cell: (g) => (
+        <>
+          {g.head.so_no ?? "—"}
+          <VersionTag order={g.head} />
+          <HoldBadge order={g.head} />
+          <span className="block text-xs font-normal text-muted">{formatDate(g.head.so_date)}</span>
+        </>
+      ),
+      list: true,
+    },
+    { key: "chat", label: "Chat", cell: (g) => chatButton(g.head) },
+    { key: "boi", label: "BOI", cell: (g) => g.head.boi ?? "—" },
+    {
+      key: "ld",
+      label: "LD / Date",
+      head: <SortHeader label="LD / Date" sortKey="ld_date" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (g) => (
+        <>
+          {g.head.ld ?? "—"}
+          {g.head.ld_date && <span className="block text-xs text-muted">{formatDate(g.head.ld_date)}</span>}
+        </>
+      ),
+    },
+    {
+      key: "target",
+      label: "Purchase Target",
+      head: <SortHeader label="Purchase Target" sortKey="purchase_target_date" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap text-muted",
+      cell: (g) => formatDate(g.head.purchase_target_date),
+      list: true,
+    },
+    {
+      key: "tbd",
+      label: "To Be Dispatch Date",
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap text-muted",
+      cell: (g) => formatDate(g.head.final_dispatch_target_date ?? null),
+    },
+    {
+      key: "state",
+      label: "SO Status",
+      cell: (g) => {
+        // Closed once every EC with bought-out items has them all in hand.
+        // Worked out on the server from all the SO's ECs, before a filter narrows them.
+        const soState = stateOf(g.head.pur_so_state) ?? soStateOf(g.ecs);
+        return soState === "open" ? (
+          // Open: why, with remarks.
+          <PendencyCell
+            orderId={String(g.head.order_id)}
+            soLabel={g.head.so_no ?? `#${g.head.sl_no}`}
+            dept="purchase"
+            pendency={pendency[String(g.head.order_id)]}
+            canEdit={canEdit}
+          >
+            <StateChip state={soState} />
+          </PendencyCell>
+        ) : (
+          <StateChip state={soState} />
+        );
+      },
+      list: true,
+    },
+  ];
+  const ecCols: SplitCol<PurchaseQueueRow>[] = [
+    {
+      key: "ec",
+      label: "EC No. / Date",
+      head: <SortHeader label="EC No. / Date" sortKey="ec_date" />,
+      thClass: "border-l border-card-border whitespace-nowrap",
+      tdClass: "border-l border-card-border whitespace-nowrap font-semibold",
+      cell: (row) => (
+        <>
+          {row.ec_no ?? "—"}
+          <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} latest />
+          <span className="block text-xs font-normal text-muted">{formatDate(row.ec_date ?? null)}</span>
+        </>
+      ),
+    },
+    { key: "pump", label: "Pump Type", tdClass: "whitespace-nowrap", cell: (row) => row.pump_type ?? "—" },
+    { key: "model", label: "Model No.", tdClass: "whitespace-nowrap", cell: (row) => row.model_no ?? "—" },
+    {
+      key: "ecstate",
+      label: "EC Status",
+      cell: (row) => {
+        const items = (row.boi_items ?? []) as Row[];
+        const got = items.filter(boiInHand).length;
+        return (
+          <>
+            <StateChip state={stateOf(row.pur_ec_state) ?? ecState(row)} />
+            {items.length > 0 && (
+              <span className={`block text-[11px] font-semibold ${got === items.length ? "text-emerald-700" : "text-amber-700"}`}>
+                {got}/{items.length} in hand
+              </span>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      // Each item and where it stands, without opening anything.
+      key: "items",
+      label: "Bought-out items",
+      wide: true,
+      cell: (row) => {
+        const items = (row.boi_items ?? []) as Row[];
+        return items.length === 0 ? (
+          <span className="text-xs text-muted">{(row.ec_boi ?? "") === "Yes" ? "None listed" : "No BOI"}</span>
+        ) : (
+          <BoiDetailTable
+            items={items}
+            onHistory={(b) => setHistoryFor(b)}
+            onOpen={(b) => {
+              setBoiFor(row.id);
+              setBoiItem(String(b.id));
+            }}
+          />
+        );
+      },
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      head: null,
+      tdClass: "whitespace-nowrap",
+      cell: (row) => (
+        <span className="inline-flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setBoiFor(row.id);
+              setBoiItem(null);
+            }}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+          >
+            <PackageSearch className="h-3.5 w-3.5" />
+            BOI
+          </button>
+          <DeptCompleteCheck
+            scopeId={String(row.id)}
+            dept="purchase"
+            label={String(row.ec_no ?? row.id)}
+            completion={completionFor(completions, "purchase", String(row.id), true)}
+            canEdit={canEdit}
+          />
+        </span>
+      ),
+    },
+  ];
+  const headOf = <R,>(c: SplitCol<R>) => ("head" in c ? c.head : c.label);
+  // Split view (SO view, not inside a pop-up): the SO picked, the first until another is.
+  const split = splitView && !boiView && !embedded;
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const focusGroup = split ? (soGroups.find((g) => g.key === focusKey) ?? soGroups[0] ?? null) : null;
+  const listCols = soCols.filter((c) => c.list);
 
   return (
     <div>
@@ -239,6 +430,11 @@ export function PurchaseWorkspace({
 
       {!embedded && <KpiStrip cards={kpis} />}
 
+      <SplitShell
+        split={split}
+        focusKey={focusGroup?.key ?? null}
+        focusLabel={focusGroup ? (focusGroup.head.so_no ?? `#${focusGroup.head.sl_no}`) : null}
+        list={
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head={embedded ? undefined : ""}>
@@ -251,34 +447,61 @@ export function PurchaseWorkspace({
               }}
               onHistory={(b) => setHistoryFor(b)}
             />
+          ) : split ? (
+            // Split view: the SO's identity and state; the rest is the panel's.
+            <table className="w-full text-sm">
+              <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
+                <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  {listCols.map((c) => (
+                    <th key={c.key} className={`px-3 py-2 ${c.thClass ?? ""}`}>{headOf(c)}</th>
+                  ))}
+                  <th className="px-3 py-2">ECs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {soGroups.length === 0 && (
+                  <tr>
+                    <td colSpan={listCols.length + 1} className="px-4 py-10 text-center text-sm text-muted">
+                      {emptyMessage}
+                    </td>
+                  </tr>
+                )}
+                {soGroups.map((g) => (
+                  <tr
+                    key={g.key}
+                    data-focus-row={String(g.head.order_id)}
+                    onClick={() => setFocusKey(g.key)}
+                    className={`cursor-pointer text-foreground ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${
+                      focusGroup?.key === g.key ? "outline-2 -outline-offset-2 outline-primary/50" : ""
+                    } ${focusClass(String(g.head.order_id))}`}
+                  >
+                    {listCols.map((c) => (
+                      <td key={c.key} className={`border-b border-card-border px-3 py-2 align-top ${c.tdClass ?? ""}`}>
+                        {c.cell(g)}
+                      </td>
+                    ))}
+                    <td className="border-b border-card-border px-3 py-2 align-top tabular-nums">{g.ecs.length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
           <table className="w-full min-w-[1900px] text-sm">
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th colSpan={8} className="px-3 pt-2.5 pb-1">SO</th>
-                <th colSpan={6} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
+                <th colSpan={soCols.length} className="px-3 pt-2.5 pb-1">SO</th>
+                <th colSpan={ecCols.length} className="border-l border-card-border px-3 pt-2.5 pb-1 text-center">EC</th>
               </tr>
               <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-                <th className="px-3 py-2"><SortHeader label="Sl." sortKey="sl" /></th>
-                <th className="sticky-so px-3 py-2 whitespace-nowrap"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
-                <th className="px-3 py-2">Chat</th>
-                <th className="px-3 py-2">BOI</th>
-                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="LD / Date" sortKey="ld_date" /></th>
-                <th className="px-3 py-2 whitespace-nowrap"><SortHeader label="Purchase Target" sortKey="purchase_target_date" /></th>
-                <th className="px-3 py-2 whitespace-nowrap">To Be Dispatch Date</th>
-                <th className="px-3 py-2">SO Status</th>
-                <th className="border-l border-card-border px-3 py-2 whitespace-nowrap"><SortHeader label="EC No. / Date" sortKey="ec_date" /></th>
-                <th className="px-3 py-2">Pump Type</th>
-                <th className="px-3 py-2">Model No.</th>
-                <th className="px-3 py-2">EC Status</th>
-                <th className="px-3 py-2">Bought-out items</th>
-                <th className="px-3 py-2" />
+                {[...soCols, ...ecCols].map((c) => (
+                  <th key={c.key} className={`px-3 py-2 ${c.thClass ?? ""}`}>{headOf(c as SplitCol<unknown>)}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {soGroups.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="px-4 py-10 text-center text-sm text-muted">
+                  <td colSpan={soCols.length + ecCols.length} className="px-4 py-10 text-center text-sm text-muted">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -286,128 +509,33 @@ export function PurchaseWorkspace({
               {soGroups.map((g) => {
                 const span = g.ecs.length;
                 const soCell = "px-3 py-2 align-top border-b border-card-border";
-                // Closed once every EC with bought-out items has them all in hand.
-                // Worked out on the server from all the SO's ECs, before a filter narrows them.
-                const soState = stateOf(g.head.pur_so_state) ?? soStateOf(g.ecs);
                 return (
                   <Fragment key={g.key}>
                     {g.ecs.map((row, k) => {
                       const last = k === g.ecs.length - 1;
                       const ecCell = `px-3 py-2 ${last ? "border-b border-card-border" : "border-b border-card-border/50"}`;
-                      const items = (row.boi_items ?? []) as Row[];
-                      const got = items.filter(boiInHand).length;
                       return (
                         <tr
                           key={row.id}
                           data-focus-row={String(row.id)}
                           className={`text-foreground ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${focusClass(String(row.id))}`}
                         >
-                          {k === 0 && (
-                            <>
-                              <td rowSpan={span} data-focus-row={String(g.head.order_id)} className={`${soCell} font-medium tabular-nums ${focusClass(String(g.head.order_id))}`}>
-                                {g.head.sl_no}
-                              </td>
-                              <td rowSpan={span} className={`${soCell} sticky-so whitespace-nowrap font-semibold`}>
-                                {g.head.so_no ?? "—"}
-                                <VersionTag order={g.head} />
-<HoldBadge order={g.head} />
-                                <span className="block text-xs font-normal text-muted">{formatDate(g.head.so_date)}</span>
-                              </td>
-                              <td rowSpan={span} className={soCell}>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setThreadFor({ orderId: String(g.head.order_id), soLabel: g.head.so_no ?? String(g.head.sl_no) })
-                                  }
-                                  aria-label="Chat"
-                                  title="Chat"
-                                  className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg border border-input-border text-foreground transition-colors hover:bg-background"
-                                >
-                                  <MessageSquare className="h-3.5 w-3.5" />
-                                  {(unreadThreads[String(g.head.order_id)] ?? 0) > 0 && (
-                                    <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
-                                      {unreadThreads[String(g.head.order_id)]}
-                                    </span>
-                                  )}
-                                </button>
-                              </td>
-                              <td rowSpan={span} className={soCell}>{g.head.boi ?? "—"}</td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap`}>
-                                {g.head.ld ?? "—"}
-                                {g.head.ld_date && <span className="block text-xs text-muted">{formatDate(g.head.ld_date)}</span>}
-                              </td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.purchase_target_date)}</td>
-                              <td rowSpan={span} className={`${soCell} whitespace-nowrap text-muted`}>{formatDate(g.head.final_dispatch_target_date ?? null)}</td>
-                              <td rowSpan={span} className={soCell}>
-                                {soState === "open" ? (
-                                  // Open: why, with remarks.
-                                  <PendencyCell
-                                    orderId={String(g.head.order_id)}
-                                    soLabel={g.head.so_no ?? `#${g.head.sl_no}`}
-                                    dept="purchase"
-                                    pendency={pendency[String(g.head.order_id)]}
-                                    canEdit={canEdit}
-                                  >
-                                    <StateChip state={soState} />
-                                  </PendencyCell>
-                                ) : (
-                                  <StateChip state={soState} />
-                                )}
-                              </td>
-                            </>
-                          )}
-                          <td className={`${ecCell} border-l border-card-border whitespace-nowrap font-semibold`}>
-                            {row.ec_no ?? "—"}
-                            <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} latest />
-                            <span className="block text-xs font-normal text-muted">{formatDate(row.ec_date ?? null)}</span>
-                          </td>
-                          <td className={`${ecCell} whitespace-nowrap`}>{row.pump_type ?? "—"}</td>
-                          <td className={`${ecCell} whitespace-nowrap`}>{row.model_no ?? "—"}</td>
-                          <td className={ecCell}>
-                            {<StateChip state={stateOf(row.pur_ec_state) ?? ecState(row)} />}
-                            {items.length > 0 && (
-                              <span className={`block text-[11px] font-semibold ${got === items.length ? "text-emerald-700" : "text-amber-700"}`}>
-                                {got}/{items.length} in hand
-                              </span>
-                            )}
-                          </td>
-                          {/* Each item and where it stands, without opening anything. */}
-                          <td className={ecCell}>
-                            {items.length === 0 ? (
-                              <span className="text-xs text-muted">{(row.ec_boi ?? "") === "Yes" ? "None listed" : "No BOI"}</span>
-                            ) : (
-                              <BoiDetailTable
-                                items={items}
-                                onHistory={(b) => setHistoryFor(b)}
-                                onOpen={(b) => {
-                                  setBoiFor(row.id);
-                                  setBoiItem(String(b.id));
-                                }}
-                              />
-                            )}
-                          </td>
-                          <td className={`${ecCell} whitespace-nowrap`}>
-                            <span className="inline-flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBoiFor(row.id);
-                                  setBoiItem(null);
-                                }}
-                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                          {k === 0 &&
+                            soCols.map((c, i) => (
+                              <td
+                                key={c.key}
+                                rowSpan={span}
+                                data-focus-row={i === 0 ? String(g.head.order_id) : undefined}
+                                className={`${soCell} ${c.tdClass ?? ""} ${i === 0 ? focusClass(String(g.head.order_id)) : ""}`}
                               >
-                                <PackageSearch className="h-3.5 w-3.5" />
-                                BOI
-                              </button>
-                              <DeptCompleteCheck
-                                scopeId={String(row.id)}
-                                dept="purchase"
-                                label={String(row.ec_no ?? row.id)}
-                                completion={completionFor(completions, "purchase", String(row.id), true)}
-                                canEdit={canEdit}
-                              />
-                            </span>
-                          </td>
+                                {c.cell(g)}
+                              </td>
+                            ))}
+                          {ecCols.map((c) => (
+                            <td key={c.key} className={`${ecCell} ${c.tdClass ?? ""}`}>
+                              {c.cell(row)}
+                            </td>
+                          ))}
                         </tr>
                       );
                     })}
@@ -428,6 +556,22 @@ export function PurchaseWorkspace({
           />
         )}
       </div>
+        }
+        panel={
+          focusGroup ? (
+            <>
+              <PanelSection title="SO">
+                <Portrait cols={soCols} row={focusGroup} />
+              </PanelSection>
+              {focusGroup.ecs.map((ec) => (
+                <PanelSection key={ec.id} title={`EC ${ec.ec_no ?? "—"}`}>
+                  <Portrait cols={ecCols} row={ec} />
+                </PanelSection>
+              ))}
+            </>
+          ) : null
+        }
+      />
 
       {/* One EC's bought-out items, as cards to fill: the item, RIL stock, the vendor order. */}
       {(() => {
