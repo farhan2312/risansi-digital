@@ -47,7 +47,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
 } from "@/lib/dept-status";
 import { BILL_MODE_FILTER_OPTIONS, FIELD_FILTER_FIELDS, NOT_SET, ORDER_STATUS_OPTIONS, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
 import { sharedFacets, UNASSIGNED, type OrderMakingFilter } from "@/lib/order-making-filter";
-import { checklistAnsweredSql, checklistDoneSql, checklistTotalSql } from "@/lib/so-checklist";
+import { checklistAnsweredSql, checklistDoneSql, checklistPointsSql, checklistTotalSql, checklistVerifiedSql } from "@/lib/so-checklist";
 import { appliesSql, filledSql, SO_DETAILS_FILLED_SQL, SO_DETAILS_MISSING_SQL } from "@/lib/order-gaps";
 import {
   PAGE_SIZE,
@@ -5092,6 +5092,9 @@ export type OrderMakingRow = Record<string, unknown> & {
   ckl_so_total: number;
   ckl_po: number;
   ckl_po_total: number;
+  /** Points Order Making PO has verified, of all of them (auto too). */
+  ckl_ver: number;
+  ckl_ver_total: number;
 };
 
 /**
@@ -5167,6 +5170,8 @@ export async function listOrdersForOrderMaking(opts: {
     if (ff.checklist === "pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o")}`);
     if (ff.checklist === "so_pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o", "SO")}`);
     if (ff.checklist === "po_pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o", "PO")}`);
+    if (ff.checklist === "verify_pending") clauses.push(`${assignableSql("o")} AND ${checklistVerifiedSql("o")} < ${checklistPointsSql("o")}`);
+    if (ff.checklist === "verified") clauses.push(`${checklistVerifiedSql("o")} >= ${checklistPointsSql("o")}`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
     if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);
@@ -5304,6 +5309,7 @@ export async function listOrdersForOrderMaking(opts: {
             -- The checklist on the current version, each team's part.
             ${checklistAnsweredSql("o", "SO")} AS ckl_so, ${checklistTotalSql("o", "SO")} AS ckl_so_total,
             ${checklistAnsweredSql("o", "PO")} AS ckl_po, ${checklistTotalSql("o", "PO")} AS ckl_po_total,
+            ${checklistVerifiedSql("o")} AS ckl_ver, ${checklistPointsSql("o")} AS ckl_ver_total,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(
                         'id', i.id, 'ec_no', i.ec_no, 'ec_date', to_char(i.ec_date, 'YYYY-MM-DD'),
                         -- Every field of the EC form: one missing here opens blank, and saves blank.

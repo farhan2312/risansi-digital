@@ -3479,3 +3479,11 @@ CREATE TABLE IF NOT EXISTS order_so_checklist (
     filled_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (order_id, version_no, point_key)
 );
+
+-- Checklist verification (Order Making PO): each point ticked verified, with
+-- the verifier's remark, name and date. A changed answer clears it.
+ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verifier_remarks TEXT;
+ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verified_by UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verified_by_name TEXT;
+ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;

@@ -2,7 +2,8 @@
 // SO's Order Type), as on "CHECKLIST for spare & Pump Orders". The green
 // points are the SO team's — filled by the member the SO is assigned to;
 // the rest are Order Making PO's. "Auto" points show the SO's own value.
-// One checklist per SO version: a new version starts a fresh one.
+// One checklist per SO version: a new version starts a fresh one. Order
+// Making PO then verifies each point (a tick, the verifier's remark).
 //
 // Plain module (no server imports): the page, the pop-up and the queries
 // read one definition.
@@ -143,11 +144,27 @@ export function checklistDoneSql(o: string, team?: ChecklistTeam): string {
   return `(${checklistAnsweredSql(o, team)} >= ${checklistTotalSql(o, team)})`;
 }
 
-/** The checklist filter on Order Making: its SO or PO part still to fill, any part, or all done. */
+/** SQL: how many of the SO's points (every one, auto too) its current version has verified. */
+export function checklistVerifiedSql(o: string): string {
+  return `(SELECT count(*)::int FROM order_so_checklist ck
+            WHERE ck.order_id = ${o}.id AND ck.version_no = COALESCE(${o}.version_no, 0) AND ck.verified
+              AND ck.point_key = ANY(CASE WHEN COALESCE(${o}.order_type, '') = 'Spare'
+                                          THEN ${arr(SPARE_CHECKLIST.map((p) => p.key))}
+                                          ELSE ${arr(PUMP_CHECKLIST.map((p) => p.key))} END))`;
+}
+
+/** SQL: how many points the SO's list has, auto ones too (all to verify). */
+export function checklistPointsSql(o: string): string {
+  return `(CASE WHEN COALESCE(${o}.order_type, '') = 'Spare' THEN ${SPARE_CHECKLIST.length} ELSE ${PUMP_CHECKLIST.length} END)`;
+}
+
+/** The checklist filter on Order Making: its SO or PO part still to fill, any part, all filled, verification still to do, or all verified. */
 export const CHECKLIST_STATES = [
   { value: "so_pending", label: "SO part pending" },
   { value: "po_pending", label: "PO part pending" },
   { value: "pending", label: "Pending" },
   { value: "done", label: "Done" },
+  { value: "verify_pending", label: "Verification pending" },
+  { value: "verified", label: "Verified" },
 ] as const;
 export type ChecklistState = (typeof CHECKLIST_STATES)[number]["value"];

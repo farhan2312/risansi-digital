@@ -781,7 +781,7 @@ export function OrderMakingWorkspace({
                       )}
                     </td>
                   )}
-                  {/* The SO checklist: the SO team's (green) and the PO team's points answered. */}
+                  {/* The SO checklist: the SO team's (green) and the PO team's points answered, and those verified. */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <button
                       type="button"
@@ -789,7 +789,7 @@ export function OrderMakingWorkspace({
                       title="Open the SO checklist"
                       className="inline-flex flex-col items-start rounded-lg border border-input-border px-2.5 py-1 text-left text-[11px] font-medium transition-colors hover:bg-background"
                     >
-                      {(["so", "po"] as const).map((t) => {
+                      {(["so", "po", "ver"] as const).map((t) => {
                         const done = Number(row[`ckl_${t}`] ?? 0);
                         const total = Number(row[`ckl_${t}_total`] ?? 0);
                         return (
@@ -803,7 +803,7 @@ export function OrderMakingWorkspace({
                                   : "text-muted"
                             }`}
                           >
-                            {t.toUpperCase()} {done}/{total}
+                            {t === "ver" ? "Verified" : t.toUpperCase()} {done}/{total}
                           </span>
                         );
                       })}
