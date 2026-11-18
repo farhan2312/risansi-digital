@@ -101,7 +101,7 @@ export const PAYMENT_FILTER_DEPTS: readonly string[] = ["billing", "accounts"];
 /** The departments that filter by Bill Mode: those two, Planning, Assembly & Packing and Dispatch. */
 export const BILL_MODE_FILTER_DEPTS: readonly string[] = ["billing", "accounts", "planning", "assembly", "dispatch"];
 /** The queues that filter by the SO's dispatch status beside their own status. */
-export const DISPATCH_STATUS_FILTER_DEPTS: readonly string[] = ["billing", "planning", "assembly"];
+export const DISPATCH_STATUS_FILTER_DEPTS: readonly string[] = ["billing", "planning", "assembly", "accounts"];
 
 export type OrderListFilter = {
   search: string;
@@ -353,8 +353,9 @@ export function parseOrderListFilter(
     accountsHoldReasons:
       queue === "accounts" ? [...new Set((get("areason") ?? "").split("|").map((v) => v.trim()).filter(Boolean))] : [],
     // Kept apart by "|": a reason can hold a comma.
+    // Dispatch, and Accounts (its Dispatch Status column).
     dispatchHoldReasons:
-      queue === "dispatch"
+      queue === "dispatch" || queue === "accounts"
         ? [...new Set((get("dhreason") ?? "").split("|").map((v) => v.trim()))].filter((v) => DISPATCH_HOLD_REASONS.includes(v))
         : [],
   };

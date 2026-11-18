@@ -846,6 +846,14 @@ export function DepartmentWorkspace({
             ),
             list: true,
           },
+          {
+            // Where Dispatch has got to on the SO (Hold included).
+            key: "dispatch_status",
+            label: "Dispatch Status",
+            thClass: "px-4 py-3 whitespace-nowrap",
+            tdClass: "px-4 py-3 whitespace-nowrap",
+            cell: (order: Row) => <DispatchStatusPill status={toInput(order.so_dispatch_status) || "Pending"} />,
+          },
         ]
       : []),
     ...soCols.map((f): Col<Row> => {
@@ -900,7 +908,8 @@ export function DepartmentWorkspace({
     ...(SIGN_OFF_ENABLED && dept && !completePerEc
       ? [{ key: "complete", label: "Complete", thClass: "px-3 py-3", tdClass: "px-3 py-3", cell: (order: Row) => completeCell(String(order.id), soLabelOf(order)) }]
       : []),
-    ...(canEdit
+    // Accounts records payments in the Payment terms & PIs column: no Edit.
+    ...(canEdit && !acctPinned
       ? [
           {
             key: "edit",

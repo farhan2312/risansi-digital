@@ -364,8 +364,8 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ dstage: next })}
           />
         )}
-        {/* Dispatch: why it holds an SO (its status Hold). */}
-        {dept === "dispatch" && (
+        {/* Dispatch (and Accounts): why Dispatch holds an SO (its status Hold). */}
+        {(dept === "dispatch" || dept === "accounts") && (
           <MultiSelectFilter
             label="Dispatch hold reason"
             allLabel="Any reason"
