@@ -852,7 +852,17 @@ export function DepartmentWorkspace({
             label: "Dispatch Status",
             thClass: "px-4 py-3 whitespace-nowrap",
             tdClass: "px-4 py-3 whitespace-nowrap",
-            cell: (order: Row) => <DispatchStatusPill status={toInput(order.so_dispatch_status) || "Pending"} />,
+            cell: (order: Row) => (
+              <>
+                <DispatchStatusPill status={toInput(order.so_dispatch_status) || "Pending"} />
+                {/* Held by Dispatch: why (its reason, with any remarks). */}
+                {toInput(order.status_override) === "Hold" && toInput(order.status_reason).trim() && (
+                  <span className="mt-1 block max-w-[16rem] whitespace-normal text-[11px] text-orange-700 dark:text-orange-300">
+                    {toInput(order.status_reason)}
+                  </span>
+                )}
+              </>
+            ),
           },
         ]
       : []),

@@ -2738,6 +2738,8 @@ export async function listOrdersForSection(
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
             o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
+            -- Dispatch's Hold reason ("reason · remarks"), under Accounts' Dispatch Status.
+            o.status_override, o.status_reason,
             -- With the holds above, the SO's Order Status (Accounts' column).
             o.om_status,
             -- The order value's currency, shown beside it (Accounts).
