@@ -3536,3 +3536,13 @@ SELECT o.id, NULL, o.final_dispatch_target_date, o.final_dispatch_target_by, COA
   FROM orders o
  WHERE o.final_dispatch_target_date IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM order_dispatch_date_history h WHERE h.order_id = o.id);
+
+-- Escalations each person has opened (or marked all opened): an escalation is
+-- worked out, not stored, so its key says which one — kind, department, SO,
+-- EC and due date. A new due date is a new escalation, unseen again. Idempotent.
+CREATE TABLE IF NOT EXISTS escalation_seen (
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    alert_key  TEXT NOT NULL,
+    seen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, alert_key)
+);

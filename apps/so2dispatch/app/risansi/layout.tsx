@@ -32,7 +32,7 @@ export default async function RisansiLayout({
   if (user.role === "planning") await ensurePlanningAlerts();
   const [alertCount, reminderCount, notifUnread, openBugCount, discussionUnread] =
     await Promise.all([
-      canSeeEscalations(user.role) ? countAlerts() : Promise.resolve(0),
+      canSeeEscalations(user.role) ? countAlerts(user.id) : Promise.resolve(0),
       countRemindersForRole(user.role),
       countUnread(
         recipientRolesForUser(user.role),

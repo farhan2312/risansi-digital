@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useUrlTable } from "./url-table";
 
-export type NotificationRange = "3d" | "7d" | "all";
+export type NotificationRange = "today" | "3d" | "7d" | "all";
 
 const OPTIONS: { value: NotificationRange; label: string }[] = [
+  { value: "today", label: "Today" },
   { value: "3d", label: "Last 3 days" },
   { value: "7d", label: "Last 7 days" },
   { value: "all", label: "All time" },

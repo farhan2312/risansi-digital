@@ -9,15 +9,17 @@ import {
   Bug,
   CheckCircle2,
   Clock,
-  OctagonAlert,
   PauseCircle,
   Pencil,
   Package,
   Scale,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
-import { canSeeEscalations, departmentHrefForRole, canSeeClient, getsNotifications, isRep } from "@/lib/roles";
-import { ALERTS_PAGE_SIZE, listAlertsPage, type AlertRow } from "@/lib/alerts";
+import { canSeeEscalations, canViewAll, departmentHrefForRole, canSeeClient, getsNotifications, isRep } from "@/lib/roles";
+import { ALERTS_PAGE_SIZE, alertCounts, listAlertsPage, type AlertRow } from "@/lib/alerts";
+import { ordersFocusHref } from "@/lib/order-links";
+import { mayOpenPage } from "@/lib/view-pages";
+import { EscalationControls, EscalationList } from "@/components/risansi/escalation-list";
 import {
   listNotificationsPage,
   recipientRolesForUser,
@@ -269,121 +271,6 @@ function NotificationFeed({
   );
 }
 
-// ---------- escalations (oversight only) ----------
-
-type Severity = "escalation" | "serious" | "warning";
-
-function severityOf(alert: AlertRow): Severity {
-  if (alert.type === "hold") return "escalation";
-  if (alert.type === "ld_risk") return "serious";
-  return (alert.days_overdue ?? 0) >= 7 ? "serious" : "warning";
-}
-
-function messageOf(alert: AlertRow): string {
-  if (alert.type === "hold") return "Payment on hold — escalated to Central Visibility";
-  const days = alert.days_overdue ?? 0;
-  if (alert.type === "ld_risk") return `Quality docs overdue by ${days} day(s) — LD risk`;
-  return `${alert.department} overdue by ${days} day(s)`;
-}
-
-const SEVERITY_STYLES: Record<
-  Severity,
-  { icon: typeof AlertTriangle; chip: string }
-> = {
-  escalation: { icon: PauseCircle, chip: "bg-rose-50 text-rose-700 ring-rose-200" },
-  serious: { icon: OctagonAlert, chip: "bg-rose-50 text-rose-700 ring-rose-200" },
-  warning: { icon: AlertTriangle, chip: "bg-amber-50 text-amber-700 ring-amber-200" },
-};
-
-function formatDate(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-// Per-EC escalations open that EC's summary; SO-level ones (payment holds)
-// open the SO.
-function alertHref(alert: AlertRow): string {
-  return alert.item_id
-    ? `/risansi/orders/${alert.id}/items/${alert.item_id}`
-    : `/risansi/orders/${alert.id}`;
-}
-
-function Escalations({
-  page,
-  showClient = true,
-}: {
-  page: PageResult<AlertRow>;
-  showClient?: boolean;
-}) {
-  const alerts = page.rows;
-  if (page.total === 0) {
-    return (
-      <div className="rounded-xl border border-card-border bg-surface px-6 py-12 text-center shadow-sm">
-        <p className="text-sm font-medium text-foreground">All clear</p>
-        <p className="mt-1 text-sm text-muted">
-          No overdue steps, LD risks or payment holds right now.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm">
-      <ul className="divide-y divide-card-border">
-        {alerts.map((alert, i) => {
-          const style = SEVERITY_STYLES[severityOf(alert)];
-          const Icon = style.icon;
-          return (
-            <li
-              key={`${alert.id}-${alert.item_id ?? ""}-${alert.department}-${i}`}
-              className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <span
-                  className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${style.chip}`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {alert.department}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    {messageOf(alert)}
-                  </p>
-                  <p className="truncate text-xs text-muted">
-                    #{alert.sl_no} · {alert.so_no ?? "—"}
-                    {alert.ec_no ? ` · ${alert.ec_no}` : ""}
-                    {showClient && alert.client_name ? ` · ${alert.client_name}` : ""}
-                    {alert.due_date ? ` · due ${formatDate(alert.due_date)}` : ""}
-                  </p>
-                </div>
-              </div>
-              <Link
-                href={alertHref(alert)}
-                className="shrink-0 text-sm font-medium text-primary hover:text-primary-hover"
-              >
-                Open
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-      <UrlPagination
-        paramKey="epage"
-        page={page.page}
-        totalPages={page.totalPages}
-        from={page.from}
-        to={page.to}
-        total={page.total}
-      />
-    </div>
-  );
-}
-
 // ---------- page ----------
 
 /** Billing & Operations and Accounts: the departments that work in money. */
@@ -404,10 +291,12 @@ export default async function NotificationsPage({
   const oversight = canSeeEscalations(user.role);
   // How far back: a department starts on the last 3 days, oversight on all time.
   const fallback: NotificationRange = oversight ? "all" : "3d";
-  const range: NotificationRange = (["3d", "7d", "all"] as const).find((r) => r === params.range) ?? fallback;
-  const sinceDays = range === "3d" ? 3 : range === "7d" ? 7 : null;
-  const rangeLabel = range === "3d" ? "in the last 3 days" : range === "7d" ? "in the last 7 days" : "yet";
-  const [notifications, alerts] = await Promise.all([
+  const range: NotificationRange = (["today", "3d", "7d", "all"] as const).find((r) => r === params.range) ?? fallback;
+  const sinceDays = range === "today" ? 0 : range === "3d" ? 3 : range === "7d" ? 7 : null;
+  const rangeLabel = range === "today" ? "today" : range === "3d" ? "in the last 3 days" : range === "7d" ? "in the last 7 days" : "yet";
+  // Escalations opened fold away, unless asked for.
+  const showOpened = params.eopened === "1";
+  const [notifications, alerts, counts] = await Promise.all([
     listNotificationsPage(
       recipientRolesForUser(user.role),
       parsePage(params.npage),
@@ -416,9 +305,12 @@ export default async function NotificationsPage({
       sinceDays
     ),
     oversight
-      ? listAlertsPage(parsePage(params.epage))
+      ? listAlertsPage(parsePage(params.epage), user.id, showOpened)
       : Promise.resolve(pageResult<AlertRow>([], 0, 1, ALERTS_PAGE_SIZE)),
+    oversight ? alertCounts(user.id) : Promise.resolve({ total: 0, unseen: 0 }),
   ]);
+  // Who reads the Orders list opens an SO there, picked out, not on its summary page.
+  const toOrders = canViewAll(user.role) && mayOpenPage(user, "/risansi/orders");
 
   // Departments open straight into their own workspace, deep-linked to the EC
   // row (item_id) when the event is per-EC; central/admin open the EC detail
@@ -428,6 +320,7 @@ export default async function NotificationsPage({
     // A bug report's news opens the tracker at that report.
     if (n.bug_report_id) return `/risansi/bug-reports?report=${n.bug_report_id}`;
     if (deptHref) return `${deptHref}?edit=${n.item_id ?? n.order_id}`;
+    if (toOrders && n.order_id) return ordersFocusHref({ id: n.order_id, so_no: n.so_no, order_type: n.order_type });
     if (n.item_id && n.order_id) {
       return `/risansi/orders/${n.order_id}/items/${n.item_id}`;
     }
@@ -462,10 +355,41 @@ export default async function NotificationsPage({
 
       {oversight && (
         <>
-          <h2 className="mb-3 mt-8 font-display text-base font-semibold text-foreground">
-            Escalations — {alerts.total} active
-          </h2>
-          <Escalations page={alerts} showClient={canSeeClient(user.role)} />
+          <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-base font-semibold text-foreground">
+              Escalations — {counts.unseen} new
+              {counts.total > counts.unseen && <span className="ml-1 font-normal text-muted">· {counts.total - counts.unseen} opened</span>}
+            </h2>
+            <EscalationControls unseen={counts.unseen} opened={counts.total - counts.unseen} showOpened={showOpened} />
+          </div>
+          {alerts.total === 0 ? (
+            <div className="rounded-xl border border-card-border bg-surface px-6 py-12 text-center shadow-sm">
+              <p className="text-sm font-medium text-foreground">{counts.total > 0 ? "All opened" : "All clear"}</p>
+              <p className="mt-1 text-sm text-muted">
+                {counts.total > 0
+                  ? "Every escalation has been opened. New ones show here as they come."
+                  : "No overdue steps, LD risks or payment holds right now."}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm">
+              <EscalationList
+                alerts={alerts.rows}
+                showClient={canSeeClient(user.role)}
+                hrefs={Object.fromEntries(
+                  alerts.rows.map((a) => [
+                    a.key,
+                    toOrders
+                      ? ordersFocusHref({ id: a.id, so_no: a.so_no, order_type: a.order_type })
+                      : a.item_id
+                        ? `/risansi/orders/${a.id}/items/${a.item_id}`
+                        : `/risansi/orders/${a.id}`,
+                  ])
+                )}
+              />
+              <UrlPagination paramKey="epage" page={alerts.page} totalPages={alerts.totalPages} from={alerts.from} to={alerts.to} total={alerts.total} />
+            </div>
+          )}
         </>
       )}
     </div>

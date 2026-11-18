@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { History, Layers, Loader2, MessageSquare, PanelRightClose, PanelRightOpen, Trash2 } from "lucide-react";
 import { setSplitPanelPrefs, useSplitPanelPrefs } from "./split-panel-prefs";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
@@ -696,7 +696,14 @@ export function OrdersTable({
   // Split view (the profile menu's): the table up to Departments on the left, and on
   // the right the SO picked, its department columns stood up as a portrait.
 
-  const [focus, setFocus] = useState<{ id: string; dept: ReachedDept["key"] | null } | null>(null);
+  // Opened from a notification or an escalation (?focus=): that SO picked out.
+  const focusParam = useSearchParams().get("focus");
+  const [focus, setFocus] = useState<{ id: string; dept: ReachedDept["key"] | null } | null>(focusParam ? { id: focusParam, dept: null } : null);
+  // …and scrolled to, once it is on the page.
+  useEffect(() => {
+    if (!focusParam) return;
+    document.querySelector<HTMLElement>(`[data-order-row="${CSS.escape(focusParam)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focusParam]);
   const focusOrder = split ? (pageRows.find((o) => o.id === focus?.id) ?? pageRows[0] ?? null) : null;
   const focusDept = focusOrder && focus?.id === focusOrder.id ? focus.dept : null;
   const panelRef = useRef<HTMLElement | null>(null);
@@ -1033,12 +1040,13 @@ export function OrdersTable({
                     {/* A click on the row opens its Order details; the first
                         button its ECs; every other control does its own job. */}
                     <tr
+                      data-order-row={order.id}
                       onClick={() => (split ? setFocus({ id: order.id, dept: focusDept }) : setDetailsFor(order))}
                       onMouseEnter={() => hoverRow(order.id)}
                       onMouseLeave={() => hoverRow(null)}
                       // Every cell starts at the top, so the row reads straight across;
                       // a cancelled or diverted SO is red end to end.
-                      className={`cursor-pointer align-top text-foreground transition-colors ${split && focusOrder?.id === order.id ? "outline-2 -outline-offset-2 outline-primary/50 " : ""}${
+                      className={`cursor-pointer align-top text-foreground transition-colors ${split && focusOrder?.id === order.id ? "outline-2 -outline-offset-2 outline-primary/50 " : ""}${!split && focusParam === order.id ? "outline-2 -outline-offset-2 outline-amber-400 " : ""}${
                         closed
                           ? "bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/15 dark:hover:bg-rose-500/20"
                           : (dispatchRowTone({ dispatch_status: dispatch }) ?? "hover:bg-background/60")

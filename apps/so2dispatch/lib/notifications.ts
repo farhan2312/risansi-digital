@@ -53,6 +53,8 @@ export type NotificationRow = {
   bug_report_id: string | null;
   /** The EC, when the notification is about one. */
   ec_no: string | null;
+  /** The SO's type: which Orders list (Pump or Spare) it opens on. */
+  order_type?: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -108,10 +110,10 @@ export async function listNotificationsPage(
   userId: string | null = null,
   /** A Rep or Rep Manager: their role's notifications only for these reps' SOs. */
   repNames: readonly string[] | null = null,
-  /** Only the last so many days; null for all time. */
+  /** Only the last so many days (0: today, India time); null for all time. */
   sinceDays: number | null = null
 ): Promise<PageResult<NotificationRow>> {
-  const days = sinceDays && sinceDays > 0 ? Math.floor(sinceDays) : null;
+  const days = sinceDays != null && sinceDays >= 0 ? Math.floor(sinceDays) : null;
   if (roles.length === 0 && !userId) return pageResult([], 0, 1, FEED_PAGE_SIZE);
   return pageWithTotal(
     page,
@@ -119,7 +121,7 @@ export async function listNotificationsPage(
       query<NotificationRow & { total_count: string }>(
         `SELECT n.id, n.order_id, n.item_id, n.type, n.message,
                 to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
-                o.so_no, o.client_name,
+                o.so_no, o.client_name, o.order_type,
                 o.order_value::text AS order_value, o.order_currency,
                 b.pi_no, b.pi_value::text AS pi_value,
                 pis.nos AS order_pi_nos, pis.total::text AS order_pi_total,
@@ -139,7 +141,10 @@ export async function listNotificationsPage(
                 AND nullif(btrim(d.pi_no), '') IS NOT NULL
            ) pis ON n.billing_doc_id IS NULL
           WHERE ((n.recipient_role = ANY($1) AND ${REP_SCOPE("n", "$5")}) OR n.recipient_user_id = $4)
-            AND ($6::int IS NULL OR n.created_at >= now() - make_interval(days => $6::int))
+            -- 0: since midnight today in India; else the last so many days.
+            AND ($6::int IS NULL OR n.created_at >= CASE WHEN $6::int = 0
+                   THEN ((now() AT TIME ZONE 'Asia/Kolkata')::date::timestamp AT TIME ZONE 'Asia/Kolkata')
+                   ELSE now() - make_interval(days => $6::int) END)
           ORDER BY n.created_at DESC
           LIMIT $2 OFFSET $3`,
         [roles, FEED_PAGE_SIZE, offsetFor(p, FEED_PAGE_SIZE), userId, repScopeParam(repNames), days]
