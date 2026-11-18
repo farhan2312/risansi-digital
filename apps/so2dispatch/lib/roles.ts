@@ -236,9 +236,9 @@ export function canSeeDispatched(role: string): boolean {
   return role === "admin" || role === "central_visibility" || role === "dispatch";
 }
 
-/** The Dispatch Plan — the pump SOs that can go out in the next two weeks: every department (Order Making too), Central and Admin; not a Rep or CRM. */
+/** The Dispatch Plan — the pump SOs that can go out in the next two weeks: every department (Order Making too), Central and Admin; not a Rep, CRM or Drawing. */
 export function canSeeDispatchPlan(role: string): boolean {
-  return !isRep(role) && !isCrm(role);
+  return !isRep(role) && !isCrm(role) && role !== "drawing";
 }
 
 /**
