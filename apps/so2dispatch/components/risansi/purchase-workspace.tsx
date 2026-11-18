@@ -3,7 +3,7 @@
 import { EcLink } from "./ec-link";
 import { KpiStrip } from "./kpi-strip";
 import type { KpiCard } from "@/lib/kpis";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { History, MessageSquare, PackageSearch, Truck, X } from "lucide-react";
 import type { BoiVendor, PurchaseQueueRow } from "@/lib/orders";
 import { VendorsModal } from "./vendors-modal";
@@ -291,6 +291,22 @@ export function PurchaseWorkspace({
           <span className="text-xs text-muted">{(row.ec_boi ?? "") === "Yes" ? "None listed" : "No BOI"}</span>
         ) : (
           <BoiDetailTable
+            items={items}
+            onHistory={(b) => setHistoryFor(b)}
+            onOpen={(b) => {
+              setBoiFor(row.id);
+              setBoiItem(String(b.id));
+            }}
+          />
+        );
+      },
+      // The panel: the same items as cards that wrap to its width.
+      panelCell: (row) => {
+        const items = (row.boi_items ?? []) as Row[];
+        return items.length === 0 ? (
+          <span className="text-xs text-muted">{(row.ec_boi ?? "") === "Yes" ? "None listed" : "No BOI"}</span>
+        ) : (
+          <BoiDetailCards
             items={items}
             onHistory={(b) => setHistoryFor(b)}
             onOpen={(b) => {
@@ -786,6 +802,95 @@ function BoiTag({ item }: { item: Row }) {
  * RIL stock allocated, the vendor order and what has come in, and its status.
  * A row opens that item's form.
  */
+/**
+ * The split panel's bought-out items: every field of the table, as one card
+ * per item whose fields wrap to the panel's width (no sideways scroll).
+ */
+function BoiDetailCards({
+  items,
+  onOpen,
+  onHistory,
+}: {
+  items: Row[];
+  onOpen: (b: Row) => void;
+  onHistory: (b: Row) => void;
+}) {
+  const t = (v: unknown) => (v == null || String(v).trim() === "" ? "—" : String(v));
+  const d = (v: unknown) => (v ? formatDate(String(v)) : "—");
+  const money = (v: unknown) =>
+    v == null || v === "" ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  const field = (label: string, value: ReactNode) => (
+    <div className="min-w-0">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="break-words text-foreground">{value}</div>
+    </div>
+  );
+  return (
+    <div className="space-y-2">
+      {items.map((b) => {
+        const vendor = b.vendor_order === "Yes";
+        const v = (x: unknown) => (vendor ? x : null);
+        return (
+          <div
+            key={String(b.id)}
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(b)}
+            onKeyDown={(e) => e.key === "Enter" && onOpen(b)}
+            title="Open this item"
+            className="cursor-pointer rounded-lg border border-card-border p-2.5 text-xs transition-colors hover:bg-background"
+          >
+            <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <span className="font-semibold text-foreground">{boiName(b)}</span>
+                <span className="text-muted"> · {t(b.boi_make)} · Qty {t(b.boi_qty)}</span>
+                {String(b.boi_description ?? "").trim() && <div className="mt-0.5 break-words text-muted">{t(b.boi_description)}</div>}
+              </div>
+              <BoiTag item={b} />
+            </div>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-x-3 gap-y-2">
+              {field("RIL Alloc.", t(b.stock_allocated_qty))}
+              {field(
+                "Vendor",
+                vendor ? [b.vendor_code, b.vendor_name].filter((x) => x != null && String(x).trim()).join(" · ") || "—" : "No order"
+              )}
+              {field("RIL PO No.", t(v(b.ril_po_no)))}
+              {field("RIL PO Date", d(v(b.ril_po_date)))}
+              {field("Vendor SO No.", t(v(b.vendor_so_no)))}
+              {field("Vendor SO Date", d(v(b.vendor_so_date)))}
+              {field("Order Qty", t(v(b.order_qty)))}
+              {field(
+                "Expected",
+                <span className="inline-flex items-center gap-1">
+                  {d(v(b.expected_receipt_date))}
+                  {vendor && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onHistory(b);
+                      }}
+                      aria-label="Expected date history"
+                      title="Expected date history"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-surface hover:text-primary"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </span>
+              )}
+              {field("Rate", money(v(b.rate_per_unit)))}
+              {field("Total", money(v(b.total_value)))}
+              {field("Recd Qty", t(v(b.received_qty)))}
+              {field("Recd Date", d(v(b.receipt_date)))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function BoiDetailTable({
   items,
   onOpen,

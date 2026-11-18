@@ -18,6 +18,8 @@ export type SplitCol<R> = {
   thClass?: string;
   tdClass?: string;
   cell: (row: R) => ReactNode;
+  /** The same information laid out for the panel's width (a wide table as cards); the table keeps `cell`. */
+  panelCell?: (row: R) => ReactNode;
   /** Kept in the split view's narrow list (the SO's identity and state). */
   list?: boolean;
   /** Too wide for a label beside it (a list of items): the panel gives it the full width. */
@@ -41,7 +43,7 @@ export function Portrait<R>({ cols, row }: { cols: SplitCol<R>[]; row: R }) {
             <tr>
               {narrow.map((c) => (
                 <td key={c.key} className="text-foreground">
-                  {c.cell(row)}
+                  {(c.panelCell ?? c.cell)(row)}
                 </td>
               ))}
             </tr>
@@ -51,7 +53,12 @@ export function Portrait<R>({ cols, row }: { cols: SplitCol<R>[]; row: R }) {
       {wide.map((c) => (
         <div key={c.key}>
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{c.label}</div>
-          <div className="overflow-x-auto rounded-lg border border-card-border p-2">{c.cell(row)}</div>
+          {c.panelCell ? (
+            // Laid out for the panel: no sideways scroll.
+            <div className="min-w-0">{c.panelCell(row)}</div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-card-border p-2">{c.cell(row)}</div>
+          )}
         </div>
       ))}
     </div>
