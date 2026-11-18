@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, Download, FileSpreadsheet, FileText, Loader2, Maximize2, Minus, Plus, Printer, X } from "lucide-react";
+import { RETROFIT_SPARE } from "@/lib/order-schema";
 import { blocksOf, sortBlocks, type ReportSortKey, type SoBlock } from "@/lib/order-making-blocks";
 
 type Line = { cells: (string | number | null)[]; filled: boolean };
@@ -246,7 +247,13 @@ function Sheet({
               </Td>
               <Td>
                 <span className="flex flex-col items-start gap-1">
-                  {b.orderType && <Pill tone={/pump|rolb/i.test(b.orderType) ? "indigo" : "teal"}>{b.orderType}</Pill>}
+                  {/* A Retrofit Spare: Spare, with Retrofit under it (as in the lists). */}
+                  {b.orderType && (
+                    <Pill tone={/pump|rolb/i.test(b.orderType) ? "indigo" : "teal"}>
+                      {b.orderType === RETROFIT_SPARE ? "Spare" : b.orderType}
+                    </Pill>
+                  )}
+                  {b.orderType === RETROFIT_SPARE && <span className="text-[11px] font-medium text-violet-700">Retrofit</span>}
                   {b.billMode && <span className="text-[11px] text-slate-500">{b.billMode}</span>}
                 </span>
               </Td>
