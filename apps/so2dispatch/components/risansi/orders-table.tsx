@@ -464,8 +464,9 @@ export function OrdersTable({
   // (+4: Packing Slips, Invoice, Dispatch, Docket & LR.)
   // (+1 Follow Up; the Pump view +1 Quantity.)
   // (+1 Order in Hand.)
-  // (-3: SO Date, Client Code and Zone sit under SO No., Client and Rep.)
-  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 7 - 3;
+  // (-3: SO Date, Client Code and Zone sit under SO No., Client and Rep;
+  // +1 the table view gives the SO Date its own column.)
+  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 7 - 3 + (split ? 0 : 1);
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -951,7 +952,9 @@ export function OrdersTable({
                 {!split && <th rowSpan={2} className="w-8 px-2 py-3" />}
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
                 {/* SO No. and its date, the client and its code, the rep and zone: a column each. */}
-                <th rowSpan={2} className="sticky-so px-4 py-3"><SortHeader label="SO No. / Date" sortKey="so_date" /></th>
+                {/* The table view: SO No. and SO Date apart; the split list keeps the date under the SO. */}
+                <th rowSpan={2} className="sticky-so px-4 py-3">{split ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : "SO No."}</th>
+                {!split && <th rowSpan={2} className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>}
                 {!split && <th rowSpan={2} className="px-3 py-3">Chat</th>}
                 {!pump && !split && <th rowSpan={2} className="px-4 py-3">Type</th>}
                 <th rowSpan={2} className="px-4 py-3">Client / Code</th>
@@ -1061,7 +1064,7 @@ export function OrdersTable({
                       {/* The SO and its holds; Clear / Hold is changed from the badge. */}
                       <td className="sticky-so px-4 py-3 whitespace-nowrap align-top">
                         <div className="font-medium">{cell(order.so_no)}</div>
-                        <div className="text-[11px] text-muted">{formatDate(order.so_date)}</div>
+                        {split && <div className="text-[11px] text-muted">{formatDate(order.so_date)}</div>}
                         {/* A Pump SO's version: its versions in a pop-up, New version in it. */}
                         {PUMP_LIKE.includes(String(order.order_type ?? "")) && Number(order.version_no ?? 0) > 0 && !canOpenVersions(role) && (
                           <VersionTag order={order as unknown as Record<string, unknown>} />
@@ -1094,6 +1097,7 @@ export function OrdersTable({
                           </span>
                         )}
                       </td>
+                      {!split && <td className="whitespace-nowrap px-4 py-3 align-top">{formatDate(order.so_date)}</td>}
                       {!split && (
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                         <button

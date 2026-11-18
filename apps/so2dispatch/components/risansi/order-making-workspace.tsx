@@ -254,10 +254,11 @@ export function OrderMakingWorkspace({
   // The Assigned to filter's choices: Unassigned, then each SO member.
   const assignOptions = [{ value: UNASSIGNED, label: "Unassigned" }, ...members.map((m) => ({ value: m.id, label: memberLabel(m) }))];
   const cols: { column: string; label: string }[] = [
-    // SO No. with its date under it, in one column.
-    { column: "so_no", label: "SO No. / Date" },
+    { column: "so_no", label: "SO No." },
     // The Client Code sits under the name, in one column.
     { column: "client_name", label: "Client Name & Code" },
+    // Its own column, after the two pinned at the left (and Chat).
+    { column: "so_date", label: "SO Date" },
     { column: "order_type", label: "Order Type" },
     { column: "bill_mode", label: "Bill Mode" },
     // An FR (replacement) SO carries its complaint in place of a PO.
@@ -280,9 +281,7 @@ export function OrderMakingWorkspace({
       const col: OmCol = {
         key: c.column,
         label: c.label,
-        ...(c.column === "so_no"
-          ? { head: <SortHeader label={c.label} sortKey="so_date" /> }
-          : ["po_received_date", "ec_sent_operation_date"].includes(c.column)
+        ...(["so_date", "po_received_date", "ec_sent_operation_date"].includes(c.column)
             ? { head: <SortHeader label={c.label} sortKey={c.column} /> }
             : {}),
         thClass:
@@ -296,9 +295,6 @@ export function OrderMakingWorkspace({
           <>
             {c.column === "order_value" ? <OrderValueDetails row={row as OrderValueRow} /> : formatDisplay(field(c.column), row[c.column])}
             {c.column === "order_type" && <RetrofitLine row={row} />}
-            {c.column === "so_no" && str(row.so_date) && (
-              <span className="block text-[11px] text-muted">{formatDisplay(field("so_date"), row.so_date)}</span>
-            )}
             {c.column === "client_name" && str(row.client_code) && (
               <span className="block text-[11px] text-muted">{str(row.client_code)}</span>
             )}

@@ -413,8 +413,8 @@ export function DepartmentWorkspace({
   // the table scrolls sideways (the SO No. a set width, the client after it).
   const acctPinned = table === "order_accounts";
   // Accounts: Sales Order Date under SO No. (no column of its own), and an Order Status column.
-  const soCols = acctPinned ? soContext.filter((f) => f.column !== "so_date") : soContext;
-  const soDateField = soContext.find((f) => f.column === "so_date");
+  // The SO Date is its own column everywhere (Accounts' too), not under the SO No.
+  const soCols = soContext;
 
   // SO-scope sections (Billing/Accounts) have no per-EC breakdown, so EC No.
   // would always be blank — hide the column entirely.
@@ -785,8 +785,7 @@ export function DepartmentWorkspace({
     { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, thClass: "px-4 py-3", tdClass: "px-4 py-3 font-medium tabular-nums", cell: (order) => String(order.sl_no ?? "—"), list: true },
     {
       key: "so",
-      label: acctPinned ? "SO No. / Date" : "SO No.",
-      head: acctPinned ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : "SO No.",
+      label: "SO No.",
       thClass: `sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : ""}`,
       thStyle: acctPinned ? { boxShadow: "none" } : undefined,
       tdClass: `sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : "whitespace-nowrap"}`,
@@ -794,9 +793,6 @@ export function DepartmentWorkspace({
       cell: (order) => (
         <>
           {toInput(order.so_no) || "—"}
-          {acctPinned && soDateField && toInput(order.so_date) && (
-            <span className="block text-[11px] font-normal text-muted">{contextValue(soDateField, order)}</span>
-          )}
           <VersionTag order={order} />
           <HoldBadge order={order} />
           {/* Accounts can hold the SO for a payment reason. */}

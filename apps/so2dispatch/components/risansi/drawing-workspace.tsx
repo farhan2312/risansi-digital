@@ -145,8 +145,7 @@ export function DrawingWorkspace({
     { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, tdClass: "font-medium tabular-nums", cell: (g) => str(g.head.sl_no), list: true },
     {
       key: "so",
-      label: "SO No. / Date",
-      head: <SortHeader label="SO No. / Date" sortKey="so_date" />,
+      label: "SO No.",
       thClass: `sticky-so ${SO_W}`,
       thStyle: { boxShadow: "none" },
       tdClass: `sticky-so ${SO_W}`,
@@ -156,7 +155,6 @@ export function DrawingWorkspace({
           <span className="font-semibold">{str(g.head.so_no) || "—"}</span>
           <VersionTag order={g.head} />
           <HoldBadge order={g.head} />
-          <span className="block text-xs text-muted">{formatDate(g.head.so_date)}</span>
         </>
       ),
       list: true,
@@ -175,6 +173,15 @@ export function DrawingWorkspace({
           {str(g.head.customer_po_date) && <span className="block text-xs text-muted">{formatDate(g.head.customer_po_date)}</span>}
         </>
       ),
+    },
+    // After the two pinned columns.
+    {
+      key: "so_date",
+      label: "SO Date",
+      head: <SortHeader label="SO Date" sortKey="so_date" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (g) => formatDate(g.head.so_date),
     },
     {
       key: "chat",

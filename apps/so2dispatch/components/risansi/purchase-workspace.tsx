@@ -176,8 +176,7 @@ export function PurchaseWorkspace({
     { key: "sl", label: "Sl.", head: <SortHeader label="Sl." sortKey="sl" />, tdClass: "font-medium tabular-nums", cell: (g) => g.head.sl_no, list: true },
     {
       key: "so",
-      label: "SO No. / Date",
-      head: <SortHeader label="SO No. / Date" sortKey="so_date" />,
+      label: "SO No.",
       thClass: "sticky-so whitespace-nowrap",
       tdClass: "sticky-so whitespace-nowrap font-semibold",
       cell: (g) => (
@@ -185,10 +184,17 @@ export function PurchaseWorkspace({
           {g.head.so_no ?? "—"}
           <VersionTag order={g.head} />
           <HoldBadge order={g.head} />
-          <span className="block text-xs font-normal text-muted">{formatDate(g.head.so_date)}</span>
         </>
       ),
       list: true,
+    },
+    {
+      key: "so_date",
+      label: "SO Date",
+      head: <SortHeader label="SO Date" sortKey="so_date" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (g) => formatDate(g.head.so_date),
     },
     { key: "chat", label: "Chat", cell: (g) => chatButton(g.head) },
     { key: "boi", label: "BOI", cell: (g) => g.head.boi ?? "—" },
@@ -264,17 +270,23 @@ export function PurchaseWorkspace({
   const ecCols: SplitCol<PurchaseQueueRow>[] = [
     {
       key: "ec",
-      label: "EC No. / Date",
-      head: <SortHeader label="EC No. / Date" sortKey="ec_date" />,
+      label: "EC No.",
       thClass: "border-l border-card-border whitespace-nowrap",
       tdClass: "border-l border-card-border whitespace-nowrap font-semibold",
       cell: (row) => (
         <>
           {row.ec_no ?? "—"}
           <EcLink href={row.ec_link} at={row.ec_link_at} links={row.ec_links} latest />
-          <span className="block text-xs font-normal text-muted">{formatDate(row.ec_date ?? null)}</span>
         </>
       ),
+    },
+    {
+      key: "ec_date",
+      label: "EC Date",
+      head: <SortHeader label="EC Date" sortKey="ec_date" />,
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => formatDate(row.ec_date ?? null),
     },
     { key: "pump", label: "Pump Type", tdClass: "whitespace-nowrap", cell: (row) => row.pump_type ?? "—" },
     { key: "model", label: "Model No.", tdClass: "whitespace-nowrap", cell: (row) => row.model_no ?? "—" },
@@ -1048,7 +1060,7 @@ function BoiListTable({
     `sticky z-[1] bg-surface group-hover:bg-background ${i === STICK.length - 1 ? "shadow-[inset_-1px_0_0_var(--color-card-border)]" : ""}`;
   const stickTh = (i: number) => `sticky z-[2] ${i === STICK.length - 1 ? "shadow-[inset_-1px_0_0_var(--color-card-border)]" : ""}`;
   const itemHeads = [
-    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO", "Vendor SO",
+    "Item", "Make", "SO Date", "EC Date", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO", "Vendor SO",
     "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
   ];
   // A number with its date under it (vendor figures only when an order is placed).
@@ -1062,13 +1074,15 @@ function BoiListTable({
       </>
     );
   return (
-    <table className="w-full min-w-[1900px] text-sm">
+    <table className="w-full min-w-[2100px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-          <th className={`${th} ${stickTh(0)}`} style={stick(0)}><SortHeader label="SO" sortKey="so_date" /></th>
-          <th className={`${th} ${stickTh(1)}`} style={stick(1)}><SortHeader label="EC" sortKey="ec_date" /></th>
+          <th className={`${th} ${stickTh(0)}`} style={stick(0)}>SO No.</th>
+          <th className={`${th} ${stickTh(1)}`} style={stick(1)}>EC No.</th>
           {itemHeads.map((h, i) => {
-            const dateKey = Object.keys(ITEM_DATE_HEADS).find((k) => ITEM_DATE_HEADS[k] === h);
+            // The SO's and EC's dates sort as the items' own dates do.
+            const dateKey =
+              h === "SO Date" ? "so_date" : h === "EC Date" ? "ec_date" : Object.keys(ITEM_DATE_HEADS).find((k) => ITEM_DATE_HEADS[k] === h);
             return (
               <th key={h} className={`${th} ${i < 2 ? stickTh(i + 2) : ""}`} style={i < 2 ? stick(i + 2) : undefined}>
                 {dateKey ? <SortHeader label={h} sortKey={dateKey} /> : h}
@@ -1098,17 +1112,17 @@ function BoiListTable({
             >
               <td className={`whitespace-nowrap px-3 py-2 ${stickTd(0)}`} style={stick(0)}>
                 <div className="font-semibold">{so.so_no ?? `#${so.sl_no}`}</div>
-                <div className="text-xs text-muted">{formatDate(so.so_date)}</div>
               </td>
               <td className={`whitespace-nowrap px-3 py-2 ${stickTd(1)}`} style={stick(1)}>
                 <div className="font-medium">
                   {ec.ec_no ?? "—"}
                   <EcLink href={ec.ec_link} at={ec.ec_link_at} links={ec.ec_links} latest />
                 </div>
-                <div className="text-xs text-muted">{formatDate(ec.ec_date ?? null)}</div>
               </td>
               <td className={`break-words px-3 py-2 font-semibold ${stickTd(2)}`} style={stick(2)}>{boiName(b)}</td>
               <td className={`break-words px-3 py-2 ${stickTd(3)}`} style={stick(3)}>{t(b.boi_make)}</td>
+              <td className="whitespace-nowrap px-3 py-2">{formatDate(so.so_date)}</td>
+              <td className="whitespace-nowrap px-3 py-2">{formatDate(ec.ec_date ?? null)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.boi_qty)}</td>
               <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.stock_allocated_qty)}</td>

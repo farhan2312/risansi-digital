@@ -186,7 +186,8 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
                 <th className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3">Sl.</th>
-                <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]"><SortHeader label="SO / Date" sortKey="so_date" /></th>
+                <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">SO No.</th>
+                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 <th className="px-4 py-3">Rep · Zone</th>
                 <th className="px-4 py-3"><SortHeader label="PO / Date" sortKey="po_date" /></th>
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Sent to PPC" sortKey="ppc" /></th>
@@ -216,8 +217,8 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                     <td className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3 font-medium tabular-nums">{r.sl_no}</td>
                     <td className="sticky left-16 z-10 whitespace-nowrap bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">
                       <div className="font-medium">{r.so_no ?? "—"}</div>
-                      <div className="text-xs text-muted">{formatDate(r.so_date)}</div>
                     </td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatDate(r.so_date)}</td>
                     <td className="px-4 py-3">
                       <div>{r.reps ?? "—"}</div>
                       {r.zone && <div className="text-xs text-muted">{r.zone}</div>}
