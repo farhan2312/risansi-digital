@@ -24,9 +24,16 @@
 /* Order Making: the SO Date, pinned between the SO No. and the client. */
 .om-date-col {
   left: 11rem !important;
-  width: 7rem;
-  min-width: 7rem;
-  max-width: 7rem;
+  /* Wide enough for "18 Nov 2026" and its sortable heading with the padding,
+     so it never grows past the client's offset. */
+  width: 8.5rem;
+  min-width: 8.5rem;
+  max-width: 8.5rem;
+  white-space: nowrap;
+}
+/* The split view's list has no SO Date: the client right after the SO No. */
+.om-split .sticky-client {
+  left: 11rem;
 }
 .om-so-col {
   width: 11rem;
@@ -38,8 +45,8 @@
 }
 .sticky-client {
   position: sticky;
-  /* After the SO No. (11rem) and the SO Date (7rem). */
-  left: 18rem;
+  /* After the SO No. (11rem) and the SO Date (8.5rem). */
+  left: 19.5rem;
   z-index: 2;
   min-width: 13rem;
   background-color: var(--color-surface);

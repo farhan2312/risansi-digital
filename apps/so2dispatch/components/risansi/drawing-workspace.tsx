@@ -44,8 +44,8 @@ type Col<R> = SplitCol<R> & { thStyle?: CSSProperties; tdStyle?: CSSProperties }
 const SO_W = "w-44 min-w-44 max-w-44";
 const SO_LEFT = "11rem";
 /** The SO Date, pinned after the SO No.; the PO after it. */
-const DATE_W = "w-28 min-w-28 max-w-28";
-const PO_LEFT = "18rem";
+const DATE_W = "w-[8.5rem] min-w-[8.5rem] max-w-[8.5rem]";
+const PO_LEFT = "19.5rem";
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 const yes = (v: unknown) => str(v).trim().toLowerCase() === "yes";
 

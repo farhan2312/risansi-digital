@@ -115,8 +115,8 @@ type Row = Record<string, unknown>;
 const ACCT_SO_W = "w-44 min-w-44 max-w-44";
 const ACCT_SO_LEFT = "11rem";
 /** Accounts: the SO Date pinned after the SO No., the client after it. */
-const ACCT_DATE_W = "w-28 min-w-28 max-w-28";
-const ACCT_CLIENT_LEFT = "18rem";
+const ACCT_DATE_W = "w-[8.5rem] min-w-[8.5rem] max-w-[8.5rem]";
+const ACCT_CLIENT_LEFT = "19.5rem";
 
 /** Planning's Lot columns: one per readiness lot a Spare can have. */
 const LOT_COLUMNS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
@@ -834,9 +834,9 @@ export function DepartmentWorkspace({
             key: "party",
             label: acctPinned ? "Client Name & Code" : "Client Name",
             thClass: acctPinned ? "sticky-so px-4 py-3" : "px-4 py-3",
-            thStyle: acctPinned ? { left: soDateField ? ACCT_CLIENT_LEFT : ACCT_SO_LEFT } : undefined,
+            thStyle: acctPinned ? { left: soDateField && !splitView ? ACCT_CLIENT_LEFT : ACCT_SO_LEFT } : undefined,
             tdClass: acctPinned ? "sticky-so min-w-[12rem] max-w-[16rem] px-4 py-3" : "px-4 py-3",
-            tdStyle: acctPinned ? { left: soDateField ? ACCT_CLIENT_LEFT : ACCT_SO_LEFT } : undefined,
+            tdStyle: acctPinned ? { left: soDateField && !splitView ? ACCT_CLIENT_LEFT : ACCT_SO_LEFT } : undefined,
             // Accounts: the Client Code under the name, in one column.
             cell: (order: Row) => (
               <>

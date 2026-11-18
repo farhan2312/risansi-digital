@@ -874,7 +874,7 @@ export function OrderMakingWorkspace({
         <div className="overflow-x-auto" data-sticky-head>
           {split ? (
             // Split view: the SO's identity and state; the rest is the panel's.
-            <table className="w-full text-sm">
+            <table className="om-split w-full text-sm">
               <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
                 <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                   {listCols.map((c) => (
