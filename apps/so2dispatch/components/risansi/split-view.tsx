@@ -140,7 +140,7 @@ export function SplitShell({
 }
 
 /**
- * The SO's ECs in the panel, with a row of EC chips to look at one at a time
+ * The SO's ECs in the panel, with a row of EC chips (always, even for one EC) to look at one at a time
  * (the others fold away) or all of them. Give it `key` = the SO, so picking
  * another SO starts again on All.
  */
@@ -163,7 +163,7 @@ export function EcFocus<E>({
     }`;
   return (
     <>
-      {ecs.length > 1 && (
+      {ecs.length > 0 && (
         <div role="tablist" aria-label="ECs" className="sticky top-11 z-[5] -mx-4 flex flex-wrap gap-1.5 border-b border-card-border bg-surface/95 px-4 py-2 backdrop-blur">
           <button type="button" role="tab" aria-selected={shown === ecs} onClick={() => setPicked(null)} className={chip(shown === ecs)}>
             All ECs ({ecs.length})
