@@ -187,13 +187,11 @@ export async function PATCH(
   }
   Object.assign(patch, clientDetailsFrom(body));
   // A quotation is made for one kind of order, so the kind stays once there is one.
-  let needsDefaultTag = false;
   if (patch.orderType) {
     const [cur] = await db.select({ orderType: projects.orderType }).from(projects).where(eq(projects.id, id)).limit(1);
     if (cur && cur.orderType !== patch.orderType) {
       const [quoted] = await db.select({ id: quotation.id }).from(quotation).where(eq(quotation.projectId, id)).limit(1);
       if (quoted) return error("The order type can't change once a quotation is generated.", 409);
-      needsDefaultTag = patch.orderType === "pump";
     }
   }
 
@@ -256,10 +254,7 @@ export async function PATCH(
       detail: `${updated.projectCode}: marked Technical Completed, so ${tagsCompleted.length} tag(s) set to Completed: ${tagsCompleted.join(", ").slice(0, 300)}`,
     });
   }
-  if (needsDefaultTag) {
-    const [tag] = await db.select({ id: enquiryTags.id }).from(enquiryTags).where(eq(enquiryTags.projectId, id)).limit(1);
-    if (!tag) await db.insert(enquiryTags).values({ projectId: id, name: "Default" });
-  }
+  // Made a pump: no tag is added for it (user, 2026-11-19) - tags are added by hand.
 
   const nameOf = async (userId: string | null) => {
     if (!userId) return null;

@@ -1274,8 +1274,8 @@ const ProjectsPage = () => {
                                         variant="ghost-destructive"
                                         size="icon-sm"
                                         onClick={() => setConfirmingDeleteTag(tag)}
-                                        disabled={deletingTagId === tag.id || (tags?.length ?? 0) <= 1}
-                                        title={(tags?.length ?? 0) <= 1 ? "Can't delete the last tag on an enquiry" : "Delete tag"}
+                                        disabled={deletingTagId === tag.id}
+                                        title="Delete tag"
                                         aria-label={`Delete tag ${tag.name}`}
                                       >
                                         <Trash2 />

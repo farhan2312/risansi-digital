@@ -5,7 +5,7 @@ import { error, isUniqueViolation, json, projectToDict } from "@/lib/api";
 import { AuthError, requireEnquiryManager, tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
-import { enquiryTags, projects, quotation, users } from "@/lib/db/schema";
+import { projects, quotation, users } from "@/lib/db/schema";
 import { findAssignee } from "@/lib/enquiry-access";
 import type { ClearanceNow } from "@/lib/clearance";
 import { filtersFromParams, sortFromParam, type EnquirySortKey } from "@/lib/enquiry-filters";
@@ -248,13 +248,10 @@ export async function POST(req: Request) {
     throw e;
   }
 
-  // Every new project starts with one "Default" tag so the wizard has
-  // something to key its rows against - the tag_id column on the wizard
-  // tables is NOT NULL, so a project with no tag can't hold any wizard
-  // data. Without this, the Open button on a tag row would 404 because
-  // no tag exists yet.
-  // A spare order has no tags: it is quoted part by part on its Commercial page.
-  if (orderType !== "spare") await db.insert(enquiryTags).values({ projectId: project.id, name: "Default" });
+  // No tag is created with the enquiry (user, 2026-11-19): tags are added by hand
+  // ("Add tag" on the Enquiries list). Until then the enquiry has none and shows
+  // as Pending. A spare order has no tags: it is quoted part by part on its
+  // Commercial page.
 
   const [creator] = await db.select({ name: users.name }).from(users).where(eq(users.id, createdBy)).limit(1);
   const createdByName = creator?.name ?? null;

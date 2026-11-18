@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
 import { db } from "@/lib/db";
@@ -40,8 +40,8 @@ export async function PATCH(
   });
 }
 
-// Guard: refuse to delete the last tag on an enquiry - a project must always
-// have at least one tag, otherwise the wizard has nothing to key on.
+// Any tag can be deleted, the last one too (user, 2026-11-19): an enquiry may have
+// no tags - they are added by hand - and then shows as Pending.
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -56,14 +56,6 @@ export async function DELETE(
     .where(eq(enquiryTags.id, id))
     .limit(1);
   if (!existing) return error("Tag not found", 404);
-
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(enquiryTags)
-    .where(eq(enquiryTags.projectId, existing.projectId));
-  if (count <= 1) {
-    return error("Can't delete the last tag on an enquiry - add another first", 409);
-  }
 
   await db.delete(enquiryTags).where(eq(enquiryTags.id, id));
   return json({ ok: true });
