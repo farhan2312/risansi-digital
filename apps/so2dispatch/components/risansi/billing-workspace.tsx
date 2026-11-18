@@ -178,6 +178,7 @@ export function BillingWorkspace({
     ...only(dispatch, {
       key: "tbd",
       label: "To Be Dispatch Date",
+      head: <SortHeader label="To Be Dispatch Date" sortKey="final_dispatch_target_date" />,
       thClass: "whitespace-nowrap",
       tdClass: "whitespace-nowrap",
       cell: (row) => formatDate(row.final_dispatch_target_date ?? null),

@@ -201,6 +201,7 @@ export function QcWorkspace({
       // Central Visibility's date for it to go out (Dispatch Plan).
       key: "tbd",
       label: "To Be Dispatch Date",
+      head: <SortHeader label="To Be Dispatch Date" sortKey="final_dispatch_target_date" />,
       thClass: "whitespace-nowrap",
       tdClass: "whitespace-nowrap",
       cell: (g) => formatDate(g.head.final_dispatch_target_date as string | null ?? null),

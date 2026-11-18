@@ -5413,6 +5413,8 @@ const DATE_SORT_SQL = new Map<string, string>([
       ])
   ),
   ["drg_readiness_date", "o.drg_readiness_date"],
+  // Central Visibility's To Be Dispatch Date (Dispatch Plan).
+  ["final_dispatch_target_date", "o.final_dispatch_target_date"],
   ["qc_submitted", "(SELECT max(ql.submitted_date) FROM order_items s JOIN order_qc_doc_links ql ON ql.item_id = s.id WHERE s.order_id = o.id)"],
   ...["ril_po_date", "vendor_so_date", "expected_receipt_date", "receipt_date"].map((c): [string, string] => [
     c,
