@@ -583,8 +583,8 @@ function ExpectedHistory({ item }: { item: Row }) {
 
 /** The bought-out list's date columns, sorted by their own date. */
 const ITEM_DATE_HEADS: Record<string, string> = {
-  ril_po_date: "RIL PO Date",
-  vendor_so_date: "Vendor SO Date",
+  ril_po_date: "RIL PO",
+  vendor_so_date: "Vendor SO",
   expected_receipt_date: "Expected",
   receipt_date: "Recd Date",
 };
@@ -769,11 +769,21 @@ function BoiListTable({
   }
   const th = "whitespace-nowrap px-3 py-2";
   const itemHeads = [
-    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor Code", "Vendor Name", "RIL PO No.", "RIL PO Date",
-    "Vendor SO No.", "Vendor SO Date", "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
+    "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO", "Vendor SO",
+    "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
   ];
+  // A number with its date under it (vendor figures only when an order is placed).
+  const noDate = (no: unknown, date: unknown) =>
+    no == null && !date ? (
+      "—"
+    ) : (
+      <>
+        <div>{t(no)}</div>
+        <div className="text-xs text-muted">{d(date)}</div>
+      </>
+    );
   return (
-    <table className="w-full min-w-[2300px] text-sm">
+    <table className="w-full min-w-[1900px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={th}><SortHeader label="SO" sortKey="so_date" /></th>
@@ -823,14 +833,18 @@ function BoiListTable({
               <td className="px-3 py-2 tabular-nums">{t(b.boi_qty)}</td>
               <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.stock_allocated_qty)}</td>
-              <td className="whitespace-nowrap px-3 py-2">
-                {vendor ? t(b.vendor_code) : <span className="text-muted">No order</span>}
+              <td className="min-w-[10rem] max-w-[16rem] px-3 py-2">
+                {vendor ? (
+                  <>
+                    <div>{t(b.vendor_name)}</div>
+                    <div className="text-xs text-muted">{t(b.vendor_code)}</div>
+                  </>
+                ) : (
+                  <span className="text-muted">No order</span>
+                )}
               </td>
-              <td className="whitespace-nowrap px-3 py-2">{t(v(b.vendor_name))}</td>
-              <td className="whitespace-nowrap px-3 py-2">{t(v(b.ril_po_no))}</td>
-              <td className="whitespace-nowrap px-3 py-2">{d(v(b.ril_po_date))}</td>
-              <td className="whitespace-nowrap px-3 py-2">{t(v(b.vendor_so_no))}</td>
-              <td className="whitespace-nowrap px-3 py-2">{d(v(b.vendor_so_date))}</td>
+              <td className="whitespace-nowrap px-3 py-2">{noDate(v(b.ril_po_no), v(b.ril_po_date))}</td>
+              <td className="whitespace-nowrap px-3 py-2">{noDate(v(b.vendor_so_no), v(b.vendor_so_date))}</td>
               <td className="px-3 py-2 tabular-nums">{t(v(b.order_qty))}</td>
               <td className="whitespace-nowrap px-3 py-2">
                 {d(v(b.expected_receipt_date))}
