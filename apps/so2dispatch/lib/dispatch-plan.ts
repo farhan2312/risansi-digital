@@ -37,7 +37,14 @@ export type DispatchPlanBoi = Record<string, unknown> & {
 };
 
 /** Assembly's or Packing's word on the SO, with its next planned and last done dates. */
-export type DispatchPlanStage = { status: string; next: string | null; last: string | null };
+export type DispatchPlanStage = {
+  status: string;
+  /** The earliest plan date still to be done. */
+  next: string | null;
+  last: string | null;
+  /** The latest plan date of any lot, done or not: the plan date once all is done. */
+  planned: string | null;
+};
 
 export type DispatchPlanRow = {
   id: string;
@@ -183,11 +190,14 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
               'next', (SELECT to_char(min(la.plan_date), 'YYYY-MM-DD') FROM order_lot_assembly la JOIN order_items s ON s.id = la.item_id
                         WHERE s.order_id = so.id AND la.assembled_date IS NULL),
               'last', (SELECT to_char(max(la.assembled_date), 'YYYY-MM-DD') FROM order_lot_assembly la JOIN order_items s ON s.id = la.item_id
-                        WHERE s.order_id = so.id)) AS assembly,
+                        WHERE s.order_id = so.id),
+              'planned', (SELECT to_char(max(la.plan_date), 'YYYY-MM-DD') FROM order_lot_assembly la JOIN order_items s ON s.id = la.item_id
+                           WHERE s.order_id = so.id)) AS assembly,
             jsonb_build_object(
               'status', ${soStageStatusSql("packing", "so")},
               'next', (SELECT to_char(min(rl.packing_plan_date), 'YYYY-MM-DD') ${LOTS} AND rl.packed_date IS NULL),
-              'last', (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${LOTS})) AS packing,
+              'last', (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${LOTS}),
+              'planned', (SELECT to_char(max(rl.packing_plan_date), 'YYYY-MM-DD') ${LOTS})) AS packing,
             to_char(COALESCE(so.dispatch_target_revised_date, so.dispatch_target_date), 'YYYY-MM-DD') AS dispatch_target,
             to_char(so.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target,
             so.final_dispatch_target_by,

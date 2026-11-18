@@ -55,10 +55,13 @@ function Stage({ st }: { st: DispatchPlanStage }) {
   );
 }
 
-/** Assembly's or Packing's next plan date (what is still to be done), red once past. */
+/**
+ * Assembly's or Packing's plan date: the next one still to be done (red once
+ * past), else the last one planned (all of it done or nothing more planned).
+ */
 function PlanDate({ st, now }: { st: DispatchPlanStage; now: string }) {
   const full = /^fully/i.test(st.status);
-  if (full || !st.next) return <span className="text-muted">{full ? "Done" : "—"}</span>;
+  if (full || !st.next) return <span className={st.planned ? "" : "text-muted"}>{st.planned ? formatDate(st.planned) : "—"}</span>;
   const late = st.next < now;
   return (
     <span className={late ? "font-medium text-rose-700 dark:text-rose-300" : ""}>

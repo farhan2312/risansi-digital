@@ -99,9 +99,9 @@ export function dateOf(r: DispatchPlanRow, key: string): string | null {
       return r.packing.last;
     // The next planned assembly or packing, still to be done.
     case "asm_plan":
-      return r.assembly.next;
+      return r.assembly.next ?? r.assembly.planned;
     case "pkg_plan":
-      return r.packing.next;
+      return r.packing.next ?? r.packing.planned;
     default:
       return null;
   }
