@@ -31,7 +31,7 @@ function LinkedDoc({ label, url }: { label: string; url: string }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-muted/30 px-4 py-10 text-center">
       <p className="text-[13px] text-muted-foreground">
-        The <strong className="font-semibold text-foreground">{label}</strong> document is on SharePoint, in the client&apos;s format. It is used instead of the generated one.
+        Client&apos;s own format: the <strong className="font-semibold text-foreground">{label}</strong> document is on SharePoint. It is shared instead of the generated one.
       </p>
       <a
         href={url}
@@ -64,18 +64,20 @@ export default function SavedDocsViewer({
   const [printing, setPrinting] = useState(false);
   const [pageSize, setPageSize] = usePrintPageSize();
 
-  // This document's SharePoint link, if one was added on Review: it replaces the generated one.
-  const linked = docs.links[isSpare ? "commercial" : doc];
+  // Client's own format: this document's SharePoint link, the only thing shared - the
+  // generated one isn't shown.
+  const clientFormat = docs.links !== null;
+  const linked = docs.links?.[isSpare ? "commercial" : doc];
   const current = docs.groups.find((g) => g.group === activeGroup) ?? docs.groups[0] ?? null;
   const html = useMemo(() => {
-    if (linked) return "";
+    if (clientFormat) return "";
     const logo = `${window.location.origin}/logo.png`;
     if (isSpare) return docs.spare ? buildSpareQuoteHtml(docs.spare, logo) : "";
     if (!current) return "";
     if (doc === "technical") return current.tech ? buildTechDocHtml(current.tech, logo) : "";
     if (doc === "commercial") return current.offer ? buildOfferHtml(current.offer, logo) : "";
     return current.tech && current.offer ? buildTechnoCommercialHtml(current.tech, current.offer, logo) : "";
-  }, [linked, isSpare, docs.spare, current, doc]);
+  }, [clientFormat, isSpare, docs.spare, current, doc]);
 
   const emptyText = isSpare
     ? "The quotation has no saved version yet. Use Save Version on the Quotation page."
@@ -116,7 +118,7 @@ export default function SavedDocsViewer({
             ))}
           </div>
         )}
-        {!linked && docs.groups.length > 1 && (
+        {!clientFormat && docs.groups.length > 1 && (
           <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Drive system">
             {docs.groups.map((g) => (
               <button
@@ -136,7 +138,7 @@ export default function SavedDocsViewer({
             ))}
           </div>
         )}
-        {!linked && (
+        {!clientFormat && (
           <span className="ml-auto flex flex-wrap items-center gap-2">
             <PrintPageSizeSelect value={pageSize} onChange={setPageSize} />
             <Button variant="outline" disabled={!html || printing} onClick={() => void handlePrint()}>
@@ -145,8 +147,15 @@ export default function SavedDocsViewer({
           </span>
         )}
       </div>
-      {linked ? (
-        <LinkedDoc label={isSpare ? "Quotation" : (DOCS.find((d) => d.key === doc)?.label ?? "")} url={linked} />
+      {clientFormat ? (
+        linked ? (
+          <LinkedDoc label={isSpare ? "Quotation" : (DOCS.find((d) => d.key === doc)?.label ?? "")} url={linked} />
+        ) : (
+          <p className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-[13px] text-muted-foreground">
+            <FileX className="size-5 text-muted-foreground/70" />
+            Client&apos;s own format: no SharePoint link for this document. Only the documents with a link are shared.
+          </p>
+        )
       ) : html ? (
         <iframe
           title={isSpare ? "Quotation" : DOCS.find((d) => d.key === doc)?.label}

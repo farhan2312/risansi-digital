@@ -10,7 +10,7 @@ import { projectDriveGroups } from "./commercial-server";
 import { db } from "./db";
 import { projects, quotation, quotationVersion, techDocVersion } from "./db/schema";
 import { operationDocKinds, type SavedDocs, type SavedGroupDocs } from "./saved-docs";
-import { normalizeDocLinks } from "./doc-links";
+import { docLinksOrNull } from "./doc-links";
 import { normalizeSpareDocEdits, normalizeSpareQuote } from "./spare-quote";
 import { termsMarketOf } from "./spare-terms";
 import { dotDate, visibleTags, type TechDocGroup, type TechDocSheet } from "./tech-doc";
@@ -51,7 +51,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
   const about = {
     enquiry: { code: p.code, clientName: p.name ?? "", enquiryDate: p.enquiryDate },
     sent: p.orderType === "spare" ? null : operationDocKinds(p.operationDocs),
-    links: normalizeDocLinks(p.links),
+    links: docLinksOrNull(p.links),
   };
 
   if (p.orderType === "spare") {

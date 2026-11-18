@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion, techDocVersion } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
 import { SAVED_DOC_KINDS, operationDocKinds, type SavedDocKind } from "@/lib/saved-docs";
+import { docLinksOrNull, missingDocLinks } from "@/lib/doc-links";
 import { loadSavedDocs } from "@/lib/saved-docs-server";
 import { techDocGroups, techDocSheet } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
@@ -96,6 +97,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       reviewedAt: projects.reviewedAt,
       releasedAt: projects.releasedToOperationAt,
       operationDocs: projects.operationDocs,
+      links: projects.docLinks,
     })
     .from(projects)
     .where(eq(projects.id, id))
@@ -107,6 +109,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // A spare's one document always goes.
   const picked = p.orderType === "spare" ? null : (docs ?? operationDocKinds(p.operationDocs));
   const pickedSet = docs && p.orderType !== "spare" ? { operationDocs: docs } : {};
+  // Client's own format: every document to send needs its SharePoint link.
+  const links = docLinksOrNull(p.links);
+  if (links) {
+    const noLink = missingDocLinks(p.orderType, p.orderType === "spare" ? ["commercial"] : (picked ?? SAVED_DOC_KINDS), links);
+    if (noLink) return error(noLink, 409);
+  }
   if (action === "reviewed") {
     if (p.reviewedAt) return error("This version is already reviewed.", 409);
     const missing = await notSaved(id, p.orderType);

@@ -5,7 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
-import { docLinkKinds, normalizeDocLinks, sharepointLinkProblem, type DocLinks } from "@/lib/doc-links";
+import { docLinkKinds, docLinksOrNull, sharepointLinkProblem, type DocLinks } from "@/lib/doc-links";
 import { workDenied } from "@/lib/enquiry-access";
 import { REVIEW_CLEARED } from "@/lib/enquiry-filters-server";
 
@@ -13,9 +13,10 @@ export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-// PUT /api/projects/[id]/doc-links {technical?, commercial?, techno?} - an enquiry
-// version's SharePoint links, each opening instead of its generated document
-// (lib/doc-links.ts); a spare has commercial (its quotation) only. Only the keys sent change; "" clears one. Whoever can work on
+// PUT /api/projects/[id]/doc-links {clientFormat, technical?, commercial?, techno?} - the
+// client's own format on / off for this enquiry version, and the SharePoint links of its
+// documents (lib/doc-links.ts); a spare has commercial (its quotation) only. Off clears
+// the links (the generated documents go). Only the keys sent change; "" clears one. Whoever can work on
 // the enquiry; not an older version. A change means what was reviewed changed, so it is
 // reviewed and sent again (as after a Save Version). Audited.
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -44,8 +45,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     .limit(1);
   if (!p) return error("Project not found", 404);
 
-  const was = normalizeDocLinks(p.links);
-  const next: DocLinks = { ...was };
+  if (typeof body.clientFormat !== "boolean") return error("'clientFormat' must be true or false", 400);
+  const was = docLinksOrNull(p.links);
+  if (!body.clientFormat) {
+    if (was === null) return json({ links: null, changed: false });
+    await db.update(projects).set({ docLinks: null, ...REVIEW_CLEARED, updatedAt: new Date() }).where(eq(projects.id, id));
+    await logAudit(req, { action: "enquiry.doc_links", entity: "projects", entityId: id, detail: `${p.code}: client's own format off` });
+    return json({ links: null, changed: true });
+  }
+  const next: DocLinks = { ...(was ?? {}) };
   for (const { key, label } of docLinkKinds(p.orderType)) {
     if (!(key in body)) continue;
     const url = typeof body[key] === "string" ? (body[key] as string).trim() : "";
@@ -59,8 +67,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     next[key] = url;
   }
 
-  const changed = docLinkKinds(p.orderType).filter(({ key }) => (was[key] ?? "") !== (next[key] ?? ""));
-  if (changed.length === 0) return json({ links: next, changed: false });
+  const changed = docLinkKinds(p.orderType).filter(({ key }) => (was?.[key] ?? "") !== (next[key] ?? ""));
+  if (was !== null && changed.length === 0) return json({ links: next, changed: false });
 
   await db
     .update(projects)
@@ -70,7 +78,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     action: "enquiry.doc_links",
     entity: "projects",
     entityId: id,
-    detail: `${p.code}: SharePoint links ${changed.map((k) => `${k.label} ${next[k.key] ? (was[k.key] ? "changed" : "added") : "removed"}`).join(", ")}`,
+    detail: `${p.code}: client's own format${was === null ? " on" : ""}${changed.length ? ` - ${changed.map((k) => `${k.label} ${next[k.key] ? (was?.[k.key] ? "changed" : "added") : "removed"}`).join(", ")}` : ""}`,
   });
   return json({ links: next, changed: true });
 }

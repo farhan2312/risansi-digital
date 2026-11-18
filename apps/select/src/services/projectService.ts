@@ -267,11 +267,11 @@ export const getReviewState = async (projectId: string): Promise<{ missing: stri
   return data;
 };
 
-/** SharePoint links of this version's documents, each opening instead of the generated
- *  one ("" clears one). */
-export const saveDocLinks = async (projectId: string, links: DocLinks): Promise<DocLinks> => {
-  const { data } = await apiClient.put<{ links: DocLinks }>(`/projects/${projectId}/doc-links`, links);
-  return data.links;
+/** Client's own format on / off, and its documents' SharePoint links ("" clears one).
+ *  Returns the links, or null when off. */
+export const saveDocLinks = async (projectId: string, body: { clientFormat: boolean } & DocLinks): Promise<{ links: DocLinks | null; changed: boolean }> => {
+  const { data } = await apiClient.put<{ links: DocLinks | null; changed: boolean }>(`/projects/${projectId}/doc-links`, body);
+  return data;
 };
 
 /** Marks the saved versions as reviewed, then records them as sent to operation.

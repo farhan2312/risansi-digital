@@ -9,7 +9,7 @@ import { projects, quotation, quotationVersion, techDocVersion, users } from "@/
 import { canSeeOperationDocs, orderSubtypeLabel } from "@/lib/roles";
 import { SAVED_DOC_KINDS, operationDocKinds, type OperationDoc } from "@/lib/saved-docs";
 import { dotDate } from "@/lib/tech-doc";
-import { normalizeDocLinks } from "@/lib/doc-links";
+import { docLinksOrNull } from "@/lib/doc-links";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +99,7 @@ export async function GET(req: Request) {
   const list: OperationDoc[] = rows.map(({ version, commercialVersion, reviewedAt, sentAt, mailedAt, typedOnSpareDoc, subtype, operationDocs, links, ...r }) => ({
     ...r,
     sentDocs: type === "spare" ? ["commercial"] : (operationDocKinds(operationDocs) ?? SAVED_DOC_KINDS),
-    links: normalizeDocLinks(links),
+    links: docLinksOrNull(links),
     subtype: orderSubtypeLabel(subtype),
     quotations: typedOnSpareDoc ? [typedOnSpareDoc] : (quotations.get(r.id) ?? []),
     version: type === "spare" ? commercialVersion : version,

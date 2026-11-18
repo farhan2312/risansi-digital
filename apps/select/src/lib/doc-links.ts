@@ -1,10 +1,10 @@
-// SharePoint links for a version's documents (user, 2026-11-18). The portal always
-// generates the documents (Save Version still records the sheets and prices and drives
-// the statuses); when a client asks for its own format, the document is made by hand, put
-// on SharePoint and its link added on Review. A document with a link opens that file, on
-// Review and on Operation's pages, instead of the generated one; one without stays as
-// generated. Per enquiry version (projects.doc_links); a new version starts with none.
-// Client-safe.
+// Client's own format (user, 2026-11-19). The portal always generates the documents (Save
+// Version still records the sheets and prices and drives the statuses). When the client
+// needs its own format, Review turns it on: the documents ticked to send are made by hand,
+// put on SharePoint and their links added - each needed before Review - and only those
+// links are shared with Operation; no generated document is. projects.doc_links: null =
+// off (the generated documents go), an object (even {}) = on. Per enquiry version; a new
+// version starts with it off. Client-safe.
 
 export type DocLinkKind = "technical" | "commercial" | "techno";
 export type DocLinks = Partial<Record<DocLinkKind, string>>;
@@ -20,6 +20,17 @@ export const docLinkKinds = (orderType: string): { key: DocLinkKind; label: stri
       ];
 
 const KINDS: DocLinkKind[] = ["technical", "commercial", "techno"];
+
+/** The stored links, or null when the client's own format is off. */
+export function docLinksOrNull(v: unknown): DocLinks | null {
+  return v === null || v === undefined ? null : normalizeDocLinks(v);
+}
+
+/** With the client's own format on: what the documents to send still need, or null. */
+export function missingDocLinks(orderType: string, kinds: DocLinkKind[], links: DocLinks): string | null {
+  const missing = docLinkKinds(orderType).filter((k) => kinds.includes(k.key) && !links[k.key]);
+  return missing.length ? `Add the SharePoint link for ${missing.map((k) => k.label).join(", ")} (client's own format).` : null;
+}
 
 /** The stored links, only the known keys holding a string. */
 export function normalizeDocLinks(v: unknown): DocLinks {

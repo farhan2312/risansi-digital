@@ -363,17 +363,17 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
                     </td>
                     {docColumns.map((c) => (
                       <td key={c.label} className={td}>
-                        {/* Not picked on Review: not sent. A SharePoint link (the client's own
-                            format) opens instead of the generated document. No Technical Data
-                            Sheet saved means no Techno-Commercial either. */}
-                        {!r.sentDocs.includes(c.key) ? (
+                        {/* Not picked on Review: not sent. Client's own format: only its
+                            SharePoint links are shared, never the generated documents. No
+                            Technical Data Sheet saved means no Techno-Commercial either. */}
+                        {!r.sentDocs.includes(c.key) || (r.links && !r.links[c.key]) ? (
                           <span className="text-[12.5px] text-muted-foreground">—</span>
-                        ) : r.links[c.key] ? (
+                        ) : r.links ? (
                             <a
-                              href={r.links[c.key]}
+                              href={r.links[c.key]!}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="Opens the SharePoint file (used instead of the generated one)"
+                              title="Client's own format: opens the SharePoint file"
                               aria-label={`${c.label} V${r.version} of ${r.projectCode} (SharePoint)`}
                               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12.5px] font-medium whitespace-nowrap text-foreground shadow-xs hover:bg-muted"
                             >

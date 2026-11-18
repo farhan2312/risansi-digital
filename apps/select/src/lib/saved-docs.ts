@@ -31,9 +31,9 @@ export type SavedDocs = {
   groups: SavedGroupDocs[];
   /** A spare's quotation, once saved. */
   spare: SpareQuoteSheet | null;
-  /** SharePoint links added on Review (user, 2026-11-18): a document with one opens it
-   *  instead of the generated one (the client's own format, made by hand). */
-  links: DocLinks;
+  /** Client's own format (lib/doc-links.ts): null = off, the generated documents go; else
+   *  the SharePoint links, the only documents shared. */
+  links: DocLinks | null;
 };
 
 /** One enquiry version sent to operation, a row of Pump Docs, Spare Docs and Client
@@ -67,8 +67,9 @@ export type OperationDoc = {
   hasTechnical: boolean;
   /** The documents sent: what was picked on Review, else all of them. */
   sentDocs: SavedDocKind[];
-  /** A document with a SharePoint link opens it instead of the generated one. */
-  links: DocLinks;
+  /** Client's own format: the SharePoint links, the only documents shared; null = the
+   *  generated documents. */
+  links: DocLinks | null;
 };
 
 /** The file name a printed document saves as (user, 2026-11-17):
