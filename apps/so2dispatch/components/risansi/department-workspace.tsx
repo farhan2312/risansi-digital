@@ -97,6 +97,7 @@ import {
   type DeptCompletion,
 } from "@/lib/dept-completion";
 import type { QcDocTable } from "@/lib/orders";
+import { RetrofitLine } from "./retrofit-line";
 
 // Only the QC workspace passes this today; kept generic (a list, so more than
 // one document set can be attached) in case another department needs file
@@ -376,6 +377,15 @@ export function DepartmentWorkspace({
         <>
           {contextValue(f, row)}
           {date && <span className="block text-[11px]">{date}</span>}
+        </>
+      );
+    }
+    // A Retrofit Spare says so under its Order Type.
+    if (f.column === "order_type") {
+      return (
+        <>
+          {contextValue(f, row)}
+          <RetrofitLine row={row} />
         </>
       );
     }

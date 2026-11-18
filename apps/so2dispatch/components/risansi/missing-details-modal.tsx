@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ClipboardX, Download, Loader2, Search, X } from "lucide-react";
 import { orderGapSheetAction } from "@/app/risansi/orders/gap-actions";
 import type { GapSheet } from "@/lib/order-gaps";
+import { RetrofitLine } from "./retrofit-line";
 
 function dayOnly(iso: string | null): string {
   if (!iso) return "—";
@@ -230,7 +231,10 @@ function MissingDetailsModal({ onClose }: { onClose: () => void }) {
                       </Link>
                       <span className="block text-[10.5px] text-muted">{dayOnly(r.so_date)}</span>
                     </td>
-                    <td className="whitespace-nowrap border-b border-r border-card-border bg-[#EAF0F8] px-3 py-1.5 dark:bg-[#1c2740]">{r.order_type ?? "—"}</td>
+                    <td className="whitespace-nowrap border-b border-r border-card-border bg-[#EAF0F8] px-3 py-1.5 dark:bg-[#1c2740]">
+                      {r.order_type ?? "—"}
+                      <RetrofitLine row={r} />
+                    </td>
                     <td className="min-w-[12rem] max-w-[16rem] border-b border-r border-card-border bg-[#EAF0F8] px-3 py-1.5 dark:bg-[#1c2740]">
                       <span className="line-clamp-2">{r.client_name ?? "—"}</span>
                       {r.client_code && <span className="block text-[10.5px] text-muted">{r.client_code}</span>}

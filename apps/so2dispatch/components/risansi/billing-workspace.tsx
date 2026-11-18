@@ -28,6 +28,7 @@ import { useFocusRow } from "./use-focus-row";
 import type { PageResult } from "@/lib/pagination";
 import { OrderThreadModal } from "./order-thread-modal";
 import type { DeptCompletion } from "@/lib/dept-completion";
+import { RetrofitLine } from "./retrofit-line";
 
 type Row = Record<string, unknown>;
 
@@ -251,7 +252,10 @@ export function BillingWorkspace({
                           )}
                         </td>
                       )}
-                      <td className="px-4 py-3 whitespace-nowrap">{row.order_type ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {row.order_type ?? "—"}
+                        <RetrofitLine row={row} />
+                      </td>
                       <td className="px-4 py-3">{row.client_name ?? "—"}</td>
                       <td className="px-4 py-3">{billModeLabel(null, row.bill_type) || "—"}</td>
                       {/* Dispatch sees, read-only, each term line with its PI and payment. A

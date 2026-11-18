@@ -96,6 +96,19 @@ export const CURRENCY_OPTIONS = opts(["INR", "USD"]);
 export const ITEM_OPTIONS = opts(["Pump", "Spare"]);
 // SO-level Order Type; each EC/Add-On inherits it as its item_type.
 export const ORDER_TYPE_OPTIONS = opts(["Pump", "Spare"]);
+// A Spare SO is a plain Spare or a Retrofit Spare (orders.spare_type). Still
+// order_type 'Spare' everywhere it counts; only shown under it.
+export const RETROFIT_SPARE = "Retrofit Spare";
+export const SPARE_TYPE_OPTIONS = opts(["Spare", RETROFIT_SPARE]);
+/** A Spare SO marked Retrofit Spare. */
+export function isRetrofitSpare(row: object): boolean {
+  const r = row as { order_type?: unknown; spare_type?: unknown };
+  return String(r.order_type ?? "").trim() === "Spare" && String(r.spare_type ?? "").trim() === RETROFIT_SPARE;
+}
+/** The Order Type as text (an export): "Retrofit Spare" for one, else the Order Type. */
+export function orderTypeText(row: object): string {
+  return isRetrofitSpare(row) ? RETROFIT_SPARE : String((row as { order_type?: unknown }).order_type ?? "");
+}
 // ROLB is no longer offered; one already entered is handled exactly like a
 // Pump (same Add-On form, same per-EC fields). Pump-only gates accept either.
 export const PUMP_LIKE = ["Pump", "ROLB"];
@@ -419,6 +432,15 @@ export const ORDER_SECTIONS: OrderSection[] = [
         label: "Order Type",
         type: "select",
         options: ORDER_TYPE_OPTIONS,
+        group: "Purchase Order",
+      },
+      // A Spare: plain or Retrofit (it takes the Spare checklist all the same).
+      {
+        column: "spare_type",
+        label: "Spare Type",
+        type: "select",
+        options: SPARE_TYPE_OPTIONS,
+        dependsOn: [{ column: "order_type", value: "Spare" }],
         group: "Purchase Order",
       },
       // Billed, or an FR. An FR has no quotation or purchase order behind it.
@@ -1466,7 +1488,10 @@ export function withValueRules<T extends Record<string, unknown>>(
   if (column === "order_type" && value === "Spare") {
     next.boi = "No";
     next.qc_required = "No";
+    if (!String(next.spare_type ?? "").trim()) next.spare_type = "Spare";
   }
+  // Only a Spare has a Spare Type.
+  if (column === "order_type" && value !== "Spare") next.spare_type = "";
   // Taxable Value, worked out as the figures are typed: the value less the
   // discount, plus packing & forwarding on that, plus GST on that. Typing
   // into Taxable Value itself overrides it until one of these changes again.

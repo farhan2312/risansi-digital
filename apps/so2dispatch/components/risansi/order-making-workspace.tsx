@@ -19,6 +19,7 @@ import { OrderOperationPopup } from "./order-operation-popup";
 import { useSoNoTaken } from "./use-so-no-taken";
 import { OmReportModal } from "./om-report-modal";
 import { SoChecklistModal } from "./so-checklist-modal";
+import { RetrofitLine } from "./retrofit-line";
 import { CHECKLIST_STATES } from "@/lib/so-checklist";
 import { OmReportPanel } from "./om-report-panel";
 import {
@@ -631,6 +632,7 @@ export function OrderMakingWorkspace({
                         } ${c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : ""}`}
                       >
                         {c.column === "order_value" ? <OrderValueDetails row={row as OrderValueRow} /> : formatDisplay(field(c.column), row[c.column])}
+                        {c.column === "order_type" && <RetrofitLine row={row} />}
                         {c.column === "so_no" && str(row.so_date) && (
                           <span className="block text-[11px] text-muted">{formatDisplay(field("so_date"), row.so_date)}</span>
                         )}

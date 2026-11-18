@@ -3487,3 +3487,9 @@ ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verifier_remarks TEXT;
 ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verified_by UUID REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verified_by_name TEXT;
 ALTER TABLE order_so_checklist ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+
+-- Spare Type (a Spare SO): Spare or Retrofit Spare. Existing Spares: Spare.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS spare_type TEXT;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_spare_type_check;
+ALTER TABLE orders ADD CONSTRAINT orders_spare_type_check CHECK (spare_type IS NULL OR spare_type IN ('Spare', 'Retrofit Spare'));
+UPDATE orders SET spare_type = 'Spare' WHERE order_type = 'Spare' AND spare_type IS NULL;

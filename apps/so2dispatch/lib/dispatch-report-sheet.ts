@@ -1,4 +1,5 @@
 import "server-only";
+import { orderTypeText } from "@/lib/order-schema";
 import { C, dispatchReport, orderInHand, type Cell } from "@/lib/dept-report-pdf";
 import type { ReportSheet, SheetCell, Tone } from "@/lib/planning-report-sheet";
 
@@ -73,7 +74,7 @@ export function dispatchSheet(rows: Row[], filterLine: string): ReportSheet {
         [Number(o.sl_no) || str(o.sl_no) || null, null],
         pick(SO),
         pick(SODATE),
-        [str(o.order_type) || null, null],
+        [orderTypeText(o) || null, null],
         pick(CLIENT),
         pick(BILL),
         pick(WAITING),

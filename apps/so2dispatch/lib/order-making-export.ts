@@ -5,7 +5,7 @@ import ExcelJS from "exceljs";
 import { listOrdersForOrderMaking, type OrderMakingRow } from "@/lib/orders";
 import { parseQuery } from "@/lib/pagination";
 import { isOrderMakingFiltered, parseOrderMakingFilter } from "@/lib/order-making-filter";
-import { ONLY_BILLING } from "@/lib/order-schema";
+import { ONLY_BILLING, orderTypeText } from "@/lib/order-schema";
 
 const HEAD_BG = "FF1F3864";
 const RULE = "FFBFC9D9";
@@ -69,7 +69,7 @@ export function orderMakingReportLines(rows: OrderMakingRow[]): { cells: Cell[];
       text(o.client_name),
       text(o.reps),
       text(o.zone),
-      text(o.order_type),
+      text(orderTypeText(o)),
       text(o.bill_mode),
       text(o.po_no),
       text(o.complaint_no),

@@ -16,6 +16,7 @@ import {
   BILL_MODE_OPTIONS,
   CURRENCY_OPTIONS,
   ORDER_TYPE_OPTIONS,
+  SPARE_TYPE_OPTIONS,
   YES_NO_OPTIONS,
   withValueRules,
   grossLabel,
@@ -74,6 +75,7 @@ const SECTIONS: Section[] = [
         type: "select",
         options: ORDER_TYPE_OPTIONS,
       },
+      { name: "spare_type", label: "Spare Type", type: "select", options: SPARE_TYPE_OPTIONS, dependsOn: { name: "order_type", value: "Spare" } },
       {
         name: "bill_mode",
         label: "Bill Mode",

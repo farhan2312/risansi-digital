@@ -38,6 +38,7 @@ import type { KpiCard } from "@/lib/kpis";
 import { isOrderListFiltered, ordersKind, parseOrderListFilter } from "@/lib/order-list-filter";
 import type { PumpSummary } from "@/lib/pump-summary";
 import { PumpLeadCells, PumpLeadGroupHeads, PumpLeadSubHeads, PumpTailCells } from "./pump-dept-cells";
+import { RetrofitLine } from "./retrofit-line";
 
 
 function formatDate(value: string | null): string {
@@ -1106,7 +1107,12 @@ export function OrdersTable({
                         </button>
                       </td>
                       )}
-                      {!pump && !split && <td className="px-4 py-3 whitespace-nowrap">{cell(order.order_type)}</td>}
+                      {!pump && !split && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {cell(order.order_type)}
+                          <RetrofitLine row={order} />
+                        </td>
+                      )}
                       <td className="min-w-[14rem] px-4 py-3">
                         {cell(order.client_name)}
                         {order.client_code && <div className="text-[11px] text-muted">{order.client_code}</div>}
@@ -1119,7 +1125,7 @@ export function OrdersTable({
                       {/* Worked out, never set: Active, Active-Hold, Canceled, Diverted or Closed. */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <OrderStatusPill status={orderStatusOf(order)} />
-                        {split && order.order_type && <div className="mt-0.5 text-[11px] text-muted">{order.order_type}</div>}
+                        {split && order.order_type && <div className="mt-0.5 text-[11px] text-muted">{order.order_type}<RetrofitLine row={order} /></div>}
                       </td>
                       <td className="px-4 py-3 align-top">
                         <OrderValueDetails row={order} />

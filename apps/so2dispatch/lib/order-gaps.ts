@@ -20,6 +20,7 @@ export type OrderGapRow = {
   client_name: string | null;
   so_date: string | null;
   order_type: string | null;
+  spare_type?: string | null;
   /** The labels of the fields still blank, in the order the form shows them. */
   missing: string[];
 };
@@ -199,7 +200,7 @@ export async function listOrderGapSheet(opts: {
   const result = await query<Record<string, unknown>>(
     `WITH checked AS (
        SELECT o.id, o.sl_no::int AS sl_no, o.so_no, o.client_name, o.client_code,
-              to_char(o.so_date, 'YYYY-MM-DD') AS so_date, o.order_type,
+              to_char(o.so_date, 'YYYY-MM-DD') AS so_date, o.order_type, o.spare_type,
               cardinality(${MISSING_SQL}) AS missing,
               ${cols}
          FROM orders o
@@ -243,6 +244,7 @@ export async function listOrderGapSheet(opts: {
       client_code: (r.client_code as string | null) ?? null,
       so_date: (r.so_date as string | null) ?? null,
       order_type: (r.order_type as string | null) ?? null,
+      spare_type: (r.spare_type as string | null) ?? null,
       missing: Number(r.missing),
       cells,
     };

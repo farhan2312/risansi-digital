@@ -226,6 +226,7 @@ export type NewOrderInput = {
   zone?: string;
   industry_type?: string;
   order_type?: string;
+  spare_type?: string;
   bill_type?: string;
   bill_mode?: string;
   complaint_no?: string;
@@ -459,12 +460,14 @@ export async function createOrder(
     // with the SO Reference and remarks that go with it.
     const onlyBilling = input.bill_mode === ONLY_BILLING;
     await client.query(
-      `UPDATE orders SET only_billing = $2, so_reference = $3, only_billing_remarks = $4 WHERE id = $1`,
+      `UPDATE orders SET only_billing = $2, so_reference = $3, only_billing_remarks = $4, spare_type = $5 WHERE id = $1`,
       [
         result.rows[0].id,
         onlyBilling ? "Yes" : "No",
         onlyBilling ? nullify(withoutBarePrefix("so_reference", input.so_reference)) : null,
         onlyBilling ? nullify(input.only_billing_remarks) : null,
+        // A Spare's type: plain Spare unless said Retrofit.
+        input.order_type === "Spare" ? (input.spare_type === "Retrofit Spare" ? "Retrofit Spare" : "Spare") : null,
       ]
     );
     return result.rows[0];
@@ -2381,6 +2384,7 @@ export async function listDispatchRegister(): Promise<DispatchRegisterRow[]> {
             o.so_no,
             to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
             o.order_type,
+            o.spare_type,
             it.ec_no,
             o.client_name,
             l.lot_no,
@@ -2487,6 +2491,7 @@ const overviewColumns = () => `it.id,
             o.zone,
             o.reps,
             o.order_type,
+            o.spare_type,
             o.bill_type,
             to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
             to_char(it.ec_date, 'YYYY-MM-DD') AS ec_date,
@@ -2617,6 +2622,7 @@ export async function listPaymentHoldsPage(page: number): Promise<PageResult<Pay
                 o.so_no,
                 to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
                 o.order_type,
+                o.spare_type,
                 o.client_name,
                 o.order_value::text AS order_value,
                 o.order_currency,
@@ -2684,6 +2690,8 @@ export async function listOrdersForSection(
       if (from === "orders" && f.column === "payment_terms") {
         return `, ${PAYMENT_TERMS_SQL("o")} AS payment_terms`;
       }
+      // The Order Type brings the Spare Type (Retrofit shown under it).
+      if (from === "orders" && f.column === "order_type") return ", o.order_type, o.spare_type";
       // Accounts: the order value to its gross (as Dispatch shows it), and the
       // gross in INR its balance counts against.
       if (f.column === "order_value_details") {
@@ -2784,6 +2792,8 @@ export async function listItemsForSection(
       if (from === "orders" && f.column === "payment_terms") {
         return `, ${PAYMENT_TERMS_SQL("o")} AS payment_terms`;
       }
+      // The Order Type brings the Spare Type (Retrofit shown under it).
+      if (from === "orders" && f.column === "order_type") return ", o.order_type, o.spare_type";
       let alias: string;
       if (from === "orders") alias = "o";
       else if (from === "order_items") alias = "it";
@@ -3040,6 +3050,7 @@ export async function listOrdersForBilling(
             o.so_no,
             to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
             o.order_type,
+            o.spare_type,
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
@@ -3181,6 +3192,7 @@ export async function listItemsForPurchase(
             o.so_no,
             to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
             o.order_type,
+            o.spare_type,
             it.ec_no,
             it.ec_link,
             it.ec_link_at,
@@ -4330,6 +4342,7 @@ export async function listOrdersPage(opts: {
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
+            o.spare_type,
             -- A Pump SO's version (v0 until a new one is made).
             o.version_no,
             o.order_value::text AS order_value,
@@ -4489,6 +4502,7 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
             o.order_type,
+            o.spare_type,
             -- A Pump SO's version (v0 until a new one is made).
             o.version_no,
             o.order_value::text AS order_value,
@@ -6240,6 +6254,7 @@ export async function fillFirstTargets(
                        AND COALESCE(dr.reason, '') NOT LIKE 'Auto:%'
                        AND dr.created_at > (SELECT max(v.created_at) FROM order_versions v WHERE v.order_id = o.id)) AS drg_manual_since,
             o.order_type,
+            o.spare_type,
             to_char(o.created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS created_on,
             to_char(o.delivery_date_as_per_so, 'YYYY-MM-DD') AS delivery,
             to_char(o.so_handover_date, 'YYYY-MM-DD') AS handover,
