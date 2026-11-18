@@ -20,8 +20,12 @@ import type { ProjectRecord } from "../../services/projectService";
 import { ORDER_SUBTYPES, defaultSubtype, type OrderSubtype, type OrderType } from "../../lib/roles";
 import { enquiryCategoryFrom, type EnquiryCategory } from "../../lib/enquiry-fields";
 
+type StatusInput = { technicalStatus?: string; completedOn?: string; commercialStatus: string; commercialCompletedOn: string };
+
 type Props = {
   isOpen: boolean;
+  /** A worker (user, 2026-11-19): only the statuses and their dates can be changed. */
+  statusOnly?: boolean;
   project: ProjectRecord | null;
   isSaving?: boolean;
   onClose: () => void;
@@ -41,7 +45,7 @@ type Props = {
       enquiryCategory: EnquiryCategory;
       /** Left out: unchanged. */
       remarks?: string;
-    } & ClientForm,
+    } & ClientForm | StatusInput,
   ) => void;
   /** A new version was made from this enquiry (the form's New version section). */
   onVersionCreated: () => void;
@@ -109,7 +113,7 @@ const subtypeOf = (project: ProjectRecord, t: OrderType): OrderSubtype =>
 
 const categoryOf = (project: ProjectRecord): EnquiryCategory => enquiryCategoryFrom(project.enquiry_category) ?? "regular";
 
-const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSave, onVersionCreated }: Props) => {
+const EditProjectModal = ({ isOpen, project, statusOnly = false, isSaving, saveError, onClose, onSave, onVersionCreated }: Props) => {
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   const [enquiryNo, setEnquiryNo] = useState("");
   const [enquiryDate, setEnquiryDate] = useState("");
@@ -188,9 +192,16 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
           <button
             type="button"
             className={btnPrimary}
-            disabled={isSaving || creatingVersion || !client.name.trim() || !newNo || datesBad || remarksMissing}
+            disabled={isSaving || creatingVersion || datesBad || (!statusOnly && (!client.name.trim() || !newNo || remarksMissing))}
             onClick={() =>
-              onSave({
+              // A worker sends the statuses only.
+              statusOnly
+                ? onSave({
+                    ...(isSpare ? {} : { technicalStatus, completedOn: technicalStatus === "Completed" ? completedOn : "" }),
+                    commercialStatus,
+                    commercialCompletedOn: commercialStatus === "Completed" ? commercialCompletedOn : "",
+                  })
+                : onSave({
                 ...(noChanged ? { projectCode: newNo } : {}),
                 enquiryDate,
                 ...(isSpare ? {} : { technicalStatus, completedOn: technicalStatus === "Completed" ? completedOn : "" }),
@@ -210,6 +221,37 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
         </>
       }
     >
+      {statusOnly ? (
+        <Section step={1} title="Status" subtitle="You can change the status of the enquiries you work on. Other details are changed by the User-Master.">
+          {!isSpare && (
+            <StatusField
+              label="Technical status"
+              choice={technicalStatus}
+              day={completedOn}
+              saved={savedTechnicalDay}
+              minDay={enquiryDate}
+              onChoice={(s) => {
+                setTechnicalStatus(s);
+                if (s === "Completed" && !completedOn) setCompletedOn(project.completed_on ?? todayYmd());
+              }}
+              onDay={setCompletedOn}
+            />
+          )}
+          <StatusField
+            label={isSpare ? "Status" : "Commercial status"}
+            choice={commercialStatus}
+            day={commercialCompletedOn}
+            saved={savedCommercialDay}
+            minDay={enquiryDate}
+            onChoice={(s) => {
+              setCommercialStatus(s);
+              if (s === "Completed" && !commercialCompletedOn) setCommercialCompletedOn(project.commercial_completed_on ?? todayYmd());
+            }}
+            onDay={setCommercialCompletedOn}
+          />
+        </Section>
+      ) : (
+      <>
       <Section step={1} title="Enquiry" subtitle="Order type, number, date received and statuses">
         <Field label="Order type" wide group>
           <OrderTypePicker
@@ -279,6 +321,8 @@ const EditProjectModal = ({ isOpen, project, isSaving, saveError, onClose, onSav
           lookupHint="Searches the client master. Pick a result to replace the client details below."
         />
       </Section>
+      </>
+      )}
     </ModalShell>
   );
 };

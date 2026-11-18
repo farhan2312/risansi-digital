@@ -32,6 +32,17 @@ export function missingDocLinks(orderType: string, kinds: DocLinkKind[], links: 
   return missing.length ? `Add the SharePoint link for ${missing.map((k) => k.label).join(", ")} (client's own format).` : null;
 }
 
+/** A document to send that was never generated - no Save Version, its status completed
+ *  by hand on the Edit form (user, 2026-11-19) - can go only as a SharePoint link: what
+ *  stops it, or null. With the client's own format on, missingDocLinks asks for the link. */
+export function ungeneratedDocsProblem(orderType: string, kinds: DocLinkKind[], generated: DocLinkKind[], links: DocLinks | null): string | null {
+  if (links) return null;
+  const none = docLinkKinds(orderType).filter((k) => kinds.includes(k.key) && !generated.includes(k.key));
+  if (none.length === 0) return null;
+  const names = none.map((k) => k.label).join(", ");
+  return `${names} ${none.length > 1 ? "have" : "has"} no saved version (completed by hand): tick Client's own format and add ${none.length > 1 ? "their" : "its"} SharePoint link.`;
+}
+
 /** The stored links, only the known keys holding a string. */
 export function normalizeDocLinks(v: unknown): DocLinks {
   const out: DocLinks = {};

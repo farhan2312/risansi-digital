@@ -18,7 +18,7 @@ import EnquiryReportPanel from "../../components/projects/EnquiryReportPanel";
 import { usePageTitle } from "../../components/layout/PageTitle";
 import { hasEnquiryFilters, type EnquiryFilters, type EnquirySort, type EnquirySortKey } from "../../lib/enquiry-filters";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
-import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, isRepRole, isViewOnlyRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
+import { ASSIGNABLE_ROLES, canManageEnquiries, canWorkOn, editsStatusOnly, isRepRole, isViewOnlyRole, orderSubtypeLabel, orderTypeLabel, worksOnAnyEnquiry } from "../../lib/roles";
 import RepPicker from "../../components/projects/RepPicker";
 import EmptyState from "../../components/ui/EmptyState";
 import EnquiryReviewModal from "../../components/projects/EnquiryReviewModal";
@@ -1142,6 +1142,20 @@ const ProjectsPage = () => {
                                 <Copy /> Copy a tag
                               </DropdownMenuItem>
                             )}
+                            {/* A worker: Edit enquiry for the status only, and only on an enquiry assigned to them. */}
+                            {!manager && editsStatusOnly(user?.role) && Boolean(user?.id) && project.assigned_to === user?.id && project.is_latest !== false && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onSelect={() => {
+                                    setEditError(null);
+                                    setEditing(project);
+                                  }}
+                                >
+                                  <Pencil /> Edit enquiry (status)
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             {manager && (
                               <>
                                 <DropdownMenuSeparator />
@@ -1456,6 +1470,7 @@ const ProjectsPage = () => {
       <EditProjectModal
         isOpen={editing !== null}
         project={editing}
+        statusOnly={!manager}
         isSaving={isSaving}
         onClose={() => !isSaving && setEditing(null)}
         saveError={editError}

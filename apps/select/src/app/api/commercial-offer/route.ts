@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 
 import { error, json } from "@/lib/api";
-import { DRIVE_GROUPS, erpQuotationNumber, isDriveGroup, quotationNumber } from "@/lib/commercial";
+import { DRIVE_GROUPS, erpQuotationNumber, isDriveGroup, quotationNumber, versionedQuotationNo } from "@/lib/commercial";
 import { normalizeOfferConfig, normalizeOfferConfigs, type CommercialOfferData, discountFields, discountOf } from "@/lib/commercial-offer";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
@@ -28,6 +28,7 @@ export async function GET(req: Request) {
         clientCode: projects.clientCode,
         enquiryDate: projects.enquiryDate,
         config: projects.commercialOfferConfig,
+        commercialVersion: projects.commercialVersionNo,
       })
       .from(projects)
       .where(eq(projects.id, projectId))
@@ -43,11 +44,12 @@ export async function GET(req: Request) {
     clientName: await docClientName(p.name, p.clientCode),
     enquiry: [p.code, p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", "),
     mixed,
-    quotations: Object.fromEntries(quotes.map((q) => [q.driveGroup, `${quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`])),
+    // "_V1" after the no. from Commercial version 1 on.
+    quotations: Object.fromEntries(quotes.map((q) => [q.driveGroup, `${versionedQuotationNo(quotationNumber(q, mixed), p.commercialVersion)}, Dt. ${dotDate(q.quoteDate)}`])),
     erpNumbers: Object.fromEntries(
       quotes.flatMap((q) => {
         const erp = erpQuotationNumber(q, mixed);
-        return erp ? [[q.driveGroup, `${erp}, Dt. ${dotDate(q.quoteDate)}`]] : [];
+        return erp ? [[q.driveGroup, `${versionedQuotationNo(erp, p.commercialVersion)}, Dt. ${dotDate(q.quoteDate)}`]] : [];
       }),
     ),
     configs: normalizeOfferConfigs(p.config, [...DRIVE_GROUPS]),

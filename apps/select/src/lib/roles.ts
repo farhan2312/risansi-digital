@@ -75,6 +75,13 @@ export const canWorkOn = (
 ): boolean =>
   Boolean(user) && enquiry.is_latest !== false && (worksOnAnyEnquiry(user!.role) || (enquiry.assigned_to ?? enquiry.assignedTo ?? null) === user!.id);
 
+/** A worker (or a leftover "user") has Edit enquiry for the status only (user,
+ *  2026-11-19): Technical / Commercial status and their completed dates, on the
+ *  enquiries they work on. Everything else stays with the managers. */
+export const editsStatusOnly = (role: string | null | undefined): boolean => role === "user_worker" || role === "user";
+/** The fields a status-only edit may send. */
+export const STATUS_ONLY_FIELDS = ["technicalStatus", "completedOn", "commercialStatus", "commercialCompletedOn"] as const;
+
 /** Rep / Rep Manager: read-only, and only their own enquiries. */
 export const REP_ROLES = ["rep", "rep_manager"] as const;
 export const isRepRole = (role: string | null | undefined): boolean => (REP_ROLES as readonly string[]).includes(role ?? "");

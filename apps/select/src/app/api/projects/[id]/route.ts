@@ -9,7 +9,8 @@ import { enquiryTags, projects, quotation, quotationVersion, users } from "@/lib
 import { PROJECT_REMARKS_REQUIRED, clientDetailsFrom, enquiryCategoryFrom, orderSubtypeFrom, orderTypeFrom } from "@/lib/enquiry-fields";
 import { ENQUIRY_STATUSES, versionReady } from "@/lib/enquiry-filters";
 import { enquiryStatusColumns } from "@/lib/enquiry-filters-server";
-import { versionLocked, viewDenied } from "@/lib/enquiry-access";
+import { versionLocked, viewDenied, workDenied } from "@/lib/enquiry-access";
+import { STATUS_ONLY_FIELDS, editsStatusOnly } from "@/lib/roles";
 
 const assignee = alias(users, "assignee");
 
@@ -86,8 +87,14 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // Managers edit everything; a worker only the statuses of an enquiry they work on.
   const { denied } = await guard(req, requireEnquiryManager);
-  if (denied) return denied;
+  let statusOnly = false;
+  if (denied) {
+    const who = await guard(req, decodeToken);
+    if (who.denied || !editsStatusOnly(who.claims.role)) return denied;
+    statusOnly = true;
+  }
 
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
@@ -99,6 +106,12 @@ export async function PATCH(
     body = await req.json();
   } catch {
     return error("Request body must be JSON", 400);
+  }
+  if (statusOnly) {
+    const noWork = await workDenied(req, { projectId: id });
+    if (noWork) return noWork;
+    const other = Object.keys(body).filter((k) => !(STATUS_ONLY_FIELDS as readonly string[]).includes(k));
+    if (other.length > 0) return error("You can change only the status of an enquiry.", 403);
   }
 
   const patch: Partial<typeof projects.$inferInsert> = {};

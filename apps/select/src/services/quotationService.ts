@@ -39,6 +39,12 @@ export const setQuotationErpSerial = async (id: string, erpSerial: string): Prom
   return data;
 };
 
+/** Changes the quotation date (yyyy-mm-dd). */
+export const setQuotationDate = async (id: string, quoteDate: string): Promise<QuotationInfo> => {
+  const { data } = await apiClient.patch<QuotationInfo>(`/quotations/${id}`, { quoteDate });
+  return data;
+};
+
 /** Sets the TSM (only allowed to the client's rep, or any when the client has none) — no new version. */
 export const changeQuotationTsm = async (id: string, tsmRepId: number): Promise<QuotationInfo> => {
   const { data } = await apiClient.patch<QuotationInfo>(`/quotations/${id}`, { tsmRepId });

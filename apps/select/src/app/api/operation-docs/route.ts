@@ -4,7 +4,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { error, json } from "@/lib/api";
 import { AuthError, decodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { erpQuotationNumber, quotationNumber } from "@/lib/commercial";
+import { erpQuotationNumber, quotationNumber, versionedQuotationNo } from "@/lib/commercial";
 import { projects, quotation, quotationVersion, techDocVersion, users } from "@/lib/db/schema";
 import { canSeeOperationDocs, orderSubtypeLabel } from "@/lib/roles";
 import { SAVED_DOC_KINDS, operationDocKinds, type OperationDoc } from "@/lib/saved-docs";
@@ -24,7 +24,7 @@ async function savedQuotationLines(projectIds: string[]): Promise<Map<string, st
   if (projectIds.length === 0) return lines;
   const quotes = await db.select().from(quotation).where(inArray(quotation.projectId, projectIds)).orderBy(asc(quotation.driveGroup));
   const saved = await db
-    .select({ quotationId: quotationVersion.quotationId, typed: sql<string | null>`${quotationVersion.snapshot}->'offer'->>'erpText'` })
+    .select({ quotationId: quotationVersion.quotationId, version: quotationVersion.version, typed: sql<string | null>`${quotationVersion.snapshot}->'offer'->>'erpText'` })
     .from(quotationVersion)
     .where(and(inArray(quotationVersion.quotationId, quotes.map((q) => q.id)), eq(quotationVersion.track, "client")))
     .orderBy(asc(quotationVersion.createdAt));
@@ -32,7 +32,8 @@ async function savedQuotationLines(projectIds: string[]): Promise<Map<string, st
     const rows = saved.filter((s) => s.quotationId === q.id);
     if (rows.length === 0) continue;
     const mixed = quotes.filter((x) => x.projectId === q.projectId).length > 1;
-    const line = rows.at(-1)!.typed || `${erpQuotationNumber(q, mixed) ?? quotationNumber(q, mixed)}, Dt. ${dotDate(q.quoteDate)}`;
+    const last = rows.at(-1)!;
+    const line = last.typed || `${versionedQuotationNo(erpQuotationNumber(q, mixed) ?? quotationNumber(q, mixed), last.version)}, Dt. ${dotDate(q.quoteDate)}`;
     lines.set(q.projectId, [...(lines.get(q.projectId) ?? []), line]);
   }
   return lines;

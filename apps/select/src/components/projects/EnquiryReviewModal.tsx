@@ -7,7 +7,7 @@ import { Button } from "@/components/shadcn/button";
 import DocLinksForm from "./DocLinksForm";
 import SavedDocsViewer from "./SavedDocsViewer";
 import { SAVED_DOC_KINDS, type SavedDocKind, type SavedDocs } from "../../lib/saved-docs";
-import { missingDocLinks } from "../../lib/doc-links";
+import { missingDocLinks, ungeneratedDocsProblem, type DocLinkKind } from "../../lib/doc-links";
 import { TECHNO_COMMERCIAL_TITLE } from "../../lib/techno-commercial";
 import { getReviewState, reviewEnquiry, type ProjectRecord } from "../../services/projectService";
 
@@ -43,12 +43,22 @@ export default function EnquiryReviewModal({
   const [picked, setPicked] = useState<SavedDocKind[]>([]);
   const isPump = docs?.orderType === "pump";
   const hasTech = Boolean(docs?.groups.some((g) => g.tech));
-  const available = SAVED_DOC_KINDS.filter((k) => k === "commercial" || hasTech);
+  // Technical set to Completed by hand (Edit form): its documents can be picked too, though
+  // none was generated - they then go as SharePoint links (user, 2026-11-19).
+  const techByHand = project.technical_status_override === "Completed";
+  const available = SAVED_DOC_KINDS.filter((k) => k === "commercial" || hasTech || techByHand);
   const pickedDocs = available.filter((k) => picked.includes(k));
   const sent = Boolean(project.released_to_operation_at);
   // Client's own format: the documents to send, and the SharePoint links they still need.
   const toSend: SavedDocKind[] = isPump ? pickedDocs : ["commercial"];
-  const noLink = docs?.links ? missingDocLinks(docs.orderType, toSend, docs.links) : null;
+  // What was generated (saved with Save Version); the rest can go only as links.
+  const hasOffer = docs ? (docs.orderType === "spare" ? Boolean(docs.spare) : docs.groups.some((g) => g.offer)) : false;
+  const generated: DocLinkKind[] = docs?.orderType === "spare" ? (hasOffer ? ["commercial"] : []) : [...(hasTech ? (["technical"] as const) : []), ...(hasOffer ? (["commercial"] as const) : []), ...(hasTech && hasOffer ? (["techno"] as const) : [])];
+  const noLink = docs
+    ? docs.links
+      ? missingDocLinks(docs.orderType, toSend, docs.links)
+      : ungeneratedDocsProblem(docs.orderType, toSend, generated, docs.links)
+    : null;
 
   // Bumped after the links are saved: what is missing, and the viewer, follow them.
   const [reload, setReload] = useState(0);

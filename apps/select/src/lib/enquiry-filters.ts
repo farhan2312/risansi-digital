@@ -26,9 +26,14 @@ export type EnquiryFilters = {
   spareStatus?: string[];
   /** The person the enquiry is assigned to, by name (user, 2026-11-13). */
   assignee?: string[];
+  /** Where it is with operation (user, 2026-11-19): OPERATION_STATES. */
+  operation?: string[];
 };
 
-export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus", "spareStatus", "assignee"] as const;
+/** The Sent to operation filter's values: sent; reviewed but not sent yet; not reviewed. */
+export const OPERATION_STATES = ["Sent to operation", "Reviewed - not sent", "Not reviewed"] as const;
+
+export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus", "spareStatus", "assignee", "operation"] as const;
 export type MultiFilterKey = (typeof MULTI_FILTER_KEYS)[number];
 
 /** Not Quoted, Regret and Sent to client are only ever picked by hand on the Edit form

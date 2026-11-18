@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
   // The client's rep (Market Intell) is looked up as soon as the client code
   // is known, alongside the other queries rather than after them.
-  const projectRow = db.select({ clientCode: projects.clientCode }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  const projectRow = db.select({ clientCode: projects.clientCode, version: projects.commercialVersionNo }).from(projects).where(eq(projects.id, projectId)).limit(1);
   const tsmLookup = projectRow.then(([row]) => (row ? suggestedTsm(row.clientCode).catch(() => null) : null));
   const [[p], tags, groupOf, quotes, clientTsm] = await Promise.all([
     projectRow,
@@ -61,6 +61,7 @@ export async function GET(req: Request) {
     }),
     noDriveTags: tags.filter((t) => !groupOf.get(t.id)).map((t) => t.name),
     clientTsm,
+    version: p.version,
   };
   return json(data);
 }

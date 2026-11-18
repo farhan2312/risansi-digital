@@ -4,7 +4,7 @@
 // Server-only.
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
-import { SPARE_GROUP, erpQuotationNumber, quotationNumber, type DriveGroup, type QuotationSnapshot } from "./commercial";
+import { SPARE_GROUP, erpQuotationNumber, quotationNumber, versionedQuotationNo, type DriveGroup, type QuotationSnapshot } from "./commercial";
 import { isGearedGroup, normalizeOfferConfig } from "./commercial-offer";
 import { projectDriveGroups } from "./commercial-server";
 import { db } from "./db";
@@ -73,7 +73,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
               header: {
                 clientName,
                 enquiry,
-                quotation: `${erpQuotationNumber(q, false) ?? quotationNumber(q, false)}, Dt. ${dotDate(q.quoteDate)}`,
+                quotation: `${versionedQuotationNo(erpQuotationNumber(q, false) ?? quotationNumber(q, false), savedOn(q.id)?.version)}, Dt. ${dotDate(q.quoteDate)}`,
                 hidden: [],
               },
             }
@@ -125,7 +125,7 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
         header: {
           clientName,
           enquiry: config.enquiryText || enquiry,
-          quotation: config.erpText || (erp ? `${erp}, Dt. ${dotDate(q.quoteDate)}` : ""),
+          quotation: config.erpText || (erp ? `${versionedQuotationNo(erp, saved.version)}, Dt. ${dotDate(q.quoteDate)}` : ""),
           hidden: config.headerHidden ?? [],
         },
         tags: visibleTags(tags, config),
