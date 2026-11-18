@@ -209,10 +209,6 @@ export const BOI_ITEM_OPTIONS = opts([
   "Panel",
   "Strainers",
   "Mechanical seal",
-  "Gland Packing",
-  "Pulley",
-  "Dosing Pump",
-  "Stator",
   "PRV",
   "Others",
 ]);

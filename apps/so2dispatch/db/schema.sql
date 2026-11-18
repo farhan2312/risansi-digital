@@ -2803,7 +2803,6 @@ CREATE TABLE IF NOT EXISTS boi_vendors (
 CREATE UNIQUE INDEX IF NOT EXISTS boi_vendors_name_key ON boi_vendors (lower(btrim(name)));
 INSERT INTO boi_vendors (name, items) VALUES
     ('KVM ENGINEERS PRIVATE LIMITED', '{Gear Box}'),
-    ('ANIKET UDYAM', '{Dosing Pump}'),
     ('ACME ENGINEERING INDUSTRIES', '{Mechanical seal}'),
     ('SEALMATIC INDIA LIMITED', '{Mechanical seal}'),
     ('EAGLE BURGMANN INDIA PVT LTD', '{Mechanical seal}'),
@@ -2823,10 +2822,6 @@ INSERT INTO boi_vendors (name, items) VALUES
     ('PARSONS MACHINERY', '{Motor,Gear Box}'),
     ('POWER BULID PVT LTD', '{Motor,Gear Box}'),
     ('TOP GEAR CORPORATION LIMITED', '{Motor,Gear Box}'),
-    ('NEW AGARWALTRADER', '{Pulley}'),
-    ('KAVADE MACHINE WORKS', '{Pulley}'),
-    ('GAURAV CREATION', '{Stator}'),
-    ('R A BELL AND CO', '{Stator}'),
     ('JAI BALA JI INDIA ENTERPRISES', '{VFD}')
 ON CONFLICT DO NOTHING;
 
@@ -3493,3 +3488,10 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS spare_type TEXT;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_spare_type_check;
 ALTER TABLE orders ADD CONSTRAINT orders_spare_type_check CHECK (spare_type IS NULL OR spare_type IN ('Spare', 'Retrofit Spare'));
 UPDATE orders SET spare_type = 'Spare' WHERE order_type = 'Spare' AND spare_type IS NULL;
+
+-- BOI items no longer bought: Dosing Pump, Stator, Gland Packing, Pulley. Their items go, and
+-- the vendors who supplied only those. Idempotent.
+DELETE FROM order_boi_items WHERE boi_item IN ('Dosing Pump', 'Stator', 'Gland Packing', 'Pulley');
+UPDATE boi_vendors SET items = ARRAY(SELECT x FROM unnest(items) x WHERE x NOT IN ('Dosing Pump', 'Stator', 'Gland Packing', 'Pulley')), updated_at = now()
+ WHERE items && ARRAY['Dosing Pump', 'Stator', 'Gland Packing', 'Pulley'];
+DELETE FROM boi_vendors WHERE cardinality(items) = 0;
