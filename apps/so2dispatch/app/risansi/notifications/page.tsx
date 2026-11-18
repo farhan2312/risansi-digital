@@ -19,7 +19,7 @@ import { canSeeEscalations, canViewAll, departmentHrefForRole, canSeeClient, get
 import { ALERTS_PAGE_SIZE, alertCounts, listAlertsPage, type AlertRow } from "@/lib/alerts";
 import { ordersFocusHref } from "@/lib/order-links";
 import { mayOpenPage } from "@/lib/view-pages";
-import { EscalationControls, EscalationList } from "@/components/risansi/escalation-list";
+import { EscalationControls, EscalationList, NotificationViewToggle } from "@/components/risansi/escalation-list";
 import {
   listNotificationsPage,
   recipientRolesForUser,
@@ -296,6 +296,8 @@ export default async function NotificationsPage({
   const rangeLabel = range === "today" ? "today" : range === "3d" ? "in the last 3 days" : range === "7d" ? "in the last 7 days" : "yet";
   // Escalations opened fold away, unless asked for.
   const showOpened = params.eopened === "1";
+  // Oversight: Notifications or Escalations, one at a time (the toggle).
+  const view: "notifications" | "escalations" = oversight && params.view === "escalations" ? "escalations" : "notifications";
   const [notifications, alerts, counts] = await Promise.all([
     listNotificationsPage(
       recipientRolesForUser(user.role),
@@ -334,17 +336,25 @@ export default async function NotificationsPage({
       <PageHeading
         icon={<Bell />}
         title={oversight ? "Notifications & Escalations" : "Notifications"}
-        description={<>{oversight ? "Updates on your orders, plus overdue steps, LD risks and payment holds across all orders." : "Updates on the orders your department works on."}</>}
+        description={<>{oversight ? "Updates on your orders, and escalations: SOs past their To Be Dispatch Date and not fully dispatched." : "Updates on the orders your department works on."}</>}
       />
-      <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        {oversight ? (
+          <NotificationViewToggle view={view} escalations={counts.unseen} />
+        ) : (
+          <span />
+        )}
+        {view === "notifications" && (
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm text-muted">
             <span className="font-semibold text-foreground">{notifications.total}</span> {range === "all" ? "in all" : rangeLabel}
           </span>
           <NotificationRangeToggle value={range} fallback={fallback} />
         </div>
+        )}
       </div>
 
+      {view === "notifications" && (
       <NotificationFeed
         page={notifications}
         hrefFor={hrefFor}
@@ -352,10 +362,11 @@ export default async function NotificationsPage({
         seenAt={user.notifications_seen_at ?? null}
         rangeLabel={rangeLabel}
       />
+      )}
 
-      {oversight && (
+      {view === "escalations" && (
         <>
-          <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-display text-base font-semibold text-foreground">
               Escalations — {counts.unseen} new
               {counts.total > counts.unseen && <span className="ml-1 font-normal text-muted">· {counts.total - counts.unseen} opened</span>}
@@ -368,7 +379,7 @@ export default async function NotificationsPage({
               <p className="mt-1 text-sm text-muted">
                 {counts.total > 0
                   ? "Every escalation has been opened. New ones show here as they come."
-                  : "No overdue steps, LD risks or payment holds right now."}
+                  : "No SO is past its To Be Dispatch Date without being fully dispatched."}
               </p>
             </div>
           ) : (

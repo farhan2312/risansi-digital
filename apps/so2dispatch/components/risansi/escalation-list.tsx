@@ -20,7 +20,8 @@ function messageOf(alert: AlertRow): string {
   if (alert.type === "hold") return `Payment on hold by Accounts${alert.reason ? ` — ${alert.reason}` : ""}`;
   const days = alert.days_overdue ?? 0;
   if (alert.type === "ld_risk") return `Quality docs overdue by ${days} day(s) — LD risk`;
-  return `${alert.department} overdue by ${days} day(s)`;
+  // The one escalation now: not fully dispatched by the To Be Dispatch Date.
+  return `Not dispatched — To Be Dispatch Date passed ${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 const SEVERITY_STYLES: Record<Severity, { icon: typeof AlertTriangle; chip: string }> = {
@@ -131,7 +132,8 @@ export function EscalationList({
                   #{alert.sl_no} · {alert.so_no ?? "—"}
                   {alert.ec_no ? ` · ${alert.ec_no}` : ""}
                   {showClient && alert.client_name ? ` · ${alert.client_name}` : ""}
-                  {alert.due_date ? ` · due ${formatDate(alert.due_date)}` : ""}
+                  {alert.due_date ? ` · To Be Dispatch ${formatDate(alert.due_date)}` : ""}
+                  {alert.status ? ` · ${alert.status}` : ""}
                 </p>
               </div>
             </div>
@@ -149,5 +151,43 @@ export function EscalationList({
         );
       })}
     </ul>
+  );
+}
+
+/** Oversight's Notifications page: the feed or the escalations, one at a time. */
+export function NotificationViewToggle({ view, escalations }: { view: "notifications" | "escalations"; escalations: number }) {
+  const { setParams, pending } = useUrlTable();
+  const [asked, setAsked] = useState<string | null>(null);
+  const shown = asked && pending ? asked : view;
+  const btn = (v: "notifications" | "escalations", label: React.ReactNode) => (
+    <button
+      type="button"
+      aria-pressed={shown === v}
+      onClick={() => {
+        if (shown === v) return;
+        setAsked(v);
+        setParams({ view: v === "notifications" ? null : v });
+      }}
+      className={`inline-flex h-full items-center gap-1.5 rounded-md px-4 text-sm font-semibold transition-colors ${
+        shown === v ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
+      }`}
+    >
+      {label}
+      {pending && asked === v && <Loader2 className="h-3 w-3 animate-spin" />}
+    </button>
+  );
+  return (
+    <div role="group" aria-label="Notifications or escalations" className="inline-flex h-10 items-center rounded-lg border border-input-border bg-surface p-0.5">
+      {btn("notifications", "Notifications")}
+      {btn(
+        "escalations",
+        <>
+          Escalations
+          {escalations > 0 && (
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[11px] font-bold text-white">{escalations}</span>
+          )}
+        </>
+      )}
+    </div>
   );
 }
