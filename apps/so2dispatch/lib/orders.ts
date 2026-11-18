@@ -2740,6 +2740,8 @@ export async function listOrdersForSection(
             o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             -- Dispatch's Hold reason ("reason · remarks"), under Accounts' Dispatch Status.
             o.status_override, o.status_reason,
+            -- Dispatch has it (a numbered packing slip): before that, Not at Dispatch yet.
+            ${SO_REACHED_DISPATCH} AS in_dispatch,
             -- With the holds above, the SO's Order Status (Accounts' column).
             o.om_status,
             -- The order value's currency, shown beside it (Accounts).
@@ -2969,6 +2971,8 @@ export async function listItemsForSection(
             ${DISPATCH_STATUS} AS so_dispatch_status,
             -- Dispatch's Hold / Final lot pending and why, under the Dispatch Status.
             o.status_override, o.status_reason,
+            -- Dispatch has it (a numbered packing slip): before that, Not at Dispatch yet.
+            ${SO_REACHED_DISPATCH} AS in_dispatch,
             o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks
             ${childSelect}${qcSelect}${soChildSelect}${readyLotsSelect}${detailSelects ? `,\n            ${detailSelects}` : ""}${contextSelects}
        FROM order_items it
@@ -3183,6 +3187,8 @@ export type PurchaseQueueRow = {
   so_dispatch_status?: string | null;
   status_override?: string | null;
   status_reason?: string | null;
+  /** Dispatch has the SO (a numbered packing slip). */
+  in_dispatch?: boolean;
 };
 
 /**
@@ -3211,6 +3217,8 @@ export async function listItemsForPurchase(
             ${DISPATCH_STATUS} AS so_dispatch_status,
             -- Dispatch's Hold / Final lot pending and why, under the Dispatch Status.
             o.status_override, o.status_reason,
+            -- Dispatch has it (a numbered packing slip): before that, Not at Dispatch yet.
+            ${SO_REACHED_DISPATCH} AS in_dispatch,
             o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             o.boi,
             o.ld,

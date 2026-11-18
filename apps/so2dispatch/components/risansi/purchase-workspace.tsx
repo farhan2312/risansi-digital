@@ -256,6 +256,7 @@ export function PurchaseWorkspace({
           status={g.head.so_dispatch_status}
           override={g.head.status_override}
           reason={g.head.status_reason}
+          reached={g.head.in_dispatch}
         />
       ),
     },

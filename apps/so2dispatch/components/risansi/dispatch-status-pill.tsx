@@ -50,11 +50,15 @@ export function DispatchStatusWithReason({
   status,
   override,
   reason,
+  reached = true,
 }: {
   status: unknown;
   override: unknown;
   reason: unknown;
+  /** Whether Dispatch has the SO (a numbered packing slip); false shows Not at Dispatch yet. */
+  reached?: unknown;
 }) {
+  if (!reached) return <NotAtDispatch />;
   const why = dispatchStatusHasReason(override) ? String(reason ?? "").trim() : "";
   const hold = String(override ?? "").trim() === "Hold";
   return (

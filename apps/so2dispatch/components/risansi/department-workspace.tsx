@@ -858,6 +858,7 @@ export function DepartmentWorkspace({
                 status={order.so_dispatch_status}
                 override={order.status_override}
                 reason={order.status_reason}
+                reached={order.in_dispatch}
               />
             ),
           },

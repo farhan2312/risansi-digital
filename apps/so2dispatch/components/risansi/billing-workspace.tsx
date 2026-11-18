@@ -301,6 +301,8 @@ export function BillingWorkspace({
       key: "dstatus",
       label: "Dispatch Status",
       tdClass: "whitespace-nowrap",
+      // Dispatch: kept in the split view's list too.
+      list: dispatch,
       cell: (row) =>
         dispatch ? (
           // Dispatch may set it by hand, as well as by its invoices
