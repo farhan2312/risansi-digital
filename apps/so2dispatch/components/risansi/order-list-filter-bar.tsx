@@ -27,6 +27,7 @@ import {
   PAYMENT_FILTER_DEPTS,
   BILL_MODE_FILTER_DEPTS,
   DISPATCH_STATUS_FILTER_DEPTS,
+  DISPATCH_HOLD_REASON_FILTER_DEPTS,
   PAYMENT_TERM_FILTER_OPTIONS,
   FIELD_STATES,
   ORDER_DATE_FIELDS,
@@ -79,6 +80,7 @@ const FILTER_KEYS = [
   "hreason",
   "ahold",
   "areason",
+  "dhreason",
   "ppc",
 ];
 
@@ -364,8 +366,8 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ dstage: next })}
           />
         )}
-        {/* Dispatch (and Accounts): why Dispatch holds an SO (its status Hold). */}
-        {(dept === "dispatch" || dept === "accounts") && (
+        {/* Dispatch, and the queues with a Dispatch Status column: why Dispatch holds an SO (its status Hold). */}
+        {dept && DISPATCH_HOLD_REASON_FILTER_DEPTS.includes(dept) && (
           <MultiSelectFilter
             label="Dispatch hold reason"
             allLabel="Any reason"
@@ -375,7 +377,7 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ dhreason: next.length ? next.join("|") : null })}
           />
         )}
-        {/* Billing, Planning, Assembly & Packing: where Dispatch has got to on the SO. */}
+        {/* Billing, Purchase, Quality, Planning, Assembly & Packing, Accounts: where Dispatch has got to on the SO. */}
         {dept && DISPATCH_STATUS_FILTER_DEPTS.includes(dept) && (
           <MultiSelectFilter
             label="Dispatch status"

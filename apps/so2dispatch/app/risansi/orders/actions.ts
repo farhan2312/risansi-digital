@@ -68,6 +68,7 @@ import {
 import {
   CHILD_FIELDS,
   ORDER_STATUS_OPTIONS,
+  FINAL_LOT_PENDING,
   splitHoldReason,
   PAYMENT_HOLD_VALUE,
   PAYMENT_STATUS_OPTIONS,
@@ -2026,7 +2027,7 @@ const ROLE_BY_DEPT: Record<DeptKey, string> = {
 export type SetOrderStatusResult = { ok: true } | { ok: false; error: string };
 
 /** The dispatch states Dispatch may set by hand. */
-const DISPATCH_MANUAL_STATUSES = ["Pending", "LOT dispatch", "Fully dispatch", "Hold"];
+const DISPATCH_MANUAL_STATUSES = ["Pending", "LOT dispatch", FINAL_LOT_PENDING, "Fully dispatch", "Hold"];
 
 /**
  * Central Visibility sets an order's status by hand: cancelled by the client,
@@ -2059,6 +2060,10 @@ export async function setOrderStatusAction(
   // Hold says why, from Dispatch's list.
   if (next === "Hold" && !splitHoldReason(why).reason) {
     return { ok: false, error: "Choose why the dispatch is on hold." };
+  }
+  // Final lot pending says why the last lot waits (free text).
+  if (next === FINAL_LOT_PENDING && !why) {
+    return { ok: false, error: "Say why the final lot is pending." };
   }
   const closing = isClosedStatus(next);
   if (closing && !why) {

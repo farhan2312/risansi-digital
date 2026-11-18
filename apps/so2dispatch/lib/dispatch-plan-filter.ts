@@ -21,6 +21,8 @@ export const DP_DATE_FIELDS = [
   { value: "dispatch_target", label: "Dispatch Target" },
   { value: "final_target", label: "To Be Dispatch Date" },
   { value: "readiness", label: "Readiness" },
+  { value: "asm_plan", label: "Assembly Plan Date" },
+  { value: "pkg_plan", label: "Packing Plan Date" },
   { value: "so_date", label: "SO Date" },
   { value: "ppc", label: "SO Sent to PPC" },
 ] as const;
@@ -90,17 +92,22 @@ export function dateOf(r: DispatchPlanRow, key: string): string | null {
       return r.po_date;
     case "ppc":
       return r.ppc_date;
-    // Assembly and packing: the next plan, else when it was done.
+    // Assembly and packing: when it was done (their plan dates have their own columns).
     case "asm":
-      return r.assembly.next ?? r.assembly.last;
+      return r.assembly.last;
     case "pkg":
-      return r.packing.next ?? r.packing.last;
+      return r.packing.last;
+    // The next planned assembly or packing, still to be done.
+    case "asm_plan":
+      return r.assembly.next;
+    case "pkg_plan":
+      return r.packing.next;
     default:
       return null;
   }
 }
 
-export const DP_SORT_KEYS = ["so_date", "po_date", "ppc", "readiness", "asm", "pkg", "dispatch_target", "final_target"];
+export const DP_SORT_KEYS = ["so_date", "po_date", "ppc", "readiness", "asm", "asm_plan", "pkg", "pkg_plan", "dispatch_target", "final_target"];
 
 const readinessWord = (r: DispatchPlanRow, today: string) =>
   r.fully_ready ? "Fully ready" : r.plan_date && r.plan_date < today ? "In plan · overdue" : "In plan";

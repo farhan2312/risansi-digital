@@ -9,6 +9,7 @@
 // the SOs whose popup says Approved.
 
 import {
+  FINAL_LOT_PENDING,
   PAYMENT_STATUS_OPTIONS,
   PUMP_PLANNING_STATUSES,
   SPARE_PLANNING_STATUSES,
@@ -162,7 +163,7 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   // Dispatch's own words only: a cancelled or diverted SO is out of its queue.
   // …and, on the Orders list, an SO Dispatch does not have yet (no numbered
   // packing slip) — to see what is assembled or packed but not handed over.
-  dispatch: ["Fully dispatch", "LOT dispatch", HOLD, PENDING, NOT_AT_DISPATCH],
+  dispatch: ["Fully dispatch", "LOT dispatch", FINAL_LOT_PENDING, HOLD, PENDING, NOT_AT_DISPATCH],
 };
 
 /**

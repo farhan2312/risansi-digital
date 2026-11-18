@@ -170,7 +170,7 @@ async function buildReport(r: Report): Promise<Uint8Array> {
 }
 
 const dispatchColor = (s: string) =>
-  s === "Fully dispatch" ? C.green : s === "LOT dispatch" ? C.blue : C.amber;
+  s === "Fully dispatch" ? C.green : s.startsWith("LOT dispatch") ? C.blue : C.amber;
 
 // ── Assembly & Packing ───────────────────────────────────────────────────
 
@@ -404,7 +404,7 @@ export function dispatchReport(rows: Row[], filterLine: string): Report {
     stageCount.set(stage || "—", (stageCount.get(stage || "—") ?? 0) + 1);
     const status = str(o.dispatch_status) || "Pending";
     if (status === "Fully dispatch") full++;
-    if (status === "LOT dispatch") lot++;
+    if (status.startsWith("LOT dispatch")) lot++;
     // A USD order's gross, and so what is in hand, is in INR, as its invoices are.
     const cur = isUsd(o.order_currency) ? " INR" : str(o.order_currency) ? ` ${str(o.order_currency)}` : "";
     const details: Line[] = orderValueLines(o).map(([k, v]) => ({ text: `${k}: ${v}`, bold: k.startsWith("Gross"), small: !k.startsWith("Gross") }));

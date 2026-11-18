@@ -1,6 +1,8 @@
 import "server-only";
 import { query } from "@/lib/db";
-import { PUMP_LIKE } from "@/lib/order-schema";
+import { FINAL_LOT_PENDING, PUMP_LIKE } from "@/lib/order-schema";
+
+const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
 import { basePlateSql, basePlateStepsSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
 import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
@@ -86,6 +88,7 @@ export type DispatchPlanRow = {
   };
   /** On Dispatch hold (the SO's status set to Hold), and why. */
   dispatch_hold: boolean;
+  /** Why Dispatch set the status by hand: a Hold's reason, a Final lot pending's. */
   hold_reason: string | null;
   status: string;
 };
@@ -199,7 +202,7 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
                                  'received_qty', wb.received_qty) ORDER BY wb.source DESC)
                                 FROM order_wooden_boxes wb WHERE wb.order_id = so.id)) AS alignment,
             (COALESCE(so.status_override, '') = 'Hold') AS dispatch_hold,
-            CASE WHEN so.status_override = 'Hold' THEN NULLIF(btrim(so.status_reason), '') END AS hold_reason,
+            CASE WHEN so.status_override IN ('Hold', ${lit(FINAL_LOT_PENDING)}) THEN NULLIF(btrim(so.status_reason), '') END AS hold_reason,
             ${orderStatusSql("so")} AS status
        FROM so
        JOIN ready r ON r.order_id = so.id

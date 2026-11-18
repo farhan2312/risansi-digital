@@ -17,7 +17,7 @@ export { SO_DETAILS_FILLED_SQL };
  */
 export function assignableSql(o = "o"): string {
   // Not an SO carried in by the migration either: its SO details came with it.
-  return `${orderOpenSql(o)} AND lower(COALESCE(NULLIF(${o}.dispatch_status, ''), 'Pending')) NOT IN ('fully dispatch', 'lot dispatch')
+  return `${orderOpenSql(o)} AND lower(COALESCE(NULLIF(${o}.dispatch_status, ''), 'Pending')) NOT IN ('fully dispatch', 'lot dispatch', 'lot dispatch - final lot pending')
           AND NOT COALESCE(${o}.so_migrated, false)`;
 }
 

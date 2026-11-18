@@ -645,7 +645,7 @@ export async function buildOrdersListPdf(
   const count = (f: (o: OrderListRow) => boolean) => orders.filter(f).length;
   const closedN = count((o) => CLOSED.includes(o.dispatch_status ?? ""));
   const fullN = count((o) => dispatchOf(o) === "fully dispatch" && !cvHeld(o));
-  const lotN = count((o) => dispatchOf(o) === "lot dispatch" && !cvHeld(o));
+  const lotN = count((o) => dispatchOf(o).startsWith("lot dispatch") && !cvHeld(o));
   // A held SO (Central Visibility's, or Dispatch's own) is Hold, not pending.
   const heldDispatchN = count((o) => !CLOSED.includes(o.dispatch_status ?? "") && (cvHeld(o) || dispatchOf(o) === "hold"));
   const pendingN = count((o) => dispatchOf(o) === "pending" && !cvHeld(o));

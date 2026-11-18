@@ -27,6 +27,7 @@ import { PendencyCell } from "./pendency-cell";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS, PURCHASE_STATES } from "@/lib/purchase-filter";
 import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+import { DispatchStatusWithReason } from "./dispatch-status-pill";
 
 type Row = Record<string, unknown>;
 
@@ -243,6 +244,20 @@ export function PurchaseWorkspace({
         );
       },
       list: true,
+    },
+    {
+      // Where Dispatch has got to on the SO; a Hold / Final lot pending with why.
+      key: "dispatch_status",
+      label: "Dispatch Status",
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (g) => (
+        <DispatchStatusWithReason
+          status={g.head.so_dispatch_status}
+          override={g.head.status_override}
+          reason={g.head.status_reason}
+        />
+      ),
     },
   ];
   const ecCols: SplitCol<PurchaseQueueRow>[] = [

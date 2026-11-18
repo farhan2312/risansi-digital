@@ -267,6 +267,18 @@ export const DISPATCH_STATUS_OPTIONS = opts([
 ]);
 
 /**
+ * Dispatch's own word between Lot and Fully dispatched: lots have gone, the
+ * final one is still to go — set by hand, with why (free text, required).
+ */
+export const FINAL_LOT_PENDING = "LOT dispatch - Final lot pending";
+
+/** A dispatch status set by hand with its reason to show under it: Hold, Final lot pending. */
+export function dispatchStatusHasReason(override: unknown): boolean {
+  const s = String(override ?? "").trim();
+  return s === "Hold" || s === FINAL_LOT_PENDING;
+}
+
+/**
  * Every order status: the three the invoices give, and the two only Central
  * Visibility can set — which close the order. See orderStatusSql.
  */
@@ -274,6 +286,8 @@ export const ORDER_STATUS_OPTIONS = opts([
   "Pending",
   "LOT dispatch",
   "Fully dispatch",
+  // Lots gone, the final one pending (Dispatch's, with a free-text reason).
+  FINAL_LOT_PENDING,
   // Dispatch holds it, for one of DISPATCH_HOLD_REASONS.
   "Hold",
   "Cancelled by client",

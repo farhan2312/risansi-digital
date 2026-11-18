@@ -324,7 +324,7 @@ export const PUMP_COLUMNS: Column<PumpLine>[] = [
 /** The Pump report's SO columns: shown on an SO's first EC line only. */
 export const PUMP_SO_KEYS = new Set<string>(["sl", "so", "dispatchTarget", "ld", "soStatus", "readiness", "overdue", "history", "lots", "remarks", "dispatch"]);
 
-const dispatchTone = (d: string): Tone => (d === "Fully dispatch" ? "green" : d === "LOT dispatch" ? "blue" : "amber");
+const dispatchTone = (d: string): Tone => (d === "Fully dispatch" ? "green" : d.startsWith("LOT dispatch") ? "blue" : "amber");
 
 /** The colour a cell reads in, on paper and in Excel alike. */
 export function spareTone(l: SoLine, key: string): Tone | undefined {

@@ -3498,3 +3498,41 @@ DELETE FROM boi_vendors WHERE cardinality(items) = 0;
 
 -- A follow-up may say no further follow-up is needed: then it has no next date.
 ALTER TABLE order_followups ALTER COLUMN next_followup_date DROP NOT NULL;
+
+-- Dispatch's "LOT dispatch - Final lot pending": lots gone, the final one
+-- waits; set by hand with why (free text, in status_reason). Idempotent.
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_override_check;
+ALTER TABLE orders ADD CONSTRAINT orders_status_override_check
+    CHECK (status_override IS NULL OR status_override IN
+           ('Pending', 'LOT dispatch', 'LOT dispatch - Final lot pending', 'Fully dispatch', 'Hold', 'Cancelled by client', 'Diverted'));
+
+-- Every change to the Dispatch Plan's To Be Dispatch Date (final_dispatch_target_date):
+-- from, to, who, when. Seeded from the audit log, then from the date as it
+-- stands where the log has none. Idempotent.
+CREATE TABLE IF NOT EXISTS order_dispatch_date_history (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id        UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    prev_date       DATE,
+    new_date        DATE,
+    changed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    changed_by_name TEXT,
+    changed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS order_dispatch_date_history_order_idx ON order_dispatch_date_history (order_id, changed_at DESC);
+INSERT INTO order_dispatch_date_history (order_id, prev_date, new_date, changed_by, changed_by_name, changed_at)
+SELECT a.order_id,
+       CASE WHEN substring(a.details from 'To Be Dispatch Date: (\d{4}-\d{2}-\d{2}) ') IS NOT NULL
+            THEN substring(a.details from 'To Be Dispatch Date: (\d{4}-\d{2}-\d{2}) ')::date END,
+       CASE WHEN substring(a.details from '(\d{4}-\d{2}-\d{2})$') IS NOT NULL
+            THEN substring(a.details from '(\d{4}-\d{2}-\d{2})$')::date END,
+       a.user_id, COALESCE(NULLIF(u.full_name, ''), a.user_email), a.created_at
+  FROM audit_log a
+  JOIN orders o ON o.id = a.order_id
+  LEFT JOIN users u ON u.id = a.user_id
+ WHERE a.details LIKE 'To Be Dispatch Date:%'
+   AND NOT EXISTS (SELECT 1 FROM order_dispatch_date_history h WHERE h.order_id = a.order_id);
+INSERT INTO order_dispatch_date_history (order_id, prev_date, new_date, changed_by_name, changed_at)
+SELECT o.id, NULL, o.final_dispatch_target_date, o.final_dispatch_target_by, COALESCE(o.final_dispatch_target_at, o.updated_at, now())
+  FROM orders o
+ WHERE o.final_dispatch_target_date IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM order_dispatch_date_history h WHERE h.order_id = o.id);

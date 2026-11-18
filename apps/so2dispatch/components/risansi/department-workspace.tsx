@@ -77,7 +77,7 @@ import { UrlPagination, UrlSearchInput, useUrlTable } from "./url-table";
 import { OrderListFilterBar } from "./order-list-filter-bar";
 import type { OrderListOptions } from "@/lib/orders";
 import { DEPT_VIEWS, dispatchRowTone } from "@/lib/dept-view";
-import { DispatchStatusPill, NotAtDispatch, atDispatch } from "./dispatch-status-pill";
+import { DispatchStatusWithReason, NotAtDispatch, atDispatch } from "./dispatch-status-pill";
 import { useConsumeFocusParam, useFocusRow } from "./use-focus-row";
 import { lockReason } from "@/lib/order-lock";
 import type { PageResult } from "@/lib/pagination";
@@ -852,16 +852,13 @@ export function DepartmentWorkspace({
             label: "Dispatch Status",
             thClass: "px-4 py-3 whitespace-nowrap",
             tdClass: "px-4 py-3 whitespace-nowrap",
+            // Held, or Final lot pending, by Dispatch: why, under it.
             cell: (order: Row) => (
-              <>
-                <DispatchStatusPill status={toInput(order.so_dispatch_status) || "Pending"} />
-                {/* Held by Dispatch: why (its reason, with any remarks). */}
-                {toInput(order.status_override) === "Hold" && toInput(order.status_reason).trim() && (
-                  <span className="mt-1 block max-w-[16rem] whitespace-normal text-[11px] text-orange-700 dark:text-orange-300">
-                    {toInput(order.status_reason)}
-                  </span>
-                )}
-              </>
+              <DispatchStatusWithReason
+                status={order.so_dispatch_status}
+                override={order.status_override}
+                reason={order.status_reason}
+              />
             ),
           },
         ]
@@ -1051,7 +1048,15 @@ export function DepartmentWorkspace({
                   thClass: "px-4 py-3",
                   tdClass: "px-4 py-3 whitespace-nowrap",
                   cell: (g: SoGroup) =>
-                    sentToDispatch(g.head) ? <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} /> : <NotAtDispatch />,
+                    sentToDispatch(g.head) ? (
+                      <DispatchStatusWithReason
+                        status={g.head.so_dispatch_status}
+                        override={g.head.status_override}
+                        reason={g.head.status_reason}
+                      />
+                    ) : (
+                      <NotAtDispatch />
+                    ),
                 },
               ]
             : []),
@@ -1092,7 +1097,15 @@ export function DepartmentWorkspace({
                   thClass: "px-4 py-3",
                   tdClass: "px-4 py-3 whitespace-nowrap",
                   cell: (g: SoGroup) =>
-                    atDispatch(g.head, g.ecs) ? <DispatchStatusPill status={toInput(g.head.so_dispatch_status) || "Pending"} /> : <NotAtDispatch />,
+                    atDispatch(g.head, g.ecs) ? (
+                      <DispatchStatusWithReason
+                        status={g.head.so_dispatch_status}
+                        override={g.head.status_override}
+                        reason={g.head.status_reason}
+                      />
+                    ) : (
+                      <NotAtDispatch />
+                    ),
                 },
               ]
             : []),

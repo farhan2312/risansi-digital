@@ -65,6 +65,9 @@ export type PumpSummary = {
   };
   /** The SO's dispatch status, as on the Orders list. */
   dispatch: string;
+  /** What Dispatch set it to by hand (status_override), and why (status_reason): a Hold's reason under it. */
+  dispatchOverride?: string | null;
+  dispatchReason?: string | null;
   /** Planning has sent it on to Assembly & Packing: a pump EC Partial or Fully ready (or some ready). */
   sentToAssembly: boolean;
   /** It has reached Dispatch: a numbered packing slip filed (what puts it on Dispatch's queue). */
@@ -130,6 +133,8 @@ type Raw = {
   wooden_box_received_date: string | null;
   wooden_boxes: Record<string, unknown>[] | null;
   dispatch: string | null;
+  status_override: string | null;
+  status_reason: string | null;
   sent_asm: boolean;
   sent_dsp: boolean;
   held: boolean;
@@ -205,6 +210,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
                       'received_qty', wb.received_qty, 'remarks', wb.remarks) ORDER BY wb.source DESC)
                FROM order_wooden_boxes wb WHERE wb.order_id = o.id) AS wooden_boxes,
             ${orderStatusSql("o")} AS dispatch,
+            o.status_override, o.status_reason,
             EXISTS (SELECT 1 FROM order_items s JOIN order_planning pl ON pl.item_id = s.id
                      WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")})
                        AND (pl.actual_spare_status IN ('Partial ready', 'Fully ready') OR COALESCE(pl.ready_qty, 0) > 0))
@@ -296,6 +302,8 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
         wooden_boxes: x.wooden_boxes ?? [],
       },
       dispatch: x.dispatch || "Pending",
+      dispatchOverride: x.status_override,
+      dispatchReason: x.status_reason,
       sentToAssembly: !!x.sent_asm,
       sentToDispatch: !!x.sent_dsp,
       // Central Visibility's hold is a badge on the SO, not a status: every department reads its own.

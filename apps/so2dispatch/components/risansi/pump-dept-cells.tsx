@@ -6,6 +6,7 @@ import { latestPumpLot, type PumpLot } from "@/lib/assembly";
 import { AlignmentValue } from "./alignment-cell";
 import { SortHeader } from "./sort-header";
 import { LatestLot, LotCell } from "./lot-cell";
+import { DispatchStatusWithReason } from "./dispatch-status-pill";
 
 type Dept = "drawing" | "purchase" | "quality" | "planning" | "assembly";
 type Tone = "done" | "part" | "pending" | "rework" | "na" | "hold";
@@ -330,7 +331,6 @@ export function pumpAfterPlanningParts({
   lotCount: number;
   slips: Record<string, unknown>[];
 }): { key: string; tdClass: string; node: ReactNode }[] {
-  const dispatched = /dispatched/i.test(s.dispatch) && !/partial|lot/i.test(s.dispatch);
   const holdText = <span className={`block text-[13px] font-medium ${TONE.hold}`}>Hold</span>;
   const none = <span className="text-xs text-muted">—</span>;
   return [
@@ -372,9 +372,8 @@ export function pumpAfterPlanningParts({
       node: s.held ? (
         holdText
       ) : s.sentToDispatch ? (
-        <span className={`text-[13px] font-medium ${dispatched ? TONE.done : /partial|lot/i.test(s.dispatch) ? TONE.part : TONE.pending}`}>
-          {s.dispatch}
-        </span>
+        // A Hold or Final lot pending set by Dispatch: why, under it.
+        <DispatchStatusWithReason status={s.dispatch} override={s.dispatchOverride} reason={s.dispatchReason} />
       ) : (
         <span className="text-xs text-muted">Not at Dispatch yet</span>
       ),

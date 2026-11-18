@@ -352,6 +352,6 @@ export function summaryOf(rows: SpareSoRow[]) {
     packedWaiting: rows.filter((r) => r.stage === "packed").length,
     notReady: rows.filter((r) => r.stage === "not_ready").length,
     packOverdue: rows.filter((r) => r.pack_overdue > 0 && r.stage !== "dispatched").length,
-    lotDispatched: rows.filter((r) => r.dispatch_status === "LOT dispatch").length,
+    lotDispatched: rows.filter((r) => String(r.dispatch_status ?? "").startsWith("LOT dispatch")).length,
   };
 }

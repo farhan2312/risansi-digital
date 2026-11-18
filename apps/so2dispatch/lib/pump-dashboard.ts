@@ -122,7 +122,7 @@ export function stageOf(dispatchStatus: string, s: PumpSummary | undefined): Pum
   // Held by Central Visibility: Hold in every department, Dispatch's too.
   if (dispatch === "Hold" || s?.held) return "Dispatch hold";
   if (dispatch === "Fully dispatch") return "Fully dispatched";
-  if (dispatch === "LOT dispatch") return "Lot dispatched";
+  if (dispatch.startsWith("LOT dispatch")) return "Lot dispatched";
   if (!s) return "Date awaited";
   if (s.packing.status === "Fully packed") return "Packed, to dispatch";
   if (s.packing.status === "Partially packed") return "Packing on";
@@ -147,7 +147,7 @@ function standings(s: PumpSummary, dispatch: string): Record<string, Standing> {
     assembly: s.assembly.status === "Fully assembled" ? "done" : s.assembly.status === "Partial assembled" ? "progress" : "pending",
     packing: s.packing.status === "Fully packed" ? "done" : s.packing.status === "Partially packed" ? "progress" : "pending",
     // Dispatch's own hold is Hold on its row, as on its page.
-    dispatch: dispatch === "Hold" ? "hold" : dispatch === "Fully dispatch" ? "done" : dispatch === "LOT dispatch" ? "progress" : "pending",
+    dispatch: dispatch === "Hold" ? "hold" : dispatch === "Fully dispatch" ? "done" : dispatch.startsWith("LOT dispatch") ? "progress" : "pending",
   };
   // Held by Central Visibility: Hold wherever the department has work on it.
   return s.held ? Object.fromEntries(Object.entries(own).map(([k, v]) => [k, v === "na" ? "na" : "hold"])) : own;

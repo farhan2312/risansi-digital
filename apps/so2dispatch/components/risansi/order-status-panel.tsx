@@ -7,7 +7,7 @@ import { setOrderStatusAction } from "@/app/risansi/orders/actions";
 import { isCentral } from "@/lib/roles";
 import { DispatchStatusPill } from "./dispatch-status-pill";
 import { MakeActiveForm } from "./order-status-pill";
-import { DISPATCH_HOLD_REASONS, joinHoldReason, splitHoldReason } from "@/lib/order-schema";
+import { DISPATCH_HOLD_REASONS, FINAL_LOT_PENDING, dispatchStatusHasReason, joinHoldReason, splitHoldReason } from "@/lib/order-schema";
 
 type Row = Record<string, unknown>;
 
@@ -24,6 +24,7 @@ const CHOICES: { value: string; label: string; hint: string }[] = [
   { value: "auto", label: "Automatic", hint: "Follow the invoices" },
   { value: "Pending", label: "Pending", hint: "Nothing dispatched yet" },
   { value: "LOT dispatch", label: "Lot dispatch", hint: "Partly dispatched" },
+  { value: FINAL_LOT_PENDING, label: "Lot dispatch, final lot pending", hint: "Lots gone, the last one waits — say why" },
   { value: "Fully dispatch", label: "Fully dispatched", hint: "Everything dispatched" },
   { value: "Hold", label: "Hold", hint: "Dispatch on hold, for a reason" },
   { value: "Cancelled by client", label: "Cancelled by client", hint: "Closes the order" },
@@ -33,6 +34,7 @@ const CHOICES: { value: string; label: string; hint: string }[] = [
 const TONE: Record<string, string> = {
   Pending: "bg-slate-100 text-slate-700",
   "LOT dispatch": "bg-blue-50 text-blue-700",
+  [FINAL_LOT_PENDING]: "bg-blue-50 text-blue-700",
   "Fully dispatch": "bg-emerald-50 text-emerald-700",
   "Cancelled by client": "bg-rose-50 text-rose-700",
   Diverted: "bg-amber-50 text-amber-700",
@@ -126,9 +128,10 @@ export function OrderStatusPanel({
         <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted">Order status</span>
           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONE[status] ?? TONE.Pending}`}>
-            {status === "LOT dispatch" ? "Lot dispatch" : status === "Fully dispatch" ? "Fully dispatched" : status}
+            {status === "LOT dispatch" ? "Lot dispatch" : status === FINAL_LOT_PENDING ? "Lot dispatch, final lot pending" : status === "Fully dispatch" ? "Fully dispatched" : status}
           </span>
           <span className="text-xs text-muted">{who}</span>
+          {dispatchStatusHasReason(override) && reason && <span className="text-xs text-foreground">· {reason}</span>}
           {canSet && (
             <button
               type="button"
@@ -176,8 +179,15 @@ export function DispatchStatusControl({
   /** Why it was set by hand — shown under Hold. */
   reason?: string | null;
 }) {
-  const holdReason = str(override) === "Hold" && str(reason) ? (
-    <span className="max-w-[12rem] whitespace-normal text-[10.5px] font-medium text-orange-700 dark:text-orange-400">{str(reason)}</span>
+  // Why it was set: a Hold's reason, a Final lot pending's.
+  const holdReason = dispatchStatusHasReason(override) && str(reason) ? (
+    <span
+      className={`max-w-[12rem] whitespace-normal text-[10.5px] font-medium ${
+        str(override) === "Hold" ? "text-orange-700 dark:text-orange-400" : "text-sky-700 dark:text-sky-400"
+      }`}
+    >
+      {str(reason)}
+    </span>
   ) : null;
   const [open, setOpen] = useState(false);
   const manual = !!str(override);
@@ -208,7 +218,7 @@ export function DispatchStatusControl({
           orderId={orderId}
           current={str(override) || "auto"}
           fromInvoices={str(fromInvoices) || "Pending"}
-          reason={str(override) === "Hold" ? str(reason) : ""}
+          reason={dispatchStatusHasReason(override) ? str(reason) : ""}
           divertedTo=""
           choices={CHOICES.filter((c) => !isClosedStatusLabel(c.value))}
           onClose={() => setOpen(false)}
@@ -248,6 +258,8 @@ function StatusDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closing = choice === "Cancelled by client" || choice === "Diverted";
+  // A reason it cannot go without: cancelling, diverting, the final lot pending.
+  const needsReason = closing || choice === FINAL_LOT_PENDING;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
@@ -262,6 +274,10 @@ function StatusDialog({
     }
     if (closing && !reason.trim()) {
       setError("Say why — a reason is needed to cancel or divert an order.");
+      return;
+    }
+    if (choice === FINAL_LOT_PENDING && !reason.trim()) {
+      setError("Say why the final lot is pending.");
       return;
     }
     setSaving(true);
@@ -380,7 +396,8 @@ function StatusDialog({
         ) : (
         <label className="mt-4 block text-sm">
           <span className="mb-1 block font-medium text-foreground">
-            Reason {closing ? <span className="text-danger">*</span> : <span className="font-normal text-muted">(optional)</span>}
+            {choice === FINAL_LOT_PENDING ? "Why the final lot is pending" : "Reason"}{" "}
+            {needsReason ? <span className="text-danger">*</span> : <span className="font-normal text-muted">(optional)</span>}
           </span>
           <textarea
             value={reason}

@@ -2967,6 +2967,8 @@ export async function listItemsForSection(
             o.client_name,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
+            -- Dispatch's Hold / Final lot pending and why, under the Dispatch Status.
+            o.status_override, o.status_reason,
             o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks
             ${childSelect}${qcSelect}${soChildSelect}${readyLotsSelect}${detailSelects ? `,\n            ${detailSelects}` : ""}${contextSelects}
        FROM order_items it
@@ -3177,6 +3179,10 @@ export type PurchaseQueueRow = {
   quantity?: number | null;
   ec_boi?: string | null;
   ec_date?: string | null;
+  /** The SO's dispatch status, and what Dispatch set by hand (Hold, Final lot pending) with why. */
+  so_dispatch_status?: string | null;
+  status_override?: string | null;
+  status_reason?: string | null;
 };
 
 /**
@@ -3203,6 +3209,8 @@ export async function listItemsForPurchase(
             to_char(it.ec_date, 'YYYY-MM-DD') AS ec_date,
             o.clearance_status, o.clearance_hold_reason, o.clearance_remarks,
             ${DISPATCH_STATUS} AS so_dispatch_status,
+            -- Dispatch's Hold / Final lot pending and why, under the Dispatch Status.
+            o.status_override, o.status_reason,
             o.version_no, o.accounts_hold_status, o.accounts_hold_reason, o.accounts_hold_remarks,
             o.boi,
             o.ld,

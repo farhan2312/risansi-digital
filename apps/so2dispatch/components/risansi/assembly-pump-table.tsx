@@ -32,7 +32,7 @@ import { dispatchRowTone } from "@/lib/dept-view";
 import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { HoldBadge } from "./hold-badge";
 import { VersionTag } from "./version-tag";
-import { DispatchStatusPill, NotAtDispatch } from "./dispatch-status-pill";
+import { DispatchStatusWithReason, NotAtDispatch } from "./dispatch-status-pill";
 import { SortHeader } from "./sort-header";
 import { GadCell } from "./gad-cell";
 import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
@@ -385,7 +385,7 @@ export function AssemblyPumpTable({
       tdClass: "whitespace-nowrap border-l border-card-border",
       cell: (g) =>
         slipsOf(g).some((sl) => str(sl.packing_slip_no).trim() !== "") ? (
-          <DispatchStatusPill status={str(g.head.so_dispatch_status) || "Pending"} />
+          <DispatchStatusWithReason status={g.head.so_dispatch_status} override={g.head.status_override} reason={g.head.status_reason} />
         ) : (
           <NotAtDispatch />
         ),

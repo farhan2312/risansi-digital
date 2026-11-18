@@ -6,6 +6,7 @@ import { canSeeDispatchPlan, isCentral } from "@/lib/roles";
 import { FinalDispatchTarget } from "@/components/risansi/final-dispatch-target";
 import { DISPATCH_PLAN_DAYS, listDispatchPlan, type DispatchPlanRow, type DispatchPlanStage } from "@/lib/dispatch-plan";
 import { boiStatus } from "@/lib/dept-view";
+import { FINAL_LOT_PENDING } from "@/lib/order-schema";
 import { UrlSearchInput } from "@/components/risansi/url-table";
 import { SortHeader } from "@/components/risansi/sort-header";
 import { DispatchPlanFilters } from "@/components/risansi/dispatch-plan-filters";
@@ -42,17 +43,28 @@ const TONE_TEXT = {
   pending: "text-amber-700 dark:text-amber-300",
 } as const;
 
-/** Assembly's or Packing's word on the SO: its status, then the next plan (or when it was done). */
-function Stage({ st, now }: { st: DispatchPlanStage; now: string }) {
+/** Assembly's or Packing's word on the SO: its status, and when it was last done. */
+function Stage({ st }: { st: DispatchPlanStage }) {
   const full = /^fully/i.test(st.status);
   const tone = full ? "done" : /^partial/i.test(st.status) ? "part" : "pending";
-  const late = !full && !!st.next && st.next < now;
-  const line = !full && st.next ? `Plan ${formatDate(st.next)}${late ? " · overdue" : ""}` : st.last ? `Done ${formatDate(st.last)}` : null;
   return (
     <>
       <Chip tone={tone}>{st.status}</Chip>
-      {line && <div className={`mt-1 text-xs ${late ? "font-medium text-rose-700 dark:text-rose-300" : "text-muted"}`}>{line}</div>}
+      {st.last && <div className="mt-1 text-xs text-muted">Done {formatDate(st.last)}</div>}
     </>
+  );
+}
+
+/** Assembly's or Packing's next plan date (what is still to be done), red once past. */
+function PlanDate({ st, now }: { st: DispatchPlanStage; now: string }) {
+  const full = /^fully/i.test(st.status);
+  if (full || !st.next) return <span className="text-muted">{full ? "Done" : "—"}</span>;
+  const late = st.next < now;
+  return (
+    <span className={late ? "font-medium text-rose-700 dark:text-rose-300" : ""}>
+      {formatDate(st.next)}
+      {late && <span className="block text-xs">overdue</span>}
+    </span>
   );
 }
 
@@ -166,7 +178,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className="w-full min-w-[1900px] text-sm">
+          <table className="w-full min-w-[2150px] text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
@@ -181,7 +193,9 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3">BOI</th>
                 <th className="px-4 py-3">Alignment</th>
                 <th className="px-4 py-3"><SortHeader label="Assembly" sortKey="asm" /></th>
+                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Assembly Plan Date" sortKey="asm_plan" /></th>
                 <th className="px-4 py-3"><SortHeader label="Packing" sortKey="pkg" /></th>
+                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Packing Plan Date" sortKey="pkg_plan" /></th>
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Dispatch Target" sortKey="dispatch_target" /></th>
                 {/* Central Visibility's own, after the department's. */}
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="To Be Dispatch Date" sortKey="final_target" /></th>
@@ -276,10 +290,16 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                       <Alignment a={r.alignment} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <Stage st={r.assembly} now={now} />
+                      <Stage st={r.assembly} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <Stage st={r.packing} now={now} />
+                      <PlanDate st={r.assembly} now={now} />
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <Stage st={r.packing} />
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <PlanDate st={r.packing} now={now} />
                     </td>
                     <td className={`whitespace-nowrap px-4 py-3 ${targetLate ? "font-medium text-rose-700 dark:text-rose-300" : ""}`}>
                       {formatDate(r.dispatch_target)}
@@ -300,7 +320,15 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                           {r.hold_reason && <div className="mt-1 max-w-[14rem] whitespace-normal text-xs text-rose-700 dark:text-rose-300">{r.hold_reason}</div>}
                         </>
                       ) : (
-                        <Chip tone={r.status === "LOT dispatch" ? "part" : "pending"}>{r.status === "LOT dispatch" ? "Lot dispatch" : r.status}</Chip>
+                        <>
+                          <Chip tone={r.status.startsWith("LOT dispatch") ? "part" : "pending"}>
+                            {r.status === "LOT dispatch" ? "Lot dispatch" : r.status === FINAL_LOT_PENDING ? "Lot dispatch, final lot pending" : r.status}
+                          </Chip>
+                          {/* Final lot pending: why it waits. */}
+                          {r.status === FINAL_LOT_PENDING && r.hold_reason && (
+                            <div className="mt-1 max-w-[14rem] whitespace-normal text-xs text-sky-700 dark:text-sky-300">{r.hold_reason}</div>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>

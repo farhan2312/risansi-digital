@@ -30,6 +30,7 @@ import { PendencyCell } from "./pendency-cell";
 import type { Pendency } from "@/lib/pendency";
 import type { EcAssembly } from "@/lib/ec-assembly";
 import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+import { DispatchStatusWithReason } from "./dispatch-status-pill";
 
 type Row = Record<string, unknown>;
 type Group = { key: string; head: Row; ecs: Row[] };
@@ -229,6 +230,20 @@ export function QcWorkspace({
           </PendencyCell>
         ),
       list: true,
+    },
+    {
+      // Where Dispatch has got to on the SO; a Hold / Final lot pending with why.
+      key: "dispatch_status",
+      label: "Dispatch Status",
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      cell: (g) => (
+        <DispatchStatusWithReason
+          status={g.head.so_dispatch_status}
+          override={g.head.status_override}
+          reason={g.head.status_reason}
+        />
+      ),
     },
   ];
   // The documents each EC needs are the SO's (every EC row carries them).
