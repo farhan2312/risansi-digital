@@ -114,6 +114,9 @@ type Row = Record<string, unknown>;
 /** Accounts: the SO No. column's set width, and so where the fixed client column starts. */
 const ACCT_SO_W = "w-44 min-w-44 max-w-44";
 const ACCT_SO_LEFT = "11rem";
+/** Accounts: the SO Date pinned after the SO No., the client after it. */
+const ACCT_DATE_W = "w-28 min-w-28 max-w-28";
+const ACCT_CLIENT_LEFT = "18rem";
 
 /** Planning's Lot columns: one per readiness lot a Spare can have. */
 const LOT_COLUMNS = Array.from({ length: READY_LOT_LIMIT }, (_, i) => i + 1);
@@ -413,8 +416,10 @@ export function DepartmentWorkspace({
   // the table scrolls sideways (the SO No. a set width, the client after it).
   const acctPinned = table === "order_accounts";
   // Accounts: Sales Order Date under SO No. (no column of its own), and an Order Status column.
-  // The SO Date is its own column everywhere (Accounts' too), not under the SO No.
-  const soCols = soContext;
+  // The SO Date is its own column, right after the SO No. (taken out of the
+  // context columns to sit there); Accounts' Client Code sits under the name.
+  const soDateField = soContext.find((f) => f.column === "so_date");
+  const soCols = soContext.filter((f) => f.column !== "so_date" && !(acctPinned && f.column === "client_code"));
 
   // SO-scope sections (Billing/Accounts) have no per-EC breakdown, so EC No.
   // would always be blank — hide the column entirely.
@@ -786,6 +791,7 @@ export function DepartmentWorkspace({
     {
       key: "so",
       label: "SO No.",
+      head: <SortHeader label="SO No." sortKey="so_no" />,
       thClass: `sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : ""}`,
       thStyle: acctPinned ? { boxShadow: "none" } : undefined,
       tdClass: `sticky-so px-4 py-3 ${acctPinned ? ACCT_SO_W : "whitespace-nowrap"}`,
@@ -803,6 +809,21 @@ export function DepartmentWorkspace({
       ),
       list: true,
     },
+    // Right after the SO No. (Accounts: pinned with it and the client).
+    ...(soDateField
+      ? [
+          {
+            key: "so:so_date",
+            label: soDateField.label,
+            head: <SortHeader label={soDateField.label} sortKey="so_date" />,
+            thClass: `px-3 py-3 whitespace-nowrap text-muted-foreground ${acctPinned ? `sticky-so ${ACCT_DATE_W}` : ""}`,
+            thStyle: acctPinned ? { left: ACCT_SO_LEFT, boxShadow: "none" } : undefined,
+            tdClass: `px-3 py-3 whitespace-nowrap text-muted ${acctPinned ? `sticky-so ${ACCT_DATE_W}` : ""}`,
+            tdStyle: acctPinned ? { left: ACCT_SO_LEFT, boxShadow: "none" } : undefined,
+            cell: (order: Row) => contextValue(soDateField, order),
+          },
+        ]
+      : []),
     ...(!acctPinned ? [flatChat] : []),
     ...(showEcNo
       ? [{ key: "ec", label: "EC No.", thClass: "px-4 py-3", tdClass: "px-4 py-3 whitespace-nowrap", cell: (order: Row) => toInput(order.ec_no) || "—" }]
@@ -811,12 +832,20 @@ export function DepartmentWorkspace({
       ? [
           {
             key: "party",
-            label: "Client Name",
+            label: acctPinned ? "Client Name & Code" : "Client Name",
             thClass: acctPinned ? "sticky-so px-4 py-3" : "px-4 py-3",
-            thStyle: acctPinned ? { left: ACCT_SO_LEFT } : undefined,
+            thStyle: acctPinned ? { left: soDateField ? ACCT_CLIENT_LEFT : ACCT_SO_LEFT } : undefined,
             tdClass: acctPinned ? "sticky-so min-w-[12rem] max-w-[16rem] px-4 py-3" : "px-4 py-3",
-            tdStyle: acctPinned ? { left: ACCT_SO_LEFT } : undefined,
-            cell: (order: Row) => toInput(order.client_name) || "—",
+            tdStyle: acctPinned ? { left: soDateField ? ACCT_CLIENT_LEFT : ACCT_SO_LEFT } : undefined,
+            // Accounts: the Client Code under the name, in one column.
+            cell: (order: Row) => (
+              <>
+                {toInput(order.client_name) || "—"}
+                {acctPinned && toInput(order.client_code) && (
+                  <span className="block text-[11px] text-muted">{toInput(order.client_code)}</span>
+                )}
+              </>
+            ),
             list: true,
           },
         ]
@@ -963,6 +992,7 @@ export function DepartmentWorkspace({
     {
       key: "so",
       label: "SO No.",
+      head: <SortHeader label="SO No." sortKey="so_no" />,
       thClass: "sticky-so px-4 py-3",
       tdClass: "sticky-so px-4 py-3 whitespace-nowrap",
       cell: (g) => (
@@ -974,22 +1004,36 @@ export function DepartmentWorkspace({
       ),
       list: true,
     },
+    // Right after the SO No.; Planning's readiness date after it.
+    ...(soDateField
+      ? [
+          {
+            key: "so:so_date",
+            label: soDateField.label,
+            head: <SortHeader label={soDateField.label} sortKey="so_date" />,
+            thClass: "px-3 py-3 whitespace-nowrap text-muted-foreground",
+            tdClass: "px-3 py-3 whitespace-nowrap text-muted",
+            cell: (g: SoGroup) => contextCell(soDateField, g.head),
+          },
+          ...(table === "order_planning" && soEdit ? [readinessCol] : []),
+        ]
+      : []),
     { key: "chat", label: "Chat", thClass: "px-4 py-3", tdClass: "px-4 py-3", cell: (g) => chatOf(g.head) },
     ...(showParty
       ? [{ key: "party", label: "Client Name", thClass: "px-4 py-3", tdClass: "px-4 py-3", cell: (g: SoGroup) => toInput(g.head.client_name) || "—" }]
       : []),
-    ...soContext.flatMap((f): Col<SoGroup>[] => [
-      {
+    ...soContext
+      .filter((f) => f.column !== "so_date")
+      .map((f): Col<SoGroup> => ({
         key: `so:${f.column}`,
         label: f.label,
-        head: f.column === "so_date" ? <SortHeader label={f.label} sortKey="so_date" /> : fieldHead(f),
+        head: fieldHead(f),
         thClass: "px-3 py-3 whitespace-nowrap text-muted-foreground",
         tdClass: "px-3 py-3 whitespace-nowrap text-muted",
         cell: (g) => contextCell(f, g.head),
-      },
-      // Planning: the readiness date right after SO Date.
-      ...(f.column === "so_date" && table === "order_planning" && soEdit ? [readinessCol] : []),
-    ]),
+      })),
+    // No SO Date column: Planning's readiness date still shows.
+    ...(!soDateField && table === "order_planning" && soEdit ? [readinessCol] : []),
     { key: "ecs", label: "ECs", thClass: "px-4 py-3 text-center normal-case", tdClass: "px-4 py-3 text-center tabular-nums", cell: (g) => g.ecs.length, list: true },
     ...(soEdit
       ? [

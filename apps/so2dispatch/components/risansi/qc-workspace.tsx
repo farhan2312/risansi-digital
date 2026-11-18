@@ -146,6 +146,7 @@ export function QcWorkspace({
     {
       key: "so",
       label: "SO No.",
+      head: <SortHeader label="SO No." sortKey="so_no" />,
       thClass: "sticky-so",
       tdClass: "sticky-so whitespace-nowrap",
       cell: (g) => (

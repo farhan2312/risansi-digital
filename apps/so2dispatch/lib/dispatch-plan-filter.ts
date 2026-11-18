@@ -88,6 +88,9 @@ export function dateOf(r: DispatchPlanRow, key: string): string | null {
       return readinessOf(r);
     case "so_date":
       return r.so_date;
+    // Not a date: the SO No., compared in number order below.
+    case "so_no":
+      return r.so_no;
     case "po_date":
       return r.po_date;
     case "ppc":
@@ -107,7 +110,7 @@ export function dateOf(r: DispatchPlanRow, key: string): string | null {
   }
 }
 
-export const DP_SORT_KEYS = ["so_date", "po_date", "ppc", "readiness", "asm", "asm_plan", "pkg", "pkg_plan", "dispatch_target", "final_target"];
+export const DP_SORT_KEYS = ["so_no", "so_date", "po_date", "ppc", "readiness", "asm", "asm_plan", "pkg", "pkg_plan", "dispatch_target", "final_target"];
 
 const readinessWord = (r: DispatchPlanRow, today: string) =>
   r.fully_ready ? "Fully ready" : r.plan_date && r.plan_date < today ? "In plan · overdue" : "In plan";
@@ -157,7 +160,9 @@ export function sortDispatchPlan(rows: DispatchPlanRow[], sort: string | undefin
     if (!x && !y) return a.sl_no - b.sl_no;
     if (!x) return 1;
     if (!y) return -1;
-    return (desc ? y.localeCompare(x) : x.localeCompare(y)) || a.sl_no - b.sl_no;
+    // In number order: SO26/1/943 before SO26/1/1486 (dates compare as they did).
+    const cmp = (p: string, q: string) => p.localeCompare(q, undefined, { numeric: true });
+    return (desc ? cmp(y, x) : cmp(x, y)) || a.sl_no - b.sl_no;
   });
 }
 

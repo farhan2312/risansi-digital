@@ -953,7 +953,7 @@ export function OrdersTable({
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
                 {/* SO No. and its date, the client and its code, the rep and zone: a column each. */}
                 {/* The table view: SO No. and SO Date apart; the split list keeps the date under the SO. */}
-                <th rowSpan={2} className="sticky-so px-4 py-3">{split ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : "SO No."}</th>
+                <th rowSpan={2} className="sticky-so px-4 py-3">{split ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : <SortHeader label="SO No." sortKey="so_no" />}</th>
                 {!split && <th rowSpan={2} className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>}
                 {!split && <th rowSpan={2} className="px-3 py-3">Chat</th>}
                 {!pump && !split && <th rowSpan={2} className="px-4 py-3">Type</th>}

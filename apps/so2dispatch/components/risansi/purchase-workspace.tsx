@@ -177,6 +177,7 @@ export function PurchaseWorkspace({
     {
       key: "so",
       label: "SO No.",
+      head: <SortHeader label="SO No." sortKey="so_no" />,
       thClass: "sticky-so whitespace-nowrap",
       tdClass: "sticky-so whitespace-nowrap font-semibold",
       cell: (g) => (
@@ -1077,7 +1078,7 @@ function BoiListTable({
     <table className="w-full min-w-[2100px] text-sm">
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-          <th className={`${th} ${stickTh(0)}`} style={stick(0)}>SO No.</th>
+          <th className={`${th} ${stickTh(0)}`} style={stick(0)}><SortHeader label="SO No." sortKey="so_no" /></th>
           <th className={`${th} ${stickTh(1)}`} style={stick(1)}>EC No.</th>
           {itemHeads.map((h, i) => {
             // The SO's and EC's dates sort as the items' own dates do.

@@ -133,6 +133,7 @@ export function BillingWorkspace({
     {
       key: "so",
       label: "SO No.",
+      head: <SortHeader label="SO No." sortKey="so_no" />,
       thClass: "sticky-so",
       tdClass: "sticky-so whitespace-nowrap",
       cell: (row) => (
@@ -143,6 +144,13 @@ export function BillingWorkspace({
         </>
       ),
       list: true,
+    },
+    {
+      key: "sodate",
+      label: "SO Date",
+      head: <SortHeader label="SO Date" sortKey="so_date" />,
+      tdClass: "whitespace-nowrap text-muted",
+      cell: (row) => formatDate(row.so_date),
     },
     {
       key: "chat",
@@ -165,13 +173,6 @@ export function BillingWorkspace({
           )}
         </button>
       ),
-    },
-    {
-      key: "sodate",
-      label: "SO Date",
-      head: <SortHeader label="SO Date" sortKey="so_date" />,
-      tdClass: "whitespace-nowrap text-muted",
-      cell: (row) => formatDate(row.so_date),
     },
     // Central Visibility's date for it to go out (Dispatch Plan).
     ...only(dispatch, {

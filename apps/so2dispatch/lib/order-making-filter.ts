@@ -33,8 +33,9 @@ export type OmDateField = (typeof OM_DATE_FIELDS)[number]["value"];
 export type OmSort =
   | "sl" | "-sl" | "so_date" | "-so_date" | "ecs" | "-ecs"
   | "po_received_date" | "-po_received_date" | "ec_sent_operation_date" | "-ec_sent_operation_date"
-  | "assignee" | "-assignee";
+  | "assignee" | "-assignee" | "so_no" | "-so_no";
 const SORTS: OmSort[] = [
+  "so_no", "-so_no",
   "sl", "-sl", "so_date", "-so_date", "ecs", "-ecs",
   "po_received_date", "-po_received_date", "ec_sent_operation_date", "-ec_sent_operation_date",
   "assignee", "-assignee",

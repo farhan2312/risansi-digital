@@ -167,6 +167,7 @@ export function PlanningPumpTable({
     {
       key: "so",
       label: "SO No.",
+      head: <SortHeader label="SO No." sortKey="so_no" />,
       thClass: "sticky-so",
       tdClass: "sticky-so whitespace-nowrap font-semibold",
       cell: (g) => (
@@ -181,6 +182,13 @@ export function PlanningPumpTable({
         </>
       ),
       list: true,
+    },
+    {
+      key: "so_date",
+      label: "SO Date",
+      head: <SortHeader label="SO Date" sortKey="so_date" />,
+      tdClass: "whitespace-nowrap",
+      cell: (g) => (str(g.head.so_date) ? shortDate(str(g.head.so_date)) : "—"),
     },
     {
       key: "chat",
@@ -203,13 +211,6 @@ export function PlanningPumpTable({
           </button>
         );
       },
-    },
-    {
-      key: "so_date",
-      label: "SO Date",
-      head: <SortHeader label="SO Date" sortKey="so_date" />,
-      tdClass: "whitespace-nowrap",
-      cell: (g) => (str(g.head.so_date) ? shortDate(str(g.head.so_date)) : "—"),
     },
     {
       key: "readiness",

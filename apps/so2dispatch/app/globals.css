@@ -21,6 +21,13 @@
  * Order Making: SO No. at a set width so the client column can stick right
  * after it — both stay at the left edge as the table scrolls sideways.
  */
+/* Order Making: the SO Date, pinned between the SO No. and the client. */
+.om-date-col {
+  left: 11rem !important;
+  width: 7rem;
+  min-width: 7rem;
+  max-width: 7rem;
+}
 .om-so-col {
   width: 11rem;
   min-width: 11rem;
@@ -31,7 +38,8 @@
 }
 .sticky-client {
   position: sticky;
-  left: 11rem;
+  /* After the SO No. (11rem) and the SO Date (7rem). */
+  left: 18rem;
   z-index: 2;
   min-width: 13rem;
   background-color: var(--color-surface);

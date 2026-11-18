@@ -255,10 +255,10 @@ export function OrderMakingWorkspace({
   const assignOptions = [{ value: UNASSIGNED, label: "Unassigned" }, ...members.map((m) => ({ value: m.id, label: memberLabel(m) }))];
   const cols: { column: string; label: string }[] = [
     { column: "so_no", label: "SO No." },
+    // Right after the SO No., pinned with it and the client.
+    { column: "so_date", label: "SO Date" },
     // The Client Code sits under the name, in one column.
     { column: "client_name", label: "Client Name & Code" },
-    // Its own column, after the two pinned at the left (and Chat).
-    { column: "so_date", label: "SO Date" },
     { column: "order_type", label: "Order Type" },
     { column: "bill_mode", label: "Bill Mode" },
     // An FR (replacement) SO carries its complaint in place of a PO.
@@ -281,13 +281,15 @@ export function OrderMakingWorkspace({
       const col: OmCol = {
         key: c.column,
         label: c.label,
-        ...(["so_date", "po_received_date", "ec_sent_operation_date"].includes(c.column)
+        ...(c.column === "so_no"
+          ? { head: <SortHeader label={c.label} sortKey="so_no" /> }
+          : ["so_date", "po_received_date", "ec_sent_operation_date"].includes(c.column)
             ? { head: <SortHeader label={c.label} sortKey={c.column} /> }
             : {}),
         thClass:
-          c.column === "order_value" ? "whitespace-nowrap" : c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : "",
+          c.column === "order_value" ? "whitespace-nowrap" : c.column === "so_no" ? "sticky-so om-so-col" : c.column === "so_date" ? "sticky-so om-date-col whitespace-nowrap" : c.column === "client_name" ? "sticky-client" : "",
         tdClass: `${c.column === "order_value" ? "align-top" : c.column === "client_name" ? "" : "whitespace-nowrap"} ${
-          c.column === "so_no" ? "sticky-so om-so-col" : c.column === "client_name" ? "sticky-client" : ""
+          c.column === "so_no" ? "sticky-so om-so-col" : c.column === "so_date" ? "sticky-so om-date-col" : c.column === "client_name" ? "sticky-client" : ""
         }`,
         // The SO and its client say which SO a row is.
         list: c.column === "so_no" || c.column === "client_name",

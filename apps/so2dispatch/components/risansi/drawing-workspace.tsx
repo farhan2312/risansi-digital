@@ -43,6 +43,9 @@ type Col<R> = SplitCol<R> & { thStyle?: CSSProperties; tdStyle?: CSSProperties }
 /** The SO No. column's set width, and so where the PO column pinned beside it starts. */
 const SO_W = "w-44 min-w-44 max-w-44";
 const SO_LEFT = "11rem";
+/** The SO Date, pinned after the SO No.; the PO after it. */
+const DATE_W = "w-28 min-w-28 max-w-28";
+const PO_LEFT = "18rem";
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 const yes = (v: unknown) => str(v).trim().toLowerCase() === "yes";
 
@@ -146,6 +149,7 @@ export function DrawingWorkspace({
     {
       key: "so",
       label: "SO No.",
+      head: <SortHeader label="SO No." sortKey="so_no" />,
       thClass: `sticky-so ${SO_W}`,
       thStyle: { boxShadow: "none" },
       tdClass: `sticky-so ${SO_W}`,
@@ -161,27 +165,29 @@ export function DrawingWorkspace({
     },
     {
       // Pinned beside the SO No. as the table scrolls.
+      key: "so_date",
+      label: "SO Date",
+      head: <SortHeader label="SO Date" sortKey="so_date" />,
+      thClass: `sticky-so whitespace-nowrap ${DATE_W}`,
+      thStyle: { left: SO_LEFT, boxShadow: "none" },
+      tdClass: `sticky-so whitespace-nowrap ${DATE_W}`,
+      tdStyle: { left: SO_LEFT, boxShadow: "none" },
+      cell: (g) => formatDate(g.head.so_date),
+    },
+    {
+      // Pinned beside the SO Date as the table scrolls.
       key: "po",
       label: "PO No. / Date",
       thClass: `sticky-so ${SO_W}`,
-      thStyle: { left: SO_LEFT },
+      thStyle: { left: PO_LEFT },
       tdClass: `sticky-so ${SO_W}`,
-      tdStyle: { left: SO_LEFT },
+      tdStyle: { left: PO_LEFT },
       cell: (g) => (
         <>
           <span className="block break-words font-medium">{str(g.head.po_no) || "—"}</span>
           {str(g.head.customer_po_date) && <span className="block text-xs text-muted">{formatDate(g.head.customer_po_date)}</span>}
         </>
       ),
-    },
-    // After the two pinned columns.
-    {
-      key: "so_date",
-      label: "SO Date",
-      head: <SortHeader label="SO Date" sortKey="so_date" />,
-      thClass: "whitespace-nowrap",
-      tdClass: "whitespace-nowrap",
-      cell: (g) => formatDate(g.head.so_date),
     },
     {
       key: "chat",

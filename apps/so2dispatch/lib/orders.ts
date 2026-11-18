@@ -5288,6 +5288,8 @@ export async function listOrdersForOrderMaking(opts: {
   const orderBy =
     f.sort && /^-?(so_date|po_received_date|ec_sent_operation_date)$/.test(f.sort)
       ? `o.${f.sort.replace("-", "")} ${dir} NULLS LAST, o.sl_no DESC`
+      : f.sort === "so_no" || f.sort === "-so_no"
+        ? soNoOrderBy(dir)
       : f.sort === "ecs" || f.sort === "-ecs"
         ? `(SELECT count(*) FROM order_items i WHERE i.order_id = o.id) ${dir}, o.sl_no DESC`
       : f.sort === "assignee" || f.sort === "-assignee"
@@ -5376,7 +5378,7 @@ const REPORT_LIMIT = 2000;
  */
 export type QueueSort =
   | "sl" | "-sl" | "readiness" | "-readiness" | "packing" | "-packing" | "so_date" | "-so_date" | "ecs" | "-ecs" | "rep" | "-rep"
-  | "asm_plan" | "-asm_plan" | "ec_date" | "-ec_date"
+  | "asm_plan" | "-asm_plan" | "ec_date" | "-ec_date" | "so_no" | "-so_no"
   // Any of SORTABLE_DATE_COLUMNS or the ones below (see DATE_SORT_SQL).
   | `${string}_date` | `-${string}_date` | "qc_submitted" | "-qc_submitted"
   | "dispatch_target_date" | "-dispatch_target_date" | "ld_date" | "-ld_date" | "so_handover_date" | "-so_handover_date"
@@ -5384,7 +5386,7 @@ export type QueueSort =
 
 const QUEUE_SORTS: QueueSort[] = [
   "sl", "-sl", "readiness", "-readiness", "packing", "-packing", "so_date", "-so_date", "ecs", "-ecs", "rep", "-rep",
-  "asm_plan", "-asm_plan", "ec_date", "-ec_date",
+  "asm_plan", "-asm_plan", "ec_date", "-ec_date", "so_no", "-so_no",
   "dispatch_target_date", "-dispatch_target_date", "ld_date", "-ld_date", "so_handover_date", "-so_handover_date",
   "in_hand", "-in_hand",
 ];
@@ -5415,6 +5417,16 @@ const DATE_SORT_SQL = new Map<string, string>([
     `(SELECT min(bi.${c}) FROM order_items s JOIN order_boi_items bi ON bi.item_id = s.id WHERE s.order_id = o.id)`,
   ]),
 ]);
+
+/**
+ * SO No.s in number order rather than as text: by the year, the series and
+ * the running number they hold (SO26/1/943 before SO26/1/1486); one with no
+ * number last either way, the text breaking ties.
+ */
+export function soNoOrderBy(dir: "ASC" | "DESC", o = "o"): string {
+  const n = (re: string) => `NULLIF(substring(${o}.so_no from '${re}'), '')::numeric ${dir} NULLS LAST`;
+  return `${n("^\\D*(\\d+)")}, ${n("^\\D*\\d+\\D+(\\d+)")}, ${n("(\\d+)\\D*$")}, ${o}.so_no ${dir} NULLS LAST, ${o}.sl_no DESC`;
+}
 
 export function parseQueueSort(value: string | undefined): QueueSort | null {
   return QUEUE_SORTS.includes(value as QueueSort) || DATE_SORT_SQL.has((value ?? "").replace(/^-/, ""))
@@ -5453,6 +5465,8 @@ function queueOrderBy(sort: QueueSort | null | undefined): string | undefined {
                   ELSE o.taxable_value - COALESCE((SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))
                                                      FROM order_invoices iv WHERE iv.order_id = o.id), 0) END) ${dir} NULLS LAST, o.sl_no DESC`;
   }
+  // The SO No., in number order (SO25/1/90 before SO25/1/1890; year, series, then number).
+  if (sort.replace("-", "") === "so_no") return soNoOrderBy(dir);
   // The EC date: the SO's earliest EC.
   if (sort.replace("-", "") === "ec_date") {
     return `(SELECT min(s.ec_date) FROM order_items s WHERE s.order_id = o.id) ${dir} NULLS LAST, o.sl_no DESC`;

@@ -186,7 +186,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
                 <th className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3">Sl.</th>
-                <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">SO No.</th>
+                <th className="sticky left-16 z-10 bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]"><SortHeader label="SO No." sortKey="so_no" /></th>
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>
                 <th className="px-4 py-3">Rep · Zone</th>
                 <th className="px-4 py-3"><SortHeader label="PO / Date" sortKey="po_date" /></th>
