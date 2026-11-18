@@ -22,6 +22,19 @@ export function useUrlTableBusy(): boolean {
   return useSyncExternalStore(subscribe, () => busy > 0, () => false);
 }
 
+/** Report a change of its own (the Table / Split switch) as loading, so the page greys like for a filter. */
+export function useReportBusy(pending: boolean) {
+  useEffect(() => {
+    if (!pending) return;
+    busy += 1;
+    notify();
+    return () => {
+      busy -= 1;
+      notify();
+    };
+  }, [pending]);
+}
+
 /**
  * URL-backed table state. The server reads these params to fetch one page, so
  * every control here writes to the query string rather than to local state —

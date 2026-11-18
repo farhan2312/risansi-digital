@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useTransition } from "react";
+import { useReportBusy } from "./url-table";
 import { useRouter } from "next/navigation";
 import { Columns2, Table2 } from "lucide-react";
 import { VIEW_MODE_COOKIE, viewModeOf, type ViewMode } from "@/lib/view-mode";
@@ -17,11 +18,14 @@ const read = (): ViewMode =>
 function useViewMode() {
   const router = useRouter();
   const mode = useSyncExternalStore(subscribe, read, () => "table" as ViewMode);
+  // The page greyed (as for a filter) until it is drawn again in the new view.
+  const [pending, startTransition] = useTransition();
+  useReportBusy(pending);
   const set = (next: ViewMode) => {
     if (next === mode) return;
     document.cookie = `${VIEW_MODE_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
     listeners.forEach((fn) => fn());
-    router.refresh();
+    startTransition(() => router.refresh());
   };
   return { mode, set };
 }
