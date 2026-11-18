@@ -98,7 +98,7 @@ import {
 } from "@/lib/dept-completion";
 import type { QcDocTable } from "@/lib/orders";
 import { RetrofitLine } from "./retrofit-line";
-import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
+import { PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 
 // Only the QC workspace passes this today; kept generic (a list, so more than
 // one document set can be attached) in case another department needs file
@@ -1671,9 +1671,7 @@ export function DepartmentWorkspace({
                 <Portrait cols={groupCols} row={focusGroup} />
               </PanelSection>
               {/* What the SO's expanded row shows: each EC, and its child list. */}
-              {/* The ECs: all, or one picked from the chips. */}
-              <EcFocus key={focusGroup.key} ecs={focusGroup.ecs} keyOf={(ec) => String(ec.id)} labelOf={(ec) => toInput(ec.ec_no) || "—"}>
-                {(ec) => (
+              {focusGroup.ecs.map((ec) => (
                 <PanelSection
                   key={String(ec.id)}
                   title={`EC ${toInput(ec.ec_no) || "—"}`}
@@ -1689,8 +1687,7 @@ export function DepartmentWorkspace({
                       ))}
                   </div>
                 </PanelSection>
-                )}
-              </EcFocus>
+              ))}
             </>
           ) : focusRow ? (
             <PanelSection
