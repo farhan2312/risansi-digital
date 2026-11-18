@@ -9,7 +9,7 @@ import { isGearedGroup, normalizeOfferConfig } from "./commercial-offer";
 import { projectDriveGroups } from "./commercial-server";
 import { db } from "./db";
 import { projects, quotation, quotationVersion, techDocVersion } from "./db/schema";
-import type { SavedDocs, SavedGroupDocs } from "./saved-docs";
+import { operationDocKinds, type SavedDocs, type SavedGroupDocs } from "./saved-docs";
 import { normalizeDocLinks } from "./doc-links";
 import { normalizeSpareDocEdits, normalizeSpareQuote } from "./spare-quote";
 import { termsMarketOf } from "./spare-terms";
@@ -27,14 +27,13 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
       market: projects.clientMarketType,
       quote: projects.spareQuote,
       docEdits: projects.spareDocEdits,
-      nonStandard: projects.nonStandardFormat,
+      operationDocs: projects.operationDocs,
       links: projects.docLinks,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
   if (!p) return null;
-  const format = { nonStandard: p.nonStandard, links: p.nonStandard ? normalizeDocLinks(p.links) : {} };
 
   const quotes = await db.select().from(quotation).where(eq(quotation.projectId, projectId));
   const clientRows = quotes.length
@@ -48,6 +47,12 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
   const enquiry = [p.code, p.enquiryDate ? `Dt. ${dotDate(p.enquiryDate)}` : ""].filter(Boolean).join(", ");
   // The Client Name box: with the city and country from sales.
   const clientName = await docClientName(p.name, p.clientCode);
+  // The file name: the client's name as on the enquiry (no city / country).
+  const about = {
+    enquiry: { code: p.code, clientName: p.name ?? "", enquiryDate: p.enquiryDate },
+    sent: p.orderType === "spare" ? null : operationDocKinds(p.operationDocs),
+    links: normalizeDocLinks(p.links),
+  };
 
   if (p.orderType === "spare") {
     const q = quotes.find((x) => x.driveGroup === SPARE_GROUP);
@@ -55,8 +60,8 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
     const keptSnap = q ? (savedOn(q.id)?.snapshot as QuotationSnapshot | undefined) : undefined;
     const kept = keptSnap?.spare;
     return {
-      ...format,
       orderType: "spare",
+      ...about,
       groups: [],
       spare:
         q && savedOn(q.id)
@@ -137,5 +142,5 @@ export async function loadSavedDocs(projectId: string): Promise<SavedDocs | null
   for (const s of sheets) {
     if (!groups.some((g) => g.group === s.group)) groups.push({ group: s.group as TechDocGroup, tech: sheetOf(s.group), offer: null });
   }
-  return { ...format, orderType: "pump", groups, spare: null };
+  return { orderType: "pump", ...about, groups, spare: null };
 }

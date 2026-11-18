@@ -32,7 +32,7 @@ import { DrawingWorkspace } from "@/components/risansi/drawing-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
 import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
-import { CURVE_STATUSES, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
+import { CURVE_STATUSES, ecStatusCountSql, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -115,6 +115,8 @@ export default async function DrawingWorkspacePage({
         group: "GAD",
         sql: drawingFilterSql({ ...none, gad: [st] }),
         params: { ...clear, drg_gad: st },
+        // Beside the SOs: how many of their ECs stand there.
+        also: { label: "ECs", measure: ecStatusCountSql("gad", st) },
         // How many of them Central Visibility holds (a badge: they count here).
         held: CV_HELD,
         tone: toneFor(st),
@@ -125,6 +127,7 @@ export default async function DrawingWorkspacePage({
         group: "Performance Curve",
         sql: drawingFilterSql({ ...none, curve: [st] }),
         params: { ...clear, drg_pc: st },
+        also: { label: "ECs", measure: ecStatusCountSql("curve", st) },
         // How many of them Central Visibility holds (a badge: they count here).
         held: CV_HELD,
         tone: toneFor(st),
@@ -135,6 +138,7 @@ export default async function DrawingWorkspacePage({
         group: "Part Drawing",
         sql: drawingFilterSql({ ...none, part: [st] }),
         params: { ...clear, drg_part: st },
+        also: { label: "ECs", measure: ecStatusCountSql("part", st) },
         // How many of them Central Visibility holds (a badge: they count here).
         held: CV_HELD,
         tone: toneFor(st),
@@ -184,7 +188,7 @@ export default async function DrawingWorkspacePage({
     }
     for (const [, ecs] of byOrder) {
       const st = soDrawingState(ecs);
-      for (const r of ecs) Object.assign(r, { so_drawing_closed: st.closed, so_drawing_closed_date: st.date });
+      for (const r of ecs) Object.assign(r, { so_drawing_closed: st.closed, so_drawing_closed_date: st.date, so_drawing_sent: st.sent });
     }
   }
   // An SO matched on one of its ECs: show the ECs that match. Open / Closed is

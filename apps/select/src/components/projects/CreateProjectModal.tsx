@@ -6,7 +6,6 @@ import {
   EMPTY_CLIENT,
   EnquiryCategoryFields,
   Field,
-  NonStandardFormatField,
   ModalShell,
   OrderTypePicker,
   Section,
@@ -49,7 +48,6 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
   const [category, setCategory] = useState<EnquiryCategory>("regular");
   const [remarks, setRemarks] = useState("");
   const [triedSave, setTriedSave] = useState(false);
-  const [nonStandard, setNonStandard] = useState(false);
   const [client, setClient] = useState<ClientForm>(EMPTY_CLIENT);
   // Who works the enquiry: a worker, or the master herself.
   const [assignees, setAssignees] = useState<Assignee[] | null>(null);
@@ -98,8 +96,8 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
       orderType,
       orderSubtype,
       enquiryCategory: category,
-      remarks: remarks.trim(),
-      nonStandardFormat: nonStandard,
+      // Only a Project has its details.
+      remarks: category === "project" ? remarks.trim() : "",
       assignedTo,
       ...client,
     });
@@ -171,7 +169,6 @@ const CreateEnquiryForm = ({ onClose, onCreate, startAsSpare = false }: Omit<Pro
           <input type="date" className={inputCls} value={enquiryDate} max={todayYmd()} onChange={(e) => setEnquiryDate(e.target.value)} />
         </Field>
         <EnquiryCategoryFields category={category} remarks={remarks} showErrors={triedSave} onCategory={setCategory} onRemarks={setRemarks} />
-        <NonStandardFormatField value={nonStandard} isSpare={orderType === "spare"} onChange={setNonStandard} />
       </Section>
 
       <Section step={2} title="Client" subtitle="Pick from the client master to fill everything, or type it in">

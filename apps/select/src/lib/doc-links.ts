@@ -1,8 +1,10 @@
-// Non-standard format (user, 2026-11-17): when a client asks for its own format, the
-// documents are made by hand and kept on SharePoint. The enquiry is still worked in the
-// portal (Save Version still records the sheets and prices and drives the statuses), but
-// what is reviewed and what Operation opens are these links, not the generated documents.
-// Per enquiry version (projects.doc_links); a new version starts with none. Client-safe.
+// SharePoint links for a version's documents (user, 2026-11-18). The portal always
+// generates the documents (Save Version still records the sheets and prices and drives
+// the statuses); when a client asks for its own format, the document is made by hand, put
+// on SharePoint and its link added on Review. A document with a link opens that file, on
+// Review and on Operation's pages, instead of the generated one; one without stays as
+// generated. Per enquiry version (projects.doc_links); a new version starts with none.
+// Client-safe.
 
 export type DocLinkKind = "technical" | "commercial" | "techno";
 export type DocLinks = Partial<Record<DocLinkKind, string>>;
@@ -44,9 +46,3 @@ export function sharepointLinkProblem(url: string): string | null {
   return null;
 }
 
-/** What is still to be added before the version can be reviewed, or null. */
-export function missingDocLinks(orderType: string, links: DocLinks): string | null {
-  const missing = docLinkKinds(orderType).filter((k) => !links[k.key]);
-  if (missing.length === 0) return null;
-  return `Add the SharePoint link for ${missing.map((k) => k.label).join(", ")} first (non-standard format).`;
-}

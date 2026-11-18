@@ -928,11 +928,6 @@ const ProjectsPage = () => {
                     <span className="min-w-0">
                       <Badge tone={isSpare ? "warning" : "primary"}>{orderTypeLabel(project.order_type)}</Badge>
                       {subtype && subtype !== orderTypeLabel(project.order_type) && <span className="mt-1 block truncate text-[11.5px] text-muted-foreground">{subtype}</span>}
-                      {project.non_standard_format && (
-                        <span className="mt-1 block truncate text-[11.5px] font-medium text-primary" title="Non-standard format: the client's documents are SharePoint links, added on Review">
-                          Non-standard
-                        </span>
-                      )}
                     </span>
 
                     {/* Client name over the client code */}

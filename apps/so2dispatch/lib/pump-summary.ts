@@ -90,9 +90,9 @@ function stage(statuses: string[], order: string[], doneAt: string): PumpStage {
   return { label, done, total };
 }
 
-const GAD_ORDER = ["Pending", "Resubmit", "Sent to client – approval pending", "Approved by client", "Issued to planning"];
-const CURVE_ORDER = ["Pending", "Resubmit", "Sent to client for approval", "Approved by client"];
-const PART_ORDER = ["Pending", "Partial complete", "Fully complete"];
+const GAD_ORDER = ["EC awaited", "Pending", "Resubmit", "Sent to client – approval pending", "Approved by client", "Issued to planning"];
+const CURVE_ORDER = ["EC awaited", "Pending", "Resubmit", "Sent to client for approval", "Approved by client"];
+const PART_ORDER = ["EC awaited", "Pending", "Partial complete", "Fully complete"];
 
 type Raw = {
   id: string;

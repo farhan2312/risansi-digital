@@ -68,6 +68,22 @@ export const users = pgTable("users_pump", {
   createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()),
 });
 
+/** The parts lists a spare quotation's part picker ticks from (user, 2026-11-17), as SO to
+ *  Dispatch keeps its own: PCP (Screw pump), MMP (Rota pump), OTHER (the "Others - type
+ *  the parts" kind). Seeded from lib/spare-parts.ts; a part named under Others joins its
+ *  model's list for next time; every part can be corrected or deleted. A quotation keeps
+ *  its parts as they were named. Unique per list on lower(btrim(name)), lower(btrim(no)). */
+export const sparePartListItems = pgTable("spare_part_list_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  list: varchar("list", { length: 10 }).notNull(),
+  section: text("section").notNull(),
+  partNo: text("part_no").notNull().default(""),
+  partName: text("part_name").notNull(),
+  seq: integer("seq").notNull().default(0),
+  updatedBy: uuid("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   /** The Enquiry no. Every version of an enquiry has the same one. */
@@ -97,11 +113,9 @@ export const projects = pgTable("projects", {
   /** "regular" | "project" (CHECK; user, 2026-11-17). Project needs remarks.
    *  Older enquiries default to regular. */
   enquiryCategory: varchar("enquiry_category", { length: 20 }).notNull().default("regular"),
-  /** Non-standard format (user, 2026-11-17): the client's documents are made by hand
-   *  and linked from SharePoint (doc_links) instead of generated - lib/doc-links.ts.
-   *  Carried to a new version; the links are not. */
-  nonStandardFormat: boolean("non_standard_format").notNull().default(false),
-  /** {technical?, commercial?, techno?}: SharePoint links, a spare's quotation as commercial. */
+  /** {technical?, commercial?, techno?}: SharePoint links added on Review (user,
+   *  2026-11-18), a spare's quotation as commercial. A document with a link opens it
+   *  instead of the generated one (lib/doc-links.ts). A new version starts with none. */
   docLinks: jsonb("doc_links").$type<Record<string, string>>(),
   /** Two statuses, each worked out automatically (lib/enquiry-filters-server.ts)
    *  but editable on the Edit form (user, 2026-11-03). The override is set only
@@ -129,6 +143,10 @@ export const projects = pgTable("projects", {
   /** Operation confirmed it was mailed to the client (the portal sends no mail). Cleared with them. */
   mailedAt: timestamp("mailed_at", { withTimezone: true }),
   mailedBy: uuid("mailed_by"),
+  /** The pump documents picked on Review to go to operation ("technical", "commercial",
+   *  "techno"); null = all of them (older enquiries; a spare has one). Kept across a
+   *  Save Version, as the picks for the next review (lib/saved-docs operationDocKinds). */
+  operationDocs: text("operation_docs").array(),
   /** The Prices reviewed tick, needed on a new version before Send to client. */
   pricesReviewedAt: timestamp("prices_reviewed_at", { withTimezone: true }),
   pricesReviewedBy: uuid("prices_reviewed_by"),
@@ -201,7 +219,8 @@ export const projects = pgTable("projects", {
    *  never silently re-prices a quote. */
   usdInrRate: numeric("usd_inr_rate", { precision: 12, scale: 4 }),
 }, (t) => [
-  unique("projects_project_code_version_no_key").on(t.projectCode, t.versionNo),
+  // An enquiry no. once for a pump and once for a spare (user, 2026-11-17), each with its versions.
+  unique("projects_project_code_order_type_version_no_key").on(t.projectCode, t.orderType, t.versionNo),
   unique("projects_root_project_id_version_no_key").on(t.rootProjectId, t.versionNo),
 ]);
 

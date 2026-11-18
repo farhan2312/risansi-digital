@@ -170,7 +170,8 @@ function OrderTypeToggle({ value, onChange }: { value: OrderType; onChange: (v: 
   );
 }
 
-/** Regular / Project, then the remarks - required for a Project enquiry. */
+/** Regular / Project, then a Project's details (required; projects.remarks). A
+ *  Regular enquiry has no such field. */
 export function EnquiryCategoryFields({
   category,
   remarks,
@@ -209,55 +210,20 @@ export function EnquiryCategoryFields({
           })}
         </div>
       </Field>
-      <Field
-        label="Remarks"
-        required={isProject}
-        wide
-        hint={missing && showErrors ? <span className="text-destructive">{PROJECT_REMARKS_REQUIRED}</span> : isProject ? "Required for a Project enquiry." : undefined}
-      >
-        <textarea
-          rows={2}
-          maxLength={2000}
-          value={remarks}
-          aria-invalid={missing && showErrors ? true : undefined}
-          onChange={(e) => onRemarks(e.target.value)}
-          placeholder={isProject ? "About the project" : "Optional"}
-          className={`${inputCls} h-auto min-h-[60px] py-2 ${missing && showErrors ? "border-destructive" : ""}`}
-        />
-      </Field>
+      {isProject && (
+        <Field label="Project details" required wide hint={missing && showErrors ? <span className="text-destructive">{PROJECT_REMARKS_REQUIRED}</span> : undefined}>
+          <textarea
+            rows={2}
+            maxLength={2000}
+            value={remarks}
+            aria-invalid={missing && showErrors ? true : undefined}
+            onChange={(e) => onRemarks(e.target.value)}
+            placeholder="About the project"
+            className={`${inputCls} h-auto min-h-[60px] py-2 ${missing && showErrors ? "border-destructive" : ""}`}
+          />
+        </Field>
+      )}
     </>
-  );
-}
-
-/** Off by default. On: the client's documents are made by hand and linked from
- *  SharePoint on Review, instead of the generated ones (lib/doc-links.ts). */
-export function NonStandardFormatField({ value, isSpare, hint, onChange }: { value: boolean; isSpare: boolean; hint?: string; onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex min-w-0 flex-col sm:col-span-2">
-      <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 px-3 py-2.5">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={value}
-          aria-label="Non-standard format"
-          onClick={() => onChange(!value)}
-          className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/30 ${value ? "bg-primary" : "bg-input"}`}
-        >
-          <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-[0_1px_2px_rgba(15,23,42,0.25)] transition-transform ${value ? "translate-x-4" : ""}`} />
-        </button>
-        <span className="min-w-0">
-          <span className="block text-[12.5px] font-medium text-foreground">Non-standard format</span>
-          <span className="block text-[11.5px] leading-snug text-muted-foreground">
-            {value
-              ? isSpare
-                ? "The client asked for its own format: the quotation is made by hand and its SharePoint link is added on Review. Operation opens that file, not the generated one."
-                : "The client asked for its own format: Technical, Commercial and Techno-Commercial are made by hand and their SharePoint links are added on Review. Operation opens those files, not the generated ones."
-              : "Off: the portal generates the documents."}
-          </span>
-          {hint && <span className="mt-1 block text-[11.5px] leading-snug text-warning">{hint}</span>}
-        </span>
-      </div>
-    </div>
   );
 }
 

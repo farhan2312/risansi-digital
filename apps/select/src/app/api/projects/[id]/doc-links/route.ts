@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-// PUT /api/projects/[id]/doc-links {technical?, commercial?, techno?} - a non-standard
-// format enquiry version's SharePoint links (lib/doc-links.ts); a spare has commercial
-// (its quotation) only. Only the keys sent change; "" clears one. Whoever can work on
+// PUT /api/projects/[id]/doc-links {technical?, commercial?, techno?} - an enquiry
+// version's SharePoint links, each opening instead of its generated document
+// (lib/doc-links.ts); a spare has commercial (its quotation) only. Only the keys sent change; "" clears one. Whoever can work on
 // the enquiry; not an older version. A change means what was reviewed changed, so it is
 // reviewed and sent again (as after a Save Version). Audited.
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -38,12 +38,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const [p] = await db
-    .select({ code: projects.projectCode, orderType: projects.orderType, nonStandard: projects.nonStandardFormat, links: projects.docLinks })
+    .select({ code: projects.projectCode, orderType: projects.orderType, links: projects.docLinks })
     .from(projects)
     .where(eq(projects.id, id))
     .limit(1);
   if (!p) return error("Project not found", 404);
-  if (!p.nonStandard) return error("This enquiry uses the standard format - its documents are generated, not linked.", 409);
 
   const was = normalizeDocLinks(p.links);
   const next: DocLinks = { ...was };
@@ -71,7 +70,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     action: "enquiry.doc_links",
     entity: "projects",
     entityId: id,
-    detail: `${p.code}: non-standard format links ${changed.map((k) => `${k.label} ${next[k.key] ? (was[k.key] ? "changed" : "added") : "removed"}`).join(", ")}`,
+    detail: `${p.code}: SharePoint links ${changed.map((k) => `${k.label} ${next[k.key] ? (was[k.key] ? "changed" : "added") : "removed"}`).join(", ")}`,
   });
   return json({ links: next, changed: true });
 }

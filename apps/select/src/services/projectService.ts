@@ -1,5 +1,5 @@
 import apiClient from "./apiClient";
-import type { SavedDocs } from "../lib/saved-docs";
+import type { SavedDocKind, SavedDocs } from "../lib/saved-docs";
 import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
 import type { EnquiryCategory } from "../lib/enquiry-fields";
@@ -36,8 +36,6 @@ export interface ProjectRecord {
   order_subtype: string;
   /** "regular" | "project"; a Project enquiry has remarks. */
   enquiry_category: string;
-  /** The client's documents are SharePoint links, not generated (lib/doc-links.ts). */
-  non_standard_format: boolean;
   /** Lists: the Commercial status - Completed when Technical is Completed, every
    *  tag has a P&A price and the quotations are sent to the client, or what was
    *  picked on the Edit form. */
@@ -166,7 +164,6 @@ export interface CreateProjectInput {
   enquiryCategory: EnquiryCategory;
   /** Required when the category is Project. */
   remarks: string;
-  nonStandardFormat: boolean;
   /** User id; the creator when empty. */
   assignedTo: string;
   clientPrimaryRep: string;
@@ -207,7 +204,6 @@ export interface UpdateProjectInput {
   orderType?: OrderType;
   orderSubtype?: OrderSubtype;
   enquiryCategory?: EnquiryCategory;
-  nonStandardFormat?: boolean;
   clientPrimaryRep?: string;
   clientSecondaryReps?: string;
   clientMarketType?: string;
@@ -271,17 +267,20 @@ export const getReviewState = async (projectId: string): Promise<{ missing: stri
   return data;
 };
 
-/** Non-standard format: the SharePoint links of this version's documents ("" clears one). */
+/** SharePoint links of this version's documents, each opening instead of the generated
+ *  one ("" clears one). */
 export const saveDocLinks = async (projectId: string, links: DocLinks): Promise<DocLinks> => {
   const { data } = await apiClient.put<{ links: DocLinks }>(`/projects/${projectId}/doc-links`, links);
   return data.links;
 };
 
-/** Marks the saved versions as reviewed, then records them as sent to operation. */
+/** Marks the saved versions as reviewed, then records them as sent to operation.
+ *  docs: a pump's documents picked to go to operation. */
 export const reviewEnquiry = async (
   projectId: string,
   action: "reviewed" | "send",
-): Promise<Pick<ProjectRecord, "reviewed_at" | "released_to_operation_at">> => {
-  const { data } = await apiClient.post(`/projects/${projectId}/review`, { action });
+  docs?: SavedDocKind[],
+): Promise<Pick<ProjectRecord, "reviewed_at" | "released_to_operation_at"> & { operation_docs: SavedDocKind[] | null }> => {
+  const { data } = await apiClient.post(`/projects/${projectId}/review`, { action, ...(docs ? { docs } : {}) });
   return data;
 };

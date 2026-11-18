@@ -8,27 +8,14 @@ import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion, techDocVersion } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
+import { SAVED_DOC_KINDS, operationDocKinds, type SavedDocKind } from "@/lib/saved-docs";
 import { loadSavedDocs } from "@/lib/saved-docs-server";
-import { missingDocLinks, normalizeDocLinks } from "@/lib/doc-links";
 import { techDocGroups, techDocSheet } from "@/lib/tech-doc";
 import { loadTechDocData } from "@/lib/tech-doc-server";
 
 export const dynamic = "force-dynamic";
 
 const UUID = /^[0-9a-f-]{36}$/i;
-
-/** What still needs doing before this enquiry version can be reviewed, or null: Save
- *  Version (it still records the sheets and prices), then, for a non-standard format,
- *  the SharePoint links of the documents made by hand. */
-async function notReady(projectId: string): Promise<string | null> {
-  const [p] = await db
-    .select({ orderType: projects.orderType, nonStandard: projects.nonStandardFormat, links: projects.docLinks })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  if (!p) return "Project not found";
-  return (await notSaved(projectId, p.orderType)) ?? (p.nonStandard ? missingDocLinks(p.orderType, normalizeDocLinks(p.links)) : null);
-}
 
 /** What still needs Save Version before this enquiry version can be reviewed, or null. */
 async function notSaved(projectId: string, orderType: string): Promise<string | null> {
@@ -58,17 +45,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!UUID.test(id)) return error("Invalid project id", 400);
   const notYours = await viewDenied(req, { projectId: id });
   if (notYours) return notYours;
-  const [p] = await db.select({ id: projects.id }).from(projects).where(eq(projects.id, id)).limit(1);
+  const [p] = await db.select({ orderType: projects.orderType }).from(projects).where(eq(projects.id, id)).limit(1);
   if (!p) return error("Project not found", 404);
-  const [missing, docs] = await Promise.all([notReady(id), loadSavedDocs(id)]);
+  const [missing, docs] = await Promise.all([notSaved(id, p.orderType), loadSavedDocs(id)]);
   return json({ missing, docs });
 }
 
-// POST /api/projects/[id]/review {action: "reviewed" | "send"} — marks the saved
+// POST /api/projects/[id]/review {action: "reviewed" | "send", docs?} — marks the saved
 // versions as reviewed, then records them as sent to operation. Only who can work on
 // the enquiry (the assigned person, the managers). Sending puts them on Operation's Pump
 // Docs / Spare Docs (/api/operation-docs); nothing is e-mailed. A Save Version clears both
 // (REVIEW_CLEARED), so what was reviewed is what they see. Audited.
+// docs (a pump's): which of technical / commercial / techno go to operation (user,
+// 2026-11-17), picked on Review and kept on projects.operation_docs; left out = as
+// picked before (else all). A spare has only its quotation.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   let claims;
   try {
@@ -90,6 +80,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   const action = body.action;
   if (action !== "reviewed" && action !== "send") return error("'action' must be reviewed or send", 400);
+  let docs: SavedDocKind[] | undefined;
+  if (body.docs !== undefined) {
+    if (!Array.isArray(body.docs) || body.docs.some((d) => !SAVED_DOC_KINDS.includes(d as SavedDocKind))) {
+      return error("'docs' must list technical, commercial or techno", 400);
+    }
+    docs = SAVED_DOC_KINDS.filter((k) => (body.docs as unknown[]).includes(k));
+    if (docs.length === 0) return error("Pick at least one document to send to operation.", 400);
+  }
 
   const [p] = await db
     .select({
@@ -97,6 +95,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       orderType: projects.orderType,
       reviewedAt: projects.reviewedAt,
       releasedAt: projects.releasedToOperationAt,
+      operationDocs: projects.operationDocs,
     })
     .from(projects)
     .where(eq(projects.id, id))
@@ -105,24 +104,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const who = UUID.test(claims.sub) ? claims.sub : null;
   const now = new Date();
+  // A spare's one document always goes.
+  const picked = p.orderType === "spare" ? null : (docs ?? operationDocKinds(p.operationDocs));
+  const pickedSet = docs && p.orderType !== "spare" ? { operationDocs: docs } : {};
   if (action === "reviewed") {
     if (p.reviewedAt) return error("This version is already reviewed.", 409);
-    const missing = await notReady(id);
+    const missing = await notSaved(id, p.orderType);
     if (missing) return error(missing, 409);
-    await db.update(projects).set({ reviewedAt: now, reviewedBy: who }).where(eq(projects.id, id));
+    await db.update(projects).set({ reviewedAt: now, reviewedBy: who, ...pickedSet }).where(eq(projects.id, id));
   } else {
     if (!p.reviewedAt) return error("Review this version before sending it to operation.", 409);
     if (p.releasedAt) return error("This version is already sent to operation.", 409);
-    await db.update(projects).set({ releasedToOperationAt: now, releasedToOperationBy: who }).where(eq(projects.id, id));
+    await db.update(projects).set({ releasedToOperationAt: now, releasedToOperationBy: who, ...pickedSet }).where(eq(projects.id, id));
   }
   await logAudit(req, {
     action: action === "reviewed" ? "enquiry.reviewed" : "enquiry.sent_to_operation",
     entity: "projects",
     entityId: id,
-    detail: `${p.code}: ${action === "reviewed" ? "saved versions reviewed" : "sent to operation"}`,
+    detail: `${p.code}: ${action === "reviewed" ? "saved versions reviewed" : "sent to operation"}${picked ? ` (${picked.join(", ")})` : ""}`,
   });
   return json({
     reviewed_at: action === "reviewed" ? now : p.reviewedAt,
     released_to_operation_at: action === "send" ? now : null,
+    operation_docs: picked,
   });
 }

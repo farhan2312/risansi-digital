@@ -317,7 +317,8 @@ export function DrawingWorkspace({
                                     >
                                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
                                     </PendencyCell>
-                                    <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />
+                                    {/* Overdue while Drawing still owes something (GAD / curve not sent, parts not all drawn). */}
+                                    {!g.head.so_drawing_sent && <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />}
                                   </span>
                                 )}
                               </td>
@@ -346,7 +347,7 @@ export function DrawingWorkspace({
                           <td className={ecCell}>
                             {wantsParts(row) ? (
                               <button type="button" onClick={() => open(ecId, "Part Drawing")} title="Open part drawings" className="text-left">
-                                <PartDrawingCell required={row.part_drawing} parts={partsOf(row)} />
+                                <PartDrawingCell required={row.part_drawing} parts={partsOf(row)} ecLink={row.ec_link} />
                               </button>
                             ) : (
                               <span className="text-xs text-muted">Not required</span>
@@ -422,10 +423,10 @@ export function DrawingWorkspace({
                   const st =
                     d === "Part Drawing"
                       ? (() => {
-                          const p = partDrawingStatus(ec.part_drawing, partsOf(ec));
+                          const p = partDrawingStatus(ec.part_drawing, partsOf(ec), ec.ec_link);
                           return { version: 0, label: p ? `${p.label} · ${p.done}/${p.total}` : "" };
                         })()
-                      : drawingDocStatus(versionsOf(ec), d, ec.gad_required);
+                      : drawingDocStatus(versionsOf(ec), d, ec.gad_required, ec.ec_link);
                   return (
                     <button
                       key={d}
@@ -496,6 +497,7 @@ const TONE: Record<DrawingStatusTone, string> = {
   part: "bg-sky-50 text-sky-700 ring-sky-200",
   pending: "bg-amber-50 text-amber-700 ring-amber-200",
   rework: "bg-rose-50 text-rose-700 ring-rose-200",
+  awaited: "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/15",
 };
 
 function StatusPill({ label, tone }: { label: string; tone: DrawingStatusTone }) {
@@ -510,7 +512,7 @@ function StatusPill({ label, tone }: { label: string; tone: DrawingStatusTone })
 /** A document on the front: its status, its version and the date that matters. */
 function DocCell({ row, doc, onOpen }: { row: Row; doc: DrawingDocType; onOpen: () => void }) {
   const versions = drawingVersions(versionsOf(row), doc);
-  const st = drawingDocStatus(versionsOf(row), doc, row.gad_required);
+  const st = drawingDocStatus(versionsOf(row), doc, row.gad_required, row.ec_link);
   const last = versions[versions.length - 1];
   const when = last
     ? yes(last.issued_to_production) && last.issued_to_production_date

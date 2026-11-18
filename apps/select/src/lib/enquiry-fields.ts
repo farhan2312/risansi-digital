@@ -39,7 +39,8 @@ export function clientDetailsFrom(body: Record<string, unknown>): {
 }
 
 /** Enquiry category (user, 2026-11-17): Regular or Project. A Project
- *  enquiry needs remarks (projects.remarks). */
+ *  enquiry needs its Project details (kept in projects.remarks); a Regular one
+ *  has no such field. */
 export const ENQUIRY_CATEGORIES = [
   { value: "regular", label: "Regular" },
   { value: "project", label: "Project" },
@@ -53,4 +54,4 @@ export function enquiryCategoryFrom(v: unknown): EnquiryCategory | null {
   return s === "regular" || s === "project" ? s : null;
 }
 
-export const PROJECT_REMARKS_REQUIRED = "Remarks are required for a Project enquiry.";
+export const PROJECT_REMARKS_REQUIRED = "Project details are required for a Project enquiry.";

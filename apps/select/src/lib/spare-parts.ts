@@ -93,3 +93,23 @@ export const partListFor = (pumpKind: SparePumpKind): PartListItem[] =>
 
 /** Parts named by hand rather than picked from a list. */
 export const OTHER_PART_SECTION = "Others";
+
+// --- Kept in the database (user, 2026-11-17) -----------------------------------
+// The lists above seed spare_part_list_items; the part picker reads and edits that
+// table (app/api/spare-parts), so parts added under Others are there next time.
+
+/** A part of a spare parts list as stored. */
+export type SparePart = PartListItem & { id: string };
+
+/** "PCP" | "MMP" | "OTHER", or null. */
+export function sparePartListFrom(v: unknown): SparePumpKind | null {
+  const s = String(v ?? "").trim().toUpperCase();
+  return s === "PCP" || s === "MMP" || s === "OTHER" ? s : null;
+}
+
+/** A part's no. and name as typed, or what's wrong. */
+export function sparePartInput(body: Record<string, unknown>): { partNo: string; partName: string } | string {
+  const partName = typeof body.partName === "string" ? body.partName.trim().slice(0, 200) : "";
+  const partNo = typeof body.partNo === "string" ? body.partNo.trim().slice(0, 40) : "";
+  return partName ? { partNo, partName } : "Give the part a name.";
+}

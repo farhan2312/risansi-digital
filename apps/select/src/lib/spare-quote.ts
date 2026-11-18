@@ -14,6 +14,10 @@ export type SpareLine = {
   poNo: string;
   /** YYYY-MM-DD, or "". */
   poDate: string;
+  /** With the tick: the same PO No. / date as the part above it (parts in order,
+   *  model by model; never the first part). poNo / poDate are copies of the part
+   *  above, and the documents print the run as one merged cell (user, 2026-11-17). */
+  poSame: boolean;
   qty: number | null;
   unitPrice: number | null;
 };
@@ -145,7 +149,7 @@ export function normalizeSpareQuote(raw: unknown, defaultMarket: TermsMarket = "
     note: text(r.note, 2000),
     termsMarket: r.termsMarket === "domestic" || r.termsMarket === "export" ? r.termsMarket : defaultMarket,
     termsOff: [...new Set(termsOff)].sort(),
-    models: models.slice(0, 100).map((m, i) => {
+    models: shareSamePo(models.slice(0, 100).map((m, i) => {
       const x = (m ?? {}) as Record<string, unknown>;
       const lines = Array.isArray(x.lines) ? x.lines : [];
       return {
@@ -159,13 +163,29 @@ export function normalizeSpareQuote(raw: unknown, defaultMarket: TermsMarket = "
             partName: text(y.partName, 200),
             poNo: !hasPo ? "" : y.poNo === undefined ? oldPoNo : text(y.poNo, 120),
             poDate: !hasPo ? "" : y.poDate === undefined ? oldPoDate : ymd(y.poDate),
+            poSame: hasPo && y.poSame === true,
             qty: amountOrNull(y.qty),
             unitPrice: amountOrNull(y.unitPrice),
           };
         }),
       };
-    }),
+    })),
   };
+}
+
+/** A "same as above" part takes the PO of the part above it, across models in
+ *  order (the parts keep their order). The very first part can't be one. */
+export function shareSamePo<M extends { lines: SpareLine[] }>(models: M[]): M[] {
+  let above: SpareLine | null = null;
+  return models.map((m) => ({
+    ...m,
+    lines: m.lines.map((l) => {
+      const prev: SpareLine | null = above;
+      const out: SpareLine = l.poSame && prev ? { ...l, poNo: prev.poNo, poDate: prev.poDate } : l.poSame ? { ...l, poSame: false } : l;
+      above = out;
+      return out;
+    }),
+  }));
 }
 
 export const lineAmount = (l: Pick<SpareLine, "qty" | "unitPrice">): number => (l.qty ?? 0) * (l.unitPrice ?? 0);

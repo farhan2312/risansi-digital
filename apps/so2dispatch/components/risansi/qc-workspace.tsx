@@ -296,7 +296,7 @@ export function QcWorkspace({
                           ) : (
                             <>
                               <td className={`${ecCell} whitespace-nowrap`}>
-                                <GadCell versions={rowsOf(row.gad_versions)} gadRequired={row.gad_required} />
+                                <GadCell versions={rowsOf(row.gad_versions)} gadRequired={row.gad_required} ecLink={row.ec_link} />
                               </td>
                               <td className={ecCell}>
                                 {rowsOf(row.part_drawings).length > 0 ? (

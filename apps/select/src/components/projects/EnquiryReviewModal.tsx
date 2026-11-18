@@ -6,15 +6,21 @@ import { CircleCheck, Send, X } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import DocLinksForm from "./DocLinksForm";
 import SavedDocsViewer from "./SavedDocsViewer";
-import type { SavedDocs } from "../../lib/saved-docs";
+import { SAVED_DOC_KINDS, type SavedDocKind, type SavedDocs } from "../../lib/saved-docs";
+import { TECHNO_COMMERCIAL_TITLE } from "../../lib/techno-commercial";
 import { getReviewState, reviewEnquiry, type ProjectRecord } from "../../services/projectService";
 
 // Review on the Enquiries list: the versions saved with Save Version, as they were
 // saved, nothing to edit. Then Mark as reviewed, and after that Send to operation, which
-// puts them on Operation's Pump Docs / Spare Docs.
+// puts them on Operation's Pump Docs / Spare Docs. A pump's ticks pick which of its
+// documents go (user, 2026-11-17); a spare's quotation always goes. Any document can be
+// given a SharePoint link (user, 2026-11-18) - the client's own format, made by hand -
+// which is then used instead of the generated one, here and on Operation's pages.
 //
 // Its shell is a plain overlay, not a Radix Dialog: printing goes through a hidden iframe
 // added to the page body (lib/enquiry-print), which a Radix focus trap would fight.
+
+const DOC_LABEL: Record<SavedDocKind, string> = { technical: "Technical", commercial: "Commercial", techno: TECHNO_COMMERCIAL_TITLE };
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -32,6 +38,13 @@ export default function EnquiryReviewModal({
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  // A pump's documents to send; Technical and Techno-Commercial need a saved data sheet.
+  const [picked, setPicked] = useState<SavedDocKind[]>([]);
+  const isPump = docs?.orderType === "pump";
+  const hasTech = Boolean(docs?.groups.some((g) => g.tech));
+  const available = SAVED_DOC_KINDS.filter((k) => k === "commercial" || hasTech);
+  const pickedDocs = available.filter((k) => picked.includes(k));
+  const sent = Boolean(project.released_to_operation_at);
 
   // Bumped after the links are saved: what is missing, and the viewer, follow them.
   const [reload, setReload] = useState(0);
@@ -42,6 +55,8 @@ export default function EnquiryReviewModal({
         if (cancelled) return;
         setMissing(state.missing);
         setDocs(state.docs);
+        // As picked before, else all of them.
+        setPicked(state.docs.sent ?? SAVED_DOC_KINDS);
       })
       .catch(() => !cancelled && setLoadError("Couldn't load the saved versions."));
     return () => {
@@ -59,7 +74,9 @@ export default function EnquiryReviewModal({
     setBusy(true);
     setActionError("");
     try {
-      onChanged(await reviewEnquiry(project.id, action));
+      const r = await reviewEnquiry(project.id, action, isPump ? pickedDocs : undefined);
+      onChanged({ reviewed_at: r.reviewed_at, released_to_operation_at: r.released_to_operation_at });
+      if (r.operation_docs) setPicked(r.operation_docs);
     } catch (e) {
       setActionError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Couldn't save that. Please try again.");
     } finally {
@@ -103,7 +120,9 @@ export default function EnquiryReviewModal({
             </p>
           )}
           {!docs && !loadError && <p className="py-8 text-center text-[13px] text-muted-foreground">Loading…</p>}
-          {docs?.nonStandard && (
+          {/* Optional SharePoint links: a document with one is used instead of the generated
+              one. Not on an older version (view only). */}
+          {docs && project.is_latest !== false && (
             <DocLinksForm
               projectId={project.id}
               orderType={docs.orderType}
@@ -120,6 +139,24 @@ export default function EnquiryReviewModal({
         </div>
 
         <footer className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-border bg-muted/40 px-5 py-3">
+          {docs && isPump && (
+            <fieldset className="mr-auto flex flex-wrap items-center gap-x-3 gap-y-1.5" disabled={sent || busy}>
+              <legend className="sr-only">Documents to send to operation</legend>
+              <span className="text-[12.5px] font-medium text-foreground">{sent ? "Sent:" : "Send to operation:"}</span>
+              {available.map((k) => (
+                <label key={k} className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-foreground has-[:disabled]:cursor-default">
+                  <input
+                    type="checkbox"
+                    className="size-3.5 cursor-pointer accent-[var(--sc-primary)] disabled:cursor-default"
+                    checked={picked.includes(k)}
+                    onChange={(e) => setPicked((cur) => (e.target.checked ? [...cur, k] : cur.filter((x) => x !== k)))}
+                  />
+                  {DOC_LABEL[k]}
+                </label>
+              ))}
+              {!sent && pickedDocs.length === 0 && <span className="text-[12px] font-medium text-warning">Tick at least one.</span>}
+            </fieldset>
+          )}
           {actionError && <span className="mr-auto text-[12.5px] font-medium text-destructive">{actionError}</span>}
           {project.released_to_operation_at ? (
             <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
@@ -130,14 +167,14 @@ export default function EnquiryReviewModal({
               <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
                 <CircleCheck className="size-3.5" /> Reviewed on {fmtDay(project.reviewed_at)}
               </span>
-              <Button disabled={busy} onClick={() => void act("send")}>
+              <Button disabled={busy || (isPump && pickedDocs.length === 0)} onClick={() => void act("send")}>
                 <Send /> {busy ? "Sending…" : "Send to operation"}
               </Button>
             </>
           ) : (
             <>
               {docs && missing && <span className="text-[12.5px] font-medium text-warning">{missing}</span>}
-              <Button disabled={busy || !docs || Boolean(missing)} onClick={() => void act("reviewed")}>
+              <Button disabled={busy || !docs || Boolean(missing) || (isPump && pickedDocs.length === 0)} onClick={() => void act("reviewed")}>
                 <CircleCheck /> {busy ? "Saving…" : "Mark as reviewed"}
               </Button>
             </>

@@ -99,7 +99,7 @@ export async function createRevision(
         reportFilename: null,
         reportGeneratedAt: null,
         reportSummary: null,
-        // Non-standard format carries on; this version's files are linked again.
+        // A new version's documents are new: SharePoint links are added again.
         docLinks: null,
       })
       .returning();

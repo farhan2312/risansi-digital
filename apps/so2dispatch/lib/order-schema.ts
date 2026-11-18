@@ -1908,6 +1908,8 @@ export const ASSEMBLY_CONTEXT_FIELDS: OrderField[] = [
     label: "Target Date for Packing Team",
     type: "date",
   },
+  // Central Visibility's date the SO is to be dispatched (set on the Dispatch Plan).
+  { column: "final_dispatch_target_date", label: "To Be Dispatch Date", type: "date" },
   // Billing / Tax Invoice or Challan / FR — what the SO goes out on.
   { column: "bill_mode", label: "Bill Mode", type: "select", options: BILL_MODE_OPTIONS },
   // Planning schedules the assembly; Assembly & Packing works to that date, so
@@ -1934,6 +1936,8 @@ export const ASSEMBLY_CONTEXT_FIELDS: OrderField[] = [
 export const PLANNING_CONTEXT_FIELDS: OrderField[] = [
   ...SO_CONTEXT_FIELDS,
   { column: "dispatch_target_date", label: "Dispatch Target Date", type: "date" },
+  // Central Visibility's date the SO is to be dispatched (set on the Dispatch Plan).
+  { column: "final_dispatch_target_date", label: "To Be Dispatch Date", type: "date" },
   // Liquidated damages and the bought-out flag drive how Planning schedules an
   // SO — an LD date is a hard deadline, and BOI = Yes means waiting on Purchase.
   { column: "ld", label: "LD", type: "select", options: YES_NO },

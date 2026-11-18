@@ -48,6 +48,7 @@ export function dispatchSheet(rows: Row[], filterLine: string): ReportSheet {
     Col("Order in Hand", 14, "Order in hand", true),
     Col("Invoiced", 14, "Order in hand", true),
     Col("Dispatch Status", 16, "Dispatch"),
+    Col("Dispatch Hold Reason", 34, "Dispatch"),
     Col("Stage", 20, "Dispatch"),
   ];
 
@@ -93,6 +94,8 @@ export function dispatchSheet(rows: Row[], filterLine: string): ReportSheet {
         replacement ? ["Replacement", "muted"] : [left ? Math.round(left.left) : null, left && left.left <= 0 ? "green" : null],
         [left ? left.invoiced : null, null],
         pick(STATUS),
+        // Why Dispatch holds it ("reason · remarks"), when it does.
+        [str(o.status_override) === "Hold" ? str(o.status_reason) || null : null, str(o.status_override) === "Hold" ? "red" : null],
         pick(STAGE),
       ];
       return {

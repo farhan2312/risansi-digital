@@ -36,7 +36,7 @@ function keyLine(dept: DeptKey, e: ItemDetail): string {
     case "drawing": {
       // Where the GAD stands, and which version.
       const revs = e.order_drawing_revisions ?? [];
-      const gad = drawingDocStatus(revs, "GAD", e.item.gad_required);
+      const gad = drawingDocStatus(revs, "GAD", e.item.gad_required, e.item.ec_link);
       if (!gad.version) return "";
       return `GAD ${versionLabel(gad.version)} · ${gad.label}`;
     }

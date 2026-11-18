@@ -47,6 +47,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
 } from "@/lib/dept-status";
 import { BILL_MODE_FILTER_OPTIONS, FIELD_FILTER_FIELDS, NOT_SET, ORDER_STATUS_OPTIONS, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
 import { sharedFacets, UNASSIGNED, type OrderMakingFilter } from "@/lib/order-making-filter";
+import { checklistAnsweredSql, checklistDoneSql, checklistTotalSql } from "@/lib/so-checklist";
 import { appliesSql, filledSql, SO_DETAILS_FILLED_SQL, SO_DETAILS_MISSING_SQL } from "@/lib/order-gaps";
 import {
   PAGE_SIZE,
@@ -57,7 +58,7 @@ import {
   type PageResult,
   pageWithTotal,
 } from "@/lib/pagination";
-import { ecDrawingDoneSql, ecGadStatusSql } from "@/lib/drawing-filter";
+import { ecDrawingDoneSql, ecDrawingSentSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, qcEcReadySql, soQcStateSql } from "@/lib/qc-filter";
 import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql } from "@/lib/assembly";
@@ -3009,6 +3010,8 @@ export type BillingQueueRow = {
   status_override: string | null;
   /** Why it was set by hand (Hold: one of DISPATCH_HOLD_REASONS). */
   status_reason?: string | null;
+  /** Central Visibility's To Be Dispatch Date (Dispatch Plan). */
+  final_dispatch_target_date?: string | null;
   /** What the invoices alone make of it. */
   invoice_dispatch_status: string | null;
   pi_docs: Row[];
@@ -3073,6 +3076,7 @@ export async function listOrdersForBilling(
             ${DISPATCH_STATUS} AS dispatch_status,
             NULLIF(o.status_override, '') AS status_override,
             o.status_reason,
+            to_char(o.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target_date,
             COALESCE(NULLIF(o.invoice_dispatch_status, ''), NULLIF(o.dispatch_status, ''), 'Pending') AS invoice_dispatch_status,
             COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.seq)
                       FROM order_billing_docs d WHERE d.order_id = o.id),
@@ -3150,6 +3154,8 @@ export type PurchaseQueueRow = {
   ld: string | null;
   ld_date: string | null;
   purchase_target_date: string | null;
+  /** Central Visibility's To Be Dispatch Date (Dispatch Plan). */
+  final_dispatch_target_date?: string | null;
   boi_items: Row[];
   /** The EC itself: its type, model, qty and own BOI. */
   item_type?: string | null;
@@ -3188,6 +3194,7 @@ export async function listItemsForPurchase(
             o.ld,
             to_char(o.ld_date, 'YYYY-MM-DD') AS ld_date,
             to_char(o.purchase_target_date, 'YYYY-MM-DD') AS purchase_target_date,
+            to_char(o.final_dispatch_target_date, 'YYYY-MM-DD') AS final_dispatch_target_date,
             COALESCE((SELECT jsonb_agg(to_jsonb(bi) || jsonb_build_object('expected_history', COALESCE((
                         SELECT jsonb_agg(jsonb_build_object(
                                  'prev', to_char(h.prev_date, 'YYYY-MM-DD'),
@@ -3692,8 +3699,15 @@ function deptOverdueOwn(dept: DeptFilterKey): string {
                     WHERE it.order_id = o.id
                       AND ${assemblyDueSql("it")} < ${TODAY_IST})`;
   }
-  // Drawing is late against its own readiness date only (none set, not late).
-  const column = dept === "drawing" ? "o.drg_readiness_date" : DEPT_TARGET_COLUMN[dept];
+  // Drawing is late against its own readiness date only (none set, not late),
+  // while an EC still waits on it to send its GAD, curve (where asked) or part
+  // drawings — not on the client's approval, nor the SO's Open / Closed.
+  if (dept === "drawing") {
+    return `(o.drg_readiness_date < ${TODAY_IST}
+             AND EXISTS (SELECT 1 FROM order_items it
+                          WHERE it.order_id = o.id AND NOT (${NO_DRG}) AND NOT ${ecDrawingSentSql("it", "o")}))`;
+  }
+  const column = DEPT_TARGET_COLUMN[dept];
   if (!column) return "FALSE";
   const outstanding = isPerEcDept(dept)
     ? `EXISTS (SELECT 1 FROM order_items it
@@ -3858,6 +3872,13 @@ function orderListClauses(
   if (f.accountsHold.length) {
     // Blank is Not set: Accounts has said neither Clear nor Hold.
     clauses.push(`COALESCE(NULLIF(TRIM(o.accounts_hold_status), ''), ${lit(NOT_SET)}) = ANY(${p(f.accountsHold)}::text[])`);
+  }
+  // Dispatch's own Hold (the SO's status), by its reason ("reason · remarks" saved).
+  if (f.dispatchHoldReasons?.length) {
+    clauses.push(`(COALESCE(o.status_override, '') = 'Hold' AND (${f.dispatchHoldReasons
+      // The reasons are a fixed list (no % or _), so LIKE needs no escaping.
+      .map((r) => `(btrim(COALESCE(o.status_reason, '')) = ${lit(r)} OR btrim(COALESCE(o.status_reason, '')) LIKE ${lit(`${r} · %`)})`)
+      .join(" OR ")}))`);
   }
   if (f.accountsHoldReasons.length) {
     clauses.push(`(COALESCE(o.accounts_hold_status, '') = 'Hold' AND ${facet("o.accounts_hold_reason", f.accountsHoldReasons)})`);
@@ -5066,6 +5087,11 @@ export type OrderMakingRow = Record<string, unknown> & {
   boi: string | null;
   /** The SO's ECs with their Add-On fields, for Order Making to edit or delete. */
   items: Record<string, unknown>[];
+  /** The checklist on its current version: points answered and to answer, the SO team's and the PO team's. */
+  ckl_so: number;
+  ckl_so_total: number;
+  ckl_po: number;
+  ckl_po_total: number;
 };
 
 /**
@@ -5135,6 +5161,12 @@ export async function listOrdersForOrderMaking(opts: {
     // SO Sent to PPC: Yes once its date is entered; blank is No.
     if (ff.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
     if (ff.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
+    // The checklist. Pending: only SOs still worked on (open, not dispatched,
+    // not carried in by the migration) — as for assigning.
+    if (ff.checklist === "done") clauses.push(checklistDoneSql("o"));
+    if (ff.checklist === "pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o")}`);
+    if (ff.checklist === "so_pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o", "SO")}`);
+    if (ff.checklist === "po_pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o", "PO")}`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
     if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);
@@ -5269,6 +5301,9 @@ export async function listOrdersForOrderMaking(opts: {
             o.version_no,
             (SELECT count(*)::int FROM order_items i WHERE i.order_id = o.id) AS ec_count,
             o.boi,
+            -- The checklist on the current version, each team's part.
+            ${checklistAnsweredSql("o", "SO")} AS ckl_so, ${checklistTotalSql("o", "SO")} AS ckl_so_total,
+            ${checklistAnsweredSql("o", "PO")} AS ckl_po, ${checklistTotalSql("o", "PO")} AS ckl_po_total,
             COALESCE((SELECT jsonb_agg(jsonb_build_object(
                         'id', i.id, 'ec_no', i.ec_no, 'ec_date', to_char(i.ec_date, 'YYYY-MM-DD'),
                         -- Every field of the EC form: one missing here opens blank, and saves blank.
@@ -6010,7 +6045,7 @@ export const dispatchStageSql = (o: string) => `(CASE
       THEN 'Invoice pending'
     WHEN EXISTS (SELECT 1 FROM order_invoices sv WHERE sv.order_id = ${o}.id
                     AND ${INVOICE_STEP_DONE("sv", o)} AND NULLIF(btrim(sv.delivery_mode), '') IS NULL)
-      THEN 'Dispatch pending'
+      THEN 'Transporter pending'
     WHEN EXISTS (SELECT 1 FROM order_invoices sv WHERE sv.order_id = ${o}.id
                     AND ${INVOICE_STEP_DONE("sv", o)} AND NULLIF(btrim(sv.docket_no), '') IS NULL)
       THEN 'Docket & LR pending'

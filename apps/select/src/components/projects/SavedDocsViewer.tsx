@@ -8,28 +8,30 @@ import PrintPageSizeSelect, { usePrintPageSize } from "../reports/PrintPageSize"
 import { DRIVE_GROUP_LABEL } from "../../lib/commercial";
 import { buildOfferHtml } from "../../lib/commercial-offer";
 import { printHtml } from "../../lib/enquiry-print";
-import type { SavedDocs } from "../../lib/saved-docs";
+import { savedDocFileName, type SavedDocKind, type SavedDocs } from "../../lib/saved-docs";
 import { buildSpareQuoteHtml } from "../../lib/spare-quote-doc";
 import { buildTechDocHtml, techDocGroupLabel, type TechDocGroup } from "../../lib/tech-doc";
 import { TECHNO_COMMERCIAL_TITLE, buildTechnoCommercialHtml } from "../../lib/techno-commercial";
 
 // The saved documents, read-only, on Review and on Pump Docs / Spare Docs: a toggle
 // between Technical, Commercial and Techno-Commercial for a pump (per drive group), or
-// the quotation for a spare. They can be printed, not edited.
+// the quotation for a spare. They can be printed, not edited. A document with a SharePoint
+// link (added on Review) opens that file instead. Save as PDF names the file
+// Risansi_Pump/Spare_..._<client>_Dt. <enquiry date>_ENQ. No.<no> (savedDocFileName).
 
-export type SavedDocKind = "technical" | "commercial" | "techno";
-const DOCS: { key: SavedDocKind; label: string }[] = [
+export type { SavedDocKind };
+const ALL_DOCS: { key: SavedDocKind; label: string }[] = [
   { key: "technical", label: "Technical" },
   { key: "commercial", label: "Commercial" },
   { key: "techno", label: TECHNO_COMMERCIAL_TITLE },
 ];
 
-/** Non-standard format: the file made by hand, on SharePoint, for the picked document. */
-function LinkedDoc({ label, url }: { label: string; url?: string }) {
-  return url ? (
+/** A document with a SharePoint link: the file made by hand opens instead of the generated one. */
+function LinkedDoc({ label, url }: { label: string; url: string }) {
+  return (
     <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-muted/30 px-4 py-10 text-center">
       <p className="text-[13px] text-muted-foreground">
-        Non-standard format: the client's <strong className="font-semibold text-foreground">{label}</strong> document was made by hand and is on SharePoint.
+        The <strong className="font-semibold text-foreground">{label}</strong> document is on SharePoint, in the client&apos;s format. It is used instead of the generated one.
       </p>
       <a
         href={url}
@@ -41,22 +43,29 @@ function LinkedDoc({ label, url }: { label: string; url?: string }) {
       </a>
       <span className="max-w-full font-mono text-[11px] break-all text-muted-foreground">{url}</span>
     </div>
-  ) : (
-    <p className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-[13px] text-muted-foreground">
-      <FileX className="size-5 text-muted-foreground/70" />
-      Non-standard format: no SharePoint link for {label} yet.
-    </p>
   );
 }
 
-export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { docs: SavedDocs; /** Opens on this one. */ initialDoc?: SavedDocKind }) {
+export default function SavedDocsViewer({
+  docs,
+  initialDoc = "technical",
+  only,
+}: {
+  docs: SavedDocs;
+  /** Opens on this one. */
+  initialDoc?: SavedDocKind;
+  /** Only these (a pump's documents sent to operation); all when left out. */
+  only?: SavedDocKind[];
+}) {
   const isSpare = docs.orderType === "spare";
+  const DOCS = only?.length ? ALL_DOCS.filter((d) => only.includes(d.key)) : ALL_DOCS;
   const [activeGroup, setActiveGroup] = useState<TechDocGroup | null>(null);
-  const [doc, setDoc] = useState<SavedDocKind>(initialDoc);
+  const [doc, setDoc] = useState<SavedDocKind>(DOCS.some((d) => d.key === initialDoc) ? initialDoc : DOCS[0].key);
   const [printing, setPrinting] = useState(false);
   const [pageSize, setPageSize] = usePrintPageSize();
 
-  const linked = docs.nonStandard;
+  // This document's SharePoint link, if one was added on Review: it replaces the generated one.
+  const linked = docs.links[isSpare ? "commercial" : doc];
   const current = docs.groups.find((g) => g.group === activeGroup) ?? docs.groups[0] ?? null;
   const html = useMemo(() => {
     if (linked) return "";
@@ -79,7 +88,8 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
   const handlePrint = async () => {
     setPrinting(true);
     try {
-      await printHtml(html, pageSize);
+      const group = docs.groups.length > 1 && current ? (current.group === "NONE" ? techDocGroupLabel(current.group) : DRIVE_GROUP_LABEL[current.group]) : undefined;
+      await printHtml(html, pageSize, savedDocFileName(docs, isSpare ? "commercial" : doc, group));
     } finally {
       setPrinting(false);
     }
@@ -136,7 +146,7 @@ export default function SavedDocsViewer({ docs, initialDoc = "technical" }: { do
         )}
       </div>
       {linked ? (
-        <LinkedDoc label={isSpare ? "Quotation" : (DOCS.find((d) => d.key === doc)?.label ?? "")} url={docs.links[isSpare ? "commercial" : doc]} />
+        <LinkedDoc label={isSpare ? "Quotation" : (DOCS.find((d) => d.key === doc)?.label ?? "")} url={linked} />
       ) : html ? (
         <iframe
           title={isSpare ? "Quotation" : DOCS.find((d) => d.key === doc)?.label}

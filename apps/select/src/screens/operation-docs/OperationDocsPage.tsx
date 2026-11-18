@@ -110,7 +110,7 @@ function DocsModal({ opened, onClose }: { opened: Opened; onClose: () => void })
             </p>
           )}
           {!docs && !loadError && <p className="py-8 text-center text-[13px] text-muted-foreground">Loading…</p>}
-          {docs && <SavedDocsViewer docs={docs} initialDoc={opened.doc} />}
+          {docs && <SavedDocsViewer docs={docs} initialDoc={opened.doc} only={docs.orderType === "spare" ? undefined : (docs.sent ?? undefined)} />}
         </div>
       </div>
     </div>
@@ -363,24 +363,23 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
                     </td>
                     {docColumns.map((c) => (
                       <td key={c.label} className={td}>
-                        {/* Non-standard format: the file made by hand, on SharePoint. */}
-                        {r.nonStandard ? (
-                          r.links[c.key] ? (
+                        {/* Not picked on Review: not sent. A SharePoint link (the client's own
+                            format) opens instead of the generated document. No Technical Data
+                            Sheet saved means no Techno-Commercial either. */}
+                        {!r.sentDocs.includes(c.key) ? (
+                          <span className="text-[12.5px] text-muted-foreground">—</span>
+                        ) : r.links[c.key] ? (
                             <a
                               href={r.links[c.key]}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="Non-standard format: opens the SharePoint file"
+                              title="Opens the SharePoint file (used instead of the generated one)"
                               aria-label={`${c.label} V${r.version} of ${r.projectCode} (SharePoint)`}
                               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12.5px] font-medium whitespace-nowrap text-foreground shadow-xs hover:bg-muted"
                             >
                               <ExternalLink className="size-3.5" /> SharePoint
                             </a>
-                          ) : (
-                            <span className="text-[12.5px] text-muted-foreground">—</span>
-                          )
-                        ) : /* No Technical Data Sheet saved means no Techno-Commercial either. */
-                        c.key !== "commercial" && !r.hasTechnical ? (
+                        ) : c.key !== "commercial" && !r.hasTechnical ? (
                           <span className="text-[12.5px] text-muted-foreground">—</span>
                         ) : (
                           <Button

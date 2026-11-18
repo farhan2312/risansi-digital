@@ -51,7 +51,6 @@ export function projectToDict(p: ProjectRow, createdByName?: string | null, assi
     order_type: p.orderType,
     order_subtype: p.orderSubtype,
     enquiry_category: p.enquiryCategory,
-    non_standard_format: p.nonStandardFormat,
     completed_on: p.completedOn,
     commercial_completed_on: p.commercialCompletedOn,
     reviewed_at: p.reviewedAt,
