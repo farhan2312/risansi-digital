@@ -100,6 +100,8 @@ export type DispatchPlanRow = {
   };
   /** On Dispatch hold (the SO's status set to Hold), and why. */
   dispatch_hold: boolean;
+  /** Dispatch has the SO (a numbered packing slip); before that it is Not at Dispatch yet. */
+  in_dispatch: boolean;
   /** Why Dispatch set the status by hand: a Hold's reason, a Final lot pending's. */
   hold_reason: string | null;
   status: string;
@@ -244,6 +246,8 @@ export async function listDispatchPlan(kind: DispatchPlanKind = "pump"): Promise
                                  'received_qty', wb.received_qty) ORDER BY wb.source DESC)
                                 FROM order_wooden_boxes wb WHERE wb.order_id = so.id)) AS alignment,
             (COALESCE(so.status_override, '') = 'Hold') AS dispatch_hold,
+            EXISTS (SELECT 1 FROM order_packing_slips ps WHERE ps.order_id = so.id AND ps.kind = 'actual'
+                       AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL) AS in_dispatch,
             CASE WHEN so.status_override IN ('Hold', ${lit(FINAL_LOT_PENDING)}) THEN NULLIF(btrim(so.status_reason), '') END AS hold_reason,
             ${orderStatusSql("so")} AS status
        FROM so

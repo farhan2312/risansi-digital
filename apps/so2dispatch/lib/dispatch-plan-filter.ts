@@ -114,6 +114,9 @@ export const DP_SORT_KEYS = ["so_no", "so_date", "po_date", "ppc", "readiness", 
 
 const readinessWord = (r: DispatchPlanRow, today: string) =>
   r.fully_ready ? "Fully ready" : r.partial_ready ? "Partially ready" : r.plan_date && r.plan_date < today ? "In plan · overdue" : "In plan";
+/** The Status column's word: Dispatch's hold, Not at Dispatch yet (no numbered packing slip), else the status. */
+export const NOT_AT_DISPATCH_WORD = "Not at Dispatch yet";
+export const dispatchWord = (r: DispatchPlanRow) => (r.dispatch_hold ? "Dispatch hold" : !r.in_dispatch ? NOT_AT_DISPATCH_WORD : r.status);
 const boiWord = (r: DispatchPlanRow) => (r.boi_total === 0 ? "No BOI" : r.boi_in_hand >= r.boi_total ? "All in hand" : "To arrive");
 const plateWord = (r: DispatchPlanRow) =>
   r.alignment.base_plate === "Yes" ? r.alignment.base_plate_status || "Pending" : r.alignment.base_plate === "No" ? "No" : NOT_SET;
@@ -138,7 +141,7 @@ export function applyDispatchPlanFilter(rows: DispatchPlanRow[], f: DispatchPlan
     if (!any(f.wb, boxWord(r))) return false;
     if (!any(f.rep, r.reps)) return false;
     if (!any(f.zone, r.zone)) return false;
-    if (!any(f.st, r.dispatch_hold ? "Dispatch hold" : r.status)) return false;
+    if (!any(f.st, dispatchWord(r))) return false;
     if (f.from || f.to) {
       const d = dateOf(r, f.df);
       if (!d) return false;

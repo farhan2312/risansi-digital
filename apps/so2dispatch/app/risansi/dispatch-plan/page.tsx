@@ -10,7 +10,7 @@ import { FINAL_LOT_PENDING } from "@/lib/order-schema";
 import { UrlSearchInput } from "@/components/risansi/url-table";
 import { SortHeader } from "@/components/risansi/sort-header";
 import { DispatchPlanFilters, DispatchPlanKindToggle } from "@/components/risansi/dispatch-plan-filters";
-import { applyDispatchPlanFilter, parseDispatchPlanFilter, sortDispatchPlan } from "@/lib/dispatch-plan-filter";
+import { applyDispatchPlanFilter, dispatchWord, parseDispatchPlanFilter, sortDispatchPlan } from "@/lib/dispatch-plan-filter";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -151,7 +151,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
   const uniq = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b));
   const reps = uniq(searched.map((r) => r.reps));
   const zones = uniq(searched.map((r) => r.zone));
-  const statuses = uniq([...searched.map((r) => r.status), ...(searched.some((r) => r.dispatch_hold) ? ["Dispatch hold"] : [])]);
+  const statuses = uniq(searched.map(dispatchWord));
   const pumpCount = rows.reduce((n, r) => n + r.pumps, 0);
 
 
@@ -350,6 +350,9 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                           <Chip tone="danger">Dispatch hold</Chip>
                           {r.hold_reason && <div className="mt-1 max-w-[14rem] whitespace-normal text-xs text-rose-700 dark:text-rose-300">{r.hold_reason}</div>}
                         </>
+                      ) : !r.in_dispatch ? (
+                        // No numbered packing slip yet: Dispatch does not have it.
+                        <span className="whitespace-nowrap text-xs text-muted-foreground">Not at Dispatch yet</span>
                       ) : (
                         <>
                           <Chip tone={r.status.startsWith("LOT dispatch") ? "part" : "pending"}>
