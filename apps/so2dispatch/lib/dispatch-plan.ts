@@ -3,7 +3,7 @@ import { query } from "@/lib/db";
 import { FINAL_LOT_PENDING, PUMP_LIKE } from "@/lib/order-schema";
 
 const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
-import { basePlateSql, basePlateStepsSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
+import { SO_PACKING_STATUSES, basePlateSql, basePlateStepsSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
 import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
 // The Dispatch Plan: the pump SOs that can go out within the next two weeks,
@@ -105,14 +105,33 @@ export type DispatchPlanRow = {
   status: string;
 };
 
+/** The plan's ECs: a pump SO's pumps (Pump, ROLB), or a Spare SO's spares. */
 const PUMP_EC = `it.item_type = ANY($1::text[])`;
+
+/** Which plan: Pump SOs, or Spare SOs. */
+export type DispatchPlanKind = "pump" | "spare";
+
+/**
+ * A Spare SO's packing, from its readiness lots (packed against its ECs'
+ * quantities), in the same words as a pump SO's.
+ */
+function sparePackingSql(o: string): string {
+  const [pending, partial, full] = SO_PACKING_STATUSES;
+  const packed = `(SELECT COALESCE(sum(rl.qty), 0) FROM order_ready_lots rl WHERE rl.item_id = s.id AND rl.packed_date IS NOT NULL)`;
+  const ecs = `FROM order_items s WHERE s.order_id = ${o}.id AND s.item_type = ANY($1::text[])`;
+  return `(CASE
+             WHEN NOT EXISTS (SELECT 1 ${ecs} AND ${packed} > 0) THEN '${pending}'
+             WHEN NOT EXISTS (SELECT 1 ${ecs} AND ${packed} < COALESCE(NULLIF(s.quantity, 0), 1)) THEN '${full}'
+             ELSE '${partial}' END)`;
+}
 const TODAY = `(now() AT TIME ZONE 'Asia/Kolkata')::date`;
 const HORIZON = `(${TODAY} + $2::int)`;
 /** The SO's pump lots that carry a share: what Packing packs. */
 const LOTS = `FROM order_ready_lots rl JOIN order_items ri ON ri.id = rl.item_id
                WHERE ri.order_id = so.id AND ri.item_type = ANY($1::text[]) AND COALESCE(rl.qty, 0) > 0`;
 
-export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
+export async function listDispatchPlan(kind: DispatchPlanKind = "pump"): Promise<DispatchPlanRow[]> {
+  const spare = kind === "spare";
   const result = await query<DispatchPlanRow>(
     `WITH so AS (
        SELECT o.*
@@ -123,6 +142,8 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
           AND ${orderStatusSql("o")} <> 'Fully dispatch'
           AND COALESCE(o.accounts_hold_status, '') <> 'Hold'
           AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${PUMP_EC})
+          -- The Spare plan: Spare SOs (a pump SO's add-on spare goes with its pumps).
+          ${spare ? "AND o.order_type = 'Spare'" : ""}
      ),
      ready AS (
        SELECT it.order_id,
@@ -205,7 +226,7 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
               'planned', (SELECT to_char(max(la.plan_date), 'YYYY-MM-DD') FROM order_lot_assembly la JOIN order_items s ON s.id = la.item_id
                            WHERE s.order_id = so.id)) AS assembly,
             jsonb_build_object(
-              'status', ${soStageStatusSql("packing", "so")},
+              'status', ${spare ? sparePackingSql("so") : soStageStatusSql("packing", "so")},
               'next', (SELECT to_char(min(rl.packing_plan_date), 'YYYY-MM-DD') ${LOTS} AND rl.packed_date IS NULL),
               'last', (SELECT to_char(max(rl.packed_date), 'YYYY-MM-DD') ${LOTS}),
               'planned', (SELECT to_char(max(rl.packing_plan_date), 'YYYY-MM-DD') ${LOTS})) AS packing,
@@ -231,7 +252,7 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
       WHERE (r.fully_ready OR r.partial_ready OR r.plan_date IS NOT NULL)
         AND COALESCE(b.boi_ok, TRUE)
       ORDER BY r.fully_ready DESC, COALESCE(r.partial_ready, false) DESC, r.plan_date NULLS FIRST, so.sl_no`,
-    [PUMP_LIKE, DISPATCH_PLAN_DAYS]
+    [spare ? ["Spare"] : PUMP_LIKE, DISPATCH_PLAN_DAYS]
   );
   return result.rows;
 }

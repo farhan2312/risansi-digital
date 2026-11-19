@@ -9,7 +9,7 @@ import { boiStatus } from "@/lib/dept-view";
 import { FINAL_LOT_PENDING } from "@/lib/order-schema";
 import { UrlSearchInput } from "@/components/risansi/url-table";
 import { SortHeader } from "@/components/risansi/sort-header";
-import { DispatchPlanFilters } from "@/components/risansi/dispatch-plan-filters";
+import { DispatchPlanFilters, DispatchPlanKindToggle } from "@/components/risansi/dispatch-plan-filters";
 import { applyDispatchPlanFilter, parseDispatchPlanFilter, sortDispatchPlan } from "@/lib/dispatch-plan-filter";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
@@ -142,7 +142,9 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
   const q = (params.q ?? "").trim().toLowerCase();
   const now = today();
   // The search, then the filter bar and its date range, then the sort.
-  const searched = (await listDispatchPlan()).filter((r) => !q || haystack(r).includes(q));
+  // Pump SOs or Spare SOs (the toggle); Pump unless asked.
+  const spare = params.type === "spare";
+  const searched = (await listDispatchPlan(spare ? "spare" : "pump")).filter((r) => !q || haystack(r).includes(q));
   const filter = parseDispatchPlanFilter((k) => params[k]);
   const rows = sortDispatchPlan(applyDispatchPlanFilter(searched, filter, now), params.sort);
   // The filters' choices: what the plan holds.
@@ -158,22 +160,27 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
       <PageHeading
         icon={<CalendarRange />}
         title="Dispatch Plan"
-        description={<>Pump SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready, Partially ready or In plan, BOI in hand or expected, not held by Accounts. Filled in automatically.</>}
+        description={<>{spare ? "Spare" : "Pump"} SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready, Partially ready or In plan, BOI in hand or expected, not held by Accounts. Filled in automatically.</>}
       />
+
+      <div className="mb-3">
+        <DispatchPlanKindToggle spare={spare} />
+      </div>
 
       <div className="mb-3">
         <UrlSearchInput placeholder="Search SO, rep, zone, PO, PI, EC, model, BOI item…" />
       </div>
 
-      <DispatchPlanFilters reps={reps} zones={zones} statuses={statuses} total={rows.length} />
+      <DispatchPlanFilters reps={reps} zones={zones} statuses={statuses} total={rows.length} spare={spare} />
       <p className="-mt-2 mb-3 text-xs text-muted">
-        <span className="font-semibold text-foreground">{pumpCount}</span> pump{pumpCount === 1 ? "" : "s"} on these SOs
+        <span className="font-semibold text-foreground">{pumpCount}</span> {spare ? "spare" : "pump"}
+        {pumpCount === 1 ? "" : "s"} on these SOs
       </p>
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-card-border bg-surface px-6 py-16 text-center shadow-sm">
           <p className="text-sm font-medium text-foreground">
-            {q ? "Nothing on the plan matches the search" : `No pump SO is due to go out in the next ${DISPATCH_PLAN_DAYS} days`}
+            {q ? "Nothing on the plan matches the search" : `No ${spare ? "spare" : "pump"} SO is due to go out in the next ${DISPATCH_PLAN_DAYS} days`}
           </p>
           <p className="mt-1 text-sm text-muted">
             An SO comes on here by itself once Planning has it Fully ready, Partially ready or In plan, and its BOI is in hand or expected.
@@ -181,7 +188,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className="w-full min-w-[2150px] text-sm">
+          <table className={`w-full ${spare ? "min-w-[1750px]" : "min-w-[2150px]"} text-sm`}>
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
@@ -192,12 +199,17 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3"><SortHeader label="PO / Date" sortKey="po_date" /></th>
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Sent to PPC" sortKey="ppc" /></th>
                 <th className="px-4 py-3">ECs · Model</th>
-                <th className="px-4 py-3 text-right">Pumps</th>
+                <th className="px-4 py-3 text-right">{spare ? "Qty" : "Pumps"}</th>
                 <th className="px-4 py-3"><SortHeader label="Readiness" sortKey="readiness" /></th>
                 <th className="px-4 py-3">BOI</th>
-                <th className="px-4 py-3">Alignment</th>
-                <th className="px-4 py-3"><SortHeader label="Assembly" sortKey="asm" /></th>
-                <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Assembly Plan Date" sortKey="asm_plan" /></th>
+                {/* A spare has no alignment or assembly: only packing. */}
+                {!spare && (
+                  <>
+                    <th className="px-4 py-3">Alignment</th>
+                    <th className="px-4 py-3"><SortHeader label="Assembly" sortKey="asm" /></th>
+                    <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Assembly Plan Date" sortKey="asm_plan" /></th>
+                  </>
+                )}
                 <th className="px-4 py-3"><SortHeader label="Packing" sortKey="pkg" /></th>
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Packing Plan Date" sortKey="pkg_plan" /></th>
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="Dispatch Target" sortKey="dispatch_target" /></th>
@@ -300,16 +312,20 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                         </>
                       )}
                     </td>
-                    {/* Base plate and wooden box, as Assembly & Packing has them. */}
-                    <td className="px-4 py-3">
-                      <Alignment a={r.alignment} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <Stage st={r.assembly} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      <PlanDate st={r.assembly} now={now} />
-                    </td>
+                    {/* Base plate and wooden box, as Assembly & Packing has them (pumps only). */}
+                    {!spare && (
+                      <>
+                        <td className="px-4 py-3">
+                          <Alignment a={r.alignment} />
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <Stage st={r.assembly} />
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <PlanDate st={r.assembly} now={now} />
+                        </td>
+                      </>
+                    )}
                     <td className="whitespace-nowrap px-4 py-3">
                       <Stage st={r.packing} />
                     </td>

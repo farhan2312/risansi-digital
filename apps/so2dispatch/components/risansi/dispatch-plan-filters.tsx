@@ -11,11 +11,14 @@ export function DispatchPlanFilters({
   zones,
   statuses,
   total,
+  spare = false,
 }: {
   reps: string[];
   zones: string[];
   statuses: string[];
   total: number;
+  /** The Spare plan: no base plate, wooden box or assembly to filter on. */
+  spare?: boolean;
 }) {
   const { get, setParams } = useUrlTable();
   const f = parseDispatchPlanFilter((k) => get(k) || undefined);
@@ -34,9 +37,9 @@ export function DispatchPlanFilters({
       {multi("rdy", "Readiness", DP_OPTIONS.rdy, "Any readiness")}
       {multi("boi", "BOI", DP_OPTIONS.boi, "Any BOI")}
       {multi("hold", "Dispatch hold", DP_OPTIONS.hold, "Held or not")}
-      {multi("bp", "Base plate", DP_OPTIONS.bp, "Any base plate")}
-      {multi("wb", "Wooden box", DP_OPTIONS.wb, "Any wooden box")}
-      {multi("asm", "Assembly", DP_OPTIONS.asm, "Any assembly")}
+      {!spare && multi("bp", "Base plate", DP_OPTIONS.bp, "Any base plate")}
+      {!spare && multi("wb", "Wooden box", DP_OPTIONS.wb, "Any wooden box")}
+      {!spare && multi("asm", "Assembly", DP_OPTIONS.asm, "Any assembly")}
       {multi("pkg", "Packing", DP_OPTIONS.pkg, "Any packing")}
       {multi("st", "Status", statuses, "Any status")}
       {multi("rep", "Rep", reps, "All reps")}
@@ -83,6 +86,33 @@ export function DispatchPlanFilters({
       <span className="ml-auto text-xs text-muted">
         <span className="font-semibold text-foreground">{total}</span> SO{total === 1 ? "" : "s"}
       </span>
+    </div>
+  );
+}
+
+/** Pump SOs or Spare SOs: the plan's two lists. Switching starts the filters afresh. */
+export function DispatchPlanKindToggle({ spare }: { spare: boolean }) {
+  const { setParams, pending } = useUrlTable();
+  const btn = (on: boolean, label: string, type: string | null) => (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => {
+        if (on) return;
+        // Pump's assembly, base plate and wooden box filters mean nothing on spares.
+        setParams({ type, asm: null, bp: null, wb: null, sort: null });
+      }}
+      className={`inline-flex h-full items-center rounded-md px-4 text-sm font-semibold transition-colors ${
+        on ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"
+      }`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div role="group" aria-label="Pump or Spare" className={`inline-flex h-10 items-center rounded-lg border border-input-border bg-surface p-0.5 ${pending ? "opacity-70" : ""}`}>
+      {btn(!spare, "Pump", null)}
+      {btn(spare, "Spare", "spare")}
     </div>
   );
 }
