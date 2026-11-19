@@ -478,7 +478,8 @@ export function DepartmentWorkspace({
             date: last.packing_plan_date
               ? [`Packing ${shortDate(last.packing_plan_date)}`, last.packing_shift].filter(Boolean).join(" · ")
               : last.ready_date
-                ? `Ready ${shortDate(last.ready_date)}`
+                ? // A lot still In plan is not ready yet: its date is the plan.
+                  `${last.status === "In plan" ? "Plan" : "Ready"} ${shortDate(last.ready_date)}`
                 : "",
           };
     }
@@ -630,11 +631,17 @@ export function DepartmentWorkspace({
     return (
       <span>
         <span className={`font-medium ${l.status === "Fully ready" ? "text-emerald-700" : "text-foreground"}`}>{l.status || "—"}</span>
-        <span className="block text-[11px] text-muted">Ready {shortDate(l.ready_date) || "—"}</span>
-        {plan && <span className="block text-[11px] text-foreground">{plan}</span>}
-        <span className={`block text-[11px] font-medium ${l.packed_date ? "text-emerald-700" : "text-amber-700"}`}>
-          {l.packed_date ? `Packed ${shortDate(l.packed_date)}` : PACKING_IN_PROGRESS}
+        {/* In plan: not ready yet, its date the plan. */}
+        <span className="block text-[11px] text-muted">
+          {l.status === "In plan" ? "Plan" : "Ready"} {shortDate(l.ready_date) || "—"}
         </span>
+        {plan && <span className="block text-[11px] text-foreground">{plan}</span>}
+        {/* Packing only once there is something ready to pack. */}
+        {(l.packed_date || l.status !== "In plan") && (
+          <span className={`block text-[11px] font-medium ${l.packed_date ? "text-emerald-700" : "text-amber-700"}`}>
+            {l.packed_date ? `Packed ${shortDate(l.packed_date)}` : PACKING_IN_PROGRESS}
+          </span>
+        )}
         {noSlip && <span className="mt-0.5 block w-fit rounded bg-rose-50 px-1 text-[10.5px] font-semibold text-rose-700">No slip</span>}
         {lots.some((x) => x.recheck_note) && (
           <span className="mt-0.5 block w-fit rounded bg-amber-100 px-1 text-[10.5px] font-semibold text-amber-800" title={lots.map((x) => x.recheck_note).filter(Boolean).join("; ")}>
