@@ -131,9 +131,10 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
               COALESCE(sum(it.quantity), 0)::int AS pumps,
               bool_and(pl.actual_spare_status IS NOT DISTINCT FROM 'Fully ready') AS fully_ready,
               max(pl.planning_readiness_date) AS ready_date,
-              -- Partial ready: Planning's status for the SO, or a lot of it already partly ready.
-              bool_or(pl.actual_spare_status = 'Partial ready' OR pr.n > 0) AS partial_ready,
-              max(COALESCE(pr.d, CASE WHEN pl.actual_spare_status = 'Partial ready' THEN pl.planning_readiness_date END)) AS partial_date,
+              -- Partial ready: Planning's status for the SO (a lot partly ready on an
+              -- SO still In plan stays In plan, as Planning has it).
+              bool_or(pl.actual_spare_status = 'Partial ready') AS partial_ready,
+              max(pl.planning_readiness_date) FILTER (WHERE pl.actual_spare_status = 'Partial ready') AS partial_date,
               -- A lot In plan in the window; an EC with no lots, its own In plan date.
               least(
                 min(rl.plan_date),
@@ -144,10 +145,6 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
          FROM order_items it
          JOIN so ON so.id = it.order_id
          LEFT JOIN order_planning pl ON pl.item_id = it.id
-         LEFT JOIN LATERAL (
-           SELECT count(*) AS n, max(l.ready_date) AS d FROM order_ready_lots l
-            WHERE l.item_id = it.id AND l.status = 'Partial ready'
-         ) pr ON TRUE
          LEFT JOIN LATERAL (
            SELECT min(l.ready_date) AS plan_date FROM order_ready_lots l
             WHERE l.item_id = it.id AND l.status = 'In plan' AND l.ready_date <= ${HORIZON}
