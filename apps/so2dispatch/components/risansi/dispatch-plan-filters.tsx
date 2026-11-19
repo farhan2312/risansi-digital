@@ -35,7 +35,7 @@ export function DispatchPlanFilters({
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
       {multi("rdy", "Readiness", DP_OPTIONS.rdy, "Any readiness")}
-      {multi("boi", "BOI", DP_OPTIONS.boi, "Any BOI")}
+      {!spare && multi("boi", "BOI", DP_OPTIONS.boi, "Any BOI")}
       {multi("hold", "Dispatch hold", DP_OPTIONS.hold, "Held or not")}
       {!spare && multi("bp", "Base plate", DP_OPTIONS.bp, "Any base plate")}
       {!spare && multi("wb", "Wooden box", DP_OPTIONS.wb, "Any wooden box")}
@@ -100,7 +100,7 @@ export function DispatchPlanKindToggle({ spare }: { spare: boolean }) {
       onClick={() => {
         if (on) return;
         // Pump's assembly, base plate and wooden box filters mean nothing on spares.
-        setParams({ type, asm: null, bp: null, wb: null, sort: null });
+        setParams({ type, asm: null, bp: null, wb: null, boi: null, sort: null });
       }}
       className={`inline-flex h-full items-center rounded-md px-4 text-sm font-semibold transition-colors ${
         on ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"

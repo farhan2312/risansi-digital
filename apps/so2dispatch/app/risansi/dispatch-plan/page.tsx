@@ -172,10 +172,11 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
       </div>
 
       <DispatchPlanFilters reps={reps} zones={zones} statuses={statuses} total={rows.length} spare={spare} />
-      <p className="-mt-2 mb-3 text-xs text-muted">
-        <span className="font-semibold text-foreground">{pumpCount}</span> {spare ? "spare" : "pump"}
-        {pumpCount === 1 ? "" : "s"} on these SOs
-      </p>
+      {!spare && (
+        <p className="-mt-2 mb-3 text-xs text-muted">
+          <span className="font-semibold text-foreground">{pumpCount}</span> pump{pumpCount === 1 ? "" : "s"} on these SOs
+        </p>
+      )}
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-card-border bg-surface px-6 py-16 text-center shadow-sm">
@@ -188,7 +189,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-card-border bg-surface shadow-sm">
-          <table className={`w-full ${spare ? "min-w-[1750px]" : "min-w-[2150px]"} text-sm`}>
+          <table className={`w-full ${spare ? "min-w-[1450px]" : "min-w-[2150px]"} text-sm`}>
             <thead>
               <tr className="border-b border-card-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Sl. and SO stay put while the rest scrolls sideways. */}
@@ -199,9 +200,9 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                 <th className="px-4 py-3"><SortHeader label="PO / Date" sortKey="po_date" /></th>
                 <th className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Sent to PPC" sortKey="ppc" /></th>
                 <th className="px-4 py-3">ECs · Model</th>
-                <th className="px-4 py-3 text-right">{spare ? "Qty" : "Pumps"}</th>
+                {!spare && <th className="px-4 py-3 text-right">Pumps</th>}
                 <th className="px-4 py-3"><SortHeader label="Readiness" sortKey="readiness" /></th>
-                <th className="px-4 py-3">BOI</th>
+                {!spare && <th className="px-4 py-3">BOI</th>}
                 {/* A spare has no alignment or assembly: only packing. */}
                 {!spare && (
                   <>
@@ -251,7 +252,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                         ))}
                       </ul>
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{r.pumps}</td>
+                    {!spare && <td className="px-4 py-3 text-right font-semibold tabular-nums">{r.pumps}</td>}
                     <td className="whitespace-nowrap px-4 py-3">
                       {r.fully_ready ? (
                         <>
@@ -276,6 +277,8 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                         </>
                       )}
                     </td>
+                    {/* BOI: pumps only. */}
+                    {!spare && (
                     <td className="px-4 py-3">
                       {r.boi_total === 0 ? (
                         <span className="text-xs text-muted">No BOI</span>
@@ -312,6 +315,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                         </>
                       )}
                     </td>
+                    )}
                     {/* Base plate and wooden box, as Assembly & Packing has them (pumps only). */}
                     {!spare && (
                       <>
