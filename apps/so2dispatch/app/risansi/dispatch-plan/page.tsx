@@ -160,7 +160,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
       <PageHeading
         icon={<CalendarRange />}
         title="Dispatch Plan"
-        description={<>{spare ? "Spare" : "Pump"} SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready, Partially ready or In plan, BOI in hand or expected, not held by Accounts. Filled in automatically.</>}
+        description={<>{spare ? "Spare" : "Pump"} SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready, Partially ready or In plan{spare ? "" : ", BOI in hand or expected"}, not held by Accounts. Filled in automatically.</>}
       />
 
       <div className="mb-3">

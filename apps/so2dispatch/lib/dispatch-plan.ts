@@ -254,7 +254,8 @@ export async function listDispatchPlan(kind: DispatchPlanKind = "pump"): Promise
        JOIN ready r ON r.order_id = so.id
        LEFT JOIN boi b ON b.order_id = so.id
       WHERE (r.fully_ready OR r.partial_ready OR r.plan_date IS NOT NULL)
-        AND COALESCE(b.boi_ok, TRUE)
+        -- Pumps wait on their BOI; spares do not.
+        ${spare ? "" : "AND COALESCE(b.boi_ok, TRUE)"}
       ORDER BY r.fully_ready DESC, COALESCE(r.partial_ready, false) DESC, r.plan_date NULLS FIRST, so.sl_no`,
     [spare ? ["Spare"] : PUMP_LIKE, DISPATCH_PLAN_DAYS]
   );
