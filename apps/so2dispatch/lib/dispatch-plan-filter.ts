@@ -7,7 +7,7 @@ import type { DispatchPlanRow } from "@/lib/dispatch-plan";
 export const NOT_SET = "Not set";
 
 export const DP_OPTIONS = {
-  rdy: ["Fully ready", "In plan", "In plan · overdue"],
+  rdy: ["Fully ready", "Partially ready", "In plan", "In plan · overdue"],
   boi: ["No BOI", "All in hand", "To arrive"],
   hold: ["Dispatch hold", "Not held"],
   asm: SO_ASSEMBLY_STATUSES,
@@ -75,7 +75,7 @@ export function parseDispatchPlanFilter(get: (key: string) => string | undefined
 }
 
 /** The readiness date the row reads: a Fully ready SO's readiness date, else its In plan date. */
-const readinessOf = (r: DispatchPlanRow) => (r.fully_ready ? r.ready_date : r.plan_date);
+const readinessOf = (r: DispatchPlanRow) => (r.fully_ready ? r.ready_date : r.partial_ready ? r.partial_date ?? r.plan_date : r.plan_date);
 
 /** A row's date by its key — for the range and for sorting. */
 export function dateOf(r: DispatchPlanRow, key: string): string | null {
@@ -113,7 +113,7 @@ export function dateOf(r: DispatchPlanRow, key: string): string | null {
 export const DP_SORT_KEYS = ["so_no", "so_date", "po_date", "ppc", "readiness", "asm", "asm_plan", "pkg", "pkg_plan", "dispatch_target", "final_target"];
 
 const readinessWord = (r: DispatchPlanRow, today: string) =>
-  r.fully_ready ? "Fully ready" : r.plan_date && r.plan_date < today ? "In plan · overdue" : "In plan";
+  r.fully_ready ? "Fully ready" : r.partial_ready ? "Partially ready" : r.plan_date && r.plan_date < today ? "In plan · overdue" : "In plan";
 const boiWord = (r: DispatchPlanRow) => (r.boi_total === 0 ? "No BOI" : r.boi_in_hand >= r.boi_total ? "All in hand" : "To arrive");
 const plateWord = (r: DispatchPlanRow) =>
   r.alignment.base_plate === "Yes" ? r.alignment.base_plate_status || "Pending" : r.alignment.base_plate === "No" ? "No" : NOT_SET;
