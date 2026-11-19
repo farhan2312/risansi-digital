@@ -399,6 +399,97 @@ function DispatchDocCells({ docs, onOpen }: { docs: SoDispatchDocs | undefined; 
   );
 }
 
+/**
+ * Deleting an SO cannot be undone (every EC and department record goes with
+ * it), so it asks for the SO No. typed out before the Delete button works.
+ */
+function DeleteOrderDialog({
+  label,
+  client,
+  onCancel,
+  onConfirm,
+}: {
+  label: string;
+  client: string | null;
+  onCancel: () => void;
+  /** Resolves to an error to show, or null once deleted. */
+  onConfirm: (typed: string) => Promise<string | null>;
+}) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const matches = typed.trim().toLowerCase() === label.trim().toLowerCase();
+  async function go() {
+    if (!matches || busy) return;
+    setBusy(true);
+    setError(null);
+    const err = await onConfirm(typed.trim());
+    setBusy(false);
+    if (err) setError(err);
+  }
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Delete SO ${label}`}
+      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
+      onClick={() => !busy && onCancel()}
+    >
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-t-2xl bg-surface p-5 text-left shadow-xl sm:rounded-2xl">
+        <h2 className="font-display text-lg font-semibold text-rose-700 dark:text-rose-300">Delete SO {label}?</h2>
+        <p className="mt-2 text-sm text-foreground">
+          This permanently deletes {client ? <>the SO for <span className="font-semibold">{client}</span></> : "this SO"} with all its ECs, BOI items, PIs, payment
+          terms, planning, drawing, dispatch records, checklist and chat. <span className="font-semibold">It cannot be undone.</span>
+        </p>
+        <label className="mt-4 block text-sm">
+          <span className="mb-1 block text-muted-foreground">
+            Type <span className="font-mono font-semibold text-foreground">{label}</span> to confirm
+          </span>
+          <input
+            autoFocus
+            value={typed}
+            onChange={(e) => {
+              setTyped(e.target.value);
+              setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") go();
+              if (e.key === "Escape" && !busy) onCancel();
+            }}
+            placeholder={label}
+            aria-label="SO No. to confirm"
+            className="h-10 w-full rounded-lg border border-input-border bg-surface px-3 font-mono text-sm text-foreground focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+          />
+        </label>
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-danger">
+            {error}
+          </p>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="inline-flex h-9 items-center rounded-lg border border-input-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-background"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={go}
+            disabled={!matches || busy}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Delete SO
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function OrdersTable({
   split = false,
   result,
@@ -920,16 +1011,19 @@ export function OrdersTable({
     );
   }
 
-  async function handleDelete(order: OrderListRow) {
-    const label = order.so_no ?? `#${order.sl_no}`;
-    if (!confirm(`Delete SO ${label}? This permanently removes it and all its EC/department data.`)) {
-      return;
-    }
+  // Delete asks for the SO No. typed out (DeleteOrderDialog).
+  const [deleteFor, setDeleteFor] = useState<OrderListRow | null>(null);
+  function handleDelete(order: OrderListRow) {
+    setDeleteFor(order);
+  }
+  async function confirmDelete(order: OrderListRow, typed: string): Promise<string | null> {
     setDeletingId(order.id);
-    const res = await deleteOrderAction(order.id);
+    const res = await deleteOrderAction(order.id, typed);
     setDeletingId(null);
-    if (!res.ok) alert(res.error);
-    else router.refresh();
+    if (!res.ok) return res.error;
+    setDeleteFor(null);
+    router.refresh();
+    return null;
   }
 
   // An empty table means one of two very different things — say which, so a
@@ -938,6 +1032,14 @@ export function OrdersTable({
 
   return (
     <div>
+      {deleteFor && (
+        <DeleteOrderDialog
+          label={deleteFor.so_no ?? `#${deleteFor.sl_no}`}
+          client={deleteFor.client_name ?? null}
+          onCancel={() => setDeleteFor(null)}
+          onConfirm={(typed) => confirmDelete(deleteFor, typed)}
+        />
+      )}
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} />

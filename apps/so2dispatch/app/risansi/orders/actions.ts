@@ -747,7 +747,9 @@ async function ecDenied(user: { id: string; role: string }, orderId: string): Pr
 export type DeleteOrderResult = { ok: true } | { ok: false; error: string };
 
 export async function deleteOrderAction(
-  orderId: string
+  orderId: string,
+  /** The SO No. typed to confirm (its #Sl. No. when it has none): it must match. */
+  confirmText: string
 ): Promise<DeleteOrderResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
@@ -761,6 +763,11 @@ export async function deleteOrderAction(
     const label = detail
       ? String(detail.order.so_no ?? `#${detail.order.sl_no}`)
       : orderId;
+    // Deleting cannot be undone: only with the SO No. typed out.
+    if (!detail) return { ok: false, error: "Order not found." };
+    if (String(confirmText ?? "").trim().toLowerCase() !== label.trim().toLowerCase()) {
+      return { ok: false, error: `Type ${label} to confirm the delete.` };
+    }
     await deleteOrder(orderId);
     await logAudit({
       actor: { id: user.id, email: user.email, role: user.role },
