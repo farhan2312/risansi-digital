@@ -233,8 +233,8 @@ function ecDoneSql(it: string, o: string): string {
 export function drawingFilterSql(f: DrawingFilter, o = "o"): string {
   const parts: string[] = [];
   const ec: string[] = [];
-  // Pending (and EC awaited) leave out an SO held from work.
-  const open = ["Pending", EC_AWAITED];
+  // A held SO still counts at its EC statuses (Pending too).
+  const open: string[] = [];
   if (f.gad.length) ec.push(inListNotHeld(docStatusSql("s", "GAD"), f.gad, open, o, "drawing"));
   if (f.curve.length) ec.push(inListNotHeld(curveStatusSql("s", o), f.curve, open, o, "drawing"));
   if (f.part.length) ec.push(inListNotHeld(partStatusSql("s"), f.part, open, o, "drawing"));

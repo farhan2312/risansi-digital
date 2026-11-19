@@ -3,7 +3,7 @@
 // filter matches what the table shows.
 
 import { QC_DOC_TYPES, linksFromRows, qcDocsStatus, requiredQcDocs } from "@/lib/qc-docs";
-import { inListNotHeld, soWorkHoldSql } from "@/lib/dept-status";
+import { inListNotHeld } from "@/lib/dept-status";
 
 export const QC_SO_STATES = ["Open", "Closed"];
 export const QC_EC_STATUSES = ["Pending", "Partially submitted", "Submitted", "Docs not specified"];
@@ -93,7 +93,7 @@ export function soQcStateSql(o: string): string {
 export function qcFilterSql(f: QcFilter, o = "o"): string {
   const parts: string[] = [];
   if (f.ec.length) {
-    parts.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND ${qcEcReadySql("s")} AND ${inListNotHeld(ecQcStatusSql("s", o), f.ec, ["Pending"], o, "quality")})`);
+    parts.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND ${qcEcReadySql("s")} AND ${inListNotHeld(ecQcStatusSql("s", o), f.ec, [], o, "quality")})`);
   }
   if (f.so.length) parts.push(inListNotHeld(soQcStateSql(o), f.so, [], o, "quality") /* a held SO is still Open */);
   if (f.asm.length) {
@@ -105,6 +105,6 @@ export function qcFilterSql(f: QcFilter, o = "o"): string {
 /** How many of the SO's (alias o) ECs are at this status (all of them with none) — a card's figure. */
 export function qcEcCountSql(o: string, status?: string): string {
   return `(SELECT count(*) FROM order_items s WHERE s.order_id = ${o}.id AND ${qcEcReadySql("s")}${
-    status ? ` AND ${ecQcStatusSql("s", o)} = ${lit(status)}${status === "Pending" ? ` AND NOT ${soWorkHoldSql(o, "quality")}` : ""}` : ""
+    status ? ` AND ${ecQcStatusSql("s", o)} = ${lit(status)}` : ""
   })`;
 }
