@@ -197,8 +197,8 @@ function PlanningLotCell({ lot, onClick }: { lot: SoLot | undefined; onClick: ()
       <span className={`text-[13px] font-medium ${lot.status === "Fully ready" ? TEXT_TONE.done : TEXT_TONE.pending}`}>
         {lot.status || "—"}
       </span>
-      {/* In plan: not ready yet, its date the plan. */}
-      <span className="text-[11px] text-muted">{lot.status === "In plan" ? "Plan" : "Ready"} {formatDate(lot.ready_date)}</span>
+      {/* The lot's date (its status above says whether ready or planned). */}
+      <span className="text-[11px] text-muted">{formatDate(lot.ready_date)}</span>
       {lot.differ && <span className="text-[11px] font-medium text-amber-700">ECs differ</span>}
       {/* An EC of the SO without this lot: added since, not planned yet. */}
       {lot.total_ecs != null && lot.ecs < lot.total_ecs && (

@@ -478,8 +478,7 @@ export function DepartmentWorkspace({
             date: last.packing_plan_date
               ? [`Packing ${shortDate(last.packing_plan_date)}`, last.packing_shift].filter(Boolean).join(" · ")
               : last.ready_date
-                ? // A lot still In plan is not ready yet: its date is the plan.
-                  `${last.status === "In plan" ? "Plan" : "Ready"} ${shortDate(last.ready_date)}`
+                ? shortDate(last.ready_date)
                 : "",
           };
     }
@@ -631,10 +630,8 @@ export function DepartmentWorkspace({
     return (
       <span>
         <span className={`font-medium ${l.status === "Fully ready" ? "text-emerald-700" : "text-foreground"}`}>{l.status || "—"}</span>
-        {/* In plan: not ready yet, its date the plan. */}
-        <span className="block text-[11px] text-muted">
-          {l.status === "In plan" ? "Plan" : "Ready"} {shortDate(l.ready_date) || "—"}
-        </span>
+        {/* The lot's date (its status above says whether ready or planned). */}
+        <span className="block text-[11px] text-muted">{shortDate(l.ready_date) || "—"}</span>
         {plan && <span className="block text-[11px] text-foreground">{plan}</span>}
         {/* Packing only once there is something ready to pack. */}
         {(l.packed_date || l.status !== "In plan") && (
