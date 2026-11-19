@@ -95,7 +95,7 @@ export function qcFilterSql(f: QcFilter, o = "o"): string {
   if (f.ec.length) {
     parts.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND ${qcEcReadySql("s")} AND ${inListNotHeld(ecQcStatusSql("s", o), f.ec, ["Pending"], o, "quality")})`);
   }
-  if (f.so.length) parts.push(inListNotHeld(soQcStateSql(o), f.so, ["Open"], o, "quality"));
+  if (f.so.length) parts.push(inListNotHeld(soQcStateSql(o), f.so, [], o, "quality") /* a held SO is still Open */);
   if (f.asm.length) {
     parts.push(`EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND ${ecAssemblySql("s")} IN (${f.asm.map(lit).join(", ")}))`);
   }

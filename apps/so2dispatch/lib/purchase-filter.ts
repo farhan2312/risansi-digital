@@ -123,7 +123,7 @@ export function purchaseFilterSql(f: PurchaseFilter, o = "o"): string {
   const item = itemCond(f, "s");
   if (item) ec.push(item);
   if (ec.length) parts.push(pumpEcs(o, ec.join(" AND ")));
-  if (f.so.length) parts.push(inListNotHeld(soPurchaseStateSql(o), f.so, ["Open"], o, "purchase"));
+  if (f.so.length) parts.push(inListNotHeld(soPurchaseStateSql(o), f.so, [], o, "purchase") /* a held SO is still Open */);
   return parts.length ? parts.join(" AND ") : "TRUE";
 }
 
