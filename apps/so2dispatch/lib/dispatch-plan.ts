@@ -10,8 +10,9 @@ import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSq
 // found from what the departments have already recorded — nothing is kept of
 // its own. An SO is on it while all three hold:
 //
-//   Ready     every pump EC Fully ready, or a lot In plan for a date up to
-//             two weeks out (overdue plans too: they are still to go out)
+//   Ready     every pump EC Fully ready, or Partial ready (some of it can
+//             go now), or a lot In plan for a date up to two weeks out
+//             (overdue plans too: they are still to go out)
 //   BOI       every bought-out item in hand, or expected by the vendor
 //             within two weeks (an SO with no BOI items has nothing to wait for)
 //   Accounts  not held by Accounts (its Clear / Hold)
@@ -68,6 +69,10 @@ export type DispatchPlanRow = {
   fully_ready: boolean;
   /** When the readiness date is, for a Fully ready SO. */
   ready_date: string | null;
+  /** Planning has it Partial ready (not Fully ready): part of it can go now. */
+  partial_ready: boolean;
+  /** The Partial ready readiness date. */
+  partial_date: string | null;
   /** The earliest In plan lot within the window, when not Fully ready. */
   plan_date: string | null;
   boi_total: number;
@@ -126,6 +131,9 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
               COALESCE(sum(it.quantity), 0)::int AS pumps,
               bool_and(pl.actual_spare_status IS NOT DISTINCT FROM 'Fully ready') AS fully_ready,
               max(pl.planning_readiness_date) AS ready_date,
+              -- Partial ready: Planning's status for the SO, or a lot of it already partly ready.
+              bool_or(pl.actual_spare_status = 'Partial ready' OR pr.n > 0) AS partial_ready,
+              max(COALESCE(pr.d, CASE WHEN pl.actual_spare_status = 'Partial ready' THEN pl.planning_readiness_date END)) AS partial_date,
               -- A lot In plan in the window; an EC with no lots, its own In plan date.
               least(
                 min(rl.plan_date),
@@ -136,6 +144,10 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
          FROM order_items it
          JOIN so ON so.id = it.order_id
          LEFT JOIN order_planning pl ON pl.item_id = it.id
+         LEFT JOIN LATERAL (
+           SELECT count(*) AS n, max(l.ready_date) AS d FROM order_ready_lots l
+            WHERE l.item_id = it.id AND l.status = 'Partial ready'
+         ) pr ON TRUE
          LEFT JOIN LATERAL (
            SELECT min(l.ready_date) AS plan_date FROM order_ready_lots l
             WHERE l.item_id = it.id AND l.status = 'In plan' AND l.ready_date <= ${HORIZON}
@@ -180,6 +192,8 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
             r.ecs, r.pumps, r.fully_ready,
             to_char(r.ready_date, 'YYYY-MM-DD') AS ready_date,
             CASE WHEN r.fully_ready THEN NULL ELSE to_char(r.plan_date, 'YYYY-MM-DD') END AS plan_date,
+            (NOT r.fully_ready AND COALESCE(r.partial_ready, false)) AS partial_ready,
+            CASE WHEN r.fully_ready THEN NULL ELSE to_char(r.partial_date, 'YYYY-MM-DD') END AS partial_date,
             COALESCE(b.boi_total, 0) AS boi_total, COALESCE(b.boi_in_hand, 0) AS boi_in_hand,
             to_char(b.boi_expected, 'YYYY-MM-DD') AS boi_expected,
             COALESCE(b.boi_items, '[]'::jsonb) AS boi_items,
@@ -217,9 +231,9 @@ export async function listDispatchPlan(): Promise<DispatchPlanRow[]> {
        FROM so
        JOIN ready r ON r.order_id = so.id
        LEFT JOIN boi b ON b.order_id = so.id
-      WHERE (r.fully_ready OR r.plan_date IS NOT NULL)
+      WHERE (r.fully_ready OR r.partial_ready OR r.plan_date IS NOT NULL)
         AND COALESCE(b.boi_ok, TRUE)
-      ORDER BY r.fully_ready DESC, r.plan_date NULLS FIRST, so.sl_no`,
+      ORDER BY r.fully_ready DESC, COALESCE(r.partial_ready, false) DESC, r.plan_date NULLS FIRST, so.sl_no`,
     [PUMP_LIKE, DISPATCH_PLAN_DAYS]
   );
   return result.rows;

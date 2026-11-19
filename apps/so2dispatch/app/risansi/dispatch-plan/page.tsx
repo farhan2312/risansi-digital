@@ -158,7 +158,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
       <PageHeading
         icon={<CalendarRange />}
         title="Dispatch Plan"
-        description={<>Pump SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready or In plan, BOI in hand or expected, not held by Accounts. Filled in automatically.</>}
+        description={<>Pump SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready, Partially ready or In plan, BOI in hand or expected, not held by Accounts. Filled in automatically.</>}
       />
 
       <div className="mb-3">
@@ -176,7 +176,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
             {q ? "Nothing on the plan matches the search" : `No pump SO is due to go out in the next ${DISPATCH_PLAN_DAYS} days`}
           </p>
           <p className="mt-1 text-sm text-muted">
-            An SO comes on here by itself once Planning has it Fully ready or In plan, and its BOI is in hand or expected.
+            An SO comes on here by itself once Planning has it Fully ready, Partially ready or In plan, and its BOI is in hand or expected.
           </p>
         </div>
       ) : (
@@ -245,6 +245,17 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                         <>
                           <Chip tone="done">Fully ready</Chip>
                           {r.ready_date && <div className="mt-1 text-xs text-muted">{formatDate(r.ready_date)}</div>}
+                        </>
+                      ) : r.partial_ready ? (
+                        // Part of it can go now; the rest as planned.
+                        <>
+                          <Chip tone="part">Partially ready</Chip>
+                          {r.partial_date && <div className="mt-1 text-xs text-muted">{formatDate(r.partial_date)}</div>}
+                          {r.plan_date && (
+                            <div className={`text-xs ${overdue ? "font-medium text-rose-700 dark:text-rose-300" : "text-muted"}`}>
+                              Rest in plan {formatDate(r.plan_date)}
+                            </div>
+                          )}
                         </>
                       ) : (
                         <>
