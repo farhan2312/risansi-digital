@@ -81,7 +81,7 @@ export async function savePartSelectionAction(
     };
     wanted.set(keyOf(item), item);
   }
-  if (yes && wanted.size === 0) return { ok: false, error: "Pick at least one part." };
+  // Non Standard may be saved before its parts are known: it stays Pending until they are picked and drawn.
 
   try {
     await query(

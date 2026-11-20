@@ -503,15 +503,11 @@ export function PartPickerModal({
 
       {canEdit && (
         <div className="mt-4 flex items-center justify-end gap-3">
-          {error ? (
-            <span className="text-sm text-rose-600">{error}</span>
-          ) : (
-            !shortage && yes === true && picked.size === 0 && <span className="text-sm text-amber-700">Non Standard: pick at least one part.</span>
-          )}
+          {error && <span className="text-sm text-rose-600">{error}</span>}
           <button
             type="button"
             onClick={save}
-            disabled={saving || yes === null || (!shortage && yes === true && picked.size === 0)}
+            disabled={saving || yes === null}
             className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
