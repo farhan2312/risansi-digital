@@ -1228,6 +1228,10 @@ function QuotePreview({
     );
     change({ ...edits, added: Object.keys(added).length ? added : undefined });
   };
+  // The document's totals, as printed (removed rows left out).
+  const docSubtotal = models.reduce((s, m) => s + m.lines.reduce((x, l) => x + (l.removed ? 0 : (l.amount ?? 0)), 0), 0);
+  const docDiscountPct = Number.parseFloat(edits.discount ?? spareDiscountAuto(sheet.quote)) || 0;
+  const docDiscount = (docSubtotal * docDiscountPct) / 100;
   // Rows after the Grand Total (text only).
   const after = edits.after ?? [];
   const setAfter = (id: string, patch: { label?: string; value?: string }) => change({ ...edits, after: after.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
@@ -1316,7 +1320,7 @@ function QuotePreview({
         {mode === "preview" ? (
           <iframe title="Quotation for Spares" srcDoc={html} className="w-full flex-1 border-0 bg-white" />
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-muted/30 p-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-muted/30 p-4 [&>*]:shrink-0">
             <p className="text-[12.5px] text-muted-foreground">These edits are for this document only. The parts and prices on the quotation page, and the quotation total, don&apos;t change.</p>
             <section className="flex flex-col divide-y divide-border overflow-hidden rounded-md border border-border bg-card">
               {headerFields.map((f) => (
@@ -1399,8 +1403,27 @@ function QuotePreview({
               <h4 className="border-b border-border bg-muted/60 px-3 py-2 text-[12.5px] font-semibold text-foreground">
                 Rows after Grand Total <span className="font-normal text-muted-foreground">(text only, the Grand Total doesn&apos;t change)</span>
               </h4>
+              <div className="flex flex-col divide-y divide-border bg-muted/30 text-[12.5px]">
+                {docDiscountPct > 0 && (
+                  <>
+                    <div className="grid grid-cols-[minmax(0,1fr)_200px_76px] items-center gap-2 px-3 py-1.5">
+                      <span className="text-right font-medium text-foreground">Total</span>
+                      <span className="text-right font-mono tabular-nums">{formatInr(docSubtotal)}</span>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_200px_76px] items-center gap-2 px-3 py-1.5">
+                      <span className="text-right font-medium text-foreground">Discount ({docDiscountPct}%)</span>
+                      <span className="text-right font-mono tabular-nums">-{formatInr(docDiscount)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="grid grid-cols-[minmax(0,1fr)_200px_76px] items-center gap-2 px-3 py-1.5">
+                  <span className="text-right font-semibold text-foreground">Grand Total</span>
+                  <span className="text-right font-mono font-semibold tabular-nums">{formatInr(docSubtotal - docDiscount)}</span>
+                  <span className="text-[11px] text-muted-foreground">From the rows</span>
+                </div>
+              </div>
               {after.length > 0 && (
-                <div className="flex flex-col divide-y divide-border">
+                <div className="flex flex-col divide-y divide-border border-t border-border">
                   {after.map((r) => (
                     <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_200px_76px] items-center gap-2 px-3 py-1.5">
                       <input className={cell} value={r.label} placeholder="Label, e.g. Freight" aria-label="Row label" onChange={(e) => setAfter(r.id, { label: e.target.value })} />
