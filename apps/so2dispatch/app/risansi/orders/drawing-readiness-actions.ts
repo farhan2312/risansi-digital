@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { readinessMissingForItem } from "@/lib/drawing-readiness";
 import { logAudit } from "@/lib/audit";
 import { canEditChild, canViewDepartment } from "@/lib/roles";
 import { spareEcSql } from "@/lib/dept-view";
@@ -125,6 +126,8 @@ export async function applyDrawingVersionToSoAction(
   }
   if (doc !== "GAD" && doc !== "Performance Curve") return { ok: false, error: "Unknown document." };
   if (!Number.isInteger(number) || number < 1) return { ok: false, error: "Unknown version." };
+  const missing = await readinessMissingForItem(itemId);
+  if (missing) return { ok: false, error: missing };
 
   const siblings = await query<{ id: string; ec_no: string | null }>(
     `SELECT s.id, s.ec_no

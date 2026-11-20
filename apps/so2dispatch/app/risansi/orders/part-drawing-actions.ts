@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { readinessMissingForItem } from "@/lib/drawing-readiness";
 import { logAudit } from "@/lib/audit";
 import { subjectForItem } from "@/lib/audit-subject";
 import { emitNotification } from "@/lib/notifications";
@@ -65,6 +66,8 @@ export async function savePartSelectionAction(
   if (!PUMP_LIKE.includes(String(ec.item_type ?? ""))) {
     return { ok: false, error: "Part drawings are for pump ECs." };
   }
+  const missing = await readinessMissingForItem(itemId);
+  if (missing) return { ok: false, error: missing };
   const yes = required === "Yes";
   // Each part once, named; an "other" carries its own name.
   const wanted = new Map<string, PartListItem>();
@@ -135,6 +138,8 @@ export async function savePartProgressAction(
   }
   const ec = await ecFacts(itemId);
   if (!ec) return { ok: false, error: "EC not found." };
+  const missing = await readinessMissingForItem(itemId);
+  if (missing) return { ok: false, error: missing };
   for (const r of rows) {
     if (r.completed === "Yes" && r.completed_date && !/^\d{4}-\d{2}-\d{2}$/.test(r.completed_date)) {
       return { ok: false, error: "A completed date is not a date." };
@@ -145,13 +150,20 @@ export async function savePartProgressAction(
     }
   }
   try {
-    const before = partDrawingStatus(ec.part_drawing, await partRows(itemId));
+    const existing = await partRows(itemId);
+    const before = partDrawingStatus(ec.part_drawing, existing);
+    const oldLink = new Map(existing.map((p) => [String(p.id), String(p.doc_link ?? "").trim()]));
     for (const r of rows) {
       if (!UUID_RE.test(String(r.id))) continue;
       const done = r.completed === "Yes";
+      // A link replaced (or removed) is kept: the old one, when and by whom.
+      const was = oldLink.get(String(r.id)) ?? "";
+      const now = String(r.doc_link ?? "").trim().slice(0, 2000);
+      const replaced = was && was !== now ? JSON.stringify([{ link: was, until: new Date().toISOString(), by: user.full_name }]) : null;
       await query(
         `UPDATE order_part_drawings
-            SET completed = $3, completed_date = $4::date, remarks = NULLIF($5, ''), doc_link = NULLIF($6, '')
+            SET completed = $3, completed_date = $4::date, remarks = NULLIF($5, ''), doc_link = NULLIF($6, ''),
+                doc_link_history = CASE WHEN $7::jsonb IS NULL THEN doc_link_history ELSE doc_link_history || $7::jsonb END
           WHERE id = $1 AND item_id = $2`,
         [
           r.id,
@@ -159,7 +171,8 @@ export async function savePartProgressAction(
           done ? "Yes" : null,
           done && r.completed_date ? r.completed_date : null,
           String(r.remarks ?? "").trim().slice(0, 1000),
-          String(r.doc_link ?? "").trim().slice(0, 2000),
+          now,
+          replaced,
         ]
       );
     }
