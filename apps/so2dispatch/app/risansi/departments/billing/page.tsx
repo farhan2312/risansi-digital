@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
-import { Receipt } from "lucide-react";
+import { Download, Receipt } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
 import {
   canEditChild,
@@ -83,6 +83,11 @@ export default async function BillingWorkspacePage({
     listPendency(orderIds, "billing"),
   ]);
 
+  // The Excel report: every SO the page selects (its filters, search, sort), one row per PI.
+  const exportQs = new URLSearchParams(
+    Object.entries(params).filter((e): e is [string, string] => !!e[1] && !["page", "edit", "thread", "focus"].includes(e[0]))
+  ).toString();
+
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
       <PageHeading
@@ -90,6 +95,16 @@ export default async function BillingWorkspacePage({
         title="Proforma Invoice"
         description="Add one or more PIs per SO and fill their document fields (PI No./Date/Value). Challan orders are not listed here — Dispatch files their challans. Payment fields are filled by Accounts."
       />
+
+      <div className="mb-3 flex justify-end">
+        <a
+          href={`/risansi/departments/billing/export${exportQs ? `?${exportQs}` : ""}`}
+          className="inline-flex h-10 items-center gap-2 rounded-lg border border-input-border bg-surface px-4 text-sm font-semibold text-foreground transition-colors hover:bg-background"
+        >
+          <Download className="h-4 w-4" />
+          Excel report
+        </a>
+      </div>
 
       <BillingWorkspace
         completions={completions}
