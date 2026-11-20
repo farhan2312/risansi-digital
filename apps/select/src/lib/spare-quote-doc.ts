@@ -7,7 +7,7 @@
 import { downloadXlsx, type XlsxCell } from "./xlsx";
 import { BAND, ROW_LABEL, sheetHeaderRows } from "./tech-doc-excel";
 import { dotDate, esc, sheetFileStem, sheetHtml, type TechDocHeader } from "./tech-doc";
-import { spareDocLineKey, type SpareDocEdits, type SpareQuote } from "./spare-quote";
+import { SPARE_ADDED_KEY, spareDocLineKey, type SpareDocEdits, type SpareQuote } from "./spare-quote";
 import type { QuoteFx } from "./commercial";
 import { SPARE_TERMS, SPARE_WARRANTY, SPARE_WARRANTY_HEADING, WARRANTY_TERM, type SpareTerm } from "./spare-terms";
 
@@ -59,8 +59,9 @@ export const spareDiscountAuto = (q: SpareQuote) => (q.discountPct === null ? ""
 /** A part's reference PO as printed: "2025-26/106, Date 04.11.2026". */
 export const sparePoAuto = (l: { poNo: string; poDate: string }) => [l.poNo, l.poDate ? `Date ${dotDate(l.poDate)}` : ""].filter(Boolean).join(", ");
 
-/** poSame: the part shares the PO of the part above it (SpareLine.poSame). */
-export type SpareDocLine = { key: string; partNo: string; name: string; po: string; poSame: boolean; qty: string; unit: string; amount: number | null; removed: boolean };
+/** poSame: the part shares the PO of the part above it (SpareLine.poSame). added: a row
+ *  added on the document (SpareDocEdits.added), not a part of the quote. */
+export type SpareDocLine = { key: string; partNo: string; name: string; po: string; poSame: boolean; qty: string; unit: string; amount: number | null; removed: boolean; added?: boolean };
 export type SpareDocModel = { id: string; auto: string; model: string; lines: SpareDocLine[] };
 
 /** The document's rows with the edits applied; removed lines are kept, flagged. */
@@ -78,7 +79,14 @@ export function spareDocModels(quote: SpareQuote, edits: SpareDocEdits): SpareDo
       const q = toNumber(qty);
       const u = toNumber(unit);
       return { key, partNo: e.partNo ?? l.partNo, name: e.name ?? l.partName, po: e.po ?? sparePoAuto(l), poSame: quote.hasPo && l.poSame, qty, unit, amount: q === null || u === null ? null : q * u, removed: removed.has(key) };
-    }),
+    }).concat(
+      // Rows added on the document, after the model's parts.
+      (edits.added?.[m.id] ?? []).map((r): SpareDocLine => {
+        const q = toNumber(r.qty);
+        const u = toNumber(r.unit);
+        return { key: `${SPARE_ADDED_KEY}${r.id}`, partNo: r.partNo, name: r.name, po: r.po, poSame: false, qty: r.qty, unit: r.unit, amount: q === null || u === null ? null : q * u, removed: false, added: true };
+      }),
+    ),
   }));
 }
 
@@ -158,6 +166,8 @@ function printed(sheet: SpareQuoteSheet) {
     discountPct,
     discount,
     total: subtotal - discount,
+    // Rows after the Grand Total; one left empty doesn't print.
+    after: (edits.after ?? []).map((r) => ({ label: r.label.trim(), value: r.value.trim() })).filter((r) => r.label || r.value),
     note: (edits.note ?? sheet.quote.note).trim(),
     terms: printable(terms),
     warranty: printable(warranty),
@@ -209,6 +219,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
         ]
       : []),
     `<tr class="total"><td colspan="${cols - 1}" class="r">Grand Total</td><td class="r">${d.fmt(d.total)}</td></tr>`,
+    ...d.after.map((r) => `<tr class="after"><td colspan="${cols - 1}" class="r">${esc(r.label)}</td><td class="r">${esc(r.value)}</td></tr>`),
     ...(d.note ? [`<tr class="meta"><td colspan="${cols}" style="white-space:pre-line"><b>Note:</b> ${esc(d.note)}</td></tr>`] : []),
     ...termRows(TERMS_HEADING, d.terms),
     ...termRows(SPARE_WARRANTY_HEADING, d.warranty),
@@ -228,6 +239,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
       td.r { text-align: right; }
       td.m { font-weight: bold; }
       tr.total td { font-weight: bold; background: #f4f8fd; }
+      tr.after td { white-space: pre-line; }
       tr.term td { vertical-align: top; }
       tr.term td:last-child { text-align: left; white-space: pre-line; }
     `,
@@ -278,6 +290,7 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
         ]
       : []),
     [{ value: "Grand Total", colSpan: cols - 1, ...ROW_LABEL }, { value: d.fmt(d.total), ...ROW_LABEL }],
+    ...d.after.map((r): XlsxCell[] => [{ value: r.label, colSpan: cols - 1, wrap: true }, { value: r.value, wrap: true }]),
     ...(d.note ? [[{ value: `Note: ${d.note}`, colSpan: cols, wrap: true, rowHeight: heightOf(`Note: ${d.note}`, allWidth) }]] : []),
     ...termRows(TERMS_HEADING, d.terms),
     ...termRows(SPARE_WARRANTY_HEADING, d.warranty),

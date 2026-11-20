@@ -14,7 +14,7 @@ import { OTHER_PART_SECTION, type SparePart, type SparePumpKind } from "../../li
 import { canEditSpareParts } from "../../lib/roles";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { addSparePart, deleteSparePart, listSpareParts, updateSparePart } from "../../services/sparePartsService";
-import { lineAmount, quoteDiscount, quoteSubtotal, shareSamePo, spareQuoteProblem, type SpareDocEdits, type SpareLine, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
+import { SPARE_ADDED_KEY, lineAmount, quoteDiscount, quoteSubtotal, shareSamePo, spareQuoteProblem, type SpareDocEdits, type SpareLine, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
 import {
   buildSpareQuoteHtml,
   downloadSpareQuoteExcel,
@@ -1207,8 +1207,35 @@ function QuotePreview({
         .catch(() => setSaveState("error"));
     }, 500);
   };
-  const setLine = (key: string, patch: Record<string, string>) =>
+  // A row added on the document is kept whole in edits.added; a part's cells in edits.lines.
+  const setLine = (key: string, patch: Record<string, string>) => {
+    if (key.startsWith(SPARE_ADDED_KEY)) {
+      const id = key.slice(SPARE_ADDED_KEY.length);
+      const added = Object.fromEntries(Object.entries(edits.added ?? {}).map(([mid, rows]) => [mid, rows.map((r) => (r.id === id ? { ...r, ...patch } : r))]));
+      change({ ...edits, added });
+      return;
+    }
     change({ ...edits, lines: { ...edits.lines, [key]: { ...edits.lines?.[key], ...patch } } });
+  };
+  const addRow = (modelId: string) =>
+    change({ ...edits, added: { ...edits.added, [modelId]: [...(edits.added?.[modelId] ?? []), { id: crypto.randomUUID(), partNo: "", name: "", po: "", qty: "", unit: "" }] } });
+  const deleteRow = (key: string) => {
+    const id = key.slice(SPARE_ADDED_KEY.length);
+    const added = Object.fromEntries(
+      Object.entries(edits.added ?? {})
+        .map(([mid, rows]) => [mid, rows.filter((r) => r.id !== id)] as const)
+        .filter(([, rows]) => rows.length > 0),
+    );
+    change({ ...edits, added: Object.keys(added).length ? added : undefined });
+  };
+  // Rows after the Grand Total (text only).
+  const after = edits.after ?? [];
+  const setAfter = (id: string, patch: { label?: string; value?: string }) => change({ ...edits, after: after.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
+  const addAfter = () => change({ ...edits, after: [...after, { id: crypto.randomUUID(), label: "", value: "" }] });
+  const deleteAfter = (id: string) => {
+    const rest = after.filter((r) => r.id !== id);
+    change({ ...edits, after: rest.length ? rest : undefined });
+  };
   const toggleRemoved = (key: string) => {
     const removed = edits.removed ?? [];
     change({ ...edits, removed: removed.includes(key) ? removed.filter((k) => k !== key) : [...removed, key] });
@@ -1344,17 +1371,55 @@ function QuotePreview({
                             </>
                           )}
                           <td className="px-2 text-right">
-                            <button type="button" className={`rounded px-1 text-[11.5px] font-medium no-underline hover:underline ${l.removed ? "text-primary" : "text-destructive"}`} onClick={() => toggleRemoved(l.key)}>
-                              {l.removed ? "Restore" : "Remove"}
-                            </button>
+                            {l.added ? (
+                              <button type="button" className="rounded px-1 text-[11.5px] font-medium text-destructive no-underline hover:underline" onClick={() => deleteRow(l.key)} title="Delete this added row">
+                                Delete
+                              </button>
+                            ) : (
+                              <button type="button" className={`rounded px-1 text-[11.5px] font-medium no-underline hover:underline ${l.removed ? "text-primary" : "text-destructive"}`} onClick={() => toggleRemoved(l.key)}>
+                                {l.removed ? "Restore" : "Remove"}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                {!readOnly && (
+                  <div className="border-t border-border px-3 py-2">
+                    <button type="button" className={buttonVariants({ variant: "outline", size: "sm" })} onClick={() => addRow(m.id)}>
+                      <Plus /> Add row
+                    </button>
+                  </div>
+                )}
               </section>
             ))}
+            <section className="overflow-hidden rounded-md border border-border bg-card">
+              <h4 className="border-b border-border bg-muted/60 px-3 py-2 text-[12.5px] font-semibold text-foreground">
+                Rows after Grand Total <span className="font-normal text-muted-foreground">(text only, the Grand Total doesn&apos;t change)</span>
+              </h4>
+              {after.length > 0 && (
+                <div className="flex flex-col divide-y divide-border">
+                  {after.map((r) => (
+                    <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_200px_76px] items-center gap-2 px-3 py-1.5">
+                      <input className={cell} value={r.label} placeholder="Label, e.g. Freight" aria-label="Row label" onChange={(e) => setAfter(r.id, { label: e.target.value })} />
+                      <input className={`${cell} text-right font-mono`} value={r.value} placeholder="Value" aria-label="Row value" onChange={(e) => setAfter(r.id, { value: e.target.value })} />
+                      <button type="button" className="rounded px-1 text-right text-[11.5px] font-medium text-destructive no-underline hover:underline" onClick={() => deleteAfter(r.id)} title="Delete this row">
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!readOnly && (
+                <div className={`px-3 py-2 ${after.length > 0 ? "border-t border-border" : ""}`}>
+                  <button type="button" className={buttonVariants({ variant: "outline", size: "sm" })} onClick={addAfter}>
+                    <Plus /> Add row
+                  </button>
+                </div>
+              )}
+            </section>
             {termEditors(`Terms and conditions (${TERMS_MARKETS.find((m) => m.value === sheet.quote.termsMarket)?.label})`, docTerms.terms)}
             {termEditors(SPARE_WARRANTY_HEADING, docTerms.warranty)}
           </div>
