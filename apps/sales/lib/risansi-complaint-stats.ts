@@ -94,6 +94,15 @@ export interface ComplaintSummary {
   resolvedAwaitingClose: number; awaitingFeedback: number;
   /** Late by the severity-graded age rule, and the two halves of it. */
   overdue: number; overdueNoAction: number; overdueActed: number;
+  /**
+   * The day thresholds actually in force, read off the rows. Shown on the
+   * tiles so "overdue" is a number somebody can check rather than a verdict
+   * from a settings page they have never opened.
+   */
+  slaDays: { severity: string; days: number }[];
+  /** Who the late ones are sitting with, most first. */
+  overdueNoActionWith: { label: string; n: number }[];
+  overdueActedWith: { label: string; n: number }[];
   /** Severe / Immediate Response (decision 12). Not the same as S1. */
   severe: number; severeOpen: number;
   avgOpenAge: number | null; oldestOpen: number | null;
@@ -372,6 +381,29 @@ export function summariseComplaints(rows: ComplaintListRow[], dwells: HolderDwel
   const repeatBase = wf.filter(r => r.repeat_complaint != null);
   const repeatCount = wf.filter(r => r.repeat_complaint === true).length;
 
+  // The thresholds actually applied, read off the rows rather than from the
+  // settings table: every row carries the number it was graded against, so
+  // this says what the figures on screen were computed with even if somebody
+  // edits the table while the page is open.
+  const slaSeen = new Map<string, number>();
+  for (const r of rows) {
+    if (r.overdue_threshold == null) continue;
+    slaSeen.set(r.severity ?? 'Ungraded', r.overdue_threshold);
+  }
+  const slaDays = [...slaSeen.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([severity, days]) => ({ severity, days }));
+
+  // Who the late ones are sitting with. The question a reader asks of an
+  // overdue count is "whose", and the number alone cannot answer it.
+  const holderOf = (r: ComplaintListRow) =>
+    r.holder_name ?? r.holder_department ?? 'nobody';
+  const chaseList = (rs: ComplaintListRow[]) => {
+    const by = new Map<string, number>();
+    for (const r of rs) by.set(holderOf(r), (by.get(holderOf(r)) ?? 0) + 1);
+    return [...by.entries()].sort((a, b) => b[1] - a[1]).map(([label, n]) => ({ label, n }));
+  };
+
   const needed = rows.filter(r => r.capa_needed === true);
   const capa: CapaCounts = {
     raised: needed.length,
@@ -393,6 +425,9 @@ export function summariseComplaints(rows: ComplaintListRow[], dwells: HolderDwel
     overdue: openRows.filter(r => r.overdue).length,
     overdueNoAction: rows.filter(r => r.overdue_kind === 'no-action').length,
     overdueActed: rows.filter(r => r.overdue_kind === 'acted').length,
+    slaDays,
+    overdueNoActionWith: chaseList(rows.filter(r => r.overdue_kind === 'no-action')),
+    overdueActedWith: chaseList(rows.filter(r => r.overdue_kind === 'acted')),
     severe: rows.filter(r => r.severe).length,
     severeOpen: openRows.filter(r => r.severe).length,
     avgOpenAge: avg(openAges), oldestOpen: openAges.length ? Math.round(Math.max(...openAges)) : null,

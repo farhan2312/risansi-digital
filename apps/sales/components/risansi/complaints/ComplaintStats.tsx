@@ -39,13 +39,20 @@ export function ComplaintStats({ s, href, hrefPatch, sel }: {
         <Tile label="Open" value={String(s.open)}
           sub={`of ${s.total} · ${s.trulyClosed} closed · ${s.resolvedAwaitingClose} awaiting closure${s.awaitingFeedback ? ` · ${s.awaitingFeedback} out for feedback` : ''}`} />
         {/* Two tiles, not one, because they are chased by different people: the
-            first is nobody's work yet, the second is late despite somebody's. */}
+            first is nobody's work yet, the second is late despite somebody's.
+            Both use the SAME rule — days since the complaint was raised against
+            the days its severity earns — and differ only in whether it has
+            moved past Open. The thresholds are spelt out so the number can be
+            checked rather than believed, and each tile names who is holding
+            the complaints behind it. */}
         <Tile label="Overdue · no action" value={String(s.overdueNoAction)}
-          sub="still Open or Under Investigation, past its severity's days"
+          sub={`still Open or Under Investigation, past ${slaText(s.slaDays)}`}
+          foot={chaseText(s.overdueNoActionWith)}
           href={href('overdue', 'no-action')} on={sel.overdue === 'no-action'}
           color={s.overdueNoAction ? 'var(--neg)' : undefined} alert={s.overdueNoAction > 0} />
         <Tile label="Overdue · acted" value={String(s.overdueActed)}
-          sub="an action is recorded and it is late anyway"
+          sub={`an action is recorded and it is late anyway, past ${slaText(s.slaDays)}`}
+          foot={chaseText(s.overdueActedWith)}
           href={href('overdue', 'acted')} on={sel.overdue === 'acted'}
           color={s.overdueActed ? 'var(--warn)' : undefined} />
         <Tile label="Severe" value={String(s.severeOpen)}
@@ -156,14 +163,45 @@ export function ComplaintStats({ s, href, hrefPatch, sel }: {
 
 // ── A KPI tile that can also be a filter ───────────────────────
 
-function Tile({ label, value, sub, color, alert, href, on }: {
+/**
+ * The thresholds in force, in the fewest words that are still exact.
+ *
+ * "past High 2d · Low 7d" rather than "past its severity's days", which told
+ * nobody what the number was and sent anybody who wanted to know to a settings
+ * page they may not be able to open.
+ */
+function slaText(sla: { severity: string; days: number }[]): string {
+  if (!sla.length) return 'its severity\u2019s days';
+  return sla.map(x => `${x.severity} ${x.days}d`).join(' \u00b7 ');
+}
+
+/** Who the late ones are with. Two names and a tail, so the tile stays a tile. */
+function chaseText(withWhom: { label: string; n: number }[]): string | undefined {
+  if (!withWhom.length) return undefined;
+  const head = withWhom.slice(0, 2).map(w => `${w.label} ${w.n}`).join(' \u00b7 ');
+  const rest = withWhom.slice(2).reduce((a, w) => a + w.n, 0);
+  return `with ${head}${rest ? ` \u00b7 +${rest} more` : ''}`;
+}
+
+function Tile({ label, value, sub, foot, color, alert, href, on }: {
   label: string; value: string; sub?: string; color?: string; alert?: boolean; href?: string; on?: boolean;
+  /** A second line under the sub — who the count is sitting with. */
+  foot?: string;
 }) {
-  const inner = <StageKpi label={label} value={value} sub={sub} color={color} alert={alert} />;
+  const inner = (
+    <div style={{ position: 'relative' }}>
+      <StageKpi label={label} value={value} sub={sub} color={color} alert={alert} />
+      {foot && (
+        <div style={{ padding: '0 14px 11px', marginTop: -6, fontSize: 10.5, color: 'var(--fg-2)' }}>
+          {foot}
+        </div>
+      )}
+    </div>
+  );
   if (!href) return inner;
   return (
     <a href={href} style={{ textDecoration: 'none', color: 'inherit', borderRadius: 'var(--radius)', outline: on ? '2px solid var(--accent)' : 'none', outlineOffset: 2, display: 'block' }}
-      title={on ? 'Showing only these — click to clear' : 'Show only these'}>{inner}</a>
+      title={on ? 'Showing only these — click to clear' : 'Show only these, and who they are with'}>{inner}</a>
   );
 }
 
