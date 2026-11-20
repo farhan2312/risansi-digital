@@ -26,7 +26,11 @@ const COLS: SortableColumn<EditableOpp>[] = [
   { key: 'client',  kind: 'text',   label: 'Client',               value: o => o.client_name },
   { key: 'stage',   kind: 'status', label: 'Stage', order: ALL_STAGES, value: o => o.stage },
   { key: 'value',   kind: 'number', label: 'Value',                value: o => o.value_cr },
-  { key: 'product', kind: 'text',   label: 'Product',              value: o => [o.product, o.product_type].filter(Boolean).join(' · ') },
+  // Project and type are two different things; joining them with a dot made
+  // one column that reads "PCP · PCP" wherever the old product column holds a
+  // copy of the type.
+  { key: 'product', kind: 'text',   label: 'Project',
+    value: o => (o.product && o.product !== o.product_type ? o.product : '') },
   { key: 'eta',     kind: 'text',   label: 'Expected close',       value: o => o.eta_text },
 ];
 
@@ -69,7 +73,7 @@ export function ActiveOppsTable({ opps, usdRate }: { opps: EditableOpp[]; usdRat
               <SortTH {...sortBy('client')}  style={TH}>Client</SortTH>
               <SortTH {...sortBy('stage')}   style={TH}>Stage</SortTH>
               <SortTH {...sortBy('value')}   style={TH} align="right">Value</SortTH>
-              <SortTH {...sortBy('product')} style={TH}>Product &amp; Notes</SortTH>
+              <SortTH {...sortBy('product')} style={TH}>Project &amp; Notes</SortTH>
               <SortTH {...sortBy('eta')}     style={TH}>Expected Close</SortTH>
             </tr>
           </thead>
@@ -113,7 +117,7 @@ export function ActiveOppsTable({ opps, usdRate }: { opps: EditableOpp[]; usdRat
                       </div>
                     ) : null}
                   </td>
-                  <td data-label="Product & Notes" style={{ ...TD, maxWidth: 340 }}>
+                  <td data-label="Project & Notes" style={{ ...TD, maxWidth: 340 }}>
                     <div style={{ color: 'var(--fg)' }}>
                       {opp.product}{opp.product_type ? ` · ${opp.product_type}` : ''}
                       {opp.auto_created && (

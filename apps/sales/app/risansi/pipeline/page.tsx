@@ -437,6 +437,7 @@ export default async function PipelinePage({
                o.enquiry_date::text        AS enquiry_date,
                o.revised_offer_date::text  AS revised_offer_date,
                o.po_date::text             AS po_date,
+               o.revisit_on::text          AS revisit_on,
                o.po_received_date::text    AS po_received_date,
                -- ::text for the same reason every date above carries it: a raw
                -- date column reaches the browser as a JS Date, the form hands
@@ -496,6 +497,7 @@ export default async function PipelinePage({
                o.quote_date::text          AS quote_date,
                o.enquiry_date::text        AS enquiry_date,
                o.revised_offer_date::text  AS revised_offer_date,
+               o.revisit_on::text          AS revisit_on,
                (SELECT COALESCE(SUM(so.so_value_cr), 0) FROM opportunity_sales_orders so WHERE so.opportunity_id = o.id)::float8 AS so_sum_cr,
                -- Owner first, then whoever covers the account. Still keyed
                -- tour_people because the drawer reads that name; the people in

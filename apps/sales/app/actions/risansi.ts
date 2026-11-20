@@ -20,7 +20,7 @@ import { poInrToCr, type PurchaseOrder } from '@/lib/risansi-purchase-orders';
 import { notifyVisitPlanned } from '@/lib/risansi-email';
 import { pushInApp } from '@/lib/risansi-inapp';
 import { notifyCheckIn, notifyOppClosed, notifySalesOrder, notifyNewLead, notifyQuotationIssued } from '@/lib/risansi-notify';
-import { requiredFieldNames, labelsFor, OPP_FIELDS, CREATE_STAGES, isDropReason, type CreateStage, type OppStage } from '@/lib/risansi-opportunity-fields';
+import { requiredFieldNames, labelsFor, OPP_FIELDS, CREATE_STAGES, isDropReason, isNextSeasonReason, type CreateStage, type OppStage } from '@/lib/risansi-opportunity-fields';
 import { pctForProbabilityCode } from '@/lib/risansi-probability-codes';
 import { normaliseIndustry, istToday, normaliseDate } from '@/lib/risansi-utils';
 import { parseMoneyInput, parsePositiveMoney, moneyToCr } from '@/lib/risansi-money';
@@ -1598,6 +1598,10 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
     lost_to_competitor_other: (formData.get('lost_to_competitor_other') as string | null) || null,
     lost_reason:        (formData.get('lost_reason') as string | null) || null,
     drop_reason:        (formData.get('drop_reason') as string | null) || null,
+    // The date to come back on, when the reason was "next season". Stored on
+    // the opportunity as well as raised as a task, so the board can say when
+    // it is due back without reading the registry.
+    revisit_on:         (formData.get('revisit_on') as string | null) || null,
     drop_reason_other:  (formData.get('drop_reason_other') as string | null)?.trim() || null,
     // The intake block and the per-stage reasons. Each guarded below, so a form
     // that does not ask for one leaves the stored value alone.
@@ -1636,6 +1640,7 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
   if (formData.get('rep_id') === null)           delete candidates.rep_id;
   // Same idea for the drop reason: a form that never asks for it (the Won/Lost
   // modal, the Quoted modal) must not blank an already-recorded reason.
+  if (formData.get('revisit_on') === null)       delete candidates.revisit_on;
   if (formData.get('drop_reason') === null)      delete candidates.drop_reason;
   if (formData.get('drop_reason_other') === null) delete candidates.drop_reason_other;
   // negotiation_notes was retired from the forms — no form submits it any more,
@@ -1769,6 +1774,49 @@ export async function updateOpportunity(oppId: number, formData: FormData): Prom
                 invoice_value_inr = EXCLUDED.invoice_value_inr`,
         [oppId, invNo, invDate, invInr, user.email ?? null],
       ).catch(e => console.error('[opp] could not record the invoice from the Won form', e));
+    }
+  }
+
+  // "Come back to this next season" becomes something that actually comes
+  // back.
+  //
+  // A reason on a closed opportunity is a note nobody reads again. The date
+  // the person picked is written into the Action Registry against the same
+  // client, assigned to the opportunity's own rep, so it surfaces on their
+  // list on the day rather than depending on somebody remembering in eight
+  // months. Best-effort on purpose: the stage move is the thing being asked
+  // for, and a registry that is briefly unavailable must not refuse it.
+  const revisitOn = ((formData.get('revisit_on') as string | null) ?? '').trim();
+  const closingReason = (formData.get('lost_reason') as string | null)
+    ?? (formData.get('drop_reason') as string | null);
+  if (isNextSeasonReason(closingReason) && /^\d{4}-\d{2}-\d{2}$/.test(revisitOn)
+      && newStage !== currentStage && (newStage === 'Lost' || newStage === 'Dropped')) {
+    try {
+      const { rows: o } = await risansiPool.query<{
+        client_id: number | null; rep_id: number | null; product: string | null;
+        client_name: string | null; value_cr: string | null;
+      }>(
+        `SELECT o.client_id, o.rep_id, o.product, o.value_cr::text,
+                COALESCE(NULLIF(btrim(c.trade_name),''), c.legal_name) AS client_name
+           FROM opportunities o LEFT JOIN clients c ON c.id = o.client_id
+          WHERE o.id = $1`, [oppId]);
+      const row = o[0];
+      if (row?.client_id != null) {
+        const what = (row.product ?? '').trim() || 'this requirement';
+        await risansiPool.query(
+          `INSERT INTO tasks (client_id, assigned_to_rep, title, description, due_date,
+                              priority, status, created_by, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5::date, 'Medium', 'open', $6, NOW(), NOW())`,
+          [row.client_id, row.rep_id,
+           `Revisit next season — ${what}`.slice(0, 200),
+           `${newStage} on ${new Date().toISOString().slice(0, 10)} as "${closingReason}". `
+             + `Opportunity #${oppId}${row.value_cr ? ` · quoted ₹${row.value_cr} Cr` : ''}. `
+             + 'Raised automatically when it was closed for the season.',
+           revisitOn, user.email ?? null]);
+        revalidatePath('/risansi/registry');
+      }
+    } catch (e) {
+      console.error('[opp] could not raise the next-season task', e);
     }
   }
 

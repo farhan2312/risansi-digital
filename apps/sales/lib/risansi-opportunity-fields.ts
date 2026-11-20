@@ -181,6 +181,25 @@ const QUOTE_STAGES: OppStage[] = ['Quoted', 'Negotiating', 'On Hold'];
  * `product` (Product / Description) is gone. It duplicated Project Name / Unit
  * and Product Type between them, and reps were typing the same thing three times.
  */
+/**
+ * The requirement is closed for now and the account is worth revisiting.
+ *
+ * Offered on both Lost and Dropped — the same thing can be said either way,
+ * and which pile it lands in depends on whether anybody else won it. Choosing
+ * it asks for a date, and that date is written into the Action Registry so the
+ * opportunity comes back to somebody next season instead of being remembered.
+ *
+ * The older 'Closed deferred to next season' means the same and is treated the
+ * same by isNextSeasonReason, so the complaints already carrying it behave
+ * like the new ones.
+ */
+export const NEXT_SEASON_REASON = 'Requirement closed — prospective for next season';
+
+/** Either wording, old or new. */
+export const isNextSeasonReason = (v: unknown): boolean =>
+  typeof v === 'string'
+  && (v === NEXT_SEASON_REASON || v === 'Closed deferred to next season');
+
 export const OPP_FIELDS: OppFieldDef[] = [
   // ── Prospect · the enquiry ──────────────────────────────────
   { name: 'opportunity_type',     label: 'Type',              kind: 'select', asked: 'Prospect', requiredAt: [...ALL_STAGES], options: OPPORTUNITY_TYPES },
@@ -290,7 +309,12 @@ export const OPP_FIELDS: OppFieldDef[] = [
   { name: 'lost_reason',        label: 'Lost Reason',        kind: 'select', asked: 'Lost', onlyStages: ['Lost'], requiredAt: ['Lost'], options: [
     'Price — Too expensive', 'Technical — Spec mismatch', 'OEM Tied — Forced preference',
     'Relationship — Existing supplier', 'Budget — Project cancelled', 'Delivery — Timeline mismatch',
-    'No decision — Deferred', 'Other',
+    'No decision — Deferred',
+    // Not lost to anybody: the requirement went away for this season and the
+    // account is worth coming back to. Picking it asks for the date to come
+    // back on, and that date becomes a task in the Action Registry.
+    NEXT_SEASON_REASON,
+    'Other',
   ] },
 
   // ── Dropped ─────────────────────────────────────────────────
@@ -298,6 +322,21 @@ export const OPP_FIELDS: OppFieldDef[] = [
   // Not requiredAt: requiredFieldNames() has no form to read, so a conditional
   // field marked required would be demanded even when it is hidden. The move
   // into Dropped enforces it instead — see updateOpportunity.
+  // ── Come back next season ───────────────────────────────────
+  //
+  // One field, declared twice because the two stages ask different questions
+  // to get here: showWhen names a single field, and the reason lives in
+  // lost_reason on one and drop_reason on the other. Both write the same
+  // column and both raise the same task.
+  { name: 'revisit_on', label: 'Revisit on', kind: 'date',
+    asked: 'Lost', onlyStages: ['Lost'],
+    showWhen: { field: 'lost_reason', equals: [NEXT_SEASON_REASON] },
+    help: 'Goes into the Action Registry as a task on this account, for the rep who owns it.' },
+  { name: 'revisit_on', label: 'Revisit on', kind: 'date',
+    asked: 'Dropped', onlyStages: ['Dropped'],
+    showWhen: { field: 'drop_reason', equals: [NEXT_SEASON_REASON, 'Closed deferred to next season'] },
+    help: 'Goes into the Action Registry as a task on this account, for the rep who owns it.' },
+
   { name: 'drop_reason_other', label: 'Say why', kind: 'text',
     asked: 'Dropped', onlyStages: ['Dropped'],
     showWhen: { field: 'drop_reason', equals: ['Other'] },
@@ -314,12 +353,14 @@ export const OPP_FIELDS: OppFieldDef[] = [
 // the old spelling keeps working.
 export const LOST_COMPETITOR_TAIL = ['Price — No specific competitor', 'OEM Tied', 'Budget Cancelled'];
 
+
 /**
  * Why an opportunity was Dropped. Distinct from lost_reason: Lost is "we
  * competed and did not win", Dropped is "the requirement went away".
  */
 export const DROP_REASONS = [
   'Closed deferred to next season',
+  NEXT_SEASON_REASON,
   'Repeat or duplicate offer',
   'Requirement closed',
   'Technically disqualified',

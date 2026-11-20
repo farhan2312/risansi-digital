@@ -26,6 +26,7 @@ import { QuotationPdfManager } from './QuotationPdfManager';
 import { QuotationLinkView } from './QuotationLinkView';
 import { ChangeOppClient } from './ChangeOppClient';
 import { OppRemarksLog } from './OppRemarksLog';
+import { OpportunityRemarks } from './OpportunityRemarks';
 import { useStateDraft } from './useFormDraft';
 import { SaveIndicator, DraftRestoredBanner } from './SaveIndicator';
 import { useCloseGuard, CloseX, CloseConfirm, KeepOpenHint } from './FormCloseGuard';
@@ -446,6 +447,7 @@ export function EditOppDrawer({ opp, onClose, canEdit = true, usdRate = 86 }: {
             )}
             {/* Last, because it is history rather than something to act on. */}
             <OppRemarksLog oppId={Number(opp.id)} />
+            <OpportunityRemarks oppId={Number(opp.id)} />
           </div>
         ) : (
         /* Editable form */
@@ -534,7 +536,8 @@ export function EditOppDrawer({ opp, onClose, canEdit = true, usdRate = 86 }: {
 
             {/* History, below the fields and above the actions — it informs the
                 edit without being part of it. */}
-            <OppRemarksLog oppId={Number(opp.id)} />
+<OppRemarksLog oppId={Number(opp.id)} />
+            <OpportunityRemarks oppId={Number(opp.id)} />
 
             {error && (
               <div style={{ padding: '8px 12px', background: 'var(--neg-soft)', border: '1px solid var(--neg)', borderLeft: '3px solid var(--neg)', borderRadius: 5, color: '#9B1C1C', fontSize: 12 }}>

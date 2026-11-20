@@ -4,6 +4,10 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { getOpportunityRemarks, type OppRemark } from '@/app/actions/risansi-opportunity-remarks';
 import { STAGE_TONE } from '@/lib/risansi-stage-tone';
 
+// The remark left each time this opportunity changed stage. Free-form notes
+// that belong to no particular stage live in OpportunityRemarks, which is a
+// thread anybody can add to at any time.
+//
 // The remarks left each time this opportunity changed stage.
 //
 // Read-only here on purpose. A remark belongs to the moment a stage was entered,
@@ -29,7 +33,11 @@ export function OppRemarksLog({ oppId }: { oppId: number }) {
 
   return (
     <div style={PANEL}>
-      <div style={HEAD}>Remarks · {rows.length}</div>
+      {/* "Stage remarks", not "Remarks": the free-form thread beside this one
+          is also remarks, and two panels with one name is how somebody types
+          a note into the wrong place. This one is written by the move form,
+          one entry per stage, and is never edited. */}
+      <div style={HEAD}>Stage remarks · {rows.length}</div>
       <ol style={{ listStyle: 'none', margin: 0, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {rows.map(r => {
           const tone = STAGE_TONE[r.stage] ?? 'var(--fg-3)';

@@ -64,7 +64,15 @@ export async function loadStageRows(stage: DashStage, sp: SearchParams): Promise
   const vals: (string | number | string[])[] = [...built.vals, stage];
 
   const all = await risansiPool.query<StageDashRow>(`
-      SELECT o.id, o.product, o.product_type, o.stage,
+      SELECT o.id,
+             -- The project, by preference from the field the form fills.
+             -- The older column holds nothing but
+             -- a copy of the product type, which would read as "PCP" under a
+             -- heading that says Project.
+             COALESCE(NULLIF(btrim(o.unit_project), ''),
+                      NULLIF(CASE WHEN btrim(o.product) = btrim(o.product_type) THEN '' ELSE o.product END, ''),
+                      '') AS product,
+             o.product_type, o.stage,
              COALESCE(o.value_cr, 0)::float8       AS value_cr,
              o.final_value_cr::float8              AS final_cr,
              o.quote_ref, o.quote_date::text       AS quote_date, o.market,

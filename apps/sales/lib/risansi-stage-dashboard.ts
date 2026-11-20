@@ -104,9 +104,15 @@ export interface StageColumn {
   width?: number;
 }
 
+// "Project", not "Product". The column holds what the job is — BULANDSHAHAR,
+// Balrampur Chini Unit 2, "Expansion" — while the product is PCP or SPARE and
+// is the column beside it. The form stopped asking for `product` a while ago
+// and asks for Project Name / Unit instead; the header had not caught up, so
+// 780 rows that carry a copy of the product type in `product` read as a
+// product column showing "PCP · PCP".
 const COMMON_HEAD: StageColumn[] = [
   { key: 'client_name', label: 'Client' },
-  { key: 'product',     label: 'Product' },
+  { key: 'product',     label: 'Project' },
   { key: 'product_type', label: 'Type', width: 70 },
 ];
 const COMMON_TAIL: StageColumn[] = [
