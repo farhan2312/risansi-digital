@@ -32,6 +32,8 @@ import { GadStandardCell, PartDrawingCell, PartPickerModal, PartProgress } from 
 import { partDrawingStatus } from "@/lib/part-drawings";
 import { completionFor, DeptCompleteCheck } from "./dept-complete-check";
 import { DrawingReadinessCell } from "./drawing-readiness-cell";
+import { DrawingAssignCell } from "./drawing-assign-cell";
+import { DRAWING_ASSIGNEE_KEY, DRAWING_UNASSIGNED, type DrawingAssignee, type DrawingMember } from "@/lib/drawing-assignee-keys";
 import { PendencyCell } from "./pendency-cell";
 import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { applyDrawingVersionToSoAction, setGadRequiredAction } from "@/app/risansi/orders/drawing-readiness-actions";
@@ -87,6 +89,8 @@ export function DrawingWorkspace({
   embedded = false,
   pendency = {},
   readinessReasons = {},
+  assignees = {},
+  members = [],
   split: splitView = false,
 }: {
   /** Split view (the profile menu's): the SO list on the left, the SO picked upright on the right. */
@@ -97,6 +101,10 @@ export function DrawingWorkspace({
   pendency?: Record<string, Pendency>;
   /** Why each SO's expected readiness date was last revised. */
   readinessReasons?: Record<string, string>;
+  /** Who in Drawing has each SO. */
+  assignees?: Record<string, DrawingAssignee>;
+  /** Who an SO can be assigned to. */
+  members?: DrawingMember[];
   /** Inside a pop-up (the Orders list's): one SO's rows — no filter bar, cards or paging. */
   embedded?: boolean;
   queue: PageResult<Row>;
@@ -276,6 +284,17 @@ export function DrawingWorkspace({
       list: true,
     },
     {
+      key: "assignee",
+      label: "Assigned to",
+      thClass: "whitespace-nowrap",
+      tdClass: "whitespace-nowrap",
+      // The Drawing member who has the SO.
+      cell: (g) => (
+        <DrawingAssignCell orderId={str(g.head.order_id)} assignee={assignees[str(g.head.order_id)]} members={members} canEdit={canEdit} />
+      ),
+      list: true,
+    },
+    {
       key: "pendency",
       label: "Pendency Reason",
       thClass: "whitespace-nowrap",
@@ -393,7 +412,7 @@ export function DrawingWorkspace({
             searchPlaceholder="Search SO, EC…"
             noTypeFilter
             noStatusFilter
-            extraKeys={[...Object.values(DRAWING_FILTER_KEYS), PENDENCY.drawing.key]}
+            extraKeys={[...Object.values(DRAWING_FILTER_KEYS), PENDENCY.drawing.key, DRAWING_ASSIGNEE_KEY]}
             extraFilters={
               <>
                 <MultiSelectFilter
@@ -423,6 +442,22 @@ export function DrawingWorkspace({
                   options={PART_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.part)}
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.part]: next })}
+                />
+                <MultiSelectFilter
+                  label="Assigned to"
+                  allLabel="Anyone"
+                  options={[...members.map((m) => m.full_name), "Unassigned"]}
+                  // The URL holds member ids (and "none"); the list shows names.
+                  selected={getList(DRAWING_ASSIGNEE_KEY).map((v) =>
+                    v === DRAWING_UNASSIGNED ? "Unassigned" : (members.find((m) => m.id === v)?.full_name ?? v)
+                  )}
+                  onChange={(next) =>
+                    setParams({
+                      [DRAWING_ASSIGNEE_KEY]: next.map((n) =>
+                        n === "Unassigned" ? DRAWING_UNASSIGNED : (members.find((m) => m.full_name === n)?.id ?? n)
+                      ),
+                    })
+                  }
                 />
                 <MultiSelectFilter
                   label="Pendency reason"

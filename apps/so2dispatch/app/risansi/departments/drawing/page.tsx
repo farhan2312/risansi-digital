@@ -21,6 +21,13 @@ import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { parsePendencyFilter } from "@/lib/pendency";
 import { listPendency, pendencyFilterSql } from "@/lib/pendency-db";
+import {
+  DRAWING_ASSIGNEE_KEY,
+  drawingAssigneeSql,
+  drawingAssignees,
+  listDrawingMembers,
+  parseDrawingAssigneeFilter,
+} from "@/lib/drawing-assignment";
 import { listRemindersForDepartment } from "@/lib/reminders";
 import { DRAWING_CONTEXT_FIELDS } from "@/lib/order-schema";
 import {
@@ -166,8 +173,8 @@ export default async function DrawingWorkspacePage({
         focusOrderId,
         filter,
         sort: parseQueueSort(params.sort),
-        extraRestrict: `${drawingFilterSql(drawingFilter)} AND ${pendencyFilterSql("drawing", parsePendencyFilter((key) => params[key], "drawing"))}${versioned((key) => params[key])}`,
-        kpiRestrict: `${drawingFilterSql(parseDrawingFilter(cardGet))} AND ${pendencyFilterSql("drawing", parsePendencyFilter(cardGet, "drawing"))}${versioned(cardGet)}`,
+        extraRestrict: `${drawingFilterSql(drawingFilter)} AND ${pendencyFilterSql("drawing", parsePendencyFilter((key) => params[key], "drawing"))}${versioned((key) => params[key])} AND ${drawingAssigneeSql(parseDrawingAssigneeFilter(params[DRAWING_ASSIGNEE_KEY]))}`,
+        kpiRestrict: `${drawingFilterSql(parseDrawingFilter(cardGet))} AND ${pendencyFilterSql("drawing", parsePendencyFilter(cardGet, "drawing"))}${versioned(cardGet)} AND ${drawingAssigneeSql(parseDrawingAssigneeFilter(cardGet(DRAWING_ASSIGNEE_KEY)))}`,
       }
     ),
     isRep(user.role) ? Promise.resolve([]) : listRemindersForDepartment(reminderDeptForTable(TABLE)!),
@@ -200,11 +207,13 @@ export default async function DrawingWorkspacePage({
     queue.rows = queue.rows.filter((r) => ecMatchesDrawingFilter(r, drawingFilter));
   }
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
-  const [completions, unreadThreads, pendency, readinessReasons] = await Promise.all([
+  const [completions, unreadThreads, pendency, readinessReasons, assignees, members] = await Promise.all([
     listDeptCompletions(orderIds),
     unreadByOrder(orderIds, user),
     listPendency(orderIds, "drawing"),
     drawingReadinessReasons(orderIds),
+    drawingAssignees(orderIds),
+    listDrawingMembers(),
   ]);
 
   return (
@@ -223,6 +232,8 @@ export default async function DrawingWorkspacePage({
         completions={completions}
         pendency={pendency}
         readinessReasons={readinessReasons}
+        assignees={assignees}
+        members={members}
         openThreadId={thread}
         openItemId={edit}
         focusOrderId={focusOrderId ?? undefined}

@@ -3546,3 +3546,12 @@ CREATE TABLE IF NOT EXISTS escalation_seen (
     seen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, alert_key)
 );
+
+-- ---------------------------------------------------------------------------
+-- Drawing: each SO is assigned to one Drawing member (by Drawing, Central
+-- Visibility or Admin) — the Drawing page's Assigned to. Idempotent.
+-- ---------------------------------------------------------------------------
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS drg_assignee_id UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS drg_assigned_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS drg_assigned_by UUID REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS orders_drg_assignee_idx ON orders (drg_assignee_id);
