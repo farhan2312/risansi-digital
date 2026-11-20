@@ -155,7 +155,7 @@ export function RemindersPanel({
                   </div>
                 </div>
                 <Link
-                  href={focusInQueue ? { query: { focus: r.id } } : `/risansi/orders/${r.id}`}
+                  href={focusInQueue ? { query: r.so_no ? { focus: r.id, q: r.so_no } : { focus: r.id } } : `/risansi/orders/${r.id}`}
                   scroll={!focusInQueue}
                   onClick={() => focusInQueue && setOpen(null)}
                   className="shrink-0 text-sm font-medium text-primary hover:text-primary-hover"

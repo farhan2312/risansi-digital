@@ -339,7 +339,7 @@ export function DepartmentWorkspace({
   }, [focusOrderId, orders]);
 
   const focusClass = useFocusRow([openOrderId, focusOrderId], orders.length > 0);
-  useConsumeFocusParam(queue.page);
+  useConsumeFocusParam(queue.page, ecKind ? { type: ecKind } : undefined);
 
   function toggleSo(key: string) {
     setExpanded((prev) => {

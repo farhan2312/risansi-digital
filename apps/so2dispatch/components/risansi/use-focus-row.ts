@@ -49,22 +49,26 @@ export function useFocusRow(ids: (string | undefined | null)[], ready: boolean) 
  * A reminder's ?focus= is used once: it picks the page holding the SO and
  * brings the SO up. Left in the address it would keep forcing that page, so
  * paging would seem to do nothing — so it is dropped, keeping the page it
- * landed on.
+ * landed on. The reminder also searches for the SO No. (?q=), which stays, so
+ * the list stays on that SO until the search is cleared. `keep` pins params
+ * the focus decided (Planning / Assembly: the Spare or Pump view).
  */
-export function useConsumeFocusParam(page: number) {
+export function useConsumeFocusParam(page: number, keep?: Record<string, string>) {
   const router = useRouter();
   const params = useSearchParams();
   const focus = params.get("focus");
+  const keepKey = JSON.stringify(keep ?? {});
   useEffect(() => {
     if (!focus) return;
     const t = setTimeout(() => {
       const next = new URLSearchParams(params.toString());
       next.delete("focus");
+      for (const [k, v] of Object.entries(JSON.parse(keepKey) as Record<string, string>)) next.set(k, v);
       if (page > 1) next.set("page", String(page));
       else next.delete("page");
       const qs = next.toString();
       router.replace(qs ? `?${qs}` : "?", { scroll: false });
     }, 400);
     return () => clearTimeout(t);
-  }, [focus, page, params, router]);
+  }, [focus, page, params, router, keepKey]);
 }
