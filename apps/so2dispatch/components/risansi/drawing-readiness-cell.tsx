@@ -155,18 +155,20 @@ export function DrawingReadinessCell({
                 onChange={(e) => setDate(e.target.value)}
                 className="h-9 w-full rounded-lg border border-input-border bg-surface px-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
               />
-              {current && date !== current && (
+              {/* Once set, any change needs its reason: the box is there from the start, marked required. */}
+              {current && (
                 <input
                   value={reason}
+                  required={date !== current}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Reason for revising the date"
+                  placeholder="Reason for revision (required) *"
                   className="h-9 w-full rounded-lg border border-input-border bg-surface px-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
                 />
               )}
               {error && <p className="text-xs text-rose-600">{error}</p>}
               <button
                 type="submit"
-                disabled={saving || date === current}
+                disabled={saving || date === current || (!!current && !reason.trim())}
                 className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
