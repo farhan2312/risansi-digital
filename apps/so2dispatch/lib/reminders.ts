@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, onlyBillingSql, releasedSql, spareEcSql } from "@/lib/dept-view";
 import { ecDrawingSentSql } from "@/lib/drawing-filter";
+import { ecQcStatusSql, qcEcReadySql } from "@/lib/qc-filter";
 import { isCentral, reminderDeptForRole, type ReminderDept } from "@/lib/roles";
 
 // The DB session runs in UTC, but the business operates on IST days. Deadlines
@@ -103,10 +104,11 @@ const REMINDERS_SQL = `
    WHERE o.qc_doc_target_date >= ${TODAY_IST}
      AND o.qc_doc_target_date <= ${TODAY_IST} + 7
      AND o.qc_required = 'Yes'
+     -- An EC on Quality's page (assembled, some of it) with its documents not all in.
      AND EXISTS (
        SELECT 1 FROM order_items it
-        LEFT JOIN order_qc qc ON qc.item_id = it.id
-        WHERE it.order_id = o.id AND qc.qc_doc_actual_date IS NULL
+        WHERE it.order_id = o.id AND ${qcEcReadySql("it")}
+          AND ${ecQcStatusSql("it", "o")} NOT IN ('Submitted', 'Docs not specified')
      )
 
   UNION ALL
