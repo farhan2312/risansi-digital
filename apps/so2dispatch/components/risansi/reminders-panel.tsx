@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, BellRing, Clock } from "lucide-react";
 import type { ReminderRow, ReminderTier } from "@/lib/reminders";
+import { PUMP_LIKE } from "@/lib/order-schema";
 
 const TIER_STYLE: Record<
   ReminderTier,
@@ -147,6 +148,7 @@ export function RemindersPanel({
                     </p>
                     <p className="truncate text-xs text-muted">
                       #{r.sl_no} · {r.so_no ?? "—"}
+                      {r.order_type ? ` · ${PUMP_LIKE.includes(r.order_type) ? "Pump" : r.order_type}` : ""}
                       {r.ec_no ? ` · ${r.ec_no}` : ""}
                       {showClient && r.client_name ? ` · ${r.client_name}` : ""}
                     </p>

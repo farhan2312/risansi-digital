@@ -1337,6 +1337,8 @@ export function DepartmentWorkspace({
       canEditCentral={canEditCentral}
       onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
       split={split}
+      focusOrderId={focusOrderId}
+      focusClass={focusClass}
     />
   ) : ecKind === "pump" ? (
     <PlanningPumpTable
@@ -1367,6 +1369,8 @@ export function DepartmentWorkspace({
       }}
       onThread={(orderId, soLabel) => setThreadFor({ orderId, soLabel })}
       split={split}
+      focusOrderId={focusOrderId}
+      focusClass={focusClass}
     />
   ) : null;
   const title = SECTION_BY_TABLE.get(table)?.title ?? "Details";

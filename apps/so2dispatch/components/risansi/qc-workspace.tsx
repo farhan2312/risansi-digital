@@ -406,7 +406,10 @@ export function QcWorkspace({
   // Split view (not inside a pop-up): the SO picked, the first until another is.
   const split = splitView && !embedded;
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  const focusGroup = split ? (groups.find((g) => g.key === focusKey) ?? groups[0] ?? null) : null;
+  // A reminder or notification (?focus=) picks its SO; else the first.
+  const focusGroup = split
+    ? (groups.find((g) => g.key === focusKey) ?? groups.find((g) => String(g.head.order_id ?? "") === focusOrderId) ?? groups[0] ?? null)
+    : null;
   const listCols = soCols.filter((c) => c.list);
 
   return (

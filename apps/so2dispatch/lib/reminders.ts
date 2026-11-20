@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 import { assemblyDueSql, boiReceivedSql, orderOpenSql, orderStatusSql, onlyBillingSql, releasedSql, spareEcSql } from "@/lib/dept-view";
 import { ecDrawingSentSql } from "@/lib/drawing-filter";
+import { ecQcStatusSql, qcEcReadySql } from "@/lib/qc-filter";
 import { isCentral, reminderDeptForRole, type ReminderDept } from "@/lib/roles";
 
 // The DB session runs in UTC, but the business operates on IST days. Deadlines
@@ -44,6 +45,8 @@ export type ReminderRow = {
   so_no: string | null;
   ec_no: string | null;
   client_name: string | null;
+  /** The SO's order type (Pump, Spare…), shown beside its SO No. */
+  order_type: string | null;
   dept: ReminderDept;
   department: string;
   due_date: string;
@@ -103,10 +106,11 @@ const REMINDERS_SQL = `
    WHERE o.qc_doc_target_date >= ${TODAY_IST}
      AND o.qc_doc_target_date <= ${TODAY_IST} + 7
      AND o.qc_required = 'Yes'
+     -- An EC on Quality's page (assembled, some of it) with its documents not all in.
      AND EXISTS (
        SELECT 1 FROM order_items it
-        LEFT JOIN order_qc qc ON qc.item_id = it.id
-        WHERE it.order_id = o.id AND qc.qc_doc_actual_date IS NULL
+        WHERE it.order_id = o.id AND ${qcEcReadySql("it")}
+          AND ${ecQcStatusSql("it", "o")} NOT IN ('Submitted', 'Docs not specified')
      )
 
   UNION ALL
@@ -141,6 +145,9 @@ const REMINDERS_SQL = `
       SELECT min(${assemblyDueSql("it")}) AS due
         FROM order_items it
        WHERE it.order_id = o.id
+         -- A Spare reaches Assembly once Planning has a lot ready (as its page): till then the date is Planning's.
+         AND (NOT (${spareEcSql("it", "o")})
+              OR EXISTS (SELECT 1 FROM order_ready_lots rl WHERE rl.item_id = it.id AND rl.status IS DISTINCT FROM 'In plan'))
     ) r ON r.due IS NOT NULL
    WHERE r.due <= ${TODAY_IST} + 7
 
@@ -171,7 +178,7 @@ export async function listReminders(
   const filter = depts && depts.length > 0 ? depts : null;
   try {
     const result = await query<Omit<ReminderRow, "tier"> & { days_left: number }>(
-      `SELECT * FROM (${REMINDERS_SQL}) r
+      `SELECT r.*, (SELECT ot.order_type FROM orders ot WHERE ot.id = r.id) AS order_type FROM (${REMINDERS_SQL}) r
         WHERE ($1::text[] IS NULL OR r.dept = ANY($1))
           -- A cancelled or diverted order has no deadlines left.
           -- Nor one Central Visibility has not yet cleared or held: no department sees it.

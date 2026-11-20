@@ -153,6 +153,8 @@ export function AssemblyPumpTable({
   canEditCentral = false,
   onThread,
   split = false,
+  focusOrderId,
+  focusClass,
 }: {
   rows: Row[];
   unreadThreads: Record<string, number>;
@@ -161,6 +163,10 @@ export function AssemblyPumpTable({
   onThread: (orderId: string, soLabel: string) => void;
   /** Split view: the SO list and the SO picked side by side. */
   split?: boolean;
+  /** A reminder or notification (?focus=): its SO picked in split view… */
+  focusOrderId?: string;
+  /** …and flashed where it lands. */
+  focusClass?: (id: string) => string;
 }) {
   const pumps = rows.filter((r) => PUMP_LIKE.includes(str(r.item_type)));
   const sos: { orderId: string; ecs: Row[] }[] = [];
@@ -197,7 +203,9 @@ export function AssemblyPumpTable({
     g.rows = ecs.map((r, k) => ({ r, e: ecList[k], d: ecDone(lots, ecList[k].id), g }));
     return g;
   });
-  const focusGroup = split ? (groups.find((g) => g.key === focusKey) ?? groups[0] ?? null) : null;
+  const focusGroup = split
+    ? (groups.find((g) => g.key === focusKey) ?? groups.find((g) => g.key === focusOrderId) ?? groups[0] ?? null)
+    : null;
   // Lot 1 to n, each in its own column: as many as any SO here has, at least READY_LOT_LIMIT.
   const lotCols = Array.from({ length: Math.max(READY_LOT_LIMIT, ...groups.map((g) => g.lots.length)) }, (_, i) => i + 1);
   const th = "px-3 py-2 whitespace-nowrap";
@@ -505,7 +513,7 @@ export function AssemblyPumpTable({
             onClick={() => setFocusKey(g.key)}
             className={`cursor-pointer text-foreground transition-colors ${dispatchRowTone(g.head) ?? "hover:bg-background/40"} ${
               focusGroup?.key === g.key ? "outline-2 -outline-offset-2 outline-primary/50" : ""
-            }`}
+            } ${focusClass?.(g.key) ?? ""}`}
           >
             {listCols.map((c) => (
               <td key={c.key} className={`border-b border-card-border px-3 py-2 align-top ${c.tdClass ?? ""}`}>
@@ -555,7 +563,7 @@ export function AssemblyPumpTable({
                   <tr key={x.e.id} className={`text-foreground transition-colors ${dispatchRowTone(g.head) ?? "hover:bg-background/40"}`}>
                     {k === 0 &&
                       soCols.map((c, i) => (
-                        <td key={c.key} rowSpan={g.span} data-focus-row={i === 0 ? g.key : undefined} className={`${soCell} ${c.tdClass ?? ""}`}>
+                        <td key={c.key} rowSpan={g.span} data-focus-row={i === 0 ? g.key : undefined} className={`${soCell} ${c.tdClass ?? ""} ${i === 0 ? (focusClass?.(g.key) ?? "") : ""}`}>
                           {c.cell(g)}
                         </td>
                       ))}

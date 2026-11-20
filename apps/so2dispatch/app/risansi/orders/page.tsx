@@ -15,7 +15,7 @@ import {
   scopeToRep,
 } from "@/lib/order-list-filter";
 import { getCurrentUser } from "@/lib/session";
-import { canAddFollowup, canCreateOrders, canViewAll, isRep } from "@/lib/roles";
+import { canAddFollowup, canCreateOrders, canViewAll, isRep, seesOrderRefs } from "@/lib/roles";
 import { FollowupsDueButton } from "@/components/risansi/followups-due";
 import { countFollowupsDue } from "./followup-actions";
 import { OrdersTable } from "@/components/risansi/orders-table";
@@ -64,6 +64,11 @@ export default async function OrdersPage({
   );
   // The cards count over the filter bar as set, less the card clicked.
   filter.kpiFilter = parseOrderListFilter(cardBaseGet((key) => params[key]), { noDispatchTarget: true });
+  // The PO / Quotation search is Admin's, Rep's and Rep Manager's only.
+  if (!seesOrderRefs(user.role)) {
+    filter.refSearch = "";
+    filter.kpiFilter.refSearch = "";
+  }
   const result = await listOrdersPage({
     page: parsePage(params.page),
     filter,

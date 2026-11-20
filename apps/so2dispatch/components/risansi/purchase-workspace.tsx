@@ -380,7 +380,10 @@ export function PurchaseWorkspace({
   // Split view (SO view, not inside a pop-up): the SO picked, the first until another is.
   const split = splitView && !boiView && !embedded;
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  const focusGroup = split ? (soGroups.find((g) => g.key === focusKey) ?? soGroups[0] ?? null) : null;
+  // A reminder or notification (?focus=) picks its SO; else the first.
+  const focusGroup = split
+    ? (soGroups.find((g) => g.key === focusKey) ?? soGroups.find((g) => String(g.head.order_id ?? "") === focusOrderId) ?? soGroups[0] ?? null)
+    : null;
   const listCols = soCols.filter((c) => c.list);
 
   return (
