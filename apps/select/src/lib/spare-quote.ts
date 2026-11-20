@@ -64,11 +64,24 @@ export type SpareDocEdits = {
   lines?: Record<string, { partNo?: string; name?: string; po?: string; qty?: string; unit?: string }>;
   /** Line keys left off the document. */
   removed?: string[];
+  /** Rows added on the document (user, 2026-11-20): model id -> its extra rows, printed
+   *  after its parts. Document only, like every edit here. */
+  added?: Record<string, SpareDocAddedRow[]>;
+  /** Rows added after the Grand Total (user, 2026-11-21): a label and its value, as typed
+   *  (Freight, GST...). Text only: the Grand Total doesn't change. */
+  after?: SpareDocAfterRow[];
   /** Term id -> its wording on the document. */
   terms?: Record<string, string>;
 };
 
 export const spareDocLineKey = (modelId: string, l: { partNo: string; partName: string }) => `${modelId}|${l.partNo}|${l.partName}`;
+
+/** A row added on the document: its cells as typed. */
+export type SpareDocAddedRow = { id: string; partNo: string; name: string; po: string; qty: string; unit: string };
+/** An added row's line key: this prefix and its id. */
+export const SPARE_ADDED_KEY = "added:";
+/** A row after the Grand Total: its label and value, as typed. */
+export type SpareDocAfterRow = { id: string; label: string; value: string };
 
 export function normalizeSpareDocEdits(raw: unknown): SpareDocEdits {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -102,6 +115,28 @@ export function normalizeSpareDocEdits(raw: unknown): SpareDocEdits {
       if (Object.keys(cell).length) lines[key.slice(0, 320)] = cell;
     }
     if (Object.keys(lines).length) out.lines = lines;
+  }
+  if (r.added && typeof r.added === "object") {
+    const added: Record<string, SpareDocAddedRow[]> = {};
+    for (const [modelId, rows] of Object.entries(r.added as Record<string, unknown>).slice(0, 100)) {
+      if (!Array.isArray(rows)) continue;
+      const kept = rows.slice(0, 200).flatMap((row): SpareDocAddedRow[] => {
+        const c = (row ?? {}) as Record<string, unknown>;
+        const id = str(c.id, 60);
+        if (!id) return [];
+        return [{ id, partNo: str(c.partNo, 200) ?? "", name: str(c.name, 200) ?? "", po: str(c.po, 200) ?? "", qty: str(c.qty, 200) ?? "", unit: str(c.unit, 200) ?? "" }];
+      });
+      if (kept.length) added[modelId.slice(0, 60)] = kept;
+    }
+    if (Object.keys(added).length) out.added = added;
+  }
+  if (Array.isArray(r.after)) {
+    const after = r.after.slice(0, 50).flatMap((row): SpareDocAfterRow[] => {
+      const c = (row ?? {}) as Record<string, unknown>;
+      const id = str(c.id, 60);
+      return id ? [{ id, label: str(c.label, 300) ?? "", value: str(c.value, 300) ?? "" }] : [];
+    });
+    if (after.length) out.after = after;
   }
   if (Array.isArray(r.removed)) {
     const removed = r.removed.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 320)).slice(0, 2000);
