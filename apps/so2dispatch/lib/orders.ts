@@ -156,6 +156,10 @@ export type OrderListRow = {
   reps: string | null;
   zone: string | null;
   po_no: string | null;
+  customer_po_date?: string | null;
+  complaint_no?: string | null;
+  complaint_date?: string | null;
+  quotation_no?: string | null;
   order_type: string | null;
   order_value: string | null;
   /** The value's currency (INR when not given), and a USD order's INR figure. */
@@ -4004,6 +4008,11 @@ function orderListClauses(
   // SO Sent to PPC: Yes once its date is entered; blank is No.
   if (f.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
   if (f.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
+  // The PO / Quotation search (its own box on the Orders list).
+  if (f.refSearch) {
+    const t = p(likePattern(f.refSearch));
+    clauses.push(`(o.po_no ILIKE ${t} OR o.quotation_no ILIKE ${t})`);
+  }
   // One SO field, filled or pending. Pending is blank where the field applies.
   if (f.field) {
     const def = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column);
@@ -4045,6 +4054,7 @@ function orderListClauses(
                              WHERE s.order_id = o.id AND ${range("prl.packing_plan_date")})`);
     } else if (f.dateField === "drg_readiness") clauses.push(range("o.drg_readiness_date"));
     else if (f.dateField === "po_date") clauses.push(range("o.customer_po_date"));
+    else if (f.dateField === "complaint_date") clauses.push(range("o.complaint_date"));
     else if (f.dateField === "boi_expected") {
       // A bought-out item's expected receipt date (the vendor's), on any EC of the SO.
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_boi_items xb ON xb.item_id = s.id
@@ -4361,6 +4371,10 @@ export async function listOrdersPage(opts: {
             o.clearance_hold_reason, o.only_billing, o.only_billing_remarks,
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
+            to_char(o.customer_po_date, 'YYYY-MM-DD') AS customer_po_date,
+            o.complaint_no,
+            to_char(o.complaint_date, 'YYYY-MM-DD') AS complaint_date,
+            o.quotation_no,
             o.order_type,
             o.spare_type,
             -- A Pump SO's version (v0 until a new one is made).
@@ -4521,6 +4535,10 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.clearance_hold_reason, o.only_billing, o.only_billing_remarks,
             o.om_status, o.om_hold_reason, o.om_hold_remarks,
             o.po_no,
+            to_char(o.customer_po_date, 'YYYY-MM-DD') AS customer_po_date,
+            o.complaint_no,
+            to_char(o.complaint_date, 'YYYY-MM-DD') AS complaint_date,
+            o.quotation_no,
             o.order_type,
             o.spare_type,
             -- A Pump SO's version (v0 until a new one is made).
@@ -6528,6 +6546,10 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
     clauses.push(`(o.so_no ILIKE ${q} OR it.ec_no ILIKE ${q}
                    OR o.client_name ILIKE ${q} OR o.client_code ILIKE ${q})`);
   }
+  if (f.refSearch) {
+    const r = p(likePattern(f.refSearch));
+    clauses.push(`(o.po_no ILIKE ${r} OR o.quotation_no ILIKE ${r})`);
+  }
   if (f.zones.length) clauses.push(facet("o.zone", f.zones));
   if (f.reps.length) clauses.push(facet("o.reps", f.reps));
   if (f.markets.length) clauses.push(facet("o.market_type", f.markets));
@@ -6587,6 +6609,8 @@ function pipelineRowWhere(f: OrderListFilter): { where: string; params: unknown[
     } else if (f.dateField === "so_date") clauses.push(range("o.so_date"));
     else if (f.dateField === "dispatch_target") clauses.push(range("o.dispatch_target_date"));
     else if (f.dateField === "ec_date") clauses.push(range("it.ec_date"));
+    else if (f.dateField === "po_date") clauses.push(range("o.customer_po_date"));
+    else if (f.dateField === "complaint_date") clauses.push(range("o.complaint_date"));
     else if (f.dateField === "readiness") {
       clauses.push(`EXISTS (SELECT 1 FROM order_planning rpl
                              WHERE rpl.item_id = it.id AND ${range("rpl.planning_readiness_date")})`);

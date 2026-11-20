@@ -96,6 +96,11 @@ export function isRep(role: string): boolean {
   return role === "rep" || role === "rep_manager";
 }
 
+/** Admin, Rep and Rep Manager: the SO's Quotation No. on the Orders list, and its PO / Quotation search. */
+export function seesOrderRefs(role: string): boolean {
+  return role === "admin" || isRep(role);
+}
+
 /** CRM: every SO on the Dashboard and the Orders list, read-only — nothing else. */
 export function isCrm(role: string): boolean {
   return role === "crm";

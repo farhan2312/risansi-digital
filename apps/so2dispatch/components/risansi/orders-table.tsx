@@ -17,7 +17,7 @@ import { VersionsModal } from "./versions-modal";
 import { VersionTag } from "./version-tag";
 import { OrderInHand, OrderValueDetails } from "./order-value-details";
 import { dispatchRowTone } from "@/lib/dept-view";
-import { canAddFollowup, canMakeVersions, canManageEcs, canOpenVersions, isCentral, isReadOnlyViewer } from "@/lib/roles";
+import { canAddFollowup, canMakeVersions, canManageEcs, canOpenVersions, isCentral, isReadOnlyViewer, seesOrderRefs } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -558,7 +558,9 @@ export function OrdersTable({
   // (+1 Order in Hand.)
   // (-3: SO Date, Client Code and Zone sit under SO No., Client and Rep;
   // +1 the table view gives the SO Date its own column.)
-  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 7 - 3 + (split ? 0 : 1);
+  // (+2 the table view: PO No. / Date and Complaint No. / Date; +1 Quotation No. for Admin and Reps.)
+  const refs = seesOrderRefs(role);
+  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 7 - 3 + (split ? 0 : 1) + (split ? 0 : 2 + (refs ? 1 : 0));
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -1042,7 +1044,7 @@ export function OrdersTable({
         />
       )}
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
-      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
+      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage refSearch={seesOrderRefs(role)} kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} />
 
       <div
@@ -1068,6 +1070,9 @@ export function OrdersTable({
                 {!split && <th rowSpan={2} className="px-3 py-3">Chat</th>}
                 {!pump && !split && <th rowSpan={2} className="px-4 py-3">Type</th>}
                 <th rowSpan={2} className="px-4 py-3">Client / Code</th>
+                {!split && <th rowSpan={2} className="whitespace-nowrap px-4 py-3">PO No. / Date</th>}
+                {!split && <th rowSpan={2} className="whitespace-nowrap px-4 py-3">Complaint No. / Date</th>}
+                {!split && refs && <th rowSpan={2} className="whitespace-nowrap px-4 py-3">Quotation No.</th>}
                 <th rowSpan={2} className="px-4 py-3"><SortHeader label="Rep / Zone" sortKey="rep" /></th>
                 {/* Headers that filter, Excel-like: the values the column holds, each with its count. */}
                 <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
@@ -1232,6 +1237,19 @@ export function OrdersTable({
                         {cell(order.client_name)}
                         {order.client_code && <div className="text-[11px] text-muted">{order.client_code}</div>}
                       </td>
+                      {!split && (
+                        <td className="px-4 py-3 align-top">
+                          {cell(order.po_no)}
+                          {order.customer_po_date && <div className="text-[11px] whitespace-nowrap text-muted">{formatDate(order.customer_po_date)}</div>}
+                        </td>
+                      )}
+                      {!split && (
+                        <td className="px-4 py-3 align-top">
+                          {cell(order.complaint_no ?? null)}
+                          {order.complaint_date && <div className="text-[11px] whitespace-nowrap text-muted">{formatDate(order.complaint_date)}</div>}
+                        </td>
+                      )}
+                      {!split && refs && <td className="px-4 py-3 align-top">{cell(order.quotation_no ?? null)}</td>}
                       <td className="px-4 py-3">
                         {cell(order.reps)}
                         {order.zone && <div className="text-[11px] whitespace-nowrap text-muted">{order.zone}</div>}

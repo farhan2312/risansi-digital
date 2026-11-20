@@ -45,6 +45,7 @@ import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
 /** Every parameter the filter owns — what "Clear all" empties. */
 const FILTER_KEYS = [
   "q",
+  "pq",
   "zone",
   "rep",
   "repteam",
@@ -104,7 +105,10 @@ export function OrderListFilterBar({
   extraKeys = [],
   orderInHand,
   ordersPage = false,
+  refSearch = false,
 }: {
+  /** The Orders list, for Admin, Rep and Rep Manager: a second search box, by PO No. or Quotation No. */
+  refSearch?: boolean;
   /** The Orders page: no Field, Payment status or Only billing filter. */
   ordersPage?: boolean;
   /** Dispatch: the cumulative Order in Hand of every matching SO, in INR. */
@@ -221,6 +225,7 @@ export function OrderListFilterBar({
           />
         )}
         <UrlSearchInput compact placeholder={searchPlaceholder} className={searchClassName} />
+        {refSearch && <UrlSearchInput compact paramKey="pq" placeholder="Search PO No., Quotation No.…" className="sm:max-w-[15rem]" />}
         {showsParty && (
         <MultiSelectFilter
           label="Zone"
@@ -670,7 +675,10 @@ export function OrderListFilterBar({
             if (f.value === "packing") return !dept || ["planning", "assembly", "dispatch"].includes(activeDept ?? "");
             // Drawing's own readiness date.
             if (f.value === "drg_readiness") return !dept || activeDept === "drawing";
-            if (f.value === "po_date") return activeDept === "drawing";
+            // The client's PO date: Drawing's, and the Orders list's.
+            if (f.value === "po_date") return ordersPage || activeDept === "drawing";
+            // An FR's complaint date: the Orders list's.
+            if (f.value === "complaint_date") return ordersPage;
             // Purchase's bought-out items: when each is expected.
             if (f.value === "boi_expected") return !dept || activeDept === "purchase";
             if (f.value === "dispatch_target") return !dept && !noDispatchTarget;

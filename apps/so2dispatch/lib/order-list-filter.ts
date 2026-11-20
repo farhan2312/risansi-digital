@@ -44,6 +44,8 @@ export const ORDER_DATE_FIELDS = [
   { value: "drg_readiness", label: "Drawing readiness" },
   // Drawing also finds an SO by its client's Purchase Order date.
   { value: "po_date", label: "PO date" },
+  // The Orders list: an FR's complaint date.
+  { value: "complaint_date", label: "Complaint date" },
   // Purchase's own: when a bought-out item is expected from its vendor.
   { value: "boi_expected", label: "Expected date" },
   // Assembly & Packing's own: when it plans to assemble a pump lot, and to pack a lot.
@@ -110,6 +112,8 @@ export const DISPATCH_HOLD_REASON_FILTER_DEPTS: readonly string[] = ["dispatch",
 
 export type OrderListFilter = {
   search: string;
+  /** The Orders list's second search: PO No. or Quotation No. (Admin, Rep, Rep Manager). URL `pq`. */
+  refSearch?: string;
   zones: string[];
   reps: string[];
   /**
@@ -277,7 +281,7 @@ export function parseOrderListFilter(
           ? (dept ? "so_date" : fallbackDate)
         : dateFieldRaw === "assembly_plan" && dept && dept !== "assembly"
           ? "so_date"
-        : (dateFieldRaw === "drg_readiness" || dateFieldRaw === "po_date") && dept && dept !== "drawing"
+        : dateFieldRaw === "drg_readiness" && dept && dept !== "drawing"
           ? "so_date"
         : dateFieldRaw === "boi_expected" && dept && dept !== "purchase"
           ? "so_date"
@@ -295,6 +299,7 @@ export function parseOrderListFilter(
 
   return {
     search: (get("q") ?? "").trim(),
+    refSearch: (get("pq") ?? "").trim(),
     zones: list(get("zone")),
     reps: list(get("rep")),
     repTeam: list(get("repteam")),
@@ -438,6 +443,7 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.sentPpc ||
     f.overdue ||
     f.search ||
+    f.refSearch ||
     f.zones.length ||
     f.reps.length ||
     f.markets.length ||
@@ -453,6 +459,7 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
 export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   const p = new URLSearchParams();
   if (f.search) p.set("q", f.search);
+  if (f.refSearch) p.set("pq", f.refSearch);
   if (f.zones.length) p.set("zone", f.zones.join(","));
   if (f.reps.length) p.set("rep", f.reps.join(","));
   if (f.repTeam?.length) p.set("repteam", f.repTeam.join(","));
@@ -502,6 +509,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
 export function describeOrderListFilter(f: OrderListFilter): string {
   const parts: string[] = [];
   if (f.search) parts.push(`Search: ${f.search}`);
+  if (f.refSearch) parts.push(`PO / Quotation: ${f.refSearch}`);
   if (f.overdue) parts.push("Overdue only");
   if (f.ready) parts.push("Ready to dispatch");
   if (f.noSlip) parts.push("Packed, no slip");
