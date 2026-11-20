@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { query, withTransaction } from "@/lib/db";
 import type { NewBoiItem } from "@/lib/orders";
 import { getCurrentUser } from "@/lib/session";
+import { readinessMissingForItem } from "@/lib/drawing-readiness";
 import {
   addChildRow,
   createItemWithBoiItems,
@@ -1431,6 +1432,11 @@ export async function addOrderChildAction(
 ): Promise<ChildActionResult> {
   const guard = await guardChild(table);
   if (!guard.ok) return guard;
+  // Drawing's GAD / Performance Curve: only once the SO has its Expected Readiness Date.
+  if (table === "order_drawing_revisions") {
+    const missing = await readinessMissingForItem(orderId);
+    if (missing) return { ok: false, error: missing };
+  }
   // No PI on an order that is paid after receipt — see lib/order-lock.
   const addLock = lockReason(
     table as ChildTable,
@@ -1482,6 +1488,11 @@ export async function updateOrderChildAction(
 ): Promise<ChildActionResult> {
   const guard = await guardChild(table);
   if (!guard.ok) return guard;
+  // Drawing's GAD / Performance Curve: only once the SO has its Expected Readiness Date.
+  if (table === "order_drawing_revisions") {
+    const missing = await readinessMissingForItem(orderId, id);
+    if (missing) return { ok: false, error: missing };
+  }
   const user = guard.user;
   const tbl = table as ChildTable;
   // Ignore any keys not in the child schema, and drop `centralOnly` fields

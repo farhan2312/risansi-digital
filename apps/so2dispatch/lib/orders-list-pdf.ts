@@ -179,7 +179,7 @@ const PUMP_COLUMNS: Column[] = [
   { key: "gad", label: "GAD", width: 58, group: "Drawing" },
   { key: "curve", label: "Perf. Curve", width: 54, group: "Drawing" },
   { key: "part", label: "Part Drawing", width: 50, group: "Drawing" },
-  { key: "drgReady", label: "Readiness", width: 46, group: "Drawing" },
+  { key: "drgReady", label: "Exp. readiness", width: 46, group: "Drawing" },
   { key: "boi", label: "BOI", width: 52, group: "Purchase" },
   { key: "qc", label: "QC Docs", width: 54, group: "Quality" },
   { key: "plan", label: "Status", width: 50, group: "Planning" },

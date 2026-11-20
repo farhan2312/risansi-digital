@@ -5969,6 +5969,22 @@ export async function listOrderDeptStatuses(orderIds: string[]): Promise<Map<str
  * order_id otherwise. Both arrive in the same `edit` parameter, so resolve
  * whichever it is to the owning SO — that's what the queues page on.
  */
+/**
+ * Why each SO's Drawing expected readiness date was last revised: the latest
+ * entry's reason, when it has one (the first date needs none).
+ */
+export async function drawingReadinessReasons(orderIds: string[]): Promise<Record<string, string>> {
+  if (!orderIds.length) return {};
+  const r = await query<{ order_id: string; reason: string | null }>(
+    `SELECT DISTINCT ON (order_id) order_id::text, reason
+       FROM order_drawing_readiness_history
+      WHERE order_id = ANY($1::uuid[])
+      ORDER BY order_id, created_at DESC`,
+    [orderIds]
+  );
+  return Object.fromEntries(r.rows.filter((x) => (x.reason ?? "").trim()).map((x) => [x.order_id, String(x.reason).trim()]));
+}
+
 export async function resolveFocusOrderId(
   id: string | undefined | null
 ): Promise<string | null> {

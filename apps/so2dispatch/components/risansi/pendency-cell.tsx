@@ -24,17 +24,23 @@ export function PendencyCell({
   dept: PendencyDept;
   pendency?: Pendency;
   canEdit: boolean;
-  /** The status chip itself. */
-  children: ReactNode;
+  /** The status chip itself; none when the reason has a column of its own (the reason then opens the form). */
+  children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   // Cleared: no longer pending, the latest reason kept beneath.
   const active = pendency && !pendency.clearedAt ? pendency : undefined;
   // Remarks only (Quality): the remarks are the reason.
   const only = remarksOnly(dept);
+  const reasonText = active ? (
+    <span className="max-w-[14rem] text-left text-[11px] leading-snug">
+      <span className="font-medium text-amber-700 dark:text-amber-400">{only ? active.remarks : active.reason}</span>
+      {!only && active.remarks && <span className="block text-muted">{active.remarks}</span>}
+    </span>
+  ) : null;
   return (
     <span className="flex flex-col items-start gap-0.5">
-      {canEdit ? (
+      {children == null ? null : canEdit ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -47,10 +53,13 @@ export function PendencyCell({
         children
       )}
       {active ? (
-        <span className="max-w-[14rem] text-[11px] leading-snug">
-          <span className="font-medium text-amber-700 dark:text-amber-400">{only ? active.remarks : active.reason}</span>
-          {!only && active.remarks && <span className="block text-muted">{active.remarks}</span>}
-        </span>
+        children == null && canEdit ? (
+          <button type="button" onClick={() => setOpen(true)} title="Change the pendency reason" className="hover:opacity-80">
+            {reasonText}
+          </button>
+        ) : (
+          reasonText
+        )
       ) : (
         <>
           {canEdit && (

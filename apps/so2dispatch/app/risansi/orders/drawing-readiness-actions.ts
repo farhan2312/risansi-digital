@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { readinessMissingForItem } from "@/lib/drawing-readiness";
 import { logAudit } from "@/lib/audit";
 import { canEditChild, canViewDepartment } from "@/lib/roles";
 import { spareEcSql } from "@/lib/dept-view";
@@ -53,7 +54,7 @@ export async function setDrawingReadinessAction(
   const before = order.drg_readiness_date ?? "";
   if (before === day) return { ok: true };
   // A date that moves needs its reason; the first one does not.
-  if (before && !why) return { ok: false, error: "Say why the readiness date is changing." };
+  if (before && !why) return { ok: false, error: "Say why the expected readiness date is revised." };
 
   try {
     await query(`UPDATE orders SET drg_readiness_date = $2, updated_at = now() WHERE id = $1`, [orderId, day || null]);
@@ -70,9 +71,9 @@ export async function setDrawingReadinessAction(
   const label = order.so_no ?? `#${order.sl_no}`;
   const what = day
     ? before
-      ? `Drawing readiness for ${label} moved from ${formatDay(before)} to ${formatDay(day)}`
-      : `Drawing readiness for ${label} set to ${formatDay(day)}`
-    : `Drawing readiness for ${label} cleared`;
+      ? `Drawing expected readiness date for ${label} revised from ${formatDay(before)} to ${formatDay(day)}${why ? ` (${why})` : ""}`
+      : `Drawing expected readiness date for ${label} set to ${formatDay(day)}`
+    : `Drawing expected readiness date for ${label} cleared`;
   await Promise.all([
     logAudit({
       actor: { id: user.id, email: user.email, role: user.role },
@@ -125,6 +126,8 @@ export async function applyDrawingVersionToSoAction(
   }
   if (doc !== "GAD" && doc !== "Performance Curve") return { ok: false, error: "Unknown document." };
   if (!Number.isInteger(number) || number < 1) return { ok: false, error: "Unknown version." };
+  const missing = await readinessMissingForItem(itemId);
+  if (missing) return { ok: false, error: missing };
 
   const siblings = await query<{ id: string; ec_no: string | null }>(
     `SELECT s.id, s.ec_no

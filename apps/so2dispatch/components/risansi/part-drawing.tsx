@@ -503,11 +503,15 @@ export function PartPickerModal({
 
       {canEdit && (
         <div className="mt-4 flex items-center justify-end gap-3">
-          {error && <span className="text-sm text-rose-600">{error}</span>}
+          {error ? (
+            <span className="text-sm text-rose-600">{error}</span>
+          ) : (
+            !shortage && yes === true && picked.size === 0 && <span className="text-sm text-amber-700">Non Standard: pick at least one part.</span>
+          )}
           <button
             type="button"
             onClick={save}
-            disabled={saving || yes === null}
+            disabled={saving || yes === null || (!shortage && yes === true && picked.size === 0)}
             className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -634,6 +638,26 @@ export function PartProgress({ itemId, parts, canEdit }: { itemId: string; parts
                         )}
                       </div>
                     )}
+                    {/* Every link it had before, newest first. */}
+                    {(() => {
+                      const prev = (Array.isArray(p.doc_link_history) ? (p.doc_link_history as Row[]) : []).slice().reverse();
+                      return prev.length ? (
+                        <ul className="mt-1 space-y-0.5 text-[11px] text-muted">
+                          {prev.map((h, n) => (
+                            <li key={n} className="flex flex-wrap items-baseline gap-x-1">
+                              <span>Previous:</span>
+                              <a href={str(h.link)} target="_blank" rel="noopener noreferrer" className="max-w-[16rem] truncate text-primary/80 line-through hover:underline">
+                                {str(h.link)}
+                              </a>
+                              <span>
+                                · until {str(h.until).slice(0, 10)}
+                                {str(h.by) ? ` · ${str(h.by)}` : ""}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null;
+                    })()}
                   </td>
                   <td className="px-3 py-2">
                     <input value={r.remarks} disabled={ro} onChange={(e) => set(i, { remarks: e.target.value })} className={`${input} h-9 min-w-[12rem]`} />

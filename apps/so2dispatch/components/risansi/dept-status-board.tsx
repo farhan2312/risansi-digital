@@ -94,7 +94,7 @@ export function targetFor(
   key: keyof DeptTargets
 ): { date: string | null; label: string } {
   // Drawing is due by its own readiness date (none set, nothing due).
-  if (key === "drawing") return { date: targets.drawingReadiness ?? null, label: "Readiness" };
+  if (key === "drawing") return { date: targets.drawingReadiness ?? null, label: "Expected readiness" };
   if (key !== "dispatch") return { date: targets[key] as string | null, label: "Target" };
   return targets.dispatchRevised
     ? { date: targets.dispatchRevised, label: "Revised dispatch target" }
