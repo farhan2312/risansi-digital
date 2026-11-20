@@ -2,6 +2,7 @@
 // row of its own), the SO's columns repeated on each so the sheet filters
 // cleanly. Kept out of the route so the shape can be exercised on its own.
 import ExcelJS from "exceljs";
+import { isClosedStatus } from "@/lib/dept-view";
 import { isTestSo, listOrdersForOrderMaking, type OrderMakingRow } from "@/lib/orders";
 import { parseQuery } from "@/lib/pagination";
 import { isOrderMakingFiltered, parseOrderMakingFilter } from "@/lib/order-making-filter";
@@ -110,8 +111,8 @@ export async function loadOrderMakingReport(
     // As the page: every SO, the filter as set.
     filter,
   });
-  // Not a test SO, nor one the client cancelled: the report is the real work.
-  const rows = listed.filter((o) => !isTestSo(o.so_no) && String(o.status_override ?? "").trim() !== "Cancelled by client");
+  // Not a test SO, nor one cancelled by the client or diverted: the report is the real work.
+  const rows = listed.filter((o) => !isTestSo(o.so_no) && !isClosedStatus(o.status_override));
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const filtered = isOrderMakingFiltered(filter) || !!search;
   const scope = `${filtered ? "filtered view" : "all SOs"}${search ? ` matching "${search}"` : ""} · ${rows.length} SOs · ${today}`;
