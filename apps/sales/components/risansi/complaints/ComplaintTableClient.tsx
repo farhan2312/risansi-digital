@@ -168,7 +168,7 @@ const COLUMNS: Col[] = [
   { id: 'qty',        head: 'Qty', pick: 'Quantity', right: true, kind: 'number', value: qtyOf },
   // What the complaint is about, which for a free replacement is the item
   // being replaced. Reads the part rows, where it actually lives.
-  { id: 'item',       head: 'FR item', pick: 'Item / part', kind: 'text', value: itemsOf },
+  { id: 'item',       head: 'Item', pick: 'Item / part', kind: 'text', value: itemsOf },
   // Every action chosen, not just the first. A complaint answered with both a
   // free replacement and a visit used to show only one of them.
   { id: 'action',     head: 'Action taken', kind: 'text',
@@ -176,7 +176,7 @@ const COLUMNS: Col[] = [
   { id: 'freeRepl',   head: 'Free repl.', pick: 'Free replacement', kind: 'text', value: freeReplLabel },
   { id: 'frEc',       head: 'FR EC no.', kind: 'text', value: r => r.fr_ec_no },
   { id: 'frEcDate',   head: 'FR EC date', pick: 'FR EC date', kind: 'date', value: r => r.fr_ec_date },
-  { id: 'frDispatch', head: 'FR dispatch', kind: 'date', value: r => r.target_dispatch_date },
+  { id: 'frDispatch', head: 'FR to be dispatch date', kind: 'date', value: r => r.target_dispatch_date },
   // Next to FR dispatch on purpose: that one is the date the replacement was
   // MEANT to leave, this is the date it did. Read together they say whether
   // the promise was kept, which neither of them says alone. The number comes

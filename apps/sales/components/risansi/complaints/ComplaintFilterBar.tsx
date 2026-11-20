@@ -32,6 +32,10 @@ export interface FilterOptions {
   industries: string[]; clientTypes: string[]; actions: string[];
   modelVersions: string[]; modelSeries: string[];
   reps: { id: number; name: string }[]; holders: { id: number; name: string }[];
+  /** Named on page 5's "Action assigned to". */
+  actionOwners: { id: number; name: string }[];
+  /** Named on page 7's "Responsible for returnable". */
+  returnableOwners: { id: number; name: string }[];
   /** Only the clients that actually have a complaint, most first. */
   clients: { id: string; name: string }[];
 }
@@ -66,7 +70,7 @@ export function ComplaintFilterBar({ value, options, basePath }: {
   // The second row: everything that is not the question people open the page
   // with. Opened automatically when one of its filters is already in force, so
   // a shared link never hides the filter that is shaping the table.
-  const MORE = ['dept', 'holder', 'dcat', 'resp', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'ctype', 'action', 'capa', 'capastage', 'pa', 'capadocs', 'visit', 'mver', 'mseries', 'era', 'client', 'rep', 'linked'];
+  const MORE = ['dept', 'holder', 'dcat', 'resp', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'ctype', 'action', 'aowner', 'capa', 'capastage', 'pa', 'capadocs', 'ret', 'rowner', 'visit', 'mver', 'mseries', 'era', 'client', 'rep', 'linked'];
   const moreOn = MORE.filter(k => value[k]).length;
   // Read through the old flat values too, so a link carrying ?capa=pending
   // shows as Yes + Nothing back rather than as an unrecognised choice.
@@ -165,10 +169,23 @@ export function ComplaintFilterBar({ value, options, basePath }: {
           {/* Next to the CAPA question, because it is the other half of it:
               one asks whether a CAPA was called for, this asks whether
               anything was actually filed against it. */}
+          <Sel label="Action with" v={value.aowner} onChange={v => set({ aowner: v })}
+            opts={options.actionOwners.map(p => [String(p.id), p.name] as [string, string])}
+            title="Who the action on page 5 is assigned to. Set from the Action taken answer unless somebody overrode it." />
           <Sel label="CAPA documents" v={value.capadocs} onChange={v => set({ capadocs: v })}
             opts={[['yes', 'CAPA documents attached'], ['no', 'No CAPA document']]}
             title="Whether anything has been attached under CAPA. A complaint can need a CAPA and have nothing filed — that is the pile worth chasing." />
           <Sel label="Preventive action" v={value.pa} onChange={v => set({ pa: v })} opts={[['pending', 'Preventive action pending']]} title="Owed — a root cause, a corrective action or a CAPA — and not yet written" />
+          <Sel label="Returnable" v={value.ret} onChange={v => set({ ret: v, rowner: v === 'yes' ? value.rowner : undefined })}
+            opts={[['yes', 'Material to be returned'], ['no', 'Nothing to return']]}
+            title="Page 7's first question." />
+          {/* Only with Yes, because that is the only time the question has an
+              answer — the form hides the field the same way. */}
+          {value.ret === 'yes' && (
+            <Sel label="Returnable with" v={value.rowner} onChange={v => set({ rowner: v })}
+              opts={options.returnableOwners.map(p => [String(p.id), p.name] as [string, string])}
+              title="Who is responsible for getting the material back." joined />
+          )}
           <Sel label="Visit" v={value.visit} onChange={v => set({ visit: v })} opts={[['pending', 'Visit pending'], ['planned', 'Visit planned — any']]} />
           <Sel label="Responsible" v={value.resp} onChange={v => set({ resp: v })} opts={options.responsibles.map(t => [t, t])} />
           <Sel label="Root cause" v={value.rcc} onChange={v => set({ rcc: v, rcs: undefined })} opts={options.rootCauses.map(t => [t, t])} />

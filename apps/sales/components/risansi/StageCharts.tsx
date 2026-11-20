@@ -55,12 +55,23 @@ function Pick({ href, label, selected, style, children, title }: {
 
 // ── Panel wrapper ──────────────────────────────────────────────
 
-export function ChartPanel({ title, sub, children, note, action }: {
+export function ChartPanel({ title, sub, children, note, action, collapsible, defaultOpen = true }: {
   title: string; sub?: string; children: ReactNode; note?: string;
   /** A control in the panel header — a zoom switch, say. Sits after `sub`. */
   action?: ReactNode;
+  /**
+   * The whole panel folds away behind its own title. For the tall ones — a
+   * drill-down four levels deep is most of a screen, and it sits between the
+   * reader and everything under it whether or not they came for it.
+   */
+  collapsible?: boolean;
+  /** Only read when `collapsible`. Closed panels remember nothing: the page is
+   *  a server render and a reader who opens one keeps it open while they read. */
+  defaultOpen?: boolean;
 }) {
-  return (
+  return collapsible
+    ? <CollapsiblePanel title={title} sub={sub} note={note} action={action} defaultOpen={defaultOpen}>{children}</CollapsiblePanel>
+    : (
     <div style={{ background: 'var(--bg-paper)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', display: 'flex', flexDirection: 'column' }}>
       {/* wrap + rowGap: with an `action` in it, the header is title + count +
           a control, which does not fit one line in a one-column phone panel. */}
@@ -74,6 +85,35 @@ export function ChartPanel({ title, sub, children, note, action }: {
         <div style={{ padding: '0 14px 11px', fontSize: 10.5, color: 'var(--fg-3)', fontStyle: 'italic' }}>{note}</div>
       )}
     </div>
+  );
+}
+
+/**
+ * The same panel, folded.
+ *
+ * <details> rather than state: it needs no JavaScript to work, it keeps the
+ * keyboard behaviour browsers already give a disclosure, and the contents are
+ * in the page for anybody searching it with the browser's own find.
+ */
+function CollapsiblePanel({ title, sub, children, note, action, defaultOpen }: {
+  title: string; sub?: string; children: ReactNode; note?: string;
+  action?: ReactNode; defaultOpen: boolean;
+}) {
+  return (
+    <details open={defaultOpen}
+      style={{ background: 'var(--bg-paper)', border: '1px solid var(--line)', borderRadius: 'var(--radius)' }}>
+      <summary style={{ padding: '11px 14px', display: 'flex', alignItems: 'baseline', gap: 8,
+                        flexWrap: 'wrap', rowGap: 6, cursor: 'pointer', listStyle: 'none' }}>
+        <span style={{ fontSize: 12, fontWeight: 500 }}>{title}</span>
+        <span aria-hidden style={{ fontSize: 10, color: 'var(--fg-3)' }}>show / hide</span>
+        {sub && <span style={{ fontSize: 10.5, color: 'var(--fg-3)', marginLeft: 'auto' }}>{sub}</span>}
+        {action && <span style={{ marginLeft: sub ? 0 : 'auto' }}>{action}</span>}
+      </summary>
+      <div style={{ borderTop: '1px solid var(--line)', padding: 14 }}>{children}</div>
+      {note && (
+        <div style={{ padding: '0 14px 11px', fontSize: 10.5, color: 'var(--fg-3)', fontStyle: 'italic' }}>{note}</div>
+      )}
+    </details>
   );
 }
 

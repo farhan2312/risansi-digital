@@ -96,6 +96,12 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
     modelSeries: uniq(base.map(r => r.model_series)),
     reps: people(base.map(r => [r.rep_user_id, r.rep_name])),
     holders: people(base.map(r => [r.holder_user_id, r.holder_name])),
+    // Who the ACTION is on, and who owes the returnable. Both are people
+    // named on a complaint rather than whoever is holding the stage now, and
+    // built from the rows in view so the dropdown never offers a name that
+    // would return nothing.
+    actionOwners: people(base.map(r => [r.action_assigned_to, r.action_assigned_name])),
+    returnableOwners: people(base.map(r => [r.returnable_owner, r.returnable_owner_name])),
     // Same order as the by-client chart — most complaints first — so the
     // dropdown and the bars read as one thing.
     clients: clientBars(base).map(c => ({

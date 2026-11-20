@@ -375,8 +375,11 @@ export function summariseComplaints(rows: ComplaintListRow[], dwells: HolderDwel
   const needed = rows.filter(r => r.capa_needed === true);
   const capa: CapaCounts = {
     raised: needed.length,
-    live: needed.filter(r => isOpenStatus(r.status)).length,
-    done: needed.filter(r => !isOpenStatus(r.status)).length,
+    // Counted on the document, not on the status — see the filter in
+    // risansi-complaint-rows for what that was doing wrong. "Still open"
+    // means a CAPA was asked for and nothing has been filed.
+    live: needed.filter(r => r.capa_docs === 0).length,
+    done: needed.filter(r => r.capa_docs > 0).length,
     none: rows.length - needed.length,
     vendor: rows.filter(r => r.capa_required === true).length,
   };

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ChartPanel, StageKpi, NoData } from '@/components/risansi/StageCharts';
 import { StatusChart } from './StatusChart';
 import { SEVERITY_TONE, capaFilter, CAPA_PROGRESS_LABEL, type Severity, type CapaProgress } from '@/lib/risansi-complaint-flow';
-import type { ComplaintSummary, Bar, CategoryBar, DrillNode, HolderBar, ClientBar } from '@/lib/risansi-complaint-stats';
+import type { ComplaintSummary, Bar, CategoryBar, DrillNode, ClientBar } from '@/lib/risansi-complaint-stats';
 
 // The dashboard above the complaints list.
 //
@@ -89,12 +89,6 @@ export function ComplaintStats({ s, href, hrefPatch, sel }: {
           <Bars rows={s.bySeverity.filter(b => b.count || b.key !== 'none')} href={v => href('sev', v)} selected={sel.sev}
             tone={b => (b.key === 'none' ? 'var(--fg-3)' : SEVERITY_TONE[b.key as Severity])} empty="No open complaints on the workflow." />
         </ChartPanel>
-        <ChartPanel title="Who holds them now" sub="by department" note="Open complaints each department is sitting on, and the days they have held them in total. Click to filter.">
-          <Holders rows={s.byHolderDept} href={v => href('dept', v)} selected={sel.dept} />
-        </ChartPanel>
-        <ChartPanel title="Who sits longest" sub="named holders" note="Days of open time each person has held, across every complaint. Longest first. Click to see theirs.">
-          <Holders rows={s.byHolderPerson.slice(0, 8)} person href={v => href('holder', v)} selected={sel.holder} />
-        </ChartPanel>
       </div>
 
       <div className="stage-grid-4">
@@ -107,16 +101,13 @@ export function ComplaintStats({ s, href, hrefPatch, sel }: {
         <ChartPanel title="Sub-category" note="Under the category above. Click to filter.">
           <Bars rows={s.bySubcategory.slice(0, 10)} href={v => href('subcat', v)} selected={sel.subcat} empty="No sub-category recorded yet." />
         </ChartPanel>
-        <ChartPanel title="Industry" note="The client's industry. Click to filter.">
-          <Bars rows={s.byIndustry.slice(0, 10)} href={v => href('ind', v)} selected={sel.ind} empty="No industry on file." />
-        </ChartPanel>
       </div>
 
       <div className="stage-grid-4">
         <ChartPanel title="Action taken" note="Page 5's Action Taken, which is also what decides who the task is assigned to. Click to filter.">
           <Bars rows={s.byAction} href={v => href('action', v)} selected={sel.action} empty="No action recorded yet." />
         </ChartPanel>
-        <ChartPanel title="CAPA tracking" note="Raised, and where it has got to. Pending means asked for with nothing back. Click to filter.">
+        <ChartPanel title="CAPA tracking" note="Raised, and whether the CAPA document is in. Finished means the document is attached — not that the complaint was closed. Click to filter.">
           <Capa s={s} href={href} hrefPatch={hrefPatch} sel={sel} />
         </ChartPanel>
         <ChartPanel title="Responsible department" sub="who caused it" note="Derived from the root cause at investigation. Click to filter.">
@@ -129,7 +120,9 @@ export function ComplaintStats({ s, href, hrefPatch, sel }: {
 
       <div className="stage-grid-4">
         <div className="stage-span-2">
-          <ChartPanel title="Drill down" sub="category → sub-category → part → MOC"
+          {/* Folded by default: four levels of category is most of a screen,
+              and it sat between the reader and everything below it. */}
+          <ChartPanel title="Drill down" sub="category → sub-category → part → MOC" collapsible defaultOpen={false}
             note="The path the review asked for: Damage → Joint → Bush → the MOC on it. Every level is a filter; click along the branch.">
             <Drill nodes={s.drill} href={href} sel={sel} />
           </ChartPanel>
@@ -406,46 +399,6 @@ function Concentration({ rows, total }: { rows: ClientBar[]; total: number }) {
           <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--fg)' }}>{v}</span>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ── Holders: open now (bar = days sitting) + historic total ────
-
-function Holders({ rows, href, selected, person }: { rows: HolderBar[]; href: (v: string) => string; selected?: string; person?: boolean }) {
-  if (!rows.length) return <NoData msg="Nothing on the workflow yet." />;
-  const max = Math.max(...rows.map(r => Math.max(r.days, r.totalDays)), 1);
-  const any = !!selected;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-      {rows.map((r, i) => {
-        const key = person ? String(r.userId ?? '') : r.department;
-        const on = selected === key && key !== '';
-        const link = !person || r.userId != null;
-        const inner = (
-          <>
-            <span style={{ ...LBL, flex: '0 1 130px' }} title={r.label}>{r.label}</span>
-            <div style={{ flex: 1, minWidth: 40, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ height: 9, background: 'var(--bg-sunk)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ width: `${(r.days / max) * 100}%`, height: '100%', background: i === 0 && r.days > 0 ? 'var(--neg)' : 'color-mix(in oklab, var(--accent) 60%, transparent)' }} />
-              </div>
-              <div style={{ height: 5, background: 'var(--bg-sunk)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ width: `${(r.totalDays / max) * 100}%`, height: '100%', background: 'color-mix(in oklab, var(--fg-3) 45%, transparent)' }} />
-              </div>
-            </div>
-            <span style={{ ...NUM, width: 26 }}>{r.open}</span>
-            <span style={{ ...NUM, width: 40, color: r.days > 14 ? 'var(--neg)' : 'var(--fg)' }}>{fmtDays(r.days)}</span>
-            <span style={{ ...NUM, width: 40, color: 'var(--fg-3)', fontWeight: 400 }}>{fmtDays(r.totalDays)}</span>
-          </>
-        );
-        const style: CSSProperties = { ...ROW, opacity: any && !on ? 0.4 : 1, outline: on ? '2px solid var(--accent)' : 'none' };
-        const title = `${r.label}: ${r.open} open now, ${fmtDays(r.days)} sitting · ${fmtDays(r.totalDays)} held in all over ${r.stretches} stretch${r.stretches === 1 ? '' : 'es'} (avg ${fmtDays(r.avgDays)})`;
-        return link ? <a key={r.key} href={href(key)} style={style} title={title}>{inner}</a> : <div key={r.key} style={style} title={title}>{inner}</div>;
-      })}
-      <div style={{ display: 'flex', fontSize: 9.5, color: 'var(--fg-3)', gap: 9, flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, minWidth: 140 }}><Swatch c="color-mix(in oklab, var(--accent) 60%, transparent)" /> sitting now <Swatch c="color-mix(in oklab, var(--fg-3) 45%, transparent)" /> held in all</span>
-        <span style={{ width: 26, textAlign: 'right' }}>open</span><span style={{ width: 40, textAlign: 'right' }}>now</span><span style={{ width: 40, textAlign: 'right' }}>ever</span>
-      </div>
     </div>
   );
 }

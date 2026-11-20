@@ -89,6 +89,8 @@ export interface ComplaintListRow {
   /** The original this one repeats (decision 4 / page 8). */
   linked_complaint_id: number | null; linked_complaint_no: string | null;
   investigation_assigned_to: number | null; action_assigned_to: number | null;
+  action_assigned_name: string | null;
+  returnable_owner: number | null; returnable_owner_name: string | null;
   action_category: string | null; pump_serial_no: string | null; quantity: number | null;
   /** Commercial flag from page 5. Not `risk_cost_impact`, which grades severity. */
   cost_impact: boolean | null;
@@ -168,6 +170,13 @@ export interface ComplaintFilters {
    * the one somebody has to chase.
    */
   capadocs?: string;
+  /** users.id — who the action is assigned to (page 5). */
+  aowner?: string;
+  /** 'yes' | 'no' — material to be returned (page 7). */
+  ret?: string;
+  /** users.id — who is responsible for the returnable (page 7). Only means
+   *  anything alongside ret=yes, which is also the only way it is offered. */
+  rowner?: string;
   /** 'pending' — Visit Planned and the complaint is still live. */
   visit?: string;
   /** '1' — Severe / Immediate Response. */
@@ -194,7 +203,8 @@ export interface ComplaintFilters {
 export const FILTER_KEYS: (keyof ComplaintFilters)[] = [
   'state', 'headline', 'status', 'sev', 'dept', 'holder', 'cat', 'subcat', 'dcat', 'resp', 'rep', 'era', 'q',
   'overdue', 'from', 'to', 'rcc', 'rcs', 'ptype', 'pname', 'moc', 'client', 'ind', 'ctype', 'action',
-  'capa', 'capastage', 'pa', 'capadocs', 'visit', 'severe', 'unregistered', 'linked', 'mver', 'mseries',
+  'capa', 'capastage', 'pa', 'capadocs', 'aowner', 'ret', 'rowner',
+  'visit', 'severe', 'unregistered', 'linked', 'mver', 'mseries',
 ];
 
 /*
@@ -362,6 +372,10 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
     conds.push(list.length ? `c.status = ANY(ARRAY[${literalList(list)}])` : 'FALSE');
   }
   // Stage: one named status.
+  if (f.aowner) add('c.action_assigned_to = ?', Number(f.aowner));
+  if (f.ret === 'yes') conds.push('c.material_returnable IS TRUE');
+  else if (f.ret === 'no') conds.push('(c.material_returnable IS NOT TRUE)');
+  if (f.rowner) add('c.returnable_owner = ?', Number(f.rowner));
   if (f.status && f.status !== 'open' && f.status !== 'closed') add('c.status = ?', f.status);
   if (f.sev === 'none') conds.push('c.severity IS NULL AND c.schema_version >= 2');
   else if (f.sev) add('c.severity = ?', f.sev);
@@ -478,7 +492,8 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
              c.target_completion_date::text AS target_completion_date,
              c.repeat_complaint, COALESCE(c.reopen_count, 0)::int AS reopen_count,
              c.linked_complaint_id, lk.complaint_no AS linked_complaint_no,
-             c.investigation_assigned_to, c.action_assigned_to, c.action_category, c.action_categories,
+             c.investigation_assigned_to, c.action_assigned_to, c.returnable_owner,
+             c.action_category, c.action_categories,
              c.pump_serial_no, c.quantity,
              COALESCE((SELECT json_agg(json_build_object(
                            'part_type', p.part_type, 'part_name', p.part_name, 'moc', p.moc,
@@ -488,8 +503,11 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
              COALESCE((SELECT json_agg(json_build_object('id', a.id, 'file_name', a.file_name) ORDER BY a.uploaded_at)
                          FROM complaint_attachments a WHERE a.complaint_id = c.id AND a.category = 'customer'), '[]'::json) AS customer_files,
              (SELECT count(*)::int FROM complaint_attachments a
-               WHERE a.complaint_id = c.id AND a.category = 'capa') AS capa_docs
+               WHERE a.complaint_id = c.id AND a.category = 'capa') AS capa_docs,
+             au.name AS action_assigned_name, ru.name AS returnable_owner_name
         FROM complaints c
+        LEFT JOIN users au ON au.id = c.action_assigned_to
+        LEFT JOIN users ru ON ru.id = c.returnable_owner
         LEFT JOIN clients cl ON cl.id = c.client_id
         LEFT JOIN clients oem ON oem.id = c.oem_client_id
         LEFT JOIN complaints lk ON lk.id = c.linked_complaint_id
@@ -542,8 +560,16 @@ export async function loadComplaintRows(user: CurrentUser, opts: {
   const capa = capaFilter(f);
   if (capa.needed === true) rows = rows.filter(r => r.capa_needed === true);
   else if (capa.needed === false) rows = rows.filter(r => r.capa_needed !== true);
-  if (capa.progress === 'live') rows = rows.filter(r => isOpenStatus(r.status));
-  else if (capa.progress === 'done') rows = rows.filter(r => !isOpenStatus(r.status));
+  // A CAPA is finished when its document is in, and not before.
+  //
+  // These two read the complaint's STATUS, so a complaint somebody had closed
+  // counted as a finished CAPA with nothing filed against it — and a customer
+  // communication attached in the meantime made it look like the work had
+  // been done. 29 of 39 read "Complaint finished" on that basis. The document
+  // is the deliverable, so the document is the test: category 'capa', which a
+  // communication attachment is not.
+  if (capa.progress === 'live') rows = rows.filter(r => r.capa_docs === 0);
+  else if (capa.progress === 'done') rows = rows.filter(r => r.capa_docs > 0);
   if (capa.vendor) rows = rows.filter(r => r.capa_state === capa.vendor);
   if (f.pa === 'pending') rows = rows.filter(preventiveActionPending);
   // Attached, or not. Applied here beside the other post-query filters rather

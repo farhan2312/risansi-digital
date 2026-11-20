@@ -528,7 +528,7 @@ export const PAGES: ComplaintPage[] = [
       { name: 'fr_ec_date', label: 'FR EC date', type: 'date', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
       { name: 'challan_no', label: 'Challan no.', type: 'text', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
       { name: 'challan_date', label: 'Challan date', type: 'date', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
-      { name: 'target_dispatch_date', label: 'Target dispatch date', type: 'date', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
+      { name: 'target_dispatch_date', label: 'FR to be dispatch date', type: 'date', showWhen: { field: 'action_categories', equals: [...FR_ACTIONS] } },
       // challan_value and fr_freight used to sit here and are deliberately gone.
       // The requirement asks a free replacement for Transportation (Yes/No +
       // value) and Material (Yes/No + value), which is the same two figures
