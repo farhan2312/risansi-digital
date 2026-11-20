@@ -119,7 +119,7 @@ export function PumpLeadSubHeads({ lotCount }: { lotCount: number }) {
       <th className={h(true)}>GAD</th>
       <th className={h()}>Perf. Curve</th>
       <th className={h()}>Part Drawing</th>
-      <th className={h()}><SortHeader label="Readiness" sortKey="drg_readiness_date" /></th>
+      <th className={h()}><SortHeader label="Expected Readiness Date" sortKey="drg_readiness_date" /></th>
       <th className={h(true)}>BOI</th>
       <th className={h(true)}>QC Docs</th>
       <th className={h(true)}>Status</th>
@@ -207,7 +207,7 @@ export function PumpLeadCells({
         <Cell
           text={d.closed ? "Closed" : formatDate(d.readiness)}
           tone={d.closed ? "done" : d.readiness ? "pending" : "na"}
-          line={readinessLate ? "Overdue" : d.closed && d.readiness ? `Readiness ${formatDate(d.readiness)}` : undefined}
+          line={readinessLate ? "Overdue" : d.closed && d.readiness ? `Expected ${formatDate(d.readiness)}` : undefined}
           lineTone={readinessLate ? "late" : "muted"}
           onClick={() => onOpen("drawing")}
         />

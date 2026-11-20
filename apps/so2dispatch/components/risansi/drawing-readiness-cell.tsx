@@ -28,10 +28,13 @@ function shift(from: string | null, to: string | null): number | null {
 export function DrawingReadinessCell({
   orderId,
   value,
+  reason: lastReason,
   canEdit,
 }: {
   orderId: string;
   value: unknown;
+  /** Why it last moved, shown under the date. */
+  reason?: unknown;
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -95,7 +98,7 @@ export function DrawingReadinessCell({
   async function save(e: FormEvent) {
     e.preventDefault();
     if (current && date !== current && !reason.trim()) {
-      setError("Say why the date is changing.");
+      setError("Say why the expected readiness date is revised.");
       return;
     }
     setSaving(true);
@@ -113,29 +116,35 @@ export function DrawingReadinessCell({
   const moves = rows ? Math.max(rows.length - 1, 0) : 0;
 
   return (
-    <span ref={wrapRef} className="relative inline-flex items-center gap-1">
+    <span ref={wrapRef} className="relative inline-flex flex-wrap items-center gap-1">
       <span className={current ? "font-medium text-foreground" : "text-muted"}>{formatDate(current)}</span>
       <button
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        aria-label={canEdit ? "Set readiness date" : "Readiness date history"}
-        title={canEdit ? "Set the readiness date, see its history" : "Readiness date history"}
+        aria-label={canEdit ? "Set expected readiness date" : "Expected readiness date history"}
+        title={canEdit ? "Set the expected readiness date, see its history" : "Expected readiness date history"}
         className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
       >
         {canEdit ? <Pencil className="h-3 w-3" /> : <History className="h-3 w-3" />}
       </button>
 
+      {current && String(lastReason ?? "").trim() && (
+        <span className="block w-full max-w-[14rem] whitespace-normal text-[11px] leading-snug text-amber-700" title="Why it was last revised">
+          Revised: {String(lastReason).trim()}
+        </span>
+      )}
+
       {open && (
         <div
           ref={popRef}
           role="dialog"
-          aria-label="Drawing readiness"
+          aria-label="Expected readiness date"
           style={pos ? { top: pos.top, left: pos.left } : undefined}
           className="fixed z-50 max-h-[340px] w-72 overflow-y-auto whitespace-normal rounded-xl border border-card-border bg-surface p-3 text-left shadow-xl"
         >
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Drawing readiness
+            Expected readiness date
             {moves > 0 && <span className="ml-1 font-normal normal-case text-amber-700">· moved {moves}×</span>}
           </p>
           {canEdit && (
@@ -150,7 +159,7 @@ export function DrawingReadinessCell({
                 <input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Why is it changing?"
+                  placeholder="Reason for revising the date"
                   className="h-9 w-full rounded-lg border border-input-border bg-surface px-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
                 />
               )}

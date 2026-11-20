@@ -15,6 +15,7 @@ import { listItemsForSectionPage,
   resolveFocusOrderId,
   listDeptCompletions,
   listOrderListOptions,
+  drawingReadinessReasons,
 } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
 import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
@@ -199,10 +200,11 @@ export default async function DrawingWorkspacePage({
     queue.rows = queue.rows.filter((r) => ecMatchesDrawingFilter(r, drawingFilter));
   }
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
-  const [completions, unreadThreads, pendency] = await Promise.all([
+  const [completions, unreadThreads, pendency, readinessReasons] = await Promise.all([
     listDeptCompletions(orderIds),
     unreadByOrder(orderIds, user),
     listPendency(orderIds, "drawing"),
+    drawingReadinessReasons(orderIds),
   ]);
 
   return (
@@ -220,6 +222,7 @@ export default async function DrawingWorkspacePage({
         canEdit={canEditChild(user.role, "order_drawing_revisions")}
         completions={completions}
         pendency={pendency}
+        readinessReasons={readinessReasons}
         openThreadId={thread}
         openItemId={edit}
         focusOrderId={focusOrderId ?? undefined}

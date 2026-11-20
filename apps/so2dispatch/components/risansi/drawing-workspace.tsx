@@ -86,6 +86,7 @@ export function DrawingWorkspace({
   kpis = [],
   embedded = false,
   pendency = {},
+  readinessReasons = {},
   split: splitView = false,
 }: {
   /** Split view (the profile menu's): the SO list on the left, the SO picked upright on the right. */
@@ -94,6 +95,8 @@ export function DrawingWorkspace({
   kpis?: KpiCard[];
   /** Why each Open SO is still pending with Drawing, by SO id. */
   pendency?: Record<string, Pendency>;
+  /** Why each SO's expected readiness date was last revised. */
+  readinessReasons?: Record<string, string>;
   /** Inside a pop-up (the Orders list's): one SO's rows — no filter bar, cards or paging. */
   embedded?: boolean;
   queue: PageResult<Row>;
@@ -229,12 +232,19 @@ export function DrawingWorkspace({
     },
     {
       key: "readiness",
-      label: "Readiness",
-      head: <SortHeader label="Readiness" sortKey="drg_readiness_date" />,
+      label: "Expected Readiness Date",
+      head: <SortHeader label="Expected Readiness Date" sortKey="drg_readiness_date" />,
       thClass: "whitespace-nowrap",
       tdClass: "whitespace-nowrap",
-      // Drawing's own date for the SO, with every value it has held.
-      cell: (g) => <DrawingReadinessCell orderId={str(g.head.order_id)} value={g.head.drg_readiness_date} canEdit={canEdit} />,
+      // Drawing's own date for the SO, with every value it has held; the last revision's reason under it.
+      cell: (g) => (
+        <DrawingReadinessCell
+          orderId={str(g.head.order_id)}
+          value={g.head.drg_readiness_date}
+          reason={readinessReasons[str(g.head.order_id)]}
+          canEdit={canEdit}
+        />
+      ),
     },
     {
       key: "perf",
@@ -258,21 +268,30 @@ export function DrawingWorkspace({
           </span>
         ) : (
           <span className="flex flex-col items-start gap-0.5">
-            {/* Open: why, with remarks. */}
-            <PendencyCell
-              orderId={str(g.head.order_id)}
-              soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
-              dept="drawing"
-              pendency={pendency[str(g.head.order_id)]}
-              canEdit={canEdit}
-            >
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
-            </PendencyCell>
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
             {/* Overdue while Drawing still owes something (GAD / curve not sent, parts not all drawn). */}
             {!g.head.so_drawing_sent && <TargetNote target={g.head.drg_readiness_date} until={todayIso()} />}
           </span>
         ),
       list: true,
+    },
+    {
+      key: "pendency",
+      label: "Pendency Reason",
+      thClass: "whitespace-nowrap",
+      // Why an open SO is still pending, with remarks; a closed one has none.
+      cell: (g) =>
+        g.head.so_drawing_closed ? (
+          <span className="text-muted">—</span>
+        ) : (
+          <PendencyCell
+            orderId={str(g.head.order_id)}
+            soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
+            dept="drawing"
+            pendency={pendency[str(g.head.order_id)]}
+            canEdit={canEdit}
+          />
+        ),
     },
   ];
   const ecCols: Col<Row>[] = [
