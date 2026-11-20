@@ -109,7 +109,8 @@ export default async function DrawingWorkspacePage({
       })),
       ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
       // Its SOs on any hold.
-      ...totalHoldCard("drawing", clear, "SO"),
+      // Its SOs on each hold — but not Dispatch's: Drawing's work comes long before it.
+      ...totalHoldCard("drawing", clear, "SO").filter((c) => c.key !== "hold:dispatch"),
       {
         key: "versioned",
         label: "SO versions",
