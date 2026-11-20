@@ -132,8 +132,19 @@ if (!unread.length) console.log('  ok   updateOpportunity reads every catalogue 
 // shipped raw serialises to "Wed Jul 15 2026 00:00:00 GMT+0400", which the
 // form hands straight back on the next save: Postgres refuses it and the
 // whole edit is lost. po_date was uncast for as long as Won existed (24 Sep).
-const board = fs.readFileSync(path.join(ROOT, 'app/risansi/pipeline/page.tsx'), 'utf8');
-const uncast = OPP_FIELDS.filter(f => f.kind === 'date' && !board.includes(`o.${f.name}::text`));
+//
+// A date may be cast in the page itself, or by an optional-column helper the
+// page interpolates — a column that only exists after its migration has run
+// cannot be named outright, or the whole SELECT fails and the board renders
+// empty (20 Nov 2026). Either place counts; being absent from both does not.
+const board  = fs.readFileSync(path.join(ROOT, 'app/risansi/pipeline/page.tsx'), 'utf8');
+const helper = fs.readFileSync(path.join(ROOT, 'lib/risansi-opp-columns.ts'), 'utf8');
+// The helper only earns the exemption while it actually casts.
+const helperCasts = helper.includes('::text AS');
+const castAnywhere = (n) =>
+  board.includes(`o.${n}::text`)
+  || (helperCasts && board.includes(`optionalDateSel('${n}')`));
+const uncast = OPP_FIELDS.filter(f => f.kind === 'date' && !castAnywhere(f.name));
 for (const f of uncast) { bad++; console.log(`  FAIL the board ships ${f.name} without ::text — the form will send a JS Date back`); }
 if (!uncast.length) console.log('  ok   every date field the board carries is cast to text');
 

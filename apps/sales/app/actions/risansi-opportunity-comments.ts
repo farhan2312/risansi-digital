@@ -20,6 +20,16 @@ import type { OppCommentRow, CommentResult } from '@/lib/risansi-opportunity-com
 
 const MAX = 5000;
 
+// Postgres's "relation does not exist". The table arrives with migration 0133,
+// and until that has been run the thread has to be absent rather than broken:
+// an unhandled throw here takes the whole edit drawer down with it, which is
+// how one unrun migration blanked the pipeline board on 20 Nov 2026.
+const NO_TABLE = '42P01';
+function tableMissing(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: string }).code === NO_TABLE;
+}
+const NOT_YET = 'Remarks are not switched on yet — migration 0133 has not been run.';
+
 /** Viewing follows the client, exactly as the opportunity's other sub-records do. */
 async function assertCanView(oppId: number): Promise<number> {
   const user = await getCurrentUser();
@@ -38,14 +48,19 @@ export async function listOpportunityComments(oppId: number): Promise<OppComment
   await assertCanView(oppId);
   // Oldest first: a thread is read in the order it was written.
   const user = await getCurrentUser();
-  const { rows } = await risansiPool.query<OppCommentRow>(
-    `SELECT id, body, author_email, author_name,
-            created_at::text AS created_at, updated_at::text AS updated_at,
-            (lower(author_email) = lower($2)) AS mine
-       FROM opportunity_comments
-      WHERE opportunity_id = $1
-      ORDER BY created_at, id`, [oppId, user.email ?? '']);
-  return rows;
+  try {
+    const { rows } = await risansiPool.query<OppCommentRow>(
+      `SELECT id, body, author_email, author_name,
+              created_at::text AS created_at, updated_at::text AS updated_at,
+              (lower(author_email) = lower($2)) AS mine
+         FROM opportunity_comments
+        WHERE opportunity_id = $1
+        ORDER BY created_at, id`, [oppId, user.email ?? '']);
+    return rows;
+  } catch (e) {
+    if (tableMissing(e)) return [];
+    throw e;
+  }
 }
 
 export async function addOpportunityComment(oppId: number, body: string): Promise<CommentResult> {
@@ -58,10 +73,16 @@ export async function addOpportunityComment(oppId: number, body: string): Promis
   if (text.length > MAX) return { ok: false, error: `A remark is ${MAX.toLocaleString('en-IN')} characters at most.` };
 
   const session = await getSession();
-  await risansiPool.query(
-    `INSERT INTO opportunity_comments (opportunity_id, author_email, author_name, body)
-     VALUES ($1, $2, $3, $4)`,
-    [oppId, user.email, session?.user?.name ?? user.email, text]);
+  try {
+    await risansiPool.query(
+      `INSERT INTO opportunity_comments (opportunity_id, author_email, author_name, body)
+       VALUES ($1, $2, $3, $4)`,
+      [oppId, user.email, session?.user?.name ?? user.email, text]);
+  } catch (e) {
+    // Say so plainly rather than losing what they typed to a generic failure.
+    if (tableMissing(e)) return { ok: false, error: NOT_YET };
+    throw e;
+  }
 
   revalidatePath('/risansi/pipeline');
   revalidatePath(`/risansi/clients/${clientId}`);

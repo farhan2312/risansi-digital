@@ -24,9 +24,15 @@ import {
   bracketLink, soCoverageSql, isSoCoverage, SO_COVERAGE_LABELS,
 } from '@/lib/risansi-pipeline-brackets';
 import { dispatchFigures, firstBusyInvoiceMonth, type DispatchFigures } from '@/lib/risansi-order-in-hand';
+import { optionalDateSel } from '@/lib/risansi-opp-columns';
 
-async function q<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
-  try { return await fn(); } catch { return fallback; }
+// A failed panel falls back rather than taking the page down with it — but it
+// says so. It used to swallow the error whole, and on 20 Nov 2026 that turned a
+// one-column SQL error into a board that rendered every stage header with its
+// real count and not one card beneath it, with nothing anywhere to say why.
+async function q<T>(fn: () => Promise<T>, fallback: T, label = 'panel'): Promise<T> {
+  try { return await fn(); }
+  catch (e) { console.error(`[pipeline] ${label} failed, falling back:`, e); return fallback; }
 }
 
 interface OppRow {
@@ -420,6 +426,10 @@ export default async function PipelinePage({
           ELSE FALSE
         END AS can_edit`;
 
+  // Optional until migration 0133 is run. Named explicitly rather than left to
+  // o.* because a date has to arrive as text (see lib/risansi-opp-columns).
+  const revisitSel = await optionalDateSel('revisit_on');
+
   const [openOpps, closedOpps, bookedYTD, annualTarget, winLossRows, lostToRows, stageOptions, productTypeOptions, repOptions, industryOptions, countryOptions, clientTypeOptions, clientStatusOptions, wonTotal, orderInHand, orderBooked, wonQuotedPo, stageTotals, usdRate, dispatch, invoicesBeganIn] = await Promise.all([
 
     // 1. Open opportunities with filters + sort. Feeds the KPIs, the kanban (every
@@ -437,7 +447,7 @@ export default async function PipelinePage({
                o.enquiry_date::text        AS enquiry_date,
                o.revised_offer_date::text  AS revised_offer_date,
                o.po_date::text             AS po_date,
-               o.revisit_on::text          AS revisit_on,
+               ${revisitSel}
                o.po_received_date::text    AS po_received_date,
                -- ::text for the same reason every date above carries it: a raw
                -- date column reaches the browser as a JS Date, the form hands
@@ -497,7 +507,7 @@ export default async function PipelinePage({
                o.quote_date::text          AS quote_date,
                o.enquiry_date::text        AS enquiry_date,
                o.revised_offer_date::text  AS revised_offer_date,
-               o.revisit_on::text          AS revisit_on,
+               ${revisitSel}
                (SELECT COALESCE(SUM(so.so_value_cr), 0) FROM opportunity_sales_orders so WHERE so.opportunity_id = o.id)::float8 AS so_sum_cr,
                -- Owner first, then whoever covers the account. Still keyed
                -- tour_people because the drawer reads that name; the people in
