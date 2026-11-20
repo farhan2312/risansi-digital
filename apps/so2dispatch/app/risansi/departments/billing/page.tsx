@@ -20,6 +20,7 @@ import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { cardBaseGet } from "@/lib/kpis";
 import { unreadByOrder } from "@/lib/order-messages";
 import { BillingWorkspace } from "@/components/risansi/billing-workspace";
+import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { parsePendencyFilter } from "@/lib/pendency";
 import { listPendency, pendencyFilterSql } from "@/lib/pendency-db";
 import { deptKpiCards } from "@/lib/orders";
@@ -83,6 +84,13 @@ export default async function BillingWorkspacePage({
     listPendency(orderIds, "billing"),
   ]);
 
+  // The report carries the queue's filter, search and sort — not which
+  // page is open, nor a row being edited.
+  const reportQuery = new URLSearchParams(
+    Object.entries(params).filter((e): e is [string, string] => !!e[1] && !["page", "edit", "thread", "focus"].includes(e[0]))
+  ).toString();
+  const reportHref = `/risansi/departments/billing/report${reportQuery ? `?${reportQuery}` : ""}`;
+
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
       <PageHeading
@@ -90,6 +98,13 @@ export default async function BillingWorkspacePage({
         title="Proforma Invoice"
         description="Add one or more PIs per SO and fill their document fields (PI No./Date/Value). Challan orders are not listed here — Dispatch files their challans. Payment fields are filled by Accounts."
       />
+
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
+        {/* Every SO in the queue as filtered: the PDF or the Excel. */}
+        <div className="ml-auto flex items-center gap-2">
+          <ReportDialogButton title="Proforma Invoice report" href={reportHref} />
+        </div>
+      </div>
 
       <BillingWorkspace
         completions={completions}
