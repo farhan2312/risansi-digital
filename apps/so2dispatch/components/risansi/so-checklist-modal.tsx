@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCheck, ClipboardCheck, Loader2, X } from "lucide-react";
+import { CheckCheck, ClipboardCheck, Loader2, Printer, X } from "lucide-react";
 import { checklistFor, fillablePoints, isSpareChecklist, type ChecklistPoint } from "@/lib/so-checklist";
 import { getChecklistAction, saveChecklistAction, type ChecklistData } from "@/app/risansi/departments/order-making/checklist-actions";
 
@@ -16,6 +16,66 @@ function fmtDate(v: string | null | undefined): string {
 }
 
 type Fields = { answer: string; remarks: string; verified: boolean; vremarks: string };
+
+const esc = (v: unknown) =>
+  String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/** The shown version of the checklist, as saved, in a print window — print it or Save as PDF. */
+function printChecklist(data: ChecklistData, points: ChecklistPoint[], version: number) {
+  const saved = new Map((data.versions[version] ?? []).map((a) => [a.point_key, a]));
+  const spare = isSpareChecklist(data.orderType);
+  const firstVerifier = points.findIndex((p) => p.verifier);
+  const autoText = (p: ChecklistPoint) =>
+    (p.auto!.endsWith("_date") || p.auto === "delivery_date_as_per_so" ? fmtDate(data.auto[p.auto!]) : data.auto[p.auto!]) || "—";
+  const rows = points
+    .map((p, i) => {
+      const s = saved.get(p.key);
+      const head =
+        i === firstVerifier ? `<tr class="sec"><td colspan="7">These check points are for the verifier</td></tr>` : "";
+      const details = p.auto ? `${esc(autoText(p))} <span class="tag">Auto</span>` : s?.answer ? `<b>${esc(s.answer)}</b>` : `<span class="muted">Pending</span>`;
+      const prep = s?.filled_by_name ? `${esc(s.filled_by_name)}<br><span class="muted">${esc(fmtDate(s.filled_at))}</span>` : "";
+      const ver = s?.verified_by_name
+        ? `${s.verified ? "✓ " : ""}${esc(s.verified_by_name)}<br><span class="muted">${esc(fmtDate(s.verified_at))}</span>`
+        : "";
+      return `${head}<tr class="${p.team === "SO" ? "so" : ""}"><td class="n">${i + 1}</td><td>${esc(p.label)}</td><td>${details}</td>
+        <td>${esc(s?.remarks ?? "")}</td><td class="nw">${prep}</td><td>${esc(s?.verifier_remarks ?? "")}</td><td class="nw">${ver}</td></tr>`;
+    })
+    .join("");
+  const verified = points.filter((p) => saved.get(p.key)?.verified).length;
+  const title = `${spare ? "Spare" : "Pump"} Order Checklist — ${data.soNo || `Sl. ${data.slNo}`} v${version}`;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+    @page { size: A4 landscape; margin: 10mm; }
+    body { font: 11px Arial, sans-serif; color: #111; margin: 0; }
+    h1 { font-size: 16px; margin: 0 0 2px; }
+    .sub { color: #555; margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #bbb; padding: 4px 6px; text-align: left; vertical-align: top; }
+    th { background: #eef2f7; font-size: 10px; text-transform: uppercase; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+    tr.so td { background: #ecfdf5; }
+    tr.sec td { background: #f3f4f6; font-weight: bold; font-size: 10px; text-transform: uppercase; }
+    .n { width: 20px; color: #666; } .nw { white-space: nowrap; } .muted { color: #777; }
+    .tag { font-size: 9px; background: #e5e7eb; padding: 0 3px; border-radius: 2px; color: #555; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  </style></head><body>
+    <h1>${spare ? "Spare" : "Pump"} Order Checklist</h1>
+    <div class="sub">SO No. ${esc(data.soNo || "—")} (Sl. ${data.slNo}) · Version v${version}${version === data.versionNo ? "" : " (earlier version)"}${
+      data.soDate ? ` · Date ${esc(fmtDate(data.soDate))}` : ""
+    } · Verified ${verified}/${points.length} · Printed ${esc(fmtDate(new Date().toISOString()))}</div>
+    <table><thead><tr><th>#</th><th>Checklist</th><th>Details</th><th>Preparer's Remark</th><th>Prepared By</th><th>Verifier's Remark</th><th>Verified By</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  if (!w) {
+    alert("Allow pop-ups to print the checklist.");
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 200);
+}
 type Draft = Record<string, Fields>;
 
 /**
@@ -152,6 +212,20 @@ export function SoChecklistModal({ orderId, onClose }: { orderId: string; onClos
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {data && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (changed.length > 0 && !confirm("Unsaved changes are not printed — print the saved checklist?")) return;
+                  printChecklist(data, points, version);
+                }}
+                title="Print or save as PDF"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-3 text-sm font-semibold text-foreground hover:bg-background"
+              >
+                <Printer className="h-4 w-4" />
+                Print / Save PDF
+              </button>
+            )}
             {versionNos.length > 1 && (
               <select
                 value={version}
