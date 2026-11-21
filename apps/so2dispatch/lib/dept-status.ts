@@ -143,7 +143,7 @@ const DEPT_STATUSES: Record<DeptFilterKey, string[]> = {
   // Open until every bought-out item is in hand, as Purchase's page says.
   purchase: ["Open", "Closed", NOT_APPLICABLE],
   // The EC's QC documents, as Quality's page reads them.
-  quality: [PENDING, "Partially submitted", "Submitted", "Docs not specified", NOT_APPLICABLE],
+  quality: [PENDING, "Partially submitted", "Submitted", NOT_APPLICABLE],
   // Whichever of pump/spare/free-text status the EC carries.
   // No Pending: a Spare starts at Date awaited, a Pump at its first status.
   // The SO's own Planning status (an SO is planned as one).

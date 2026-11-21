@@ -38,14 +38,14 @@ export const given = (l: QcLink | undefined) =>
 export type QcTone = "done" | "part" | "pending" | "na";
 
 /**
- * Where an EC's documents stand: Not specified until the SO names any;
- * Pending until one is in; Submitted once every needed one is; Partially
+ * Where an EC's documents stand. Quality sees only SOs that need it, whose
+ * documents are always named (a mandatory field): Pending until one is in; Submitted once every needed one is; Partially
  * submitted between.
  */
 export function qcDocsStatus(required: QcDocType[], links: QcLink[]): { label: string; tone: QcTone; done: number; total: number } {
   const total = required.length;
   const done = required.filter((d) => given(links.find((l) => l.doc_type === d))).length;
-  if (total === 0) return { label: "Docs not specified", tone: "na", done, total };
+  if (total === 0) return { label: "Pending", tone: "pending", done, total };
   if (done === total) return { label: "Submitted", tone: "done", done, total };
   if (done > 0) return { label: "Partially submitted", tone: "part", done, total };
   return { label: "Pending", tone: "pending", done, total };

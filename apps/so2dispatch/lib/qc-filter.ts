@@ -6,7 +6,7 @@ import { QC_DOC_TYPES, linksFromRows, qcDocsStatus, requiredQcDocs } from "@/lib
 import { inListNotHeld } from "@/lib/dept-status";
 
 export const QC_SO_STATES = ["Open", "Closed"];
-export const QC_EC_STATUSES = ["Pending", "Partially submitted", "Submitted", "Docs not specified"];
+export const QC_EC_STATUSES = ["Pending", "Partially submitted", "Submitted"];
 /** How far Assembly has got with an EC Quality sees (it sees none still pending). */
 export const QC_ASSEMBLY_STATES = ["Partially assembled", "Assembled"];
 
@@ -60,7 +60,8 @@ export function ecQcStatusSql(it: string, o: string): string {
   const done = `(SELECT count(DISTINCT lower(ql.doc_type)) FROM order_qc_doc_links ql
                   WHERE ql.item_id = ${it}.id AND (btrim(ql.link) ~* '^https?://' OR ql.submitted_date IS NOT NULL)
                     AND lower(ql.doc_type) IN ${neededSql(o)})`;
-  return `(CASE WHEN ${total} = 0 THEN 'Docs not specified'
+  // Documents are mandatory where Quality is required: none named reads Pending.
+  return `(CASE WHEN ${total} = 0 THEN 'Pending'
                 WHEN ${done} >= ${total} THEN 'Submitted'
                 WHEN ${done} > 0 THEN 'Partially submitted'
                 ELSE 'Pending' END)`;

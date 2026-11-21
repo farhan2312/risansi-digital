@@ -112,7 +112,7 @@ export default async function QcWorkspacePage({
         params: { ...clear, qc_ec: st },
         // How many of them Central Visibility holds (a badge: they count here).
         held: CV_HELD,
-        tone: st === "Docs not specified" ? ("neutral" as const) : toneFor(st),
+        tone: toneFor(st),
         measure: qcEcCountSql("o", st),
       })),
     ];
