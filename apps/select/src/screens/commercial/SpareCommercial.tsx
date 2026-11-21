@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import ProductCodeSelect from "../../components/pump-selection/ProductCodeSelect";
 import PageHeader from "../../components/ui/PageHeader";
@@ -256,6 +257,43 @@ export default function SpareCommercial({
     } finally {
       setSaving(false);
     }
+  };
+
+  // Leaving with unsaved changes (user, 2026-11-21): a link to another page in the portal
+  // asks first - Save and leave, Leave without saving, or Stay. Closing or reloading the
+  // tab gets the browser's own warning (beforeunload above).
+  const router = useRouter();
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (!dirty || olderVersion) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+      const url = new URL(a.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+      // Captured before the link's own handler: it doesn't navigate.
+      e.preventDefault();
+      e.stopPropagation();
+      setSaveError("");
+      setLeaveTo(url.pathname + url.search + url.hash);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [dirty, olderVersion]);
+  const leave = async (saveFirst: boolean) => {
+    if (!leaveTo) return;
+    if (saveFirst) {
+      setLeaving(true);
+      const ok = await save();
+      setLeaving(false);
+      if (!ok) return;
+    }
+    const to = leaveTo;
+    setLeaveTo(null);
+    router.push(to);
   };
 
   const generate = async () => {
@@ -614,6 +652,31 @@ export default function SpareCommercial({
       />
 
       {preview && <QuotePreview projectId={projectId} sheet={preview} readOnly={readOnly} onClose={() => setPreview(null)} onEdited={setDocEdits} />}
+
+      <Dialog open={leaveTo !== null} onOpenChange={(o) => !o && !leaving && setLeaveTo(null)}>
+        <DialogContent className="max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Save the spare quotation?</DialogTitle>
+            <DialogDescription>You have changes that aren&apos;t saved. Save them before leaving this page?</DialogDescription>
+          </DialogHeader>
+          {saveError && (
+            <DialogBody>
+              <Alert>{saveError}</Alert>
+            </DialogBody>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={leaving} onClick={() => setLeaveTo(null)}>
+              Stay
+            </Button>
+            <button type="button" className={buttonVariants({ variant: "ghost-destructive" })} disabled={leaving} onClick={() => void leave(false)}>
+              Leave without saving
+            </button>
+            <Button disabled={leaving} onClick={() => void leave(true)}>
+              <Save /> {leaving ? "Saving…" : "Save and leave"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </div>
   );
