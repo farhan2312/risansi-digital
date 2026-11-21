@@ -1873,13 +1873,9 @@ async function notifyClearance(orderId: string, wasRaw: string, nowRaw: string, 
   if (was === now || (now !== "Clear" && now !== "Hold")) return;
   try {
     const label = (await getOrderLabel(orderId)) ?? orderId;
-    const depts = Object.keys(ROLE_BY_DEPT) as DeptKey[];
-    const involved = (
-      await Promise.all(depts.map((d) => deptInvolvedInOrder(d, orderId).then((yes) => (yes ? d : null))))
-    ).filter((d): d is DeptKey => d !== null);
-    if (involved.length === 0) return;
+    // Every department hears it — Order Making too — not only those with work on the SO yet.
     await emitNotification({
-      roles: involved.map((d) => ROLE_BY_DEPT[d]),
+      roles: [...Object.values(ROLE_BY_DEPT), "order_making", "order_making_so"],
       orderId,
       type: "dept_update",
       message:
