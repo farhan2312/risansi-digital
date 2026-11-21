@@ -272,7 +272,6 @@ export function DrawingWorkspace({
             {str(g.head.so_drawing_closed_date) && (
               <span className="whitespace-nowrap text-[11px] text-muted">{formatDate(g.head.so_drawing_closed_date)}</span>
             )}
-            <TargetNote target={g.head.drg_readiness_date} until={g.head.so_drawing_closed_date} closed />
           </span>
         ) : (
           <span className="flex flex-col items-start gap-0.5">
