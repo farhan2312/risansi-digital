@@ -40,11 +40,17 @@ import type { OrderListOptions } from "@/lib/orders";
 import { SIGN_OFF_ENABLED } from "@/lib/dept-completion";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
 import { DISPATCH_HOLD_REASONS } from "@/lib/order-schema";
+import { BASE_PLATE_FILTER, WOODEN_BOX_FILTER } from "@/lib/assembly";
+
+/** Where Central Visibility's hold reason is a filter. */
+const CV_HOLD_REASON_FILTER_DEPTS: readonly string[] = ["planning", "purchase", "drawing", "assembly", "dispatch", "accounts", "billing"];
 import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
 
 /** Every parameter the filter owns — what "Clear all" empties. */
 const FILTER_KEYS = [
   "q",
+  "bp",
+  "wb",
   "pist",
   "acst",
   "pq",
@@ -372,6 +378,35 @@ export function OrderListFilterBar({
             selected={filter.dispatchStages}
             onChange={(next) => setParams({ dstage: next })}
           />
+        )}
+        {/* The departments that work an SO Central Visibility may hold: why it holds them. */}
+        {dept && CV_HOLD_REASON_FILTER_DEPTS.includes(dept) && (
+          <MultiSelectFilter
+            label="CV hold reason"
+            allLabel="Any reason"
+            options={HOLD_REASON_FILTER_OPTIONS}
+            selected={filter.holdReasons}
+            onChange={(next) => setParams({ hreason: next })}
+          />
+        )}
+        {/* The Orders list, Pump: base plate and wooden box, as Assembly & Packing reads them. */}
+        {ordersPage && kindToggle === "pump" && (
+          <>
+            <MultiSelectFilter
+              label="Base plate"
+              allLabel="Any base plate"
+              options={BASE_PLATE_FILTER}
+              selected={filter.basePlate ?? []}
+              onChange={(next) => setParams({ bp: next })}
+            />
+            <MultiSelectFilter
+              label="Wooden box"
+              allLabel="Any wooden box"
+              options={WOODEN_BOX_FILTER}
+              selected={filter.woodenBox ?? []}
+              onChange={(next) => setParams({ wb: next })}
+            />
+          </>
         )}
         {/* Dispatch: where Proforma Invoice and Accounts have got to on the SO. */}
         {dept === "dispatch" && (

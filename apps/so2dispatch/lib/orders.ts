@@ -61,7 +61,7 @@ import {
 import { ecDrawingDoneSql, ecDrawingSentSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, qcEcReadySql, soQcStateSql } from "@/lib/qc-filter";
-import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql } from "@/lib/assembly";
+import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, alignmentRestrict, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
 import { pickedValue, toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
@@ -3932,6 +3932,8 @@ function orderListClauses(
   // Where Dispatch has got to, as Dispatch reads it: Pending only once the SO is
   // at Dispatch (a numbered packing slip); Not at Dispatch yet before that.
   if (f.dispatchStatuses.length) clauses.push(`(${f.dispatchStatuses.map((st) => soState("dispatch", st)).join(" OR ")})`);
+  // The Orders list (Pump): the SO's base plate and wooden box stage.
+  if (f.basePlate?.length || f.woodenBox?.length) clauses.push(alignmentRestrict({ basePlate: f.basePlate ?? [], woodenBox: f.woodenBox ?? [] }));
   // Dispatch's queue: where Proforma Invoice and Accounts have got to on the SO.
   if (f.piStatuses?.length) clauses.push(`(${f.piStatuses.map((st) => soState("billing", st)).join(" OR ")})`);
   if (f.accountsStatuses?.length) clauses.push(`(${f.accountsStatuses.map((st) => soState("accounts", st)).join(" OR ")})`);

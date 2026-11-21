@@ -9,6 +9,7 @@ import { DEPT_VIEWS } from "@/lib/dept-view";
 import { pickedCard } from "@/lib/kpis";
 import { isRep } from "@/lib/roles";
 import { DISPATCH_STAGES } from "@/lib/dispatch-steps";
+import { pickAlignment } from "@/lib/assembly";
 import {
   BILL_MODE_OPTIONS,
   ONLY_BILLING,
@@ -192,6 +193,9 @@ export type OrderListFilter = {
   dispatchStatuses: string[];
   /** Dispatch's queue: the SO's stage in Invoice → Dispatch → Docket & LR. */
   dispatchStages: string[];
+  /** The Orders list (Pump): the SO's base plate and wooden box stage (URL `bp`, `wb`). */
+  basePlate?: string[];
+  woodenBox?: string[];
   /** Dispatch's queue: Proforma Invoice's status on the SO (URL `pist`). */
   piStatuses?: string[];
   /** Dispatch's queue: Accounts' status on the SO (URL `acst`, "|"-separated). */
@@ -351,6 +355,7 @@ export function parseOrderListFilter(
         ? list(get("dispst")).filter((v) => statusesFor("dispatch").includes(v))
         : [],
     dispatchStages: queue === "dispatch" ? list(get("dstage")).filter((v) => DISPATCH_STAGES.includes(v)) : [],
+    ...(!queue ? pickAlignment(get) : { basePlate: [], woodenBox: [] }),
     piStatuses: queue === "dispatch" ? list(get("pist")).filter((v) => statusesFor("billing").includes(v)) : [],
     // "|": an Accounts status can hold a comma.
     accountsStatuses:
@@ -441,6 +446,8 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.dispatchStatuses.length ||
     f.dispatchStages.length ||
     f.piStatuses?.length ||
+    f.basePlate?.length ||
+    f.woodenBox?.length ||
     f.accountsStatuses?.length ||
     Object.keys(f.deptStatusMulti).length ||
     f.packingStatuses.length ||
@@ -498,6 +505,8 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.dispatchStatuses.length) p.set("dispst", f.dispatchStatuses.join(","));
   if (f.dispatchStages.length) p.set("dstage", f.dispatchStages.join(","));
   if (f.piStatuses?.length) p.set("pist", f.piStatuses.join(","));
+  if (f.basePlate?.length) p.set("bp", f.basePlate.join(","));
+  if (f.woodenBox?.length) p.set("wb", f.woodenBox.join(","));
   if (f.accountsStatuses?.length) p.set("acst", f.accountsStatuses.join("|"));
   if (f.packingStatuses.length) p.set("pack", f.packingStatuses.join(","));
   if (f.pumpTypes.length) p.set("ptype", f.pumpTypes.join("|"));
@@ -547,6 +556,8 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.dispatchStatuses.length) parts.push(`Dispatch status: ${f.dispatchStatuses.join(", ")}`);
   if (f.dispatchStages.length) parts.push(`Stage: ${f.dispatchStages.join(", ")}`);
   if (f.piStatuses?.length) parts.push(`PI status: ${f.piStatuses.join(", ")}`);
+  if (f.basePlate?.length) parts.push(`Base plate: ${f.basePlate.join(", ")}`);
+  if (f.woodenBox?.length) parts.push(`Wooden box: ${f.woodenBox.join(", ")}`);
   if (f.accountsStatuses?.length) parts.push(`Accounts status: ${f.accountsStatuses.join(", ")}`);
   if (f.packingStatuses.length) parts.push(`Packing: ${f.packingStatuses.join(", ")}`);
   if (f.pumpTypes.length) parts.push(`Pump type: ${f.pumpTypes.join(", ")}`);
