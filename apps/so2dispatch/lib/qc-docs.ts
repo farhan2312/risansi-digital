@@ -37,17 +37,25 @@ export const given = (l: QcLink | undefined) =>
 
 export type QcTone = "done" | "part" | "pending" | "na";
 
+/** A pump EC Assembly has not assembled any of yet: not Quality's pending. */
+export const QC_NOT_ASSEMBLED = "EC not assembled";
+
 /**
  * Where an EC's documents stand. Quality sees only SOs that need it, whose
  * documents are always named (a mandatory field): Pending until one is in; Submitted once every needed one is; Partially
- * submitted between.
+ * submitted between. A pump EC none of which is assembled yet, with no document
+ * in, is EC not assembled — Quality has nothing to inspect.
  */
-export function qcDocsStatus(required: QcDocType[], links: QcLink[]): { label: string; tone: QcTone; done: number; total: number } {
+export function qcDocsStatus(
+  required: QcDocType[],
+  links: QcLink[],
+  notAssembled = false
+): { label: string; tone: QcTone; done: number; total: number } {
   const total = required.length;
   const done = required.filter((d) => given(links.find((l) => l.doc_type === d))).length;
-  if (total === 0) return { label: "Pending", tone: "pending", done, total };
-  if (done === total) return { label: "Submitted", tone: "done", done, total };
+  if (total > 0 && done === total) return { label: "Submitted", tone: "done", done, total };
   if (done > 0) return { label: "Partially submitted", tone: "part", done, total };
+  if (notAssembled) return { label: QC_NOT_ASSEMBLED, tone: "na", done, total };
   return { label: "Pending", tone: "pending", done, total };
 }
 

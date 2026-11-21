@@ -152,6 +152,13 @@ export default async function QcWorkspacePage({
   // not off each other, so they load together.
   // Each SO's Open / Closed from all its ECs — worked out before a filter
   // narrows the ECs shown; then only the ECs at the status asked.
+  // Every EC of an SO that needs Quality, assembled or not; its assembly shown beside it.
+  const assembly = await listEcAssembly(queue.rows.map((r) => String(r.id)));
+  // A pump EC none of which is assembled reads EC not assembled, not Pending.
+  for (const r of queue.rows) {
+    const a = assembly[String(r.id)];
+    Object.assign(r, { qc_not_assembled: !!a && a.assembled <= 0 });
+  }
   {
     const byOrder = new Map<string, typeof queue.rows>();
     for (const r of queue.rows) byOrder.set(String(r.order_id), [...(byOrder.get(String(r.order_id)) ?? []), r]);
@@ -160,8 +167,6 @@ export default async function QcWorkspacePage({
       for (const r of ecs) Object.assign(r, { qc_so_state: st });
     }
   }
-  // Every EC of an SO that needs Quality, assembled or not; its assembly shown beside it.
-  const assembly = await listEcAssembly(queue.rows.map((r) => String(r.id)));
   // Partially or fully assembled, as asked: only the ECs that are.
   if (qcFilter.asm.length) {
     queue.rows = queue.rows.filter((r) => {

@@ -273,7 +273,7 @@ export function QcWorkspace({
     },
   ];
   // The documents each EC needs are the SO's (every EC row carries them).
-  const docsStatus = (row: Row) => qcDocsStatus(requiredQcDocs(row), linksFromRows(row.qc_links));
+  const docsStatus = (row: Row) => qcDocsStatus(requiredQcDocs(row), linksFromRows(row.qc_links), row.qc_not_assembled === true);
   const ecCols: EcCol[] = [
     {
       key: "ec",
@@ -621,7 +621,7 @@ function QcDocsModal({ ec, canEdit, onClose }: { ec: Row; canEdit: boolean; onCl
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dirty = JSON.stringify(links) !== JSON.stringify(initial());
-  const st = qcDocsStatus(needed, links);
+  const st = qcDocsStatus(needed, links, ec.qc_not_assembled === true);
   const ro = !canEdit;
   const set = (i: number, patch: Partial<QcLink>) => setLinks((ls) => ls.map((l, k) => (k === i ? { ...l, ...patch } : l)));
 

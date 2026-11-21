@@ -110,7 +110,7 @@ const REMINDERS_SQL = `
      AND EXISTS (
        SELECT 1 FROM order_items it
         WHERE it.order_id = o.id
-          AND ${ecQcStatusSql("it", "o")} <> 'Submitted'
+          AND ${ecQcStatusSql("it", "o")} NOT IN ('Submitted', 'EC not assembled')
      )
 
   UNION ALL

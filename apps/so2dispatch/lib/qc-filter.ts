@@ -2,12 +2,12 @@
 // status — the same words in the browser (qcDocsStatus) and in SQL here, so a
 // filter matches what the table shows.
 
-import { QC_DOC_TYPES, linksFromRows, qcDocsStatus, requiredQcDocs } from "@/lib/qc-docs";
+import { QC_DOC_TYPES, QC_NOT_ASSEMBLED, linksFromRows, qcDocsStatus, requiredQcDocs } from "@/lib/qc-docs";
 import { inListNotHeld } from "@/lib/dept-status";
 
 export const QC_SO_STATES = ["Open", "Closed"];
-export const QC_EC_STATUSES = ["Pending", "Partially submitted", "Submitted"];
-/** How far Assembly has got with an EC Quality sees (it sees none still pending). */
+export const QC_EC_STATUSES = [QC_NOT_ASSEMBLED, "Pending", "Partially submitted", "Submitted"];
+/** How far Assembly has got with an EC Quality sees. */
 export const QC_ASSEMBLY_STATES = ["Partially assembled", "Assembled"];
 
 /** The URL params Quality's own filters live under. */
@@ -35,9 +35,9 @@ export function qcFilterActive(f: QcFilter): boolean {
 
 type Row = Record<string, unknown>;
 
-/** An EC's documents status (the row carries its SO's QC Documents), as the table shows it. */
+/** An EC's documents status (the row carries its SO's QC Documents, and qc_not_assembled), as the table shows it. */
 export function ecQcStatus(r: Row): string {
-  return qcDocsStatus(requiredQcDocs(r), linksFromRows(r.qc_links)).label;
+  return qcDocsStatus(requiredQcDocs(r), linksFromRows(r.qc_links), r.qc_not_assembled === true).label;
 }
 
 /** The SO is Closed once every EC on it has all its documents submitted; Open until then. */
@@ -60,10 +60,14 @@ export function ecQcStatusSql(it: string, o: string): string {
   const done = `(SELECT count(DISTINCT lower(ql.doc_type)) FROM order_qc_doc_links ql
                   WHERE ql.item_id = ${it}.id AND (btrim(ql.link) ~* '^https?://' OR ql.submitted_date IS NOT NULL)
                     AND lower(ql.doc_type) IN ${neededSql(o)})`;
+  // A pump EC with none of it assembled is not Quality's yet.
+  const notAssembled = `(${it}.item_type IN ('Pump', 'ROLB')
+                         AND NOT EXISTS (SELECT 1 FROM order_lot_assembly qa
+                                          WHERE qa.item_id = ${it}.id AND qa.assembled_date IS NOT NULL AND COALESCE(qa.qty, 0) > 0))`;
   // Documents are mandatory where Quality is required: none named reads Pending.
-  return `(CASE WHEN ${total} = 0 THEN 'Pending'
-                WHEN ${done} >= ${total} THEN 'Submitted'
+  return `(CASE WHEN ${total} > 0 AND ${done} >= ${total} THEN 'Submitted'
                 WHEN ${done} > 0 THEN 'Partially submitted'
+                WHEN ${notAssembled} THEN ${lit(QC_NOT_ASSEMBLED)}
                 ELSE 'Pending' END)`;
 }
 

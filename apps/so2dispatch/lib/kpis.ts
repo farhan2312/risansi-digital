@@ -66,6 +66,7 @@ export type KpiRequest = { restrict: string; cards: KpiCardDef[] };
 /** A tone for a status word, so the cards read at a glance. */
 export function toneFor(status: string): KpiTone {
   const s = status.toLowerCase();
+  if (/^ec not assembled$/.test(s)) return "neutral";
   if (/(fully|closed|approved|issued to planning|received|packed$|^packed|complete|dispatched|assembled$|^assembled|submitted|paid|clear)/.test(s)) return "done";
   if (/(partial|partly|in plan|sent|lot|progress|resubmit|order placed)/.test(s)) return "part";
   if (/(overdue|hold|late|short)/.test(s)) return "danger";

@@ -101,7 +101,7 @@ type Raw = {
   id: string;
   ec_nos: string[];
   boi_list: Record<string, unknown>[] | null;
-  qc_ecs: { ec: string | null; links: unknown }[] | null;
+  qc_ecs: { ec: string | null; links: unknown; not_assembled?: boolean }[] | null;
   lot_ecs: Record<string, unknown>[] | null;
   gad: string[];
   curve: string[];
@@ -160,7 +160,10 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
                FROM order_boi_items b JOIN order_items s ON s.id = b.item_id
               WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")})) AS boi_list,
             -- Quality's documents, EC by EC.
-            (SELECT jsonb_agg(jsonb_build_object('ec', s.ec_no, 'links',
+            (SELECT jsonb_agg(jsonb_build_object('ec', s.ec_no,
+                      'not_assembled', (s.item_type IN ('Pump', 'ROLB') AND NOT EXISTS (
+                         SELECT 1 FROM order_lot_assembly qa WHERE qa.item_id = s.id AND qa.assembled_date IS NOT NULL AND COALESCE(qa.qty, 0) > 0)),
+                      'links',
                       COALESCE((SELECT jsonb_agg(jsonb_build_object('doc_type', ql.doc_type, 'link', ql.link,
                                   'submitted_date', to_char(ql.submitted_date, 'YYYY-MM-DD')))
                                   FROM order_qc_doc_links ql WHERE ql.item_id = s.id), '[]'::jsonb)) ORDER BY s.seq)
@@ -276,7 +279,7 @@ export async function listPumpSummaries(orderIds: string[]): Promise<Record<stri
         total: x.qc.length,
         ecs: (x.qc_ecs ?? []).map((e) => {
           const links = linksFromRows(e.links);
-          const st = qcDocsStatus(needed, links);
+          const st = qcDocsStatus(needed, links, e.not_assembled === true);
           const days = links.map((l) => l.submitted_date).filter(Boolean).sort();
           return {
             ec: ecShort(e.ec),
