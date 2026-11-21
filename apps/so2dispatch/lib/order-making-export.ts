@@ -45,6 +45,7 @@ export const COLUMNS: { header: string; width: number; date?: boolean }[] = [
   { header: "EC Date", width: 12, date: true },
   { header: "SO Sent to Operation", width: 14, date: true },
   { header: "Assigned Person", width: 18 },
+  { header: "Assigned Date", width: 12, date: true },
   { header: "Reason for Delay", width: 34 },
   { header: "Remarks", width: 40 },
   { header: "SO Details", width: 11 },
@@ -80,6 +81,8 @@ export function orderMakingReportLines(rows: OrderMakingRow[]): { cells: Cell[];
       // hold it has not gone yet: HOLD, not a date.
       o.bill_mode === ONLY_BILLING ? "N/A" : o.om_status === "Hold" ? "HOLD" : date(o.ec_sent_operation_date),
       text(o.so_assignee_name) ?? (o.so_migrated ? "Migrated" : null),
+      // When it was assigned (blank before, and for a migrated SO).
+      o.so_assignee_id ? date(o.so_assigned_at) : null,
       // Every reason of delay and every remark the SO has had, oldest first.
       historyText(o, "reason") ?? text(o.om_hold_reason),
       historyText(o, "remarks") ?? text(o.om_hold_remarks),

@@ -288,7 +288,10 @@ function Sheet({
                   )}
                 </Td>
               )}
-              <Td>{b.assigned === "Migrated" ? <span className="text-slate-400">Migrated</span> : b.assigned}</Td>
+              <Td>
+                {b.assigned === "Migrated" ? <span className="text-slate-400">Migrated</span> : b.assigned}
+                {b.assignedOn && <div className="text-[11px] text-slate-500">{b.assignedOn}</div>}
+              </Td>
               <Td>
                 <span className="whitespace-pre-line text-amber-800">{b.reason}</span>
               </Td>

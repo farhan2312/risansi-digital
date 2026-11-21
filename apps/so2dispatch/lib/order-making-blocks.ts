@@ -14,6 +14,8 @@ export type SoBlock = {
   soDate: string;
   sentToOps: string;
   assigned: string;
+  /** When it was assigned, as the report shows dates; blank when not. */
+  assignedOn: string;
   reason: string;
   remarks: string;
   ecs: { no: string; date: string }[];
@@ -80,6 +82,7 @@ export function blocksOf(report: ReportShape): SoBlock[] {
     ecDate: at("EC Date"),
     ops: at("SO Sent to Operation"),
     who: at("Assigned Person"),
+    whoAt: at("Assigned Date"),
     reason: at("Reason for Delay"),
     remarks: at("Remarks"),
   };
@@ -107,6 +110,7 @@ export function blocksOf(report: ReportShape): SoBlock[] {
       // Blank when the report leaves the column out (an SO member's).
       sentToOps: ix.ops < 0 ? "" : ops === "HOLD" || ops === "N/A" ? ops : reportDay(ops),
       assigned: s(l, ix.who),
+      assignedOn: reportDay(raw(l, ix.whoAt)),
       reason: s(l, ix.reason),
       remarks: s(l, ix.remarks),
       ecs: ec.no ? [ec] : [],
