@@ -471,7 +471,7 @@ export function dispatchReport(rows: Row[], filterLine: string): Report {
 export type PiPendency = { reason: string; remarks: string } | undefined;
 
 const piStateColor = (s: string) =>
-  s === "Fully raised" ? C.green : s === "Partially raised" ? C.blue : s === "Pending" ? C.amber : C.muted;
+  s === "Fully raised" ? C.green : s === "Partially raised" ? C.blue : s === "Pending" || s === "Readiness date awaited" ? C.amber : C.muted;
 
 /** A payment term line as "Advance Against PI · 30% · 45 days". */
 export function piTermText(t: Row | undefined): string {
@@ -479,58 +479,84 @@ export function piTermText(t: Row | undefined): string {
   return [str(t.term), str(t.percent) ? `${money(t.percent)}%` : "", str(t.days) ? `${str(t.days)} days` : ""].filter(Boolean).join(" · ");
 }
 
-/** Proforma Invoice's queue as one PDF: each SO's PIs, the terms they answer, what is raised. */
+/** A PI as "PI 23073 · 20 Nov 26 · 24,916". */
+export function piDocText(d: Row): string {
+  return `${str(d.pi_no) ? `PI ${str(d.pi_no)}` : "PI no. pending"}${day(d.pi_date) ? ` · ${day(d.pi_date)}` : ""}${str(d.pi_value) ? ` · ${money(d.pi_value)}` : ""}`;
+}
+
+/** Planning's readiness as the table shows it: a date, or a range when the ECs differ. */
+export function piReadinessText(o: Row): string {
+  const from = str(o.readiness_from);
+  const to = str(o.readiness_to);
+  if (!from) return "";
+  return to && to !== from ? `${day(from)} – ${day(to)}` : day(from);
+}
+
+/** The table's Dispatch Status: the status once the SO is at Dispatch (a numbered packing slip), else not yet. */
+export function piDispatchText(o: Row): string {
+  const slips = (Array.isArray(o.packing_slips) ? o.packing_slips : []) as Row[];
+  return slips.some((s) => str(s.packing_slip_no)) ? str(o.dispatch_status) || "Pending" : "Not at Dispatch yet";
+}
+
+/**
+ * The table's Payment terms & PIs: each term line with its PI under it (or
+ * none raised), then any PI on no line. A Challan SO with no terms is a replacement.
+ */
+export function piTermLines(o: Row): Line[] {
+  const terms = (Array.isArray(o.term_lines) ? o.term_lines : []) as Row[];
+  const docs = (Array.isArray(o.pi_docs) ? o.pi_docs : []) as Row[];
+  if (str(o.bill_type) === "Challan" && !terms.length) return [{ text: "Replacement - no payment terms", color: C.muted }];
+  const out: Line[] = [];
+  for (const t of terms) {
+    out.push({ text: piTermText(t) || "Term" });
+    const after = str(t.term) === "After Receipt";
+    const pi = docs.find((d) => str(d.payment_term_id) === str(t.id));
+    out.push(
+      pi
+        ? { text: piDocText(pi), small: true, color: str(pi.pi_no) ? C.green : C.amber }
+        : { text: after ? "No PI (after receipt)" : "PI not raised", small: true, color: after ? C.muted : C.amber }
+    );
+  }
+  for (const d of docs.filter((x) => !terms.some((t) => str(t.id) === str(x.payment_term_id)))) {
+    out.push({ text: piDocText(d), small: true });
+  }
+  return out;
+}
+
+/** Proforma Invoice's queue as one PDF: the page's table, every SO the filter selects. */
 export async function buildPiReportPdf(rows: Row[], pendency: Record<string, PiPendency>, filterLine: string): Promise<Uint8Array> {
   return buildReport(piReport(rows, pendency, filterLine));
 }
 
-/** Proforma Invoice's report, one line per SO: the PDF's, and what the Excel's tiles read. */
+/** Proforma Invoice's report, one line per SO, as the page's table has it. */
 export function piReport(rows: Row[], pendency: Record<string, PiPendency>, filterLine: string): Report {
-  let pis = 0;
   const state = new Map<string, number>();
-  const reasons = new Map<string, number>();
-
   const lines: Cell[][] = rows.map((o) => {
-    const docs = (Array.isArray(o.pi_docs) ? o.pi_docs : []) as Row[];
-    const terms = new Map(((Array.isArray(o.term_lines) ? o.term_lines : []) as Row[]).map((t) => [str(t.id), t]));
-    pis += docs.length;
-    const st = str(o.billing_state) || "—";
+    const st = str(o.billing_state) || "Pending";
     state.set(st, (state.get(st) ?? 0) + 1);
     const p = pendency[str(o.id)];
-    if (p) reasons.set(p.reason, (reasons.get(p.reason) ?? 0) + 1);
-    const cur = isUsd(o.order_currency) ? " INR" : str(o.order_currency) ? ` ${str(o.order_currency)}` : "";
-    // "PI 23073 · 20 Nov 26 · 24,916", then its term and payment, small.
-    const piLines: Line[] = docs.flatMap((d) => {
-      const paid = str(d.pi_payment_status);
-      const main: Line = {
-        text: `${str(d.pi_no) ? `PI ${str(d.pi_no)}` : "PI no. pending"}${day(d.pi_date) ? ` · ${day(d.pi_date)}` : ""}${str(d.pi_value) ? ` · ${money(d.pi_value)}` : ""}`,
-        color: str(d.pi_no) ? undefined : C.amber,
-      };
-      const detail: Line = {
-        text: [
-          piTermText(str(d.payment_term_id) ? terms.get(str(d.payment_term_id)) : undefined),
-          paid ? `${paid}${str(d.pi_amount_received) ? ` ${money(d.pi_amount_received)}` : ""}` : "",
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        small: true,
-      };
-      return detail.text ? [main, detail] : [main];
-    });
+    const terms = piTermLines(o);
+    const details: Line[] = orderValueLines(o).map(([k, v]) => ({ text: `${k}: ${v}`, bold: k.startsWith("Gross"), small: !k.startsWith("Gross") }));
+    const ds = piDispatchText(o);
+    const ready = piReadinessText(o);
     return [
       { text: str(o.sl_no) },
       { text: str(o.so_no) || `#${str(o.sl_no)}`, bold: true },
       { text: day(o.so_date) },
+      { text: ready, lines: ready ? [{ text: ready }, ...(str(o.readiness_status) ? [{ text: str(o.readiness_status), small: true }] : [])] : [] },
+      { text: str(o.order_type) },
       { text: str(o.client_name) },
-      { text: billModeLabel(o.bill_mode as string | null, o.bill_type as string | null) || "" },
-      { text: str(o.payment_terms) },
-      { text: docs.length ? "pis" : "No PI yet", color: docs.length ? undefined : C.muted, lines: piLines },
-      { text: st, color: piStateColor(st), bold: st === "Fully raised" },
-      { text: whole(o.taxable_value) ? `${whole(o.taxable_value)}${cur}` : "" },
+      { text: billModeLabel(null, o.bill_type as string | null) || "" },
+      { text: terms.length ? "terms" : "", lines: terms },
+      { text: "details", lines: details },
       {
-        text: p ? "pendency" : "",
-        lines: p ? [{ text: p.reason, color: C.red }, ...(p.remarks ? [{ text: p.remarks, small: true }] : [])] : [],
+        text: st,
+        lines: [
+          { text: st, color: piStateColor(st), bold: st === "Fully raised" },
+          ...(p ? [{ text: p.reason, color: C.red, small: true }, ...(p.remarks ? [{ text: p.remarks, small: true }] : [])] : []),
+        ],
       },
+      { text: ds, color: ds === "Fully dispatch" ? C.green : ds.startsWith("LOT dispatch") ? C.blue : ds === "Not at Dispatch yet" ? C.muted : C.amber },
     ];
   });
 
@@ -539,29 +565,23 @@ export function piReport(rows: Row[], pendency: Record<string, PiPendency>, filt
     filterLine,
     tiles: [
       { label: "SOs", value: rows.length },
-      { label: "PIs", value: pis },
-      { label: "Fully raised", value: state.get("Fully raised") ?? 0, color: C.green },
-      { label: "Partially raised", value: state.get("Partially raised") ?? 0, color: C.blue },
-      { label: "Pending", value: state.get("Pending") ?? 0, color: C.amber },
-      { label: "Pendency", value: [...reasons.values()].reduce((a, b) => a + b, 0), color: C.red },
+      { label: "PI raised", value: state.get("Fully raised") ?? 0, color: C.green },
+      { label: "PI partial", value: state.get("Partially raised") ?? 0, color: C.blue },
+      { label: "PI pending", value: state.get("Pending") ?? 0, color: C.amber },
+      { label: "Readiness date awaited", value: state.get("Readiness date awaited") ?? 0, color: C.amber },
     ],
-    breakdown: reasons.size
-      ? {
-          label: "SOs by pendency reason",
-          line: [...reasons.entries()].sort((a, b) => b[1] - a[1]).map(([s, n]) => `${s}: ${n}`).join("   ·   "),
-        }
-      : undefined,
     columns: [
-      { label: "Sl.", width: 26 },
-      { label: "SO No.", width: 72 },
+      { label: "Sl.", width: 24 },
+      { label: "SO No.", width: 70 },
       { label: "SO date", width: 46 },
-      { label: "Client", width: 100 },
-      { label: "Bill mode", width: 52 },
-      { label: "Payment terms", width: 100 },
-      { label: "PIs", width: 170 },
-      { label: "PI status", width: 62 },
-      { label: "Gross value", width: 66 },
-      { label: "Pendency", width: 76 },
+      { label: "Readiness date", width: 62 },
+      { label: "Order type", width: 46 },
+      { label: "Client name", width: 96 },
+      { label: "Bill mode", width: 50 },
+      { label: "Payment terms & PIs", width: 170 },
+      { label: "Order value details", width: 92 },
+      { label: "PI status", width: 64 },
+      { label: "Dispatch status", width: 50 },
     ],
     rows: lines,
     empty: "No SO matches this filter.",
