@@ -153,6 +153,9 @@ export async function savePartProgressAction(
     const existing = await partRows(itemId);
     const before = partDrawingStatus(ec.part_drawing, existing);
     const oldLink = new Map(existing.map((p) => [String(p.id), String(p.doc_link ?? "").trim()]));
+    const partName = new Map(existing.map((p) => [String(p.id), String(p.part_name ?? "").trim()]));
+    // Parts whose DOCs link was changed (one there before, now another or none): Planning hears.
+    const relinked: string[] = [];
     for (const r of rows) {
       if (!UUID_RE.test(String(r.id))) continue;
       const done = r.completed === "Yes";
@@ -160,6 +163,7 @@ export async function savePartProgressAction(
       const was = oldLink.get(String(r.id)) ?? "";
       const now = String(r.doc_link ?? "").trim().slice(0, 2000);
       const replaced = was && was !== now ? JSON.stringify([{ link: was, until: new Date().toISOString(), by: user.full_name }]) : null;
+      if (replaced) relinked.push(partName.get(String(r.id)) || "a part");
       await query(
         `UPDATE order_part_drawings
             SET completed = $3, completed_date = $4::date, remarks = NULLIF($5, ''), doc_link = NULLIF($6, ''),
@@ -185,6 +189,17 @@ export async function savePartProgressAction(
       details: `Part drawings: ${after ? `${after.done}/${after.total} complete` : "updated"}`,
       subject: await subjectForItem(itemId),
     });
+    // Planning hears when a part's DOCs link is changed — only then, not on every save.
+    if (relinked.length) {
+      const so = (await getOrderLabel(ec.order_id)) ?? ec.order_id;
+      await emitNotification({
+        roles: ["planning"],
+        orderId: ec.order_id,
+        itemId,
+        type: "dept_update",
+        message: `Part drawing link changed by ${user.full_name} for ${so} · EC ${ec.ec_no ?? "—"}: ${relinked.join(", ")}`,
+      });
+    }
     // Planning hears when the EC's part drawings are all done.
     if (after?.label === "Fully complete" && before?.label !== "Fully complete") {
       const so = (await getOrderLabel(ec.order_id)) ?? ec.order_id;
