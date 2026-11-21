@@ -55,7 +55,8 @@ export default async function DashboardPage({
           title={<>Welcome, {user.full_name}</>}
           description={<>You&apos;re signed in as {roleLabel(user.role)}. Use the sidebar to open your department workspace.</>}
         />
-        <RemindersPanel reminders={reminders} />
+        {/* Assembly, Planning, Purchase and Quality see no client names. */}
+        <RemindersPanel reminders={reminders} showClient={!["assembly", "planning", "purchase", "qc"].includes(user.role)} />
       </div>
     );
   }

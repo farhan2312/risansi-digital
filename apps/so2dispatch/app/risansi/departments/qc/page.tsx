@@ -187,7 +187,7 @@ export default async function QcWorkspacePage({
         description="The QC documents each SO needs (MTC, IIR, Test Report, QAP and the rest) are set on the order. Give each one per EC as a SharePoint link; the EC is submitted once all are in."
       />
 
-      <RemindersPanel reminders={reminders} focusInQueue />
+      <RemindersPanel reminders={reminders} showClient={false} focusInQueue />
 
       <QcWorkspace
         queue={queue}

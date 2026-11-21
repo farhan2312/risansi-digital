@@ -189,7 +189,7 @@ export default async function PurchaseWorkspacePage({
         description="Add bought-out (BOI) items per EC. Orders with BOI = No are excluded — Purchase has nothing to do for those. BOI and the purchase target date are set by Central Visibility."
       />
 
-      <RemindersPanel reminders={reminders} focusInQueue />
+      <RemindersPanel reminders={reminders} showClient={false} focusInQueue />
 
       <PurchaseWorkspace
         split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}

@@ -43,7 +43,9 @@ import { DISPATCH_HOLD_REASONS } from "@/lib/order-schema";
 import { BASE_PLATE_FILTER, WOODEN_BOX_FILTER } from "@/lib/assembly";
 
 /** Where Central Visibility's hold reason is a filter. */
-const CV_HOLD_REASON_FILTER_DEPTS: readonly string[] = ["planning", "purchase", "drawing", "assembly", "dispatch", "accounts", "billing"];
+const CV_HOLD_REASON_FILTER_DEPTS: readonly string[] = ["planning", "purchase", "drawing", "assembly", "dispatch", "accounts", "billing", "quality"];
+/** Where the cards already pick out the overdue and held SOs: no Overdue only / On hold buttons, nor Accounts hold. */
+const CARD_FILTERED_DEPTS: readonly string[] = ["quality"];
 import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
 
 /** Every parameter the filter owns — what "Clear all" empties. */
@@ -508,14 +510,16 @@ export function OrderListFilterBar({
             onChange={(next) => setParams({ dsm: serializeDeptStatusMulti(next) })}
           />
         )}
-        {/* Accounts' Hold / Clear on the SO: every department and the Orders list. */}
-        <MultiSelectFilter
-          label="Accounts hold"
-          allLabel="Hold or clear"
-          options={["Hold", "Clear", NOT_SET]}
-          selected={filter.accountsHold}
-          onChange={(next) => setParams({ ahold: next })}
-        />
+        {/* Accounts' Hold / Clear on the SO: every department (but Quality) and the Orders list. */}
+        {!(dept && CARD_FILTERED_DEPTS.includes(dept)) && (
+          <MultiSelectFilter
+            label="Accounts hold"
+            allLabel="Hold or clear"
+            options={["Hold", "Clear", NOT_SET]}
+            selected={filter.accountsHold}
+            onChange={(next) => setParams({ ahold: next })}
+          />
+        )}
         {/* …and in Accounts, why it holds them. */}
         {dept === "accounts" && (
           <>
@@ -594,7 +598,7 @@ export function OrderListFilterBar({
         )}
         {/* Past its own target with work outstanding — only meaningful for a
             department that works to a date. */}
-        {activeDept && hasTarget && activeDept !== "dispatch" && (
+        {activeDept && hasTarget && activeDept !== "dispatch" && !(dept && CARD_FILTERED_DEPTS.includes(dept)) && (
           <button
             type="button"
             onClick={() => setParams({ overdue: filter.overdue ? null : "1" })}
@@ -610,6 +614,7 @@ export function OrderListFilterBar({
           </button>
         )}
         {/* Every department and the Orders list: only the SOs on hold (Central, Accounts or Dispatch). */}
+        {!(dept && CARD_FILTERED_DEPTS.includes(dept)) && (
         <button
           type="button"
           onClick={() => setParams({ hold: filter.onHold ? null : "1" })}
@@ -623,6 +628,7 @@ export function OrderListFilterBar({
           <PauseCircle className="h-3.5 w-3.5" />
           On hold
         </button>
+        )}
         {/* The Dashboard: only the SOs sent to Billing alone. */}
         {!dept && !ordersPage && (
           <button
