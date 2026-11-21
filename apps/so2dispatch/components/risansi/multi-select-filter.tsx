@@ -22,7 +22,7 @@ export function useShownValue<T>(value: T, key: string): [T, (next: T) => void] 
 export const filterChip = (active: boolean) =>
   `inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 text-[13px] transition-colors ${
     active
-      ? "border-primary/40 bg-primary/[0.06] text-foreground"
+      ? "border-primary/60 bg-primary/10 font-medium text-foreground ring-1 ring-inset ring-primary/20 dark:border-primary dark:bg-primary/25 dark:ring-primary/40"
       : "border-input-border bg-surface text-foreground hover:bg-background"
   }`;
 
