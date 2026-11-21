@@ -234,18 +234,27 @@ export function QcWorkspace({
         (str(g.head.qc_so_state) || soQcState(g.ecs)) === "Closed" ? (
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Closed</span>
         ) : (
-          // Open: why, in Quality's remarks.
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
+        ),
+      list: true,
+    },
+    {
+      key: "pendency",
+      label: "Pendency Remarks",
+      thClass: "whitespace-nowrap",
+      // Why an open SO is still pending, in Quality's remarks; a closed one has none.
+      cell: (g) =>
+        (str(g.head.qc_so_state) || soQcState(g.ecs)) === "Closed" ? (
+          <span className="text-muted">—</span>
+        ) : (
           <PendencyCell
             orderId={g.key}
             soLabel={str(g.head.so_no) || `#${str(g.head.sl_no)}`}
             dept="qc"
             pendency={pendency[g.key]}
             canEdit={canEdit}
-          >
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Open</span>
-          </PendencyCell>
+          />
         ),
-      list: true,
     },
     {
       // Where Dispatch has got to on the SO; a Hold / Final lot pending with why.

@@ -235,23 +235,27 @@ export function PurchaseWorkspace({
       cell: (g) => {
         // Closed once every EC with bought-out items has them all in hand.
         // Worked out on the server from all the SO's ECs, before a filter narrows them.
-        const soState = stateOf(g.head.pur_so_state) ?? soStateOf(g.ecs);
-        return soState === "open" ? (
-          // Open: why, with remarks.
+        return <StateChip state={stateOf(g.head.pur_so_state) ?? soStateOf(g.ecs)} />;
+      },
+      list: true,
+    },
+    {
+      key: "pendency",
+      label: "Pendency Reason",
+      thClass: "whitespace-nowrap",
+      // Why an open SO is still pending, with remarks; a closed one has none.
+      cell: (g) =>
+        (stateOf(g.head.pur_so_state) ?? soStateOf(g.ecs)) === "open" ? (
           <PendencyCell
             orderId={String(g.head.order_id)}
             soLabel={g.head.so_no ?? `#${g.head.sl_no}`}
             dept="purchase"
             pendency={pendency[String(g.head.order_id)]}
             canEdit={canEdit}
-          >
-            <StateChip state={soState} />
-          </PendencyCell>
+          />
         ) : (
-          <StateChip state={soState} />
-        );
-      },
-      list: true,
+          <span className="text-muted">—</span>
+        ),
     },
     {
       // Where Dispatch has got to on the SO; a Hold / Final lot pending with why.
