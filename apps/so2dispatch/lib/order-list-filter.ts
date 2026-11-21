@@ -99,7 +99,7 @@ export const CLEARANCE_FILTER_OPTIONS = CLEARANCE_OPTIONS.map((o) => o.value);
 export const HOLD_REASON_FILTER_OPTIONS = CLEARANCE_HOLD_REASONS.map((o) => o.value);
 
 /** The departments that see those two filters. */
-export const PAYMENT_FILTER_DEPTS: readonly string[] = ["billing", "accounts"];
+export const PAYMENT_FILTER_DEPTS: readonly string[] = ["billing", "accounts", "dispatch"];
 /** The departments that filter by Bill Mode: those two, Planning, Assembly & Packing and Dispatch. */
 export const BILL_MODE_FILTER_DEPTS: readonly string[] = ["billing", "accounts", "planning", "assembly", "dispatch"];
 /** The queues that filter by the SO's dispatch status beside their own status. */
@@ -192,6 +192,10 @@ export type OrderListFilter = {
   dispatchStatuses: string[];
   /** Dispatch's queue: the SO's stage in Invoice → Dispatch → Docket & LR. */
   dispatchStages: string[];
+  /** Dispatch's queue: Proforma Invoice's status on the SO (URL `pist`). */
+  piStatuses?: string[];
+  /** Dispatch's queue: Accounts' status on the SO (URL `acst`, "|"-separated). */
+  accountsStatuses?: string[];
   /** Planning: Assembly & Packing's status on the same EC. */
   packingStatuses: string[];
   /** Planning's Pump view: a pump EC's Pump Type, Model No. and Internal Model (URL ptype, model, imodel; "|"-separated). */
@@ -347,6 +351,12 @@ export function parseOrderListFilter(
         ? list(get("dispst")).filter((v) => statusesFor("dispatch").includes(v))
         : [],
     dispatchStages: queue === "dispatch" ? list(get("dstage")).filter((v) => DISPATCH_STAGES.includes(v)) : [],
+    piStatuses: queue === "dispatch" ? list(get("pist")).filter((v) => statusesFor("billing").includes(v)) : [],
+    // "|": an Accounts status can hold a comma.
+    accountsStatuses:
+      queue === "dispatch"
+        ? (get("acst") ?? "").split("|").map((v) => v.trim()).filter((v) => statusesFor("accounts").includes(v))
+        : [],
     packingStatuses:
       dept === "planning"
         ? list(get("pack")).filter((v) => PLANNING_PACKING_OPTIONS.includes(v) || PLANNING_PUMP_ASSEMBLY_OPTIONS.includes(v) || PLANNING_PUMP_PACKING_OPTIONS.includes(v))
@@ -430,6 +440,8 @@ export function isOrderListFiltered(f: OrderListFilter): boolean {
     f.categories.length ||
     f.dispatchStatuses.length ||
     f.dispatchStages.length ||
+    f.piStatuses?.length ||
+    f.accountsStatuses?.length ||
     Object.keys(f.deptStatusMulti).length ||
     f.packingStatuses.length ||
     f.pumpTypes.length ||
@@ -485,6 +497,8 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.categories.length) p.set("socat", f.categories.join(","));
   if (f.dispatchStatuses.length) p.set("dispst", f.dispatchStatuses.join(","));
   if (f.dispatchStages.length) p.set("dstage", f.dispatchStages.join(","));
+  if (f.piStatuses?.length) p.set("pist", f.piStatuses.join(","));
+  if (f.accountsStatuses?.length) p.set("acst", f.accountsStatuses.join("|"));
   if (f.packingStatuses.length) p.set("pack", f.packingStatuses.join(","));
   if (f.pumpTypes.length) p.set("ptype", f.pumpTypes.join("|"));
   if (f.models.length) p.set("model", f.models.join("|"));
@@ -532,6 +546,8 @@ export function describeOrderListFilter(f: OrderListFilter): string {
   if (f.categories.length) parts.push(`SO category: ${f.categories.join(", ")}`);
   if (f.dispatchStatuses.length) parts.push(`Dispatch status: ${f.dispatchStatuses.join(", ")}`);
   if (f.dispatchStages.length) parts.push(`Stage: ${f.dispatchStages.join(", ")}`);
+  if (f.piStatuses?.length) parts.push(`PI status: ${f.piStatuses.join(", ")}`);
+  if (f.accountsStatuses?.length) parts.push(`Accounts status: ${f.accountsStatuses.join(", ")}`);
   if (f.packingStatuses.length) parts.push(`Packing: ${f.packingStatuses.join(", ")}`);
   if (f.pumpTypes.length) parts.push(`Pump type: ${f.pumpTypes.join(", ")}`);
   if (f.models.length) parts.push(`Model: ${f.models.join(", ")}`);

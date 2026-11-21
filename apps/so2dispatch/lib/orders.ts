@@ -3932,6 +3932,9 @@ function orderListClauses(
   // Where Dispatch has got to, as Dispatch reads it: Pending only once the SO is
   // at Dispatch (a numbered packing slip); Not at Dispatch yet before that.
   if (f.dispatchStatuses.length) clauses.push(`(${f.dispatchStatuses.map((st) => soState("dispatch", st)).join(" OR ")})`);
+  // Dispatch's queue: where Proforma Invoice and Accounts have got to on the SO.
+  if (f.piStatuses?.length) clauses.push(`(${f.piStatuses.map((st) => soState("billing", st)).join(" OR ")})`);
+  if (f.accountsStatuses?.length) clauses.push(`(${f.accountsStatuses.map((st) => soState("accounts", st)).join(" OR ")})`);
   // Dispatch: the SO's stage in Invoice → Dispatch → Docket & LR.
   if (f.dispatchStages.length) clauses.push(`${dispatchStageSql("o")} = ANY(${p(f.dispatchStages)}::text[])`);
   // The Orders list: the SO's own Order Status, as its column reads it.

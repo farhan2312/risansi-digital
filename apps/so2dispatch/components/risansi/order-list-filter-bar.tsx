@@ -45,6 +45,8 @@ import { listAccountsHoldReasonsAction } from "@/app/risansi/orders/actions";
 /** Every parameter the filter owns — what "Clear all" empties. */
 const FILTER_KEYS = [
   "q",
+  "pist",
+  "acst",
   "pq",
   "zone",
   "rep",
@@ -370,6 +372,26 @@ export function OrderListFilterBar({
             selected={filter.dispatchStages}
             onChange={(next) => setParams({ dstage: next })}
           />
+        )}
+        {/* Dispatch: where Proforma Invoice and Accounts have got to on the SO. */}
+        {dept === "dispatch" && (
+          <>
+            <MultiSelectFilter
+              label="PI status"
+              allLabel="Any PI status"
+              options={statusesFor("billing")}
+              selected={filter.piStatuses ?? []}
+              onChange={(next) => setParams({ pist: next })}
+            />
+            <MultiSelectFilter
+              label="Accounts status"
+              allLabel="Any Accounts status"
+              options={statusesFor("accounts")}
+              selected={filter.accountsStatuses ?? []}
+              // Kept apart by "|": a status can hold a comma.
+              onChange={(next) => setParams({ acst: next.length ? next.join("|") : null })}
+            />
+          </>
         )}
         {/* Dispatch, and the queues with a Dispatch Status column: why Dispatch holds an SO (its status Hold). */}
         {dept && DISPATCH_HOLD_REASON_FILTER_DEPTS.includes(dept) && (
