@@ -160,10 +160,8 @@ export default async function QcWorkspacePage({
       for (const r of ecs) Object.assign(r, { qc_so_state: st });
     }
   }
-  // An EC reaches Quality once Assembly has assembled some of it (the SO's
-  // Open / Closed above still counts every EC).
+  // Every EC of an SO that needs Quality, assembled or not; its assembly shown beside it.
   const assembly = await listEcAssembly(queue.rows.map((r) => String(r.id)));
-  queue.rows = queue.rows.filter((r) => (assembly[String(r.id)]?.assembled ?? 0) > 0);
   // Partially or fully assembled, as asked: only the ECs that are.
   if (qcFilter.asm.length) {
     queue.rows = queue.rows.filter((r) => {

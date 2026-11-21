@@ -60,7 +60,7 @@ import {
 } from "@/lib/pagination";
 import { ecDrawingDoneSql, ecDrawingSentSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
-import { ecQcStatusSql, qcEcReadySql, soQcStateSql } from "@/lib/qc-filter";
+import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
 import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, alignmentRestrict, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
@@ -5530,13 +5530,11 @@ export async function listItemsForSectionPage(
   // the SO says QC is not needed). One rule, in lib/dept-view.
   const dept = deptForTable(table);
   const restrict = `${dept ? deptQueueSql(dept) : "TRUE"} AND (${opts.extraRestrict ?? "TRUE"})`;
-  // Assembly: a Spare once ready; Quality: an EC once some of it is assembled.
+  // Assembly: a Spare once ready. Quality: every SO that needs it (Quality Required), assembled or not.
   const items =
     dept === "assembly"
       ? `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("s")})`
-      : dept === "quality"
-        ? `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND ${qcEcReadySql("s")})`
-        : `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`;
+      : `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`;
 
   const { ids, total, page, kpis } = await pageOfOrderIds({
     kpis: opts.kpis
