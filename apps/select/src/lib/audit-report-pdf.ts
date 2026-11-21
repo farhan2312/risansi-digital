@@ -63,6 +63,7 @@ const MASTER_ACTIONS: Record<string, string> = {
   "quotation.send": "Quotation version saved",
   "enquiry.reviewed": "Enquiry reviewed",
   "enquiry.sent_to_operation": "Enquiry sent to operation",
+  "enquiry.review_reopened": "Enquiry review reopened",
   "enquiry.mailed": "Enquiry mailed to client",
   "master.create": "Master added",
   "master.update": "Master edited",

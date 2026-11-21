@@ -8,7 +8,8 @@ import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion, techDocVersion } from "@/lib/db/schema";
 import { viewDenied, workDenied } from "@/lib/enquiry-access";
-import { SAVED_DOC_KINDS, operationDocKinds, type SavedDocKind } from "@/lib/saved-docs";
+import { REVIEW_CLEARED } from "@/lib/enquiry-filters-server";
+import { SAVED_DOC_KINDS, operationDocKinds, unsavedDocsProblem, type SavedDocKind, type UnsavedSteps } from "@/lib/saved-docs";
 import { docLinksOrNull, missingDocLinks, ungeneratedDocsProblem, type DocLinkKind } from "@/lib/doc-links";
 import { loadSavedDocs } from "@/lib/saved-docs-server";
 import { techDocGroups, techDocSheet } from "@/lib/tech-doc";
@@ -40,31 +41,31 @@ async function generatedKinds(projectId: string, orderType: string): Promise<Doc
   return [...(sheet ? (["technical"] as const) : []), ...(quoted ? (["commercial"] as const) : []), ...(sheet && quoted ? (["techno"] as const) : [])];
 }
 
-/** What still needs Save Version before this enquiry version can be reviewed, or null.
- *  A step completed by hand is skipped. */
-async function notSaved(projectId: string, orderType: string, hand: HandDone): Promise<string | null> {
+/** Which steps still need Save Version (lib/saved-docs UnsavedSteps). Only the documents
+ *  ticked to send need theirs (unsavedDocsProblem, user 2026-11-21). */
+async function unsavedSteps(projectId: string, orderType: string): Promise<UnsavedSteps> {
   const saved = await db
     .selectDistinct({ group: quotation.driveGroup })
     .from(quotation)
     .innerJoin(quotationVersion, eq(quotationVersion.quotationId, quotation.id))
     .where(and(eq(quotation.projectId, projectId), eq(quotationVersion.track, "client")));
   const quoted = (g: string) => saved.some((s) => s.group === g);
-  if (orderType === "spare") return hand.commercial || quoted(SPARE_GROUP) ? null : "Save Version on the quotation first.";
+  if (orderType === "spare") return { technical: false, commercial: !quoted(SPARE_GROUP) };
 
   // Every sheet that has confirmed tags. A pump other than PCP may have none to save.
-  const data = hand.technical ? null : await loadTechDocData(projectId);
+  let technical = false;
+  const data = await loadTechDocData(projectId);
   if (data) {
     const sheets = await db.selectDistinct({ group: techDocVersion.driveGroup }).from(techDocVersion).where(eq(techDocVersion.projectId, projectId));
     const needed = techDocGroups(data).filter((g) => techDocSheet(data, g).tags.length > 0);
-    if (!needed.every((g) => sheets.some((s) => s.group === g))) return "Save Version on the Technical Data Sheet first.";
+    technical = !needed.every((g) => sheets.some((s) => s.group === g));
   }
-  if (hand.commercial) return null;
   const groups = await projectDriveGroups(projectId);
-  return groups.length > 0 && groups.every(quoted) ? null : "Save Version on Commercial first.";
+  return { technical, commercial: !(groups.length > 0 && groups.every(quoted)) };
 }
 
-// GET /api/projects/[id]/review — the saved documents, and what still needs saving
-// before it can be reviewed.
+// GET /api/projects/[id]/review — the saved documents, which steps still need Save
+// Version and which were completed by hand (Review works out what stops the ticked ones).
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) return error("Invalid project id", 400);
@@ -76,18 +77,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     .where(eq(projects.id, id))
     .limit(1);
   if (!p) return error("Project not found", 404);
-  const [missing, docs] = await Promise.all([notSaved(id, p.orderType, handDoneOf(p)), loadSavedDocs(id)]);
-  return json({ missing, docs });
+  const [unsaved, docs] = await Promise.all([unsavedSteps(id, p.orderType), loadSavedDocs(id)]);
+  return json({ unsaved, hand: handDoneOf(p), docs });
 }
 
-// POST /api/projects/[id]/review {action: "reviewed" | "send", docs?} — marks the saved
+// POST /api/projects/[id]/review {action: "reviewed" | "send" | "reopen", docs?} — marks the saved
 // versions as reviewed, then records them as sent to operation. Only who can work on
 // the enquiry (the assigned person, the managers). Sending puts them on Operation's Pump
 // Docs / Spare Docs (/api/operation-docs); nothing is e-mailed. A Save Version clears both
 // (REVIEW_CLEARED), so what was reviewed is what they see. Audited.
 // docs (a pump's): which of technical / commercial / techno go to operation (user,
 // 2026-11-17), picked on Review and kept on projects.operation_docs; left out = as
-// picked before (else all). A spare has only its quotation.
+// picked before (else all). A spare has only its quotation. Only the ticked documents
+// need their Save Version (user, 2026-11-21). reopen: a version sent to operation is
+// taken back (REVIEW_CLEARED: reviewed, sent and mailed cleared) to be reviewed and sent
+// again - with other documents ticked, say. The latest version only.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   let claims;
   try {
@@ -108,7 +112,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return error("Request body must be JSON", 400);
   }
   const action = body.action;
-  if (action !== "reviewed" && action !== "send") return error("'action' must be reviewed or send", 400);
+  if (action !== "reviewed" && action !== "send" && action !== "reopen") return error("'action' must be reviewed, send or reopen", 400);
   let docs: SavedDocKind[] | undefined;
   if (body.docs !== undefined) {
     if (!Array.isArray(body.docs) || body.docs.some((d) => !SAVED_DOC_KINDS.includes(d as SavedDocKind))) {
@@ -128,11 +132,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       links: projects.docLinks,
       technicalOverride: projects.technicalStatusOverride,
       commercialOverride: projects.commercialStatusOverride,
+      isLatest: projects.isLatest,
     })
     .from(projects)
     .where(eq(projects.id, id))
     .limit(1);
   if (!p) return error("Project not found", 404);
+
+  if (action === "reopen") {
+    if (!p.releasedAt) return error("This version isn't sent to operation.", 409);
+    if (!p.isLatest) return error("Only the latest version can be reopened.", 409);
+    await db.update(projects).set(REVIEW_CLEARED).where(eq(projects.id, id));
+    await logAudit(req, { action: "enquiry.review_reopened", entity: "projects", entityId: id, detail: `${p.code}: review reopened, taken back from operation to be sent again` });
+    return json({ reviewed_at: null, released_to_operation_at: null, operation_docs: p.orderType === "spare" ? null : operationDocKinds(p.operationDocs) });
+  }
 
   const who = UUID.test(claims.sub) ? claims.sub : null;
   const now = new Date();
@@ -150,10 +163,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const none = ungeneratedDocsProblem(p.orderType, toSend, await generatedKinds(id, p.orderType), links);
     if (none) return error(none, 409);
   }
+  // Only the documents to send need their Save Version.
+  const missing = unsavedDocsProblem(p.orderType, toSend, await unsavedSteps(id, p.orderType), handDoneOf(p));
+  if (missing) return error(missing, 409);
   if (action === "reviewed") {
     if (p.reviewedAt) return error("This version is already reviewed.", 409);
-    const missing = await notSaved(id, p.orderType, handDoneOf(p));
-    if (missing) return error(missing, 409);
     await db.update(projects).set({ reviewedAt: now, reviewedBy: who, ...pickedSet }).where(eq(projects.id, id));
   } else {
     if (!p.reviewedAt) return error("Review this version before sending it to operation.", 409);

@@ -7,7 +7,7 @@
 import { downloadXlsx, type XlsxCell } from "./xlsx";
 import { BAND, ROW_LABEL, sheetHeaderRows } from "./tech-doc-excel";
 import { dotDate, esc, sheetFileStem, sheetHtml, type TechDocHeader } from "./tech-doc";
-import { SPARE_ADDED_KEY, spareDocLineKey, type SpareDocEdits, type SpareQuote } from "./spare-quote";
+import { SPARE_ADDED_KEY, isNaPrice, spareDocLineKey, type SpareDocEdits, type SpareQuote } from "./spare-quote";
 import type { QuoteFx } from "./commercial";
 import { SPARE_TERMS, SPARE_WARRANTY, SPARE_WARRANTY_HEADING, WARRANTY_TERM, type SpareTerm } from "./spare-terms";
 
@@ -60,8 +60,9 @@ export const spareDiscountAuto = (q: SpareQuote) => (q.discountPct === null ? ""
 export const sparePoAuto = (l: { poNo: string; poDate: string }) => [l.poNo, l.poDate ? `Date ${dotDate(l.poDate)}` : ""].filter(Boolean).join(", ");
 
 /** poSame: the part shares the PO of the part above it (SpareLine.poSame). added: a row
- *  added on the document (SpareDocEdits.added), not a part of the quote. */
-export type SpareDocLine = { key: string; partNo: string; name: string; po: string; poSame: boolean; qty: string; unit: string; amount: number | null; removed: boolean; added?: boolean };
+ *  added on the document (SpareDocEdits.added), not a part of the quote. na: the unit
+ *  cost is NA - Unit Cost and Amount print NA, and it stays out of the totals. */
+export type SpareDocLine = { key: string; partNo: string; name: string; po: string; poSame: boolean; qty: string; unit: string; amount: number | null; removed: boolean; added?: boolean; na?: boolean };
 export type SpareDocModel = { id: string; auto: string; model: string; lines: SpareDocLine[] };
 
 /** The document's rows with the edits applied; removed lines are kept, flagged. */
@@ -71,20 +72,22 @@ export function spareDocModels(quote: SpareQuote, edits: SpareDocEdits): SpareDo
     id: m.id,
     auto: m.productCode,
     model: edits.models?.[m.id] ?? m.productCode,
-    lines: m.lines.map((l) => {
+    lines: m.lines.map((l): SpareDocLine => {
       const key = spareDocLineKey(m.id, l);
       const e = edits.lines?.[key] ?? {};
       const qty = e.qty ?? (l.qty === null ? "" : String(l.qty));
-      const unit = e.unit ?? (l.unitPrice === null ? "" : String(l.unitPrice));
+      const unit = e.unit ?? (l.priceNa ? "NA" : l.unitPrice === null ? "" : String(l.unitPrice));
       const q = toNumber(qty);
       const u = toNumber(unit);
-      return { key, partNo: e.partNo ?? l.partNo, name: e.name ?? l.partName, po: e.po ?? sparePoAuto(l), poSame: quote.hasPo && l.poSame, qty, unit, amount: q === null || u === null ? null : q * u, removed: removed.has(key) };
+      const na = isNaPrice(unit);
+      return { key, partNo: e.partNo ?? l.partNo, name: e.name ?? l.partName, po: e.po ?? sparePoAuto(l), poSame: quote.hasPo && l.poSame, qty, unit, amount: na || q === null || u === null ? null : q * u, removed: removed.has(key), ...(na ? { na } : {}) };
     }).concat(
       // Rows added on the document, after the model's parts.
       (edits.added?.[m.id] ?? []).map((r): SpareDocLine => {
         const q = toNumber(r.qty);
         const u = toNumber(r.unit);
-        return { key: `${SPARE_ADDED_KEY}${r.id}`, partNo: r.partNo, name: r.name, po: r.po, poSame: false, qty: r.qty, unit: r.unit, amount: q === null || u === null ? null : q * u, removed: false, added: true };
+        const na = isNaPrice(r.unit);
+        return { key: `${SPARE_ADDED_KEY}${r.id}`, partNo: r.partNo, name: r.name, po: r.po, poSame: false, qty: r.qty, unit: r.unit, amount: na || q === null || u === null ? null : q * u, removed: false, added: true, ...(na ? { na } : {}) };
       }),
     ),
   }));
@@ -199,7 +202,7 @@ export function buildSpareQuoteHtml(sheet: SpareQuoteSheet, logoUrl = "/logo.png
       const span = d.poSpan[sl - 1];
       return `<tr><td>${sl}</td><td class="l">${esc(l.name)}</td>${i === 0 ? `<td rowspan="${m.lines.length}" class="m">${esc(m.model)}</td>` : ""}${
         d.showPo && span > 0 ? `<td${span > 1 ? ` rowspan="${span}"` : ""}>${esc(l.po || "-")}</td>` : ""
-      }${d.showPartNo ? `<td>${esc(l.partNo)}</td>` : ""}<td>${esc(l.qty || "-")}</td><td class="r">${d.fmt(l.unitNum)}</td><td class="r">${d.fmt(l.amount)}</td></tr>`;
+      }${d.showPartNo ? `<td>${esc(l.partNo)}</td>` : ""}<td>${esc(l.qty || "-")}</td><td class="r">${l.na ? "NA" : d.fmt(l.unitNum)}</td><td class="r">${l.na ? "NA" : d.fmt(l.amount)}</td></tr>`;
     }),
   );
   const termRows = (heading: string, list: string[]) =>
@@ -278,8 +281,8 @@ export function downloadSpareQuoteExcel(sheet: SpareQuoteSheet): string {
           ...(d.showPo ? [d.poSpan[sl - 1] > 1 ? { value: l.po || "-", rowSpan: d.poSpan[sl - 1], wrap: true } : { value: d.poSpan[sl - 1] === 0 ? "" : l.po || "-" }] : []),
           ...(d.showPartNo ? [{ value: l.partNo }] : []),
           { value: l.qty },
-          { value: d.fmt(l.unitNum) },
-          { value: d.fmt(l.amount) },
+          { value: l.na ? "NA" : d.fmt(l.unitNum) },
+          { value: l.na ? "NA" : d.fmt(l.amount) },
         ];
       }),
     ),
