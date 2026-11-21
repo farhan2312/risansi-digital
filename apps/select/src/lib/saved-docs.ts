@@ -21,6 +21,31 @@ export function operationDocKinds(raw: unknown): SavedDocKind[] | null {
   return kinds.length > 0 ? kinds : null;
 }
 
+/** The steps whose Save Version is missing: technical (a Technical Data Sheet with
+ *  confirmed tags not saved), commercial (a drive system not quoted; a spare's quotation). */
+export type UnsavedSteps = { technical: boolean; commercial: boolean };
+
+/** What stops these documents going to operation, or null (user, 2026-11-21): only the
+ *  documents ticked to send need their Save Version (Techno-Commercial needs both), so
+ *  Technical can go without Commercial saved, and the other way round. A step completed
+ *  by hand needs none (its documents go as SharePoint links - ungeneratedDocsProblem). */
+export function unsavedDocsProblem(
+  orderType: string,
+  kinds: SavedDocKind[],
+  unsaved: UnsavedSteps,
+  hand: { technical: boolean; commercial: boolean },
+): string | null {
+  if (orderType === "spare") return unsaved.commercial && !hand.commercial ? "Save Version on the quotation first." : null;
+  const label: Record<SavedDocKind, string> = { technical: "Technical", commercial: "Commercial", techno: "Techno-Commercial" };
+  for (const step of ["technical", "commercial"] as const) {
+    const needing = kinds.filter((k) => k === step || k === "techno");
+    if (needing.length && unsaved[step] && !hand[step]) {
+      return `Save Version on ${step === "technical" ? "the Technical Data Sheet" : "Commercial"} first, or untick ${needing.map((k) => label[k]).join(" and ")}.`;
+    }
+  }
+  return null;
+}
+
 export type SavedDocs = {
   orderType: "pump" | "spare";
   /** For the file name a document saves as (savedDocFileName). */

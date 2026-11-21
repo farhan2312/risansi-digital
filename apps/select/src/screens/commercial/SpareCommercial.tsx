@@ -14,7 +14,7 @@ import { OTHER_PART_SECTION, type SparePart, type SparePumpKind } from "../../li
 import { canEditSpareParts } from "../../lib/roles";
 import { useCurrentUser } from "../../contexts/CurrentUserContext";
 import { addSparePart, deleteSparePart, listSpareParts, updateSparePart } from "../../services/sparePartsService";
-import { SPARE_ADDED_KEY, lineAmount, quoteDiscount, quoteSubtotal, shareSamePo, spareQuoteProblem, type SpareDocEdits, type SpareLine, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
+import { SPARE_ADDED_KEY, isNaPrice, lineAmount, quoteDiscount, quoteSubtotal, shareSamePo, spareQuoteProblem, type SpareDocEdits, type SpareLine, type SpareModel, type SpareQuote } from "../../lib/spare-quote";
 import {
   buildSpareQuoteHtml,
   downloadSpareQuoteExcel,
@@ -71,7 +71,7 @@ const toDraft = (q: SpareQuote): Draft => ({
     id: m.id,
     code: m.productCode,
     pumpKind: m.pumpKind,
-    lines: m.lines.map((l) => ({ partNo: l.partNo, partName: l.partName, poNo: l.poNo, poDate: l.poDate, poSame: l.poSame, qty: numText(l.qty), unitPrice: numText(l.unitPrice) })),
+    lines: m.lines.map((l) => ({ partNo: l.partNo, partName: l.partName, poNo: l.poNo, poDate: l.poDate, poSame: l.poSame, qty: numText(l.qty), unitPrice: l.priceNa ? "NA" : numText(l.unitPrice) })),
   })),
 });
 
@@ -101,7 +101,9 @@ const toQuote = (d: Draft): SpareQuote => ({
         poDate: d.hasPo ? l.poDate : "",
         poSame: d.hasPo && l.poSame,
         qty: parseAmount(l.qty),
-        unitPrice: parseAmount(l.unitPrice),
+        // NA: no price, the amount NA and out of the totals.
+        unitPrice: isNaPrice(l.unitPrice) ? null : parseAmount(l.unitPrice),
+        ...(isNaPrice(l.unitPrice) ? { priceNa: true } : {}),
       })),
     }),
   )),
@@ -708,6 +710,7 @@ function ModelCard({
               {model.lines.map((l, i) => {
                 const qty = parseAmount(l.qty);
                 const price = parseAmount(l.unitPrice);
+                const na = isNaPrice(l.unitPrice);
                 // "Same as above": the PO of the part above, shown but not editable here.
                 const canSame = i > 0 || partAbove;
                 const same = hasPo && canSame && l.poSame;
@@ -779,20 +782,19 @@ function ModelCard({
                       />
                     </td>
                     <td className="px-2 py-1.5">
+                      {/* A price, or NA (the amount NA, out of the totals). */}
                       <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        inputMode="decimal"
+                        type="text"
                         className={`${inputCls} py-1.5 text-right font-mono tabular-nums`}
                         value={l.unitPrice}
+                        title="A price, or NA"
                         aria-label={`Unit price of ${l.partName}`}
                         onChange={(e) => onLineChange(i, { unitPrice: e.target.value })}
                       />
                     </td>
                     <td className="px-4 py-1.5 text-right font-mono text-foreground tabular-nums">
-                      {formatInr(lineAmount({ qty, unitPrice: price }))}
-                      {fx && <span className="block text-[11.5px] text-primary">{formatUsdCents(lineAmount({ qty, unitPrice: price }) / fx.rate)}</span>}
+                      {na ? "NA" : formatInr(lineAmount({ qty, unitPrice: price }))}
+                      {fx && !na && <span className="block text-[11.5px] text-primary">{formatUsdCents(lineAmount({ qty, unitPrice: price }) / fx.rate)}</span>}
                     </td>
                     <td className="pr-3 text-right">
                       <button
@@ -1371,7 +1373,7 @@ function QuotePreview({
                               )}
                               <td className="px-2 py-1"><input className={`${cell} text-right font-mono`} value={l.qty} aria-label="Quantity" onChange={(e) => setLine(l.key, { qty: e.target.value })} /></td>
                               <td className="px-2 py-1"><input className={`${cell} text-right font-mono`} value={l.unit} aria-label="Unit cost" onChange={(e) => setLine(l.key, { unit: e.target.value })} /></td>
-                              <td className="px-2 py-1 text-right font-mono tabular-nums">{formatInr(l.amount)}</td>
+                              <td className="px-2 py-1 text-right font-mono tabular-nums">{l.na ? "NA" : formatInr(l.amount)}</td>
                             </>
                           )}
                           <td className="px-2 text-right">

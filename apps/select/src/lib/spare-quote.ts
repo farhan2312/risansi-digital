@@ -20,7 +20,13 @@ export type SpareLine = {
   poSame: boolean;
   qty: number | null;
   unitPrice: number | null;
+  /** Unit price typed as NA (user, 2026-11-21): the amount is NA too and stays out of
+   *  the totals. unitPrice is then null. */
+  priceNa?: boolean;
 };
+
+/** A unit price typed as NA (NA, N/A, na...). */
+export const isNaPrice = (s: string) => /^\s*n\s*\/?\s*a\s*$/i.test(s);
 
 export type SpareModel = {
   id: string;
@@ -200,7 +206,8 @@ export function normalizeSpareQuote(raw: unknown, defaultMarket: TermsMarket = "
             poDate: !hasPo ? "" : y.poDate === undefined ? oldPoDate : ymd(y.poDate),
             poSame: hasPo && y.poSame === true,
             qty: amountOrNull(y.qty),
-            unitPrice: amountOrNull(y.unitPrice),
+            unitPrice: y.priceNa === true ? null : amountOrNull(y.unitPrice),
+            ...(y.priceNa === true ? { priceNa: true } : {}),
           };
         }),
       };
@@ -237,7 +244,7 @@ export function spareQuoteProblem(q: SpareQuote): string | null {
   if (q.hasPo && parts.some((l) => Boolean(l.poNo) !== Boolean(l.poDate))) return "Enter both the reference PO No. and date of a part, or neither.";
   if (parts.length === 0) return "Add a model and its parts first.";
   if (q.models.some((m) => m.lines.length === 0)) return "Every model needs at least one part.";
-  if (parts.some((l) => !l.qty || l.unitPrice === null)) return "Enter the quantity and unit price of every part.";
+  if (parts.some((l) => !l.qty || (l.unitPrice === null && !l.priceNa))) return "Enter the quantity and unit price (or NA) of every part.";
   return null;
 }
 

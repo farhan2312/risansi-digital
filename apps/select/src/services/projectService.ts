@@ -1,5 +1,5 @@
 import apiClient from "./apiClient";
-import type { SavedDocKind, SavedDocs } from "../lib/saved-docs";
+import type { SavedDocKind, SavedDocs, UnsavedSteps } from "../lib/saved-docs";
 import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
 import type { EnquiryCategory } from "../lib/enquiry-fields";
@@ -262,8 +262,10 @@ export const assignProject = async (
 };
 
 /** The saved documents, and what still needs Save Version before this enquiry can be reviewed (or null). */
-export const getReviewState = async (projectId: string): Promise<{ missing: string | null; docs: SavedDocs }> => {
-  const { data } = await apiClient.get<{ missing: string | null; docs: SavedDocs }>(`/projects/${projectId}/review`);
+/** The saved documents, the steps still needing Save Version, and those completed by hand. */
+export type ReviewState = { unsaved: UnsavedSteps; hand: { technical: boolean; commercial: boolean }; docs: SavedDocs };
+export const getReviewState = async (projectId: string): Promise<ReviewState> => {
+  const { data } = await apiClient.get<ReviewState>(`/projects/${projectId}/review`);
   return data;
 };
 
@@ -274,11 +276,11 @@ export const saveDocLinks = async (projectId: string, body: { clientFormat: bool
   return data;
 };
 
-/** Marks the saved versions as reviewed, then records them as sent to operation.
- *  docs: a pump's documents picked to go to operation. */
+/** Marks the saved versions as reviewed, then records them as sent to operation; reopen
+ *  takes a sent version back to be sent again. docs: a pump's documents picked to go. */
 export const reviewEnquiry = async (
   projectId: string,
-  action: "reviewed" | "send",
+  action: "reviewed" | "send" | "reopen",
   docs?: SavedDocKind[],
 ): Promise<Pick<ProjectRecord, "reviewed_at" | "released_to_operation_at"> & { operation_docs: SavedDocKind[] | null }> => {
   const { data } = await apiClient.post(`/projects/${projectId}/review`, { action, ...(docs ? { docs } : {}) });

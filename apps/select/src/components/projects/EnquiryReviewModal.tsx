@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CircleCheck, Send, X } from "lucide-react";
+import { CircleCheck, RotateCcw, Send, X } from "lucide-react";
 
 import { Button } from "@/components/shadcn/button";
 import DocLinksForm from "./DocLinksForm";
 import SavedDocsViewer from "./SavedDocsViewer";
-import { SAVED_DOC_KINDS, type SavedDocKind, type SavedDocs } from "../../lib/saved-docs";
+import { SAVED_DOC_KINDS, unsavedDocsProblem, type SavedDocKind, type SavedDocs, type UnsavedSteps } from "../../lib/saved-docs";
 import { missingDocLinks, ungeneratedDocsProblem, type DocLinkKind } from "../../lib/doc-links";
 import { TECHNO_COMMERCIAL_TITLE } from "../../lib/techno-commercial";
 import { getReviewState, reviewEnquiry, type ProjectRecord } from "../../services/projectService";
@@ -17,6 +17,9 @@ import { getReviewState, reviewEnquiry, type ProjectRecord } from "../../service
 // documents go (user, 2026-11-17); a spare's quotation always goes. Client's own format
 // (user, 2026-11-19): each document to send needs its SharePoint link (made by hand), and
 // only those links are shared with Operation - the generated documents are not.
+// Only the ticked documents need their Save Version (user, 2026-11-21): Technical can go
+// without Commercial saved and the other way round. Once sent, Reopen takes it back from
+// operation to be reviewed and sent again (with other documents ticked, say).
 //
 // Its shell is a plain overlay, not a Radix Dialog: printing goes through a hidden iframe
 // added to the page body (lib/enquiry-print), which a Radix focus trap would fight.
@@ -35,7 +38,10 @@ export default function EnquiryReviewModal({
   onClose: () => void;
 }) {
   const [docs, setDocs] = useState<SavedDocs | null>(null);
-  const [missing, setMissing] = useState<string | null>(null);
+  const [unsaved, setUnsaved] = useState<UnsavedSteps>({ technical: false, commercial: false });
+  const [hand, setHand] = useState({ technical: false, commercial: false });
+  // Reopen asks once more before it takes the version back from operation.
+  const [confirmReopen, setConfirmReopen] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -59,6 +65,8 @@ export default function EnquiryReviewModal({
       ? missingDocLinks(docs.orderType, toSend, docs.links)
       : ungeneratedDocsProblem(docs.orderType, toSend, generated, docs.links)
     : null;
+  // Only the ticked documents need their Save Version.
+  const missing = docs ? unsavedDocsProblem(docs.orderType, toSend, unsaved, hand) : null;
 
   // Bumped after the links are saved: what is missing, and the viewer, follow them.
   const [reload, setReload] = useState(0);
@@ -67,10 +75,12 @@ export default function EnquiryReviewModal({
     getReviewState(project.id)
       .then((state) => {
         if (cancelled) return;
-        setMissing(state.missing);
+        setUnsaved(state.unsaved);
+        setHand(state.hand);
         setDocs(state.docs);
-        // As picked before, else all of them.
-        setPicked(state.docs.sent ?? SAVED_DOC_KINDS);
+        // As picked before, else those that can go (their Save Version done), else all.
+        const ready = SAVED_DOC_KINDS.filter((k) => !unsavedDocsProblem(state.docs.orderType, [k], state.unsaved, state.hand));
+        setPicked(state.docs.sent ?? (ready.length ? ready : SAVED_DOC_KINDS));
       })
       .catch(() => !cancelled && setLoadError("Couldn't load the saved versions."));
     return () => {
@@ -84,9 +94,10 @@ export default function EnquiryReviewModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const act = async (action: "reviewed" | "send") => {
+  const act = async (action: "reviewed" | "send" | "reopen") => {
     setBusy(true);
     setActionError("");
+    setConfirmReopen(false);
     try {
       const r = await reviewEnquiry(project.id, action, isPump ? pickedDocs : undefined);
       onChanged({ reviewed_at: r.reviewed_at, released_to_operation_at: r.released_to_operation_at });
@@ -178,16 +189,35 @@ export default function EnquiryReviewModal({
           )}
           {actionError && <span className="mr-auto text-[12.5px] font-medium text-destructive">{actionError}</span>}
           {project.released_to_operation_at ? (
-            <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
-              <Send className="size-3.5" /> Sent to operation on {fmtDay(project.released_to_operation_at)}
-            </span>
+            <>
+              <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
+                <Send className="size-3.5" /> Sent to operation on {fmtDay(project.released_to_operation_at)}
+              </span>
+              {/* Reopen: back from operation, to be reviewed and sent again. The latest version only. */}
+              {project.is_latest !== false &&
+                (confirmReopen ? (
+                  <>
+                    <span className="text-[12.5px] font-medium text-warning">It leaves operation&apos;s list until it is reviewed and sent again.</span>
+                    <Button variant="outline" disabled={busy} onClick={() => setConfirmReopen(false)}>
+                      Cancel
+                    </Button>
+                    <Button disabled={busy} onClick={() => void act("reopen")}>
+                      <RotateCcw /> {busy ? "Reopening…" : "Yes, reopen"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="outline" disabled={busy} onClick={() => setConfirmReopen(true)} title="Take it back from operation to review and send again">
+                    <RotateCcw /> Reopen
+                  </Button>
+                ))}
+            </>
           ) : project.reviewed_at ? (
             <>
               <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
                 <CircleCheck className="size-3.5" /> Reviewed on {fmtDay(project.reviewed_at)}
               </span>
-              {noLink && <span className="text-[12.5px] font-medium text-warning">{noLink}</span>}
-              <Button disabled={busy || (isPump && pickedDocs.length === 0) || Boolean(noLink)} onClick={() => void act("send")}>
+              {(missing || noLink) && <span className="text-[12.5px] font-medium text-warning">{missing || noLink}</span>}
+              <Button disabled={busy || (isPump && pickedDocs.length === 0) || Boolean(missing) || Boolean(noLink)} onClick={() => void act("send")}>
                 <Send /> {busy ? "Sending…" : "Send to operation"}
               </Button>
             </>
