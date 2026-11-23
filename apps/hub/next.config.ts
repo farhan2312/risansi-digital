@@ -45,7 +45,14 @@ const nextConfig: NextConfig = {
   // the symlinked packages are under node_modules, so this opts them in.
   transpilePackages: ['@risansi/identity', '@risansi/notify'],
 
-
+  // How this app wants to hear about Next.js upgrades: security advisories
+  // only, not every release. Set on 23 Nov 2026 when 16.4.0 was found to be
+  // covered by a published advisory and the build stopped to say so, which is
+  // the behaviour this opts into keeping. 'latest' and 'experimental-future'
+  // widen it to ordinary and pre-release upgrades; false turns it off.
+  experimental: {
+    agentUpgrade: 'security',
+  },
 };
 
 export default nextConfig;
