@@ -280,6 +280,125 @@ const ManualDrivePanel = ({
   );
 };
 
+/** Manual motor entry (user, 2026-11-23), like the V-belt's: a motor not in the master,
+ *  or not the one it offers. The make is the Motor Make above and the kW the Motor
+ *  Rating step's; here the frame and prices. They are the same fields a card fills, so
+ *  the entry prices and prints the same; the Non-Standard / flange uplift applies to its
+ *  final price too. It is "manual" while it matches no card. Only the frame is required. */
+const MANUAL_MOTOR_FIELDS: { key: string; label: string; numeric?: boolean; max: number }[] = [
+  { key: "driveMotorFrameSize", label: "Frame Size", max: 50 },
+  { key: "driveMotorLpPrice", label: "LP Price (INR)", numeric: true, max: 30 },
+  { key: "driveMotorFinalPrice", label: "Final Price (INR)", numeric: true, max: 30 },
+];
+
+const ManualMotorPanel = ({
+  values,
+  active,
+  confirmed,
+  make,
+  kw,
+  upliftPct,
+  uplifted,
+  onEdit,
+  onConfirm,
+  onCancel,
+}: {
+  values: Record<string, string>;
+  active: boolean;
+  confirmed: boolean;
+  make: string;
+  kw: string;
+  upliftPct: number;
+  uplifted: string;
+  onEdit: (patch: Record<string, string>) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const inputCls =
+    "w-full rounded-lg border border-line bg-paper px-3 py-2 text-[13px] text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft";
+  const frame = (values.driveMotorFrameSize ?? "").trim();
+
+  if (!active && !open) {
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="rounded-lg border border-line bg-paper px-3 py-1.5 text-[12.5px] font-semibold text-accent hover:border-accent"
+        >
+          ✎ Enter motor details manually
+        </button>
+        <span className="text-[12px] text-fg-3">Use your own motor and price instead of one from the list.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-paper p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[12.5px] font-semibold text-fg">
+          Manual motor entry
+          {active && <span className="ml-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-semibold text-white">In use</span>}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (active) onCancel();
+            setOpen(false);
+          }}
+          className="text-[12px] font-semibold text-fg-3 hover:text-neg"
+        >
+          {active ? "Remove manual entry" : "Close"}
+        </button>
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {MANUAL_MOTOR_FIELDS.map((f, i) => (
+          <label key={f.key} className="flex flex-col gap-1">
+            <span className="text-[11.5px] font-semibold text-fg-3">
+              {f.label}
+              {i === 0 && <span className="text-neg"> *</span>}
+            </span>
+            <input
+              type={f.numeric ? "number" : "text"}
+              min={f.numeric ? 0 : undefined}
+              step={f.numeric ? "any" : undefined}
+              maxLength={f.numeric ? undefined : f.max}
+              className={`${inputCls} ${f.numeric ? "text-right font-mono" : ""}`}
+              value={values[f.key] ?? ""}
+              onChange={(e) => onEdit({ [f.key]: e.target.value.slice(0, f.max) })}
+            />
+          </label>
+        ))}
+      </div>
+      <p className="mt-2 text-[12px] text-fg-3">
+        <b className="text-fg-2">{make || "Motor Make (above)"}</b>, <b className="mono text-fg-2">{kw} kW</b> from the
+        Motor Rating step. Only the frame size is required.
+        {upliftPct !== 0 && (
+          <>
+            {" "}+{upliftPct}% uplift on the final price: <b className="mono text-fg-2">{money(uplifted || null)}</b>.
+          </>
+        )}
+        {!active && " Typing here replaces the selected card."}
+      </p>
+      {active &&
+        frame !== "" &&
+        (confirmed ? (
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2">
+            <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+              ✓ Confirmed
+            </span>
+            <span className="text-[13px] text-emerald-900">
+              Manual motor <b>{frame}</b> is locked in. Edit a field to change it.
+            </span>
+          </div>
+        ) : (
+          <ConfirmBar label={`manual motor ${make ? `${make} ` : ""}${frame}`} confirmed={false} onConfirm={onConfirm} />
+        ))}
+    </div>
+  );
+};
+
 /** Indian-format money for the motor cards (prices are plain rupee amounts). */
 const money = (v: string | number | null): string => {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
@@ -1142,6 +1261,26 @@ const DriveDetailsStep = ({
     });
   };
 
+  // Manual motor entry: the typed frame / prices are the selection, unconfirmed until
+  // Confirm. The uplifted price follows the typed final price.
+  const editManualMotor = (patch: Record<string, string>) => {
+    const next = { ...formData, ...patch, driveMotorConfirmed: false };
+    if ("driveMotorFinalPrice" in patch) {
+      const up = upliftedPrice(patch.driveMotorFinalPrice || null);
+      next.driveMotorPriceUplifted = up === null ? "" : String(up);
+    }
+    setFormData(next);
+  };
+  const cancelManualMotor = () =>
+    setFormData({
+      ...formData,
+      driveMotorFrameSize: "",
+      driveMotorLpPrice: "",
+      driveMotorFinalPrice: "",
+      driveMotorPriceUplifted: "",
+      driveMotorConfirmed: false,
+    });
+
   // Keep the stored uplifted price in step with the % inputs after a motor is
   // already picked, so editing a percentage doesn't leave a stale total.
   useEffect(() => {
@@ -1214,6 +1353,8 @@ const DriveDetailsStep = ({
       formData.driveMotorFrameSize === (m.frameSize ?? "") &&
       formData.driveMotorMake === (m.brand ?? ""),
   );
+  // A motor that matches no card is a manual entry (ManualMotorPanel).
+  const motorManual = Boolean(formData.driveMotorFrameSize) && motorStatus !== "loading" && !motorSelectionInList;
 
   // Identifies the persisted pick among the fetched candidates. Shared by the
   // card list and the out-of-list fallback below so both agree on what
@@ -2383,7 +2524,7 @@ const DriveDetailsStep = ({
                       {formData.driveMotorMounting
                         ? ` with ${formData.driveMotorMounting} mounting`
                         : ""}
-                      . Try a different make or mounting.
+                      . Try a different make or mounting, or enter the motor manually below.
                     </p>
                   )}
 
@@ -2479,7 +2620,26 @@ const DriveDetailsStep = ({
                     </div>
                   )}
 
-                  {formData.driveMotorFrameSize && (
+                  {motorStatus !== "loading" && (
+                    <ManualMotorPanel
+                      values={{
+                        driveMotorFrameSize: formData.driveMotorFrameSize ?? "",
+                        driveMotorLpPrice: formData.driveMotorLpPrice ?? "",
+                        driveMotorFinalPrice: formData.driveMotorFinalPrice ?? "",
+                      }}
+                      active={motorManual}
+                      confirmed={Boolean(formData.driveMotorConfirmed)}
+                      make={formData.driveMotorMake ?? ""}
+                      kw={String(formData.driveMotorKw ?? "")}
+                      upliftPct={upliftPct}
+                      uplifted={formData.driveMotorPriceUplifted ?? ""}
+                      onEdit={editManualMotor}
+                      onConfirm={() => setFormData({ ...formData, driveMotorConfirmed: true })}
+                      onCancel={cancelManualMotor}
+                    />
+                  )}
+
+                  {formData.driveMotorFrameSize && !motorManual && (
                     <ConfirmBar
                       label={`${formData.driveMotorMake ? `${formData.driveMotorMake} ` : ""}${
                         formData.driveMotorFrameSize
