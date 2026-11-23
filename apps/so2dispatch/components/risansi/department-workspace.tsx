@@ -53,6 +53,7 @@ import { OrderStatusPill } from "./order-status-pill";
 import { orderStatusOf } from "@/lib/order-row-view";
 import { AccountsClearBadge, AccountsHoldButton } from "./accounts-hold";
 import { TermPis } from "./term-pis";
+import { DispatchInline } from "./dispatch-inline";
 import { OrderValueDetails } from "./order-value-details";
 import { PackingSlipsInline } from "./packing-slips-inline";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -922,6 +923,27 @@ export function DepartmentWorkspace({
           ),
       };
     }),
+    // Accounts sees Dispatch's dispatches as Dispatch has them, read-only.
+    ...(acctPinned
+      ? [
+          {
+            key: "dispatches",
+            label: "Packing slips & dispatches",
+            thClass: "px-3 py-3 whitespace-nowrap text-muted-foreground",
+            tdClass: "px-3 py-3 align-top",
+            wide: true,
+            cell: (order: Row) => (
+              <DispatchInline
+                orderId={String(order.id)}
+                slips={(order.packing_slips ?? []) as Row[]}
+                invoices={(order.invoices ?? []) as Row[]}
+                billType={order.dispatch_bill_type}
+                canEdit={false}
+              />
+            ),
+          } as Col<Row>,
+        ]
+      : []),
     ...visibleFields.map(
       (f): Col<Row> => ({
         key: `f:${f.column}`,
