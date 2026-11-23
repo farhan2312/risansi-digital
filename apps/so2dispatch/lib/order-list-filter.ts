@@ -52,7 +52,7 @@ export const ORDER_DATE_FIELDS = [
   // Assembly & Packing's own: when it plans to assemble a pump lot, and to pack a lot.
   { value: "assembly_plan", label: "Assembly plan date" },
   { value: "packing", label: "Packing plan date" },
-  // Accounts' and Dispatch's: when a payment was confirmed (a PI, a term line or the SO).
+  // Accounts', Dispatch's and Proforma Invoice's: when a payment was confirmed (a PI, a term line or the SO).
   { value: "payment_confirmed", label: "Payment confirmed date" },
   { value: "dispatch_target", label: "Dispatch target" },
   { value: "so_date", label: "SO date" },
@@ -295,7 +295,7 @@ export function parseOrderListFilter(
           ? "so_date"
         : dateFieldRaw === "boi_expected" && dept && dept !== "purchase"
           ? "so_date"
-        : dateFieldRaw === "payment_confirmed" && dept && !["accounts", "dispatch"].includes(dept)
+        : dateFieldRaw === "payment_confirmed" && dept && !["accounts", "dispatch", "billing"].includes(dept)
           ? "so_date"
         : dateFieldRaw;
 

@@ -255,6 +255,8 @@ export function BillingWorkspace({
             terms={(row.term_lines ?? []) as Row[]}
             pis={(row.pi_docs ?? []) as Row[]}
             canEdit={canEdit}
+            // Accounts' payment on each PI and term line, read-only.
+            payments={{ canEdit: false }}
           />
         ) : (
           <>

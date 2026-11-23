@@ -744,8 +744,8 @@ export function OrderListFilterBar({
             if (f.value === "complaint_date") return ordersPage;
             // Purchase's bought-out items: when each is expected.
             if (f.value === "boi_expected") return !dept || activeDept === "purchase";
-            // When a payment was confirmed: Accounts' and Dispatch's.
-            if (f.value === "payment_confirmed") return !dept || ["accounts", "dispatch"].includes(activeDept ?? "");
+            // When a payment was confirmed: Accounts', Dispatch's and Proforma Invoice's.
+            if (f.value === "payment_confirmed") return !dept || ["accounts", "dispatch", "billing"].includes(activeDept ?? "");
             if (f.value === "dispatch_target") return !dept && !noDispatchTarget;
             // Completion dates come from sign-offs, which are switched off.
             if (f.value === "completed_on") return SIGN_OFF_ENABLED;
