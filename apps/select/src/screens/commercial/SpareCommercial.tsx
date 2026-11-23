@@ -32,6 +32,7 @@ import { setPricesReviewed } from "../../services/commercialService";
 import { createQuotation, getQuotation, listTsmOptions } from "../../services/quotationService";
 import { getSpareQuote, saveSpareDocEdits, saveSpareQuote } from "../../services/spareQuoteService";
 import QuotationPanel from "./QuotationPanel";
+import RichTextButtons from "../../components/reports/RichTextButtons";
 import ClientPriceRefModal from "./ClientPriceRefModal";
 // shadcn/ui (user, 2026-11-13: the spare quotation in the new look, branch select-shadcn).
 import { ArrowLeft, Check, Eye, FileSpreadsheet, ListChecks, Loader2, Pencil, Plus, Printer, RotateCcw, Save, Trash2, X } from "lucide-react";
@@ -1361,6 +1362,7 @@ function QuotePreview({
                 ))}
               </div>
             )}
+            {!readOnly && mode === "edit" && <RichTextButtons />}
             <span className={`text-[12px] ${saveState === "error" ? "text-destructive" : "text-muted-foreground"}`}>
               {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Couldn't save. Try again." : ""}
             </span>

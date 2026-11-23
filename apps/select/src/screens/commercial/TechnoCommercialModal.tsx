@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/shadcn/button";
 
 import PrintPageSizeSelect, { usePrintPageSize } from "../../components/reports/PrintPageSize";
 import TechDocEditor, { DocHeaderEditor, DocScopeEditor, DocTagPicker } from "../../components/reports/TechDocEditor";
+import RichTextButtons from "../../components/reports/RichTextButtons";
 import { DRIVE_GROUP_LABEL, type DriveGroup, type QuoteFx } from "../../lib/commercial";
 import {
   EMPTY_OFFER_CONFIG,
@@ -292,6 +293,7 @@ export default function TechnoCommercialModal({
                     </span>
                   )}
                 </button>
+                {mode === "edit" && <RichTextButtons />}
                 {customised && (
                   <button
                     type="button"
