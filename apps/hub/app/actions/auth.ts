@@ -36,6 +36,20 @@ import { getViewer, requireViewerUnblocked } from '@/lib/viewer';
 export interface FormState {
   error?: string;
   notice?: string;
+  /**
+   * The address that was just tried, handed back so the form can put it
+   * where the person left it.
+   *
+   * React resets an uncontrolled form once its action resolves, which wiped
+   * the email along with the password on every failed attempt. Two people lost
+   * half an hour to that on 21 Nov 2026: one of them retyped his own address
+   * eight times and misspelled it eight times (`sekharan` for `sekaran`), and
+   * every one of those attempts was logged as "no account for that address"
+   * while both of them believed they were fighting a password.
+   *
+   * Never the password. That field should come back empty.
+   */
+  email?: string;
 }
 
 /**
@@ -45,15 +59,29 @@ export interface FormState {
 const EMAIL_DOMAIN = '@risansi.com';
 
 /**
- * One message for every way a sign-in can fail.
+ * Three failures, three messages — a deliberate change of position on 23 Nov
+ * 2026, not an oversight to be tidied back up.
  *
- * Deliberately says nothing about which half was wrong, so the form cannot be
- * used to find out which addresses have accounts. `verifyPassword` runs even
- * when there is no row, against a dummy hash, so the answer does not come back
- * noticeably faster for an address that does not exist either.
+ * One message used to cover all three. That hides which address exists, which
+ * is the right call for a public product and the wrong one here: the hub is
+ * staff-only, every account is @risansi.com, and the addresses are on the
+ * company directory already. What it cost instead was real. On 21 Nov two
+ * people spent half an hour on an account that was never locked and never had
+ * a bad password: the address was misspelled (`sekharan` for `sekaran`), the
+ * screen said "email and password do not match", and the administrator read
+ * that as a password fault and reset it eight times in thirty minutes. Each
+ * reset invalidated the one before, so the password really was wrong by the
+ * time it was typed, and the loop fed itself.
+ *
+ * The password case stays vague on purpose. Naming the address is what the
+ * directory already does; confirming a password is half right is not.
  */
-const SIGN_IN_FAILED =
-  'That email and password do not match an account. Check both and try again.';
+const NO_SUCH_ACCOUNT =
+  'No Risansi account uses that email address. Check the spelling and try again.';
+const WRONG_PASSWORD =
+  'That password is not right. If it was just reset for you, use the most recent one you were sent.';
+const ACCOUNT_INACTIVE =
+  'That account has been deactivated. Ask an administrator to turn it back on.';
 
 function text(formData: FormData, field: string): string {
   const v = formData.get(field);
@@ -73,7 +101,8 @@ export async function signInAction(
   // link, and `safeReturnUrl` is the tested implementation of that check.
   const next = safeReturnUrl(text(formData, 'next'), '/');
 
-  if (!email || !password) return { error: SIGN_IN_FAILED };
+  if (!email) return { error: 'Enter your Risansi email address.', email };
+  if (!password) return { error: 'Enter your password.', email };
 
   const { rows } = await db.query<{
     id: string; email: string; name: string;
@@ -86,8 +115,13 @@ export async function signInAction(
   );
 
   const row = rows[0];
-  // No early return for "no such user": the comparison runs either way, and
-  // branching before it is what would make the two cases distinguishable.
+  // No early return for "no such user": `verifyPassword` runs against a dummy
+  // hash when there is no row, so a missing address does not answer faster
+  // than a wrong password. The messages below now name which of the two it
+  // was, so this is no longer hiding anything — it stays because an early
+  // return would also skip the hashing cost, and a sign-in that is fast for
+  // unknown addresses and slow for known ones is a list of staff addresses
+  // readable from outside the form, message or no message.
   const passwordMatches = await verifyPassword(password, row?.password_hash ?? null);
 
   if (!row || !passwordMatches || !row.is_active) {
@@ -101,7 +135,10 @@ export async function signInAction(
           ? 'wrong password'
           : 'account is inactive',
     });
-    return { error: SIGN_IN_FAILED };
+    return {
+      error: !row ? NO_SUCH_ACCOUNT : !passwordMatches ? WRONG_PASSWORD : ACCOUNT_INACTIVE,
+      email,
+    };
   }
 
   const token = await issueToken({
