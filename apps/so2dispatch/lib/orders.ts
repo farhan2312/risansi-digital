@@ -5007,6 +5007,8 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
       label,
       sql: `${acct} = ${lit(value)}`,
       params: { ...clear, ahold: value },
+      // How many of them Central Visibility holds (a badge: they count here).
+      held: CV_HOLD_SQL,
       tone,
     });
     return [
