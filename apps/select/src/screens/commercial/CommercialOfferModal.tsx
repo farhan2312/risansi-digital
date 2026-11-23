@@ -5,6 +5,7 @@ import { FileSpreadsheet, Printer, X } from "lucide-react";
 import { buttonVariants } from "@/components/shadcn/button";
 
 import TechDocEditor, { DocHeaderEditor, DocScopeEditor, DocTagPicker } from "../../components/reports/TechDocEditor";
+import RichTextButtons from "../../components/reports/RichTextButtons";
 import { visibleTags } from "../../lib/tech-doc";
 import { DRIVE_GROUP_LABEL, type DriveGroup, type QuoteFx } from "../../lib/commercial";
 import {
@@ -235,6 +236,7 @@ export default function CommercialOfferModal({
                       <span className="rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">{config.extras.length}</span>
                     )}
                   </button>
+                  {mode === "edit" && <RichTextButtons />}
                   {customised && (
                     <button
                       type="button"

@@ -25,6 +25,7 @@ import {
   type ScopeLines,
 } from "../../lib/tech-doc";
 import TechDocEditor, { DocHeaderEditor, DocScopeEditor, DocTagPicker } from "./TechDocEditor";
+import RichTextButtons from "./RichTextButtons";
 import { saveOfferScopeText } from "../../services/commercialOfferService";
 import { downloadTechDocExcel } from "../../lib/tech-doc-excel";
 import { printHtml } from "../../lib/enquiry-print";
@@ -369,6 +370,7 @@ const EnquiryDocumentModal = ({
                   <ListPlus /> {showPicker ? "Hide parameters" : "Add parameters"}
                   {config.extras.length > 0 && <span className="rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">{config.extras.length}</span>}
                 </Button>
+                {mode === "edit" && <RichTextButtons />}
                 {customised && (
                   <Button variant="ghost-destructive" onClick={resetAll} title="Undo every removal, rename, edited value and manual row">
                     <RotateCcw /> Reset edits

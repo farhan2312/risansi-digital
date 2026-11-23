@@ -19,6 +19,7 @@ import { finalPumpRpm, GEARED_DRIVE, VBELT_DRIVE } from "./recheck-calc";
 import { phDisplay, rangeText, solidSizeDisplay, temperatureDisplay } from "./fluid-inputs";
 import { ratingPlateNumber } from "./rating-plate";
 import { DRIVE_GROUP_LABEL, driveGroupOf, groupsIn, type DriveGroup } from "./commercial";
+import { HIGHLIGHT_CSS, richHtml } from "./rich-text";
 
 // --- Letterhead (from the Risansi quotation sheet) ---------------------------
 
@@ -702,7 +703,8 @@ export function sheetHtml(opts: {
   const rightSpan = cols - leftSpan;
   const L = LETTERHEAD;
   const logoUrl = opts.logoUrl ?? "/logo.png";
-  const body = opts.body;
+  // **bold** / ==highlight== marks in any text print as bold / highlighted (lib/rich-text.ts).
+  const body = richHtml(opts.body);
   const data = { projectCode: opts.projectCode, header: opts.header };
 
   const colgroup = `<colgroup><col class="lbl">${Array.from({ length: n }, () => "<col>").join("")}</colgroup>`;
@@ -727,13 +729,14 @@ export function sheetHtml(opts: {
   tr.meta td { text-align: left; font-size: 9pt; padding: 5px 6px; }
   tr.band td { background: #dcebfb; color: #0b3d7e; font-weight: bold; text-align: center; padding: 4px; }
   tr { page-break-inside: avoid; break-inside: avoid; }
+  ${HIGHLIGHT_CSS}
   ${opts.css ?? ""}
 </style></head>
 <body><div class="sheet">
   ${letterheadHtml(logoUrl)}
   <table>${colgroup}<tbody>
     <tr class="title"><td colspan="${cols}">${esc(L.company)} - ${esc(opts.title)}</td></tr>
-    ${headerRowsHtml(data.header, cols, leftSpan, rightSpan)}
+    ${richHtml(headerRowsHtml(data.header, cols, leftSpan, rightSpan))}
     ${body}
   </tbody></table>
 </div></body></html>`;
