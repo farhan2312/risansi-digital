@@ -2747,6 +2747,8 @@ export async function listOrdersForSection(
             ${SO_REACHED_DISPATCH} AS in_dispatch,
             -- With the holds above, the SO's Order Status (Accounts' column).
             o.om_status,
+            -- Accounts sees Dispatch's dispatches (read-only).
+            ${table === "order_accounts" ? `${DISPATCH_INVOICES_SQL()}, o.bill_type AS dispatch_bill_type,` : ""}
             -- The order value's currency, shown beside it (Accounts).
             o.order_currency,
             -- Accounts: the payment term lines and the PI raised against each.
@@ -3049,6 +3051,41 @@ export type BillingQueueRow = {
   packing_slips: Row[];
 };
 
+/** A pump SO's (alias o) lots as Assembly & Packing has them (pump_lots). */
+const PUMP_LOTS_SQL = () => `
+            (SELECT jsonb_agg(jsonb_build_object('n', pz.n, 'status', pz.status, 'packed_date', pz.packed_date, 'remarks', pz.remarks) ORDER BY pz.n)
+               FROM (SELECT py.n, max(py.st) AS status, to_char(max(py.packed_date), 'YYYY-MM-DD') AS packed_date, max(py.packing_remarks) AS remarks
+                       FROM (SELECT row_number() OVER (PARTITION BY pr.item_id ORDER BY pr.seq)::int AS n, pr.packed_date, pr.packing_remarks,
+                                    COALESCE(pr.pump_packing_status, CASE WHEN pr.packed_date IS NOT NULL THEN 'Packed' END) AS st
+                               FROM order_ready_lots pr JOIN order_items pit ON pit.id = pr.item_id
+                              WHERE pit.order_id = o.id AND pit.item_type IN ('Pump', 'ROLB')) py
+                      GROUP BY py.n) pz) AS pump_lots`;
+
+/** The SO's (alias o) dispatches with their slips (invoices), and its numbered packing slips (packing_slips). */
+const DISPATCH_INVOICES_SQL = () => `
+            COALESCE((SELECT jsonb_agg((to_jsonb(inv) - 'lr_file_data') || jsonb_build_object(
+                        'slips', COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                         'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
+                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos,
+                         'picture_links', ${SLIP_PICTURES_SQL("ps")})
+                         ORDER BY ps.seq)
+                       FROM order_invoice_slips l JOIN order_packing_slips ps ON ps.id = l.packing_slip_id
+                      WHERE l.invoice_id = inv.id), '[]'::jsonb)) ORDER BY inv.seq)
+                      FROM order_invoices inv WHERE inv.order_id = o.id),
+                     '[]'::jsonb) AS invoices,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                        'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
+                        'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos,
+                        'picture_links', ${SLIP_PICTURES_SQL("ps")},
+                        'invoice_id', (SELECT l.invoice_id FROM order_invoice_slips l WHERE l.packing_slip_id = ps.id))
+                        ORDER BY ps.seq)
+                      FROM order_packing_slips ps WHERE ps.order_id = o.id AND ps.kind = 'actual'
+                       -- A blank slip (no number yet) is not ready to go; one already on a
+                       -- dispatch still shows there.
+                       AND (NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL
+                            OR EXISTS (SELECT 1 FROM order_invoice_slips l WHERE l.packing_slip_id = ps.id))),
+                     '[]'::jsonb) AS packing_slips`;
+
 /**
  * Billing, Accounts and Dispatch queue: one row per SO, with the read-only
  * SO context and
@@ -3086,13 +3123,7 @@ export async function listOrdersForBilling(
             (SELECT sum(COALESCE(iv.invoice_value, iv.challan_value))::text
                FROM order_invoices iv WHERE iv.order_id = o.id) AS invoiced_value,
             (SELECT sum(iv.other_value)::text FROM order_invoices iv WHERE iv.order_id = o.id) AS other_charges_value,
-            (SELECT jsonb_agg(jsonb_build_object('n', pz.n, 'status', pz.status, 'packed_date', pz.packed_date, 'remarks', pz.remarks) ORDER BY pz.n)
-               FROM (SELECT py.n, max(py.st) AS status, to_char(max(py.packed_date), 'YYYY-MM-DD') AS packed_date, max(py.packing_remarks) AS remarks
-                       FROM (SELECT row_number() OVER (PARTITION BY pr.item_id ORDER BY pr.seq)::int AS n, pr.packed_date, pr.packing_remarks,
-                                    COALESCE(pr.pump_packing_status, CASE WHEN pr.packed_date IS NOT NULL THEN 'Packed' END) AS st
-                               FROM order_ready_lots pr JOIN order_items pit ON pit.id = pr.item_id
-                              WHERE pit.order_id = o.id AND pit.item_type IN ('Pump', 'ROLB')) py
-                      GROUP BY py.n) pz) AS pump_lots,
+            ${PUMP_LOTS_SQL()},
             b.challan_no,
             to_char(b.challan_date, 'YYYY-MM-DD') AS challan_date,
             b.challan_value::text AS challan_value,
@@ -3126,28 +3157,7 @@ export async function listOrdersForBilling(
                                      NULLIF(rp.planning_status, ''), 'Date awaited') AS st
                        FROM order_items ri LEFT JOIN order_planning rp ON rp.item_id = ri.id
                       WHERE ri.order_id = o.id) s) AS readiness_status,
-            COALESCE((SELECT jsonb_agg((to_jsonb(inv) - 'lr_file_data') || jsonb_build_object(
-                        'slips', COALESCE((SELECT jsonb_agg(jsonb_build_object(
-                         'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
-                         'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos,
-                         'picture_links', ${SLIP_PICTURES_SQL("ps")})
-                         ORDER BY ps.seq)
-                       FROM order_invoice_slips l JOIN order_packing_slips ps ON ps.id = l.packing_slip_id
-                      WHERE l.invoice_id = inv.id), '[]'::jsonb)) ORDER BY inv.seq)
-                      FROM order_invoices inv WHERE inv.order_id = o.id),
-                     '[]'::jsonb) AS invoices,
-            COALESCE((SELECT jsonb_agg(jsonb_build_object(
-                        'id', ps.id, 'packing_slip_no', ps.packing_slip_no,
-                        'packing_slip_date', ps.packing_slip_date, 'quantity', ps.quantity, 'lot_nos', ps.lot_nos,
-                        'picture_links', ${SLIP_PICTURES_SQL("ps")},
-                        'invoice_id', (SELECT l.invoice_id FROM order_invoice_slips l WHERE l.packing_slip_id = ps.id))
-                        ORDER BY ps.seq)
-                      FROM order_packing_slips ps WHERE ps.order_id = o.id AND ps.kind = 'actual'
-                       -- A blank slip (no number yet) is not ready to go; one already on a
-                       -- dispatch still shows there.
-                       AND (NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL
-                            OR EXISTS (SELECT 1 FROM order_invoice_slips l WHERE l.packing_slip_id = ps.id))),
-                     '[]'::jsonb) AS packing_slips
+            ${DISPATCH_INVOICES_SQL()}
        FROM orders o
        LEFT JOIN order_billing b ON b.order_id = o.id
       WHERE ($1::uuid[] IS NULL OR o.id = ANY($1))
