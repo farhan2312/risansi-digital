@@ -82,18 +82,9 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
 
   const hasKwOptions = (rating?.kwOptions.length ?? 0) > 0;
 
-  // Trim the raw kwOptions list so the dropdown carries at most ONE sub-
-  // recommended size (the one closest below `recommendedKw`) plus every size at
-  // or above the recommendation. Full list is preserved on `rating.kwOptions`
-  // for anything else that consumes it; only the dropdown is trimmed.
-  const kwOptionsForDisplay = (() => {
-    if (!rating) return [] as number[];
-    const rec = rating.recommendedKw;
-    if (rec == null) return rating.kwOptions;
-    const below = rating.kwOptions.filter((k) => k < rec).slice(-1);
-    const atOrAbove = rating.kwOptions.filter((k) => k >= rec);
-    return [...below, ...atOrAbove];
-  })();
+  // Every standard KW is in the dropdown (user, 2026-11-23); the recommended one is
+  // marked. Before, only the one size below the recommendation was offered.
+  const kwOptionsForDisplay = rating?.kwOptions ?? [];
 
   // The rating drives the whole drive step (motor options, v-belt and gearbox
   // screening), so it cannot be left blank. It is normally already filled from
@@ -299,7 +290,7 @@ const MotorRatingStep = ({ onNext, onPrevious, formData, setFormData, onStepClic
                 )}
                 <span className={hint}>
                   {hasKwOptions
-                    ? "Final selection is manual. Only the closest smaller size is offered below the recommended rating; every larger standard rating is above."
+                    ? "Final selection is manual. Every standard rating is listed; the recommended one is marked."
                     : "No standard KW ratings available — enter the motor KW manually."}
                 </span>
               </div>
