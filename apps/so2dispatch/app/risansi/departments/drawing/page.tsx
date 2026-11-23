@@ -122,8 +122,8 @@ export default async function DrawingWorkspacePage({
       },
       ...GAD_STATUSES.map((st) => ({
         key: `gad:${st}`,
-        label: `GAD ${st}`,
-        group: "GAD",
+        label: `GAD & Base Plate ${st}`,
+        group: "GAD & Base Plate",
         sql: drawingFilterSql({ ...none, gad: [st] }),
         params: { ...clear, drg_gad: st },
         // Beside the SOs: how many of their ECs stand there.
@@ -222,7 +222,7 @@ export default async function DrawingWorkspacePage({
       <PageHeading
         icon={<PenTool />}
         title="Drawing"
-        description={<>Every pump EC&apos;s GAD, and its Performance Curve when the SO asks for one — each kept as versions: sent to the client, approved or resubmitted, and the GAD issued to the workshop.</>}
+        description={<>Every pump EC&apos;s GAD & Base Plate, and its Performance Curve when the SO asks for one — each kept as versions: sent to the client, approved or resubmitted, and the GAD issued to the workshop.</>}
       />
 
       <RemindersPanel reminders={reminders} focusInQueue />

@@ -64,6 +64,9 @@ const wantsCurve = (r: Row) => yes(r.performance_curve_required);
 /** The documents an EC has: a GAD always, a Performance Curve when asked for. */
 const docsFor = (r: Row): DrawingDocType[] => DRAWING_DOC_TYPES.filter((d) => d === "GAD" || wantsCurve(r));
 const versionsOf = (r: Row) => (Array.isArray(r.child_rows) ? (r.child_rows as Row[]) : []);
+/** A document as Drawing names it: the GAD is the GAD & Base Plate. */
+const docLabel = (d: string) => (d === "GAD" ? "GAD & Base Plate" : d);
+
 /** This EC's GAD is Non Standard, so it needs part drawings. */
 const wantsParts = (r: Row) => str(r.part_drawing).trim().toLowerCase() === "yes";
 const partsOf = (r: Row) => (Array.isArray(r.part_drawings) ? (r.part_drawings as Row[]) : []);
@@ -340,7 +343,7 @@ export function DrawingWorkspace({
       thClass: "whitespace-nowrap",
       cell: (row) => <GadStandardCell required={row.part_drawing} parts={partsOf(row)} canEdit={canEdit} onOpen={() => setStdFor(str(row.id))} />,
     },
-    { key: "gad", label: "GAD", cell: (row) => <DocCell row={row} doc="GAD" onOpen={() => open(str(row.id), "GAD")} /> },
+    { key: "gad", label: "GAD & Base Plate", cell: (row) => <DocCell row={row} doc="GAD" onOpen={() => open(str(row.id), "GAD")} /> },
     {
       key: "curve",
       label: "Performance Curve",
@@ -422,7 +425,7 @@ export function DrawingWorkspace({
                   onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.so]: next })}
                 />
                 <MultiSelectFilter
-                  label="GAD"
+                  label="GAD & Base Plate"
                   allLabel="Any"
                   options={GAD_STATUSES}
                   selected={getList(DRAWING_FILTER_KEYS.gad)}
@@ -660,7 +663,7 @@ export function DrawingWorkspace({
                         on ? "border-primary bg-primary text-primary-foreground" : "border-input-border text-foreground hover:bg-background"
                       }`}
                     >
-                      <span className="text-sm font-semibold">{d}</span>
+                      <span className="text-sm font-semibold">{docLabel(d)}</span>
                       <span className={`text-[11px] ${on ? "text-primary-foreground/80" : "text-muted"}`}>
                         {st.version ? `${versionLabel(st.version)} · ` : ""}
                         {st.label}
@@ -746,7 +749,7 @@ function DocCell({ row, doc, onOpen }: { row: Row; doc: DrawingDocType; onOpen: 
           : ""
     : "";
   return (
-    <button type="button" onClick={onOpen} title={`Open ${doc}`} className="flex flex-col items-start gap-0.5 text-left">
+    <button type="button" onClick={onOpen} title={`Open ${docLabel(doc)}`} className="flex flex-col items-start gap-0.5 text-left">
       {<StatusPill label={st.label} tone={st.tone} />}
       <span className="text-[11px] text-muted">{[st.version ? versionLabel(st.version) : "", when].filter(Boolean).join(" · ")}</span>
     </button>
@@ -800,7 +803,7 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
     return (
       <div className="space-y-3">
         <p className="rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground">
-          <span className="font-semibold">GAD not required</span> for this EC — nothing to send; it counts as done for Drawing.
+          <span className="font-semibold">GAD & Base Plate not required</span> for this EC — nothing to send; it counts as done for Drawing.
         </p>
         {/* Why it needs none: Drawing's remark, editable while it stays not required. */}
         <div>
@@ -811,7 +814,7 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
                 value={gadRemark ?? savedRemark}
                 onChange={(e) => setGadRemark(e.target.value)}
                 rows={2}
-                placeholder="Why the GAD is not required"
+                placeholder="Why the GAD & Base Plate is not required"
                 className="min-w-[16rem] flex-1 rounded-lg border border-input-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
               />
               {gadRemark !== null && gadRemark.trim() !== savedRemark && (
@@ -838,7 +841,7 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border px-3 text-sm font-medium text-foreground hover:bg-background disabled:opacity-60"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            GAD is required after all
+            GAD & Base Plate is required after all
           </button>
         )}
         {error && <p className="text-sm text-danger">{error}</p>}
@@ -856,20 +859,20 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
             disabled={busy}
             className="text-xs font-medium text-muted underline-offset-2 hover:text-foreground hover:underline disabled:opacity-60"
           >
-            GAD not required for this EC
+            GAD & Base Plate not required for this EC
           </button>
         </div>
       )}
       {/* Marking it not required: a remark on why, then confirm. */}
       {doc === "GAD" && canEdit && marking && (
         <div className="space-y-2 rounded-lg border border-card-border bg-background p-3">
-          <p className="text-sm text-foreground">Mark this EC&apos;s GAD as not required? It then counts as done for Drawing.</p>
+          <p className="text-sm text-foreground">Mark this EC&apos;s GAD & Base Plate as not required? It then counts as done for Drawing.</p>
           <textarea
             autoFocus
             value={gadRemark ?? ""}
             onChange={(e) => setGadRemark(e.target.value)}
             rows={2}
-            placeholder="Remarks — why the GAD is not required (optional)"
+            placeholder="Remarks — why the GAD & Base Plate is not required (optional)"
             className="w-full rounded-lg border border-input-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
           />
           <div className="flex justify-end gap-2">
@@ -940,7 +943,7 @@ function DocVersions({ ec, doc, canEdit, siblings = 0 }: { ec: Row; doc: Drawing
         />
       ) : (
         <p className="rounded-xl border border-dashed border-card-border px-4 py-8 text-center text-sm text-muted">
-          No version of the {doc} yet.
+          No version of the {docLabel(doc)} yet.
         </p>
       )}
     </div>
@@ -1092,7 +1095,7 @@ function VersionForm({
   }
 
   async function remove() {
-    if (!window.confirm(`Delete ${doc} ${versionLabel(number)}?`)) return;
+    if (!window.confirm(`Delete ${docLabel(doc)} ${versionLabel(number)}?`)) return;
     setSaving(true);
     const res = await deleteOrderChildAction(str(version.id), "order_drawing_revisions", str(ec.id));
     setSaving(false);
@@ -1112,7 +1115,7 @@ function VersionForm({
           </span>
           <div>
             <p className="text-base font-semibold text-foreground">
-              {doc} · {versionLabel(number)}
+              {docLabel(doc)} · {versionLabel(number)}
             </p>
             <p className="text-xs text-muted">{latest ? "Latest version" : "Earlier version"}</p>
           </div>
@@ -1254,7 +1257,7 @@ function VersionForm({
                 type="button"
                 onClick={() => save(true)}
                 disabled={saving}
-                title={`Save this ${doc} ${versionLabel(number)} on every pump EC of this SO`}
+                title={`Save this ${docLabel(doc)} ${versionLabel(number)} on every pump EC of this SO`}
                 className="inline-flex h-10 items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
               >
                 Save to all {siblings + 1} ECs
