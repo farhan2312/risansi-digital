@@ -32,7 +32,15 @@ function Count({ c, className, reserve = false }: { c: KpiCard; className: strin
   );
 }
 
+/** Rupees as the cards show them: ₹1.23 Cr, ₹45.6 L, or in full below a lakh. */
+function inr(n: number): string {
+  if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)} Cr`;
+  if (n >= 1e5) return `₹${(n / 1e5).toFixed(2)} L`;
+  return `₹${n.toLocaleString("en-IN")}`;
+}
+
 function CountFigures({ c, className }: { c: KpiCard; className: string }) {
+  if (c.money) return <span className={className} title={`₹${c.count.toLocaleString("en-IN")}`}>{inr(c.count)}</span>;
   if (!c.also) return <span className={className}>{c.count}</span>;
   return (
     <span className={`${className} flex flex-wrap items-baseline gap-x-1.5`}>

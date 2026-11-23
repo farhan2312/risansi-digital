@@ -16,6 +16,8 @@ export type KpiCardDef = {
   tone?: KpiTone;
   /** A sum over the SOs instead of a count of them (e.g. their ECs), shown but not clickable. */
   measure?: string;
+  /** The measure is rupees: summed whole, shown as ₹ (lakh / crore). */
+  money?: boolean;
   /** A heading the card sits under (the Orders page groups its cards by department). */
   group?: string;
   /** A second figure over the card's SOs, beside the count (Planning's Pump view: the pumps they hold). */
