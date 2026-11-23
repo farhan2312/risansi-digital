@@ -160,7 +160,7 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
       <PageHeading
         icon={<CalendarRange />}
         title="Dispatch Plan"
-        description={<>{spare ? "Spare" : "Pump"} SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready, Partially ready or In plan{spare ? "" : ", BOI in hand or expected"}, not held by Accounts. Filled in automatically.</>}
+        description={<>{spare ? "Spare" : "Pump"} SOs that can go out in the next {DISPATCH_PLAN_DAYS} days: Fully ready, Partially ready or In plan{spare ? "" : ", BOI in hand or expected"}. SOs on CV, Accounts or Dispatch hold are marked. Filled in automatically.</>}
       />
 
       <div className="mb-3">
@@ -230,6 +230,18 @@ export default async function DispatchPlanPage({ searchParams }: { searchParams:
                     <td className="sticky left-0 z-10 w-16 min-w-16 bg-surface px-4 py-3 font-medium tabular-nums">{r.sl_no}</td>
                     <td className="sticky left-16 z-10 whitespace-nowrap bg-surface px-4 py-3 shadow-[1px_0_0_var(--color-card-border)]">
                       <div className="font-medium">{r.so_no ?? "—"}</div>
+                      {r.cv_hold && (
+                        <div className="mt-1" title={r.cv_reason ?? undefined}>
+                          <Chip tone="danger">CV hold</Chip>
+                          {r.cv_reason && <div className="mt-0.5 max-w-[12rem] whitespace-normal text-xs text-rose-700 dark:text-rose-300">{r.cv_reason}</div>}
+                        </div>
+                      )}
+                      {r.accounts_hold && (
+                        <div className="mt-1" title={r.accounts_hold_reason ?? undefined}>
+                          <Chip tone="danger">Accounts hold</Chip>
+                          {r.accounts_hold_reason && <div className="mt-0.5 max-w-[12rem] whitespace-normal text-xs text-rose-700 dark:text-rose-300">{r.accounts_hold_reason}</div>}
+                        </div>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{formatDate(r.so_date)}</td>
                     <td className="px-4 py-3">

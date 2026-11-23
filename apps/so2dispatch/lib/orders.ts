@@ -4062,6 +4062,12 @@ function orderListClauses(
       clauses.push(`EXISTS (SELECT 1 FROM order_items s JOIN order_boi_items xb ON xb.item_id = s.id
                              WHERE s.order_id = o.id AND ${range("xb.expected_receipt_date")})`);
     }
+    else if (f.dateField === "payment_confirmed") {
+      // A payment confirmed in the range: on any PI, any term line, or the SO itself.
+      clauses.push(`(EXISTS (SELECT 1 FROM order_billing_docs pcd WHERE pcd.order_id = o.id AND ${range("pcd.pi_confirmed_date")})
+                OR EXISTS (SELECT 1 FROM order_payment_terms pct WHERE pct.order_id = o.id AND ${range("pct.term_confirmed_date")})
+                OR EXISTS (SELECT 1 FROM order_accounts pca WHERE pca.order_id = o.id AND ${range("pca.payment_confirmed_date")}))`);
+    }
     else if (f.dateField === "ec_date") {
       clauses.push(`EXISTS (SELECT 1 FROM order_items s
                              WHERE s.order_id = o.id AND ${range("s.ec_date")})`);

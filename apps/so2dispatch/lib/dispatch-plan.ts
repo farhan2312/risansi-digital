@@ -4,7 +4,7 @@ import { FINAL_LOT_PENDING, PUMP_LIKE } from "@/lib/order-schema";
 
 const lit = (s: string) => `'${s.replace(/'/g, "''")}'`;
 import { SO_PACKING_STATUSES, basePlateSql, basePlateStepsSql, soStageStatusSql, woodenBoxSql } from "@/lib/assembly";
-import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
+import { boiReceivedSql, omClearSql, onlyBillingSql, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
 // The Dispatch Plan: the pump SOs that can go out within the next two weeks,
 // found from what the departments have already recorded — nothing is kept of
@@ -15,12 +15,11 @@ import { boiReceivedSql, clearedSql, onlyBillingSql, orderOpenSql, orderStatusSq
 //             (overdue plans too: they are still to go out)
 //   BOI       every bought-out item in hand, or expected by the vendor
 //             within two weeks (an SO with no BOI items has nothing to wait for)
-//   Accounts  not held by Accounts (its Clear / Hold)
 //
-// It also leaves out what nobody should dispatch: an SO held by Order Making
-// or Central, cancelled, diverted, Only Billing, or already fully dispatched.
-// An SO on Dispatch hold stays on, marked so with its reason (it is ready,
-// waiting on a payment or a slip — what Central chases).
+// It leaves out what nobody should dispatch: an SO held by Order Making,
+// cancelled, diverted, Only Billing, or already fully dispatched. An SO on
+// CV hold, Accounts hold or Dispatch hold stays on, marked so with its reason
+// (it is ready, waiting on a clearance, a payment or a slip — what Central chases).
 
 /** How far ahead the plan looks, in days. */
 export const DISPATCH_PLAN_DAYS = 14;
@@ -100,6 +99,12 @@ export type DispatchPlanRow = {
   };
   /** On Dispatch hold (the SO's status set to Hold), and why. */
   dispatch_hold: boolean;
+  /** Central Visibility holds the SO, and why. */
+  cv_hold: boolean;
+  cv_reason: string | null;
+  /** Accounts holds the SO, and why. */
+  accounts_hold: boolean;
+  accounts_hold_reason: string | null;
   /** Dispatch has the SO (a numbered packing slip); before that it is Not at Dispatch yet. */
   in_dispatch: boolean;
   /** Why Dispatch set the status by hand: a Hold's reason, a Final lot pending's. */
@@ -138,11 +143,10 @@ export async function listDispatchPlan(kind: DispatchPlanKind = "pump"): Promise
     `WITH so AS (
        SELECT o.*
          FROM orders o
-        WHERE ${releasedSql("o")} AND ${clearedSql("o")} AND ${orderOpenSql("o")} AND NOT ${onlyBillingSql("o")}
+        WHERE ${releasedSql("o")} AND ${omClearSql("o")} AND ${orderOpenSql("o")} AND NOT ${onlyBillingSql("o")}
           -- A test SO (its SO No. says TEST) is not to be dispatched.
           AND COALESCE(o.so_no, '') !~* 'test'
           AND ${orderStatusSql("o")} <> 'Fully dispatch'
-          AND COALESCE(o.accounts_hold_status, '') <> 'Hold'
           AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND ${PUMP_EC})
           -- The Spare plan: Spare SOs (a pump SO's add-on spare goes with its pumps).
           ${spare ? "AND o.order_type = 'Spare'" : ""}
@@ -246,6 +250,12 @@ export async function listDispatchPlan(kind: DispatchPlanKind = "pump"): Promise
                                  'received_qty', wb.received_qty) ORDER BY wb.source DESC)
                                 FROM order_wooden_boxes wb WHERE wb.order_id = so.id)) AS alignment,
             (COALESCE(so.status_override, '') = 'Hold') AS dispatch_hold,
+            (COALESCE(so.clearance_status, '') = 'Hold') AS cv_hold,
+            CASE WHEN so.clearance_status = 'Hold'
+                 THEN NULLIF(concat_ws(' · ', NULLIF(btrim(so.clearance_hold_reason), ''), NULLIF(btrim(so.clearance_remarks), '')), '') END AS cv_reason,
+            (COALESCE(so.accounts_hold_status, '') = 'Hold') AS accounts_hold,
+            CASE WHEN so.accounts_hold_status = 'Hold'
+                 THEN NULLIF(concat_ws(' · ', NULLIF(btrim(so.accounts_hold_reason), ''), NULLIF(btrim(so.accounts_hold_remarks), '')), '') END AS accounts_hold_reason,
             EXISTS (SELECT 1 FROM order_packing_slips ps WHERE ps.order_id = so.id AND ps.kind = 'actual'
                        AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL) AS in_dispatch,
             CASE WHEN so.status_override IN ('Hold', ${lit(FINAL_LOT_PENDING)}) THEN NULLIF(btrim(so.status_reason), '') END AS hold_reason,
