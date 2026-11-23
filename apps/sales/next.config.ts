@@ -89,6 +89,13 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@risansi/identity'],
 
   experimental: {
+    // How this app wants to hear about Next.js upgrades: security advisories
+    // only, not every release. Set on 23 Nov 2026, when 16.2.6 turned out to
+    // be covered by five critical advisories — unauthenticated remote code
+    // execution on Windows-hosted servers among them — and nothing in the
+    // build had ever said so.
+    agentUpgrade: 'security',
+
     optimizePackageImports: ['@/components/risansi'],
     serverActions: {
       // Exhibition expenses carry their invoice in the same submit, and a receipt
