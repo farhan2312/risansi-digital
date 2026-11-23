@@ -4803,7 +4803,7 @@ async function countKpis(
         AND (${own}::text IS NULL OR ${searchable(own)})`;
   const cols = req.cards.flatMap((c, i) => [
     c.measure
-      ? `COALESCE(sum(${c.measure}), 0)::int AS k${i}`
+      ? `COALESCE(round(sum(${c.measure})), 0)::${c.money ? "bigint" : "int"} AS k${i}`
       : c.sql
         ? `count(*) FILTER (WHERE ${c.sql})::int AS k${i}`
         : `count(*)::int AS k${i}`,
@@ -4829,6 +4829,7 @@ async function countKpis(
       tone: c.tone,
       group: c.group,
       measure: c.measure ? "sum" : undefined,
+      ...(c.money ? { money: true } : {}),
       count: Number(row[`k${i}`] ?? 0),
       ...(c.also ? { also: { label: c.also.label, count: Number(row[`a${i}`] ?? 0) } } : {}),
       ...(c.held ? { heldCount: Number(row[`h${i}`] ?? 0) } : {}),
@@ -4962,7 +4963,24 @@ export function pumpCardSql(key: string | null | undefined): string | null {
   return c?.sql ?? null;
 }
 
-export function orderListKpiCards(kind: "spare" | "pump"): KpiCardDef[] {
+/** The Orders page's first card: the SOs' gross order value in rupees (a total, not a filter). */
+const ORDER_VALUE_CARD: KpiCardDef = {
+  key: "order_value",
+  label: "Order value",
+  group: "Orders",
+  sql: null,
+  params: {},
+  tone: "neutral",
+  measure: "COALESCE(o.taxable_value, 0)",
+  money: true,
+};
+
+/** The Orders list's cards; withValue: the Order value card first (the Orders page itself). */
+export function orderListKpiCards(kind: "spare" | "pump", withValue = false): KpiCardDef[] {
+  return withValue ? [ORDER_VALUE_CARD, ...orderListStatusCards(kind)] : orderListStatusCards(kind);
+}
+
+function orderListStatusCards(kind: "spare" | "pump"): KpiCardDef[] {
   if (kind === "pump") return pumpOrderCards();
   const clear = { dept: null, dstatus: null, pack: null, dsm: null, overdue: null, hold: null } as Record<string, string | null>;
   const open = orderOpenSql("o");

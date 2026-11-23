@@ -74,7 +74,7 @@ export default async function OrdersPage({
     filter,
     sort: parseQueueSort(params.sort),
     // The department summary cards (Spare or Pump); on Pump, the card picked narrows the list.
-    kpis: orderListKpiCards(ordersKind(params.type)),
+    kpis: orderListKpiCards(ordersKind(params.type), true),
     extraRestrict: ordersKind(params.type) === "pump" ? pumpCardSql(params.pk) : null,
     inHand: true,
   });
