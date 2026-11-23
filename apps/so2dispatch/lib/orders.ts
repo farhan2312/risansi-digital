@@ -33,7 +33,6 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
   HOLD,
   isPerEcDept,
   soHoldSql,
-  soWorkHoldSql,
   NOT_APPLICABLE,
   NOT_AT_DISPATCH,
   PENDING,
@@ -3759,13 +3758,12 @@ const CV_HOLD_SQL = `COALESCE(o.clearance_status, '') = 'Hold'`;
  * A department status. Central Visibility's hold is a badge on the SO, not a
  * status: the department's status stays what its work says, held or not
  * ("Hold" — from an old link — still finds the SOs CV holds; Dispatch's Hold
- * is its own). An SO on a work hold (Accounts, Dispatch) is no department's Pending.
+ * is its own). An SO on a work hold (Accounts, Dispatch) keeps its status too: the hold cards count it as well.
  */
 function withCvHold(dept: DeptFilterKey, status: string, own: () => string): string {
   if (status === NOT_APPLICABLE) return own();
   if (status === HOLD) return dept === "dispatch" ? own() : CV_HOLD_SQL;
-  const pending = toneFor(status) === "pending" ? ` AND NOT ${soWorkHoldSql("o", dept)}` : "";
-  return `(TRUE${pending} AND (${own()}))`;
+  return `(${own()})`;
 }
 
 function deptStatusPredicate(dept: DeptFilterKey, status: string): string {
@@ -3840,15 +3838,14 @@ export function onHoldSql(dept?: string | null): string {
 }
 
 /**
- * A department's hold cards: its open SOs on each kind of hold — Central
- * Visibility's, Accounts', Dispatch's (no card for all of them together).
- * Dispatch's own page already has its Dispatch hold card (its status), so not
- * twice there.
+ * A department's hold card: its open SOs Central Visibility holds. An SO on
+ * an Accounts or Dispatch hold has no card of its own: it counts at its status.
  */
 export function totalHoldCard(dept: string, clear: Record<string, string | null>, group?: string): KpiCardDef[] {
   const g = group ? { group } : {};
   return [
-    ...HOLD_BY.filter((by) => !(dept === "dispatch" && by === "dispatch")).map(
+    // Only Central Visibility's hold has a card: an SO on any other hold counts at its status.
+    ...HOLD_BY.filter((by) => by === "cv").map(
       (by): KpiCardDef => ({
         key: `hold:${by}`,
         label: HOLD_BY_LABEL[by],
@@ -4852,14 +4849,10 @@ export function pumpOrderCards(): KpiCardDef[] {
     label,
     group,
     // An Only Billing SO is no department's — not even Billing's. Held by
-    // Central Visibility it is Hold everywhere (Dispatch hold counts it), and
-    // on any SO hold it is no department's Pending.
+    // Central Visibility it is Hold everywhere (Dispatch hold counts it). A
+    // held SO keeps its status: it counts in its card and in the hold card.
     sql: `(${sql}) AND ${open} AND NOT ${onlyBillingSql("o")}${
       ["Purchase", "Quality", "Planning"].includes(group) ? ` AND ${HAS_EC_SQL}` : ""
-    }${
-      key === "dsp_hold" || tone !== "pending"
-        ? ""
-        : ` AND NOT ${soWorkHoldSql("o", PUMP_CARD_DEPT[group])}`
     }`,
     params: { ...clear, pk: key },
     tone,
@@ -4929,17 +4922,6 @@ export function pumpOrderCards(): KpiCardDef[] {
     card("Dispatch", "dsp_hold", "Dispatch hold", deptStatusPredicate("dispatch", "Hold"), "danger"),
   ];
 }
-
-/** The department a Pump card on the Orders list belongs to, for its SO hold. */
-const PUMP_CARD_DEPT: Record<string, DeptFilterKey> = {
-  "Proforma Invoice": "billing",
-  Drawing: "drawing",
-  Purchase: "purchase",
-  Quality: "quality",
-  Planning: "planning",
-  "Assembly & Packing": "assembly",
-  Dispatch: "dispatch",
-};
 
 /**
  * The Orders list's hold cards: its open SOs on each kind of hold, Order
