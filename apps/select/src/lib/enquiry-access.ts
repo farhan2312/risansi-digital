@@ -65,20 +65,46 @@ export async function versionLocked(ref: EnquiryRef): Promise<Response | null> {
 }
 
 /**
+ * A 409 on a Commercial only version (lib/enquiry-revision.ts), else null: its pump
+ * selection is the one before, kept as it was, so its tags, wizard steps, approvals,
+ * tag reports and Selection Summary can only be viewed. workDenied(…, "technical").
+ */
+export async function technicalLocked(ref: EnquiryRef): Promise<Response | null> {
+  const projectId = await projectIdOf(ref);
+  if (!projectId) return null;
+  const [p] = await db
+    .select({ kind: projects.versionKind, technical: projects.technicalVersionNo })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (p?.kind !== "commercial") return null;
+  return error(
+    `This is a Commercial only version: the pump selection stays as in Technical V${p.technical} and can only be viewed. To change it, make a new version.`,
+    409,
+  );
+}
+
+/**
  * A 403 when the caller is a worker and the enquiry is not assigned to them,
  * else null. Called at the top of every route that changes an enquiry or its
  * tags (wizard inputs, tags, approvals sent, prices, quotations, documents).
  * The enquiry is found from whichever id the route has; an id that resolves
- * to nothing returns null so the route answers its own 404.
+ * to nothing returns null so the route answers its own 404. "technical": a write to
+ * the pump selection, refused on a Commercial only version (technicalLocked).
  */
 export async function workDenied(
   req: Request,
   ref: EnquiryRef,
+  side?: "technical",
 ): Promise<Response | null> {
   const claims = await tryDecodeToken(req);
   if (!claims) return null; // the route's own auth check answers this
   const locked = await versionLocked(ref);
   if (locked) return locked;
+  if (side === "technical") {
+    const fixed = await technicalLocked(ref);
+    if (fixed) return fixed;
+  }
   if (worksOnAnyEnquiry(claims.role)) return null;
 
   const projectId = await projectIdOf(ref);

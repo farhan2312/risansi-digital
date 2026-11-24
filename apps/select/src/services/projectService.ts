@@ -49,12 +49,14 @@ export interface ProjectRecord {
   /** YYYY-MM-DD: when each status was completed, filled in by itself but editable. */
   completed_on: string | null;
   commercial_completed_on: string | null;
-  /** The Technical version: 0, 1, 2… Each version is its own row with the same enquiry no. */
+  /** The version: 0, 1, 2… Each version is its own row with the same enquiry no. */
   version_no: number;
+  /** The Technical version; a Commercial only version leaves it as it was. */
+  technical_version_no: number;
   /** The Commercial version; a Technical only version leaves it as it was. */
   commercial_version_no: number;
   /** How this version was made. */
-  version_kind: "both" | "technical";
+  version_kind: "both" | "technical" | "commercial";
   /** The V0 row of this enquiry; null on V0 itself. */
   root_project_id: string | null;
   /** False on an older version, which is view only. */
@@ -227,7 +229,7 @@ export const listEnquiryVersions = async (id: string): Promise<ProjectRecord[]> 
 /** The next version of a Completed enquiry (User-Master / system admins only). */
 export const createEnquiryRevision = async (
   id: string,
-  input: { enquiryDate: string; assignedTo: string; note: string },
+  input: { enquiryDate: string; assignedTo: string; note: string; kind?: "both" | "technical" | "commercial" },
 ): Promise<ProjectRecord> => {
   const { data } = await apiClient.post<ProjectRecord>(`/projects/${id}/versions`, input);
   return data;

@@ -20,6 +20,7 @@ import {
   boiNet,
   boiTotal,
   formatInr,
+  snapshotMoney,
   formatUsd,
   formatUsdCents,
   usdGrandTotal,
@@ -458,7 +459,7 @@ export default function QuotationPanel({
             Use this when the TSM asks for changes, <b>before</b> making them.{" "}
             {liveInternal && (
               <>
-                Internal V{liveInternal.version} is frozen as it is now ({formatInr(liveInternal.snapshot.grandTotal)}).{" "}
+                Internal V{liveInternal.version} is frozen as it is now ({snapshotMoney(liveInternal.snapshot)(liveInternal.snapshot.grandTotal)}).{" "}
               </>
             )}
             The changes you save next go into <b>internal V{quotation.internalVersion + 1}</b>. The client version stays{" "}
@@ -504,7 +505,7 @@ export default function QuotationPanel({
               <>Replaces the saved Version V{quotation.nextClientVersion} with the quotation and its document as they are now. The copy saved earlier is not kept. Nothing is e-mailed.</>
             ) : (
               <>
-                Saves this quotation ({formatInr(liveInternal?.snapshot.grandTotal ?? 0)}) as Version V{quotation.nextClientVersion}. If anything is corrected later, it can be saved again. Nothing is e-mailed.
+                Saves this quotation ({liveInternal ? snapshotMoney(liveInternal.snapshot)(liveInternal.snapshot.grandTotal) : formatInr(0)}) as Version V{quotation.nextClientVersion}. If anything is corrected later, it can be saved again. Nothing is e-mailed.
               </>
             )
           ) : sent ? (
@@ -513,7 +514,7 @@ export default function QuotationPanel({
             </>
           ) : (
           <>
-            Saves internal V{quotation.internalVersion}{liveInternal ? ` (${formatInr(liveInternal.snapshot.grandTotal)})` : ""} as <b>client V{quotation.nextClientVersion}</b>.
+            Saves internal V{quotation.internalVersion}{liveInternal ? ` (${snapshotMoney(liveInternal.snapshot)(liveInternal.snapshot.grandTotal)})` : ""} as <b>client V{quotation.nextClientVersion}</b>.
             If a price or document is corrected later, it can be saved again. Nothing is e-mailed.
           </>
           )
@@ -594,7 +595,7 @@ function VersionList({
                 <p className="truncate text-[11.5px] text-muted-foreground">
                   {fmtDate(v.createdAt)}
                   {v.createdByName ? ` · ${v.createdByName}` : ""} · TSM {v.tsmInitials ?? "—"} ·{" "}
-                  {formatInr(v.snapshot.grandTotal)}
+                  {snapshotMoney(v.snapshot)(v.snapshot.grandTotal)}
                   {v.snapshot.fx ? ` · ${snapshotUsd(v.snapshot, v.snapshot.fx.rate)}` : ""}
                 </p>
               </div>
@@ -714,9 +715,9 @@ function SnapshotModal({
                 <tr key={i} className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/50">
                   <td className="px-4 py-2 font-medium text-foreground">{t.tagName}</td>
                   <td className="px-4 py-2 font-mono text-[12.5px] text-muted-foreground">{t.productCode ?? t.model ?? "—"}</td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums">{formatInr(t.unit)}</td>
+                  <td className="px-4 py-2 text-right font-mono tabular-nums">{snapshotMoney(s)(t.unit)}</td>
                   <td className="px-4 py-2 text-right font-mono tabular-nums">{t.quantity ?? "—"}</td>
-                  <td className="px-4 py-2 text-right font-mono tabular-nums">{formatInr(t.sub)}</td>
+                  <td className="px-4 py-2 text-right font-mono tabular-nums">{snapshotMoney(s)(t.sub)}</td>
                 </tr>
               ))}
             </tbody>
@@ -725,7 +726,7 @@ function SnapshotModal({
                 <td colSpan={4} className="px-4 py-2.5 text-right font-semibold text-foreground">
                   Grand Total
                 </td>
-                <td className="px-4 py-2.5 text-right font-mono font-semibold text-foreground tabular-nums">{formatInr(s.grandTotal)}</td>
+                <td className="px-4 py-2.5 text-right font-mono font-semibold text-foreground tabular-nums">{snapshotMoney(s)(s.grandTotal)}</td>
               </tr>
               {s.fx && (
                 <tr className="bg-muted/60">

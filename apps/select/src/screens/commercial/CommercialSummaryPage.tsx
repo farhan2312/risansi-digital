@@ -744,6 +744,12 @@ export default function CommercialSummaryPage() {
 
           {/* An older version: the prices show, every control below is off. */}
           <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
+          {data.project.versionKind === "commercial" && (
+            <p className="rounded-lg border border-border bg-card px-4 py-3 text-[13px] text-foreground">
+              <b className="font-semibold text-foreground">Commercial only version.</b> Commercial is V{data.project.commercialVersionNo} and Technical stays V{data.project.versionNo}:
+              the pump selection is kept as it was and can only be viewed.
+            </p>
+          )}
           {data.project.versionKind === "technical" && (
             <p className="rounded-lg border border-border bg-card px-4 py-3 text-[13px] text-foreground">
               <b className="font-semibold text-foreground">Technical only version.</b> Technical is V{data.project.versionNo} and Commercial stays V{data.project.commercialVersionNo}.

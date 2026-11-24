@@ -137,11 +137,14 @@ export function spareDocTerms(quote: SpareQuote, edits: SpareDocEdits): { terms:
 
 /** What gets printed: removed lines and empty models left off. */
 function printed(sheet: SpareQuoteSheet) {
-  // In USD: every amount divided by the rate, two decimals.
-  const fx = sheet.fx;
+  // Quoted in USD: every amount divided by the rate, two decimals. Priced in USD
+  // (quote.priceCurrency): the amounts are USD as typed, not converted.
+  const usdTyped = sheet.quote.priceCurrency === "USD";
+  const fx = usdTyped ? undefined : sheet.fx;
+  const usd = usdTyped || Boolean(fx);
   const conv = (n: number | null) => (n === null ? null : fx ? n / fx.rate : n);
   const usdFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmt = (n: number | null) => (n === null ? "-" : fx ? usdFmt.format(n) : money(n));
+  const fmt = (n: number | null) => (n === null ? "-" : usd ? usdFmt.format(n) : money(n));
   const all = spareDocModels(sheet.quote, sheet.edits);
   const models = all
     .map((m) => ({
@@ -177,7 +180,7 @@ function printed(sheet: SpareQuoteSheet) {
     showPo,
     showPartNo,
     widths: columnWidths(showPo, showPartNo),
-    headings: HEADINGS.filter((h) => (h === PO_HEADING ? showPo : h === PART_NO_HEADING ? showPartNo : true)).map((h) => (fx ? h.replace("(INR)", "(USD)") : h)),
+    headings: HEADINGS.filter((h) => (h === PO_HEADING ? showPo : h === PART_NO_HEADING ? showPartNo : true)).map((h) => (usd ? h.replace("(INR)", "(USD)") : h)),
     fmt,
     count: models.reduce((s, m) => s + m.lines.length, 0),
     subject: edits.subject ?? SPARE_DOC_SUBJECT,

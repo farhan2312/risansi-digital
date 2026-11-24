@@ -33,7 +33,6 @@ import {
   ChevronRight,
   CircleAlert,
   CircleCheck,
-  ClipboardCheck,
   Copy,
   Ellipsis,
   ExternalLink,
@@ -962,7 +961,7 @@ const ProjectsPage = () => {
                     </span>
 
                     <span className="flex flex-col items-start gap-1">
-                      {!isSpare && <StatusLine label={`Technical V${project.version_no}`} status={project.status} on={project.completed_on} edited={project.technical_status_override !== null} />}
+                      {!isSpare && <StatusLine label={`Technical V${project.technical_version_no}`} status={project.status} on={project.completed_on} edited={project.technical_status_override !== null} />}
                       <StatusLine label={isSpare ? `V${project.commercial_version_no}` : `Commercial V${project.commercial_version_no}`} status={project.commercial_status} on={project.commercial_completed_on} edited={project.commercial_status_override !== null} />
                       {tags && (
                         <span className="text-[11px] text-muted-foreground">
@@ -973,20 +972,7 @@ const ProjectsPage = () => {
                         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
                           <Send className="size-3" /> Sent to operation {shortDay(project.released_to_operation_at)}
                         </span>
-                      ) : (
-                        project.reviewed_at && (
-                          <>
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
-                              <CircleCheck className="size-3" /> Reviewed {shortDay(project.reviewed_at)}
-                            </span>
-                            {canWork && (
-                              <Button size="sm" className="h-6 px-2 text-[11px]" onClick={() => setReviewFor(project)} title="Opens the reviewed versions, to send them to operation">
-                                Send to operation
-                              </Button>
-                            )}
-                          </>
-                        )
-                      )}
+                      ) : null}
                     </span>
 
                     <span className="min-w-0">
@@ -1112,8 +1098,8 @@ const ProjectsPage = () => {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>{project.project_code}</DropdownMenuLabel>
                             {showReview && (
-                              <DropdownMenuItem disabled={!canWork} onSelect={() => setReviewFor(project)} title={!canWork ? notYours(project, "review it") : undefined}>
-                                <ClipboardCheck /> {isSpare ? "Review quotation" : "Review documents"}
+                              <DropdownMenuItem disabled={!canWork} onSelect={() => setReviewFor(project)} title={!canWork ? notYours(project, "send it to operation") : undefined}>
+                                <Send /> Send to operation
                               </DropdownMenuItem>
                             )}
                             {showCopy && isSpare && (

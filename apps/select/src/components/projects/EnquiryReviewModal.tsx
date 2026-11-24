@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CircleCheck, RotateCcw, Send, X } from "lucide-react";
+import { RotateCcw, Send, X } from "lucide-react";
 
 import { Button } from "@/components/shadcn/button";
 import DocLinksForm from "./DocLinksForm";
@@ -11,9 +11,9 @@ import { missingDocLinks, ungeneratedDocsProblem, type DocLinkKind } from "../..
 import { TECHNO_COMMERCIAL_TITLE } from "../../lib/techno-commercial";
 import { getReviewState, reviewEnquiry, type ProjectRecord } from "../../services/projectService";
 
-// Review on the Enquiries list: the versions saved with Save Version, as they were
-// saved, nothing to edit. Then Mark as reviewed, and after that Send to operation, which
-// puts them on Operation's Pump Docs / Spare Docs. A pump's ticks pick which of its
+// Send to operation on the Enquiries list: the versions saved with Save Version, as they
+// were saved, nothing to edit, and Send to operation, which puts them on Operation's Pump
+// Docs / Spare Docs. No Mark as reviewed step before it any more (user, 2026-11-25). A pump's ticks pick which of its
 // documents go (user, 2026-11-17); a spare's quotation always goes. Client's own format
 // (user, 2026-11-19): each document to send needs its SharePoint link (made by hand), and
 // only those links are shared with Operation - the generated documents are not.
@@ -123,7 +123,7 @@ export default function EnquiryReviewModal({
       >
         <header className="grid shrink-0 gap-1 border-b border-border px-5 py-4 pr-12">
           <h3 id="enquiry-review-title" className="text-[15px] leading-snug font-semibold text-foreground">
-            Review
+            Send to operation
             <span className="ml-2 font-mono text-[12.5px] font-normal text-muted-foreground">{project.project_code}</span>
           </h3>
           <p className="text-[12.5px] text-muted-foreground">{project.name || "—"} · the saved versions, exactly as saved. Nothing can be edited here.</p>
@@ -193,11 +193,11 @@ export default function EnquiryReviewModal({
               <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
                 <Send className="size-3.5" /> Sent to operation on {fmtDay(project.released_to_operation_at)}
               </span>
-              {/* Reopen: back from operation, to be reviewed and sent again. The latest version only. */}
+              {/* Reopen: back from operation, to be sent again. The latest version only. */}
               {project.is_latest !== false &&
                 (confirmReopen ? (
                   <>
-                    <span className="text-[12.5px] font-medium text-warning">It leaves operation&apos;s list until it is reviewed and sent again.</span>
+                    <span className="text-[12.5px] font-medium text-warning">It leaves operation&apos;s list until it is sent again.</span>
                     <Button variant="outline" disabled={busy} onClick={() => setConfirmReopen(false)}>
                       Cancel
                     </Button>
@@ -206,26 +206,16 @@ export default function EnquiryReviewModal({
                     </Button>
                   </>
                 ) : (
-                  <Button variant="outline" disabled={busy} onClick={() => setConfirmReopen(true)} title="Take it back from operation to review and send again">
+                  <Button variant="outline" disabled={busy} onClick={() => setConfirmReopen(true)} title="Take it back from operation to send it again">
                     <RotateCcw /> Reopen
                   </Button>
                 ))}
             </>
-          ) : project.reviewed_at ? (
-            <>
-              <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-success">
-                <CircleCheck className="size-3.5" /> Reviewed on {fmtDay(project.reviewed_at)}
-              </span>
-              {(missing || noLink) && <span className="text-[12.5px] font-medium text-warning">{missing || noLink}</span>}
-              <Button disabled={busy || (isPump && pickedDocs.length === 0) || Boolean(missing) || Boolean(noLink)} onClick={() => void act("send")}>
-                <Send /> {busy ? "Sending…" : "Send to operation"}
-              </Button>
-            </>
           ) : (
             <>
               {docs && (missing || noLink) && <span className="text-[12.5px] font-medium text-warning">{missing || noLink}</span>}
-              <Button disabled={busy || !docs || Boolean(missing) || Boolean(noLink) || (isPump && pickedDocs.length === 0)} onClick={() => void act("reviewed")}>
-                <CircleCheck /> {busy ? "Saving…" : "Mark as reviewed"}
+              <Button disabled={busy || !docs || Boolean(missing) || Boolean(noLink) || (isPump && pickedDocs.length === 0)} onClick={() => void act("send")}>
+                <Send /> {busy ? "Sending…" : "Send to operation"}
               </Button>
             </>
           )}

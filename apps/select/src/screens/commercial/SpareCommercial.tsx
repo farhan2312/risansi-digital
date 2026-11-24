@@ -59,7 +59,7 @@ const checkCls = "size-3.5 cursor-pointer accent-[var(--sc-primary)]";
 
 type LineDraft = { partNo: string; partName: string; poNo: string; poDate: string; poSame: boolean; qty: string; unitPrice: string };
 type ModelDraft = { id: string; code: string; pumpKind: SparePumpKind; lines: LineDraft[] };
-type Draft = { hasPo: boolean; discountPct: string; note: string; termsMarket: TermsMarket; termsOff: string[]; models: ModelDraft[] };
+type Draft = { hasPo: boolean; discountPct: string; note: string; termsMarket: TermsMarket; termsOff: string[]; priceCurrency: "INR" | "USD"; models: ModelDraft[] };
 
 const numText = (n: number | null) => (n === null ? "" : String(n));
 
@@ -69,6 +69,7 @@ const toDraft = (q: SpareQuote): Draft => ({
   note: q.note,
   termsMarket: q.termsMarket,
   termsOff: q.termsOff,
+  priceCurrency: q.priceCurrency ?? "INR",
   models: q.models.map((m) => ({
     id: m.id,
     code: m.productCode,
@@ -90,6 +91,7 @@ const toQuote = (d: Draft): SpareQuote => ({
   note: d.note.trim(),
   termsMarket: d.termsMarket,
   termsOff: [...d.termsOff].sort(),
+  ...(d.priceCurrency === "USD" ? { priceCurrency: "USD" as const } : {}),
   // "Same as above" parts take the PO of the part above.
   models: shareSamePo(d.models.map(
     (m): SpareModel => ({
@@ -371,6 +373,11 @@ export default function SpareCommercial({
   const current = draft ? toQuote(draft) : null;
   const subtotal = current ? quoteSubtotal(current) : 0;
   const discount = current ? quoteDiscount(current) : 0;
+  // Priced in USD (user, 2026-11-25): typed and shown in USD, no conversion, so the
+  // Quote in USD conversion is off for it.
+  const usdTyped = draft?.priceCurrency === "USD";
+  const shownFx = usdTyped ? undefined : fx;
+  const money = usdTyped ? formatUsdCents : formatInr;
   const sendBlock = saved
     ? (spareQuoteProblem(saved) ?? (project.versionNo > 0 && !project.pricesReviewedAt ? "Tick Prices reviewed first." : null))
     : null;
@@ -556,7 +563,8 @@ export default function SpareCommercial({
                 hasPo={draft.hasPo}
                 resolved={current?.models[index]?.lines ?? []}
                 partAbove={draft.models.slice(0, index).some((x) => x.lines.length > 0)}
-                fx={fx}
+                fx={shownFx}
+                usd={usdTyped}
                 onChange={(patch) => updateModel(m.id, patch)}
                 onLineChange={(i, patch) => updateLine(m.id, i, patch)}
                 onPickParts={() => setPickingFor(m.id)}
@@ -577,14 +585,35 @@ export default function SpareCommercial({
                 <Plus /> Add model
               </button>
               <span className="text-[13px] text-muted-foreground">
-                Total <b className="ml-1 font-mono font-semibold text-foreground tabular-nums">{formatInr(subtotal)}</b>
-                {fx && <span className="ml-1.5 font-mono text-[12.5px] text-primary tabular-nums">{inUsd(subtotal)}</span>}
+                Total <b className="ml-1 font-mono font-semibold text-foreground tabular-nums">{money(subtotal)}</b>
+                {shownFx && <span className="ml-1.5 font-mono text-[12.5px] text-primary tabular-nums">{inUsd(subtotal)}</span>}
               </span>
             </div>
 
             <section className={`flex flex-col gap-3 p-4 ${cardCls}`}>
-              <div className="flex flex-col items-end gap-1">
-                <UsdToggle fx={fx} rateNow={rateNow} busy={fxBusy} onChange={(c, r) => void changeCurrency(c, r)} />
+              <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-2">
+                <div className="flex items-center gap-2" title="USD: type every price in USD; the quotation prints them as they are, nothing converted.">
+                  <span className="text-[12px] text-muted-foreground">Prices in</span>
+                  <div className="inline-flex h-7 items-center rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset" role="radiogroup" aria-label="Prices typed in">
+                    {(["INR", "USD"] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        role="radio"
+                        aria-checked={draft.priceCurrency === c}
+                        onClick={() => update({ priceCurrency: c })}
+                        className={`h-full rounded-[5px] px-2.5 text-[12px] font-medium transition-[color,background-color,box-shadow] ${draft.priceCurrency === c ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        {c === "INR" ? "INR (₹)" : "USD ($)"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {usdTyped ? (
+                  <span className="text-[12px] text-muted-foreground">Typed in USD and quoted as they are - nothing converted.</span>
+                ) : (
+                  <UsdToggle fx={fx} rateNow={rateNow} busy={fxBusy} onChange={(c, r) => void changeCurrency(c, r)} />
+                )}
                 {fxError && <Alert className="py-1.5">{fxError}</Alert>}
               </div>
               <div className="flex flex-wrap items-end justify-end gap-x-6 gap-y-3">
@@ -603,13 +632,13 @@ export default function SpareCommercial({
                 </label>
                 {discount > 0 && (
                   <span className="pb-2 text-[13px] text-muted-foreground">
-                    Discount <b className="font-mono font-semibold text-foreground tabular-nums">-{formatInr(discount)}</b>
-                    {fx && <span className="ml-1.5 font-mono text-[12px] text-primary tabular-nums">-{inUsd(discount)}</span>}
+                    Discount <b className="font-mono font-semibold text-foreground tabular-nums">-{money(discount)}</b>
+                    {shownFx && <span className="ml-1.5 font-mono text-[12px] text-primary tabular-nums">-{inUsd(discount)}</span>}
                   </span>
                 )}
                 <span className="pb-1.5 text-[13px] font-medium text-foreground">
-                  Grand total <b className="ml-1 font-mono text-[16px] font-semibold text-foreground tabular-nums">{formatInr(subtotal - discount)}</b>
-                  {fx && <span className="ml-1.5 font-mono text-[13px] font-semibold text-primary tabular-nums">{inUsd(subtotal - discount)}</span>}
+                  Grand total <b className="ml-1 font-mono text-[16px] font-semibold text-foreground tabular-nums">{money(subtotal - discount)}</b>
+                  {shownFx && <span className="ml-1.5 font-mono text-[13px] font-semibold text-primary tabular-nums">{inUsd(subtotal - discount)}</span>}
                 </span>
               </div>
               <label className="flex flex-col gap-1">
@@ -690,6 +719,7 @@ function ModelCard({
   resolved,
   partAbove,
   fx,
+  usd,
   showErrors,
   onChange,
   onLineChange,
@@ -706,6 +736,8 @@ function ModelCard({
   partAbove: boolean;
   /** Quoted in USD: amounts also in USD. */
   fx: QuoteFx | undefined;
+  /** Priced in USD: prices typed and shown in USD. */
+  usd: boolean;
   showErrors: boolean;
   onChange: (patch: Partial<ModelDraft>) => void;
   onLineChange: (i: number, patch: Partial<LineDraft>) => void;
@@ -713,6 +745,7 @@ function ModelCard({
   onRemove: () => void;
 }) {
   const subtotal = model.lines.reduce((s, l) => s + lineAmount({ qty: parseAmount(l.qty), unitPrice: parseAmount(l.unitPrice) }), 0);
+  const money = usd ? formatUsdCents : formatInr;
 
   return (
     <section className={`overflow-hidden ${cardCls}`}>
@@ -720,7 +753,7 @@ function ModelCard({
         <p className="text-[13px] font-semibold text-foreground">Model {index + 1}</p>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[12.5px] text-muted-foreground">
-            Sub-total <b className="font-mono font-semibold text-foreground tabular-nums">{formatInr(subtotal)}</b>
+            Sub-total <b className="font-mono font-semibold text-foreground tabular-nums">{money(subtotal)}</b>
             {fx && <span className="ml-1.5 font-mono text-[12px] text-primary tabular-nums">{formatUsdCents(subtotal / fx.rate)}</span>}
           </span>
           <button type="button" className={buttonVariants({ variant: "ghost-destructive", size: "sm" })} onClick={onRemove}>
@@ -765,7 +798,7 @@ function ModelCard({
                 {hasPo && <th className="w-[160px] px-2 py-2">Ref. PO No.</th>}
                 {hasPo && <th className="w-[150px] px-2 py-2">PO date</th>}
                 <th className="w-[110px] px-2 py-2 text-right">Qty</th>
-                <th className="w-[150px] px-2 py-2 text-right">Unit price (₹)</th>
+                <th className="w-[150px] px-2 py-2 text-right">Unit price ({usd ? "$" : "₹"})</th>
                 <th className="w-[140px] px-4 py-2 text-right">Amount</th>
                 <th className="w-[44px]" aria-label="Remove" />
               </tr>
@@ -857,7 +890,7 @@ function ModelCard({
                       />
                     </td>
                     <td className="px-4 py-1.5 text-right font-mono text-foreground tabular-nums">
-                      {na ? "NA" : formatInr(lineAmount({ qty, unitPrice: price }))}
+                      {na ? "NA" : money(lineAmount({ qty, unitPrice: price }))}
                       {fx && !na && <span className="block text-[11.5px] text-primary">{formatUsdCents(lineAmount({ qty, unitPrice: price }) / fx.rate)}</span>}
                     </td>
                     <td className="pr-3 text-right">
@@ -1252,6 +1285,7 @@ function QuotePreview({
   onEdited: (edits: SpareDocEdits) => void;
 }) {
   const [edits, setEdits] = useState<SpareDocEdits>(sheet.edits);
+  const money = sheet.quote.priceCurrency === "USD" ? formatUsdCents : formatInr;
   const [mode, setMode] = useState<"preview" | "edit">("preview");
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1438,7 +1472,7 @@ function QuotePreview({
                               )}
                               <td className="px-2 py-1"><input className={`${cell} text-right font-mono`} value={l.qty} aria-label="Quantity" onChange={(e) => setLine(l.key, { qty: e.target.value })} /></td>
                               <td className="px-2 py-1"><input className={`${cell} text-right font-mono`} value={l.unit} aria-label="Unit cost" onChange={(e) => setLine(l.key, { unit: e.target.value })} /></td>
-                              <td className="px-2 py-1 text-right font-mono tabular-nums">{l.na ? "NA" : formatInr(l.amount)}</td>
+                              <td className="px-2 py-1 text-right font-mono tabular-nums">{l.na ? "NA" : money(l.amount)}</td>
                             </>
                           )}
                           <td className="px-2 text-right">
@@ -1475,17 +1509,17 @@ function QuotePreview({
                   <>
                     <div className="grid grid-cols-[minmax(0,1fr)_200px_76px] items-center gap-2 px-3 py-1.5">
                       <span className="text-right font-medium text-foreground">Total</span>
-                      <span className="text-right font-mono tabular-nums">{formatInr(docSubtotal)}</span>
+                      <span className="text-right font-mono tabular-nums">{money(docSubtotal)}</span>
                     </div>
                     <div className="grid grid-cols-[minmax(0,1fr)_200px_76px] items-center gap-2 px-3 py-1.5">
                       <span className="text-right font-medium text-foreground">Discount ({docDiscountPct}%)</span>
-                      <span className="text-right font-mono tabular-nums">-{formatInr(docDiscount)}</span>
+                      <span className="text-right font-mono tabular-nums">-{money(docDiscount)}</span>
                     </div>
                   </>
                 )}
                 <div className="grid grid-cols-[minmax(0,1fr)_200px_76px] items-center gap-2 px-3 py-1.5">
                   <span className="text-right font-semibold text-foreground">Grand Total</span>
-                  <span className="text-right font-mono font-semibold tabular-nums">{formatInr(docSubtotal - docDiscount)}</span>
+                  <span className="text-right font-mono font-semibold tabular-nums">{money(docSubtotal - docDiscount)}</span>
                   <span className="text-[11px] text-muted-foreground">From the rows</span>
                 </div>
               </div>

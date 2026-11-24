@@ -8,6 +8,8 @@ export interface ReportRecord {
   project_id: string;
   project_code: string;
   version_no: number;
+  /** The Technical version, shown beside the report. */
+  technical_version_no: number;
   is_latest: boolean;
   /** Shared by every version of the enquiry. */
   enquiry_root_id: string;

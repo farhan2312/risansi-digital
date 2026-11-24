@@ -50,7 +50,7 @@ export async function POST(
     typeof body.targetProjectId === "string" && body.targetProjectId.trim()
       ? body.targetProjectId.trim()
       : source.projectId;
-  const noWork = await workDenied(req, { projectId: targetProjectId });
+  const noWork = await workDenied(req, { projectId: targetProjectId }, "technical");
   if (noWork) return noWork;
 
   const [target] = await db.select({ orderType: projects.orderType }).from(projects).where(eq(projects.id, targetProjectId)).limit(1);

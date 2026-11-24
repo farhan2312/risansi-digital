@@ -154,7 +154,7 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
               ),
             )
         ).map((r) => r.id);
-  const [groups, versions, snapshot, [enquiry]] = await Promise.all([
+  const [groups, allVersions, snapshot, [enquiry]] = await Promise.all([
     projectDriveGroups(projectId),
     db
       .select({ v: quotationVersion, createdByName: users.name })
@@ -165,6 +165,14 @@ export async function loadQuotation(projectId: string, driveGroup: string): Prom
     buildSnapshot(projectId, driveGroup),
     db.select({ version: projects.commercialVersionNo }).from(projects).where(eq(projects.id, projectId)).limit(1),
   ]);
+  // A Technical only version carries the client version saved before it as a copy
+  // (lib/enquiry-revision.ts): the history shows this version's copy only.
+  const versions = allVersions.filter(
+    ({ v }) =>
+      v.track !== "client" ||
+      v.quotationId === q.id ||
+      !allVersions.some(({ v: o }) => o.quotationId === q.id && o.track === "client" && o.version === v.version),
+  );
   const mixed = driveGroup !== SPARE_GROUP && groups.length > 1;
   // The live internal version shows the current saved prices, not its stored copy.
   const liveSnapshot = versions.some(({ v }) => v.frozenAt === null) ? snapshot : null;

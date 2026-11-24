@@ -12,7 +12,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const noWork = await workDenied(req, { tagId: id });
+  const noWork = await workDenied(req, { tagId: id }, "technical");
   if (noWork) return noWork;
   let body: Record<string, unknown>;
   try {
@@ -47,7 +47,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const noWork = await workDenied(req, { tagId: id });
+  const noWork = await workDenied(req, { tagId: id }, "technical");
   if (noWork) return noWork;
 
   const [existing] = await db

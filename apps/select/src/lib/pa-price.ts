@@ -17,6 +17,7 @@
  *   CI casing, SS304 internals  BBBN price − 10 % (22-01-2026; off by default)
  *   MOC chart (22-07-2026)      AABN price = ABBN; AAAN price = ABBN (user, 2026-11-07)
  *   AB1B1N                      BBBN price − 10 % (user, 2026-10-15)
+ *   SS316 = CCCN; SS316L = C1C1C1 = CCCN (user, 2026-11-25)
  *   Vertical (VM), by negative depth:  × 1.2 (H15–H60) / × 1.3 (H70–H120);
  *                               5 m depth × 1.5 · 7 m depth × 1.6
  * Percentages multiply; the Viton/HNBR amount is added last.
@@ -159,8 +160,20 @@ function findAddon(data: PaPriceData, model: string): { addon: PaAddon; exact: b
 }
 
 /** MOC code → the list's column. AAB and AAA are priced as ABBN (MOC chart; AAA user 2026-11-07); AB1B1
- *  from BBBN, less 10 % (the "ab1b1" adjustment). */
-export const MOC_COLUMN: Record<string, PaMocCol> = { ABB: "abbn", AAB: "abbn", AAA: "abbn", BBB: "bbbn", CCC: "cccn", ACC: "accn", AB1B1: "bbbn" };
+ *  from BBBN, less 10 % (the "ab1b1" adjustment). SS316 takes CCCN, and SS316L takes the
+ *  C1C1C1 price, which is the CCC one (user, 2026-11-25). */
+export const MOC_COLUMN: Record<string, PaMocCol> = {
+  ABB: "abbn",
+  AAB: "abbn",
+  AAA: "abbn",
+  BBB: "bbbn",
+  CCC: "cccn",
+  ACC: "accn",
+  AB1B1: "bbbn",
+  SS316: "cccn",
+  SS316L: "cccn",
+  C1C1C1: "cccn",
+};
 
 const SUBCAT_PCT: Record<string, Partial<Record<PaMocCol, number>>> = {
   BAG: { abbn: 15, bbbn: 20, cccn: 25 },
@@ -231,7 +244,7 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
   const col = MOC_COLUMN[i.moc] ?? null;
   if (!col) {
     return {
-      problem: `MOC ${i.moc} is not priced in the L1–L4 list (ABBN, BBBN, ACCN, CCCN; AABN = AAAN = ABBN; AB1B1N = BBBN −10%).`,
+      problem: `MOC ${i.moc} is not priced in the L1–L4 list (ABBN, BBBN, ACCN, CCCN; AABN = AAAN = ABBN; AB1B1N = BBBN −10%; SS316 = SS316L = C1C1C1 = CCCN).`,
       row: found.row,
       col: null,
       notes,
@@ -240,6 +253,9 @@ export function paSuggestion(data: PaPriceData, i: PaInputs): PaSuggestion {
   }
   if (i.moc === "AAB") notes.push("AABN priced as ABBN (MOC chart 22-07-2026)");
   if (i.moc === "AAA") notes.push("AAAN priced as ABBN (user, 2026-11-07)");
+  if (i.moc === "SS316") notes.push("SS316 priced as CCCN");
+  if (i.moc === "SS316L") notes.push("SS316L priced as C1C1C1 = CCCN");
+  if (i.moc === "C1C1C1") notes.push("C1C1C1 priced as CCCN");
 
   const adj: PaAdjustment[] = [];
   // AB1B1N: the BBBN price less 10 % (user, 2026-10-15). First, so it reads

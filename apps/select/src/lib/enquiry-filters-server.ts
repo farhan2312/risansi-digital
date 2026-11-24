@@ -137,11 +137,10 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
   // Assigned to: the assignee's name, whatever its spelling (user, 2026-11-13).
   const who = [...new Set((f.assignee ?? []).map(filterKey).filter(Boolean))];
   if (who.length) out.push(sql`EXISTS (SELECT 1 FROM ${users} au WHERE au.id = projects.assigned_to AND ${keyOf(sql`au.name`)} IN (${list(who)}))`);
-  // Sent to operation (user, 2026-11-19): any of sent / reviewed, not sent / not reviewed.
+  // Sent to operation (user, 2026-11-19; no review step since 2026-11-25): sent / not sent.
   const OPERATION_SQL: Record<string, SQL> = {
     "Sent to operation": sql`projects.released_to_operation_at IS NOT NULL`,
-    "Reviewed - not sent": sql`(projects.reviewed_at IS NOT NULL AND projects.released_to_operation_at IS NULL)`,
-    "Not reviewed": sql`(projects.reviewed_at IS NULL AND projects.released_to_operation_at IS NULL)`,
+    "Not sent": sql`projects.released_to_operation_at IS NULL`,
   };
   const ops = (f.operation ?? []).map((v) => OPERATION_SQL[v]).filter(Boolean);
   if (ops.length) out.push(sql`(${sql.join(ops, sql` OR `)})`);
@@ -152,7 +151,9 @@ export function enquiryFilterSql(f: EnquiryFilters): SQL[] {
   if (f.status?.length) pump.push(sql`${enquiryStatusSql} IN (${list(f.status)})`);
   if (f.commercialStatus?.length) pump.push(sql`${commercialStatusSql} IN (${list(f.commercialStatus)})`);
   const byType: SQL[] = [];
-  if (pump.length) byType.push(sql`(projects.order_type IS DISTINCT FROM 'spare' AND ${sql.join(pump, sql` AND `)})`);
+  // Both picked: both must match, or either one with the Match switch on Either.
+  const join = f.statusMatch === "any" ? sql` OR ` : sql` AND `;
+  if (pump.length) byType.push(sql`(projects.order_type IS DISTINCT FROM 'spare' AND (${sql.join(pump, join)}))`);
   if (f.spareStatus?.length) byType.push(sql`(projects.order_type = 'spare' AND ${commercialStatusSql} IN (${list(f.spareStatus)}))`);
   if (byType.length) out.push(sql`(${sql.join(byType, sql` OR `)})`);
   return out;

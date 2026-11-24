@@ -170,9 +170,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (p.reviewedAt) return error("This version is already reviewed.", 409);
     await db.update(projects).set({ reviewedAt: now, reviewedBy: who, ...pickedSet }).where(eq(projects.id, id));
   } else {
-    if (!p.reviewedAt) return error("Review this version before sending it to operation.", 409);
+    // Sent straight away, no review first (user, 2026-11-25): the send counts as the
+    // review too, so Operation's list still shows who sent it.
     if (p.releasedAt) return error("This version is already sent to operation.", 409);
-    await db.update(projects).set({ releasedToOperationAt: now, releasedToOperationBy: who, ...pickedSet }).where(eq(projects.id, id));
+    await db
+      .update(projects)
+      .set({ releasedToOperationAt: now, releasedToOperationBy: who, ...(p.reviewedAt ? {} : { reviewedAt: now, reviewedBy: who }), ...pickedSet })
+      .where(eq(projects.id, id));
   }
   await logAudit(req, {
     action: action === "reviewed" ? "enquiry.reviewed" : "enquiry.sent_to_operation",
@@ -181,7 +185,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     detail: `${p.code}: ${action === "reviewed" ? "saved versions reviewed" : "sent to operation"}${picked ? ` (${picked.join(", ")})` : ""}`,
   });
   return json({
-    reviewed_at: action === "reviewed" ? now : p.reviewedAt,
+    reviewed_at: action === "reviewed" || !p.reviewedAt ? now : p.reviewedAt,
     released_to_operation_at: action === "send" ? now : null,
     operation_docs: picked,
   });

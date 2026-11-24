@@ -56,7 +56,7 @@ export async function POST(
 ) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return error("Invalid project id", 400);
-  const noWork = await workDenied(req, { projectId: id });
+  const noWork = await workDenied(req, { projectId: id }, "technical");
   if (noWork) return noWork;
 
   const filename = new URL(req.url).searchParams.get("filename") || "Selection-Summary.pdf";
