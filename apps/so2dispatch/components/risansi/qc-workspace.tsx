@@ -29,6 +29,7 @@ import { ecStageStatus } from "@/lib/assembly";
 import { PendencyCell } from "./pendency-cell";
 import type { Pendency } from "@/lib/pendency";
 import type { EcAssembly } from "@/lib/ec-assembly";
+import { EcBasePlate } from "./alignment-cell";
 import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 import { DispatchStatusWithReason } from "./dispatch-status-pill";
 
@@ -318,7 +319,7 @@ export function QcWorkspace({
       key: "qty",
       label: "Qty",
       tdClass: "tabular-nums",
-      join: (row) => (assembly[str(row.id)] ? null : 4),
+      join: (row) => (assembly[str(row.id)] ? null : 5),
       cell: (row) => assembly[str(row.id)]?.qty || "—",
     },
     { key: "ready", label: "Ready", tdClass: "tabular-nums", cell: (row) => assembly[str(row.id)]?.ready ?? "—" },
@@ -337,6 +338,13 @@ export function QcWorkspace({
           </>
         );
       },
+    },
+    // Its base plate, lot by lot, as on Assembly & Packing.
+    {
+      key: "base_plate",
+      label: "Base Plate",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => <EcBasePlate alignment={assembly[str(row.id)]?.alignment} ecId={str(row.id)} />,
     },
     {
       key: "docs",
