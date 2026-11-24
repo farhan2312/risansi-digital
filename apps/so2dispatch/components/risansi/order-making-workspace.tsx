@@ -769,19 +769,17 @@ export function OrderMakingWorkspace({
           selected={filter.soState}
           onChange={(next) => setParams({ sos: next, page: null })}
         />
-        {/* Order Making PO's: an SO member does not see SO Sent to Operation. */}
-        {mode !== "so" && (
-          <SingleSelectFilter
-            label="Sent to Operation"
-            allLabel="Any"
-            options={[
-              { value: "yes", label: "Yes" },
-              { value: "no", label: "No" },
-            ]}
-            selected={filter.sentOps}
-            onChange={(next) => setParams({ sops: next, page: null })}
-          />
-        )}
+        {/* SO Sent to Operation: its date entered, or not — on Order Making PO and SO alike. */}
+        <SingleSelectFilter
+          label="Sent to Operation"
+          allLabel="Any"
+          options={[
+            { value: "yes", label: "Yes" },
+            { value: "no", label: "No" },
+          ]}
+          selected={filter.sentOps}
+          onChange={(next) => setParams({ sops: next, page: null })}
+        />
         {/* SO Sent to PPC: its date entered, or blank (No). */}
         <SingleSelectFilter
           label="Sent to PPC"
