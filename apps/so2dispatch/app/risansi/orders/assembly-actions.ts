@@ -16,10 +16,9 @@ import {
   STAGE_WORDS,
   WOODEN_BOX_SOURCES,
   WOODEN_BOX_STATUSES,
-  alignmentLotDataSql,
   alignmentLotsOf,
+  alignmentLotsSql,
   basePlateFromEcsSql,
-  basePlateSql,
   lotAssembly,
   lotStagesError,
   pumpLotsFromEcs,
@@ -28,8 +27,6 @@ import {
   type AsmEntry,
   type LotStages,
   woodenBoxFromPackingSql,
-  woodenBoxSql,
-  type AlignmentLot,
 } from "@/lib/assembly";
 
 export type AssemblyResult = { ok: true } | { ok: false; error: string };
@@ -314,9 +311,11 @@ function cleanBoxes(sent: WoodenBox[], who: string): CleanBox[] | { error: strin
   return boxes;
 }
 
-/** One alignment lot as the form sends it: Planning's lot n (0: the SO as a whole), and the part being filled. */
+/** One alignment lot as the form sends it: its ECs and how many, and the part being filled (base plate or wooden box). */
 export type AlignmentLotInput = {
-  n: number;
+  /** Its id once saved; blank for a new lot. */
+  id: string;
+  ecs: { item_id: string; qty: string | number }[];
   base_plate?: BasePlate;
   wooden_box?: { required: string; boxes: WoodenBox[] };
 };
@@ -332,16 +331,19 @@ async function syncSoAlignment(db: Db, orderId: string, by: { id: string | null;
   const so = (
     await db.query(
       `SELECT ${basePlateFromEcsSql("o")} AS plate, ${woodenBoxFromPackingSql("o")} AS box, o.base_plate_status,
-              to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date, ${alignmentLotDataSql("o")} AS lot_data
+              to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date, ${alignmentLotsSql("o")} AS lots
          FROM orders o WHERE o.id = $1`,
       [orderId]
     )
   ).rows[0];
   if (!so) return;
-  const { lots, rest } = alignmentLotsOf(so.lot_data);
+  const lots = alignmentLotsOf(so.lots);
   if (lots.length === 0) return;
+  const ecs = (
+    await db.query(`SELECT id, quantity FROM order_items WHERE order_id = $1 AND item_type = ANY($2)`, [orderId, PUMP_LIKE])
+  ).rows.map((r) => ({ id: String(r.id), quantity: Number(r.quantity ?? 0) || 0 }));
   const natural = { plate: String(so.plate), box: (so.box as string | null) ?? null };
-  const r = soAlignmentFromLots(rest ? [...lots, rest] : lots);
+  const r = soAlignmentFromLots(lots, ecs, natural);
   const plateOverride = overrideOf(r.plate, natural.plate);
   const boxOverride = overrideOf(r.box, natural.box);
   if (r.plate === "Yes") {
@@ -382,59 +384,55 @@ async function syncSoAlignment(db: Db, orderId: string, by: { id: string | null;
 }
 
 /**
- * Assembly & Packing's alignment on a pump SO, lot by lot as Planning has
- * them (lot 0, the SO as a whole, while Planning has none): the part being
- * filled — a lot's base plate, or its wooden boxes — the other part left as
- * the lot has it (each is filled by its own person). A lot set for the first
- * time keeps the other part it was taking. The SO's own values follow.
+ * Assembly & Packing's alignment lots on a pump SO: each lot's ECs and how
+ * many of each, and the part being filled — its base plate, or its wooden
+ * boxes — the other part left as it is (each is filled by its own person).
+ * A new lot takes the other part from what its ECs and the SO say. Lots in
+ * `deleted` go. An EC is never in lots for more than its quantity. The SO's
+ * own base plate and wooden box follow the lots.
  */
-export async function saveAlignmentLotsAction(orderId: string, lots: AlignmentLotInput[]): Promise<AssemblyResult> {
+export async function saveAlignmentLotsAction(orderId: string, lots: AlignmentLotInput[], deleted: string[]): Promise<AssemblyResult> {
   const gate = await alignmentGate(orderId);
   if ("error" in gate) return { ok: false, error: gate.error };
   const sentLots = Array.isArray(lots) ? lots : [];
+  const gone = (Array.isArray(deleted) ? deleted : []).map(String).filter((id) => UUID_RE.test(id));
+  const stale: AssemblyResult = { ok: false, error: "A lot was changed elsewhere — reopen the alignment." };
   try {
-    const so = (
-      await query<Record<string, unknown>>(
-        `SELECT ${alignmentLotDataSql("o")} AS lot_data, ${basePlateSql("o")} AS base_plate, o.base_plate_status,
-                to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date, o.base_plate_remarks, ${woodenBoxSql("o")} AS wooden_box,
-                (SELECT COALESCE(jsonb_agg(jsonb_build_object('source', wb.source, 'required_qty', wb.required_qty, 'stock_qty', wb.stock_qty,
-                          'status', wb.status, 'received_date', to_char(wb.received_date, 'YYYY-MM-DD'), 'received_qty', wb.received_qty,
-                          'remarks', wb.remarks) ORDER BY wb.source DESC), '[]'::jsonb)
-                   FROM order_wooden_boxes wb WHERE wb.order_id = o.id) AS wooden_boxes
-           FROM orders o WHERE o.id = $1`,
-        [orderId]
+    const ecRows = (
+      await query<{ id: string; ec_no: string | null; quantity: number | null; base_plate: string | null }>(
+        `SELECT id, ec_no, quantity, base_plate FROM order_items WHERE order_id = $1 AND item_type = ANY($2) ORDER BY seq`,
+        [orderId, PUMP_LIKE]
       )
-    ).rows[0];
-    if (!so) return { ok: false, error: "Order not found." };
-    const { lots: current, planned } = alignmentLotsOf(so.lot_data);
-    // With no Planning lot and nothing set yet, lot 0 starts from the SO's own values.
-    const lotsNow: AlignmentLot[] = current.length
-      ? current
-      : planned
-        ? []
-        : [
-            {
-              n: 0,
-              id: "",
-              ecs: [],
-              pumps: 0,
-              base_plate: String(so.base_plate ?? ""),
-              base_plate_status: String(so.base_plate_status ?? ""),
-              base_plate_date: String(so.base_plate_date ?? ""),
-              base_plate_remarks: String(so.base_plate_remarks ?? ""),
-              base_plate_steps: [],
-              wooden_box: String(so.wooden_box ?? ""),
-              wooden_boxes: Array.isArray(so.wooden_boxes) ? (so.wooden_boxes as Record<string, unknown>[]) : [],
-            },
-          ];
+    ).rows;
+    const ecById = new Map(ecRows.map((e) => [e.id, e]));
+    const existing = alignmentLotsOf(
+      (await query<{ lots: unknown }>(`SELECT ${alignmentLotsSql("o")} AS lots FROM orders o WHERE o.id = $1`, [orderId])).rows[0]?.lots
+    );
+    const byId = new Map(existing.map((l) => [l.id, l]));
+    if (gone.some((id) => !byId.has(id))) return stale;
 
-    type Clean = { lot: AlignmentLot; who: string; plate?: CleanPlate; box?: { required: "Yes" | "No"; boxes: CleanBox[] | null } };
+    type Clean = {
+      id: string;
+      who: string;
+      ecs: { item_id: string; qty: number }[];
+      plate?: CleanPlate;
+      box?: { required: "Yes" | "No"; boxes: CleanBox[] | null };
+    };
     const clean: Clean[] = [];
-    for (const l of sentLots) {
-      const lot = lotsNow.find((x) => x.n === Math.floor(Number(l?.n)));
-      if (!lot) return { ok: false, error: "Planning's lots have changed — reopen the alignment." };
-      const who = lot.n > 0 ? `Lot ${lot.n}` : "The SO";
-      const c: Clean = { lot, who };
+    for (const [i, l] of sentLots.entries()) {
+      const id = UUID_RE.test(String(l?.id ?? "")) ? String(l.id) : "";
+      if (id && (!byId.has(id) || gone.includes(id))) return stale;
+      const who = `Lot ${i + 1}`;
+      const ecs: { item_id: string; qty: number }[] = [];
+      for (const e of Array.isArray(l?.ecs) ? l.ecs : []) {
+        const t = String(e?.qty ?? "").trim();
+        if (!t || /^0+$/.test(t)) continue;
+        if (!/^\d+$/.test(t)) return { ok: false, error: `${who}: EC quantities are whole numbers.` };
+        if (!ecById.has(String(e.item_id))) return { ok: false, error: `${who}: an EC is not a pump of this SO.` };
+        ecs.push({ item_id: String(e.item_id), qty: Number(t) });
+      }
+      if (ecs.length === 0) return { ok: false, error: `${who}: put at least one EC in the lot.` };
+      const c: Clean = { id, who, ecs };
       if (l.base_plate) {
         const p = cleanBasePlate(l.base_plate, who);
         if ("error" in p) return { ok: false, error: p.error };
@@ -451,32 +449,33 @@ export async function saveAlignmentLotsAction(orderId: string, lots: AlignmentLo
         }
         c.box = { required: req, boxes };
       }
-      if (c.plate || c.box) clean.push(c);
+      clean.push(c);
+    }
+    // No EC in lots for more than it has: the lots sent, and any saved lot not sent.
+    const kept = existing.filter((l) => !gone.includes(l.id) && !clean.some((c) => c.id === l.id));
+    for (const e of ecRows) {
+      const total = [...clean, ...kept].reduce((t, l) => t + l.ecs.filter((x) => x.item_id === e.id).reduce((s, x) => s + x.qty, 0), 0);
+      const has = Number(e.quantity ?? 0) || 0;
+      if (total > has) return { ok: false, error: `EC ${e.ec_no || "—"}: ${total} in lots, more than its quantity ${has}.` };
     }
 
     const by = { id: UUID_RE.test(gate.user.id) ? gate.user.id : null, name: gate.user.full_name || gate.user.email };
     await withTransaction(async (client) => {
+      if (gone.length) await client.query(`DELETE FROM order_alignment_lots WHERE order_id = $1 AND id = ANY($2::uuid[])`, [orderId, gone]);
       for (const c of clean) {
-        const was = c.lot;
-        // The lot's row: set for the first time, with what it was taking.
-        const row = await client.query(
-          `INSERT INTO order_alignment_lots (order_id, lot_no, ecs, base_plate, base_plate_status, base_plate_date, base_plate_remarks, wooden_box, wooden_boxes)
-           VALUES ($1, $2, $3::jsonb, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, '')::date, NULLIF($7, ''), NULLIF($8, ''), $9::jsonb)
-           ON CONFLICT (order_id, lot_no) DO UPDATE SET ecs = EXCLUDED.ecs, updated_at = now()
-           RETURNING id`,
-          [
-            orderId,
-            was.n,
-            JSON.stringify(was.ecs),
-            was.base_plate,
-            was.base_plate_status,
-            was.base_plate_date,
-            was.base_plate_remarks,
-            was.wooden_box,
-            JSON.stringify(was.wooden_boxes),
-          ]
-        );
-        const id = String(row.rows[0].id);
+        const was = c.id ? byId.get(c.id)! : null;
+        let id = c.id;
+        if (!was) {
+          // A new lot: the part not filled here from what its ECs and the SO say.
+          const plate = c.ecs.some((e) => ecById.get(e.item_id)?.base_plate === "Yes") ? "Yes" : "No";
+          const ins = await client.query(
+            `INSERT INTO order_alignment_lots (order_id, ecs, base_plate, wooden_box) VALUES ($1, $2::jsonb, $3, $4) RETURNING id`,
+            [orderId, JSON.stringify(c.ecs), plate, gate.box]
+          );
+          id = String(ins.rows[0].id);
+        } else {
+          await client.query(`UPDATE order_alignment_lots SET ecs = $2::jsonb, updated_at = now() WHERE id = $1`, [id, JSON.stringify(c.ecs)]);
+        }
         if (c.plate) {
           // No keeps what was filled in, for a later Yes.
           if (c.plate.required === "No") {
@@ -489,17 +488,11 @@ export async function saveAlignmentLotsAction(orderId: string, lots: AlignmentLo
               [id, p.status, p.date, p.remarks]
             );
             // Each step kept with its own day: moving on to the next adds to the history.
-            if (
-              !was.id ||
-              was.base_plate !== "Yes" ||
-              (was.base_plate_status || "Pending") !== p.status ||
-              was.base_plate_date !== p.date ||
-              (was.base_plate_remarks || null) !== p.remarks
-            ) {
+            if (!was || was.base_plate_status !== p.status || was.base_plate_date !== p.date || (was.base_plate_remarks || null) !== p.remarks) {
               await client.query(
                 `INSERT INTO order_lot_base_plate_history (lot_id, order_id, status, stage_date, remarks, prev_status, prev_date, changed_by, changed_by_name)
                  VALUES ($1, $2, $3, NULLIF($4, '')::date, $5, NULLIF($6, ''), NULLIF($7, '')::date, $8, $9)`,
-                [id, orderId, p.status, p.date, p.remarks, was.base_plate === "Yes" ? was.base_plate_status : "", was.base_plate_date, by.id, by.name]
+                [id, orderId, p.status, p.date, p.remarks, was?.base_plate_status ?? "", was?.base_plate_date ?? "", by.id, by.name]
               );
             }
           }
@@ -518,25 +511,25 @@ export async function saveAlignmentLotsAction(orderId: string, lots: AlignmentLo
       await syncSoAlignment(client, orderId, by);
     });
 
+    const ecName = (id: string) => `EC ${ecById.get(id)?.ec_no || "—"}`;
     const lines = clean.map((c) => {
-      const parts: string[] = [];
+      const parts = [`${c.who} (${c.ecs.map((e) => `${ecName(e.item_id)} ×${e.qty}`).join(", ")})`];
       if (c.plate) parts.push(c.plate.required === "No" ? "base plate No" : `base plate ${c.plate.status}${c.plate.date ? ` on ${c.plate.date}` : ""}`);
       if (c.box) parts.push(c.box.boxes ? `wooden box ${c.box.boxes.map((b) => `${b.source} ${b.status}`).join(", ")}` : "wooden box No");
-      return `${c.who}: ${parts.join(", ")}`;
+      return parts.join(": ");
     });
-    if (lines.length) {
-      await logAudit({
-        actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
-        action: "order.update",
-        category: "activity",
-        target: (await getOrderLabel(orderId)) ?? orderId,
-        details: `Alignment: ${lines.join(" · ")}`,
-        subject: await subjectForOrder(orderId),
-      });
-    }
+    if (gone.length) lines.push(`${gone.length} lot${gone.length > 1 ? "s" : ""} removed`);
+    await logAudit({
+      actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
+      action: "order.update",
+      category: "activity",
+      target: (await getOrderLabel(orderId)) ?? orderId,
+      details: `Alignment lots: ${lines.join(" · ")}`,
+      subject: await subjectForOrder(orderId),
+    });
   } catch (error) {
     console.error("saveAlignmentLotsAction failed:", error);
-    return { ok: false, error: "Could not save the alignment." };
+    return { ok: false, error: "Could not save the alignment lots." };
   }
   revalidatePath("/risansi/departments/assembly-dispatch");
   return { ok: true };

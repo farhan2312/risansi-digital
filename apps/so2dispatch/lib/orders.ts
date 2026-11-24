@@ -60,7 +60,7 @@ import {
 import { ecDrawingDoneSql, ecDrawingSentSql, ecGadStatusSql } from "@/lib/drawing-filter";
 import { soPurchaseStateSql } from "@/lib/purchase-filter";
 import { ecQcStatusSql, soQcStateSql } from "@/lib/qc-filter";
-import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, alignmentRestrict, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql, alignmentLotDataSql } from "@/lib/assembly";
+import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, alignmentRestrict, basePlateSql, soStageStatusSql, woodenBoxSql, basePlateStepsSql, alignmentLotsSql } from "@/lib/assembly";
 import { listTeams } from "@/lib/market-intell";
 import { assignableSql } from "@/lib/so-assignment";
 import { pickedValue, toneFor, type KpiCard, type KpiCardDef, type KpiRequest } from "@/lib/kpis";
@@ -2944,8 +2944,8 @@ export async function listItemsForSection(
                                             -- Every step it reached, each with its day.
                                             'base_plate_steps', ${basePlateStepsSql("oa")},
                                             'base_plate_remarks', oa.base_plate_remarks,
-                                            -- Its alignment lots (Planning's): each lot's own base plate and wooden box.
-                                            'lot_data', ${alignmentLotDataSql("oa")},
+                                            -- Its alignment lots: ECs, and each lot's own base plate and wooden box.
+                                            'lots', ${alignmentLotsSql("oa")},
                                             'wooden_box', ${woodenBoxSql("oa")},
                                             -- A row per way: in house, bought out.
                                             'wooden_boxes', (SELECT jsonb_agg(jsonb_build_object(
