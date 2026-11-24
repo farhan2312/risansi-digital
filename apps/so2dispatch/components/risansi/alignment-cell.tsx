@@ -587,14 +587,11 @@ export function AlignmentValue({
   which,
   canEdit,
   onOpen,
-  ecLabels,
 }: {
   alignment: unknown;
   which: "base_plate" | "wooden_box";
   canEdit: boolean;
   onOpen: () => void;
-  /** The SO's pump ECs' names by id, to say what each lot holds. */
-  ecLabels?: Record<string, string>;
 }) {
   const a = (alignment ?? {}) as Row;
   const lots: AlignmentLot[] = alignmentLotsOf(a.lots);
@@ -607,16 +604,10 @@ export function AlignmentValue({
       className="w-full text-left enabled:hover:opacity-80 disabled:cursor-default"
     >
       {lots.length ? (
-        <span className="flex flex-col items-start gap-2">
+        <span className="flex flex-col items-start gap-1.5">
           {lots.map((l) => (
-            <span key={l.id} className="flex flex-col items-start gap-0.5">
-              <span className="whitespace-nowrap text-[11px]">
-                <span className="font-semibold text-foreground">Lot {l.n}</span>
-                <span className="text-muted">
-                  {" · "}
-                  {l.ecs.map((e) => `${ecLabels?.[e.item_id] ? `EC ${ecLabels[e.item_id]}` : "EC"} ×${e.qty}`).join(", ")}
-                </span>
-              </span>
+            <span key={l.id} className="flex items-start gap-1.5">
+              <span className="pt-0.5 text-[11px] font-semibold text-foreground">L{l.n}</span>
               <OneAlignment a={l as unknown as Row} which={which} />
             </span>
           ))}
@@ -628,5 +619,23 @@ export function AlignmentValue({
         </span>
       )}
     </button>
+  );
+}
+
+/** An EC's base plate on its own row: each alignment lot it is in, with that lot's status and day; else the SO's. */
+export function EcBasePlate({ alignment, ecId }: { alignment: unknown; ecId: string }) {
+  const a = (alignment ?? {}) as Row;
+  const lots = alignmentLotsOf(a.lots).filter((l) => l.ecs.some((e) => e.item_id === ecId));
+  const one = (l: Row) => <Value yes={str(l.base_plate)} status={str(l.base_plate_status)} done={DONE.base_plate} date={str(l.base_plate_date)} />;
+  if (lots.length === 0) return one(a);
+  return (
+    <span className="flex flex-col items-start gap-1">
+      {lots.map((l) => (
+        <span key={l.id} className="flex items-start gap-1.5">
+          <span className="pt-0.5 text-[11px] font-semibold text-foreground">L{l.n}</span>
+          {one(l as unknown as Row)}
+        </span>
+      ))}
+    </span>
   );
 }

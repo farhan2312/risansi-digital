@@ -27,7 +27,7 @@ import {
 import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
-import { AlignmentLotsForm, AlignmentValue } from "./alignment-cell";
+import { AlignmentLotsForm, AlignmentValue, EcBasePlate } from "./alignment-cell";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { HoldBadge } from "./hold-badge";
@@ -53,8 +53,6 @@ const todayIso = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().sl
 /** A pump EC as assembly and packing read it. */
 /** model: its Internal Model. */
 type Ec = { id: string; label: string; model: string; quantity: number; ready: number; link: string; linkAt: unknown; links: unknown };
-/** The SO's pump ECs' names by id, for its alignment lots. */
-const ecLabelsOf = (rows: Row[]): Record<string, string> => Object.fromEntries(rows.map((r) => [str(r.id), str(r.ec_no) || "—"]));
 const ecOf = (r: Row): Ec => ({
   id: str(r.id),
   label: str(r.ec_no) || "EC",
@@ -292,12 +290,12 @@ export function AssemblyPumpTable({
       label: "Base Plate",
       thClass: "border-l border-card-border",
       tdClass: "border-l border-card-border",
-      cell: (g) => <AlignmentValue alignment={g.head.alignment} ecLabels={ecLabelsOf(g.ecs)} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "base_plate" })} />,
+      cell: (g) => <AlignmentValue alignment={g.head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "base_plate" })} />,
     },
     {
       key: "wooden_box",
       label: "Wooden Box",
-      cell: (g) => <AlignmentValue alignment={g.head.alignment} ecLabels={ecLabelsOf(g.ecs)} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "wooden_box" })} />,
+      cell: (g) => <AlignmentValue alignment={g.head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "wooden_box" })} />,
     },
   ];
   const asmCols: SplitCol<SoGroup>[] = [
@@ -447,6 +445,8 @@ export function AssemblyPumpTable({
     { key: "ready", label: "Ready", tdClass: "tabular-nums", cell: ({ e }) => e.ready },
     { key: "assembled", label: "Assembled", tdClass: "tabular-nums", cell: ({ d }) => d.assembled },
     { key: "assembly", label: "Assembly", cell: ({ e, d }) => <Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} /> },
+    // Its base plate, lot by lot, between assembly and packing.
+    { key: "base_plate", label: "Base Plate", tdClass: "whitespace-nowrap", cell: ({ e, g }) => <EcBasePlate alignment={g.head.alignment} ecId={e.id} /> },
     { key: "packed", label: "Packed", tdClass: "tabular-nums", cell: ({ d }) => d.packed },
     { key: "packing", label: "Packing", cell: ({ e, d }) => <Chip label={ecStageStatus(d.packed, e.quantity, "packing")} /> },
   ];
