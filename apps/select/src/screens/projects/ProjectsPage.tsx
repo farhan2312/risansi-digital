@@ -9,6 +9,7 @@ import EnquiryDocumentModal from "../../components/reports/EnquiryDocumentModal"
 import QuotationStepModal from "../../components/projects/QuotationStepModal";
 import EditProjectModal from "../../components/projects/EditProjectModal";
 import AssignEnquiryModal from "../../components/projects/AssignEnquiryModal";
+import AssignmentHistoryModal from "../../components/projects/AssignmentHistory";
 import ClearanceModal from "../../components/projects/ClearanceModal";
 import { holdReasonText } from "../../lib/clearance";
 import EnquiryVersionsModal from "../../components/projects/EnquiryVersionsModal";
@@ -120,6 +121,8 @@ const ProjectsPage = () => {
   const viewOnly = isViewOnlyRole(user?.role);
   const [rep, setRep] = useState("");
   const [assigning, setAssigning] = useState<ProjectRecord | null>(null);
+  // Who it went to, who moved it and why (user, 2026-11-25).
+  const [assignHistoryFor, setAssignHistoryFor] = useState<ProjectRecord | null>(null);
   // The clearance pop-up: Clear or Hold, and its history.
   const [clearanceFor, setClearanceFor] = useState<ProjectRecord | null>(null);
   // The pop-up listing an enquiry's versions.
@@ -1023,6 +1026,18 @@ const ProjectsPage = () => {
                           {project.assigned_to ? "Reassign" : "Assign"}
                         </Button>
                       )}
+                      {project.assigned_to && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => setAssignHistoryFor(project)}
+                          className={`mt-0.5 h-6 px-0 text-[11.5px] text-muted-foreground ${manager ? "ml-2.5" : ""}`}
+                          aria-label={`Assignment history of ${project.project_code}`}
+                          title="Who it was assigned to, who reassigned it and why"
+                        >
+                          History
+                        </Button>
+                      )}
                     </span>
 
                     {/* Actions: the three steps, then a menu for the rest */}
@@ -1439,6 +1454,8 @@ const ProjectsPage = () => {
           onConfirm={(target) => void handleCopySpare(target)}
         />
       )}
+
+      {assignHistoryFor && <AssignmentHistoryModal project={assignHistoryFor} onClose={() => setAssignHistoryFor(null)} />}
 
       <AssignEnquiryModal
         project={assigning}
