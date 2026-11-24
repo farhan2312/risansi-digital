@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, X } from "lucide-react";
 import {
   basePlateHistoryAction,
   saveAlignmentLotsAction,
@@ -12,7 +12,7 @@ import {
   type BasePlate,
   type WoodenBox,
 } from "@/app/risansi/orders/assembly-actions";
-import { BASE_PLATE_STATUSES, WOODEN_BOX_SOURCES, WOODEN_BOX_STATUSES, alignmentLotsOf, inHouseToPlan, type AlignmentLot } from "@/lib/assembly";
+import { BASE_PLATE_STATUSES, WOODEN_BOX_SOURCES, WOODEN_BOX_STATUSES, alignmentLotsOf, inHouseToPlan, type AlignmentPart } from "@/lib/assembly";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v == null ? "" : String(v));
@@ -341,26 +341,32 @@ function BasePlateHistory({ orderId, lotId }: { orderId: string; lotId: string }
 }
 
 /** A pump EC of the SO, as the lots name it. */
-export type AlignmentEc = { id: string; label: string; quantity: number; base_plate: string };
+export type AlignmentEc = { id: string; label: string };
 
 /** A lot as the form holds it. */
 type Draft = {
-  key: string;
+  n: number;
+  ecs: { item_id: string; qty: number }[];
+  /** Its own row once set (else it shows what it takes). */
   id: string;
-  ecs: Record<string, string>;
   plate: BasePlate;
   boxRequired: string;
   boxes: WoodenBox[];
 };
 
-let draftKey = 0;
-const nextKey = () => `new-${++draftKey}`;
+const draftOf = (l: AlignmentPart & { n: number; ecs: { item_id: string; qty: number }[]; id: string }): Draft => ({
+  n: l.n,
+  ecs: l.ecs,
+  id: l.id,
+  plate: { required: l.base_plate, status: l.base_plate_status || "Pending", date: l.base_plate_date, remarks: l.base_plate_remarks },
+  boxRequired: l.wooden_box,
+  boxes: l.wooden_boxes.map(boxFrom),
+});
 
 /**
- * The SO's alignment lots, for the base plate or the wooden box (each filled
- * by its own person): each lot's ECs and how many of each, and that part of
- * it. Lots are added and removed here; an SO with none starts with a lot of
- * all its pumps, carrying what the SO has.
+ * The SO's alignment, lot by lot as Planning has them, for the base plate or
+ * the wooden box (each filled by its own person). With no Planning lot yet,
+ * the SO as a whole.
  */
 export function AlignmentLotsForm({
   orderId,
@@ -378,141 +384,64 @@ export function AlignmentLotsForm({
   onClose: () => void;
 }) {
   const a = (alignment ?? {}) as Row;
-  const saved = alignmentLotsOf(a.lots);
-  const plateFor = (ecQty: Record<string, string>) =>
-    ecs.some((e) => Number(ecQty[e.id] || 0) > 0 && e.base_plate === "Yes") ? "Yes" : "No";
-  const [lots, setLots] = useState<Draft[]>(() =>
-    saved.length
-      ? saved.map((l) => ({
-          key: l.id,
-          id: l.id,
-          ecs: Object.fromEntries(l.ecs.map((e) => [e.item_id, String(e.qty)])),
-          plate: {
-            required: l.base_plate,
-            status: l.base_plate_status || "Pending",
-            date: l.base_plate_date,
-            remarks: l.base_plate_remarks,
-          },
-          boxRequired: l.wooden_box,
-          boxes: l.wooden_boxes.map(boxFrom),
-        }))
-      : [
-          {
-            key: nextKey(),
-            id: "",
-            ecs: Object.fromEntries(ecs.map((e) => [e.id, String(e.quantity)])),
-            plate: {
-              required: str(a.base_plate),
-              status: str(a.base_plate_status) || "Pending",
-              date: str(a.base_plate_date).slice(0, 10),
-              remarks: str(a.base_plate_remarks),
-            },
-            boxRequired: str(a.wooden_box),
-            boxes: boxesOf(a).map(boxFrom),
-          },
-        ]
-  );
-  const [deleted, setDeleted] = useState<string[]>([]);
-  const set = (key: string, patch: Partial<Draft>) => setLots((p) => p.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-  const used = (ecId: string, except = "") =>
-    lots.filter((l) => l.key !== except).reduce((t, l) => t + (Number(l.ecs[ecId] || 0) || 0), 0);
-
-  function addLot() {
-    const left = Object.fromEntries(ecs.map((e) => [e.id, String(Math.max(0, e.quantity - used(e.id)))]));
-    setLots((p) => [
-      ...p,
-      {
-        key: nextKey(),
+  const [lots, setLots] = useState<Draft[]>(() => {
+    const { lots: saved } = alignmentLotsOf(a.lot_data);
+    if (saved.length) return saved.map(draftOf);
+    // No Planning lot and nothing set: the SO as a whole, from what it has.
+    return [
+      draftOf({
+        n: 0,
         id: "",
-        ecs: left,
-        plate: { required: plateFor(left), status: "Pending", date: "", remarks: "" },
-        boxRequired: str(a.wooden_box),
-        boxes: [],
-      },
-    ]);
-  }
-
-  function removeLot(l: Draft, n: number) {
-    if (l.id && !window.confirm(`Remove Lot ${n}? Its base plate and wooden box go with it.`)) return;
-    if (l.id) setDeleted((d) => [...d, l.id]);
-    setLots((p) => p.filter((x) => x.key !== l.key));
-  }
+        ecs: [],
+        base_plate: str(a.base_plate),
+        base_plate_status: str(a.base_plate_status),
+        base_plate_date: str(a.base_plate_date).slice(0, 10),
+        base_plate_remarks: str(a.base_plate_remarks),
+        base_plate_steps: [],
+        wooden_box: str(a.wooden_box),
+        wooden_boxes: boxesOf(a),
+      }),
+    ];
+  });
+  const set = (n: number, patch: Partial<Draft>) => setLots((p) => p.map((l) => (l.n === n ? { ...l, ...patch } : l)));
+  const label = (id: string) => ecs.find((e) => e.id === id)?.label || "—";
 
   const save = () =>
     saveAlignmentLotsAction(
       orderId,
       lots.map(
-        (l): AlignmentLotInput => ({
-          id: l.id,
-          ecs: ecs.map((e) => ({ item_id: e.id, qty: l.ecs[e.id] ?? "" })),
-          ...(which === "base_plate" ? { base_plate: l.plate } : { wooden_box: { required: l.boxRequired, boxes: l.boxes } }),
-        })
-      ),
-      deleted
+        (l): AlignmentLotInput =>
+          which === "base_plate" ? { n: l.n, base_plate: l.plate } : { n: l.n, wooden_box: { required: l.boxRequired, boxes: l.boxes } }
+      )
     );
 
   return (
-    <AlignmentDialog title={which === "base_plate" ? "Base Plate · lots" : "Wooden Box · lots"} soLabel={soLabel} save={save} onClose={onClose}>
-      {lots.length === 0 && <p className="text-sm text-muted">No lots. Add one to set the {which === "base_plate" ? "base plate" : "wooden box"}.</p>}
-      {lots.map((l, i) => (
-        <div key={l.key} className="space-y-3 rounded-xl border border-card-border p-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-foreground">Lot {i + 1}</p>
-            <button
-              type="button"
-              onClick={() => removeLot(l, i + 1)}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Remove
-            </button>
+    <AlignmentDialog title={which === "base_plate" ? "Base Plate" : "Wooden Box"} soLabel={soLabel} save={save} onClose={onClose}>
+      {lots.map((l) => (
+        <div key={l.n} className="space-y-3 rounded-xl border border-card-border p-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">{l.n > 0 ? `Lot ${l.n}` : "All pumps"}</p>
+            <p className="text-[11px] text-muted">
+              {l.n > 0
+                ? l.ecs.map((e) => `EC ${label(e.item_id)} ×${e.qty}`).join(", ")
+                : "Planning has no lots on this SO yet: set for the SO as a whole."}
+            </p>
           </div>
-          {/* The ECs in the lot: how many of each, never past what the other lots leave. */}
-          <Field label="ECs in the lot" required group>
-            <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-1.5 text-sm">
-              {ecs.map((e) => {
-                const left = e.quantity - used(e.id, l.key);
-                return (
-                  <Fragment key={e.id}>
-                    <span className="truncate text-foreground">EC {e.label}</span>
-                    <span className="whitespace-nowrap text-[11px] text-muted">
-                      of {e.quantity} · {Math.max(0, left)} free
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={Math.max(0, left)}
-                      step={1}
-                      value={l.ecs[e.id] ?? ""}
-                      onChange={(ev) => set(l.key, { ecs: { ...l.ecs, [e.id]: ev.target.value } })}
-                      className="h-9 w-20 rounded-lg border border-input-border bg-surface px-2 text-sm text-foreground focus:border-primary focus:outline-none"
-                    />
-                  </Fragment>
-                );
-              })}
-            </div>
-          </Field>
           {which === "base_plate" ? (
             <>
-              <BasePlateFields v={l.plate} set={(patch) => set(l.key, { plate: { ...l.plate, ...patch } })} />
+              <BasePlateFields v={l.plate} set={(patch) => set(l.n, { plate: { ...l.plate, ...patch } })} />
               {l.id && <BasePlateHistory orderId={orderId} lotId={l.id} />}
             </>
           ) : (
             <WoodenBoxFields
               required={l.boxRequired}
-              setRequired={(v) => set(l.key, { boxRequired: v })}
+              setRequired={(v) => set(l.n, { boxRequired: v })}
               boxes={l.boxes}
-              setBoxes={(boxes) => set(l.key, { boxes })}
+              setBoxes={(boxes) => set(l.n, { boxes })}
             />
           )}
         </div>
       ))}
-      <button
-        type="button"
-        onClick={addLot}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-input-border px-3 py-2 text-sm font-medium text-foreground hover:bg-background"
-      >
-        <Plus className="h-4 w-4" /> Add lot
-      </button>
     </AlignmentDialog>
   );
 }
@@ -579,44 +508,35 @@ function OneAlignment({ a, which }: { a: Row; which: "base_plate" | "wooden_box"
 
 /**
  * One Alignment cell on the front (Base Plate or Wooden Box), opening its own
- * form. With alignment lots, each lot on a line: its ECs, then its own value;
- * without, the SO's.
+ * form. With Planning's lots, each lot on a line with its own value; without,
+ * the SO's.
  */
 export function AlignmentValue({
   alignment,
   which,
   canEdit,
   onOpen,
-  ecLabels,
 }: {
   alignment: unknown;
   which: "base_plate" | "wooden_box";
   canEdit: boolean;
   onOpen: () => void;
-  /** The SO's pump ECs' names by id, to say what each lot holds. */
-  ecLabels?: Record<string, string>;
 }) {
   const a = (alignment ?? {}) as Row;
-  const lots: AlignmentLot[] = alignmentLotsOf(a.lots);
+  const lots = alignmentLotsOf(a.lot_data).lots.filter((l) => l.n > 0);
   return (
     <button
       type="button"
       disabled={!canEdit}
       onClick={onOpen}
-      title={canEdit ? (which === "base_plate" ? "Set the base plate, lot by lot" : "Set the wooden box, lot by lot") : undefined}
+      title={canEdit ? (which === "base_plate" ? "Set the base plate" : "Set the wooden box") : undefined}
       className="w-full text-left enabled:hover:opacity-80 disabled:cursor-default"
     >
       {lots.length ? (
-        <span className="flex flex-col items-start gap-2">
+        <span className="flex flex-col items-start gap-1.5">
           {lots.map((l) => (
-            <span key={l.id} className="flex flex-col items-start gap-0.5">
-              <span className="whitespace-nowrap text-[11px]">
-                <span className="font-semibold text-foreground">Lot {l.n}</span>
-                <span className="text-muted">
-                  {" · "}
-                  {l.ecs.map((e) => `${ecLabels?.[e.item_id] ? `EC ${ecLabels[e.item_id]}` : "EC"} ×${e.qty}`).join(", ")}
-                </span>
-              </span>
+            <span key={l.n} className="flex items-start gap-1.5">
+              <span className="pt-0.5 text-[11px] font-semibold text-foreground">L{l.n}</span>
               <OneAlignment a={l as unknown as Row} which={which} />
             </span>
           ))}
@@ -628,5 +548,25 @@ export function AlignmentValue({
         </span>
       )}
     </button>
+  );
+}
+
+/** An EC's base plate on its own row: each of Planning's lots it is in, with that lot's status and day. */
+export function EcBasePlate({ alignment, ecId }: { alignment: unknown; ecId: string }) {
+  const a = (alignment ?? {}) as Row;
+  const lots = alignmentLotsOf(a.lot_data).lots.filter((l) => l.n === 0 || l.ecs.some((e) => e.item_id === ecId));
+  const one = (l: Row) => (
+    <Value yes={str(l.base_plate)} status={str(l.base_plate_status)} done={DONE.base_plate} date={str(l.base_plate_date)} />
+  );
+  if (lots.length === 0) return one(a);
+  return (
+    <span className="flex flex-col items-start gap-1">
+      {lots.map((l) => (
+        <span key={l.n} className="flex items-start gap-1.5">
+          {l.n > 0 && <span className="pt-0.5 text-[11px] font-semibold text-foreground">L{l.n}</span>}
+          {one(l as unknown as Row)}
+        </span>
+      ))}
+    </span>
   );
 }
