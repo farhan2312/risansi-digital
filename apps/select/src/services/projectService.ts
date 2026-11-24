@@ -4,6 +4,7 @@ import type { ClearanceNow } from "../lib/clearance";
 import type { OrderSubtype, OrderType } from "../lib/roles";
 import type { EnquiryCategory } from "../lib/enquiry-fields";
 import type { DocLinks } from "../lib/doc-links";
+import type { AssignmentEntry } from "../lib/assignment-history";
 import { filterParams, type EnquiryFilters, sortParam, type EnquirySort } from "../lib/enquiry-filters";
 
 // Matches projectToDict() in lib/api.ts — raw snake_case columns plus the
@@ -254,12 +255,19 @@ export const listAssignees = async (): Promise<Assignee[]> => {
   return data;
 };
 
-/** Assign or reassign an enquiry (User-Master / system admins only). */
+/** Who it was assigned to, by whom, when and why (GET /projects/[id]/assign). */
+export const getAssignmentHistory = async (id: string): Promise<AssignmentEntry[]> => {
+  const { data } = await apiClient.get<AssignmentEntry[]>(`/projects/${id}/assign`);
+  return data;
+};
+
+/** Assign or reassign an enquiry (User-Master / system admins only); a reassign needs its reason. */
 export const assignProject = async (
   id: string,
   assignedTo: string,
+  reason = "",
 ): Promise<{ assigned_to: string; assigned_to_name: string | null }> => {
-  const { data } = await apiClient.post(`/projects/${id}/assign`, { assignedTo });
+  const { data } = await apiClient.post(`/projects/${id}/assign`, { assignedTo, reason });
   return data;
 };
 
