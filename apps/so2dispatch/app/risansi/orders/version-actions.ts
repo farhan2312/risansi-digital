@@ -9,7 +9,18 @@ import type { DeptKey } from "@/lib/dept-completion";
 import { deptInvolvedInOrder } from "@/lib/orders";
 import { logAudit } from "@/lib/audit";
 import { emitNotification } from "@/lib/notifications";
-import { freezeVersion, getVersionsData, isVersionedType, VERSION_DEPT_ROLES, type VersionsData } from "@/lib/order-versions";
+import {
+  freezeVersion,
+  getDeptVersionsData,
+  getVersionsData,
+  isVersionedType,
+  VERSION_DEPT_ROLES,
+  type DeptVersionsData,
+  type VersionsData,
+} from "@/lib/order-versions";
+import { ecChangeDept } from "@/lib/ec-version-changes";
+import { CHOICE_DEPTS, CHOICE_LABEL, chooseOnVersion, type VersionChoice } from "@/lib/version-choice";
+import { subjectForOrder } from "@/lib/audit-subject";
 
 export type NewVersionResult = { ok: true; version: number } | { ok: false; error: string };
 
@@ -26,6 +37,64 @@ export async function loadOrderVersionsAction(
   } catch (error) {
     console.error("loadOrderVersions failed:", error);
     return { ok: false, error: "Could not load the versions." };
+  }
+}
+
+/** A department's earlier versions of the SO, its own work only, at the version asked (the one before the current when null). */
+export async function loadDeptVersionsAction(
+  orderId: string,
+  version: number | null
+): Promise<{ ok: true; data: DeptVersionsData } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  const dept = ecChangeDept(user.role);
+  if (!dept || !CHOICE_DEPTS[dept]) return { ok: false, error: "Only Drawing, Purchase, Quality, Planning and Assembly & Packing open their earlier versions here." };
+  try {
+    const data = await getDeptVersionsData(orderId, version === null ? null : Math.trunc(version), dept);
+    return data ? { ok: true, data } : { ok: false, error: "This SO has no earlier version." };
+  } catch (error) {
+    console.error("loadDeptVersions failed:", error);
+    return { ok: false, error: "Could not load the earlier version." };
+  }
+}
+
+/**
+ * A department's choice on the SO's new version: Not needed, or Acknowledge
+ * with Copy (its work carried over) or Flush (its work on the ECs changed in
+ * this version cleared; the version before keeps it). Once per version.
+ */
+export async function chooseOnVersionAction(orderId: string, choice: VersionChoice): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  const dept = ecChangeDept(user.role);
+  if (!dept || !CHOICE_DEPTS[dept]) return { ok: false, error: "Only Drawing, Purchase, Quality, Planning and Assembly & Packing choose on a version." };
+  try {
+    const name = user.full_name.trim() || user.email;
+    const res = await chooseOnVersion(orderId, dept, choice, { id: user.id, name });
+    if (!res.ok) return res;
+    const subject = await subjectForOrder(orderId);
+    const label = subject?.soNo ?? orderId;
+    const flushed = res.flushedEcs.length ? ` — cleared on ${res.flushedEcs.map((e) => e || "EC").join(", ")}` : "";
+    await logAudit({
+      actor: { id: user.id, email: user.email, role: user.role },
+      action: "order.update",
+      category: "activity",
+      target: label,
+      details: `v${res.version}: ${CHOICE_DEPTS[dept]} — ${CHOICE_LABEL[choice]}${flushed}`,
+      subject,
+    });
+    // Central Visibility hears what each department chose.
+    await emitNotification({
+      roles: ["central_visibility"],
+      orderId,
+      type: "dept_update",
+      message: `${label} v${res.version}: ${CHOICE_DEPTS[dept]} — ${CHOICE_LABEL[choice]}${flushed}`,
+    });
+    revalidatePath(`/risansi/orders/${orderId}`);
+    return { ok: true };
+  } catch (error) {
+    console.error("chooseOnVersion failed:", error);
+    return { ok: false, error: "Could not save your choice." };
   }
 }
 

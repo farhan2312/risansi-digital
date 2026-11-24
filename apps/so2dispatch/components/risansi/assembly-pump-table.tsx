@@ -27,7 +27,7 @@ import {
 import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
-import { AlignmentValue, BasePlateForm, WoodenBoxForm } from "./alignment-cell";
+import { AlignmentLotsForm, AlignmentValue, EcBasePlate } from "./alignment-cell";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { HoldBadge } from "./hold-badge";
@@ -184,7 +184,6 @@ export function AssemblyPumpTable({
   // The SO picked in split view: the first until another is.
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const alignSo = alignFor ? sos.find((x) => x.orderId === alignFor.orderId) : null;
-  const AlignForm = alignFor?.which === "wooden_box" ? WoodenBoxForm : BasePlateForm;
   const groups: SoGroup[] = sos.map(({ orderId, ecs }) => {
     const head = ecs[0];
     const lots = pumpLotsFromEcs(ecs);
@@ -446,6 +445,8 @@ export function AssemblyPumpTable({
     { key: "ready", label: "Ready", tdClass: "tabular-nums", cell: ({ e }) => e.ready },
     { key: "assembled", label: "Assembled", tdClass: "tabular-nums", cell: ({ d }) => d.assembled },
     { key: "assembly", label: "Assembly", cell: ({ e, d }) => <Chip label={ecStageStatus(d.assembled, e.quantity, "assembly")} /> },
+    // Its base plate, lot by lot, between assembly and packing.
+    { key: "base_plate", label: "Base Plate", tdClass: "whitespace-nowrap", cell: ({ e, g }) => <EcBasePlate alignment={g.head.alignment} ecId={e.id} /> },
     { key: "packed", label: "Packed", tdClass: "tabular-nums", cell: ({ d }) => d.packed },
     { key: "packing", label: "Packing", cell: ({ e, d }) => <Chip label={ecStageStatus(d.packed, e.quantity, "packing")} /> },
   ];
@@ -584,11 +585,16 @@ export function AssemblyPumpTable({
 
   return (
     <>
-      {alignSo && (
-        <AlignForm
+      {alignSo && alignFor && (
+        <AlignmentLotsForm
           orderId={alignSo.orderId}
           soLabel={str(alignSo.ecs[0]?.so_no) || `#${str(alignSo.ecs[0]?.sl_no)}`}
+          which={alignFor.which}
           alignment={alignSo.ecs[0]?.alignment}
+          ecs={alignSo.ecs.map((r) => {
+            const e = ecOf(r);
+            return { id: e.id, label: e.label, quantity: e.quantity, base_plate: str(((r.ec ?? {}) as Row).base_plate) };
+          })}
           onClose={() => setAlignFor(null)}
         />
       )}

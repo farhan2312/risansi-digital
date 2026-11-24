@@ -430,3 +430,131 @@ export function ecReadyLots(lots: PumpLot[], ecId: string): { n: number; date: s
     return e && e.qty > 0 ? [{ n: l.n, date: l.ready_date, qty: e.qty }] : [];
   });
 }
+
+// ---- Alignment lots: a pump SO's base plate and wooden box, lot by lot.
+
+/** One of a pump SO's alignment lots: its ECs and how many of each, its own base plate and wooden box. */
+export type AlignmentLot = {
+  id: string;
+  n: number;
+  ecs: { item_id: string; qty: number }[];
+  base_plate: string;
+  base_plate_status: string;
+  base_plate_date: string;
+  base_plate_remarks: string;
+  base_plate_steps: { status: string; date: string | null }[];
+  wooden_box: string;
+  wooden_boxes: Row[];
+};
+
+/** The SO's (alias o) alignment lots as JSON, oldest first, each with its base plate steps. */
+export const alignmentLotsSql = (o: string) =>
+  `(SELECT COALESCE(jsonb_agg(jsonb_build_object(
+       'id', al.id, 'ecs', al.ecs, 'base_plate', al.base_plate, 'base_plate_status', al.base_plate_status,
+       'base_plate_date', to_char(al.base_plate_date, 'YYYY-MM-DD'), 'base_plate_remarks', al.base_plate_remarks,
+       'base_plate_steps', (SELECT COALESCE(jsonb_agg(jsonb_build_object('status', s.status, 'date', to_char(s.stage_date, 'YYYY-MM-DD')) ORDER BY s.ord), '[]'::jsonb)
+                              FROM (SELECT DISTINCT ON (h.status) h.status, h.stage_date,
+                                           array_position(ARRAY['Pending','Fabrication','Marking','Drilling','Painting','Manufactured'], h.status) AS ord
+                                      FROM order_lot_base_plate_history h
+                                     WHERE h.lot_id = al.id AND h.stage_date IS NOT NULL
+                                     ORDER BY h.status, h.changed_at DESC) s),
+       'wooden_box', al.wooden_box, 'wooden_boxes', al.wooden_boxes) ORDER BY al.seq), '[]'::jsonb)
+     FROM order_alignment_lots al WHERE al.order_id = ${o}.id)`;
+
+/** The alignment lots as read (alignmentLotsSql), numbered 1, 2, … */
+export function alignmentLotsOf(v: unknown): AlignmentLot[] {
+  const list = Array.isArray(v) ? (v as Row[]) : [];
+  return list.map((l, i) => ({
+    id: str(l.id),
+    n: i + 1,
+    ecs: (Array.isArray(l.ecs) ? (l.ecs as Row[]) : [])
+      .map((e) => ({ item_id: str(e.item_id), qty: Number(e.qty ?? 0) || 0 }))
+      .filter((e) => e.item_id && e.qty > 0),
+    base_plate: str(l.base_plate),
+    base_plate_status: str(l.base_plate_status),
+    base_plate_date: day(l.base_plate_date),
+    base_plate_remarks: str(l.base_plate_remarks),
+    base_plate_steps: Array.isArray(l.base_plate_steps) ? (l.base_plate_steps as { status: string; date: string | null }[]) : [],
+    wooden_box: str(l.wooden_box),
+    wooden_boxes: Array.isArray(l.wooden_boxes) ? (l.wooden_boxes as Row[]) : [],
+  }));
+}
+
+/** One way of the SO's wooden boxes, as order_wooden_boxes keeps it. */
+export type SoWoodenBox = {
+  source: string;
+  required_qty: number;
+  stock_qty: number | null;
+  status: string;
+  received_date: string | null;
+  received_qty: number | null;
+  remarks: string | null;
+};
+
+/**
+ * The SO's base plate and wooden box from its lots. Pump quantity not yet in a
+ * lot counts as Pending when the SO needs one on its own (`natural`). Base
+ * plate: the furthest-behind lot's status, with the latest day of the lots at
+ * it. Wooden box: each way's quantities added up, Received once every lot's
+ * is (and all pumps are in lots), Pending while every lot's is, else In plan.
+ */
+export function soAlignmentFromLots(
+  lots: AlignmentLot[],
+  ecs: { id: string; quantity: number }[],
+  natural: { plate: string; box: string | null }
+): {
+  plate: "Yes" | "No";
+  status: string;
+  date: string;
+  remarks: string;
+  box: "Yes" | "No" | null;
+  boxes: SoWoodenBox[];
+} {
+  const inLots: Record<string, number> = {};
+  for (const l of lots) for (const e of l.ecs) inLots[e.item_id] = (inLots[e.item_id] ?? 0) + e.qty;
+  const covered = ecs.every((e) => e.quantity <= 0 || (inLots[e.id] ?? 0) >= e.quantity);
+  const tag = (l: AlignmentLot, r: string) => (r.trim() ? `Lot ${l.n}: ${r.trim()}` : "");
+
+  const plateLots = lots.filter((l) => l.base_plate === "Yes");
+  const restPlate = !covered && natural.plate === "Yes";
+  const statuses = [...plateLots.map((l) => l.base_plate_status || "Pending"), ...(restPlate ? ["Pending"] : [])];
+  const status = statuses.length ? BASE_PLATE_STATUSES[Math.min(...statuses.map((s) => Math.max(0, BASE_PLATE_STATUSES.indexOf(s))))] : "Pending";
+  const date =
+    plateLots
+      .filter((l) => (l.base_plate_status || "Pending") === status)
+      .map((l) => l.base_plate_date)
+      .filter(Boolean)
+      .sort()
+      .pop() ?? "";
+
+  const boxLots = lots.filter((l) => l.wooden_box === "Yes");
+  const restBox = !covered && natural.box === "Yes";
+  const box: "Yes" | "No" | null =
+    boxLots.length || restBox ? "Yes" : lots.some((l) => l.wooden_box === "No") || natural.box === "No" ? "No" : null;
+  const boxes: SoWoodenBox[] = [];
+  for (const source of WOODEN_BOX_SOURCES) {
+    const ways = boxLots.flatMap((l) => l.wooden_boxes.filter((b) => str(b.source) === source).map((b) => ({ l, b })));
+    if (!ways.length) continue;
+    const n = (v: unknown) => (str(v).trim() === "" ? null : Number(v) || 0);
+    const sum = (k: string) => ways.reduce<number | null>((t, { b }) => (n(b[k]) == null ? t : (t ?? 0) + (n(b[k]) ?? 0)), null);
+    const st = ways.map(({ b }) => str(b.status) || "Pending");
+    const received = st.every((s) => s === "Received") && covered;
+    boxes.push({
+      source,
+      required_qty: sum("required_qty") ?? 0,
+      stock_qty: sum("stock_qty"),
+      status: received ? "Received" : st.every((s) => s === "Pending") ? "Pending" : "In plan",
+      received_date: received ? (ways.map(({ b }) => day(b.received_date)).filter(Boolean).sort().pop() ?? null) : null,
+      received_qty: sum("received_qty"),
+      remarks: ways.map(({ l, b }) => tag(l, str(b.remarks))).filter(Boolean).join(" · ") || null,
+    });
+  }
+  return {
+    plate: plateLots.length || restPlate ? "Yes" : "No",
+    status,
+    date,
+    remarks: plateLots.map((l) => tag(l, l.base_plate_remarks)).filter(Boolean).join(" · "),
+    box,
+    boxes,
+  };
+}

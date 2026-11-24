@@ -50,16 +50,50 @@ export async function isAssignedTo(orderId: string, userId: string): Promise<boo
   return (await getSoAssignee(orderId)) === userId;
 }
 
+/** One step of an SO's assignment: from whom, to whom, why, by whom and when. */
+export type SoAssignmentEvent = {
+  prev_assignee_name: string | null;
+  new_assignee_name: string | null;
+  reason: string | null;
+  changed_by_name: string | null;
+  changed_at: string;
+};
+
+/** The SO's assignment history, newest first. */
+export async function listSoAssignmentHistory(orderId: string): Promise<SoAssignmentEvent[]> {
+  if (!UUID_RE.test(orderId)) return [];
+  const r = await query<SoAssignmentEvent>(
+    `SELECT prev_assignee_name, new_assignee_name, reason, changed_by_name, changed_at::text AS changed_at
+       FROM order_so_assignment_history WHERE order_id = $1 ORDER BY changed_at DESC`,
+    [orderId]
+  );
+  return r.rows;
+}
+
 /**
  * Assign (or, with null, unassign) an SO's Sales Order details. The assignee
- * must be an approved Order Making SO member. Tells the new assignee.
+ * must be an approved Order Making SO member. Taking it off someone (a
+ * reassignment or unassignment) needs a reason. Each change joins the SO's
+ * assignment history. Tells the new assignee.
  */
 export async function assignSo(
   orderId: string,
   assigneeId: string | null,
-  by: { id: string; name: string }
-): Promise<{ ok: true; label: string; assigneeName: string | null } | { ok: false; error: string }> {
+  by: { id: string; name: string },
+  reason: string | null = null
+): Promise<{ ok: true; label: string; assigneeName: string | null; prevName: string | null; changed: boolean } | { ok: false; error: string }> {
   if (!UUID_RE.test(orderId)) return { ok: false, error: "Order not found." };
+  const why = (reason ?? "").trim().slice(0, 1000) || null;
+  const prev = (
+    await query<{ id: string | null; name: string | null }>(
+      `SELECT o.so_assignee_id::text AS id, u.full_name AS name FROM orders o LEFT JOIN users u ON u.id = o.so_assignee_id WHERE o.id = $1`,
+      [orderId]
+    )
+  ).rows[0];
+  if (!prev) return { ok: false, error: "Order not found." };
+  if (prev.id && prev.id !== (assigneeId || null) && !why) {
+    return { ok: false, error: assigneeId ? "Say why it is reassigned." : "Say why it is unassigned." };
+  }
   if (assigneeId) {
     const ok = await query(`SELECT 1 FROM orders o WHERE o.id = $1 AND ${assignableSql("o")}`, [orderId]);
     if (ok.rows.length === 0) return { ok: false, error: "This SO is dispatched, cancelled or diverted: nothing to assign." };
@@ -84,6 +118,14 @@ export async function assignSo(
   const row = r.rows[0];
   if (!row) return { ok: false, error: "Order not found." };
   const label = (row.so_no ?? "").trim() || `#${row.sl_no}`;
+  if (row.changed) {
+    await query(
+      `INSERT INTO order_so_assignment_history
+         (order_id, prev_assignee_id, prev_assignee_name, new_assignee_id, new_assignee_name, reason, changed_by, changed_by_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [orderId, prev.id, prev.name, assigneeId || null, assigneeName, why, UUID_RE.test(by.id) ? by.id : null, by.name]
+    );
+  }
   // Reassigned or unassigned: whoever had it hears it is no longer theirs.
   if (row.changed && row.was && row.was !== assigneeId) {
     await emitToUser({
@@ -91,8 +133,8 @@ export async function assignSo(
       orderId,
       type: "dept_update",
       message: assigneeName
-        ? `SO ${label} reassigned to ${assigneeName} by ${by.name} — no longer yours to fill`
-        : `SO ${label} unassigned from you by ${by.name}`,
+        ? `SO ${label} reassigned to ${assigneeName} by ${by.name}${why ? ` (${why})` : ""} — no longer yours to fill`
+        : `SO ${label} unassigned from you by ${by.name}${why ? ` (${why})` : ""}`,
     });
   }
   if (assigneeId && row.changed) {
@@ -103,7 +145,7 @@ export async function assignSo(
       message: `SO ${label}${row.client_name ? ` (${row.client_name})` : ""} assigned to you by ${by.name} — fill its SO details`,
     });
   }
-  return { ok: true, label, assigneeName };
+  return { ok: true, label, assigneeName, prevName: prev.name, changed: row.changed };
 }
 
 /**
