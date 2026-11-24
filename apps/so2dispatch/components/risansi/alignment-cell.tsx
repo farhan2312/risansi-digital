@@ -622,7 +622,7 @@ export function AlignmentValue({
   );
 }
 
-/** An EC's base plate on its own row: each alignment lot it is in, with that lot's status and day; else the SO's. */
+/** An EC's base plate on its own row: the status and day of each alignment lot it is in (no lot named); else the SO's. */
 export function EcBasePlate({ alignment, ecId }: { alignment: unknown; ecId: string }) {
   const a = (alignment ?? {}) as Row;
   const lots = alignmentLotsOf(a.lots).filter((l) => l.ecs.some((e) => e.item_id === ecId));
@@ -631,10 +631,7 @@ export function EcBasePlate({ alignment, ecId }: { alignment: unknown; ecId: str
   return (
     <span className="flex flex-col items-start gap-1">
       {lots.map((l) => (
-        <span key={l.id} className="flex items-start gap-1.5">
-          <span className="pt-0.5 text-[11px] font-semibold text-foreground">L{l.n}</span>
-          {one(l as unknown as Row)}
-        </span>
+        <span key={l.id}>{one(l as unknown as Row)}</span>
       ))}
     </span>
   );
