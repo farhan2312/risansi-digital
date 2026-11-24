@@ -31,8 +31,8 @@ import {
   UNASSIGNED,
   type OrderMakingFilter,
 } from "@/lib/order-making-filter";
-import type { SoMember, SoMemberSummary } from "@/lib/so-assignment";
-import { assignSoAction } from "@/app/risansi/departments/order-making/actions";
+import type { SoAssignmentEvent, SoMember, SoMemberSummary } from "@/lib/so-assignment";
+import { assignSoAction, soAssignmentHistoryAction } from "@/app/risansi/departments/order-making/actions";
 import type { OrderListOptions } from "@/lib/orders";
 import { SortHeader } from "./sort-header";
 import { createOrderAction, deleteItemAction, setOrderStatusAction, updateOrderSectionAction } from "@/app/risansi/orders/actions";
@@ -241,8 +241,23 @@ export function OrderMakingWorkspace({
   const [versionsFor, setVersionsFor] = useState<OrderMakingRow | null>(null);
   // The SO checklist pop-up.
   const [checklistFor, setChecklistFor] = useState<string | null>(null);
-  // The assigned SO whose Reassign is open.
-  const [reassigning, setReassigning] = useState<string | null>(null);
+  // The assigned SO whose Reassign is open (to whom, and why).
+  const [reassigning, setReassigning] = useState<OrderMakingRow | null>(null);
+  // The SO whose assignment history is open.
+  const [assignHistoryFor, setAssignHistoryFor] = useState<OrderMakingRow | null>(null);
+  // Its history, a button beside who has it: how many steps.
+  const historyButton = (row: OrderMakingRow) =>
+    (row.so_assign_changes ?? 0) > 0 ? (
+      <button
+        type="button"
+        onClick={() => setAssignHistoryFor(row)}
+        title="Who assigned or reassigned it, when, and why"
+        className="inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-[11px] font-semibold text-muted hover:bg-background hover:text-foreground"
+      >
+        <History className="h-3 w-3" />
+        {row.so_assign_changes}
+      </button>
+    ) : null;
   async function assign(row: OrderMakingRow, assigneeId: string) {
     setAssigning(row.id);
     const res = await assignSoAction(row.id, assigneeId || null);
@@ -399,7 +414,7 @@ export function OrderMakingWorkspace({
           </span>
         ) : /* Dispatched, cancelled or diverted: no one to assign now. */ notAssignable(row) && !row.so_assignee_id ? (
           <span className="text-xs text-muted">Not needed</span>
-        ) : canAssign && !notAssignable(row) && row.so_assignee_id && reassigning !== row.id ? (
+        ) : canAssign && !notAssignable(row) && row.so_assignee_id ? (
           // Assigned: who has it, and Reassign to change or take it off them.
           <span className="inline-flex flex-col gap-0.5">
             <span className="inline-flex items-center gap-2">
@@ -412,11 +427,12 @@ export function OrderMakingWorkspace({
               </span>
               <button
                 type="button"
-                onClick={() => setReassigning(row.id)}
+                onClick={() => setReassigning(row)}
                 className="rounded-md border border-input-border px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-primary/10"
               >
                 Reassign
               </button>
+              {historyButton(row)}
             </span>
             {row.so_assigned_at && <span className="text-[11px] text-muted">since {formatDisplay(field("so_date"), row.so_assigned_at)}</span>}
           </span>
@@ -424,14 +440,9 @@ export function OrderMakingWorkspace({
           <span className="inline-flex flex-col gap-0.5">
             <span className="inline-flex items-center gap-1.5">
               <select
-                autoFocus={reassigning === row.id}
-                onBlur={() => setReassigning((r) => (r === row.id ? null : r))}
                 value={row.so_assignee_id ?? ""}
                 disabled={assigning === row.id}
-                onChange={(e) => {
-                  setReassigning(null);
-                  assign(row, e.target.value);
-                }}
+                onChange={(e) => assign(row, e.target.value)}
                 aria-label={`Assign SO details of ${str(row.so_no) || row.sl_no}`}
                 className={`h-8 max-w-[11rem] cursor-pointer rounded-lg border px-2 text-xs ${
                   row.so_assignee_id
@@ -451,11 +462,15 @@ export function OrderMakingWorkspace({
                 )}
               </select>
               {assigning === row.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
+              {historyButton(row)}
             </span>
             {row.so_assigned_at && <span className="text-[11px] text-muted">since {formatDisplay(field("so_date"), row.so_assigned_at)}</span>}
           </span>
         ) : (
-          <span className="text-xs text-foreground">{row.so_assignee_name ?? "—"}</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="text-xs text-foreground">{row.so_assignee_name ?? "—"}</span>
+            {historyButton(row)}
+          </span>
         ),
     },
     {
@@ -947,6 +962,8 @@ export function OrderMakingWorkspace({
           )}
         </div>
         {cancelling && <CancelSoDialog row={cancelling} onClose={() => setCancelling(null)} />}
+        {reassigning && <ReassignDialog row={reassigning} members={members} onClose={() => setReassigning(null)} />}
+        {assignHistoryFor && <AssignHistoryDialog row={assignHistoryFor} onClose={() => setAssignHistoryFor(null)} />}
         {checklistFor && <SoChecklistModal orderId={checklistFor} onClose={() => setChecklistFor(null)} />}
         {versionsFor && (
           <VersionsModal
@@ -1098,6 +1115,9 @@ function OrderMakingEdit({
   const router = useRouter();
   const editable = mode === "so" ? ORDER_MAKING_SO_EDITABLE : ORDER_MAKING_EDITABLE;
   const [assignee, setAssignee] = useState<string>(row?.so_assignee_id ?? "");
+  // Taken off whoever had it: why.
+  const [assignReason, setAssignReason] = useState("");
+  const reassigned = !!row?.so_assignee_id && assignee !== row.so_assignee_id;
   // An FR SO opens with its discount, packing, GST and gross value at 0; an
   // SO with no SO No. yet, with all but its number ("SO26/1/").
   const [values, setValues] = useState<Record<string, string>>(() => {
@@ -1152,6 +1172,11 @@ function OrderMakingEdit({
       setError("Client Code is required.");
       return;
     }
+    if (members && reassigned && !assignReason.trim()) {
+      setError(assignee ? "Say why the SO is reassigned." : "Say why the SO is unassigned.");
+      document.getElementById("assign_reason")?.focus();
+      return;
+    }
     // Order Making PO: every Purchase Order detail; an SO member: every Sales Order detail.
     const missing = firstOrderMakingMissing(mode, read, saved) ?? (selfAssigned ? firstOrderMakingMissing("so", read) : null);
     if (missing) {
@@ -1183,7 +1208,7 @@ function OrderMakingEdit({
     const created = !row && "id" in res ? (res as { id: string }).id : null;
     const orderId: string | null = row ? row.id : created;
     if (members && orderId && assignee !== (row?.so_assignee_id ?? "")) {
-      const a = await assignSoAction(orderId, assignee || null);
+      const a = await assignSoAction(orderId, assignee || null, reassigned ? assignReason : null);
       if (!a.ok) {
         setSaving(false);
         setError(`Saved, but not assigned: ${a.error}`);
@@ -1321,6 +1346,18 @@ function OrderMakingEdit({
                         </option>
                       ))}
                     </select>
+                  </label>
+                )}
+                {isSo && members && !viewOnly && reassigned && (
+                  <label className="flex w-full items-center gap-2 text-xs text-muted sm:w-auto">
+                    Why {assignee ? "reassigned" : "unassigned"} <span className="text-danger">*</span>
+                    <input
+                      id="assign_reason"
+                      value={assignReason}
+                      onChange={(e) => setAssignReason(e.target.value)}
+                      placeholder={`From ${row?.so_assignee_name ?? "the earlier member"}`}
+                      className="h-8 min-w-0 flex-1 rounded-lg border border-input-border bg-surface px-2 text-xs text-foreground sm:w-56"
+                    />
                   </label>
                 )}
               </div>
@@ -1492,6 +1529,173 @@ function CancelSoDialog({ row, onClose }: { row: OrderMakingRow; onClose: () => 
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/** Reassign an SO's Sales Order details (or take them off whoever has them): to whom, and why. */
+function ReassignDialog({ row, members, onClose }: { row: OrderMakingRow; members: SoMember[]; onClose: () => void }) {
+  const router = useRouter();
+  const [to, setTo] = useState("");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [saving, onClose]);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) {
+      setError(to ? "Say why it is reassigned." : "Say why it is unassigned.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const res = await assignSoAction(row.id, to || null, reason);
+    setSaving(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    router.refresh();
+    onClose();
+  }
+
+  const so = str(row.so_no) || `#${row.sl_no}`;
+  const field = "w-full rounded-[10px] border border-input-border bg-surface px-3 py-2 text-[14px] text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20";
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Reassign ${so}`}
+      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
+      onClick={() => !saving && onClose()}
+    >
+      <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-t-2xl bg-surface p-5 text-left shadow-xl sm:rounded-2xl">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-foreground">Reassign {so}</h2>
+            <p className="text-xs text-muted">Now with {row.so_assignee_name ?? "a former member"}. Kept in its assignment history, with the reason.</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} aria-label="Close" className="rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <label className="block text-sm">
+          <span className="mb-1 block text-[13px] font-medium text-brand-label">Assign to</span>
+          <select value={to} onChange={(e) => setTo(e.target.value)} className={`${field} h-10 cursor-pointer`}>
+            <option value="">Unassign (no one)</option>
+            {members
+              .filter((m) => m.id !== row.so_assignee_id)
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {memberLabel(m)}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="mt-3 block text-sm">
+          <span className="mb-1 block text-[13px] font-medium text-brand-label">
+            Reason <span className="text-danger">*</span>
+          </span>
+          <textarea autoFocus value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="e.g. On leave this week" className={field} />
+        </label>
+        {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onClose} disabled={saving} className="inline-flex h-10 items-center rounded-lg border border-input-border px-4 text-sm font-medium text-foreground hover:bg-background">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {to ? "Reassign" : "Unassign"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** An SO's assignment history: each assignment, reassignment or unassignment, newest first. */
+function AssignHistoryDialog({ row, onClose }: { row: OrderMakingRow; onClose: () => void }) {
+  const [rows, setRows] = useState<SoAssignmentEvent[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    soAssignmentHistoryAction(row.id)
+      .then((r) => live && setRows(r))
+      .catch(() => live && setRows([]));
+    return () => {
+      live = false;
+    };
+  }, [row.id]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const so = str(row.so_no) || `#${row.sl_no}`;
+  const at = (v: string) =>
+    new Date(v).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Assignment history of ${so}`}
+      className="fixed inset-0 z-50 flex items-end justify-center whitespace-normal bg-black/40 sm:items-center sm:p-6"
+      onClick={onClose}
+    >
+      <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-surface p-5 text-left shadow-xl sm:rounded-2xl">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-foreground">Assignment history · {so}</h2>
+            <p className="text-xs text-muted">Who assigned or reassigned its SO details, when, and why. Newest first.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {!rows ? (
+          <p className="text-sm text-muted">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted">Nothing recorded yet.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-card-border">
+            <table className="w-full text-xs">
+              <thead className="bg-background/60 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="px-2.5 py-1.5">When</th>
+                  <th className="px-2.5 py-1.5">Change</th>
+                  <th className="px-2.5 py-1.5">By</th>
+                  <th className="px-2.5 py-1.5">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-card-border">
+                {rows.map((h, i) => (
+                  <tr key={i}>
+                    <td className="whitespace-nowrap px-2.5 py-1.5 text-muted">{at(h.changed_at)}</td>
+                    <td className="px-2.5 py-1.5 text-foreground">
+                      {h.prev_assignee_name ? (
+                        <>
+                          <span className="text-muted">{h.prev_assignee_name}</span> → <span className="font-semibold">{h.new_assignee_name ?? "Unassigned"}</span>
+                        </>
+                      ) : (
+                        <>
+                          Assigned to <span className="font-semibold">{h.new_assignee_name ?? "—"}</span>
+                        </>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-2.5 py-1.5 text-foreground">{h.changed_by_name ?? "—"}</td>
+                    <td className="px-2.5 py-1.5 text-foreground">{h.reason ?? <span className="text-muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -5155,6 +5155,8 @@ export type OrderMakingRow = Record<string, unknown> & {
   so_missing: string[];
   so_assignee_id: string | null;
   so_assignee_name: string | null;
+  /** How many steps its assignment history has. */
+  so_assign_changes?: number;
   /** Carried in by the migration from Excel: assigned to no one. */
   so_migrated?: boolean;
   so_assigned_at: string | null;
@@ -5368,6 +5370,8 @@ export async function listOrdersForOrderMaking(opts: {
             -- The Operation column's line.
             to_char(o.so_handover_date, 'YYYY-MM-DD') AS so_handover_date,
             o.so_assignee_id, au.full_name AS so_assignee_name, o.so_migrated,
+            -- How many times it was assigned, reassigned or unassigned.
+            (SELECT count(*)::int FROM order_so_assignment_history ah WHERE ah.order_id = o.id) AS so_assign_changes,
             -- Every Clear / Hold, oldest first: its reason and remarks (the report lists them all).
             COALESCE((SELECT jsonb_agg(jsonb_build_object('status', h.status, 'reason', h.reason, 'remarks', h.remarks,
                                                           'at', to_char(h.created_at AT TIME ZONE 'Asia/Kolkata', 'DD-Mon-YY'))
