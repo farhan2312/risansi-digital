@@ -14,6 +14,7 @@ import {
   finalBoi,
   finalPa,
   formatInr,
+  snapshotMoney,
   isDriveGroup,
   type QuotationVersionInfo,
 } from "../../lib/commercial";
@@ -409,7 +410,7 @@ function VersionRow({ v }: { v: QuotationVersionInfo }) {
         <span className="text-[12px] text-muted-foreground">
           · {tags.length} tag{tags.length === 1 ? "" : "s"}
         </span>
-        <span className="ml-auto font-mono text-[13px] font-semibold text-foreground tabular-nums">{formatInr(v.snapshot.grandTotal)}</span>
+        <span className="ml-auto font-mono text-[13px] font-semibold text-foreground tabular-nums">{snapshotMoney(v.snapshot)(v.snapshot.grandTotal)}</span>
         <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-180")} aria-hidden="true" />
       </button>
       {open && (
@@ -448,8 +449,8 @@ function VersionRow({ v }: { v: QuotationVersionInfo }) {
                       </span>
                     )}
                   </td>
-                  <td className="py-1.5 pr-2 text-right font-mono tabular-nums">{formatInr(t.unit)}</td>
-                  <td className="py-1.5 pr-3 text-right font-mono font-semibold tabular-nums">{formatInr(t.sub)}</td>
+                  <td className="py-1.5 pr-2 text-right font-mono tabular-nums">{snapshotMoney(v.snapshot)(t.unit)}</td>
+                  <td className="py-1.5 pr-3 text-right font-mono font-semibold tabular-nums">{snapshotMoney(v.snapshot)(t.sub)}</td>
                 </tr>
               ))}
             </tbody>

@@ -80,7 +80,7 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
       statuses: spare
         ? [{ label: `V${p.commercial_version_no ?? 0}`, value: p.status ?? "Pending" }]
         : [
-            { label: `Technical V${p.version_no ?? 0}`, value: p.status ?? "Pending" },
+            { label: `Technical V${p.technical_version_no ?? p.version_no ?? 0}`, value: p.status ?? "Pending" },
             { label: `Commercial V${p.commercial_version_no ?? 0}`, value: p.commercial_status ?? "Pending" },
           ],
       date: dotDate(p.enquiry_date),

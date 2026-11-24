@@ -95,9 +95,10 @@ export default function EnquiryVersionsModal({
                 <li key={v.id} className="px-5 py-3.5">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <Badge tone="primary" className="font-mono text-[11.5px] font-semibold">
-                      {v.version_no === v.commercial_version_no ? `V${v.version_no}` : `T${v.version_no} · C${v.commercial_version_no}`}
+                      {v.technical_version_no === v.commercial_version_no ? `V${v.technical_version_no}` : `T${v.technical_version_no} · C${v.commercial_version_no}`}
                     </Badge>
                     {v.version_kind === "technical" && <Badge tone="neutral">Technical only</Badge>}
+                    {v.version_kind === "commercial" && <Badge tone="neutral">Commercial only</Badge>}
                     {v.is_latest && (
                       <Badge tone="success" dot>
                         Latest

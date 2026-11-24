@@ -155,14 +155,17 @@ export const projects = pgTable("projects", {
   /** Row edits for its document only (lib/spare-quote SpareDocEdits). */
   spareDocEdits: jsonb("spare_doc_edits").$type<Record<string, unknown>>().notNull().default({}),
   /** Enquiry versions (lib/enquiry-revision.ts): 0 is the enquiry as created,
-   *  each later version is its own row copied from the one before. */
+   *  each later version is its own row copied from the one before. Counts the rows;
+   *  the sides' own numbers are technical_version_no and commercial_version_no. */
   versionNo: integer("version_no").notNull().default(0),
   /** The V0 row of this enquiry; null on V0 itself. */
   rootProjectId: uuid("root_project_id").references((): AnyPgColumn => projects.id),
-  /** The Commercial side's version. version_no is the Technical one: a Technical
-   *  only version moves that alone (user, 2026-11-04). */
+  /** The Commercial side's version: a Technical only version leaves it as it was. */
   commercialVersionNo: integer("commercial_version_no").notNull().default(0),
-  /** How this version was made: "both" | "technical" (CHECK). */
+  /** The Technical side's version (user, 2026-11-23): a Commercial only version
+   *  leaves it as it was. Backfilled from version_no. */
+  technicalVersionNo: integer("technical_version_no").notNull().default(0),
+  /** How this version was made: "both" | "technical" | "commercial" (CHECK). */
   versionKind: varchar("version_kind", { length: 10 }).notNull().default("both"),
   /** The version being worked on (one per enquiry); the older ones are view only. */
   isLatest: boolean("is_latest").notNull().default(true),

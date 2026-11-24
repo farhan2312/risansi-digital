@@ -43,6 +43,8 @@ export async function copyTagRows(
   sourceTagId: string,
   targetProjectId: string,
   targetTagId: string,
+  /** Keep the generated documents too (a Commercial only version keeps the selection as it was). */
+  withDocuments = false,
 ): Promise<number> {
   let copied = 0;
   for (const table of tables) {
@@ -50,7 +52,7 @@ export async function copyTagRows(
       sql`SELECT column_name FROM information_schema.columns
           WHERE table_schema = current_schema() AND table_name = ${table}`,
     );
-    const skip = SKIP_COLUMNS[table];
+    const skip = withDocuments ? undefined : SKIP_COLUMNS[table];
     const carried = cols.rows
       .map((c) => c.column_name)
       .filter((c) => !IDENTITY_COLUMNS.has(c) && !(skip && skip.has(c)));

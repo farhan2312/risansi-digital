@@ -91,7 +91,7 @@ export async function loadCommercialSummary(projectId: string): Promise<Commerci
     .select({
       id: projects.id,
       code: projects.projectCode,
-      versionNo: projects.versionNo,
+      versionNo: projects.technicalVersionNo,
       commercialVersionNo: projects.commercialVersionNo,
       versionKind: projects.versionKind,
       orderType: projects.orderType,

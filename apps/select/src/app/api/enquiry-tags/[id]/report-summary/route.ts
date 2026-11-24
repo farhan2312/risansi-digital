@@ -42,7 +42,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const noWork = await workDenied(req, { tagId: id });
+  const noWork = await workDenied(req, { tagId: id }, "technical");
   if (noWork) return noWork;
   if (!UUID_RE.test(id)) return error("Invalid tag id", 400);
 

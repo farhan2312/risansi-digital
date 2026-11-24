@@ -291,7 +291,7 @@ export async function PUT(
   const tagIdIn = typeof body.tagId === "string" ? body.tagId : null;
   const projectIdIn = typeof body.projectId === "string" ? body.projectId : null;
   const ctx = await resolveTagContext(tagIdIn, projectIdIn);
-  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }) : null;
+  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }, "technical") : null;
   if (noWork) return noWork;
   if (!ctx) {
     return error(
@@ -440,7 +440,7 @@ export async function DELETE(
     url.searchParams.get("tagId"),
     url.searchParams.get("projectId"),
   );
-  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }) : null;
+  const noWork = ctx ? await workDenied(req, { projectId: ctx.projectId }, "technical") : null;
   if (noWork) return noWork;
   if (!ctx) {
     return error(

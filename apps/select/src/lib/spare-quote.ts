@@ -49,6 +49,9 @@ export type SpareQuote = {
   /** The terms unticked; all the others print. */
   termsOff: string[];
   models: SpareModel[];
+  /** "USD": the prices are typed in USD and quoted as they are, nothing converted (user,
+   *  2026-11-25); the Quote in USD conversion doesn't apply. Absent: INR. */
+  priceCurrency?: "USD";
 };
 
 /** Edits typed on the document, row by row; a value left out follows the quote.
@@ -190,6 +193,7 @@ export function normalizeSpareQuote(raw: unknown, defaultMarket: TermsMarket = "
     note: text(r.note, 2000),
     termsMarket: r.termsMarket === "domestic" || r.termsMarket === "export" ? r.termsMarket : defaultMarket,
     termsOff: [...new Set(termsOff)].sort(),
+    ...(r.priceCurrency === "USD" ? { priceCurrency: "USD" as const } : {}),
     models: shareSamePo(models.slice(0, 100).map((m, i) => {
       const x = (m ?? {}) as Record<string, unknown>;
       const lines = Array.isArray(x.lines) ? x.lines : [];
@@ -277,5 +281,7 @@ export function spareSnapshot(q: SpareQuote, edits?: SpareDocEdits, fx?: QuoteFx
       sub: lineAmount(l),
     })),
   );
-  return { tags, grandTotal: quoteTotal(q), spare: { quote: q, edits: edits ?? {} }, ...(fx ? { fx } : {}) };
+  // Priced in USD: the amounts are USD already, so no conversion rate goes with them.
+  const money = q.priceCurrency === "USD" ? { currency: "USD" as const } : fx ? { fx } : {};
+  return { tags, grandTotal: quoteTotal(q), spare: { quote: q, edits: edits ?? {} }, ...money };
 }

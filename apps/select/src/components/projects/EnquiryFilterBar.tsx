@@ -250,6 +250,32 @@ export default function EnquiryFilterBar({
       {/* Pumps and spares filter by status independently. */}
       {!onlySpares && multi("status", "Technical status", ENQUIRY_STATUSES)}
       {!onlySpares && multi("commercialStatus", "Commercial status", ENQUIRY_STATUSES)}
+      {/* Both statuses picked: must both match, or either one (user, 2026-11-25). */}
+      {!onlySpares && Boolean(value.status?.length) && Boolean(value.commercialStatus?.length) && (
+        <div
+          className="inline-flex h-8 items-center gap-0.5 rounded-md bg-muted p-0.5 ring-1 ring-border ring-inset"
+          role="radiogroup"
+          aria-label="Technical and Commercial status must both match, or either one"
+          title="Both: Technical AND Commercial status must match. Either: Technical OR Commercial status matches."
+        >
+          <span className="px-1.5 text-[11.5px] text-muted-foreground">Match</span>
+          {(["Both", "Either"] as const).map((label) => {
+            const on = label === "Either" ? value.statusMatch === "any" : value.statusMatch !== "any";
+            return (
+              <button
+                key={label}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => onChange({ ...value, statusMatch: label === "Either" ? "any" : undefined })}
+                className={`h-full rounded-[5px] px-2.5 text-[12.5px] font-medium transition-[color,background-color,box-shadow] ${on ? "bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.1)]" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {!onlyPumps && multi("spareStatus", onlySpares ? "Status" : "Spare status", ENQUIRY_STATUSES)}
       {hasEnquiryFilters({ ...value, orderType: orderTypeRequired ? undefined : value.orderType }) && (
         <button

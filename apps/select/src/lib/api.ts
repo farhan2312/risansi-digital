@@ -59,6 +59,7 @@ export function projectToDict(p: ProjectRow, createdByName?: string | null, assi
     commercial_status_override: p.commercialStatusOverride,
     version_no: p.versionNo,
     commercial_version_no: p.commercialVersionNo,
+    technical_version_no: p.technicalVersionNo,
     version_kind: p.versionKind,
     root_project_id: p.rootProjectId,
     is_latest: p.isLatest,

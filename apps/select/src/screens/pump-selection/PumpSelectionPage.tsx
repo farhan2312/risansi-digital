@@ -198,7 +198,9 @@ const PumpSelectionPage = () => {
   // only bar instead of each step's own Next / Previous. An older version of
   // an enquiry is the same for everyone.
   const olderVersion = liveProject?.is_latest === false;
-  const readOnly = isViewOnlyRole(currentUser?.role) || olderVersion;
+  // A Commercial only version keeps the selection of the version before (lib/enquiry-revision.ts).
+  const commercialOnly = !olderVersion && liveProject?.version_kind === "commercial";
+  const readOnly = isViewOnlyRole(currentUser?.role) || olderVersion || commercialOnly;
 
   useEffect(() => {
     const raw = sessionStorage.getItem(SELECTED_PROJECT_KEY);
@@ -757,7 +759,12 @@ const PumpSelectionPage = () => {
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accent-soft px-3.5 py-2.5 text-[12.5px]">
             <span className="rounded-md bg-accent px-2 py-0.5 text-[11.5px] font-bold text-white">View only</span>
             <span className="text-fg-2">
-              {olderVersion ? "This is an older version of the enquiry. " : ""}Look through every step - nothing here can be changed.
+              {olderVersion
+                ? "This is an older version of the enquiry. "
+                : commercialOnly
+                  ? `This is a Commercial only version: the pump selection stays as in Technical V${liveProject?.technical_version_no ?? 0}. To change it, make a new version. `
+                  : ""}
+              Look through every step - nothing here can be changed.
             </span>
             <span className="ml-auto flex items-center gap-1.5">
               <button

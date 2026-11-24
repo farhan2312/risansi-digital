@@ -5,7 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { tryDecodeToken } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion } from "@/lib/db/schema";
-import { SPARE_GROUP, formatInr, quotationNumber, sendToClientBlock, type QuotationSnapshot } from "@/lib/commercial";
+import { SPARE_GROUP, quotationNumber, sendToClientBlock, snapshotMoney, type QuotationSnapshot } from "@/lib/commercial";
 import { normalizeSpareQuote, spareQuoteProblem } from "@/lib/spare-quote";
 import { loadCommercialSummary, projectDriveGroups } from "@/lib/commercial-server";
 import { buildSnapshot, freezeLiveInternal, loadQuotation } from "@/lib/quotation-server";
@@ -121,9 +121,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     action: "quotation.send",
     entity: "quotation",
     entityId: id,
-    detail: `Quotation ${quotationNumber(current, true)} ${result.replacedTotal === null ? "saved" : "saved again"} — client V${result.v} (internal V${result.internal}), grand total ${formatInr(
+    detail: `Quotation ${quotationNumber(current, true)} ${result.replacedTotal === null ? "saved" : "saved again"} — client V${result.v} (internal V${result.internal}), grand total ${snapshotMoney(snapshot)(
       snapshot.grandTotal,
-    )}${result.replacedTotal === null ? "" : `, replacing ${formatInr(result.replacedTotal)}`}`,
+    )}${result.replacedTotal === null ? "" : `, replacing ${snapshotMoney(snapshot)(result.replacedTotal)}`}`,
   });
   return json(await loadQuotation(current.projectId, current.driveGroup));
 }

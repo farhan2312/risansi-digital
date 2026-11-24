@@ -57,7 +57,7 @@ export async function loadTechDocData(projectId: string): Promise<TechDocData | 
   const [p] = await db
     .select({
       code: projects.projectCode,
-      versionNo: projects.versionNo,
+      versionNo: projects.technicalVersionNo,
       commercialVersion: projects.commercialVersionNo,
       name: projects.name,
       clientCode: projects.clientCode,

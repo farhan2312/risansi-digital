@@ -1174,11 +1174,26 @@ never auto-filled from the AI result.
   for the Techno-Commercial's technical part). It OVERWRITES the client row and, when nothing is
   live, the internal version it names, so the old copy is gone; the audit detail keeps the old total.
 
-## Technical only versions (user, 2026-11-04)
-- Withdrawn 2026-11-05: every new version is now Technical and Commercial, with no choice
-  on the form, and createRevision only makes "both". No technical row was ever made, so the
-  readers of version_kind below (badge, commercial banner, price flags, delete) never fire.
-  Notes kept for when that code is removed.
+## Versions follow the statuses (user, 2026-11-23)
+- Supersedes the 2026-11-05 "always both" rule. POST /projects/[id]/versions decides the kind
+  from the latest version's statuses: Technical and Commercial both Completed (or Sent to
+  client) -> "both", unless the form picks Technical only / Commercial only; only Technical
+  -> "technical"; only Commercial -> "commercial"; neither -> 409. A spare is always "both".
+  EnquiryVersionSection shows the choice only when both are Completed, else says what it makes.
+- projects.technical_version_no (backfilled from version_no) and commercial_version_no are the
+  sides' own numbers; version_no only counts the rows (unique per root, Versions list order,
+  delete). Shown: Enquiries "Technical V" / "Commercial V", TDS Save Version Vn (tech-doc-server
+  versionNo = technical), Versions modal T·C badge, Reports V.
+- "commercial" (createRevision): Technical kept as it was - tags keep status and report (and the
+  MOC document), step approvals, project Selection Summary, technical status/date,
+  sent_to_operation_at and the tech_doc_version saves (tag ids remapped) are copied. The
+  selection is view only: workDenied(req, ref, "technical") / technicalLocked on wizard-input
+  (+document, client-requirements), enquiry-tags (create, rename, delete, copy into, report,
+  report-summary), step-approvals, approvals decisions, projects report / report-summary. The
+  wizard opens read-only with a banner. The TDS itself can still be edited / saved.
+- Both one-sided kinds set operation_docs to that side, so Review starts ticked on it.
+- The client version copied into a Technical only version shows once in the history
+  (loadQuotation keeps this row's copy).
 - Marking a pump other than PCP (MMP, Barrel, Online blind) Technical Completed (PATCH
   /projects/[id], on the change only) sets all its tags to Completed, as tags are only worked
   for PCP. PCP tags still complete one by one, through their reports.
@@ -1186,7 +1201,9 @@ never auto-filled from the AI result.
   version_kind = both | technical. Each counts separately (V0/V0 -> T1/C0 -> T2/C1).
 - Technical only (createRevision): carries Commercial status, date, sent_to_client_at
   and the Prices reviewed tick; the quotation keeps its date and versions, and its live
-  internal version row MOVES to the new row (back again if that version is deleted).
+  internal version row MOVES to the new row (back again if that version is deleted). The
+  client version saved in this Commercial version is COPIED onto the new quotation row
+  (snapshot tag ids remapped), so Save again overwrites the copy, not the older version's.
 - Commercial stays Completed meanwhile: sent_to_client_at < created_at means a carried
   send, so Technical isn't waited for.
 - On a Technical only version prices never change by themselves: an item leaving the

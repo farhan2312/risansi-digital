@@ -22,7 +22,7 @@ import { AuthError, requireApprover } from "@/lib/auth";
 import { describeTag, logAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { stepApproval, users } from "@/lib/db/schema";
-import { versionLocked } from "@/lib/enquiry-access";
+import { technicalLocked, versionLocked } from "@/lib/enquiry-access";
 import { decisionEmail } from "@/lib/email/approval-emails";
 import { describeEmailResult, sendEmail } from "@/lib/email/resend";
 
@@ -122,7 +122,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ tagId: 
   }
   const { tagId } = await params;
   if (!UUID_RE.test(tagId)) return error("Invalid tag id", 400);
-  const locked = await versionLocked({ tagId });
+  const locked = (await versionLocked({ tagId })) ?? (await technicalLocked({ tagId }));
   if (locked) return locked;
 
   let body: Record<string, unknown>;

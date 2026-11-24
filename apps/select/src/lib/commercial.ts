@@ -237,9 +237,11 @@ export type CommercialSummary = {
   project: {
     id: string;
     code: string;
+    /** The Technical version. */
     versionNo: number;
     commercialVersionNo: number;
-    /** "technical": a Technical only version, so the commercial side carries on. */
+    /** "technical": a Technical only version, so the commercial side carries on;
+     *  "commercial": a Commercial only version, the selection kept as it was. */
     versionKind: string;
     /** "pump" | "spare": a spare has its own Commercial page. */
     orderType: string;
@@ -612,6 +614,10 @@ const INR = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 export const formatInr = (n: number | null | undefined): string =>
   n === null || n === undefined ? "—" : `₹${INR.format(n)}`;
 
+/** How a quotation version's amounts show: USD as typed for a spare quotation priced
+ *  in USD (snapshot.currency, lib/spare-quote priceCurrency), else INR. */
+export const snapshotMoney = (s: { currency?: "USD" }) => (s.currency === "USD" ? formatUsdCents : formatInr);
+
 // --- Quotation (v1) ----------------------------------------------------------
 // One quotation per enquiry, independent of the sales portal. Number:
 // RIL/QT/<region>/<FY>/<PCP|SPR>/<serial>; region = the TSM's initials for
@@ -680,6 +686,9 @@ export type QuotationSnapshot = {
   remarks?: string;
   /** Quoted in USD at this rate when the version was made (absent = INR). */
   fx?: QuoteFx;
+  /** "USD": a spare quotation priced in USD as typed (user, 2026-11-25) - every amount
+   *  here is USD, nothing converted. Absent: INR. */
+  currency?: "USD";
   /** A spare quotation's reference PO (its `tags` are its parts), and since
    *  2026-11-11 the quote and document edits as saved (older copies: absent). */
   spare?: { poNo?: string; poDate?: string; quote?: unknown; edits?: unknown };

@@ -77,11 +77,15 @@ export const DEFAULT_OUT_OF_SCOPE_ITEMS = ["Starter", "VFD", "VFD Panel", "3PTC 
 /** V-Belt sheets (user's format, 2026-10-08). */
 export const VBELT_SCOPE_ITEMS = ["Pump With Base-Plate", "Pump Pulley", "Motor Pulley", "Foundation & Grouting Bolts", "V-Belts", "Motor"];
 const VBELT_ONLY = new Set(["Pump Pulley", "Motor Pulley", "V-Belts"]);
+/** Geared Motor sheets (user, 2026-11-25). */
+export const GEARED_MOTOR_SCOPE_ITEMS = ["Pump With Base-Plate", "Driven Coupling", "Foundation & Grouting Bolts", "Gear Box", "Motor"];
 /** The default scope of supply for a drive group's sheet. */
 export const defaultScopeItems = (group: string | null | undefined): string[] =>
   group === "VB"
     ? VBELT_SCOPE_ITEMS
-    : SCOPE_ITEMS.filter(
+    : group === "GM"
+      ? GEARED_MOTOR_SCOPE_ITEMS
+      : SCOPE_ITEMS.filter(
         (i) => !DEFAULT_OUT_OF_SCOPE_ITEMS.includes(i) && !VBELT_ONLY.has(i) && (isGearedGroup(group) || i !== "Gear Box"),
       );
 

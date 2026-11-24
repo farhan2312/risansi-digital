@@ -110,7 +110,7 @@ export async function PUT(req: Request) {
 
   const tagId = String(body.tagId ?? "");
   if (!UUID_RE.test(tagId)) return error("'tagId' is required and must be a uuid", 400);
-  const noWork = await workDenied(req, { tagId });
+  const noWork = await workDenied(req, { tagId }, "technical");
   if (noWork) return noWork;
 
   const step = Number(body.step);
@@ -192,7 +192,7 @@ export async function POST(req: Request) {
 
   const tagId = String(body.tagId ?? "");
   if (!UUID_RE.test(tagId)) return error("'tagId' is required and must be a uuid", 400);
-  const noWork = await workDenied(req, { tagId });
+  const noWork = await workDenied(req, { tagId }, "technical");
   if (noWork) return noWork;
 
   const tag = await loadTag(tagId);

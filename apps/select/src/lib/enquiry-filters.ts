@@ -22,6 +22,9 @@ export type EnquiryFilters = {
   status?: string[];
   /** A pump's Commercial status. */
   commercialStatus?: string[];
+  /** With both statuses picked (user, 2026-11-25): "any" = either one matches (Technical
+   *  Pending or Commercial Pending, in one list); left out = both must match. */
+  statusMatch?: "any";
   /** A spare's one status, independent of the pump ones (user, 2026-11-06). */
   spareStatus?: string[];
   /** The person the enquiry is assigned to, by name (user, 2026-11-13). */
@@ -30,8 +33,8 @@ export type EnquiryFilters = {
   operation?: string[];
 };
 
-/** The Sent to operation filter's values: sent; reviewed but not sent yet; not reviewed. */
-export const OPERATION_STATES = ["Sent to operation", "Reviewed - not sent", "Not reviewed"] as const;
+/** The Sent to operation filter's values: sent, or not sent yet (no review step since 2026-11-25). */
+export const OPERATION_STATES = ["Sent to operation", "Not sent"] as const;
 
 export const MULTI_FILTER_KEYS = ["orderType", "pumpType", "spareType", "primaryRep", "secondaryRep", "zone", "market", "industry", "status", "commercialStatus", "spareStatus", "assignee", "operation"] as const;
 export type MultiFilterKey = (typeof MULTI_FILTER_KEYS)[number];
@@ -91,6 +94,7 @@ export function filterParams(f: EnquiryFilters | undefined): Record<string, stri
     const v = (f?.[k] ?? []).map((x) => x.trim()).filter(Boolean);
     if (v.length) out[param(k)] = v.join(SEP);
   }
+  if (f?.statusMatch === "any") out[param("statusMatch")] = "any";
   return out;
 }
 
@@ -107,10 +111,13 @@ export function filtersFromParams(p: URLSearchParams): EnquiryFilters {
       .slice(0, 50);
     if (v.length) out[k] = v;
   }
+  if (p.get(param("statusMatch")) === "any") out.statusMatch = "any";
   return out;
 }
 
-export const hasEnquiryFilters = (f: EnquiryFilters | undefined): boolean => Object.keys(filterParams(f)).length > 0;
+/** The Match switch alone filters nothing. */
+export const hasEnquiryFilters = (f: EnquiryFilters | undefined): boolean =>
+  Object.keys(filterParams(f)).some((k) => k !== param("statusMatch"));
 
 /** Values offered in the filter dropdowns (GET /api/projects/filter-options):
  *  one entry per value, in its most used spelling. */
