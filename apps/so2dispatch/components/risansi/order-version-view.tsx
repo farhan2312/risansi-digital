@@ -18,7 +18,8 @@ import {
   type OrderField,
   type OrderSection,
 } from "@/lib/order-schema";
-import type { VersionSnapshot, VersionsData } from "@/lib/order-versions";
+import type { EcCancelled, VersionSnapshot, VersionsData } from "@/lib/order-versions";
+import { CHOICE_DEPTS, CHOICE_LABEL } from "@/lib/version-dept-choice";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
@@ -250,7 +251,11 @@ function LotsTable({ lots, assembly }: { lots: Row[]; assembly: Row[] }) {
 
 const bySeq = (a: Row, b: Row) => (Number(a.seq ?? 0) - Number(b.seq ?? 0)) || str(a.created_at).localeCompare(str(b.created_at));
 
-export function OrderVersionView({ snap }: { snap: VersionSnapshot }) {
+/**
+ * `only`: a department reading its own earlier work — the ECs with its
+ * sections, none of the SO's details or the other departments'.
+ */
+export function OrderVersionView({ snap, only }: { snap: VersionSnapshot; only?: string }) {
   const t = (name: string) => [...(snap.tables[name] ?? [])].sort(bySeq);
   const users = (snap as VersionSnapshot & { users?: Record<string, string> }).users ?? {};
   const one = (name: string, key: "order_id" | "item_id", id: string) => t(name).find((r) => str(r[key]) === id) ?? null;
@@ -260,12 +265,14 @@ export function OrderVersionView({ snap }: { snap: VersionSnapshot }) {
 
   return (
     <div className="space-y-4">
-      <Block title="Order details">
-        <Fields fields={core.fields} row={snap.order} />
-        <Sub title="Payment terms">
-          <FieldTable fields={CHILD_FIELDS.order_payment_terms} rows={t("order_payment_terms")} />
-        </Sub>
-      </Block>
+      {!only && (
+        <Block title="Order details">
+          <Fields fields={core.fields} row={snap.order} />
+          <Sub title="Payment terms">
+            <FieldTable fields={CHILD_FIELDS.order_payment_terms} rows={t("order_payment_terms")} />
+          </Sub>
+        </Block>
+      )}
 
       {snap.items.map((it) => {
         const id = str(it.id);
@@ -282,7 +289,7 @@ export function OrderVersionView({ snap }: { snap: VersionSnapshot }) {
               const withLots = s.table === "order_planning" && lots.length > 0;
               if (!row && child.length === 0 && !withLots) return null;
               return (
-                <Sub key={s.key} title={s.title}>
+                <Sub key={s.key} title={only === "assembly" && !row ? "Lots · assembly & packing" : s.title}>
                   {row && <Fields fields={ecFields(s, pump)} row={row} />}
                   {withLots && (
                     <div className="mt-2">
@@ -310,7 +317,7 @@ export function OrderVersionView({ snap }: { snap: VersionSnapshot }) {
         );
       })}
 
-      {(["order_billing", "order_accounts", "order_dispatch"] as const).map((table) => {
+      {(only ? [] : (["order_billing", "order_accounts", "order_dispatch"] as const)).map((table) => {
         const s = section(table);
         const row = one(table, "order_id", orderId);
         const child = s.childTable ? t(s.childTable) : [];
@@ -327,12 +334,14 @@ export function OrderVersionView({ snap }: { snap: VersionSnapshot }) {
       })}
 
       {/* Assembly & Packing's packing slips (Planning's tentative ones are no longer used). */}
-      <Block title="Packing slips">
-        <FieldTable
-          fields={[{ column: "lot_nos", label: "Lots", type: "text" }, ...CHILD_FIELDS.order_packing_slips]}
-          rows={t("order_packing_slips").filter((r) => str(r.kind) === "actual")}
-        />
-      </Block>
+      {(!only || only === "assembly") && (
+        <Block title="Packing slips">
+          <FieldTable
+            fields={[{ column: "lot_nos", label: "Lots", type: "text" }, ...CHILD_FIELDS.order_packing_slips]}
+            rows={t("order_packing_slips").filter((r) => str(r.kind) === "actual")}
+          />
+        </Block>
+      )}
 
       <Block title="Other records">
         {SO_EXTRA.map(([name, title]) => {
@@ -370,7 +379,7 @@ export function VersionsBody({
   onPick?: (n: number) => void;
 }) {
   const { currentNo, picked, frozen, versions, snap, before } = data;
-  const changes = before ? diffVersions(before, snap) : [];
+  const changes = before ? diffVersions(before, snap, data.cancelled ?? [], picked) : [];
   const madeBy = picked > 0 ? versions.find((x) => x.version_no === picked - 1) : undefined;
   const pill = (n: number) =>
     `inline-flex h-8 items-center gap-1 rounded-lg border px-3 text-xs font-semibold transition-colors ${
@@ -457,6 +466,39 @@ export function VersionsBody({
         </section>
       )}
 
+      {picked > 0 && (
+        <section className="mb-4 rounded-xl border border-card-border bg-surface p-4">
+          <h2 className="mb-2 text-sm font-semibold text-foreground">Departments on v{picked}</h2>
+          <ul className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(CHOICE_DEPTS).map(([dept, name]) => {
+              const c = (data.choices ?? []).find((x) => x.dept === dept);
+              return (
+                <li key={dept} className="rounded-lg border border-card-border/70 px-3 py-2 text-xs">
+                  <span className="font-semibold text-foreground">{name}</span>
+                  <span
+                    className={`ml-2 rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+                      !c
+                        ? "bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
+                        : c.choice === "flush"
+                          ? "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"
+                          : "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+                    }`}
+                  >
+                    {c ? CHOICE_LABEL[c.choice] : "Not chosen yet"}
+                  </span>
+                  {c && (
+                    <span className="mt-0.5 block text-[11px] text-muted">
+                      {[c.chosen_by_name, when(c.chosen_at)].filter(Boolean).join(" · ")}
+                      {c.flushed_ecs.length > 0 && ` · cleared on ${c.flushed_ecs.map((e) => e || "EC").join(", ")}`}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <OrderVersionView snap={snap} />
     </>
   );
@@ -468,8 +510,12 @@ export type VersionChange = { where: string; field: string; from: string; to: st
 
 const SKIP_DIFF = new Set(["updated_at", "version_no", "created_at"]);
 
-/** The SO's details, ECs, payment terms and department rows that differ from one version to the next. */
-export function diffVersions(a: VersionSnapshot, b: VersionSnapshot): VersionChange[] {
+/**
+ * The SO's details, ECs, payment terms and department rows that differ from
+ * one version to the next (b being version `picked`). A cancelled EC says why;
+ * one cancelled in the version before, ahead of this one being made, counts too.
+ */
+export function diffVersions(a: VersionSnapshot, b: VersionSnapshot, cancelled: EcCancelled[] = [], picked = 0): VersionChange[] {
   const out: VersionChange[] = [];
   const fieldDiff = (where: string, fields: OrderField[], x: Row | null, y: Row | null) => {
     for (const f of fields) {
@@ -497,7 +543,17 @@ export function diffVersions(a: VersionSnapshot, b: VersionSnapshot): VersionCha
     if (!aItems.has(id)) out.push({ where: ecName(r), field: "EC", from: "—", to: "Added" });
     else fieldDiff(ecName(r), itemFields, aItems.get(id)!, r);
   }
-  for (const [id, r] of aItems) if (!bItems.has(id)) out.push({ where: ecName(r), field: "EC", from: "Present", to: "Removed" });
+  const why = new Map(cancelled.map((c) => [str(c.item_id), c]));
+  for (const [id, r] of aItems) {
+    if (bItems.has(id)) continue;
+    const c = why.get(id);
+    out.push({ where: ecName(r), field: "EC", from: "Present", to: c ? `Cancelled by client: ${c.reason}` : "Removed" });
+  }
+  for (const c of cancelled) {
+    const id = str(c.item_id);
+    if (Number(c.version_no) !== picked - 1 || aItems.has(id) || bItems.has(id)) continue;
+    out.push({ where: `EC ${str(c.ec_no) || "—"}`, field: "EC", from: "Present", to: `Cancelled by client before v${picked} was made: ${c.reason}` });
+  }
 
   const termLine = (r: Row) => CHILD_FIELDS.order_payment_terms.map((f) => showField(f, r[f.column])).filter(Boolean).join(" · ");
   const terms = (s: VersionSnapshot) => [...(s.tables.order_payment_terms ?? [])].sort(bySeq).map(termLine).join("\n");

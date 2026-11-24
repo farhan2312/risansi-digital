@@ -4,6 +4,8 @@ import type { PoolClient } from "pg";
 import { query } from "@/lib/db";
 import { PUMP_LIKE } from "@/lib/order-schema";
 import { canOpenVersions } from "@/lib/roles";
+import { listVersionChoices } from "@/lib/version-choice";
+import type { DeptChoice } from "@/lib/version-dept-choice";
 
 type Row = Record<string, unknown>;
 
@@ -177,7 +179,14 @@ export type VersionsData = {
   before: VersionSnapshot | null;
   /** The version picked, when it is a frozen one. */
   frozen: OrderVersion | null;
+  /** The SO's cancelled ECs, each with the version it was cancelled in and why. */
+  cancelled: EcCancelled[];
+  /** What each department chose on the version picked (Not needed, Copy, Flush). */
+  choices: DeptChoice[];
 };
+
+/** A cancelled EC as a version's changes name it. */
+export type EcCancelled = { item_id: string; ec_no: string | null; version_no: number; reason: string };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -192,14 +201,23 @@ export async function getVersionsData(
   viewer: { role: string; rep_names?: readonly string[] | null }
 ): Promise<VersionsData | null> {
   if (!UUID_RE.test(orderId) || !canOpenVersions(viewer.role)) return null;
-  const [current, versions] = await Promise.all([readSnapshot(orderId), listOrderVersions(orderId)]);
+  const [current, versions, cancelled] = await Promise.all([
+    readSnapshot(orderId),
+    listOrderVersions(orderId),
+    query<EcCancelled>(
+      `SELECT item_id::text AS item_id, ec_no, COALESCE(version_no, 0) AS version_no, reason
+         FROM order_item_cancellations WHERE order_id = $1 ORDER BY cancelled_at`,
+      [orderId]
+    ).then((r) => r.rows),
+  ]);
   if (!current) return null;
   // An SO starts at v0.
   const currentNo = Number(current.order.version_no ?? 0) || 0;
   const picked = Math.min(Math.max(asked ?? currentNo, 0), currentNo);
-  const [frozenRow, beforeRow] = await Promise.all([
+  const [frozenRow, beforeRow, choices] = await Promise.all([
     picked < currentNo ? getOrderVersion(orderId, picked) : null,
     picked > 0 ? getOrderVersion(orderId, picked - 1) : null,
+    picked > 0 ? listVersionChoices(orderId, picked) : [],
   ]);
   const { snapshot: frozenSnap, ...frozen } = frozenRow ?? { snapshot: null };
   return {
@@ -213,7 +231,71 @@ export async function getVersionsData(
     snap: frozenSnap ?? current,
     before: beforeRow?.snapshot ?? null,
     frozen: frozenRow ? (frozen as OrderVersion) : null,
+    cancelled,
+    choices,
   };
+}
+
+/** Each department's own tables, as it reads its earlier versions. */
+const DEPT_VERSION_TABLES: Record<string, string[]> = {
+  drawing: ["order_drawing", "order_drawing_revisions", "order_part_drawings", "order_drawing_readiness_history"],
+  purchase: ["order_purchase", "order_boi_items", "order_boi_expected_history"],
+  qc: ["order_qc", "order_qc_doc_links"],
+  planning: ["order_planning", "order_ready_lots", "order_ready_lot_history", "order_part_shortages", "order_lot_assembly"],
+  assembly: [
+    "order_assembly_dispatch",
+    "order_ready_lots",
+    "order_lot_assembly",
+    "order_packing_slips",
+    "order_packing_plan_history",
+    "order_wooden_boxes",
+    "order_alignment_lots",
+    "order_lot_base_plate_history",
+  ],
+};
+
+/** What a department reads of its earlier versions: the version picked, with its own work only. */
+export type DeptVersionsData = {
+  orderId: string;
+  soLabel: string;
+  dept: string;
+  currentNo: number;
+  picked: number;
+  versions: OrderVersion[];
+  snap: VersionSnapshot;
+};
+
+/**
+ * A department's earlier versions of an SO (frozen ones only), at the version
+ * asked (the one before the current when not asked): each EC with that
+ * department's own work as it stood, nothing of the other departments'.
+ */
+export async function getDeptVersionsData(orderId: string, asked: number | null, dept: string): Promise<DeptVersionsData | null> {
+  const tables = DEPT_VERSION_TABLES[dept];
+  if (!UUID_RE.test(orderId) || !tables) return null;
+  const so = (
+    await query<{ so_no: string | null; sl_no: number; version_no: number }>(
+      `SELECT so_no, sl_no::int AS sl_no, version_no FROM orders WHERE id = $1`,
+      [orderId]
+    )
+  ).rows[0];
+  if (!so) return null;
+  const currentNo = Number(so.version_no) || 0;
+  if (currentNo < 1) return null;
+  const versions = (await listOrderVersions(orderId)).filter((v) => v.version_no < currentNo);
+  const picked = Math.min(Math.max(asked ?? currentNo - 1, 0), currentNo - 1);
+  const row = await getOrderVersion(orderId, picked);
+  if (!row) return null;
+  const s = row.snapshot;
+  // Who each EC is, and its own fields that are the department's.
+  const itemCols = ["id", "seq", "ec_no", "item_type", "model_no", "internal_model", "quantity", ...(dept === "drawing" ? ["gad_required", "gad_remarks"] : [])];
+  const snap: VersionSnapshot & { users?: Record<string, string> } = {
+    order: { id: s.order.id, so_no: s.order.so_no, sl_no: s.order.sl_no, version_no: s.order.version_no, order_type: s.order.order_type },
+    items: s.items.map((it) => Object.fromEntries(itemCols.filter((c) => c in it).map((c) => [c, it[c]]))),
+    tables: Object.fromEntries(tables.map((t) => [t, s.tables[t] ?? []])),
+    users: (s as VersionSnapshot & { users?: Record<string, string> }).users ?? {},
+  };
+  return { orderId, soLabel: String(so.so_no ?? `#${so.sl_no}`), dept, currentNo, picked, versions, snap };
 }
 
 /** The departments a version change is told to, by the role that reads it. */

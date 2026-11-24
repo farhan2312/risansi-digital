@@ -14,6 +14,7 @@
 import "server-only";
 import { query } from "@/lib/db";
 import { addOnFieldsFor, PUMP_LIKE } from "@/lib/order-schema";
+import type { DeptChoice } from "@/lib/version-dept-choice";
 
 type Row = Record<string, unknown>;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,7 +42,8 @@ export type EcChange = {
   fingerprint: string;
 };
 
-export type SoEcChanges = { version: number; changes: EcChange[] };
+/** A versioned SO's EC changes in its current version, and what the viewer's department chose on it. */
+export type SoEcChanges = { version: number; changes: EcChange[]; choice: DeptChoice | null };
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 const val = (v: unknown, type: string) => {
@@ -59,18 +61,23 @@ export async function listEcVersionChanges(orderIds: string[], dept: string | nu
     version_no: number;
     was: Row[] | null;
     now: Row[];
-    cancelled: { item_id: string; reason: string }[];
+    cancelled: { item_id: string; ec_no: string | null; version_no: number | null; reason: string }[];
     acks: { item_id: string; fingerprint: string }[];
+    choice: DeptChoice | null;
   }>(
     `SELECT o.id AS order_id, o.order_type, o.version_no,
             v.snapshot->'items' AS was,
             COALESCE((SELECT jsonb_agg(to_jsonb(it) - 'order_copy_file_data' ORDER BY it.seq)
                         FROM order_items it WHERE it.order_id = o.id), '[]'::jsonb) AS now,
-            COALESCE((SELECT jsonb_agg(jsonb_build_object('item_id', c.item_id, 'reason', c.reason))
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('item_id', c.item_id, 'ec_no', c.ec_no, 'version_no', c.version_no, 'reason', c.reason))
                         FROM order_item_cancellations c WHERE c.order_id = o.id), '[]'::jsonb) AS cancelled,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('item_id', a.item_id, 'fingerprint', a.fingerprint))
                         FROM order_ec_version_acks a
-                       WHERE a.order_id = o.id AND a.version_no = o.version_no AND a.dept = $2), '[]'::jsonb) AS acks
+                       WHERE a.order_id = o.id AND a.version_no = o.version_no AND a.dept = $2), '[]'::jsonb) AS acks,
+            (SELECT jsonb_build_object('dept', ch.dept, 'choice', ch.choice, 'flushed_ecs', ch.flushed_ecs,
+                                       'chosen_by_name', ch.chosen_by_name, 'chosen_at', ch.chosen_at::text)
+               FROM order_version_dept_choices ch
+              WHERE ch.order_id = o.id AND ch.version_no = o.version_no AND ch.dept = $2) AS choice
        FROM orders o
        JOIN order_versions v ON v.order_id = o.id AND v.version_no = o.version_no - 1
       WHERE o.id = ANY($1::uuid[]) AND o.version_no > 0 AND o.order_type = ANY($3::text[])`,
@@ -104,7 +111,14 @@ export async function listEcVersionChanges(orderIds: string[], dept: string | nu
       const reason = why.get(id);
       push(id, it.ec_no, "removed", [reason ? `Cancelled by client: ${reason}` : "Deleted"]);
     }
-    if (changes.length) out[row.order_id] = { version: row.version_no, changes };
+    // Cancelled while still the version before, ahead of this one being made:
+    // gone before it was frozen, yet a change of this version all the same.
+    for (const c of row.cancelled) {
+      if (Number(c.version_no) !== row.version_no - 1 || was.has(c.item_id) || now.has(c.item_id)) continue;
+      push(c.item_id, c.ec_no, "removed", [`Cancelled by client before v${row.version_no} was made: ${c.reason}`]);
+    }
+    // Every versioned SO, changes or not: the department chooses on the version, and opens the earlier ones.
+    out[row.order_id] = { version: row.version_no, changes, choice: row.choice };
   }
   return out;
 }
@@ -112,7 +126,7 @@ export async function listEcVersionChanges(orderIds: string[], dept: string | nu
 /** The viewer's department has seen the SO's EC changes as they stand now. */
 export async function ackEcVersionChanges(orderId: string, dept: string, user: { id: string; name: string }): Promise<void> {
   const all = (await listEcVersionChanges([orderId], dept))[orderId];
-  if (!all) return;
+  if (!all || all.changes.length === 0) return;
   for (const ch of all.changes) {
     await query(
       `INSERT INTO order_ec_version_acks (order_id, item_id, version_no, dept, fingerprint, acked_by, acked_by_name)
