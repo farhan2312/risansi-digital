@@ -27,7 +27,7 @@ import {
 import { saveLotStagesAction } from "@/app/risansi/orders/assembly-actions";
 import { PackingPlanHistoryButton } from "./packing-plan-history";
 import { PackingSlipsInline } from "./packing-slips-inline";
-import { AlignmentValue, BasePlateForm, WoodenBoxForm } from "./alignment-cell";
+import { AlignmentLotsForm, AlignmentValue } from "./alignment-cell";
 import { dispatchRowTone } from "@/lib/dept-view";
 import { Chip, LatestLot, LotCell } from "./lot-cell";
 import { HoldBadge } from "./hold-badge";
@@ -53,6 +53,8 @@ const todayIso = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().sl
 /** A pump EC as assembly and packing read it. */
 /** model: its Internal Model. */
 type Ec = { id: string; label: string; model: string; quantity: number; ready: number; link: string; linkAt: unknown; links: unknown };
+/** The SO's pump ECs' names by id, for its alignment lots. */
+const ecLabelsOf = (rows: Row[]): Record<string, string> => Object.fromEntries(rows.map((r) => [str(r.id), str(r.ec_no) || "—"]));
 const ecOf = (r: Row): Ec => ({
   id: str(r.id),
   label: str(r.ec_no) || "EC",
@@ -184,7 +186,6 @@ export function AssemblyPumpTable({
   // The SO picked in split view: the first until another is.
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const alignSo = alignFor ? sos.find((x) => x.orderId === alignFor.orderId) : null;
-  const AlignForm = alignFor?.which === "wooden_box" ? WoodenBoxForm : BasePlateForm;
   const groups: SoGroup[] = sos.map(({ orderId, ecs }) => {
     const head = ecs[0];
     const lots = pumpLotsFromEcs(ecs);
@@ -291,12 +292,12 @@ export function AssemblyPumpTable({
       label: "Base Plate",
       thClass: "border-l border-card-border",
       tdClass: "border-l border-card-border",
-      cell: (g) => <AlignmentValue alignment={g.head.alignment} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "base_plate" })} />,
+      cell: (g) => <AlignmentValue alignment={g.head.alignment} ecLabels={ecLabelsOf(g.ecs)} which="base_plate" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "base_plate" })} />,
     },
     {
       key: "wooden_box",
       label: "Wooden Box",
-      cell: (g) => <AlignmentValue alignment={g.head.alignment} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "wooden_box" })} />,
+      cell: (g) => <AlignmentValue alignment={g.head.alignment} ecLabels={ecLabelsOf(g.ecs)} which="wooden_box" canEdit={canEdit} onOpen={() => setAlignFor({ orderId: g.key, which: "wooden_box" })} />,
     },
   ];
   const asmCols: SplitCol<SoGroup>[] = [
@@ -584,11 +585,16 @@ export function AssemblyPumpTable({
 
   return (
     <>
-      {alignSo && (
-        <AlignForm
+      {alignSo && alignFor && (
+        <AlignmentLotsForm
           orderId={alignSo.orderId}
           soLabel={str(alignSo.ecs[0]?.so_no) || `#${str(alignSo.ecs[0]?.sl_no)}`}
+          which={alignFor.which}
           alignment={alignSo.ecs[0]?.alignment}
+          ecs={alignSo.ecs.map((r) => {
+            const e = ecOf(r);
+            return { id: e.id, label: e.label, quantity: e.quantity, base_plate: str(((r.ec ?? {}) as Row).base_plate) };
+          })}
           onClose={() => setAlignFor(null)}
         />
       )}

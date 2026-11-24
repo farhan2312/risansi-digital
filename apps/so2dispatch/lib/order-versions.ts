@@ -37,6 +37,8 @@ const SO_TABLES: Record<string, string[]> = {
   order_invoices: ["lr_file_data"],
   order_packing_slips: [],
   order_wooden_boxes: [],
+  order_alignment_lots: [],
+  order_lot_base_plate_history: [],
   order_target_revisions: [],
   order_assembly_plans: [],
   order_dept_completions: [],

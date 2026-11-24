@@ -175,6 +175,8 @@ const EC_EXTRA: [string, string][] = [
 /** …and the SO's. Left out: sign-offs (switched off), the old assembly plans, and the invoice ↔ slip links (shown on both). */
 const SO_EXTRA: [string, string][] = [
   ["order_wooden_boxes", "Wooden boxes"],
+  ["order_alignment_lots", "Alignment lots"],
+  ["order_lot_base_plate_history", "Alignment lot base plate history"],
   ["order_target_revisions", "Target date history"],
   ["order_drawing_readiness_history", "Drawing readiness history"],
   ["order_followups", "Follow-ups"],

@@ -16,10 +16,13 @@ import {
   STAGE_WORDS,
   WOODEN_BOX_SOURCES,
   WOODEN_BOX_STATUSES,
+  alignmentLotsOf,
+  alignmentLotsSql,
   basePlateFromEcsSql,
   lotAssembly,
   lotStagesError,
   pumpLotsFromEcs,
+  soAlignmentFromLots,
   soStatuses,
   type AsmEntry,
   type LotStages,
@@ -251,121 +254,44 @@ async function alignmentGate(orderId: string): Promise<
 }
 
 /** Assembly & Packing's word, kept only when it differs from what the SO says on its own. */
-const overrideOf = (required: string, natural: string | null) => (required === natural ? null : required);
+const overrideOf = (required: string | null, natural: string | null) => (required === natural ? null : required);
 
 const text = (v: string) => (v ?? "").trim() || null;
 
-/**
- * Assembly & Packing's base plate on a pump SO: Yes or No, and with Yes where
- * it stands. Saved on its own: the wooden boxes, filled by someone else, are
- * not touched. No keeps what was filled in, for a later Yes.
- */
-export async function saveBasePlateAction(orderId: string, p: BasePlate): Promise<AssemblyResult> {
-  const gate = await alignmentGate(orderId);
-  if ("error" in gate) return { ok: false, error: gate.error };
-  if (p.required !== "Yes" && p.required !== "No") return { ok: false, error: "Choose Yes or No for the base plate." };
-  const override = overrideOf(p.required, gate.plate);
-  if (p.required === "No") {
-    try {
-      await query(`UPDATE orders SET base_plate_override = $2, updated_at = now() WHERE id = $1`, [orderId, override]);
-    } catch (error) {
-      console.error("saveBasePlateAction failed:", error);
-      return { ok: false, error: "Could not save the base plate." };
-    }
-    await logAudit({
-      actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
-      action: "order.update",
-      category: "activity",
-      target: (await getOrderLabel(orderId)) ?? orderId,
-      details: "Base plate: No",
-      subject: await subjectForOrder(orderId),
-    });
-    revalidatePath("/risansi/departments/assembly-dispatch");
-    return { ok: true };
-  }
+type CleanPlate = { required: "Yes" | "No"; status: string; date: string; remarks: string | null };
 
-  // A status, its day once past Pending, and remarks.
+/** A base plate as filled: Yes or No, and with Yes a status, its day once past Pending, and remarks. */
+function cleanBasePlate(p: BasePlate, who: string): CleanPlate | { error: string } {
+  if (p?.required !== "Yes" && p?.required !== "No") return { error: `${who}: choose Yes or No for the base plate.` };
   const status = BASE_PLATE_STATUSES.includes(p.status) ? p.status : "Pending";
   const date = (p.date ?? "").trim();
-  if (date && !DAY_RE.test(date)) return { ok: false, error: "Enter a valid base plate date." };
-  if (status !== "Pending" && !date) return { ok: false, error: `Enter the date the base plate reached ${status}.` };
-  const remarks = text(p.remarks);
-
-  try {
-    const was = (
-      await query<{ status: string | null; date: string | null; remarks: string | null }>(
-        `SELECT base_plate_status AS status, to_char(base_plate_date, 'YYYY-MM-DD') AS date, base_plate_remarks AS remarks FROM orders WHERE id = $1`,
-        [orderId]
-      )
-    ).rows[0];
-    await query(
-      `UPDATE orders SET base_plate_override = $5, base_plate_status = $2, base_plate_date = $3::date, base_plate_remarks = $4, updated_at = now()
-        WHERE id = $1`,
-      [orderId, status, date || null, remarks, override]
-    );
-    // Each step kept with its own day: moving on to the next adds to the history.
-    if (!was || was.status !== status || (was.date ?? "") !== date || (was.remarks ?? null) !== remarks) {
-      await query(
-        `INSERT INTO order_base_plate_history (order_id, status, stage_date, remarks, prev_status, prev_date, changed_by, changed_by_name)
-         VALUES ($1, $2, NULLIF($3, '')::date, $4, $5, NULLIF($6, '')::date, $7, $8)`,
-        [orderId, status, date, remarks, was?.status ?? null, was?.date ?? "", UUID_RE.test(gate.user.id) ? gate.user.id : null, gate.user.full_name || gate.user.email]
-      );
-    }
-  } catch (error) {
-    console.error("saveBasePlateAction failed:", error);
-    return { ok: false, error: "Could not save the base plate." };
+  if (p.required === "Yes") {
+    if (date && !DAY_RE.test(date)) return { error: `${who}: enter a valid base plate date.` };
+    if (status !== "Pending" && !date) return { error: `${who}: enter the date the base plate reached ${status}.` };
   }
-  await logAudit({
-    actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
-    action: "order.update",
-    category: "activity",
-    target: (await getOrderLabel(orderId)) ?? orderId,
-    details: `Base plate: ${status}${date ? ` on ${date}` : ""}${remarks ? ` (${remarks})` : ""}`,
-    subject: await subjectForOrder(orderId),
-  });
-  revalidatePath("/risansi/departments/assembly-dispatch");
-  return { ok: true };
+  return { required: p.required, status, date: DAY_RE.test(date) ? date : "", remarks: text(p.remarks) };
 }
 
-/**
- * Assembly & Packing's wooden boxes on a pump SO: Yes or No, and with Yes each
- * way (in house, bought out) with how many, its status, and what came in. Saved
- * on its own: the base plate, filled by someone else, is not touched. No keeps
- * what was filled in, for a later Yes.
- */
-export async function saveWoodenBoxAction(orderId: string, required: string, sent: WoodenBox[]): Promise<AssemblyResult> {
-  const gate = await alignmentGate(orderId);
-  if ("error" in gate) return { ok: false, error: gate.error };
-  if (required !== "Yes" && required !== "No") return { ok: false, error: "Choose Yes or No for the wooden box." };
-  const override = overrideOf(required, gate.box);
-  if (required === "No") {
-    try {
-      await query(`UPDATE orders SET wooden_box_override = $2, updated_at = now() WHERE id = $1`, [orderId, override]);
-    } catch (error) {
-      console.error("saveWoodenBoxAction failed:", error);
-      return { ok: false, error: "Could not save the wooden boxes." };
-    }
-    await logAudit({
-      actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
-      action: "order.update",
-      category: "activity",
-      target: (await getOrderLabel(orderId)) ?? orderId,
-      details: "Wooden box: No",
-      subject: await subjectForOrder(orderId),
-    });
-    revalidatePath("/risansi/departments/assembly-dispatch");
-    return { ok: true };
-  }
+type CleanBox = {
+  source: string;
+  required_qty: number;
+  stock_qty: number | null;
+  status: string;
+  received_date: string | null;
+  received_qty: number | null;
+  remarks: string | null;
+};
+
+/** The wooden boxes as filled with Yes: each way (in house, bought out) with how many, its status, and what came in. */
+function cleanBoxes(sent: WoodenBox[], who: string): CleanBox[] | { error: string } {
   const qty = (v: string): number | null | false => {
-    const t = (v ?? "").trim();
+    const t = String(v ?? "").trim();
     if (!t) return null;
     return /^\d+$/.test(t) ? Number(t) : false;
   };
-
-  type Box = { source: string; required: number; stock: number | null; status: string; date: string | null; got: number | null; remarks: string | null };
-  const boxes: Box[] = [];
+  const boxes: CleanBox[] = [];
   for (const source of WOODEN_BOX_SOURCES) {
-    const w = (sent ?? []).find((x) => x?.source === source);
+    const w = (Array.isArray(sent) ? sent : []).find((x) => x?.source === source);
     if (!w) continue;
     const required = qty(w.required_qty);
     const stock = qty(w.stock_qty);
@@ -375,53 +301,236 @@ export async function saveWoodenBoxAction(orderId: string, required: string, sen
     const received = status === "Received" && !fromStock;
     const date = received ? (w.received_date ?? "").trim() : "";
     const got = received ? qty(w.received_qty) : null;
-    if (required === false || stock === false || got === false) return { ok: false, error: `${source}: quantities are whole numbers.` };
-    if (required == null) return { ok: false, error: `${source}: enter the wooden boxes required.` };
-    if (received && !DAY_RE.test(date)) return { ok: false, error: `${source}: enter the date the wooden boxes were received.` };
-    if (received && !got) return { ok: false, error: `${source}: enter the wooden boxes received.` };
-    boxes.push({ source, required, stock, status, date: date || null, got, remarks: text(w.remarks) });
+    if (required === false || stock === false || got === false) return { error: `${who}, ${source}: quantities are whole numbers.` };
+    if (required == null) return { error: `${who}, ${source}: enter the wooden boxes required.` };
+    if (received && !DAY_RE.test(date)) return { error: `${who}, ${source}: enter the date the wooden boxes were received.` };
+    if (received && !got) return { error: `${who}, ${source}: enter the wooden boxes received.` };
+    boxes.push({ source, required_qty: required, stock_qty: stock, status, received_date: date || null, received_qty: got, remarks: text(w.remarks) });
   }
-  if (boxes.length === 0) return { ok: false, error: "Choose whether the wooden boxes are in house, bought out, or both." };
+  if (boxes.length === 0) return { error: `${who}: choose whether the wooden boxes are in house, bought out, or both.` };
+  return boxes;
+}
 
+/** One alignment lot as the form sends it: its ECs and how many, and the part being filled (base plate or wooden box). */
+export type AlignmentLotInput = {
+  /** Its id once saved; blank for a new lot. */
+  id: string;
+  ecs: { item_id: string; qty: string | number }[];
+  base_plate?: BasePlate;
+  wooden_box?: { required: string; boxes: WoodenBox[] };
+};
+
+type Db = { query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> };
+
+/**
+ * The SO's own base plate and wooden box, kept up to date from its lots (as
+ * soAlignmentFromLots reads them), so every page reading the SO's stays right.
+ * A new step of the SO's base plate joins its history.
+ */
+async function syncSoAlignment(db: Db, orderId: string, by: { id: string | null; name: string }): Promise<void> {
+  const so = (
+    await db.query(
+      `SELECT ${basePlateFromEcsSql("o")} AS plate, ${woodenBoxFromPackingSql("o")} AS box, o.base_plate_status,
+              to_char(o.base_plate_date, 'YYYY-MM-DD') AS base_plate_date, ${alignmentLotsSql("o")} AS lots
+         FROM orders o WHERE o.id = $1`,
+      [orderId]
+    )
+  ).rows[0];
+  if (!so) return;
+  const lots = alignmentLotsOf(so.lots);
+  if (lots.length === 0) return;
+  const ecs = (
+    await db.query(`SELECT id, quantity FROM order_items WHERE order_id = $1 AND item_type = ANY($2)`, [orderId, PUMP_LIKE])
+  ).rows.map((r) => ({ id: String(r.id), quantity: Number(r.quantity ?? 0) || 0 }));
+  const natural = { plate: String(so.plate), box: (so.box as string | null) ?? null };
+  const r = soAlignmentFromLots(lots, ecs, natural);
+  const plateOverride = overrideOf(r.plate, natural.plate);
+  const boxOverride = overrideOf(r.box, natural.box);
+  if (r.plate === "Yes") {
+    await db.query(
+      `UPDATE orders SET base_plate_override = $2, base_plate_status = $3, base_plate_date = NULLIF($4, '')::date,
+              base_plate_remarks = NULLIF($5, ''), wooden_box_override = $6, updated_at = now() WHERE id = $1`,
+      [orderId, plateOverride, r.status, r.date, r.remarks, boxOverride]
+    );
+    if (String(so.base_plate_status ?? "") !== r.status || String(so.base_plate_date ?? "") !== r.date) {
+      await db.query(
+        `INSERT INTO order_base_plate_history (order_id, status, stage_date, remarks, prev_status, prev_date, changed_by, changed_by_name)
+         VALUES ($1, $2, NULLIF($3, '')::date, NULLIF($4, ''), $5, NULLIF($6, '')::date, $7, $8)`,
+        [orderId, r.status, r.date, r.remarks, so.base_plate_status ?? null, String(so.base_plate_date ?? ""), by.id, by.name]
+      );
+    }
+  } else {
+    await db.query(`UPDATE orders SET base_plate_override = $2, wooden_box_override = $3, updated_at = now() WHERE id = $1`, [
+      orderId,
+      plateOverride,
+      boxOverride,
+    ]);
+  }
+  // With No the SO's boxes are kept, as before, for a later Yes.
+  if (r.box === "Yes") {
+    await db.query(`DELETE FROM order_wooden_boxes WHERE order_id = $1 AND NOT (source = ANY($2::text[]))`, [orderId, r.boxes.map((b) => b.source)]);
+    for (const b of r.boxes) {
+      await db.query(
+        `INSERT INTO order_wooden_boxes (order_id, source, required_qty, stock_qty, status, received_date, received_qty, remarks)
+         VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8)
+         ON CONFLICT (order_id, source) DO UPDATE
+           SET required_qty = EXCLUDED.required_qty, stock_qty = EXCLUDED.stock_qty, status = EXCLUDED.status,
+               received_date = EXCLUDED.received_date, received_qty = EXCLUDED.received_qty,
+               remarks = EXCLUDED.remarks, updated_at = now()`,
+        [orderId, b.source, b.required_qty, b.stock_qty, b.status, b.received_date, b.received_qty, b.remarks]
+      );
+    }
+  }
+}
+
+/**
+ * Assembly & Packing's alignment lots on a pump SO: each lot's ECs and how
+ * many of each, and the part being filled — its base plate, or its wooden
+ * boxes — the other part left as it is (each is filled by its own person).
+ * A new lot takes the other part from what its ECs and the SO say. Lots in
+ * `deleted` go. An EC is never in lots for more than its quantity. The SO's
+ * own base plate and wooden box follow the lots.
+ */
+export async function saveAlignmentLotsAction(orderId: string, lots: AlignmentLotInput[], deleted: string[]): Promise<AssemblyResult> {
+  const gate = await alignmentGate(orderId);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const sentLots = Array.isArray(lots) ? lots : [];
+  const gone = (Array.isArray(deleted) ? deleted : []).map(String).filter((id) => UUID_RE.test(id));
+  const stale: AssemblyResult = { ok: false, error: "A lot was changed elsewhere — reopen the alignment." };
   try {
-    await withTransaction(async (client) => {
-      await client.query(`UPDATE orders SET wooden_box_override = $2, updated_at = now() WHERE id = $1`, [orderId, override]);
-      // The ways left off go; the rest are as the form leaves them.
-      await client.query(`DELETE FROM order_wooden_boxes WHERE order_id = $1 AND NOT (source = ANY($2::text[]))`, [
-        orderId,
-        boxes.map((b) => b.source),
-      ]);
-      for (const b of boxes) {
-        await client.query(
-          `INSERT INTO order_wooden_boxes (order_id, source, required_qty, stock_qty, status, received_date, received_qty, remarks)
-           VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8)
-           ON CONFLICT (order_id, source) DO UPDATE
-             SET required_qty = EXCLUDED.required_qty, stock_qty = EXCLUDED.stock_qty, status = EXCLUDED.status,
-                 received_date = EXCLUDED.received_date, received_qty = EXCLUDED.received_qty,
-                 remarks = EXCLUDED.remarks, updated_at = now()`,
-          [orderId, b.source, b.required, b.stock, b.status, b.date, b.got, b.remarks]
-        );
+    const ecRows = (
+      await query<{ id: string; ec_no: string | null; quantity: number | null; base_plate: string | null }>(
+        `SELECT id, ec_no, quantity, base_plate FROM order_items WHERE order_id = $1 AND item_type = ANY($2) ORDER BY seq`,
+        [orderId, PUMP_LIKE]
+      )
+    ).rows;
+    const ecById = new Map(ecRows.map((e) => [e.id, e]));
+    const existing = alignmentLotsOf(
+      (await query<{ lots: unknown }>(`SELECT ${alignmentLotsSql("o")} AS lots FROM orders o WHERE o.id = $1`, [orderId])).rows[0]?.lots
+    );
+    const byId = new Map(existing.map((l) => [l.id, l]));
+    if (gone.some((id) => !byId.has(id))) return stale;
+
+    type Clean = {
+      id: string;
+      who: string;
+      ecs: { item_id: string; qty: number }[];
+      plate?: CleanPlate;
+      box?: { required: "Yes" | "No"; boxes: CleanBox[] | null };
+    };
+    const clean: Clean[] = [];
+    for (const [i, l] of sentLots.entries()) {
+      const id = UUID_RE.test(String(l?.id ?? "")) ? String(l.id) : "";
+      if (id && (!byId.has(id) || gone.includes(id))) return stale;
+      const who = `Lot ${i + 1}`;
+      const ecs: { item_id: string; qty: number }[] = [];
+      for (const e of Array.isArray(l?.ecs) ? l.ecs : []) {
+        const t = String(e?.qty ?? "").trim();
+        if (!t || /^0+$/.test(t)) continue;
+        if (!/^\d+$/.test(t)) return { ok: false, error: `${who}: EC quantities are whole numbers.` };
+        if (!ecById.has(String(e.item_id))) return { ok: false, error: `${who}: an EC is not a pump of this SO.` };
+        ecs.push({ item_id: String(e.item_id), qty: Number(t) });
       }
+      if (ecs.length === 0) return { ok: false, error: `${who}: put at least one EC in the lot.` };
+      const c: Clean = { id, who, ecs };
+      if (l.base_plate) {
+        const p = cleanBasePlate(l.base_plate, who);
+        if ("error" in p) return { ok: false, error: p.error };
+        c.plate = p;
+      }
+      if (l.wooden_box) {
+        const req = l.wooden_box.required;
+        if (req !== "Yes" && req !== "No") return { ok: false, error: `${who}: choose Yes or No for the wooden box.` };
+        let boxes: CleanBox[] | null = null;
+        if (req === "Yes") {
+          const b = cleanBoxes(l.wooden_box.boxes, who);
+          if ("error" in b) return { ok: false, error: b.error };
+          boxes = b;
+        }
+        c.box = { required: req, boxes };
+      }
+      clean.push(c);
+    }
+    // No EC in lots for more than it has: the lots sent, and any saved lot not sent.
+    const kept = existing.filter((l) => !gone.includes(l.id) && !clean.some((c) => c.id === l.id));
+    for (const e of ecRows) {
+      const total = [...clean, ...kept].reduce((t, l) => t + l.ecs.filter((x) => x.item_id === e.id).reduce((s, x) => s + x.qty, 0), 0);
+      const has = Number(e.quantity ?? 0) || 0;
+      if (total > has) return { ok: false, error: `EC ${e.ec_no || "—"}: ${total} in lots, more than its quantity ${has}.` };
+    }
+
+    const by = { id: UUID_RE.test(gate.user.id) ? gate.user.id : null, name: gate.user.full_name || gate.user.email };
+    await withTransaction(async (client) => {
+      if (gone.length) await client.query(`DELETE FROM order_alignment_lots WHERE order_id = $1 AND id = ANY($2::uuid[])`, [orderId, gone]);
+      for (const c of clean) {
+        const was = c.id ? byId.get(c.id)! : null;
+        let id = c.id;
+        if (!was) {
+          // A new lot: the part not filled here from what its ECs and the SO say.
+          const plate = c.ecs.some((e) => ecById.get(e.item_id)?.base_plate === "Yes") ? "Yes" : "No";
+          const ins = await client.query(
+            `INSERT INTO order_alignment_lots (order_id, ecs, base_plate, wooden_box) VALUES ($1, $2::jsonb, $3, $4) RETURNING id`,
+            [orderId, JSON.stringify(c.ecs), plate, gate.box]
+          );
+          id = String(ins.rows[0].id);
+        } else {
+          await client.query(`UPDATE order_alignment_lots SET ecs = $2::jsonb, updated_at = now() WHERE id = $1`, [id, JSON.stringify(c.ecs)]);
+        }
+        if (c.plate) {
+          // No keeps what was filled in, for a later Yes.
+          if (c.plate.required === "No") {
+            await client.query(`UPDATE order_alignment_lots SET base_plate = 'No', updated_at = now() WHERE id = $1`, [id]);
+          } else {
+            const p = c.plate;
+            await client.query(
+              `UPDATE order_alignment_lots SET base_plate = 'Yes', base_plate_status = $2, base_plate_date = NULLIF($3, '')::date,
+                      base_plate_remarks = $4, updated_at = now() WHERE id = $1`,
+              [id, p.status, p.date, p.remarks]
+            );
+            // Each step kept with its own day: moving on to the next adds to the history.
+            if (!was || was.base_plate_status !== p.status || was.base_plate_date !== p.date || (was.base_plate_remarks || null) !== p.remarks) {
+              await client.query(
+                `INSERT INTO order_lot_base_plate_history (lot_id, order_id, status, stage_date, remarks, prev_status, prev_date, changed_by, changed_by_name)
+                 VALUES ($1, $2, $3, NULLIF($4, '')::date, $5, NULLIF($6, ''), NULLIF($7, '')::date, $8, $9)`,
+                [id, orderId, p.status, p.date, p.remarks, was?.base_plate_status ?? "", was?.base_plate_date ?? "", by.id, by.name]
+              );
+            }
+          }
+        }
+        if (c.box) {
+          if (c.box.boxes) {
+            await client.query(`UPDATE order_alignment_lots SET wooden_box = 'Yes', wooden_boxes = $2::jsonb, updated_at = now() WHERE id = $1`, [
+              id,
+              JSON.stringify(c.box.boxes),
+            ]);
+          } else {
+            await client.query(`UPDATE order_alignment_lots SET wooden_box = 'No', updated_at = now() WHERE id = $1`, [id]);
+          }
+        }
+      }
+      await syncSoAlignment(client, orderId, by);
+    });
+
+    const ecName = (id: string) => `EC ${ecById.get(id)?.ec_no || "—"}`;
+    const lines = clean.map((c) => {
+      const parts = [`${c.who} (${c.ecs.map((e) => `${ecName(e.item_id)} ×${e.qty}`).join(", ")})`];
+      if (c.plate) parts.push(c.plate.required === "No" ? "base plate No" : `base plate ${c.plate.status}${c.plate.date ? ` on ${c.plate.date}` : ""}`);
+      if (c.box) parts.push(c.box.boxes ? `wooden box ${c.box.boxes.map((b) => `${b.source} ${b.status}`).join(", ")}` : "wooden box No");
+      return parts.join(": ");
+    });
+    if (gone.length) lines.push(`${gone.length} lot${gone.length > 1 ? "s" : ""} removed`);
+    await logAudit({
+      actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
+      action: "order.update",
+      category: "activity",
+      target: (await getOrderLabel(orderId)) ?? orderId,
+      details: `Alignment lots: ${lines.join(" · ")}`,
+      subject: await subjectForOrder(orderId),
     });
   } catch (error) {
-    console.error("saveWoodenBoxAction failed:", error);
-    return { ok: false, error: "Could not save the wooden boxes." };
+    console.error("saveAlignmentLotsAction failed:", error);
+    return { ok: false, error: "Could not save the alignment lots." };
   }
-  await logAudit({
-    actor: { id: gate.user.id, email: gate.user.email, role: gate.user.role },
-    action: "order.update",
-    category: "activity",
-    target: (await getOrderLabel(orderId)) ?? orderId,
-    details: `Wooden box: ${boxes
-      .map(
-        (b) =>
-          `${b.source} ${b.required} required${b.stock ? `, ${b.stock} in stock` : ""}, ${b.status}${
-            b.date ? ` ${b.got} on ${b.date}` : ""
-          }${b.remarks ? ` (${b.remarks})` : ""}`
-      )
-      .join(" · ")}`,
-    subject: await subjectForOrder(orderId),
-  });
   revalidatePath("/risansi/departments/assembly-dispatch");
   return { ok: true };
 }
@@ -436,15 +545,16 @@ export type BasePlateEvent = {
   changed_at: string;
 };
 
-/** The base plate's history on a pump SO, newest first. */
-export async function basePlateHistoryAction(orderId: string): Promise<BasePlateEvent[]> {
+/** The base plate's history on a pump SO, or on one of its alignment lots, newest first. */
+export async function basePlateHistoryAction(orderId: string, lotId = ""): Promise<BasePlateEvent[]> {
   const user = await getCurrentUser();
-  if (!user || !UUID_RE.test(orderId)) return [];
+  if (!user || !UUID_RE.test(orderId) || (lotId && !UUID_RE.test(lotId))) return [];
   const r = await query<BasePlateEvent>(
     `SELECT status, to_char(stage_date, 'YYYY-MM-DD') AS stage_date, remarks, prev_status,
             to_char(prev_date, 'YYYY-MM-DD') AS prev_date, changed_by_name, changed_at::text AS changed_at
-       FROM order_base_plate_history WHERE order_id = $1 ORDER BY changed_at DESC`,
-    [orderId]
+       FROM ${lotId ? "order_lot_base_plate_history WHERE order_id = $1 AND lot_id = $2" : "order_base_plate_history WHERE order_id = $1"}
+      ORDER BY changed_at DESC`,
+    lotId ? [orderId, lotId] : [orderId]
   );
   return r.rows;
 }
