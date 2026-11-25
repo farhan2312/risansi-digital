@@ -91,6 +91,7 @@ import {
   type OrderTable,
   withoutBarePrefix,
   ONLY_BILLING,
+  ONLY_BILLING_CLEAR_FIGURES_SQL,
   isOnlyBilling,
 } from "@/lib/order-schema";
 import {
@@ -939,6 +940,8 @@ export async function updateOrderSectionAction(
             WHERE id = $1`,
           [id, BILL_TYPE_FOR_MODE[allowedValues.bill_mode] ?? null, onlyBilling ? "Yes" : "No"]
         );
+        // Only Billing carries no figures: what it had as a Billing SO goes.
+        if (onlyBilling) await query(`UPDATE orders SET ${ONLY_BILLING_CLEAR_FIGURES_SQL} WHERE id = $1`, [id]);
         await markReplacementTerms(id);
       }
       // An EC added before the SO had an Order Type takes it now — Planning and

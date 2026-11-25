@@ -74,6 +74,7 @@ import {
   coerceField,
   withoutBarePrefix,
   ONLY_BILLING,
+  ONLY_BILLING_CLEAR_FIGURES_SQL,
   canonicalZone,
   canonicalClientField,
   isClientField,
@@ -473,6 +474,8 @@ export async function createOrder(
         input.order_type === "Spare" ? (input.spare_type === "Retrofit Spare" ? "Retrofit Spare" : "Spare") : null,
       ]
     );
+    // Only Billing carries no figures, whatever the form or import sent.
+    if (onlyBilling) await client.query(`UPDATE orders SET ${ONLY_BILLING_CLEAR_FIGURES_SQL} WHERE id = $1`, [result.rows[0].id]);
     return result.rows[0];
   });
 }

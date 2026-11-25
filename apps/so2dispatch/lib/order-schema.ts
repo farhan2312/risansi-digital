@@ -157,6 +157,15 @@ export const ONLY_BILLING = "Only Billing";
 export const ONLY_BILLING_COLUMNS = [
   "po_received_date", "order_type", "bill_mode", "so_reference", "only_billing_remarks", "so_no", "so_date",
 ];
+/**
+ * An Only Billing SO carries no figures: what a Billing SO had (value,
+ * currency, quantity, discount, P&F, GST, gross, USD conversion) is cleared
+ * when it becomes Only Billing, so no total counts it. SQL SET list.
+ */
+export const ONLY_BILLING_CLEAR_FIGURES_SQL = [
+  "order_value", "order_currency", "total_quantity", "discount_percent", "packing_forwarding_percent",
+  "gst_percent", "gross_value_usd", "taxable_value", "order_value_inr", "order_fx_rate",
+].map((c) => `${c} = NULL`).join(", ");
 /** Whether an SO is Only Billing: its Bill Mode (or the older switch it replaced). */
 export function isOnlyBilling(row: object | null | undefined): boolean {
   const order = row as { bill_mode?: unknown; only_billing?: unknown } | null | undefined;
