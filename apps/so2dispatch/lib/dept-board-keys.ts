@@ -8,7 +8,7 @@ import type { KpiCard, KpiTone } from "@/lib/kpis";
 export const BOARD_DEPTS = [
   { key: "drawing", label: "Drawing", icon: "ruler", page: "/risansi/departments/drawing" },
   { key: "purchase", label: "Purchase", icon: "cart", page: "/risansi/departments/purchase" },
-  { key: "billing", label: "Billing", icon: "receipt", page: "/risansi/departments/billing" },
+  { key: "billing", label: "Proforma Invoice", icon: "receipt", page: "/risansi/departments/billing" },
   { key: "accounts", label: "Accounts", icon: "wallet", page: "/risansi/departments/accounts" },
   { key: "planning", label: "Planning", icon: "calendar", page: "/risansi/departments/planning" },
   { key: "quality", label: "Quality", icon: "shield", page: "/risansi/departments/qc" },
