@@ -7,7 +7,8 @@
 // The SOs themselves are listed on the department's own page.
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { INDIA_MAP, INDIA_ZONE_LABEL, INDIA_ZONE_PATHS, INDIA_ZONE_STATES } from "@/lib/india-zone-map";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -53,15 +54,6 @@ const ABOUT: Record<BoardDeptKey, string> = {
 
 /** The SO's status in the department's first group of cards. */
 const lead = (r: DeptSoRow) => r.statuses[0];
-
-/** Zones laid out as on a map: North on top, West and East either side, South below; Export apart. */
-const ZONE_AT: Record<string, string> = {
-  North: "col-start-2 row-start-1",
-  West: "col-start-1 row-start-2",
-  Central: "col-start-2 row-start-2",
-  East: "col-start-3 row-start-2",
-  South: "col-start-2 row-start-3",
-};
 
 export function DeptDashboard({
   dept,
@@ -410,15 +402,14 @@ export function DeptDashboard({
           {/* 4. Where from. */}
           <Section n={4} icon={<MapPin className="h-4 w-4" />} title="Where the work comes from" about="The SOs by the sales zone they belong to, and by the month of their SO date — where the load comes from and how it has built up.">
             <div className="grid gap-4 lg:grid-cols-2">
-              <ChartCard title="By zone" sub="Each zone's SOs, order value and status mix">
-                <div className="grid grid-cols-3 grid-rows-3 gap-2">{zones.filter((z) => ZONE_AT[z]).map((z) => <ZoneTile key={z} zone={z} list={inZone(z)} parts={partsOf(inZone(z))} total={total} />)}</div>
-                {zones.some((z) => !ZONE_AT[z]) && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">{zones.filter((z) => !ZONE_AT[z]).map((z) => <ZoneTile key={z} zone={z} list={inZone(z)} parts={partsOf(inZone(z))} total={total} />)}</div>
-                )}
+              <ChartCard title="By zone" sub="Each zone's SOs and order value on the map; its status mix beside it" className="lg:col-span-2">
+                <ZoneMap zones={zones} inZone={inZone} partsOf={partsOf} total={total} />
                 {legend}
-                <Note>Laid out as a compass (North on top, South below), not a map to scale. Each bar shows the zone&apos;s SOs split by {meta.label}&apos;s statuses.</Note>
+                <Note>
+                  The darker a zone, the more SOs it has here. Hover a zone for its figures. Export and SOs with no zone are listed beside the map. Each bar shows the zone&apos;s SOs split by {meta.label}&apos;s statuses.
+                </Note>
               </ChartCard>
-              <ChartCard title="SOs by month" sub={`By SO date, the last twelve months · ${money(byMonth.reduce((a, m) => a + m.value, 0))}`}>
+              <ChartCard className="lg:col-span-2" title="SOs by month" sub={`By SO date, the last twelve months · ${money(byMonth.reduce((a, m) => a + m.value, 0))}`}>
                 <Columns data={byMonth} color="var(--viz-blue)" tooltip={valueTip} />
                 <Note>When the SOs now on {meta.label}&apos;s page were placed. A tall bar in an old month is work that has stayed long; hover a bar for its order value.</Note>
               </ChartCard>
@@ -604,24 +595,129 @@ function StatusGroup({
   );
 }
 
-function ZoneTile({ zone, list, parts, total }: { zone: string; list: DeptSoRow[]; parts: { label: string; count: number; color: string }[]; total: number }) {
-  // The status most of the zone's SOs are at.
-  const most = [...parts].sort((a, b) => b.count - a.count)[0];
+/** The sequential ramp the map shades zones with, lightest to darkest. */
+const RAMP = ["var(--viz-seq-1)", "var(--viz-seq-2)", "var(--viz-seq-3)", "var(--viz-seq-4)", "var(--viz-seq-5)", "var(--viz-seq-6)"];
+
+/**
+ * India by sales zone: each zone shaded by how many SOs it has here, its
+ * figures on it, and beside the map every zone (Export and No zone too) with
+ * its share, value and status mix.
+ */
+function ZoneMap({
+  zones,
+  inZone,
+  partsOf,
+  total,
+}: {
+  zones: string[];
+  inZone: (z: string) => DeptSoRow[];
+  partsOf: (list: DeptSoRow[]) => { label: string; count: number; color: string }[];
+  total: number;
+}) {
+  const [hover, setHover] = useState<string | null>(null);
+  const onMap = Object.keys(INDIA_ZONE_PATHS);
+  const max = Math.max(1, ...onMap.map((z) => inZone(z).length));
+  const fill = (z: string) => {
+    const n = inZone(z).length;
+    return n ? RAMP[Math.min(RAMP.length - 1, Math.floor((n / max) * (RAMP.length - 1) + 0.5))] : "var(--viz-grid)";
+  };
+  const ordered = [...new Set([...onMap, ...zones])].filter((z) => inZone(z).length || onMap.includes(z)).sort((a, b) => inZone(b).length - inZone(a).length);
+  const shown = hover ? inZone(hover) : null;
   return (
-    <div className={`relative overflow-hidden rounded-xl border border-card-border bg-surface p-3 shadow-sm ${ZONE_AT[zone] ?? ""}`}>
-      <span className="pointer-events-none absolute -right-5 -top-5 h-14 w-14 rounded-full bg-[#2F5496]/[0.07]" aria-hidden />
-      <p className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.1em] text-[#2F5496] dark:text-sky-300">
-        {zone}
-        <span className="font-semibold normal-case tracking-normal text-muted">{pct(list.length, total)}%</span>
-      </p>
-      <p className="mt-1 flex items-baseline gap-2">
-        <b className="text-2xl tabular-nums text-foreground">{list.length}</b>
-        {most?.count ? <span className="truncate text-[11px] text-muted">mostly {most.label}</span> : null}
-      </p>
-      <p className="text-xs font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(sumValue(list))}</p>
-      <div className="mt-2">
-        <StackBar parts={parts} title={zone} />
+    <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="relative">
+        <svg viewBox={`0 0 ${INDIA_MAP.width} ${INDIA_MAP.height}`} className="mx-auto w-full max-w-[26rem]" role="img" aria-label={onMap.map((z) => `${z}: ${inZone(z).length} SOs`).join(", ")}>
+          {onMap.map((z) => (
+            <path
+              key={z}
+              d={INDIA_ZONE_PATHS[z]}
+              fill={fill(z)}
+              stroke="var(--viz-surface)"
+              strokeWidth={0.8}
+              strokeLinejoin="round"
+              opacity={hover && hover !== z ? 0.45 : 1}
+              onMouseEnter={() => setHover(z)}
+              onMouseLeave={() => setHover(null)}
+              className="cursor-default transition-opacity"
+            >
+              <title>{`${z} — ${INDIA_ZONE_STATES[z].join(", ")}`}</title>
+            </path>
+          ))}
+          {onMap.map((z) => {
+            const [x, y] = INDIA_ZONE_LABEL[z];
+            const n = inZone(z).length;
+            return (
+              <g key={z} transform={`translate(${x} ${y})`} className="pointer-events-none">
+                <rect x={-34} y={-20} width={68} height={n ? 40 : 24} rx={8} fill="var(--viz-surface)" opacity={0.92} stroke="var(--viz-axis)" strokeWidth={0.6} />
+                <text y={-6} textAnchor="middle" className="fill-[var(--viz-text)] text-[10px] font-semibold uppercase">
+                  {z}
+                </text>
+                {n > 0 && (
+                  <>
+                    <text y={8} textAnchor="middle" className="fill-[var(--viz-ink)] text-[13px] font-bold">
+                      {n}
+                    </text>
+                    <text y={18} textAnchor="middle" className="fill-[#2F5496] text-[8.5px] font-semibold">
+                      {money(sumValue(inZone(z)))}
+                    </text>
+                  </>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+        {hover && shown && (
+          <div className="pointer-events-none absolute left-2 top-2 w-56 rounded-xl border border-card-border bg-surface/95 p-3 text-xs shadow-lg backdrop-blur">
+            <p className="font-bold uppercase tracking-wide text-[#2F5496] dark:text-sky-300">{hover}</p>
+            <p className="mt-1 text-foreground">
+              <b className="text-base tabular-nums">{shown.length}</b> SOs · {pct(shown.length, total)}% · <b>{money(sumValue(shown))}</b>
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-muted">{INDIA_ZONE_STATES[hover].join(", ")}</p>
+          </div>
+        )}
+        <div className="mx-auto mt-2 flex max-w-[26rem] items-center gap-2 text-[10.5px] text-muted">
+          <span>Fewer SOs</span>
+          <span className="flex h-2 flex-1 overflow-hidden rounded-full">
+            {RAMP.map((c) => (
+              <span key={c} className="flex-1" style={{ background: c }} />
+            ))}
+          </span>
+          <span>More</span>
+        </div>
+        <p className="mx-auto mt-1 max-w-[26rem] text-[9.5px] text-muted">Boundaries © OpenStreetMap contributors (ODbL), with the Government of India border.</p>
       </div>
+      <ul className="space-y-2">
+        {ordered.map((z) => {
+          const list = inZone(z);
+          const parts = partsOf(list);
+          const most = [...parts].sort((a, b) => b.count - a.count)[0];
+          return (
+            <li
+              key={z}
+              onMouseEnter={() => onMap.includes(z) && setHover(z)}
+              onMouseLeave={() => setHover(null)}
+              className={`rounded-xl border px-3 py-2 transition ${hover === z ? "border-[#2F5496]/40 bg-[#2F5496]/[0.05]" : "border-card-border bg-surface"}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: onMap.includes(z) ? fill(z) : "var(--viz-gray)" }} />
+                <span className="text-sm font-semibold text-foreground">{z}</span>
+                {!onMap.includes(z) && <span className="text-[10px] text-muted">not on the map</span>}
+                <span className="ml-auto text-xs tabular-nums text-muted">{pct(list.length, total)}%</span>
+                <b className="w-8 text-right text-sm tabular-nums text-foreground">{list.length}</b>
+                <span className="w-16 text-right text-xs font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(sumValue(list))}</span>
+              </div>
+              {list.length > 0 && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="flex-1">
+                    <StackBar parts={parts} title={z} />
+                  </span>
+                  {most?.count ? <span className="shrink-0 text-[10.5px] text-muted">mostly {most.label}</span> : null}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
