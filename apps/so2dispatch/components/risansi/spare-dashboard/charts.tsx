@@ -327,6 +327,28 @@ const PHASE_OF: Record<string, string> = {
  * Assembly & Packing, Dispatch, Closed), each a thick bar with its count and
  * share; a phase's heading says how many SOs it holds.
  */
+/** What each stage means, in plain words, under its name. */
+const STAGE_INFO: Record<string, string> = {
+  "No EC yet": "SO made; no EC added to it yet",
+  "Date awaited": "Planning has not set a readiness date yet",
+  "In plan": "Readiness date set; nothing ready yet",
+  "Partial ready": "Some ECs or lots ready, not all",
+  "Ready, not packed": "Fully ready; Assembly & Packing has not packed it",
+  "Ready, not assembled": "Fully ready; assembly not started",
+  "Assembly on": "Being assembled",
+  "Assembled, not packed": "Fully assembled; packing not started",
+  "Packing on": "Being packed",
+  "Packed, no slip yet": "Packed; the packing slip is not filed yet",
+  "Packed, to dispatch": "Packing slip filed; waiting for Dispatch to send it",
+  "Dispatch hold": "Dispatch has put it on hold",
+  "Lot dispatched": "Part sent; more lots to go",
+  "Fully dispatched": "Everything sent",
+  "Cancelled / Diverted": "Closed: cancelled by the client, or diverted",
+};
+
+/** The phases in the order an SO moves through them. */
+const PHASES = ["Planning", "Assembly & Packing", "Dispatch", "Closed"];
+
 export function Pipeline({ data }: { data: Datum[] }) {
   const total = data.reduce((a, d) => a + d.count, 0);
   const max = Math.max(1, ...data.map((d) => d.count));
@@ -336,23 +358,52 @@ export function Pipeline({ data }: { data: Datum[] }) {
     const p = phases.find((x) => x.name === name) ?? phases[phases.push({ name, rows: [] }) - 1];
     p.rows.push(d);
   }
+  const sumOf = (name: string) => phases.find((p) => p.name === name)?.rows.reduce((a, d) => a + d.count, 0) ?? 0;
+  const steps = PHASES.filter((n) => phases.some((p) => p.name === n));
   return (
     <div className="space-y-4">
-      {phases.map((p) => {
+      {/* The journey at a glance: how many SOs are at each phase. */}
+      <div className="flex flex-wrap items-stretch gap-1.5">
+        {steps.map((n, i) => (
+          <div key={n} className="flex min-w-[7.5rem] flex-1 items-center gap-1.5">
+            <div className={`flex-1 rounded-xl border px-3 py-2 ${n === "Closed" ? "border-card-border bg-background/60" : "border-[#2F5496]/20 bg-[#2F5496]/[0.05]"}`}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#2F5496] dark:text-sky-300">
+                {n === "Closed" ? "" : `${i + 1}. `}
+                {n}
+              </p>
+              <p className="mt-0.5 flex items-baseline gap-1.5">
+                <b className="text-lg tabular-nums text-foreground">{sumOf(n)}</b>
+                <span className="text-[11px] text-muted">SOs · {pct(sumOf(n), total)}</span>
+              </p>
+            </div>
+            {i < steps.length - 1 && <span className="text-muted" aria-hidden>→</span>}
+          </div>
+        ))}
+      </div>
+
+      {phases.map((p, pi) => {
         const n = p.rows.reduce((a, d) => a + d.count, 0);
         return (
           <div key={p.name}>
             <div className="mb-1.5 flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2F5496] text-[10px] font-bold text-white">{p.name === "Closed" ? "✕" : pi + 1}</span>
               <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#2F5496] dark:text-sky-300">{p.name}</span>
               <span className="h-px flex-1 bg-card-border" />
               <span className="rounded-full bg-[#1F3864]/[0.07] px-2 py-0.5 text-[10.5px] font-semibold tabular-nums text-[#1F3864] dark:bg-white/10 dark:text-white">
                 {n} SOs · {pct(n, total)}
               </span>
             </div>
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {p.rows.map((d) => (
-                <li key={d.label} className="group grid grid-cols-[minmax(7rem,10.5rem)_1fr_4.5rem] items-center gap-3 rounded-lg px-1.5 py-1 transition-colors hover:bg-background" title={`${d.label}: ${d.count} SOs (${pct(d.count, total)})`}>
-                  <span className={`truncate text-[13px] ${d.count ? "text-foreground" : "text-muted"}`}>{d.label}</span>
+                <li
+                  key={d.label}
+                  className="group grid grid-cols-[minmax(9rem,14rem)_1fr_4.5rem] items-center gap-3 rounded-lg px-1.5 py-1 transition-colors hover:bg-background"
+                  title={`${d.label}: ${STAGE_INFO[d.label] ?? ""} — ${d.count} SOs (${pct(d.count, total)})`}
+                >
+                  <span className="min-w-0">
+                    <span className={`block truncate text-[13px] font-medium ${d.count ? "text-foreground" : "text-muted"}`}>{d.label}</span>
+                    {STAGE_INFO[d.label] && <span className="block truncate text-[10.5px] leading-tight text-muted">{STAGE_INFO[d.label]}</span>}
+                  </span>
                   <span className="relative h-5 overflow-hidden rounded-md bg-[var(--viz-grid)]/60">
                     <span
                       className="absolute inset-y-0 left-0 rounded-md transition-[width] duration-700 group-hover:brightness-110"
@@ -369,6 +420,12 @@ export function Pipeline({ data }: { data: Datum[] }) {
           </div>
         );
       })}
+      <p className="flex gap-1.5 rounded-lg bg-background/70 px-2.5 py-2 text-[11px] leading-relaxed text-muted">
+        <span className="font-bold text-[#2F5496]">i</span>
+        <span>
+          Each SO is counted <b>once</b>, at the furthest stage it has reached. Dispatch&apos;s hold is a stage of its own; an SO on an Order Making or Accounts hold stays at its stage, and only one that has reached no stage is left to the On hold card. Central Visibility&apos;s hold never moves an SO.
+        </span>
+      </p>
     </div>
   );
 }
