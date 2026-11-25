@@ -229,6 +229,11 @@ export function canSeeClient(role: string): boolean {
   return role !== "planning" && role !== "assembly";
 }
 
+/** In the Discussion chat, Planning, Assembly & Packing, Purchase and Quality see no client name (and cannot search by it). */
+export function canSeeClientInChat(role: string): boolean {
+  return !["planning", "assembly", "purchase", "qc"].includes(role);
+}
+
 export function canSeeEscalations(role: string): boolean {
   return role === "admin" || role === "central_visibility";
 }

@@ -5,7 +5,7 @@ import { query } from "@/lib/db";
 import { getOrderRep, listOrderDeptStatuses } from "@/lib/orders";
 import { orderStatusOf, acrossEcs } from "@/lib/order-row-view";
 import { orderStatusSql, repMatches } from "@/lib/dept-view";
-import { hasNoChat, isRep, roleLabel } from "@/lib/roles";
+import { canSeeClientInChat, hasNoChat, isRep, roleLabel } from "@/lib/roles";
 import { logAudit } from "@/lib/audit";
 import { subjectForOrder } from "@/lib/audit-subject";
 
@@ -392,7 +392,8 @@ export async function chatSoDetailsAction(orderId: string): Promise<{ ok: true; 
       ok: true,
       so: {
         status: orderStatusOf(row),
-        client_name: row.client_name,
+        // Planning, Assembly & Packing, Purchase and Quality: no client name in the chat.
+        client_name: canSeeClientInChat(user.role) ? row.client_name : null,
         reps: row.reps,
         order_type: row.order_type,
         depts: cells.flatMap(([name, c]) => (c && c.state !== "na" ? [{ name, label: c.label, done: c.state === "done" }] : [])),

@@ -1,5 +1,5 @@
 import { query } from "@/lib/db";
-import { ALL_ROLES, hasNoChat, isCentral, isRep, type Role } from "@/lib/roles";
+import { ALL_ROLES, canSeeClientInChat, hasNoChat, isCentral, isRep, type Role } from "@/lib/roles";
 import { deptQueueSql, deptViewForRole, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
 /**
@@ -435,7 +435,12 @@ export async function listAllChats(
   const hits = search ? add(opts.peerHits ?? []) : "";
   const outer: string[] = [];
   if (search) {
-    outer.push(`(c.hit OR c.so_no ILIKE ${like} OR c.client_name ILIKE ${like} OR c.peer = ANY(${hits}::text[]))`);
+    // A department that sees no client name cannot find a chat by it either.
+    outer.push(
+      canSeeClientInChat(viewer.role)
+        ? `(c.hit OR c.so_no ILIKE ${like} OR c.client_name ILIKE ${like} OR c.peer = ANY(${hits}::text[]))`
+        : `(c.hit OR c.so_no ILIKE ${like} OR c.peer = ANY(${hits}::text[]))`
+    );
   }
   if (opts.unreadOnly) outer.push("c.unread > 0");
   if (opts.waitingOnly) outer.push("c.waiting");
@@ -490,7 +495,9 @@ export async function listAllChats(
     : outer.length || offset
       ? await listAllChats(viewer, { repNames: opts.repNames, assigneeId: opts.assigneeId, limit: 1 })
       : { unread: 0, waiting: 0 };
-  return { chats: rows.slice(0, limit), hasMore: rows.length > limit, unread: totals.unread, waiting: totals.waiting };
+  // Planning, Assembly & Packing, Purchase and Quality: no client name.
+  const chats = rows.slice(0, limit).map((c) => (canSeeClientInChat(viewer.role) ? c : { ...c, client_name: null }));
+  return { chats, hasMore: rows.length > limit, unread: totals.unread, waiting: totals.waiting };
 }
 
 /**
@@ -517,13 +524,14 @@ export async function searchSosForChat(viewer: { id: string; role: string }, ter
     `SELECT o.id AS order_id, o.so_no, o.sl_no::int AS sl_no, o.client_name
        FROM orders o
       WHERE (${reach})
-        AND (o.so_no ILIKE $1 OR o.client_name ILIKE $1 OR o.client_code ILIKE $1
+        AND (o.so_no ILIKE $1 ${canSeeClientInChat(viewer.role) ? "OR o.client_name ILIKE $1 OR o.client_code ILIKE $1" : ""}
              OR EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND it.ec_no::text ILIKE $1))
       ORDER BY (o.so_no ILIKE $2) DESC, o.sl_no DESC
       LIMIT 8`,
     params
   );
-  return result.rows;
+  // Planning, Assembly & Packing, Purchase and Quality: no client name.
+  return canSeeClientInChat(viewer.role) ? result.rows : result.rows.map((r) => ({ ...r, client_name: null }));
 }
 
 /** Everything unread in the viewer's chats, read now. How many conversations it took. */

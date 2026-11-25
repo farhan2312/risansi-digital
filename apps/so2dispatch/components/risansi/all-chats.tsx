@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ArrowLeft, CheckCheck, ExternalLink, Loader2, MessagesSquare, Search, X } from "lucide-react";
-import { ALL_ROLES, departmentHrefForRole, isCentral, isRep, roleLabel } from "@/lib/roles";
+import { ALL_ROLES, canSeeClientInChat, departmentHrefForRole, isCentral, isRep, roleLabel } from "@/lib/roles";
 import type { ChatSummary, SoHit } from "@/lib/order-messages";
 import {
   allChatsAction,
@@ -203,7 +203,7 @@ export function AllChatsPanel({
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search SO, EC, client, message…"
+                placeholder={canSeeClientInChat(role) ? "Search SO, EC, client, message…" : "Search SO, EC, message…"}
                 className="h-9 w-full rounded-lg border border-input-border bg-surface pl-8 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
               />
             </label>
