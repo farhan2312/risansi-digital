@@ -261,6 +261,13 @@ export const getAssignmentHistory = async (id: string): Promise<AssignmentEntry[
   return data;
 };
 
+/** The assignment history of many enquiries at once, for the Enquiry Report (POST /projects/assignment-history). */
+export const getAssignmentHistories = async (ids: string[]): Promise<Record<string, AssignmentEntry[]>> => {
+  if (ids.length === 0) return {};
+  const { data } = await apiClient.post<Record<string, AssignmentEntry[]>>("/projects/assignment-history", { ids });
+  return data;
+};
+
 /** Assign or reassign an enquiry (User-Master / system admins only); a reassign needs its reason. */
 export const assignProject = async (
   id: string,

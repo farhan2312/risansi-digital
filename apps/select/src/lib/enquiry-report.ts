@@ -6,6 +6,7 @@ import { orderSubtypeLabel, orderTypeLabel } from "./roles";
 import { dotDate, esc } from "./tech-doc";
 import { BAND } from "./tech-doc-excel";
 import { downloadXlsx, type XlsxCell } from "./xlsx";
+import type { AssignmentEntry } from "./assignment-history";
 import type { ProjectRecord } from "../services/projectService";
 
 export type EnquiryReportRow = {
@@ -25,6 +26,9 @@ export type EnquiryReportRow = {
   assignee: string;
   /** When it was (re)assigned, dd.mm.yyyy in IST; "" when not known. */
   assignedOn: string;
+  /** Its assignment history, newest first, one line each (user, 2026-11-25); empty
+   *  unless it was ever moved (more than the one assignment it has now). */
+  assignHistory: string[];
   remark: string;
   onHold: boolean;
 };
@@ -66,7 +70,20 @@ function rilRep(p: ProjectRecord, reps: TsmOption[]): string {
  *  no. (test, test-spare, RIL/EN/26-27/test). They stay in the Enquiries list. */
 const isTestEnquiry = (p: ProjectRecord): boolean => [p.name, p.project_code].some((v) => /(^|[^a-z])test([^a-z]|$)/i.test(v ?? ""));
 
-export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]): EnquiryReportRow[] {
+/** An enquiry's assignment history as report lines, only when there is more than the
+ *  one assignment it has now: "dd.mm.yyyy Reassigned: A -> B (by X) - Why: ...". */
+export function assignHistoryLines(entries: AssignmentEntry[] | undefined): string[] {
+  if (!entries || entries.length < 2) return [];
+  return entries.map((e) => {
+    const on = dotDate(new Date(e.at).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
+    const who = e.from ? `${e.from} -> ${e.to ?? "-"}` : (e.to ?? "-");
+    const kind = e.kind === "reassigned" ? "Reassigned" : e.kind === "new version" ? "New version" : e.kind === "created" ? "Created" : "Assigned";
+    const why = e.reason ? ` - ${e.kind === "new version" ? "Client asked" : "Why"}: ${e.reason}` : "";
+    return `${on} ${kind}: ${who}${e.byName ? ` (by ${e.byName})` : ""}${why}`;
+  });
+}
+
+export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[], histories: Record<string, AssignmentEntry[]> = {}): EnquiryReportRow[] {
   return projects.filter((p) => !isTestEnquiry(p)).map((p) => {
     const c = p.clearance;
     const onHold = c?.status === "Hold";
@@ -92,6 +109,7 @@ export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[]):
       assignee: p.assigned_to_name ?? "",
       // The (re)assigned date under the name, as on the Enquiries list (user, 2026-11-12).
       assignedOn: p.assigned_to_name && p.assigned_at ? dotDate(new Date(p.assigned_at).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })) : "",
+      assignHistory: assignHistoryLines(histories[p.id]),
       remark: [
         onHold ? `Hold: ${holdReasonText(c?.group, c?.reason) || "no reason given"}` : null,
         c?.remarks,
@@ -133,8 +151,8 @@ export function sortReportRows(rows: EnquiryReportRow[], sort: ReportSort): Enqu
 export const reportCell = (r: EnquiryReportRow, key: ColumnKey): string =>
   key === "status"
     ? r.statuses.map((s) => (s.label ? `${s.label}: ${s.value}` : s.value)).join("\n")
-    : key === "assignee" && r.assignedOn
-      ? `${r.assignee}\nAssigned ${r.assignedOn}`
+    : key === "assignee"
+      ? [r.assignee, r.assignedOn ? `Assigned ${r.assignedOn}` : "", r.assignHistory.length ? `History:\n${r.assignHistory.join("\n")}` : ""].filter(Boolean).join("\n")
       : r[key];
 
 const todayIst = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -158,7 +176,10 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSo
     if (key === "client") return `<b>${esc(r.client)}</b>`;
     if (key === "enquiryNo") return `<span class="no">${esc(r.enquiryNo)}</span>`;
     if (key === "rilRep") return `<b class="rep">${esc(r.rilRep) || "-"}</b>`;
-    if (key === "assignee" && r.assignedOn) return `${esc(r.assignee)}<span class="on">Assigned ${esc(r.assignedOn)}</span>`;
+    if (key === "assignee" && (r.assignedOn || r.assignHistory.length))
+      return `${esc(r.assignee) || "-"}${r.assignedOn ? `<span class="on">Assigned ${esc(r.assignedOn)}</span>` : ""}${
+        r.assignHistory.length ? `<span class="hist"><b>History</b>${r.assignHistory.map((l) => `<span>${esc(l)}</span>`).join("")}</span>` : ""
+      }`;
     return esc(r[key]) || (key === "remark" ? "" : "-");
   };
   return `<!doctype html>
@@ -195,6 +216,9 @@ export function buildEnquiryReportHtml(rows: EnquiryReportRow[], sort?: ReportSo
   .closed { background: #e9edf2; color: #4b5a6b; }
   .regret { background: #fde4e4; color: #b42318; }
   .on { display: block; margin-top: 1px; font-size: 6.8pt; color: #6b7a8c; }
+  .hist { display: block; margin-top: 4px; padding-top: 3px; border-top: 1px dashed #d9dfe7; font-size: 6.5pt; line-height: 1.35; color: #4b5a6b; white-space: normal; }
+  .hist b { display: block; font-size: 6.5pt; color: #6b7a8c; }
+  .hist span { display: block; margin-top: 2px; }
   .empty { padding: 28px; text-align: center; color: #6b7a8c; }
   .arrow { font-size: 7pt; opacity: 0.5; white-space: nowrap; }
   .arrow.on { opacity: 1; color: #1F3864; }

@@ -18,7 +18,7 @@ import {
   type ReportSortBy,
 } from "../../lib/enquiry-report";
 import { printHtml } from "../../lib/enquiry-print";
-import { listProjectsReport, type ProjectListQuery } from "../../services/projectService";
+import { getAssignmentHistories, listProjectsReport, type ProjectListQuery } from "../../services/projectService";
 import { listTsmOptions } from "../../services/quotationService";
 
 // The User Master's report on the Enquiries page: the list as filtered, every page,
@@ -67,9 +67,15 @@ export default function EnquiryReportPanel({ query, scope, stamp }: { query: Pro
     if (!open || loadedFor === key) return;
     let live = true;
     Promise.all([listProjectsReport(query), listTsmOptions().catch(() => [])])
-      .then(([projects, reps]) => {
+      // Who it was assigned to before, and why (user, 2026-11-25); the report still loads without it.
+      .then(([projects, reps]) =>
+        getAssignmentHistories(projects.map((p) => p.id))
+          .catch(() => ({}))
+          .then((histories) => ({ projects, reps, histories })),
+      )
+      .then(({ projects, reps, histories }) => {
         if (!live) return;
-        setLoaded(enquiryReportRows(projects, reps));
+        setLoaded(enquiryReportRows(projects, reps, histories));
         setLoadedFor(key);
         setError(null);
       })
