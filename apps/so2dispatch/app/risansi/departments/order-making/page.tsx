@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { FilePlus2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/session";
-import { canViewOrderMaking, canAssignSo, canCreateOrders, isOrderMakingSo } from "@/lib/roles";
+import { canViewOrderMaking, canAssignSo, canCreateOrders, canImportEcs, isOrderMakingSo } from "@/lib/roles";
 import { listSoMembers, parseAssignWindow, soMemberSummary } from "@/lib/so-assignment";
 import { listOrderListOptions, listOrdersForOrderMaking } from "@/lib/orders";
 import { parsePage, parseQuery } from "@/lib/pagination";
@@ -87,6 +87,7 @@ export default async function OrderMakingPage({
         canCreate={canCreate}
         mode={soMember ? "so" : "po"}
         canAssign={canAssign}
+        canImportEcs={canImportEcs(user.role)}
         period={assignWindow.period}
         assignRange={assignWindow.period === "range" ? { from: assignWindow.from, to: assignWindow.to } : null}
         members={members}

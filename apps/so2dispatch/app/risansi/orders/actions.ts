@@ -8,6 +8,7 @@ import { readinessMissingForItem } from "@/lib/drawing-readiness";
 import {
   addChildRow,
   createItemWithBoiItems,
+  createItem,
   setItemOrderCopy,
   setInvoiceLrFile,
   createOrder,
@@ -103,6 +104,7 @@ import {
   canAccessDepartment,
   canCreateOrders,
   canManageEcs,
+  canImportEcs,
   isOrderMaking,
   isOrderMakingAny,
   isOrderMakingSo,
@@ -117,6 +119,7 @@ import {
   isReadOnlyViewer,
 } from "@/lib/roles";
 import { parsePiWorkbook } from "@/lib/pi-import";
+import { previewEcImport, type EcImportPreview } from "@/lib/ec-import";
 import { isAssignedTo, markSoDetails } from "@/lib/so-assignment";
 import { DEPT_FILTER_KEYS } from "@/lib/dept-status";
 import { boiStatus, isClosedStatus, repMatches } from "@/lib/dept-view";
@@ -3246,4 +3249,98 @@ export async function invoiceCheckFactsAction(
     othersQty: Number(x.others_qty ?? 0) || 0,
     currency: x.currency ?? "INR",
   };
+}
+
+// ---------------------------------------------------------------------------
+// EC import: the ERP's EC export onto SOs already in the portal (lib/ec-import).
+// ---------------------------------------------------------------------------
+
+const MAX_EC_IMPORT_BYTES = 8 * 1024 * 1024;
+
+async function ecImportFile(formData: FormData): Promise<{ ok: true; buffer: ArrayBuffer; name: string } | { ok: false; error: string }> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose the Excel file first." };
+  if (file.size > MAX_EC_IMPORT_BYTES) return { ok: false, error: "The file is over 8 MB." };
+  if (!/\.xlsx$/i.test(file.name)) return { ok: false, error: "Upload an .xlsx file." };
+  return { ok: true, buffer: await file.arrayBuffer(), name: file.name };
+}
+
+/** Read the ERP's EC export and check every EC; writes nothing. */
+export async function previewEcImportAction(formData: FormData): Promise<{ ok: true; preview: EcImportPreview } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!canImportEcs(user.role)) return { ok: false, error: "You don't have permission to import ECs." };
+  const f = await ecImportFile(formData);
+  if (!f.ok) return f;
+  try {
+    const preview = await previewEcImport(f.buffer);
+    return preview.error ? { ok: false, error: preview.error } : { ok: true, preview };
+  } catch (error) {
+    console.error("previewEcImport failed:", error);
+    return { ok: false, error: "Could not read the file." };
+  }
+}
+
+/**
+ * Create the ECs the file passes (read and checked again here, the browser's
+ * preview not trusted), each as the Add-On creates one: the EC, its audit
+ * line, the SO's BOI when the EC has bought-out items, a Spare joining its
+ * SO's planning, the version notice — and each SO's first targets once.
+ */
+export async function importEcsAction(
+  formData: FormData
+): Promise<{ ok: true; created: number; skipped: number; failed: { ecNo: string; error: string }[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (!canImportEcs(user.role)) return { ok: false, error: "You don't have permission to import ECs." };
+  const f = await ecImportFile(formData);
+  if (!f.ok) return f;
+  const preview = await previewEcImport(f.buffer);
+  if (preview.error) return { ok: false, error: preview.error };
+
+  const todo = preview.ecs.filter((e) => (e.status === "ok" || e.status === "warn") && e.orderId);
+  const failed: { ecNo: string; error: string }[] = [];
+  const touched = new Map<string, { label: string; versioned: boolean; ecs: string[] }>();
+  for (const e of todo) {
+    const orderId = e.orderId!;
+    try {
+      const { id: itemId } = await createItem(orderId, e.input);
+      if (e.input.boi === "Yes") {
+        await query(`UPDATE orders SET boi = 'Yes', updated_at = now() WHERE id = $1 AND COALESCE(boi, '') <> 'Yes'`, [orderId]);
+      }
+      if (e.input.item_type === "Spare") {
+        await inheritSparePlanning(itemId, { id: user.id, role: user.role }).catch((error) => console.error("inheritSparePlanning failed:", error));
+      }
+      await logAudit({
+        actor: { id: user.id, email: user.email, role: user.role },
+        action: "order.update",
+        category: "activity",
+        target: `${e.soNo} · ${e.ecNo}`,
+        details: `Added EC ${e.ecNo} to ${e.soNo} (EC import, ${f.name}, rows ${e.rows.join(", ")}, quantity ${e.input.quantity})`,
+        subject: { orderId, itemId, soNo: e.soNo, ecNo: e.ecNo },
+      });
+      const t = touched.get(orderId) ?? { label: e.soNo, versioned: false, ecs: [] };
+      t.ecs.push(e.ecNo);
+      touched.set(orderId, t);
+    } catch (error) {
+      console.error("EC import: createItem failed:", error);
+      failed.push({ ecNo: e.ecNo, error: "Could not be added" });
+    }
+  }
+  // Once per SO: its first targets, and the departments told of ECs added to a revised Pump SO.
+  for (const [orderId, t] of touched) {
+    await autoFillTargets(orderId, user);
+    const { rows: [o] } = await query<{ version_no: number; order_type: string | null }>(`SELECT version_no, order_type FROM orders WHERE id = $1`, [orderId]);
+    if (o && Number(o.version_no) > 0 && isVersionedType(o.order_type)) {
+      await emitNotification({
+        roles: ["drawing", "purchase", "qc", "planning", "assembly"],
+        orderId,
+        type: "dept_update",
+        message: `New EC${t.ecs.length > 1 ? "s" : ""} ${t.ecs.join(", ")} added to ${t.label} in v${Number(o.version_no)}.`,
+      }).catch((error) => console.error("EC import version notice failed:", error));
+    }
+  }
+  revalidatePath("/risansi/orders");
+  revalidatePath("/risansi/departments/order-making");
+  return { ok: true, created: todo.length - failed.length, skipped: preview.ecs.filter((e) => e.status === "skip").length, failed };
 }

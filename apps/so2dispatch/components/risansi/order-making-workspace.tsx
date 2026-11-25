@@ -19,6 +19,7 @@ import { OrderOperationPopup } from "./order-operation-popup";
 import { useSoNoTaken } from "./use-so-no-taken";
 import { OmReportModal } from "./om-report-modal";
 import { SoChecklistModal } from "./so-checklist-modal";
+import { EcImportButton } from "./ec-import-modal";
 import { RetrofitLine } from "./retrofit-line";
 import { CHECKLIST_STATES, checklistRequired } from "@/lib/so-checklist";
 import { OmReportPanel } from "./om-report-panel";
@@ -135,6 +136,7 @@ export function OrderMakingWorkspace({
   canCreate = canEdit,
   mode = "po",
   canAssign = false,
+  canImportEcs = false,
   members = [],
   summary = null,
   period = "daily",
@@ -163,6 +165,8 @@ export function OrderMakingWorkspace({
   mode?: "po" | "so";
   /** Who assigns SOs to Order Making SO members. */
   canAssign?: boolean;
+  /** The EC import (the ERP's EC export): Order Making PO, Central Visibility, Admin. */
+  canImportEcs?: boolean;
   members?: SoMember[];
   summary?: SoMemberSummary | null;
   /** The cards' period: today's assignments (default), all time, or a range of days. */
@@ -600,6 +604,7 @@ export function OrderMakingWorkspace({
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
             Report Excel
           </button>
+          {canImportEcs && <EcImportButton className={headButton} />}
           {canCreate && (
             <button
               type="button"
