@@ -73,7 +73,7 @@ export default async function DashboardPage({
   const kindLabel = kind === "pump" ? "Pump" : "Spare";
 
   return (
-    <div className="px-4 py-6 sm:px-8 sm:py-8">
+    <div className="px-4 py-6 sm:px-8 sm:py-8" data-plain-head>
       <PageHeading
         icon={<LayoutDashboard />}
         title={`${kindLabel} Dashboard`}
