@@ -5161,6 +5161,12 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
 }
 
 // Matches the SO's own identity columns or any of its ECs.
+/** SO No., Sl. No. and EC No. only: for a department that never sees who the client is (lib/client-visibility). */
+const soAndEcSearchNoClient = (term: string) => `(o.so_no ILIKE ${term}
+             OR o.sl_no::text ILIKE ${term}
+             OR EXISTS (SELECT 1 FROM order_items s
+                         WHERE s.order_id = o.id AND s.ec_no ILIKE ${term}))`;
+
 const soAndEcSearch = (term: string) => `(o.so_no ILIKE ${term} OR o.client_name ILIKE ${term}
              OR o.sl_no::text ILIKE ${term}
              OR EXISTS (SELECT 1 FROM order_items s
@@ -5597,6 +5603,8 @@ export async function listItemsForSectionPage(
     /** Summary cards, counted over the queue before its own status filters (kpiRestrict). */
     kpis?: KpiCardDef[];
     kpiRestrict?: string;
+    /** Search SO No. and EC No. only, not the client (a department that never sees it). */
+    noClientSearch?: boolean;
   }
 ): Promise<PageResult<Row> & { kpis?: KpiCard[] }> {
   // A department does not see an order it has nothing to do with (QC when
@@ -5616,7 +5624,7 @@ export async function listItemsForSectionPage(
     search: opts.search,
     focusOrderId: opts.focusOrderId ?? null,
     restrict: `${restrict} AND ${items}`,
-    searchable: soAndEcSearch,
+    searchable: opts.noClientSearch ? soAndEcSearchNoClient : soAndEcSearch,
     filter: opts.filter,
     orderBy: queueOrderBy(opts.sort),
     all: opts.all,
@@ -5686,6 +5694,8 @@ export async function listItemsForPurchasePage(opts: {
   kpiRestrict?: string;
   /** Every matching SO, not one page — the BOI report. */
   all?: boolean;
+  /** Search SO No. and EC No. only, not the client (a department that never sees it). */
+  noClientSearch?: boolean;
 }): Promise<PageResult<PurchaseQueueRow> & { kpis?: KpiCard[] }> {
   const { ids, total, page, kpis } = await pageOfOrderIds({
     kpis: opts.kpis
@@ -5699,7 +5709,7 @@ export async function listItemsForPurchasePage(opts: {
     focusOrderId: opts.focusOrderId ?? null,
     orderBy: queueOrderBy(opts.sort),
     restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AND (${opts.extraRestrict ?? "TRUE"})`,
-    searchable: soAndEcSearch,
+    searchable: opts.noClientSearch ? soAndEcSearchNoClient : soAndEcSearch,
     filter: opts.filter,
     all: opts.all,
   });

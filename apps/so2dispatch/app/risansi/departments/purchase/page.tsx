@@ -39,6 +39,7 @@ import {
 } from "@/lib/purchase-filter";
 import { purchaseCards } from "@/lib/dept-cards";
 import { withoutClient } from "@/lib/client-visibility";
+import { canSeeClient } from "@/lib/roles";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -88,6 +89,7 @@ export default async function PurchaseWorkspacePage({
       kpiRestrict: `${purchaseFilterSql(parsePurchaseFilter(cardGet))} AND ${pendencyFilterSql("purchase", parsePendencyFilter(cardGet, "purchase"))}`,
       page: parsePage(page),
       search: parseQuery(q),
+      noClientSearch: !canSeeClient(user.role),
       focusOrderId,
       sort: parseQueueSort(params.sort),
       filter,

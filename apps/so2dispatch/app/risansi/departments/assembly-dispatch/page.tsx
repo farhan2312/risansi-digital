@@ -36,6 +36,7 @@ import { deptKpiCards } from "@/lib/orders";
 import { cardBaseGet, type KpiCardDef } from "@/lib/kpis";
 import { assemblyPumpCards as assemblyPumpCardDefs } from "@/lib/dept-cards";
 import { withoutClient } from "@/lib/client-visibility";
+import { canSeeClient } from "@/lib/roles";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
@@ -112,6 +113,7 @@ export default async function AssemblyDispatchWorkspacePage({
         kpiRestrict: ecKind === "pump" ? `${pumpViewRestrict(cardAssembly, cardPacking)} AND ${alignment}` : undefined,
         page: parsePage(page),
         search: parseQuery(q),
+        noClientSearch: !canSeeClient(user.role),
         focusOrderId,
         filter,
         // By ready date (Planning's readiness date, which a Spare's lots keep).

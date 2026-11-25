@@ -37,6 +37,7 @@ import {
 } from "@/lib/qc-filter";
 import { qcCards } from "@/lib/dept-cards";
 import { withoutClient } from "@/lib/client-visibility";
+import { canSeeClient } from "@/lib/roles";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -94,6 +95,7 @@ export default async function QcWorkspacePage({
       {
         page: parsePage(page),
         search: parseQuery(q),
+        noClientSearch: !canSeeClient(user.role),
         focusOrderId,
         filter,
         sort: parseQueueSort(params.sort),

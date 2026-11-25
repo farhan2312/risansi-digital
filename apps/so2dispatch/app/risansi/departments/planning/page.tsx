@@ -30,6 +30,7 @@ import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards } from "@/lib/orders";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { withoutClient } from "@/lib/client-visibility";
+import { canSeeClient } from "@/lib/roles";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { alignmentRestrict, pickAlignment } from "@/lib/assembly";
 import { boiItemRestrict, parsePurchaseFilter } from "@/lib/purchase-filter";
@@ -96,6 +97,7 @@ export default async function PlanningWorkspacePage({
         ...(ecKind === "pump" ? { extraRestrict: pumpRestrict, kpiRestrict: pumpRestrict } : {}),
         page: parsePage(page),
         search: parseQuery(q),
+        noClientSearch: !canSeeClient(user.role),
         focusOrderId,
         filter,
         sort: parseQueueSort(params.sort),

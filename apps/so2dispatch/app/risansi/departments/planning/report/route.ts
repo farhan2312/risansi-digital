@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { mayOpenPage } from "@/lib/view-pages";
-import { canViewDepartment } from "@/lib/roles";
+import { canSeeClient, canViewDepartment } from "@/lib/roles";
 import { listItemsForSectionPage, listReadyLotHistories, parseQueueSort } from "@/lib/orders";
 import { parseQuery } from "@/lib/pagination";
 import { describeOrderListFilter, parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
@@ -52,6 +52,7 @@ export async function GET(request: Request) {
     {
       page: 1,
       search,
+      noClientSearch: !canSeeClient(user.role),
       filter,
       sort: parseQueueSort(get("sort")),
       all: true,

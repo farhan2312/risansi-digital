@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { mayOpenPage } from "@/lib/view-pages";
-import { canViewDepartment } from "@/lib/roles";
+import { canSeeClient, canViewDepartment } from "@/lib/roles";
 import { listItemsForPurchasePage, parseQueueSort } from "@/lib/orders";
 import { parseQuery } from "@/lib/pagination";
 import { describeOrderListFilter, parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
@@ -51,6 +51,7 @@ export async function GET(request: Request) {
     sort: parseQueueSort(get("sort")),
     filter,
     all: true,
+    noClientSearch: !canSeeClient(user.role),
   });
   let rows = queue.rows as unknown as Record<string, unknown>[];
   // Each SO's and EC's state from all its items, then only the ECs and items that match — as the page.
