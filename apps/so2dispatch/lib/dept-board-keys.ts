@@ -28,7 +28,8 @@ export function boardDept(key: string | undefined | null) {
 }
 
 /** A department's summary cards, as its own page counts them, over the Orders filter. */
-export type BoardColumn = { key: BoardDeptKey; cards: KpiCard[] };
+/** A department's summary cards, and each SO card's order value (by card key; "all" every SO). */
+export type BoardColumn = { key: BoardDeptKey; cards: KpiCard[]; values: Record<string, number> };
 
 export type BoardData = { columns: BoardColumn[]; kind: "spare" | "pump" };
 

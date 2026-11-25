@@ -29,6 +29,7 @@ import { loadDeptBoardAction } from "@/app/risansi/orders/board-actions";
 import { BOARD_DEPTS, cardRole, TONE_STYLE, type BoardColumn, type BoardData } from "@/lib/dept-board-keys";
 import type { KpiCard } from "@/lib/kpis";
 import { VizStyles } from "./spare-dashboard/charts";
+import { money } from "./spare-dashboard/shared";
 
 export const DEPT_ICON: Record<string, LucideIcon> = {
   file: FileText,
@@ -178,6 +179,7 @@ function Column({ col, kind, query }: { col: BoardColumn; kind: "spare" | "pump"
           <div>
             <p className="text-[26px] font-bold leading-none tabular-nums">{nf.format(all?.count ?? 0)}</p>
             <p className="mt-1 text-[10.5px] uppercase tracking-wide text-white/65">{all?.label ?? "SOs"}</p>
+            {col.values.all !== undefined && <p className="mt-1 text-[13px] font-semibold tabular-nums text-[#9fd3ff]">{money(col.values.all)}</p>}
           </div>
           {others.map((t) => (
             <div key={t.key} className="border-l border-white/15 pl-3">
@@ -201,7 +203,7 @@ function Column({ col, kind, query }: { col: BoardColumn; kind: "spare" | "pump"
               )}
               <ul className="space-y-1">
                 {g.cards.map((c) => (
-                  <Metric key={c.key} card={c} base={base} href={c.measure ? null : cardHref(dept.page, c, kind)} group={g.name} />
+                  <Metric key={c.key} card={c} base={base} href={c.measure ? null : cardHref(dept.page, c, kind)} group={g.name} value={c.measure ? undefined : col.values[c.key]} />
                 ))}
               </ul>
             </div>
@@ -219,6 +221,7 @@ function Column({ col, kind, query }: { col: BoardColumn; kind: "spare" | "pump"
               >
                 {c.label}
                 <span className="font-bold tabular-nums">{c.count}</span>
+                {col.values[c.key] !== undefined && c.count > 0 && <span className="tabular-nums opacity-80">· {money(col.values[c.key])}</span>}
               </Link>
             ))}
           </div>
@@ -229,7 +232,7 @@ function Column({ col, kind, query }: { col: BoardColumn; kind: "spare" | "pump"
 }
 
 /** One status: its name, its count (and its ECs), a bar of its share; opens the department on it. */
-function Metric({ card, base, href, group }: { card: KpiCard; base: number; href: string | null; group: string }) {
+function Metric({ card, base, href, group, value }: { card: KpiCard; base: number; href: string | null; group: string; value?: number }) {
   const tone = TONE_STYLE[card.tone ?? "neutral"];
   // "GAD & Base Plate Pending" reads "Pending" under its group's heading.
   const label = card.label.startsWith(`${group} `) ? card.label.slice(group.length + 1) : card.label.replace(/^(SO|EC|Curve|Part) /, "");
@@ -252,8 +255,14 @@ function Metric({ card, base, href, group }: { card: KpiCard; base: number; href
           </span>
         )}
       </div>
-      <div className="ml-4 mt-1 h-1 overflow-hidden rounded-full bg-[var(--viz-grid)]">
+      <div className="ml-4 mt-1 flex items-center gap-2">
+        <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--viz-grid)]">
         <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.min(100, (card.count / base) * 100)}%`, background: tone.color }} />
+        </div>
+        {/* Its SOs' order value. */}
+        {value !== undefined && (
+          <span className={`text-[10.5px] font-semibold tabular-nums ${card.count ? "text-[#2F5496] dark:text-sky-300" : "text-muted/60"}`}>{money(value)}</span>
+        )}
       </div>
     </>
   );

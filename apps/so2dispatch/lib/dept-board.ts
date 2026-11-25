@@ -35,6 +35,9 @@ export function boardFilterOf(
   return filter;
 }
 
+/** An SO's order value in rupees, as the Dashboard counts it. */
+const ORDER_VALUE_INR = `COALESCE(o.order_value_inr, CASE WHEN upper(COALESCE(o.order_currency, 'INR')) = 'INR' THEN o.order_value END, 0)`;
+
 const kindOf = (filter: OrderListFilter): "spare" | "pump" => ordersKind(filter.types.join(","));
 
 /** A department's cards and the SOs its page lists (its queue), as its page has them. */
@@ -69,7 +72,16 @@ export async function loadDeptBoard(filter: OrderListFilter): Promise<BoardData>
   const columns = await Promise.all(
     BOARD_DEPTS.map(async (d) => {
       const spec = deptSpec(d.key, kind);
-      return { key: d.key, cards: ids.length ? await countKpiCardsOver(ids, spec.restrict, spec.cards) : [] };
+      if (!ids.length) return { key: d.key, cards: [], values: {} };
+      // Each SO card's order value: summed over the SOs it counts, in rupees.
+      const valueCards: KpiCardDef[] = spec.cards
+        .filter((c) => !c.measure)
+        .map((c) => ({ key: c.key, label: c.label, sql: null, params: {}, money: true, measure: c.sql ? `CASE WHEN (${c.sql}) THEN ${ORDER_VALUE_INR} ELSE 0 END` : ORDER_VALUE_INR }));
+      const [cards, values] = await Promise.all([
+        countKpiCardsOver(ids, spec.restrict, spec.cards),
+        countKpiCardsOver(ids, spec.restrict, valueCards),
+      ]);
+      return { key: d.key, cards, values: Object.fromEntries(values.map((v) => [v.key, v.count])) };
     })
   );
   return { columns, kind };
