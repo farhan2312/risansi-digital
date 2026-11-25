@@ -9,6 +9,7 @@ import { ArrowLeft, ArrowUpRight, ExternalLink } from "lucide-react";
 import { BOARD_DEPTS, deptsFor, TONE_STYLE, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
 import type { KpiCard } from "@/lib/kpis";
 import { ChartCard, Columns, Donut, HBars, StackBar, VizStyles, type Datum } from "./spare-dashboard/charts";
+import { money } from "./spare-dashboard/shared";
 import { cardHref, DEPT_ICON, splitCards } from "./dept-board";
 
 const nf = new Intl.NumberFormat("en-IN");
@@ -39,6 +40,14 @@ export function DeptDashboard({
   const { totals, overdue, holds, groups } = splitCards(cards);
   const all = totals.find((t) => t.key === "all");
   const withQuery = (path: string) => `${path}${query ? `?${query}` : ""}`;
+  // A card's order value: of the SOs it counts (every SO for All SOs; none for a sum like ECs).
+  const valueOf = (c: KpiCard): number | null =>
+    c.key === "all"
+      ? rows.reduce((a, r) => a + r.value, 0)
+      : c.measure
+        ? null
+        : rows.filter((r) => r.statuses.some((s) => s.key === c.key) || r.flags.some((f) => f.key === c.key)).reduce((a, r) => a + r.value, 0);
+  const lateValue = rows.filter((r) => r.late > 0).reduce((a, r) => a + r.value, 0);
 
   // How late the overdue SOs are, from the table's own targets.
   const late = rows.filter((r) => r.late > 0).map((r) => r.late);
@@ -98,17 +107,17 @@ export function DeptDashboard({
           {/* The totals, then overdue and holds: the department's own cards. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {[...totals, ...overdue, ...holds].map((c) => (
-              <Tile key={c.key} card={c} href={c.measure ? null : cardHref(meta.page, c, kind)} />
+              <Tile key={c.key} card={c} value={valueOf(c)} href={c.measure ? null : cardHref(meta.page, c, kind)} />
             ))}
           </div>
 
           {/* Each group of statuses, as the department's page groups its cards. */}
           <div className="grid gap-4 lg:grid-cols-2">
             {groups.map((g) => (
-              <StatusGroup key={g.name} name={g.name} cards={g.cards} page={meta.page} kind={kind} />
+              <StatusGroup key={g.name} name={g.name} cards={g.cards} page={meta.page} kind={kind} valueOf={valueOf} />
             ))}
             {late.length > 0 && (
-              <ChartCard title="How late" sub={`${late.length} SOs past ${meta.label}'s target, by days`}>
+              <ChartCard title="How late" sub={`${late.length} SOs (${money(lateValue)}) past ${meta.label}'s target, by days`}>
                 <Columns data={lateBuckets} xTitle="Days past target" color="var(--viz-red)" />
               </ChartCard>
             )}
@@ -121,7 +130,7 @@ export function DeptDashboard({
   );
 }
 
-function Tile({ card, href }: { card: KpiCard; href: string | null }) {
+function Tile({ card, href, value }: { card: KpiCard; href: string | null; value: number | null }) {
   const tone = TONE_STYLE[card.tone ?? "neutral"];
   const body = (
     <>
@@ -130,6 +139,7 @@ function Tile({ card, href }: { card: KpiCard; href: string | null }) {
       <p className={`mt-1 text-3xl font-bold tabular-nums ${card.tone === "danger" && card.count ? "text-rose-600 dark:text-rose-400" : "text-foreground"}`}>
         {nf.format(card.count)}
       </p>
+      {value !== null && <p className="mt-1 text-sm font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(value)}</p>}
       <p className="mt-0.5 text-[11px] text-muted">
         {card.also ? `${nf.format(card.also.count)} ${card.also.label}` : card.heldCount ? `${card.heldCount} on CV hold` : " "}
       </p>
@@ -146,7 +156,19 @@ function Tile({ card, href }: { card: KpiCard; href: string | null }) {
 }
 
 /** A group of statuses: a donut of its SOs (or a sum: ECs, items) and each status opening the page on it. */
-function StatusGroup({ name, cards, page, kind }: { name: string; cards: KpiCard[]; page: string; kind: "spare" | "pump" }) {
+function StatusGroup({
+  name,
+  cards,
+  page,
+  kind,
+  valueOf,
+}: {
+  name: string;
+  cards: KpiCard[];
+  page: string;
+  kind: "spare" | "pump";
+  valueOf: (c: KpiCard) => number | null;
+}) {
   const sum = cards.some((c) => c.measure);
   const strip = (l: string) => (l.startsWith(`${name} `) ? l.slice(name.length + 1) : l.replace(/^(SO|EC|Curve|Part) /, ""));
   const data: Datum[] = cards.map((c, i) => ({ label: strip(c.label), count: c.count, color: SERIES[i % SERIES.length] }));
@@ -162,6 +184,15 @@ function StatusGroup({ name, cards, page, kind }: { name: string; cards: KpiCard
         </div>
       )}
       {!sum && (
+        <div className="mt-4 border-t border-card-border pt-3">
+          <p className="mb-2 text-xs font-medium text-muted">Order value at each status</p>
+          <HBars
+            data={cards.map((c, i) => ({ label: strip(c.label), count: valueOf(c) ?? 0, color: SERIES[i % SERIES.length] }))}
+            format={(d) => <b>{money(d.count)}</b>}
+          />
+        </div>
+      )}
+      {!sum && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {cards.map((c) => (
             <Link
@@ -170,6 +201,7 @@ function StatusGroup({ name, cards, page, kind }: { name: string; cards: KpiCard
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset transition hover:brightness-95 ${TONE_STYLE[c.tone ?? "neutral"].chip}`}
             >
               {strip(c.label)} <b className="tabular-nums">{c.count}</b>
+              <span className="tabular-nums opacity-75">· {money(valueOf(c) ?? 0)}</span>
               <ArrowUpRight className="h-3 w-3 opacity-60" />
             </Link>
           ))}
@@ -231,6 +263,7 @@ function Breakdowns({ rows, today, cards }: { rows: DeptSoRow[]; today: string; 
           <b className="text-2xl tabular-nums text-foreground">{list.length}</b>
           <span className="text-[11px] text-muted">{open} not done</span>
         </p>
+        <p className="text-xs font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(list.reduce((a, r) => a + r.value, 0))}</p>
         <div className="mt-2">
           <StackBar parts={partsOf(list)} title={z} />
         </div>
@@ -249,14 +282,24 @@ function Breakdowns({ rows, today, cards }: { rows: DeptSoRow[]; today: string; 
   const byMonth = months.map((k) => ({
     label: new Date(`${k}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }),
     count: rows.filter((r) => r.soDate?.startsWith(k)).length,
+    value: rows.filter((r) => r.soDate?.startsWith(k)).reduce((a, r) => a + r.value, 0),
   }));
+  const valueTip = (d: { label: string; count: number; value?: number }) => (
+    <>
+      <span className="font-semibold">{d.label}</span> · {d.count} SOs · {money(d.value ?? 0)}
+    </>
+  );
 
   // How long the ones not done have been open, from the SO date.
   const ageOf = (r: DeptSoRow) => (r.soDate ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${r.soDate}T00:00:00Z`)) / 86_400_000) : null);
-  const ages = rows.filter((r) => !isDone(r)).map(ageOf).filter((a): a is number => a !== null);
+  const notDone = rows.filter((r) => !isDone(r) && ageOf(r) !== null);
+  const ages = notDone.map((r) => ageOf(r)!);
   const ageBuckets = (
     [["0–15", 0, 15], ["16–30", 16, 30], ["31–60", 31, 60], ["61–90", 61, 90], ["91–180", 91, 180], ["180+", 181, 1e9]] as [string, number, number][]
-  ).map(([label, lo, hi]) => ({ label, count: ages.filter((a) => a >= lo && a <= hi).length }));
+  ).map(([label, lo, hi]) => {
+    const inBucket = notDone.filter((r) => ageOf(r)! >= lo && ageOf(r)! <= hi);
+    return { label, count: inBucket.length, value: inBucket.reduce((a, r) => a + r.value, 0) };
+  });
 
   // Representatives and clients, most SOs first, each split by status.
   const top = (keyOf: (r: DeptSoRow) => string[], n: number) => {
@@ -271,12 +314,13 @@ function Breakdowns({ rows, today, cards }: { rows: DeptSoRow[]; today: string; 
     return (
       <ul className="space-y-2">
         {list.map(([name, l]) => (
-          <li key={name} className="grid grid-cols-[minmax(6rem,11rem)_1fr_2.5rem] items-center gap-3 text-sm" title={`${name}: ${l.length} SOs`}>
+          <li key={name} className="grid grid-cols-[minmax(6rem,11rem)_1fr_2.5rem_5.5rem] items-center gap-3 text-sm" title={`${name}: ${l.length} SOs`}>
             <span className="truncate text-foreground">{name}</span>
             <span className="block" style={{ width: `${Math.max(8, (l.length / max) * 100)}%` }}>
               <StackBar parts={partsOf(l)} title={name} />
             </span>
             <b className="text-right text-xs tabular-nums text-foreground">{l.length}</b>
+            <span className="text-right text-xs font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(l.reduce((a, r) => a + r.value, 0))}</span>
           </li>
         ))}
       </ul>
@@ -291,13 +335,13 @@ function Breakdowns({ rows, today, cards }: { rows: DeptSoRow[]; today: string; 
           {apart.length > 0 && <div className="mt-2 grid grid-cols-2 gap-2">{apart.map(zoneTile)}</div>}
           {legend}
         </ChartCard>
-        <ChartCard title="SOs by month" sub="SO date, the last twelve months">
-          <Columns data={byMonth} color="var(--viz-blue)" />
+        <ChartCard title="SOs by month" sub={`SO date, the last twelve months · ${money(byMonth.reduce((a, m) => a + m.value, 0))}`}>
+          <Columns data={byMonth} color="var(--viz-blue)" tooltip={valueTip} />
         </ChartCard>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Age of SOs not done" sub={`${ages.length} SOs, days since the SO date`}>
-          <Columns data={ageBuckets} xTitle="Days since SO date" color="var(--viz-violet)" />
+        <ChartCard title="Age of SOs not done" sub={`${ages.length} SOs (${money(notDone.reduce((a, r) => a + r.value, 0))}), days since the SO date`}>
+          <Columns data={ageBuckets} xTitle="Days since SO date" color="var(--viz-violet)" tooltip={valueTip} />
         </ChartCard>
         <ChartCard title="By representative" sub="Top eight, each split by status">
           {ranked(reps)}

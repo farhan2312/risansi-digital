@@ -71,4 +71,6 @@ export type DeptSoRow = {
   cvHold: boolean;
   zone: string;
   reps: string;
+  /** Its order value in rupees (as the Dashboard counts it). */
+  value: number;
 };

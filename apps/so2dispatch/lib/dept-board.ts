@@ -88,6 +88,7 @@ type Head = {
   cv_hold: boolean;
   zone: string | null;
   reps: string | null;
+  value: number;
   /** The keys of the cards it counts in. */
   keys: string[];
 };
@@ -118,6 +119,7 @@ export async function loadDeptPage(
       `SELECT o.id::text, o.so_no, o.client_name, o.order_type, o.spare_type,
               to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
               COALESCE(o.clearance_status, '') = 'Hold' AS cv_hold, o.zone, o.reps,
+              COALESCE(o.order_value_inr, CASE WHEN upper(COALESCE(o.order_currency, 'INR')) = 'INR' THEN o.order_value END, 0)::float8 AS value,
               ${keysSql} AS keys
          FROM orders o
         WHERE o.id = ANY($1::uuid[]) AND (${spec.restrict}) AND NOT ${TEST_SO_SQL("o")}
@@ -139,6 +141,7 @@ export async function loadDeptPage(
       cvHold: h.cv_hold,
       zone: h.zone ?? "",
       reps: h.reps ?? "",
+      value: Number(h.value) || 0,
       statuses: inCards
         .filter((c) => cardRole(c) === "status")
         .map((c) => ({ key: c.key, label: c.label, group: c.group ?? "Status", tone: c.tone ?? "neutral" })),
