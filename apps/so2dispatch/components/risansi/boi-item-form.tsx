@@ -35,10 +35,13 @@ const ITEM_FIELDS = ["boi_item", "boi_item_other", "boi_make", "boi_qty", "boi_d
 const input =
   "h-10 w-full rounded-lg border border-input-border bg-surface px-3 text-sm text-foreground transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-background disabled:text-muted";
 
-function Field({ label, hint, children, wide }: { label: string; hint?: string; children: ReactNode; wide?: boolean }) {
+function Field({ label, hint, children, wide, required }: { label: string; hint?: string; children: ReactNode; wide?: boolean; required?: boolean }) {
   return (
     <label className={`block ${wide ? "sm:col-span-2" : ""}`}>
-      <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-muted-foreground">
+        {label}
+        {required && <span className="text-danger"> *</span>}
+      </span>
       {children}
       {hint && <span className="mt-1 block text-[11px] text-muted">{hint}</span>}
     </label>
@@ -153,6 +156,11 @@ export function BoiItemForm({
 
   async function save(e: FormEvent) {
     e.preventDefault();
+    // Ordered from a vendor: the RIL PO No. is required.
+    if (vendor && !v.ril_po_no.trim()) {
+      setError("Order placed to vendor: RIL PO No. is required.");
+      return;
+    }
     setSaving(true);
     setError(null);
     // Purchase sends its own, and the item's Make and Description it may correct.
@@ -376,7 +384,7 @@ export function BoiItemForm({
                   </Field>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                  <Field label="RIL PO No.">
+                  <Field label="RIL PO No." required>
                     <input disabled={ro} value={v.ril_po_no} onChange={(e) => set("ril_po_no", e.target.value)} className={input} />
                   </Field>
                   <Field label="RIL PO Date">

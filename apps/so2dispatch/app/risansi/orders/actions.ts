@@ -1509,6 +1509,10 @@ export async function updateOrderChildAction(
   const clean = Object.fromEntries(
     Object.entries(values).filter(([k]) => allowed.has(k))
   );
+  // Purchase: an item ordered from a vendor needs its RIL PO No.
+  if (tbl === "order_boi_items" && clean.vendor_order === "Yes" && !String(clean.ril_po_no ?? "").trim()) {
+    return { ok: false, error: "Order placed to vendor: RIL PO No. is required." };
+  }
   // For per-EC child tables (BOI items, packing slips) the `orderId` arg is
   // actually the item_id. The notification's order_id is a FK to orders(id),
   // so we must resolve the real SO id — otherwise the INSERT hits an FK
