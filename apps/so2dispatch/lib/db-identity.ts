@@ -45,8 +45,9 @@ function create(): Pool {
     user,
     password,
     port: Number(process.env.IDENTITY_DB_PORT) || 5432,
-    max: 4,
-    idleTimeoutMillis: 30_000,
+    // Warm for 5 min, as the sales portal: every page asks the hub's grant.
+    max: 6,
+    idleTimeoutMillis: 300_000,
     connectionTimeoutMillis: 10_000,
     ssl: { rejectUnauthorized: true },
   });

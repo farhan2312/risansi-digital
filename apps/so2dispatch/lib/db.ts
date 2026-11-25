@@ -27,8 +27,11 @@ function createPool(): Pool {
     // enables it; this ensures the driver negotiates SSL even if the mode flag
     // is omitted. Azure presents a trusted cert, so verification stays on.
     ssl: { rejectUnauthorized: true },
-    max: 10,
-    idleTimeoutMillis: 30_000,
+    // Kept warm, as the sales portal does: a new TLS connection to the
+    // database costs ~0.6 s, so connections stay open 5 min between requests,
+    // and a larger pool lets a page's parallel queries run in one wave.
+    max: 15,
+    idleTimeoutMillis: 300_000,
     connectionTimeoutMillis: 10_000,
     // Keep the TCP connection alive so Azure/network idle timeouts are less
     // likely to silently drop a pooled connection between requests.
