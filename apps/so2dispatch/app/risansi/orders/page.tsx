@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ClipboardList, Download, Plus, Upload } from "lucide-react";
+import { ClipboardList, Download } from "lucide-react";
 import { listOrderDeptStatuses, listOrdersForBilling, listOrdersPage, orderListKpiCards, parseQueueSort, pumpCardSql } from "@/lib/orders";
 import { listPumpSummaries } from "@/lib/pump-summary";
 import { parsePage } from "@/lib/pagination";
@@ -15,11 +14,10 @@ import {
   scopeToRep,
 } from "@/lib/order-list-filter";
 import { getCurrentUser } from "@/lib/session";
-import { canAddFollowup, canCreateOrders, canViewAll, isRep, seesOrderRefs } from "@/lib/roles";
+import { canAddFollowup, canCreateOrders, canViewAll, seesOrderRefs } from "@/lib/roles";
 import { FollowupsDueButton } from "@/components/risansi/followups-due";
 import { countFollowupsDue } from "./followup-actions";
 import { OrdersTable } from "@/components/risansi/orders-table";
-import { MissingDetailsButton } from "@/components/risansi/missing-details-modal";
 import { OneClickButton } from "@/components/risansi/one-click-modal";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { cardBaseGet } from "@/lib/kpis";
@@ -45,7 +43,6 @@ export default async function OrdersPage({
   if (!canViewAll(user.role)) redirect("/risansi/dashboard");
   // 360° View: only the pages picked for them.
   if (!mayOpenPage(user, "/risansi/orders")) redirect(homeFor(user));
-  const rep = isRep(user.role);
 
   const params = await searchParams;
   // Filters this page no longer offers: an old link drops them rather than
@@ -127,7 +124,6 @@ export default async function OrdersPage({
               lib/order-gaps.ts. */}
           {/* The SOs due a follow-up: rings while any are. */}
           <FollowupsDueButton count={followupsDue} canAdd={canAddFollowup(user.role)} />
-          {!rep && <MissingDetailsButton />}
           {/* Every SO the list selects: the Excel (all its columns but Chat) or the PDF. */}
           <ReportDialogButton title={pumpView ? "Pump order report" : "Spare order report"} href={pdfHref} />
           <a
@@ -139,24 +135,7 @@ export default async function OrdersPage({
           </a>
           {/* The same, on a single sheet: a pop-up to look over, then download. */}
           <OneClickButton query={orderListFilterParams(filter).toString()} />
-          {canCreate && (
-            <>
-              <Link
-                href="/risansi/orders/import"
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-input-border bg-surface px-4 text-sm font-semibold text-foreground transition-colors hover:bg-background"
-              >
-                <Upload className="h-4 w-4" />
-                Import orders
-              </Link>
-              <Link
-                href="/risansi/orders/new"
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
-              >
-                <Plus className="h-4 w-4" />
-                New order
-              </Link>
-            </>
-          )}
+          {/* Details not filled, Import orders and New order: hidden here. */}
         </div>
       </div>
 
