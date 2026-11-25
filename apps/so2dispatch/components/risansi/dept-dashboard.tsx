@@ -410,7 +410,7 @@ export function DeptDashboard({
                 </Note>
               </ChartCard>
               <ChartCard className="lg:col-span-2" title="SOs by month" sub={`By SO date, the last twelve months · ${money(byMonth.reduce((a, m) => a + m.value, 0))}`}>
-                <Columns data={byMonth} color="var(--viz-blue)" tooltip={valueTip} />
+                <Columns data={byMonth} color="var(--viz-blue)" tooltip={valueTip} width={1200} height={220} />
                 <Note>When the SOs now on {meta.label}&apos;s page were placed. A tall bar in an old month is work that has stayed long; hover a bar for its order value.</Note>
               </ChartCard>
             </div>
