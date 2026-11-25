@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, CalendarClock, Gauge, IndianRupee, PackageOpen, PauseCircle } from "lucide-react";
 import type { DeptRow, PumpDashboard, PumpStage } from "@/lib/pump-dashboard";
-import { ChartCard, Donut, DonutTiles, HBars, Pipeline, StackBar, VizStyles, type Datum } from "./charts";
+import { ChartCard, Donut, DonutTiles, HBars, DeptStatusPies, StackBar, VizStyles, type Datum } from "./charts";
 import { IntakeCard, Metric, RepCard, WatchHoldCards, ZoneClientCards, dispatchData, money, type RepGroup } from "./shared";
 
 /** The pipeline as one blue ramp, earliest lightest; a hold in orange, lot out in violet. */
@@ -178,10 +178,8 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
       </ChartCard>
 
       {/* Where the SOs stand, and how dispatch has gone. */}
-      <div className="grid gap-5 lg:grid-cols-5">
-        <ChartCard title="SO pipeline" sub="Every SO in view under the department it has reached, at that department's own status — each SO once" className="lg:col-span-3">
-          <Pipeline rows={data.pipeline} money={money} />
-        </ChartCard>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <DeptStatusPies planning={data.deptCards.planning} assembly={data.deptCards.assembly} kind="pump" />
         <ChartCard title="Dispatch status" sub="All SOs in view" className="lg:col-span-2">
           <DonutTiles data={dispatchData(data.dispatchMix)} centerLabel="SOs" />
         </ChartCard>

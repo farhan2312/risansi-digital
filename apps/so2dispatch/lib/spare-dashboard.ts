@@ -10,7 +10,7 @@ import type { KpiCard } from "@/lib/kpis";
 import type { OrderListFilter } from "@/lib/order-list-filter";
 import { CLOSED } from "@/lib/order-row-view";
 import { stageByCards } from "@/lib/dashboard-stages";
-import { pipelineByStatus, type PipelineRow } from "@/lib/dept-board";
+import { dashboardDeptCards } from "@/lib/dept-board";
 
 /** Where an SO stands, earliest first: the pipeline's stages. */
 export const STAGES = [
@@ -95,8 +95,8 @@ export type SpareDashboard = {
   kpis: KpiCard[];
   asOf: string;
   stages: Bucket[];
-  /** The SO pipeline in the department board's own statuses (lib/dept-board). */
-  pipeline: PipelineRow[];
+  /** Planning's and Assembly & Packing's own cards, as the department board counts them: the status pies. */
+  deptCards: { planning: KpiCard[]; assembly: KpiCard[] };
   dispatchMix: Bucket[];
   intake: Bucket[];
   zones: Bucket[];
@@ -311,7 +311,7 @@ export async function getSpareDashboard(filter: OrderListFilter): Promise<SpareD
     kpis: result.kpis ?? [],
     asOf: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }),
     stages: STAGES.map((st) => ({ label: st, count: count(sos, st) })),
-    pipeline: await pipelineByStatus(ids, "spare"),
+    deptCards: await dashboardDeptCards(ids, "spare"),
     dispatchMix,
     intake: months,
     zones: group((s) => s.zone, sos).sort((a, b) => b.count - a.count),

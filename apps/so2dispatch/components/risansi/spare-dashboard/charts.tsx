@@ -303,109 +303,50 @@ export function StackBar({
   );
 }
 
-/** A row of the SO pipeline: a department's own status (as the department board shows it), its SOs and value. */
-export type PipelineStatus = { dept: string; key: string; label: string; tone: string; count: number; value: number };
+/** A card as the Dashboard's status pies read it (lib/kpis' KpiCard, what they use of it). */
+type PieCard = { key: string; label: string; count: number; group?: string; measure?: string };
 
-/** The board's tones as colours. */
-const TONE_COLOR: Record<string, string> = {
-  done: "var(--viz-aqua)",
-  part: "var(--viz-blue)",
-  pending: "var(--viz-yellow)",
-  danger: "var(--viz-red)",
-  neutral: "var(--viz-gray)",
-};
-/** What each part of the pipeline holds. */
-const DEPT_NOTE: Record<string, string> = {
-  "Not with Planning yet": "Made, but not yet on Planning's page (no EC, or not released)",
-  Planning: "On Planning's page, not yet with Assembly & Packing",
-  "Assembly & Packing": "With Assembly & Packing, no packing slip yet",
-  Dispatch: "Packing slip filed: with Dispatch",
-  Closed: "Cancelled by the client, or diverted",
-};
+const PIE_SERIES = ["var(--viz-blue)", "var(--viz-orange)", "var(--viz-aqua)", "var(--viz-yellow)", "var(--viz-violet)", "var(--viz-red)"];
+const ASSEMBLY = ["Assembly pending", "Partial assembled", "Fully assembled"];
+const PACKING = ["Packing pending", "Partially packed", "Fully packed"];
+
+/** A department's status cards as a pie's slices (not its totals, overdue or holds). */
+function slices(cards: PieCard[], pick: (c: PieCard) => boolean): Datum[] {
+  return cards.filter(pick).map((c, i) => ({ label: c.label, count: c.count, color: PIE_SERIES[i % PIE_SERIES.length] }));
+}
+/** Planning's Fully ready cards, as slices of its Fully ready SOs. */
+const READY_PART: Record<string, string> = { "s:ready_notpacked": "Not packed", "s:ready_unassembled": "Not assembled", "s:ready_unpacked": "Assembled, not packed" };
+const isStatus = (c: PieCard) => c.key.startsWith("s:") && !c.measure;
 
 /**
- * The SO pipeline in the department board's own statuses: each SO once, under
- * the department it has reached furthest (Planning → Assembly & Packing →
- * Dispatch) and at that department's status, as the board counts it.
+ * Planning's and Assembly & Packing's status pies, counted as the department
+ * board counts them: Planning's statuses, its Fully ready SOs by what still
+ * waits on Assembly & Packing, and Assembly & Packing's assembly and packing
+ * (a Spare has packing only).
  */
-export function Pipeline({ rows, money }: { rows: PipelineStatus[]; money: (n: number) => string }) {
-  const total = rows.reduce((a, d) => a + d.count, 0);
-  const max = Math.max(1, ...rows.map((d) => d.count));
-  const depts: { name: string; rows: PipelineStatus[] }[] = [];
-  for (const d of rows) {
-    const g = depts.find((x) => x.name === d.dept) ?? depts[depts.push({ name: d.dept, rows: [] }) - 1];
-    g.rows.push(d);
-  }
-  const sum = (list: PipelineStatus[]) => list.reduce((a, d) => a + d.count, 0);
-  const val = (list: PipelineStatus[]) => list.reduce((a, d) => a + d.value, 0);
-  const flow = depts.filter((d) => d.name !== "Closed" && d.name !== "Not with Planning yet");
+export function DeptStatusPies({ planning, assembly, kind }: { planning: PieCard[]; assembly: PieCard[]; kind: "spare" | "pump" }) {
+  const plan = slices(planning, (c) => isStatus(c) && !c.group);
+  const ready = planning.find((c) => c.key === "s:Fully ready")?.count ?? 0;
+  const waiting = planning.filter((c) => isStatus(c) && c.group);
+  const waitingSum = waiting.reduce((x, c) => x + c.count, 0);
+  const readyParts: Datum[] = [
+    ...waiting.map((c, i) => ({ label: READY_PART[c.key] ?? c.label, count: c.count, color: PIE_SERIES[i + 1] })),
+    { label: "Packed or beyond", count: Math.max(0, ready - waitingSum), color: "var(--viz-aqua)" },
+  ];
+  const asm = slices(assembly, (c) => isStatus(c) && ASSEMBLY.includes(c.label));
+  const pack = kind === "pump" ? slices(assembly, (c) => isStatus(c) && PACKING.includes(c.label)) : slices(assembly, isStatus);
+  const pie = (title: string, sub: string, data: Datum[], center: string) => (
+    <ChartCard title={title} sub={sub}>
+      {data.some((d) => d.count) ? <Donut data={data} centerLabel={center} /> : <p className="py-10 text-center text-sm text-muted">No SOs here.</p>}
+    </ChartCard>
+  );
   return (
-    <div className="space-y-4">
-      {/* The journey at a glance: how many SOs are with each department. */}
-      <div className="flex flex-wrap items-stretch gap-1.5">
-        {depts.map((d, i) => (
-          <div key={d.name} className="flex min-w-[7.5rem] flex-1 items-center gap-1.5">
-            <div className={`flex-1 rounded-xl border px-3 py-2 ${flow.includes(d) ? "border-[#2F5496]/20 bg-[#2F5496]/[0.05]" : "border-card-border bg-background/60"}`}>
-              <p className="truncate text-[10px] font-bold uppercase tracking-[0.1em] text-[#2F5496] dark:text-sky-300">
-                {flow.includes(d) ? `${flow.indexOf(d) + 1}. ` : ""}
-                {d.name}
-              </p>
-              <p className="mt-0.5 flex items-baseline gap-1.5">
-                <b className="text-lg tabular-nums text-foreground">{sum(d.rows)}</b>
-                <span className="text-[11px] text-muted">SOs · {pct(sum(d.rows), total)}</span>
-              </p>
-              <p className="text-[10.5px] font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(val(d.rows))}</p>
-            </div>
-            {i < depts.length - 1 && <span className="text-muted" aria-hidden>→</span>}
-          </div>
-        ))}
-      </div>
-
-      {depts.map((d) => (
-        <div key={d.name}>
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${flow.includes(d) ? "bg-[#2F5496]" : "bg-slate-400"}`}>
-              {flow.includes(d) ? flow.indexOf(d) + 1 : "·"}
-            </span>
-            <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#2F5496] dark:text-sky-300">{d.name}</span>
-            <span className="hidden truncate text-[10.5px] text-muted sm:inline">{DEPT_NOTE[d.name]}</span>
-            <span className="h-px flex-1 bg-card-border" />
-            <span className="rounded-full bg-[#1F3864]/[0.07] px-2 py-0.5 text-[10.5px] font-semibold tabular-nums text-[#1F3864] dark:bg-white/10 dark:text-white">
-              {sum(d.rows)} SOs · {pct(sum(d.rows), total)}
-            </span>
-          </div>
-          <ul className="space-y-0.5">
-            {d.rows.map((x) => (
-              <li
-                key={x.key}
-                className="group grid grid-cols-[minmax(8rem,13rem)_1fr_3rem_4.5rem] items-center gap-3 rounded-lg px-1.5 py-1 transition-colors hover:bg-background"
-                title={`${d.name} · ${x.label}: ${x.count} SOs (${pct(x.count, total)}), ${money(x.value)}`}
-              >
-                <span className={`truncate text-[13px] font-medium ${x.count ? "text-foreground" : "text-muted"}`}>{x.label}</span>
-                <span className="relative h-5 overflow-hidden rounded-md bg-[var(--viz-grid)]/60">
-                  <span
-                    className="absolute inset-y-0 left-0 rounded-md transition-[width] duration-700 group-hover:brightness-110"
-                    style={{ width: x.count ? `max(${(x.count / max) * 100}%, 6px)` : 0, background: TONE_COLOR[x.tone] ?? TONE_COLOR.neutral }}
-                  />
-                </span>
-                <span className="flex items-baseline justify-end gap-1 tabular-nums">
-                  <b className={`text-[13px] ${x.count ? "text-foreground" : "text-muted"}`}>{x.count}</b>
-                  <span className="text-[10px] text-muted">{pct(x.count, total)}</span>
-                </span>
-                <span className={`text-right text-[11px] font-semibold tabular-nums ${x.count ? "text-[#2F5496] dark:text-sky-300" : "text-muted"}`}>{money(x.value)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      <p className="flex gap-1.5 rounded-lg bg-background/70 px-2.5 py-2 text-[11px] leading-relaxed text-muted">
-        <span className="font-bold text-[#2F5496]">i</span>
-        <span>
-          The statuses are the department board&apos;s, counted by the same cards. Each SO appears <b>once</b>, under the furthest department it has reached,
-          so a department here can show fewer SOs than its card on the board (which also counts SOs that have moved on). An SO counts with Assembly &amp; Packing once it has begun there; until then it stays with Planning.
-        </span>
-      </p>
-    </div>
+    <>
+      {pie("Planning", "SOs on Planning's page, by its status", plan, "SOs")}
+      {pie("Fully ready", `${ready} Fully ready SOs: what still waits on Assembly & Packing`, readyParts, "Fully ready")}
+      {kind === "pump" && pie("Assembly", "SOs on Assembly & Packing's page, by assembly", asm, "SOs")}
+      {pie(kind === "pump" ? "Packing" : "Assembly & Packing", kind === "pump" ? "SOs on Assembly & Packing's page, by packing" : "SOs on Assembly & Packing's page, by packing", pack, "SOs")}
+    </>
   );
 }
 
