@@ -5,7 +5,7 @@
 // Orders filter in its queue with the department's own status.
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowUpRight, ExternalLink, Search } from "lucide-react";
 import { BOARD_DEPTS, cardRole, TONE_STYLE, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
 import type { KpiCard } from "@/lib/kpis";
@@ -180,6 +180,9 @@ function StatusGroup({ name, cards, page, kind }: { name: string; cards: KpiCard
   );
 }
 
+/** Rows the table draws at a time. */
+const PAGE = 50;
+
 function SoTable({ rows, dept, cards }: { rows: DeptSoRow[]; dept: string; cards: KpiCard[] }) {
   // Filter by any of the department's own cards (its statuses, Overdue, holds).
   const [pick, setPick] = useState<string>("all");
@@ -190,11 +193,35 @@ function SoTable({ rows, dept, cards }: { rows: DeptSoRow[]; dept: string; cards
     for (const r of rows) for (const s of r.statuses) if (!names.includes(s.group)) names.push(s.group);
     return names;
   }, [rows]);
-  const needle = search.trim().toLowerCase();
+  // The search applies once typing pauses.
+  const [needle, setNeedle] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setNeedle(search.trim().toLowerCase()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const list = rows
     .filter((r) => pick === "all" || r.statuses.some((s) => s.key === pick) || r.flags.some((f) => f.key === pick))
     .filter((r) => !needle || r.soNo.toLowerCase().includes(needle) || r.client.toLowerCase().includes(needle))
     .sort((a, b) => b.late - a.late || (a.soDate ?? "").localeCompare(b.soDate ?? ""));
+  // 50 rows at a time, 50 more as the list is scrolled to its end; back to 50 when the filter or search changes.
+  const view = `${pick}|${needle}`;
+  const [paged, setPaged] = useState({ view, n: PAGE });
+  const limit = paged.view === view ? paged.n : PAGE;
+  const shown = list.slice(0, limit);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    const end = endRef.current;
+    if (!end || limit >= list.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setPaged({ view, n: limit + PAGE });
+      },
+      { root: boxRef.current, rootMargin: "200px" }
+    );
+    io.observe(end);
+    return () => io.disconnect();
+  }, [view, limit, list.length]);
   const hasEc = rows.some((r) => r.ecStatuses?.length);
   const hasTarget = rows.some((r) => r.target);
   const heads = [
@@ -212,7 +239,7 @@ function SoTable({ rows, dept, cards }: { rows: DeptSoRow[]; dept: string; cards
       <header className="flex flex-wrap items-center gap-3 border-b border-card-border px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-foreground">{dept} · SOs</h2>
-          <p className="text-xs text-muted">{list.length} shown · most overdue first</p>
+          <p className="text-xs text-muted">{shown.length < list.length ? `${shown.length} of ${list.length}` : list.length} shown · most overdue first</p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <select
@@ -239,7 +266,7 @@ function SoTable({ rows, dept, cards }: { rows: DeptSoRow[]; dept: string; cards
           </label>
         </div>
       </header>
-      <div className="max-h-[70vh] overflow-auto">
+      <div ref={boxRef} className="max-h-[70vh] overflow-auto">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="sticky top-0 z-10">
             <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -251,7 +278,7 @@ function SoTable({ rows, dept, cards }: { rows: DeptSoRow[]; dept: string; cards
             </tr>
           </thead>
           <tbody>
-            {list.map((r) => (
+            {shown.map((r) => (
               <tr key={r.id} className="border-b border-card-border/70 transition-colors last:border-0 hover:bg-background/60">
                 <td className="whitespace-nowrap px-4 py-2.5">
                   <Link href={`/risansi/orders/${r.id}`} className="group inline-flex items-center gap-1 font-semibold text-foreground hover:text-[#2F5496] dark:hover:text-sky-300">
@@ -310,6 +337,13 @@ function SoTable({ rows, dept, cards }: { rows: DeptSoRow[]; dept: string; cards
                 </td>
               </tr>
             ))}
+            {shown.length < list.length && (
+              <tr ref={endRef}>
+                <td colSpan={heads.length} className="px-4 py-4 text-center text-xs text-muted">
+                  Loading more…
+                </td>
+              </tr>
+            )}
             {!list.length && (
               <tr>
                 <td colSpan={heads.length} className="px-4 py-10 text-center text-sm text-muted">
