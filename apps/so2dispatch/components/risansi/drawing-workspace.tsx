@@ -264,6 +264,30 @@ export function DrawingWorkspace({
       cell: (g) => (wantsCurve(g.head) ? <span className="font-semibold text-foreground">Yes</span> : <span className="text-muted">No</span>),
     },
     {
+      // The client's own drawing documents, from the SO's Terms & Conditions.
+      key: "client_drg",
+      label: "Client Drawing Docs",
+      thClass: "whitespace-nowrap",
+      cell: (g) => {
+        const links = splitLinks(str(g.head.client_drawing_link));
+        if (links.length === 0) return <span className="text-muted">—</span>;
+        return (
+          <span className="flex flex-col items-start gap-0.5">
+            {links.map((l, i) =>
+              isWebLink(l) ? (
+                <a key={i} href={l} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-primary hover:underline">
+                  <FileText className="h-3.5 w-3.5" />
+                  {links.length > 1 ? `Doc ${i + 1}` : "Open"}
+                </a>
+              ) : (
+                <span key={i} className="text-xs text-foreground">{l}</span>
+              )
+            )}
+          </span>
+        );
+      },
+    },
+    {
       key: "state",
       label: "SO Status",
       thClass: "whitespace-nowrap",

@@ -631,6 +631,14 @@ export const ORDER_SECTIONS: OrderSection[] = [
         dependsOn: [{ column: "ld", value: "Yes" }],
         group: "Terms & Conditions",
       },
+      // The client's own drawing documents: SharePoint link(s), one per line.
+      // Not required; Drawing sees them on the SO.
+      {
+        column: "client_drawing_link",
+        label: "Client Drawing Docs (SharePoint links, one per line)",
+        type: "text",
+        group: "Terms & Conditions",
+      },
 
       // The drawings the client wants. Every pump EC has a GAD, so it is not
       // asked; a Yes here gives each EC of the SO a Performance Curve in Drawing.
@@ -1090,10 +1098,12 @@ export function firstOrderMakingMissing(
  * aside), and the SO Sent to PPC Date.
  */
 const AFTER_OPERATION_GROUPS = ["Terms & Conditions", "Document Required", "Target Dates"];
+/** In those groups, but never required. */
+const AFTER_OPERATION_OPTIONAL = ["client_drawing_link"];
 export function afterOperationRequired(): OrderField[] {
   return (ORDER_SECTIONS.find((s) => s.table === "orders")?.fields ?? []).filter(
     (f) =>
-      (AFTER_OPERATION_GROUPS.includes(f.group ?? "") && !/remarks/i.test(f.column) && !f.computed) ||
+      (AFTER_OPERATION_GROUPS.includes(f.group ?? "") && !/remarks/i.test(f.column) && !f.computed && !AFTER_OPERATION_OPTIONAL.includes(f.column)) ||
       f.column === "so_handover_date"
   );
 }
@@ -1915,6 +1925,8 @@ export const DRAWING_CONTEXT_FIELDS: OrderField[] = [
   // Drawing's own: when it says the SO's drawings will be ready (set on its page, with history).
   { column: "drg_readiness_date", label: "Drawing Expected Readiness Date", type: "date" },
   { column: "performance_curve_required", label: "Performance Curve", type: "select", options: YES_NO },
+  // The client's own drawing documents (Terms & Conditions), read only.
+  { column: "client_drawing_link", label: "Client Drawing Docs", type: "text" },
   // The EC itself, beside its drawings.
   { column: "ec_date", label: "EC Date", type: "date", from: "order_items" },
   { column: "pump_type", label: "Pump Type", type: "text", from: "order_items" },
