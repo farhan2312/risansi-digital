@@ -303,24 +303,29 @@ export function StackBar({
   );
 }
 
-/** Which part of the journey a pipeline stage belongs to (the dashboard's phases). */
-const PHASE_OF: Record<string, string> = {
-  "No EC yet": "Planning",
-  "Date awaited": "Planning",
-  "In plan": "Planning",
-  "Partial ready": "Planning",
-  "Ready, not packed": "Planning",
-  "Ready, not assembled": "Planning",
-  "Assembly on": "Assembly & Packing",
-  "Assembled, not packed": "Assembly & Packing",
-  "Packing on": "Assembly & Packing",
-  "Packed, no slip yet": "Assembly & Packing",
-  "Packed, to dispatch": "Dispatch",
-  "Dispatch hold": "Dispatch",
-  "Lot dispatched": "Dispatch",
-  "Fully dispatched": "Dispatch",
-  "Cancelled / Diverted": "Closed",
+/**
+ * Each pipeline stage as the department it sits with and that department's
+ * own status (as its page and cards name it), so the pipeline reads in the
+ * same words as the department board.
+ */
+const STAGE_STATUS: Record<string, { dept: string; status: string }> = {
+  "No EC yet": { dept: "Order Making", status: "No EC yet" },
+  "Date awaited": { dept: "Planning", status: "Date awaited" },
+  "In plan": { dept: "Planning", status: "In plan" },
+  "Partial ready": { dept: "Planning", status: "Partial ready" },
+  "Ready, not packed": { dept: "Planning", status: "Fully ready (not packed)" },
+  "Ready, not assembled": { dept: "Planning", status: "Fully ready (not assembled)" },
+  "Assembly on": { dept: "Assembly & Packing", status: "Partial assembled" },
+  "Assembled, not packed": { dept: "Assembly & Packing", status: "Fully assembled (packing pending)" },
+  "Packing on": { dept: "Assembly & Packing", status: "Partially packed" },
+  "Packed, no slip yet": { dept: "Assembly & Packing", status: "Fully packed (no packing slip yet)" },
+  "Packed, to dispatch": { dept: "Dispatch", status: "Pending" },
+  "Dispatch hold": { dept: "Dispatch", status: "Hold" },
+  "Lot dispatched": { dept: "Dispatch", status: "LOT dispatch" },
+  "Fully dispatched": { dept: "Dispatch", status: "Fully dispatch" },
+  "Cancelled / Diverted": { dept: "Closed", status: "Cancelled by client / Diverted" },
 };
+const PHASE_OF: Record<string, string> = Object.fromEntries(Object.entries(STAGE_STATUS).map(([k, v]) => [k, v.dept]));
 
 /**
  * The SO pipeline: its stages under the phase each belongs to (Planning,
@@ -347,7 +352,7 @@ const STAGE_INFO: Record<string, string> = {
 };
 
 /** The phases in the order an SO moves through them. */
-const PHASES = ["Planning", "Assembly & Packing", "Dispatch", "Closed"];
+const PHASES = ["Order Making", "Planning", "Assembly & Packing", "Dispatch", "Closed"];
 
 export function Pipeline({ data }: { data: Datum[] }) {
   const total = data.reduce((a, d) => a + d.count, 0);
@@ -398,10 +403,10 @@ export function Pipeline({ data }: { data: Datum[] }) {
                 <li
                   key={d.label}
                   className="group grid grid-cols-[minmax(9rem,14rem)_1fr_4.5rem] items-center gap-3 rounded-lg px-1.5 py-1 transition-colors hover:bg-background"
-                  title={`${d.label}: ${STAGE_INFO[d.label] ?? ""} — ${d.count} SOs (${pct(d.count, total)})`}
+                  title={`${PHASE_OF[d.label] ?? ""} · ${STAGE_STATUS[d.label]?.status ?? d.label}: ${STAGE_INFO[d.label] ?? ""} — ${d.count} SOs (${pct(d.count, total)})`}
                 >
                   <span className="min-w-0">
-                    <span className={`block truncate text-[13px] font-medium ${d.count ? "text-foreground" : "text-muted"}`}>{d.label}</span>
+                    <span className={`block truncate text-[13px] font-medium ${d.count ? "text-foreground" : "text-muted"}`}>{STAGE_STATUS[d.label]?.status ?? d.label}</span>
                     {STAGE_INFO[d.label] && <span className="block truncate text-[10.5px] leading-tight text-muted">{STAGE_INFO[d.label]}</span>}
                   </span>
                   <span className="relative h-5 overflow-hidden rounded-md bg-[var(--viz-grid)]/60">
@@ -423,7 +428,7 @@ export function Pipeline({ data }: { data: Datum[] }) {
       <p className="flex gap-1.5 rounded-lg bg-background/70 px-2.5 py-2 text-[11px] leading-relaxed text-muted">
         <span className="font-bold text-[#2F5496]">i</span>
         <span>
-          Each SO is counted <b>once</b>, at the furthest stage it has reached. Dispatch&apos;s hold is a stage of its own; an SO on an Order Making or Accounts hold stays at its stage, and only one that has reached no stage is left to the On hold card. Central Visibility&apos;s hold never moves an SO.
+          Each SO is counted <b>once</b>, under the department it has reached furthest and at that department&apos;s own status (as on its page and the department board). Dispatch&apos;s hold is a stage of its own; an SO on an Order Making or Accounts hold stays at its stage, and only one that has reached no stage is left to the On hold card. Central Visibility&apos;s hold never moves an SO.
         </span>
       </p>
     </div>

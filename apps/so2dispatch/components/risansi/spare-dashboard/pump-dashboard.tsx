@@ -181,7 +181,7 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
 
       {/* Where the SOs stand, and how dispatch has gone. */}
       <div className="grid gap-5 lg:grid-cols-5">
-        <ChartCard title="SO pipeline" sub="Where every SO in view has got to, from Planning through to Dispatch — each SO once" className="lg:col-span-3">
+        <ChartCard title="SO pipeline" sub="Every SO in view under the department it has reached, at that department's own status — each SO once" className="lg:col-span-3">
           <Pipeline data={stages} />
         </ChartCard>
         <ChartCard title="Dispatch status" sub="All SOs in view" className="lg:col-span-2">
