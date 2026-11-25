@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { History, Layers, Loader2, MessageSquare, PanelRightClose, PanelRightOpen, Trash2 } from "lucide-react";
+import { CalendarDays, ClipboardList, History, Layers, Loader2, MessageSquare, Package, PanelRightClose, PanelRightOpen, PenTool, Receipt, Trash2, Truck } from "lucide-react";
 import { setSplitPanelPrefs, useSplitPanelPrefs } from "./split-panel-prefs";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
@@ -820,7 +820,17 @@ export function OrdersTable({
     box.scrollTo({ top: el ? el.offsetTop - 56 : 0, behavior: "smooth" });
   }, [focusDept, focusOrder?.id, panel.collapsed]);
 
-  /** The portrait: one SO, every department column of the table, section by section. */
+  /** The portrait's sections, each in its department's colour: a tinted strip, an icon, an accent. */
+const SECTION_TONE: Record<string, { strip: string; icon: string; title: string; ring: string; open: string; Icon: typeof Receipt }> = {
+  billing: { strip: "from-emerald-500/[0.12] via-emerald-500/[0.04]", icon: "from-emerald-600 to-teal-500", title: "text-emerald-800 dark:text-emerald-300", ring: "ring-emerald-400/60", open: "bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30", Icon: Receipt },
+  drawing: { strip: "from-indigo-500/[0.12] via-indigo-500/[0.04]", icon: "from-indigo-600 to-violet-500", title: "text-indigo-800 dark:text-indigo-300", ring: "ring-indigo-400/60", open: "bg-indigo-50 text-indigo-700 ring-indigo-200 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-500/30", Icon: PenTool },
+  planning: { strip: "from-sky-500/[0.13] via-sky-500/[0.04]", icon: "from-sky-600 to-cyan-500", title: "text-sky-800 dark:text-sky-300", ring: "ring-sky-400/60", open: "bg-sky-50 text-sky-700 ring-sky-200 hover:bg-sky-100 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/30", Icon: CalendarDays },
+  assembly: { strip: "from-violet-500/[0.12] via-violet-500/[0.04]", icon: "from-violet-600 to-fuchsia-500", title: "text-violet-800 dark:text-violet-300", ring: "ring-violet-400/60", open: "bg-violet-50 text-violet-700 ring-violet-200 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/30", Icon: Package },
+  dispatch: { strip: "from-amber-500/[0.14] via-amber-500/[0.04]", icon: "from-amber-500 to-orange-500", title: "text-amber-800 dark:text-amber-300", ring: "ring-amber-400/60", open: "bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30", Icon: Truck },
+  other: { strip: "from-slate-500/[0.10] via-slate-500/[0.03]", icon: "from-slate-600 to-slate-400", title: "text-slate-700 dark:text-slate-300", ring: "ring-slate-400/60", open: "bg-slate-50 text-slate-700 ring-slate-200 hover:bg-slate-100", Icon: ClipboardList },
+};
+
+/** The portrait: one SO, every department column of the table, section by section. */
   function portrait(order: OrderListRow) {
     const { status, soLabel, closed, held, hasLots } = rowView(order);
     const onlyBilling = order.only_billing === "Yes";
@@ -836,19 +846,27 @@ export function OrdersTable({
       wide = false
     ) => {
       const on = !!focusDept && keys.includes(focusDept);
+      const tone = SECTION_TONE[keys[0] === "purchase" || keys[0] === "quality" ? "drawing" : keys[0] ?? "other"] ?? SECTION_TONE.other;
+      const Icon = tone.Icon;
       return (
         <section
           data-sec={keys.join(" ")}
-          className={`rounded-lg border p-3 transition-colors ${on ? "border-primary/50 bg-primary/5" : "border-card-border"}`}
+          className={`overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm transition ${on ? `ring-2 ${tone.ring}` : ""}`}
         >
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
+          <div className={`flex items-center justify-between gap-2 border-b border-card-border bg-gradient-to-r ${tone.strip} to-transparent px-3 py-2`}>
+            <h3 className={`flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.07em] ${tone.title}`}>
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${tone.icon} text-white shadow-sm`}>
+                <Icon className="h-3.5 w-3.5" />
+              </span>
+              {title}
+            </h3>
             {openKey && !readOnly && (
-              <button type="button" onClick={() => open(openKey)} className="text-xs font-medium text-primary hover:underline">
+              <button type="button" onClick={() => open(openKey)} className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset transition-colors ${tone.open}`}>
                 Open
               </button>
             )}
           </div>
+          <div className="px-3 py-2">
           {wide ? (
             <div className="min-w-0">{cells}</div>
           ) : (
@@ -865,6 +883,7 @@ export function OrdersTable({
             </tbody>
           </table>
           )}
+          </div>
         </section>
       );
     };
@@ -875,10 +894,10 @@ export function OrdersTable({
     const spareLotted = hasLots && !closed && !held;
     return (
       <div className="space-y-3">
-        <div className="border-b border-card-border pb-3">
-          <div className="flex items-start justify-between gap-2">
+        <div className="relative overflow-hidden rounded-xl border border-[#2F5496]/20 bg-gradient-to-br from-[#1F3864]/[0.08] via-[#2F5496]/[0.04] to-transparent p-3 shadow-sm dark:from-white/[0.06]">
+          <div className="relative flex items-start justify-between gap-2">
             <div>
-              <div className="text-base font-semibold text-foreground">{soLabel}</div>
+              <div className="text-lg font-bold tracking-tight text-[#1F3864] dark:text-white">{soLabel}</div>
               <div className="text-xs text-muted">
                 {[order.client_name, order.order_type, formatDate(order.so_date)].filter((x) => x && x !== "—").join(" · ")}
               </div>
