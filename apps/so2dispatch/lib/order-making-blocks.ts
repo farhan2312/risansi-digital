@@ -16,6 +16,8 @@ export type SoBlock = {
   assigned: string;
   /** When it was assigned, as the report shows dates; blank when not. */
   assignedOn: string;
+  /** Earlier assignees and why it moved, a line each; blank when never reassigned. */
+  assignHistory: string;
   reason: string;
   remarks: string;
   ecs: { no: string; date: string }[];
@@ -83,6 +85,7 @@ export function blocksOf(report: ReportShape): SoBlock[] {
     ops: at("SO Sent to Operation"),
     who: at("Assigned Person"),
     whoAt: at("Assigned Date"),
+    whoHist: at("Assignment History"),
     reason: at("Reason for Delay"),
     remarks: at("Remarks"),
   };
@@ -111,6 +114,7 @@ export function blocksOf(report: ReportShape): SoBlock[] {
       sentToOps: ix.ops < 0 ? "" : ops === "HOLD" || ops === "N/A" ? ops : reportDay(ops),
       assigned: s(l, ix.who),
       assignedOn: reportDay(raw(l, ix.whoAt)),
+      assignHistory: s(l, ix.whoHist),
       reason: s(l, ix.reason),
       remarks: s(l, ix.remarks),
       ecs: ec.no ? [ec] : [],

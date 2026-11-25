@@ -206,7 +206,7 @@ function Sheet({
           <col className="w-[120px]" />
           <col className="w-[170px]" />
           {!hideSentToOps && <col className="w-[96px]" />}
-          <col className="w-[110px]" />
+          <col className="w-[170px]" />
           <col />
           <col />
         </colgroup>
@@ -291,6 +291,14 @@ function Sheet({
               <Td>
                 {b.assigned === "Migrated" ? <span className="text-slate-400">Migrated</span> : b.assigned}
                 {b.assignedOn && <div className="text-[11px] text-slate-500">{b.assignedOn}</div>}
+                {b.assignHistory && (
+                  <div className="mt-1 border-t border-slate-200 pt-1 text-[10.5px] leading-snug text-slate-500">
+                    <span className="font-semibold uppercase tracking-wide text-slate-400">History</span>
+                    {b.assignHistory.split("\n").map((h, k) => (
+                      <div key={k} className="mt-0.5">{h}</div>
+                    ))}
+                  </div>
+                )}
               </Td>
               <Td>
                 <span className="whitespace-pre-line text-amber-800">{b.reason}</span>

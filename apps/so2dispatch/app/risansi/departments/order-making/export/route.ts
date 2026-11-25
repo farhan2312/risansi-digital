@@ -21,15 +21,15 @@ export async function GET(req: NextRequest) {
   }
 
   const params = req.nextUrl.searchParams;
-  const { rows, scope, filtered, today } = await loadOrderMakingReport(user, (key) => params.get(key) ?? undefined);
+  const { rows, history, scope, filtered, today } = await loadOrderMakingReport(user, (key) => params.get(key) ?? undefined);
   // SO Sent to Operation is Order Making PO's: an SO member does not see it.
   const omit = isOrderMakingSo(user.role) ? ["SO Sent to Operation"] : [];
   if (params.get("view")) {
-    return Response.json({ scope, ...orderMakingReport(rows, omit) }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ scope, ...orderMakingReport(rows, omit, history) }, { headers: { "Cache-Control": "no-store" } });
   }
   // As a PDF, laid out as the on-page report: shown in its pop-up, or saved with download=1.
   if (params.get("pdf")) {
-    const bytes = await buildOrderMakingReportPdf({ scope, ...orderMakingReport(rows, omit) }, parseReportSort(params.get("rsort")));
+    const bytes = await buildOrderMakingReportPdf({ scope, ...orderMakingReport(rows, omit, history) }, parseReportSort(params.get("rsort")));
     return new Response(bytes as unknown as ArrayBuffer, {
       headers: {
         "Content-Type": "application/pdf",
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       },
     });
   }
-  const buffer = await buildOrderMakingWorkbook(rows, scope, omit).xlsx.writeBuffer();
+  const buffer = await buildOrderMakingWorkbook(rows, scope, omit, history).xlsx.writeBuffer();
 
   return new Response(buffer, {
     headers: {

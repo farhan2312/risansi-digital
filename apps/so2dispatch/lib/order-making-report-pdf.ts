@@ -40,7 +40,7 @@ export async function buildOrderMakingReportPdf(report: ReportShape & { scope: s
     { label: "SALES ORDER", w: 78 },
     { label: "ECS", w: 112 },
     ...(withOps ? [{ label: "SENT TO OPERATION", w: 80 }] : []),
-    { label: "ASSIGNED TO", w: 70 },
+    { label: "ASSIGNED TO", w: 110 },
     { label: "REASON FOR DELAY", w: 0 },
     { label: "REMARKS", w: 0 },
   ];
@@ -109,7 +109,7 @@ export async function buildOrderMakingReportPdf(report: ReportShape & { scope: s
         return b.sentToOps === "HOLD" ? [["HOLD", bold, ROSE]] : b.sentToOps === "N/A" ? [["N/A", font, FAINT]] : b.sentToOps ? [[b.sentToOps, font, GREEN]] : [["Not yet", font, FAINT]];
       case "ASSIGNED TO":
         return b.assigned
-          ? [...fit(b.assigned, font, b.assigned === "Migrated" ? FAINT : INK), ...(b.assignedOn ? ([[b.assignedOn, font, MUTED]] as Ln[]) : [])]
+          ? [...fit(b.assigned, font, b.assigned === "Migrated" ? FAINT : INK), ...(b.assignedOn ? ([[b.assignedOn, font, MUTED]] as Ln[]) : []), ...(b.assignHistory ? ([["History", bold, FAINT]] as Ln[]).concat(b.assignHistory.split("\n").flatMap((p) => fit(p, font, MUTED))) : [])]
           : [["—", font, FAINT]];
       case "REASON FOR DELAY":
         return b.reason ? b.reason.split("\n").flatMap((p) => fit(p, font, AMBER)) : [["—", font, FAINT]];
