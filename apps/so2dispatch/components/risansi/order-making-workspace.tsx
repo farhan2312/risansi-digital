@@ -20,7 +20,7 @@ import { useSoNoTaken } from "./use-so-no-taken";
 import { OmReportModal } from "./om-report-modal";
 import { SoChecklistModal } from "./so-checklist-modal";
 import { RetrofitLine } from "./retrofit-line";
-import { CHECKLIST_STATES } from "@/lib/so-checklist";
+import { CHECKLIST_STATES, checklistRequired } from "@/lib/so-checklist";
 import { OmReportPanel } from "./om-report-panel";
 import {
   BILL_MODE_FILTER_OPTIONS,
@@ -478,7 +478,10 @@ export function OrderMakingWorkspace({
       key: "checklist",
       label: "Checklist",
       tdClass: "whitespace-nowrap",
-      cell: (row) => (
+      // An FR or Only Billing SO needs none.
+      cell: (row) => !checklistRequired(row) ? (
+        <span className="text-xs text-muted" title="FR and Only Billing SOs need no checklist">Not required</span>
+      ) : (
         <button
           type="button"
           onClick={() => setChecklistFor(row.id)}

@@ -159,6 +159,19 @@ export function checklistPointsSql(o: string): string {
 }
 
 /** The checklist filter on Order Making: its SO or PO part still to fill, any part, all filled, verification still to do, or all verified. */
+/** Bill Modes that need no checklist: an FR (a replacement) and an Only Billing SO. */
+export const CHECKLIST_EXEMPT_BILL_MODES = ["FR", "Only Billing"];
+
+/** Whether the SO needs a checklist at all. */
+export function checklistRequired(row: object): boolean {
+  return !CHECKLIST_EXEMPT_BILL_MODES.includes(String((row as { bill_mode?: unknown }).bill_mode ?? "").trim());
+}
+
+/** SQL: the SO needs a checklist (not an FR, not Only Billing). */
+export function checklistRequiredSql(o: string): string {
+  return `COALESCE(${o}.bill_mode, '') <> ALL (ARRAY[${CHECKLIST_EXEMPT_BILL_MODES.map((m) => `'${m}'`).join(", ")}]::text[])`;
+}
+
 export const CHECKLIST_STATES = [
   { value: "so_pending", label: "SO part pending" },
   { value: "po_pending", label: "PO part pending" },

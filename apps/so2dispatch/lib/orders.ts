@@ -46,7 +46,7 @@ import { PLANNING_PUMP_ASSEMBLY_OPTIONS, PLANNING_PUMP_PACKING_OPTIONS, PLANNING
 } from "@/lib/dept-status";
 import { BILL_MODE_FILTER_OPTIONS, FIELD_FILTER_FIELDS, NOT_SET, ORDER_STATUS_OPTIONS, type OrderListFilter, type SignOff } from "@/lib/order-list-filter";
 import { sharedFacets, UNASSIGNED, type OrderMakingFilter } from "@/lib/order-making-filter";
-import { checklistAnsweredSql, checklistDoneSql, checklistPointsSql, checklistTotalSql, checklistVerifiedSql } from "@/lib/so-checklist";
+import { checklistAnsweredSql, checklistDoneSql, checklistPointsSql, checklistRequiredSql, checklistTotalSql, checklistVerifiedSql } from "@/lib/so-checklist";
 import { appliesSql, filledSql, SO_DETAILS_FILLED_SQL, SO_DETAILS_MISSING_SQL } from "@/lib/order-gaps";
 import {
   PAGE_SIZE,
@@ -5297,7 +5297,9 @@ export async function listOrdersForOrderMaking(opts: {
     if (ff.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
     if (ff.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
     // The checklist. Pending: only SOs still worked on (open, not dispatched,
-    // not carried in by the migration) — as for assigning.
+    // not carried in by the migration) — as for assigning. An FR or Only
+    // Billing SO needs none: in no checklist state.
+    if (ff.checklist) clauses.push(checklistRequiredSql("o"));
     if (ff.checklist === "done") clauses.push(checklistDoneSql("o"));
     if (ff.checklist === "pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o")}`);
     if (ff.checklist === "so_pending") clauses.push(`${assignableSql("o")} AND NOT ${checklistDoneSql("o", "SO")}`);
