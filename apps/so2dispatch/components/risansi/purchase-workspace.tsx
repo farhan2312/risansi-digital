@@ -390,13 +390,23 @@ export function PurchaseWorkspace({
     },
   ];
   const headOf = <R,>(c: SplitCol<R>) => ("head" in c ? c.head : c.label);
-  // Split view (SO view, not inside a pop-up): the SO picked, the first until another is.
-  const split = splitView && !boiView && !embedded;
+  // Split view (not inside a pop-up): the SO picked, the first until another is;
+  // in the BOI view, the item picked (its SO and EC beside it).
+  const split = splitView && !embedded;
   const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [focusItem, setFocusItem] = useState<string | null>(null);
+  const boiOf = (g: SoGroup) => g.ecs.flatMap((ec) => ((ec.boi_items ?? []) as Row[]).map((b) => ({ ec, b })));
   // A reminder or notification (?focus=) picks its SO; else the first.
   const focusGroup = split
-    ? (soGroups.find((g) => g.key === focusKey) ?? soGroups.find((g) => String(g.head.order_id ?? "") === focusOrderId) ?? soGroups[0] ?? null)
+    ? ((boiView && focusItem ? soGroups.find((g) => boiOf(g).some((x) => String(x.b.id) === focusItem)) : undefined) ??
+      soGroups.find((g) => g.key === focusKey) ??
+      soGroups.find((g) => String(g.head.order_id ?? "") === focusOrderId) ??
+      (boiView ? soGroups.find((g) => boiOf(g).length > 0) : undefined) ??
+      soGroups[0] ??
+      null)
     : null;
+  const focusBoi =
+    split && boiView && focusGroup ? (boiOf(focusGroup).find((x) => String(x.b.id) === focusItem) ?? boiOf(focusGroup)[0] ?? null) : null;
   const listCols = soCols.filter((c) => c.list);
 
   return (
@@ -508,6 +518,9 @@ export function PurchaseWorkspace({
           {boiView ? (
             <BoiListTable
               groups={soGroups}
+              split={split}
+              focusId={focusBoi ? String(focusBoi.b.id) : null}
+              onFocus={(itemId) => setFocusItem(itemId)}
               onOpen={(ecId, itemId) => {
                 setBoiFor(ecId);
                 setBoiItem(itemId);
@@ -625,7 +638,33 @@ export function PurchaseWorkspace({
       </div>
         }
         panel={
-          focusGroup ? (
+          focusBoi && focusGroup ? (
+            <>
+              <PanelSection
+                title={`BOI · ${boiName(focusBoi.b)}`}
+                aside={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBoiFor(String(focusBoi.ec.id));
+                      setBoiItem(String(focusBoi.b.id));
+                    }}
+                    className="rounded-full bg-[#2F5496]/10 px-2.5 py-0.5 text-[11px] font-semibold text-[#1F3864] ring-1 ring-inset ring-[#2F5496]/25 transition-colors hover:bg-[#2F5496]/20 dark:text-sky-200"
+                  >
+                    Open
+                  </button>
+                }
+              >
+                <BoiPortrait b={focusBoi.b} onHistory={() => setHistoryFor(focusBoi.b)} />
+              </PanelSection>
+              <PanelSection title="SO">
+                <Portrait cols={soCols} row={focusGroup} />
+              </PanelSection>
+              <PanelSection title={`EC ${focusBoi.ec.ec_no ?? "—"}`}>
+                <Portrait cols={ecCols} row={focusBoi.ec} />
+              </PanelSection>
+            </>
+          ) : focusGroup ? (
             <>
               <PanelSection title="SO">
                 <Portrait cols={soCols} row={focusGroup} />
@@ -1039,11 +1078,20 @@ function BoiListTable({
   groups,
   onOpen,
   onHistory,
+  split = false,
+  focusId = null,
+  onFocus,
 }: {
   groups: { head: PurchaseQueueRow; ecs: PurchaseQueueRow[] }[];
   onOpen: (ecId: string, itemId: string) => void;
   onHistory: (b: Row) => void;
+  /** Split view: a row picks the item for the panel, and the table keeps its key columns. */
+  split?: boolean;
+  focusId?: string | null;
+  onFocus?: (itemId: string) => void;
 }) {
+  // In split view the panel has the rest.
+  const shows = (h: string) => !split || ["Item", "Make", "Qty", "Vendor", "Expected", "Status"].includes(h);
   const t = (v: unknown) => (v == null || String(v).trim() === "" ? "—" : String(v));
   const d = (v: unknown) => (v ? formatDate(String(v)) : "—");
   const money = (v: unknown) =>
@@ -1085,7 +1133,7 @@ function BoiListTable({
   const itemHeads = [
     "Item", "Make", "Qty", "Description", "RIL Allocated", "Vendor", "RIL PO", "Vendor SO",
     "Order Qty", "Expected", "Rate", "Total", "Recd Qty", "Recd Date", "Status",
-  ];
+  ].filter(shows);
   // A number with its date under it (vendor figures only when an order is placed).
   const noDate = (no: unknown, date: unknown) =>
     no == null && !date ? (
@@ -1097,7 +1145,7 @@ function BoiListTable({
       </>
     );
   return (
-    <table className="w-full min-w-[2100px] text-sm">
+    <table className={`w-full ${split ? "min-w-[1100px]" : "min-w-[2100px]"} text-sm`}>
       <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
         <tr className="border-b border-card-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
           <th className={`${th} ${stickTh(0)}`} style={stick(0)}><SortHeader label="SO No." sortKey="so_no" /></th>
@@ -1129,9 +1177,11 @@ function BoiListTable({
           return (
             <tr
               key={String(b.id)}
-              onClick={() => onOpen(ec.id, String(b.id))}
-              title="Open this item"
-              className="group cursor-pointer align-top text-foreground hover:bg-background/60"
+              onClick={() => (split && onFocus ? onFocus(String(b.id)) : onOpen(ec.id, String(b.id)))}
+              title={split ? "Show this item beside the list" : "Open this item"}
+              className={`group cursor-pointer align-top text-foreground hover:bg-background/60 ${
+                split && focusId === String(b.id) ? "outline-2 -outline-offset-2 outline-primary/50" : ""
+              }`}
             >
               <td className={`whitespace-nowrap px-3 py-2 ${stickTd(0)}`} style={stick(0)}>
                 <div className="font-semibold">{so.so_no ?? `#${so.sl_no}`}</div>
@@ -1147,8 +1197,12 @@ function BoiListTable({
               <td className={`break-words px-3 py-2 font-semibold ${stickTd(4)}`} style={stick(4)}>{boiName(b)}</td>
               <td className={`break-words px-3 py-2 ${stickTd(5)}`} style={stick(5)}>{t(b.boi_make)}</td>
               <td className="px-3 py-2 tabular-nums">{t(b.boi_qty)}</td>
-              <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
-              <td className="px-3 py-2 tabular-nums">{t(b.stock_allocated_qty)}</td>
+              {shows("Description") && (
+  <td className="max-w-[16rem] px-3 py-2 text-muted">{t(b.boi_description)}</td>
+              )}
+              {shows("RIL Allocated") && (
+  <td className="px-3 py-2 tabular-nums">{t(b.stock_allocated_qty)}</td>
+              )}
               <td className="min-w-[10rem] max-w-[16rem] px-3 py-2">
                 {vendor ? (
                   <>
@@ -1159,9 +1213,15 @@ function BoiListTable({
                   <span className="text-muted">No order</span>
                 )}
               </td>
-              <td className="whitespace-nowrap px-3 py-2">{noDate(v(b.ril_po_no), v(b.ril_po_date))}</td>
-              <td className="whitespace-nowrap px-3 py-2">{noDate(v(b.vendor_so_no), v(b.vendor_so_date))}</td>
-              <td className="px-3 py-2 tabular-nums">{t(v(b.order_qty))}</td>
+              {shows("RIL PO") && (
+  <td className="whitespace-nowrap px-3 py-2">{noDate(v(b.ril_po_no), v(b.ril_po_date))}</td>
+              )}
+              {shows("Vendor SO") && (
+  <td className="whitespace-nowrap px-3 py-2">{noDate(v(b.vendor_so_no), v(b.vendor_so_date))}</td>
+              )}
+              {shows("Order Qty") && (
+  <td className="px-3 py-2 tabular-nums">{t(v(b.order_qty))}</td>
+              )}
               <td className="whitespace-nowrap px-3 py-2">
                 {d(v(b.expected_receipt_date))}
                 {vendor && (
@@ -1179,14 +1239,77 @@ function BoiListTable({
                   </button>
                 )}
               </td>
-              <td className="px-3 py-2 tabular-nums">{money(v(b.rate_per_unit))}</td>
-              <td className="px-3 py-2 tabular-nums">{money(v(b.total_value))}</td>
-              <td className="px-3 py-2 tabular-nums">{t(v(b.received_qty))}</td>
-              <td className="whitespace-nowrap px-3 py-2">{d(v(b.receipt_date))}</td>
+              {shows("Rate") && (
+  <td className="px-3 py-2 tabular-nums">{money(v(b.rate_per_unit))}</td>
+              )}
+              {shows("Total") && (
+  <td className="px-3 py-2 tabular-nums">{money(v(b.total_value))}</td>
+              )}
+              {shows("Recd Qty") && (
+  <td className="px-3 py-2 tabular-nums">{t(v(b.received_qty))}</td>
+              )}
+              {shows("Recd Date") && (
+  <td className="whitespace-nowrap px-3 py-2">{d(v(b.receipt_date))}</td>
+              )}
               <td className="whitespace-nowrap px-3 py-2">{<BoiTag item={b} />}</td>
             </tr>
           );
         })}
+      </tbody>
+    </table>
+  );
+}
+
+/** One bought-out item upright, for the split view's panel: every column of the BOI view. */
+function BoiPortrait({ b, onHistory }: { b: Row; onHistory: () => void }) {
+  const t = (v: unknown) => (v == null || String(v).trim() === "" ? "—" : String(v));
+  const d = (v: unknown) => (v ? formatDate(String(v)) : "—");
+  const money = (v: unknown) => (v == null || v === "" ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 }));
+  const vendor = b.vendor_order === "Yes";
+  // Vendor figures only when an order is placed.
+  const v = (x: unknown) => (vendor ? x : null);
+  const rows: [string, ReactNode][] = [
+    ["Item", <span key="i" className="font-semibold">{boiName(b)}</span>],
+    ["Make", t(b.boi_make)],
+    ["Qty", t(b.boi_qty)],
+    ["Description", t(b.boi_description)],
+    ["RIL Allocated", t(b.stock_allocated_qty)],
+    ["Vendor", vendor ? `${t(b.vendor_name)}${b.vendor_code ? ` · ${String(b.vendor_code)}` : ""}` : "No order"],
+    ["RIL PO", vendor ? `${t(b.ril_po_no)} · ${d(b.ril_po_date)}` : "—"],
+    ["Vendor SO", vendor ? `${t(b.vendor_so_no)} · ${d(b.vendor_so_date)}` : "—"],
+    ["Order Qty", t(v(b.order_qty))],
+    [
+      "Expected",
+      <span key="e" className="inline-flex items-center gap-1">
+        {d(v(b.expected_receipt_date))}
+        {vendor && (
+          <button type="button" onClick={onHistory} aria-label="Expected date history" title="Expected date history" className="rounded p-0.5 text-muted hover:text-primary">
+            <History className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </span>,
+    ],
+    ["Rate", money(v(b.rate_per_unit))],
+    ["Total", money(v(b.total_value))],
+    ["Recd Qty", t(v(b.received_qty))],
+    ["Recd Date", d(v(b.receipt_date))],
+    ["Status", <BoiTag key="s" item={b} />],
+  ];
+  return (
+    <table className="portrait-grid text-sm" style={{ gridTemplateRows: `repeat(${rows.length}, auto)` }}>
+      <tbody>
+        <tr>
+          {rows.map(([h]) => (
+            <th key={h}>{h}</th>
+          ))}
+        </tr>
+        <tr>
+          {rows.map(([h, c]) => (
+            <td key={h} className="text-foreground">
+              {c}
+            </td>
+          ))}
+        </tr>
       </tbody>
     </table>
   );
