@@ -103,24 +103,28 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
             // A panel as wide as its cells need, the row's spare width shared out —
             // but never stretched past roomy cells when it ends up alone on a row.
             style={{ flexGrow: g.cards.length, flexBasis: `${g.cards.length * 5.75}rem`, maxWidth: `${g.cards.length * 11}rem` }}
-            className="min-w-0 rounded-2xl border border-card-border bg-surface p-2.5 shadow-sm"
+            className="min-w-0 overflow-hidden rounded-2xl border border-card-border bg-surface shadow-sm"
           >
-            <h3 className="px-1.5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">{g.name || "Overview"}</h3>
-            <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${g.cards.length}, minmax(0, 1fr))` }}>
+            {/* The department as a navy band, as the department board's headings. */}
+            <h3 className="relative overflow-hidden bg-gradient-to-r from-[#1F3864] to-[#2F5496] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
+              <span className="pointer-events-none absolute -right-4 -top-6 h-14 w-14 rounded-full bg-white/[0.08]" aria-hidden />
+              {g.name || "Overview"}
+            </h3>
+            <div className="grid gap-1.5 p-2" style={{ gridTemplateColumns: `repeat(${g.cards.length}, minmax(0, 1fr))` }}>
               {g.cards.map((c) => {
                 const on = shown === c.key;
                 const tone = TONE[c.tone ?? "neutral"];
                 const ro = readOnly(c);
                 const body = (
                   <>
-                    <span className={`absolute inset-y-2 left-0 w-[3px] rounded-r-full ${tone.bar} ${ro ? "opacity-40" : ""}`} aria-hidden />
+                    <span className={`absolute inset-x-0 top-0 h-[3px] ${tone.bar} ${ro ? "opacity-40" : ""}`} aria-hidden />
                     <span className="line-clamp-2 min-h-[2.1em] text-[11px] font-medium leading-tight text-muted">{c.label}</span>
                     <Count c={c} reserve={reserve} className="mt-1 font-display text-[1.35rem] font-bold leading-none tabular-nums text-foreground" />
                   </>
                 );
-                const cell = "relative flex min-w-0 flex-col justify-between rounded-xl px-3 py-2 text-left";
+                const cell = "relative flex min-w-0 flex-col justify-between overflow-hidden rounded-xl border border-card-border px-3 pb-2 pt-2.5 text-left";
                 return ro ? (
-                  <div key={c.key} title={`${c.label}: a total, not a filter`} className={`${cell} bg-background/60`}>
+                  <div key={c.key} title={`${c.label}: a total, not a filter`} className={`${cell} bg-[#1F3864]/[0.03] dark:bg-white/[0.03]`}>
                     {body}
                   </div>
                 ) : (
@@ -130,7 +134,7 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
                     aria-pressed={on}
                     title={on ? "Click to clear" : `Show only: ${c.label}`}
                     onClick={() => pick(c, on)}
-                    className={`${cell} transition-colors ${on ? `${tone.on} ring-2 ${tone.ring}` : "bg-background/60 hover:bg-background"}`}
+                    className={`${cell} transition ${on ? `${tone.on} ring-2 ${tone.ring}` : "bg-surface hover:-translate-y-px hover:shadow-md"}`}
                   >
                     {body}
                   </button>

@@ -58,32 +58,24 @@ export function Metric({
   sub?: string;
   tone?: "default" | "good" | "warn" | "bad";
 }) {
-  const ring =
-    tone === "good"
-      ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 dark:text-emerald-400"
-      : tone === "warn"
-        ? "text-amber-600 bg-amber-50 dark:bg-amber-500/10 dark:text-amber-400"
-        : tone === "bad"
-          ? "text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400"
-          : "text-primary bg-primary/10";
-  // The figure carries its status too; a plain one stays in ink.
-  const ink =
-    tone === "good"
-      ? "text-emerald-700 dark:text-emerald-400"
-      : tone === "warn"
-        ? "text-amber-700 dark:text-amber-400"
-        : tone === "bad"
-          ? "text-rose-700 dark:text-rose-400"
-          : "text-foreground";
+  // The tone: the icon badge, the accent along the top and the glow behind; the figure carries it too.
+  const t = {
+    default: { badge: "from-[#1F3864] to-[#2F5496]", bar: "from-[#1F3864] to-[#5B8DEF]", glow: "bg-[#2F5496]/[0.07]", ink: "text-foreground" },
+    good: { badge: "from-emerald-600 to-teal-500", bar: "from-emerald-500 to-teal-400", glow: "bg-emerald-500/[0.08]", ink: "text-emerald-700 dark:text-emerald-400" },
+    warn: { badge: "from-amber-500 to-orange-400", bar: "from-amber-400 to-orange-400", glow: "bg-amber-500/[0.09]", ink: "text-amber-700 dark:text-amber-400" },
+    bad: { badge: "from-rose-600 to-pink-500", bar: "from-rose-500 to-pink-400", glow: "bg-rose-500/[0.08]", ink: "text-rose-700 dark:text-rose-400" },
+  }[tone];
   return (
-    <div className="flex min-w-0 flex-col rounded-2xl border border-card-border bg-surface p-3.5 shadow-sm">
-      <div className="flex items-start gap-2">
-        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${ring} [&>svg]:h-4 [&>svg]:w-4`}>{icon}</span>
+    <div className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-card-border bg-surface p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <span className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${t.bar}`} aria-hidden />
+      <span className={`pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full ${t.glow} transition group-hover:scale-110`} aria-hidden />
+      <div className="relative flex items-center gap-2.5">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${t.badge} text-white shadow-sm [&>svg]:h-[18px] [&>svg]:w-[18px]`}>{icon}</span>
         {/* Two lines at most, never cut off: the tiles are narrow six to a row. */}
-        <p className="line-clamp-2 min-h-[2.4em] pt-px text-[11px] font-semibold uppercase leading-tight tracking-wide text-muted">{label}</p>
+        <p className="line-clamp-2 text-[11px] font-semibold uppercase leading-tight tracking-wider text-muted">{label}</p>
       </div>
-      <p className={`mt-2.5 font-display text-[1.75rem] font-bold leading-none tabular-nums ${ink}`}>{value}</p>
-      {sub && <p className="mt-1.5 line-clamp-2 text-[11px] leading-snug text-muted">{sub}</p>}
+      <p className={`relative mt-3 font-display text-[2rem] font-bold leading-none tracking-tight tabular-nums ${t.ink}`}>{value}</p>
+      {sub && <p className="relative mt-2 line-clamp-2 text-[11px] leading-snug text-muted">{sub}</p>}
     </div>
   );
 }

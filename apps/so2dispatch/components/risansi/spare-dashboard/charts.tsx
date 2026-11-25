@@ -302,3 +302,143 @@ export function StackBar({
     </span>
   );
 }
+
+/** Which part of the journey a pipeline stage belongs to (the dashboard's phases). */
+const PHASE_OF: Record<string, string> = {
+  "No EC yet": "Planning",
+  "Date awaited": "Planning",
+  "In plan": "Planning",
+  "Partial ready": "Planning",
+  "Ready, not packed": "Planning",
+  "Ready, not assembled": "Planning",
+  "Assembly on": "Assembly & Packing",
+  "Assembled, not packed": "Assembly & Packing",
+  "Packing on": "Assembly & Packing",
+  "Packed, no slip yet": "Assembly & Packing",
+  "Packed, to dispatch": "Dispatch",
+  "Dispatch hold": "Dispatch",
+  "Lot dispatched": "Dispatch",
+  "Fully dispatched": "Dispatch",
+  "Cancelled / Diverted": "Closed",
+};
+
+/**
+ * The SO pipeline: its stages under the phase each belongs to (Planning,
+ * Assembly & Packing, Dispatch, Closed), each a thick bar with its count and
+ * share; a phase's heading says how many SOs it holds.
+ */
+export function Pipeline({ data }: { data: Datum[] }) {
+  const total = data.reduce((a, d) => a + d.count, 0);
+  const max = Math.max(1, ...data.map((d) => d.count));
+  const phases: { name: string; rows: Datum[] }[] = [];
+  for (const d of data) {
+    const name = PHASE_OF[d.label] ?? "Other";
+    const p = phases.find((x) => x.name === name) ?? phases[phases.push({ name, rows: [] }) - 1];
+    p.rows.push(d);
+  }
+  return (
+    <div className="space-y-4">
+      {phases.map((p) => {
+        const n = p.rows.reduce((a, d) => a + d.count, 0);
+        return (
+          <div key={p.name}>
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#2F5496] dark:text-sky-300">{p.name}</span>
+              <span className="h-px flex-1 bg-card-border" />
+              <span className="rounded-full bg-[#1F3864]/[0.07] px-2 py-0.5 text-[10.5px] font-semibold tabular-nums text-[#1F3864] dark:bg-white/10 dark:text-white">
+                {n} SOs · {pct(n, total)}
+              </span>
+            </div>
+            <ul className="space-y-1">
+              {p.rows.map((d) => (
+                <li key={d.label} className="group grid grid-cols-[minmax(7rem,10.5rem)_1fr_4.5rem] items-center gap-3 rounded-lg px-1.5 py-1 transition-colors hover:bg-background" title={`${d.label}: ${d.count} SOs (${pct(d.count, total)})`}>
+                  <span className={`truncate text-[13px] ${d.count ? "text-foreground" : "text-muted"}`}>{d.label}</span>
+                  <span className="relative h-5 overflow-hidden rounded-md bg-[var(--viz-grid)]/60">
+                    <span
+                      className="absolute inset-y-0 left-0 rounded-md transition-[width] duration-700 group-hover:brightness-110"
+                      style={{ width: d.count ? `max(${(d.count / max) * 100}%, 6px)` : 0, background: d.color }}
+                    />
+                  </span>
+                  <span className="flex items-baseline justify-end gap-1.5 tabular-nums">
+                    <b className={`text-[13px] ${d.count ? "text-foreground" : "text-muted"}`}>{d.count}</b>
+                    <span className="w-8 text-right text-[10.5px] text-muted">{pct(d.count, total)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A large donut with its legend as small tiles: each status's colour, count and share. */
+export function DonutTiles({ data, centerLabel }: { data: Datum[]; centerLabel: string }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const total = data.reduce((a, d) => a + d.count, 0);
+  const R = 74;
+  const r = 52;
+  const C = 2 * Math.PI;
+  const point = (rad: number, a: number) => [90 + rad * Math.cos(a), 90 + rad * Math.sin(a)];
+  // Each status's arc, one after the other from the top.
+  const arcs = data.reduce<{ d: Datum; a0: number; a1: number }[]>((acc, d) => {
+    const a0 = acc.length ? acc[acc.length - 1].a1 : -Math.PI / 2;
+    return [...acc, { d, a0, a1: a0 + (total ? (d.count / total) * C : 0) }];
+  }, []);
+  const path = (a0: number, a1: number) => {
+    if (a1 - a0 >= C - 1e-6) a1 = a0 + C - 1e-4;
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const [x0, y0] = point(R, a0);
+    const [x1, y1] = point(R, a1);
+    const [x2, y2] = point(r, a1);
+    const [x3, y3] = point(r, a0);
+    return `M${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} L${x2},${y2} A${r},${r} 0 ${large} 0 ${x3},${y3} Z`;
+  };
+  const shown = hover !== null ? data[hover] : null;
+  return (
+    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+      <svg viewBox="0 0 180 180" className="h-48 w-48 shrink-0 drop-shadow-sm" role="img" aria-label={`${centerLabel}: ${data.map((d) => `${d.label} ${d.count}`).join(", ")}`}>
+        <circle cx="90" cy="90" r={(R + r) / 2} fill="none" stroke="var(--viz-grid)" strokeWidth={R - r} />
+        {arcs.map(({ d, a0, a1 }, i) =>
+          a1 > a0 ? (
+            <path
+              key={d.label}
+              d={path(a0, a1)}
+              fill={d.color}
+              stroke="var(--viz-surface)"
+              strokeWidth={2.5}
+              opacity={hover === null || hover === i ? 1 : 0.3}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              className="transition-opacity"
+            />
+          ) : null
+        )}
+        <text x="90" y="88" textAnchor="middle" className="fill-[var(--viz-ink)] text-[30px] font-bold">
+          {shown ? shown.count : total}
+        </text>
+        <text x="90" y="108" textAnchor="middle" className="fill-[var(--viz-text)] text-[10px]">
+          {shown ? shown.label : centerLabel}
+        </text>
+      </svg>
+      <ul className="grid w-full flex-1 grid-cols-2 gap-2">
+        {data.map((d, i) => (
+          <li
+            key={d.label}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+            className={`relative overflow-hidden rounded-xl border border-card-border px-3 py-2 transition ${hover === i ? "bg-background shadow-sm" : "bg-surface"}`}
+          >
+            <span className="absolute inset-y-0 left-0 w-1" style={{ background: d.color }} />
+            <p className="truncate text-[11px] font-medium text-muted">{d.label}</p>
+            <p className="mt-0.5 flex items-baseline gap-1.5">
+              <b className="text-lg leading-none tabular-nums text-foreground">{d.count}</b>
+              <span className="text-[11px] tabular-nums text-muted">{pct(d.count, total)}</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
