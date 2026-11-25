@@ -5046,6 +5046,9 @@ function orderListStatusCards(kind: "spare" | "pump"): KpiCardDef[] {
   ];
 }
 
+/** Planning's group of Fully ready SOs still waiting on Assembly & Packing. */
+export const READY_WAITING = "Fully ready, waiting on Assembly & Packing";
+
 export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOverdue = true): KpiCardDef[] {
   // Accounts: its SOs, and where its own Clear / Hold stands on them — nothing else.
   if (dept === "accounts") {
@@ -5099,54 +5102,57 @@ export function deptKpiCards(dept: DeptFilterKey, types: string[] = [], withOver
         }]
       : []),
     ...(pumpPlanning ? [{ key: "pumps", label: "Pumps", sql: null, params: {}, tone: "neutral" as const, measure: pumpQty }] : []),
-    ...statuses.flatMap((st) =>
-      // Planning's Fully ready on a Pump: ready but not assembled yet, and
-      // ready and assembled but not packed yet — what waits on Assembly & Packing.
-      planning && st === "Fully ready" && pump && !spare
-        ? [
-            {
-              key: "s:ready_unassembled",
-              label: "Fully ready (not assembled)",
-              sql: `${SO_PLANNING_STATUS} = 'Fully ready'
-                    AND ${soStageStatusSql("assembly", "o")} = 'Assembly pending' AND ${orderOpenSql("o")}`,
-              params: { ...clear, dstatus: st, pack: "Not assembled" },
-              tone: toneFor(st),
-            },
-            {
-              key: "s:ready_unpacked",
-              label: "Fully ready & assembled (not packed)",
-              sql: `${SO_PLANNING_STATUS} = 'Fully ready'
-                    AND ${soStageStatusSql("assembly", "o")} = 'Fully assembled'
-                    AND ${soStageStatusSql("packing", "o")} = 'Packing pending' AND ${orderOpenSql("o")}`,
-              params: { ...clear, dstatus: st, pack: "Fully assembled,Not packed" },
-              tone: toneFor(st),
-            },
-          ]
-        : // Planning's Fully ready card: ready and not packed yet — what is waiting on Assembly & Packing.
-          planning && st === "Fully ready"
-        ? {
-            key: `s:${st}`,
-            label: "Fully ready (not packed)",
-            sql: `${SO_PLANNING_STATUS} = 'Fully ready'
-                  AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND (${packingState("Not packed")}))
-                  AND ${orderOpenSql("o")}`,
-            params: { ...clear, dstatus: st, pack: "Not packed" },
-            tone: toneFor(st),
-          }
-        : {
-            key: `s:${st}`,
-            // Dispatch's own Hold reads as a dispatch hold, not a clearance one.
-            label: dept === "dispatch" && st === "Hold" ? "Dispatch hold" : st,
-            sql: `(${deptStatusPredicate(dept, st)}) AND ${orderOpenSql("o")}`,
-            params: { ...clear, dstatus: st },
-            tone: toneFor(st),
-          }
-    ),
+    ...statuses.map((st) => ({
+      key: `s:${st}`,
+      // Dispatch's own Hold reads as a dispatch hold, not a clearance one.
+      label: dept === "dispatch" && st === "Hold" ? "Dispatch hold" : st,
+      sql: `(${deptStatusPredicate(dept, st)}) AND ${orderOpenSql("o")}`,
+      params: { ...clear, dstatus: st },
+      tone: toneFor(st),
+    })),
     ...(withOverdue
       ? [{ key: "overdue", label: "Overdue", sql: `(${deptOverduePredicate(dept)}) AND ${orderOpenSql("o")}`, params: { ...clear, overdue: "1" }, tone: "danger" as const }]
       : []),
     // Every department: its SOs on any hold, and on each kind.
     ...totalHoldCard(dept, clear),
+    // Planning: of its Fully ready SOs, what still waits on Assembly & Packing —
+    // after the holds, a group of their own (the page sets them a little apart).
+    ...(planning && statuses.includes("Fully ready")
+      ? pump && !spare
+        ? [
+            {
+              key: "s:ready_unassembled",
+              label: "Fully ready (not assembled)",
+              group: READY_WAITING,
+              sql: `${SO_PLANNING_STATUS} = 'Fully ready'
+                    AND ${soStageStatusSql("assembly", "o")} = 'Assembly pending' AND ${orderOpenSql("o")}`,
+              params: { ...clear, dstatus: "Fully ready", pack: "Not assembled" },
+              tone: toneFor("Fully ready"),
+            },
+            {
+              key: "s:ready_unpacked",
+              label: "Fully ready & assembled (not packed)",
+              group: READY_WAITING,
+              sql: `${SO_PLANNING_STATUS} = 'Fully ready'
+                    AND ${soStageStatusSql("assembly", "o")} = 'Fully assembled'
+                    AND ${soStageStatusSql("packing", "o")} = 'Packing pending' AND ${orderOpenSql("o")}`,
+              params: { ...clear, dstatus: "Fully ready", pack: "Fully assembled,Not packed" },
+              tone: toneFor("Fully ready"),
+            },
+          ]
+        : [
+            {
+              key: "s:ready_notpacked",
+              label: "Fully ready (not packed)",
+              group: READY_WAITING,
+              sql: `${SO_PLANNING_STATUS} = 'Fully ready'
+                  AND EXISTS (SELECT 1 FROM order_items it WHERE it.order_id = o.id AND (${packingState("Not packed")}))
+                  AND ${orderOpenSql("o")}`,
+              params: { ...clear, dstatus: "Fully ready", pack: "Not packed" },
+              tone: toneFor("Fully ready"),
+            },
+          ]
+      : []),
   ];
   // Each status card says how many of its SOs Central Visibility holds — counted in it, the hold a badge.
   const withHeld = cards.map((c) => (c.key.startsWith("s:") ? { ...c, held: CV_HOLD_SQL } : c));
