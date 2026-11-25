@@ -128,8 +128,6 @@ function DeptProgress({ depts, total }: { depts: DeptRow[]; total: number }) {
 
 export function PumpDashboardView({ data }: { data: PumpDashboard }) {
   const m = data.metrics;
-  // The pipeline leaves the On hold bar out (the On hold card and list show the holds).
-  const stages: Datum[] = data.stages.filter((s) => s.label !== "On hold").map((s) => ({ ...s, color: STAGE_COLOR[s.label as PumpStage] }));
   // Each GAD stage keeps its colour, whichever stages are present.
   const GAD_COLORS: Record<string, string> = {
     Pending: "var(--viz-yellow)",
@@ -182,7 +180,7 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
       {/* Where the SOs stand, and how dispatch has gone. */}
       <div className="grid gap-5 lg:grid-cols-5">
         <ChartCard title="SO pipeline" sub="Every SO in view under the department it has reached, at that department's own status — each SO once" className="lg:col-span-3">
-          <Pipeline data={stages} />
+          <Pipeline rows={data.pipeline} money={money} />
         </ChartCard>
         <ChartCard title="Dispatch status" sub="All SOs in view" className="lg:col-span-2">
           <DonutTiles data={dispatchData(data.dispatchMix)} centerLabel="SOs" />

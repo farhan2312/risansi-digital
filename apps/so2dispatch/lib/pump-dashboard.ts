@@ -21,6 +21,7 @@ import type { KpiCard } from "@/lib/kpis";
 import type { OrderListFilter } from "@/lib/order-list-filter";
 import { CLOSED } from "@/lib/order-row-view";
 import { stageByCards } from "@/lib/dashboard-stages";
+import { pipelineByStatus, type PipelineRow } from "@/lib/dept-board";
 import type { Bucket, RepRow } from "@/lib/spare-dashboard";
 
 /** Where a pump SO stands, earliest first: Planning, then Assembly, Packing and Dispatch. */
@@ -81,6 +82,8 @@ export type PumpDashboard = {
   kpis: KpiCard[];
   asOf: string;
   stages: Bucket[];
+  /** The SO pipeline in the department board's own statuses (lib/dept-board). */
+  pipeline: PipelineRow[];
   dispatchMix: Bucket[];
   intake: Bucket[];
   zones: Bucket[];
@@ -423,6 +426,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     kpis: result.kpis ?? [],
     asOf: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }),
     stages: PUMP_STAGES.map((st) => ({ label: st, count: count(sos, st) })),
+    pipeline: await pipelineByStatus(ids, "pump"),
     dispatchMix,
     intake: months,
     zones: group((s) => s.zone, sos).sort((a, b) => b.count - a.count),

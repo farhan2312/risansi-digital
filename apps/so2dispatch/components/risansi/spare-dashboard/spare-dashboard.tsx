@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CalendarClock, Gauge, IndianRupee, PackageOpen, PauseCircle } from "lucide-react";
 import type { SpareDashboard, Stage } from "@/lib/spare-dashboard";
-import { ChartCard, DonutTiles, Pipeline, VizStyles, type Datum } from "./charts";
+import { ChartCard, DonutTiles, Pipeline, VizStyles } from "./charts";
 import { IntakeCard, Metric, RepCard, WatchHoldCards, ZoneClientCards, dispatchData, money, type RepGroup } from "./shared";
 
 /** Each open stage's colour: the pipeline as one blue ramp, earliest lightest; a hold in orange. */
@@ -46,8 +46,6 @@ const REP_GROUPS: RepGroup<Stage>[] = [
 
 export function SpareDashboardView({ data }: { data: SpareDashboard }) {
   const m = data.metrics;
-  // The pipeline leaves the On hold bar out (the On hold card and list show the holds).
-  const stages: Datum[] = data.stages.filter((s) => s.label !== "On hold").map((s) => ({ ...s, color: STAGE_COLOR[s.label as Stage] }));
 
   return (
     <div className="viz space-y-5">
@@ -77,7 +75,7 @@ export function SpareDashboardView({ data }: { data: SpareDashboard }) {
       {/* Where the open SOs stand, and how dispatch has gone. */}
       <div className="grid gap-5 lg:grid-cols-5">
         <ChartCard title="SO pipeline" sub="Every SO in view under the department it has reached, at that department's own status — each SO once" className="lg:col-span-3">
-          <Pipeline data={stages} />
+          <Pipeline rows={data.pipeline} money={money} />
         </ChartCard>
         <ChartCard title="Dispatch status" sub="All SOs in view" className="lg:col-span-2">
           <DonutTiles data={dispatchData(data.dispatchMix)} centerLabel="SOs" />

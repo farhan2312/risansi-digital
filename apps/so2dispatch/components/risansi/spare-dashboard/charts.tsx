@@ -303,132 +303,106 @@ export function StackBar({
   );
 }
 
-/**
- * Each pipeline stage as the department it sits with and that department's
- * own status (as its page and cards name it), so the pipeline reads in the
- * same words as the department board.
- */
-const STAGE_STATUS: Record<string, { dept: string; status: string }> = {
-  "No EC yet": { dept: "Order Making", status: "No EC yet" },
-  "Date awaited": { dept: "Planning", status: "Date awaited" },
-  "In plan": { dept: "Planning", status: "In plan" },
-  "Partial ready": { dept: "Planning", status: "Partial ready" },
-  "Ready, not packed": { dept: "Planning", status: "Fully ready (not packed)" },
-  "Ready, not assembled": { dept: "Planning", status: "Fully ready (not assembled)" },
-  "Assembly on": { dept: "Assembly & Packing", status: "Partial assembled" },
-  "Assembled, not packed": { dept: "Assembly & Packing", status: "Fully assembled (packing pending)" },
-  "Packing on": { dept: "Assembly & Packing", status: "Partially packed" },
-  "Packed, no slip yet": { dept: "Assembly & Packing", status: "Fully packed (no packing slip yet)" },
-  "Packed, to dispatch": { dept: "Dispatch", status: "Pending" },
-  "Dispatch hold": { dept: "Dispatch", status: "Hold" },
-  "Lot dispatched": { dept: "Dispatch", status: "LOT dispatch" },
-  "Fully dispatched": { dept: "Dispatch", status: "Fully dispatch" },
-  "Cancelled / Diverted": { dept: "Closed", status: "Cancelled by client / Diverted" },
-};
-const PHASE_OF: Record<string, string> = Object.fromEntries(Object.entries(STAGE_STATUS).map(([k, v]) => [k, v.dept]));
+/** A row of the SO pipeline: a department's own status (as the department board shows it), its SOs and value. */
+export type PipelineStatus = { dept: string; key: string; label: string; tone: string; count: number; value: number };
 
-/**
- * The SO pipeline: its stages under the phase each belongs to (Planning,
- * Assembly & Packing, Dispatch, Closed), each a thick bar with its count and
- * share; a phase's heading says how many SOs it holds.
- */
-/** What each stage means, in plain words, under its name. */
-const STAGE_INFO: Record<string, string> = {
-  "No EC yet": "SO made; no EC added to it yet",
-  "Date awaited": "Planning has not set a readiness date yet",
-  "In plan": "Readiness date set; nothing ready yet",
-  "Partial ready": "Some ECs or lots ready, not all",
-  "Ready, not packed": "Fully ready; Assembly & Packing has not packed it",
-  "Ready, not assembled": "Fully ready; assembly not started",
-  "Assembly on": "Being assembled",
-  "Assembled, not packed": "Fully assembled; packing not started",
-  "Packing on": "Being packed",
-  "Packed, no slip yet": "Packed; the packing slip is not filed yet",
-  "Packed, to dispatch": "Packing slip filed; waiting for Dispatch to send it",
-  "Dispatch hold": "Dispatch has put it on hold",
-  "Lot dispatched": "Part sent; more lots to go",
-  "Fully dispatched": "Everything sent",
-  "Cancelled / Diverted": "Closed: cancelled by the client, or diverted",
+/** The board's tones as colours. */
+const TONE_COLOR: Record<string, string> = {
+  done: "var(--viz-aqua)",
+  part: "var(--viz-blue)",
+  pending: "var(--viz-yellow)",
+  danger: "var(--viz-red)",
+  neutral: "var(--viz-gray)",
+};
+/** What each part of the pipeline holds. */
+const DEPT_NOTE: Record<string, string> = {
+  "Not with Planning yet": "Made, but not yet on Planning's page (no EC, or not released)",
+  Planning: "On Planning's page, not yet with Assembly & Packing",
+  "Assembly & Packing": "With Assembly & Packing, no packing slip yet",
+  Dispatch: "Packing slip filed: with Dispatch",
+  Closed: "Cancelled by the client, or diverted",
 };
 
-/** The phases in the order an SO moves through them. */
-const PHASES = ["Order Making", "Planning", "Assembly & Packing", "Dispatch", "Closed"];
-
-export function Pipeline({ data }: { data: Datum[] }) {
-  const total = data.reduce((a, d) => a + d.count, 0);
-  const max = Math.max(1, ...data.map((d) => d.count));
-  const phases: { name: string; rows: Datum[] }[] = [];
-  for (const d of data) {
-    const name = PHASE_OF[d.label] ?? "Other";
-    const p = phases.find((x) => x.name === name) ?? phases[phases.push({ name, rows: [] }) - 1];
-    p.rows.push(d);
+/**
+ * The SO pipeline in the department board's own statuses: each SO once, under
+ * the department it has reached furthest (Planning → Assembly & Packing →
+ * Dispatch) and at that department's status, as the board counts it.
+ */
+export function Pipeline({ rows, money }: { rows: PipelineStatus[]; money: (n: number) => string }) {
+  const total = rows.reduce((a, d) => a + d.count, 0);
+  const max = Math.max(1, ...rows.map((d) => d.count));
+  const depts: { name: string; rows: PipelineStatus[] }[] = [];
+  for (const d of rows) {
+    const g = depts.find((x) => x.name === d.dept) ?? depts[depts.push({ name: d.dept, rows: [] }) - 1];
+    g.rows.push(d);
   }
-  const sumOf = (name: string) => phases.find((p) => p.name === name)?.rows.reduce((a, d) => a + d.count, 0) ?? 0;
-  const steps = PHASES.filter((n) => phases.some((p) => p.name === n));
+  const sum = (list: PipelineStatus[]) => list.reduce((a, d) => a + d.count, 0);
+  const val = (list: PipelineStatus[]) => list.reduce((a, d) => a + d.value, 0);
+  const flow = depts.filter((d) => d.name !== "Closed" && d.name !== "Not with Planning yet");
   return (
     <div className="space-y-4">
-      {/* The journey at a glance: how many SOs are at each phase. */}
+      {/* The journey at a glance: how many SOs are with each department. */}
       <div className="flex flex-wrap items-stretch gap-1.5">
-        {steps.map((n, i) => (
-          <div key={n} className="flex min-w-[7.5rem] flex-1 items-center gap-1.5">
-            <div className={`flex-1 rounded-xl border px-3 py-2 ${n === "Closed" ? "border-card-border bg-background/60" : "border-[#2F5496]/20 bg-[#2F5496]/[0.05]"}`}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#2F5496] dark:text-sky-300">
-                {n === "Closed" ? "" : `${i + 1}. `}
-                {n}
+        {depts.map((d, i) => (
+          <div key={d.name} className="flex min-w-[7.5rem] flex-1 items-center gap-1.5">
+            <div className={`flex-1 rounded-xl border px-3 py-2 ${flow.includes(d) ? "border-[#2F5496]/20 bg-[#2F5496]/[0.05]" : "border-card-border bg-background/60"}`}>
+              <p className="truncate text-[10px] font-bold uppercase tracking-[0.1em] text-[#2F5496] dark:text-sky-300">
+                {flow.includes(d) ? `${flow.indexOf(d) + 1}. ` : ""}
+                {d.name}
               </p>
               <p className="mt-0.5 flex items-baseline gap-1.5">
-                <b className="text-lg tabular-nums text-foreground">{sumOf(n)}</b>
-                <span className="text-[11px] text-muted">SOs · {pct(sumOf(n), total)}</span>
+                <b className="text-lg tabular-nums text-foreground">{sum(d.rows)}</b>
+                <span className="text-[11px] text-muted">SOs · {pct(sum(d.rows), total)}</span>
               </p>
+              <p className="text-[10.5px] font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(val(d.rows))}</p>
             </div>
-            {i < steps.length - 1 && <span className="text-muted" aria-hidden>→</span>}
+            {i < depts.length - 1 && <span className="text-muted" aria-hidden>→</span>}
           </div>
         ))}
       </div>
 
-      {phases.map((p, pi) => {
-        const n = p.rows.reduce((a, d) => a + d.count, 0);
-        return (
-          <div key={p.name}>
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2F5496] text-[10px] font-bold text-white">{p.name === "Closed" ? "✕" : pi + 1}</span>
-              <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#2F5496] dark:text-sky-300">{p.name}</span>
-              <span className="h-px flex-1 bg-card-border" />
-              <span className="rounded-full bg-[#1F3864]/[0.07] px-2 py-0.5 text-[10.5px] font-semibold tabular-nums text-[#1F3864] dark:bg-white/10 dark:text-white">
-                {n} SOs · {pct(n, total)}
-              </span>
-            </div>
-            <ul className="space-y-0.5">
-              {p.rows.map((d) => (
-                <li
-                  key={d.label}
-                  className="group grid grid-cols-[minmax(9rem,14rem)_1fr_4.5rem] items-center gap-3 rounded-lg px-1.5 py-1 transition-colors hover:bg-background"
-                  title={`${PHASE_OF[d.label] ?? ""} · ${STAGE_STATUS[d.label]?.status ?? d.label}: ${STAGE_INFO[d.label] ?? ""} — ${d.count} SOs (${pct(d.count, total)})`}
-                >
-                  <span className="min-w-0">
-                    <span className={`block truncate text-[13px] font-medium ${d.count ? "text-foreground" : "text-muted"}`}>{STAGE_STATUS[d.label]?.status ?? d.label}</span>
-                    {STAGE_INFO[d.label] && <span className="block truncate text-[10.5px] leading-tight text-muted">{STAGE_INFO[d.label]}</span>}
-                  </span>
-                  <span className="relative h-5 overflow-hidden rounded-md bg-[var(--viz-grid)]/60">
-                    <span
-                      className="absolute inset-y-0 left-0 rounded-md transition-[width] duration-700 group-hover:brightness-110"
-                      style={{ width: d.count ? `max(${(d.count / max) * 100}%, 6px)` : 0, background: d.color }}
-                    />
-                  </span>
-                  <span className="flex items-baseline justify-end gap-1.5 tabular-nums">
-                    <b className={`text-[13px] ${d.count ? "text-foreground" : "text-muted"}`}>{d.count}</b>
-                    <span className="w-8 text-right text-[10.5px] text-muted">{pct(d.count, total)}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+      {depts.map((d) => (
+        <div key={d.name}>
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${flow.includes(d) ? "bg-[#2F5496]" : "bg-slate-400"}`}>
+              {flow.includes(d) ? flow.indexOf(d) + 1 : "·"}
+            </span>
+            <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#2F5496] dark:text-sky-300">{d.name}</span>
+            <span className="hidden truncate text-[10.5px] text-muted sm:inline">{DEPT_NOTE[d.name]}</span>
+            <span className="h-px flex-1 bg-card-border" />
+            <span className="rounded-full bg-[#1F3864]/[0.07] px-2 py-0.5 text-[10.5px] font-semibold tabular-nums text-[#1F3864] dark:bg-white/10 dark:text-white">
+              {sum(d.rows)} SOs · {pct(sum(d.rows), total)}
+            </span>
           </div>
-        );
-      })}
+          <ul className="space-y-0.5">
+            {d.rows.map((x) => (
+              <li
+                key={x.key}
+                className="group grid grid-cols-[minmax(8rem,13rem)_1fr_3rem_4.5rem] items-center gap-3 rounded-lg px-1.5 py-1 transition-colors hover:bg-background"
+                title={`${d.name} · ${x.label}: ${x.count} SOs (${pct(x.count, total)}), ${money(x.value)}`}
+              >
+                <span className={`truncate text-[13px] font-medium ${x.count ? "text-foreground" : "text-muted"}`}>{x.label}</span>
+                <span className="relative h-5 overflow-hidden rounded-md bg-[var(--viz-grid)]/60">
+                  <span
+                    className="absolute inset-y-0 left-0 rounded-md transition-[width] duration-700 group-hover:brightness-110"
+                    style={{ width: x.count ? `max(${(x.count / max) * 100}%, 6px)` : 0, background: TONE_COLOR[x.tone] ?? TONE_COLOR.neutral }}
+                  />
+                </span>
+                <span className="flex items-baseline justify-end gap-1 tabular-nums">
+                  <b className={`text-[13px] ${x.count ? "text-foreground" : "text-muted"}`}>{x.count}</b>
+                  <span className="text-[10px] text-muted">{pct(x.count, total)}</span>
+                </span>
+                <span className={`text-right text-[11px] font-semibold tabular-nums ${x.count ? "text-[#2F5496] dark:text-sky-300" : "text-muted"}`}>{money(x.value)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
       <p className="flex gap-1.5 rounded-lg bg-background/70 px-2.5 py-2 text-[11px] leading-relaxed text-muted">
         <span className="font-bold text-[#2F5496]">i</span>
         <span>
-          Each SO is counted <b>once</b>, under the department it has reached furthest and at that department&apos;s own status (as on its page and the department board). Dispatch&apos;s hold is a stage of its own; an SO on an Order Making or Accounts hold stays at its stage, and only one that has reached no stage is left to the On hold card. Central Visibility&apos;s hold never moves an SO.
+          The statuses are the department board&apos;s, counted by the same cards. Each SO appears <b>once</b>, under the furthest department it has reached,
+          so a department here can show fewer SOs than its card on the board (which also counts SOs that have moved on). An SO counts with Assembly &amp; Packing once it has begun there; until then it stays with Planning.
         </span>
       </p>
     </div>

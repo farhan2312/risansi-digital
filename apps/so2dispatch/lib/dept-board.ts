@@ -16,7 +16,7 @@ import {
   type DeptCell,
   type EcDeptStatus,
 } from "@/lib/orders";
-import { DEPT_VIEWS, deptQueueSql } from "@/lib/dept-view";
+import { DEPT_VIEWS, deptQueueSql, orderStatusSql, CLOSED_ORDER_STATUSES } from "@/lib/dept-view";
 import { pumpViewRestrict } from "@/lib/assembly";
 import { assemblyPumpCards, drawingCards, purchaseCards, qcCards } from "@/lib/dept-cards";
 import { orderTypeText } from "@/lib/order-schema";
@@ -187,4 +187,63 @@ export async function loadDeptPage(
     rows.push(row);
   }
   return { cards, rows, kind, today };
+}
+
+/** One row of the Dashboard's SO pipeline: a department's status, its SOs and their value. */
+export type PipelineRow = { dept: string; key: string; label: string; tone: string; count: number; value: number };
+
+/**
+ * The Dashboard's SO pipeline in the department board's own statuses: each SO
+ * once, at the furthest of Planning → Assembly & Packing → Dispatch whose
+ * queue it is in and whose status card it matches (the same cards, the same
+ * rules as the board). Those in none: cancelled or diverted, or not with
+ * Planning yet.
+ */
+export async function pipelineByStatus(orderIds: string[], kind: "spare" | "pump"): Promise<PipelineRow[]> {
+  const ids = orderIds.filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (!ids.length) return [];
+  const order: [BoardDeptKey, string][] = [
+    ["dispatch", "Dispatch"],
+    ["assembly", "Assembly & Packing"],
+    ["planning", "Planning"],
+  ];
+  const picks = order.flatMap(([key, dept]) => {
+    const spec = deptSpec(key, kind);
+    // Furthest first within a department too: packing before assembly. A
+    // starting status (nothing begun there yet) leaves the SO to the
+    // department before, so Assembly & Packing holds only SOs it has begun.
+    const starting = ["Assembly pending", "Packing pending"];
+    const rank = (l: string) => (/packed|packing/i.test(l) ? 0 : 1);
+    return spec.cards
+      .filter((c) => c.sql && !c.measure && !c.group && cardRole(c) === "status" && !(key === "assembly" && starting.includes(c.label)))
+      .sort((x, y) => (key === "assembly" ? rank(x.label) - rank(y.label) : 0))
+      .map((c) => ({ dept, key: `${key}::${c.key}`, label: c.label, tone: c.tone ?? "neutral", pos: spec.cards.indexOf(c), when: `(${spec.restrict}) AND (${c.sql})` }));
+  });
+  const CLOSED = "closed::closed";
+  const NOT_YET = "none::none";
+  const r = await query<{ stage: string; n: number; value: number }>(
+    `SELECT stage, count(*)::int AS n, COALESCE(sum(v), 0)::float8 AS value FROM (
+       SELECT CASE WHEN ${orderStatusSql("o")} = ANY($2::text[]) THEN '${CLOSED}'
+                   ${picks.map((p, i) => `WHEN ${p.when} THEN $${i + 3}::text`).join("\n                   ")}
+                   ELSE '${NOT_YET}' END AS stage,
+              ${ORDER_VALUE_INR} AS v
+         FROM orders o WHERE o.id = ANY($1::uuid[]) AND NOT ${TEST_SO_SQL("o")}) s
+     GROUP BY stage`,
+    [ids, [...CLOSED_ORDER_STATUSES], ...picks.map((p) => p.key)]
+  );
+  const got = new Map(r.rows.map((x) => [x.stage, x]));
+  // Earliest first, as an SO moves: Planning, then Assembly & Packing, then Dispatch.
+  const rows: PipelineRow[] = [];
+  const notYet = got.get(NOT_YET);
+  if (notYet) rows.push({ dept: "Not with Planning yet", key: NOT_YET, label: "Not with Planning yet", tone: "neutral", count: notYet.n, value: notYet.value });
+  for (const [, dept] of [...order].reverse()) {
+    // Shown in the department's own card order (as its page and the board list them).
+    for (const p of picks.filter((x) => x.dept === dept).sort((x, y) => x.pos - y.pos)) {
+      const g = got.get(p.key);
+      rows.push({ dept, key: p.key, label: p.label, tone: p.tone, count: g?.n ?? 0, value: g?.value ?? 0 });
+    }
+  }
+  const closed = got.get(CLOSED);
+  if (closed) rows.push({ dept: "Closed", key: CLOSED, label: "Cancelled by client / Diverted", tone: "neutral", count: closed.n, value: closed.value });
+  return rows;
 }
