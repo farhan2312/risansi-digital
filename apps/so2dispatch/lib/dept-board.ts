@@ -10,7 +10,6 @@ import {
   deptKpiCards,
   listOrderDeptStatuses,
   listOrderIdsMatching,
-  orderMakingKpiCards,
   sectionItemsSql,
   TEST_SO_SQL,
   type DeptCell,
@@ -41,8 +40,6 @@ const kindOf = (filter: OrderListFilter): "spare" | "pump" => ordersKind(filter.
 function deptSpec(dept: BoardDeptKey, kind: "spare" | "pump"): { cards: KpiCardDef[]; restrict: string } {
   const pump = kind === "pump";
   switch (dept) {
-    case "order-making":
-      return { cards: orderMakingKpiCards(pump ? ["Pump", "ROLB"] : ["Spare"]), restrict: "TRUE" };
     case "drawing":
       return { cards: drawingCards(), restrict: `${deptQueueSql("drawing")} AND ${sectionItemsSql("drawing")}` };
     case "purchase":

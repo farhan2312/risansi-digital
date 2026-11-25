@@ -6,7 +6,6 @@
 import type { KpiCard, KpiTone } from "@/lib/kpis";
 
 export const BOARD_DEPTS = [
-  { key: "order-making", label: "Order Making", icon: "file", page: "/risansi/departments/order-making" },
   { key: "drawing", label: "Drawing", icon: "ruler", page: "/risansi/departments/drawing" },
   { key: "purchase", label: "Purchase", icon: "cart", page: "/risansi/departments/purchase" },
   { key: "billing", label: "Billing", icon: "receipt", page: "/risansi/departments/billing" },
@@ -34,7 +33,8 @@ export type CardRole = "total" | "status" | "overdue" | "hold";
 export function cardRole(c: Pick<KpiCard, "key" | "measure" | "tone">): CardRole {
   if (c.key === "all" || c.key === "ecs" || c.key === "pumps" || c.key === "boi") return "total";
   if (c.key === "overdue") return "overdue";
-  if (c.key.startsWith("hold") || c.key === "omhold" || c.key === "ahold:Hold") return "hold";
+  // Accounts Hold is Accounts' own status (Clear / Hold / Not set), not a hold card.
+  if (c.key.startsWith("hold") || c.key === "omhold") return "hold";
   return "status";
 }
 

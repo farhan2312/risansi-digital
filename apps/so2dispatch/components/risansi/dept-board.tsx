@@ -159,11 +159,11 @@ function Column({ col, kind, query }: { col: BoardColumn; kind: "spare" | "pump"
   const all = totals.find((t) => t.key === "all");
   const others = totals.filter((t) => t.key !== "all");
   return (
-    <div className="flex w-[17rem] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-sm ring-1 ring-card-border">
+    <div className="flex h-[30rem] w-[17rem] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-sm ring-1 ring-card-border">
       {/* The heading: the department, its SOs and its totals; opens its dashboard. */}
       <Link
         href={`/risansi/orders/board/${col.key}${query ? `?${query}` : ""}`}
-        className="group relative overflow-hidden bg-gradient-to-br from-[#1F3864] to-[#2F5496] px-3.5 pb-3 pt-3 text-white"
+        className="group relative shrink-0 overflow-hidden bg-gradient-to-br from-[#1F3864] to-[#2F5496] px-3.5 pb-3 pt-3 text-white"
         title={`Open the ${dept.label} dashboard`}
       >
         <span className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/[0.07]" />
@@ -174,7 +174,7 @@ function Column({ col, kind, query }: { col: BoardColumn; kind: "spare" | "pump"
           <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{dept.label}</span>
           <ArrowUpRight className="h-4 w-4 text-white/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
         </div>
-        <div className="mt-2.5 flex items-end gap-3">
+        <div className="mt-2.5 flex flex-wrap items-end gap-x-3 gap-y-2">
           <div>
             <p className="text-[26px] font-bold leading-none tabular-nums">{nf.format(all?.count ?? 0)}</p>
             <p className="mt-1 text-[10.5px] uppercase tracking-wide text-white/65">{all?.label ?? "SOs"}</p>
@@ -188,7 +188,8 @@ function Column({ col, kind, query }: { col: BoardColumn; kind: "spare" | "pump"
         </div>
       </Link>
 
-      <div className="space-y-3 px-3 py-3">
+      {/* The statuses scroll inside the column: every column the same height. */}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3 [scrollbar-width:thin]">
         {groups.map((g) => {
           // Bars against the group's whole: the SOs, or for a sum (ECs, items) their total.
           const sum = g.cards.some((c) => c.measure);
@@ -246,8 +247,8 @@ function Metric({ card, base, href, group }: { card: KpiCard; base: number; href
         )}
         <span className={`text-[13px] font-bold tabular-nums ${card.count ? "text-foreground" : "text-muted/60"}`}>{nf.format(card.count)}</span>
         {card.also && (
-          <span className="w-12 text-right text-[10.5px] tabular-nums text-muted" title={`${card.also.count} ${card.also.label}`}>
-            {nf.format(card.also.count)} {card.also.label === "ECs" ? "EC" : card.also.label}
+          <span className="whitespace-nowrap rounded-md bg-background px-1.5 py-px text-[10.5px] tabular-nums text-muted ring-1 ring-card-border" title={`${card.also.count} ${card.also.label}`}>
+            {nf.format(card.also.count)} {card.also.label}
           </span>
         )}
       </div>

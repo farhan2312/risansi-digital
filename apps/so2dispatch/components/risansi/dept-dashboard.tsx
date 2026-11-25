@@ -154,11 +154,11 @@ function StatusGroup({ name, cards, page, kind }: { name: string; cards: KpiCard
   const ecs: Datum[] = cards.filter((c) => c.also).map((c, i) => ({ label: strip(c.label), count: c.also!.count, color: SERIES[i % SERIES.length] }));
   const unit = sum ? (name === "BOI" ? "items" : "ECs") : "SOs";
   return (
-    <ChartCard title={name === "Status" ? "Status" : name} sub={sum ? `By status, counting ${unit}` : `SOs by status${ecs.length ? ", and their ECs" : ""}`}>
+    <ChartCard title={name === "Status" ? "Status" : name} sub={sum ? `By status, counting ${unit}` : `SOs by status${ecs.length ? `, and their ${cards.find((c) => c.also)!.also!.label}` : ""}`}>
       <Donut data={data.filter((d) => d.count)} centerLabel={unit} format={(n) => nf.format(n)} />
       {ecs.length > 0 && (
         <div className="mt-4 border-t border-card-border pt-3">
-          <p className="mb-2 text-xs font-medium text-muted">ECs at each status</p>
+          <p className="mb-2 text-xs font-medium text-muted">{cards.find((c) => c.also)?.also?.label === "pumps" ? "Pumps" : "ECs"} at each status</p>
           <HBars data={ecs} />
         </div>
       )}
