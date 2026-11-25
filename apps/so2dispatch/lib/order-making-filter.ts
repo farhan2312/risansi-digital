@@ -70,6 +70,8 @@ export type OrderMakingFilter = {
   sentPpc: "yes" | "no" | null;
   /** The SO checklist: its SO or PO part still to fill, either, or all done. */
   checklist: ChecklistState | null;
+  /** The 48-hour TAT: past it and not sent to Operation yet, or sent past it. */
+  tat: "pending_late" | "sent_late" | null;
   sort: OmSort | null;
 };
 
@@ -78,7 +80,7 @@ export const UNASSIGNED = "none";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Every parameter the filter owns — what "Clear all" empties. */
-export const OM_FILTER_KEYS = ["zone", "rep", "market", "type", "bmode", "btype", "socat", "datefield", "from", "to", "missing", "asg", "sos", "omhold", "sops", "ppc", "ckl"];
+export const OM_FILTER_KEYS = ["zone", "rep", "market", "type", "bmode", "btype", "socat", "datefield", "from", "to", "missing", "asg", "sos", "omhold", "sops", "ppc", "ckl", "omtat"];
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const list = (v: string | undefined) => [...new Set((v ?? "").split(",").map((x) => x.trim()).filter(Boolean))];
@@ -108,6 +110,7 @@ export function parseOrderMakingFilter(get: (key: string) => string | undefined)
     sentOps: get("sops") === "yes" || get("sops") === "no" ? (get("sops") as "yes" | "no") : null,
     sentPpc: get("ppc") === "yes" || get("ppc") === "no" ? (get("ppc") as "yes" | "no") : null,
     checklist: CHECKLIST_STATES.find((s) => s.value === get("ckl"))?.value ?? null,
+    tat: get("omtat") === "pending_late" || get("omtat") === "sent_late" ? (get("omtat") as "pending_late" | "sent_late") : null,
     sort: SORTS.includes(sort as OmSort) ? (sort as OmSort) : null,
   };
 }
@@ -129,7 +132,8 @@ export function isOrderMakingFiltered(f: OrderMakingFilter): boolean {
     f.soState ||
     f.sentOps ||
     f.sentPpc ||
-    f.checklist
+    f.checklist ||
+    f.tat
   );
 }
 

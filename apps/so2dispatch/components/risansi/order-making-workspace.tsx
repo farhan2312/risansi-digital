@@ -44,6 +44,7 @@ import {
   ORDER_MAKING_SO_EDITABLE,
   firstOrderMakingMissing,
   orderMakingRequired,
+  omTat,
   SO_DETAIL_COLUMNS,
   dependsOnSatisfied,
   selectOptionsFor,
@@ -369,6 +370,13 @@ export function OrderMakingWorkspace({
     }),
     // Order Making's own Clear / Hold, the first step. Central's clearance
     // comes after and is not Order Making's to see.
+    {
+      // The 48-hour TAT from the PO Receiving Date to the SO Sent to Operation Date.
+      key: "tat",
+      label: "48h TAT",
+      tdClass: "whitespace-nowrap",
+      cell: (row) => <TatCell row={row} />,
+    },
     { key: "status", label: "Status", cell: (row) => <OmHoldBadge order={row} />, list: true },
     {
       // Its handover, terms and target dates, in a pop-up. Only Billing has none of them.
@@ -1765,5 +1773,37 @@ function AssignmentPdfDialog({ range, onClose }: { range: { from: string; to: st
         <iframe src={`${src}#view=FitH`} title="Assignment PDF" className="min-h-0 w-full flex-1 bg-white" />
       </div>
     </div>
+  );
+}
+
+/** The SO's 48-hour TAT: met, missed (and why), or still running — due when, or how far past. */
+function TatCell({ row }: { row: Record<string, unknown> }) {
+  if (isOnlyBilling(row)) return <span className="text-xs text-muted">—</span>;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const t = omTat(str(row.po_received_date), str(row.ec_sent_operation_date), today);
+  if (!t) return <span className="text-xs text-muted">No PO date</span>;
+  const due = new Date(`${t.due}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+  const chip = (cls: string, text: string) => <span className={`inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${cls}`}>{text}</span>;
+  const red = "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300";
+  if (t.sent) {
+    if (!t.late) return chip("bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300", "Within TAT");
+    return (
+      <span className="flex flex-col items-start gap-0.5">
+        {chip(red, `Late by ${t.late}d`)}
+        <span className={`max-w-[12rem] truncate text-[11px] ${str(row.om_tat_reason) ? "text-muted" : "font-semibold text-amber-700"}`} title={str(row.om_tat_reason)}>
+          {str(row.om_tat_reason) || "Reason pending"}
+        </span>
+      </span>
+    );
+  }
+  return t.late ? (
+    <span className="flex flex-col items-start gap-0.5">
+      {chip(red, `Past by ${t.late}d`)}
+      <span className="text-[11px] text-muted">was due {due}</span>
+    </span>
+  ) : (
+    <span className="flex flex-col items-start gap-0.5">
+      {chip("bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300", `Due ${due}`)}
+    </span>
   );
 }

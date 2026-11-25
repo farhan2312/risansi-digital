@@ -186,6 +186,38 @@ export function billModeLabel(billMode: unknown, billType?: unknown): string {
 export const SO_CATEGORY_OPTIONS = opts(["Project", "Regular order"]);
 export const CLEARANCE_OPTIONS = opts(["Clear", "Hold"]);
 /** Why Order Making holds an SO: the reasons it picks from. */
+/** Order Making's TAT: the SO goes to Operation within 48 hours (2 days) of its PO Receiving Date. */
+export const OM_TAT_DAYS = 2;
+/** A virtual column for dependsOn: "Yes" when the SO went to Operation past the TAT. */
+export const OM_TAT_LATE = "__om_tat_late";
+
+/** A date as YYYY-MM-DD: ISO text, or a Date as text (the database's, read at local midnight). */
+export function isoDay(v: string): string {
+  const t = (v ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+  const d = t ? new Date(t) : null;
+  return d && !Number.isNaN(d.getTime())
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    : "";
+}
+const dayNo = (v: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDay(v));
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86_400_000 : null;
+};
+/**
+ * The SO's TAT: its deadline (PO Receiving Date + 2 days), and days past it —
+ * of the day it went to Operation, or of today while it has not gone. Null
+ * without a PO Receiving Date.
+ */
+export function omTat(po: string, sent: string, today: string): { due: string; late: number; sent: boolean } | null {
+  const p = dayNo(po);
+  if (p === null) return null;
+  const due = new Date((p + OM_TAT_DAYS) * 86_400_000).toISOString().slice(0, 10);
+  const s = dayNo(sent);
+  const at = s ?? dayNo(today) ?? p;
+  return { due, late: Math.max(0, at - (p + OM_TAT_DAYS)), sent: s !== null };
+}
+
 export const OM_HOLD_REASONS = opts([
   "Client side Delay",
   "TSM Side Delay",
@@ -543,6 +575,16 @@ export const ORDER_SECTIONS: OrderSection[] = [
       // Handover: when the SO went to Operations (Order Making SO fills it).
       // When it went to PPC is the SO Hand Over Date, below — Central's.
       { column: "ec_sent_operation_date", label: "SO Sent to Operation Date", type: "date", group: "Handover" },
+      // Sent to Operation past the 48-hour TAT (PO Receiving Date + 2 days):
+      // why — Order Making PO must say (OM_TAT_LATE).
+      {
+        column: "om_tat_reason",
+        label: "Reason TAT (48 hours) was missed",
+        type: "select",
+        options: OM_HOLD_REASONS,
+        dependsOn: [{ column: OM_TAT_LATE, value: "Yes" }],
+        group: "Handover",
+      },
       // When the SO went to PPC: the SO Hand Over Date, now under Handover.
       // Drawing's first target is counted from it — see lib/target-rules.ts.
       // Central Visibility's alone: not shown to Order Making. Planning sees it
@@ -1068,6 +1110,13 @@ export function orderMakingRequired(
   // (it has not gone). An SO member never sees it.
   const sent = ORDER_MAKING_EDITABLE.find((f) => f.column === "ec_sent_operation_date");
   if (mode === "po" && read && saved && sent && String(read("om_status") ?? "") !== "Hold" && salesOrderFilled(saved)) own.push(sent);
+  // Sent past the 48-hour TAT: the reason is owed when the Sent to Operation
+  // date is entered or changed in this save (the field shows whenever late; an
+  // SO sent late before is not held up on an unrelated edit).
+  const tat = ORDER_MAKING_EDITABLE.find((f) => f.column === "om_tat_reason");
+  const sentNow = isoDay(String(read?.("ec_sent_operation_date") ?? ""));
+  const sentBefore = isoDay(String(saved?.("ec_sent_operation_date") ?? ""));
+  if (mode === "po" && read && tat && dependsOnSatisfied(tat, read) && sentNow !== sentBefore) own.push(tat);
   return own;
 }
 
@@ -1323,7 +1372,14 @@ export function dependsOnSatisfied(
   if (!field.dependsOn) return true;
   const norm = (s: string) => (s ?? "").trim().toLowerCase();
   return field.dependsOn.every((d) => {
-    const current = norm(read(d.column));
+    // Order Making's TAT: went to Operation past it.
+    const current =
+      d.column === OM_TAT_LATE
+        ? (() => {
+            const t = omTat(read("po_received_date"), read("ec_sent_operation_date"), "");
+            return t && t.sent && t.late > 0 ? "yes" : "no";
+          })()
+        : norm(read(d.column));
     const match = Array.isArray(d.value)
       ? d.value.some((v) => norm(v) === current)
       : norm(d.value) === current;

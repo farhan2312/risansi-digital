@@ -84,6 +84,7 @@ import {
   type ChildTable,
   type OrderTable,
   PUMP_TYPE_OPTIONS,
+  OM_TAT_DAYS,
 } from "@/lib/order-schema";
 
 const UUID_RE =
@@ -5200,6 +5201,13 @@ export type OrderMakingRow = Record<string, unknown> & {
  * Purchase Order details, and which of those are still blank (where they
  * apply: no PO on an FR order). `missingOnly` keeps the ones still lacking.
  */
+/** Order Making's 48-hour TAT: an SO past it and not yet sent to Operation (Only Billing never goes; closed SOs left out). */
+const OM_TAT_PENDING_LATE = `o.po_received_date IS NOT NULL AND o.ec_sent_operation_date IS NULL
+  AND (now() AT TIME ZONE 'Asia/Kolkata')::date > o.po_received_date + ${OM_TAT_DAYS}
+  AND NOT ${onlyBillingSql("o")} AND COALESCE(o.bill_mode, '') <> 'Only Billing' AND ${orderOpenSql("o")}`;
+/** …and one sent to Operation past it. */
+const OM_TAT_SENT_LATE = `o.po_received_date IS NOT NULL AND o.ec_sent_operation_date > o.po_received_date + ${OM_TAT_DAYS}`;
+
 /** Order Making's summary cards, of the kind shown (Spare / Pump): shared with the Orders page's department board. */
 export function orderMakingKpiCards(types: string[]): KpiCardDef[] {
   const omSpare = types.some((t) => t.toLowerCase() === "spare");
@@ -5218,6 +5226,9 @@ export function orderMakingKpiCards(types: string[]): KpiCardDef[] {
     },
     { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
     { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
+    // The 48-hour TAT from the PO Receiving Date: past it and not yet sent to Operation, or sent past it.
+    { key: "tat:pending_late", label: "Past 48h TAT, not sent", sql: OM_TAT_PENDING_LATE, params: { sos: null, asg: null, missing: null, omhold: null, omtat: "pending_late" }, tone: "danger" },
+    { key: "tat:sent_late", label: "Sent after 48h TAT", sql: OM_TAT_SENT_LATE, params: { sos: null, asg: null, missing: null, omhold: null, omtat: "sent_late" }, tone: "pending" },
     // No SO details filled / Missing details cards: not needed on Order Making.
     // Order Making's own holds, and every hold on its SOs.
     {
@@ -5313,6 +5324,9 @@ export async function listOrdersForOrderMaking(opts: {
     if (ff.checklist === "verify_pending") clauses.push(`${assignableSql("o")} AND ${checklistVerifiedSql("o")} < ${checklistPointsSql("o")}`);
     if (ff.checklist === "verified") clauses.push(`${checklistVerifiedSql("o")} >= ${checklistPointsSql("o")}`);
     if (ff.missingOnly) clauses.push(`(cardinality(${missingSql}) > 0 OR NOT ${SO_DETAILS_FILLED_SQL})`);
+    // The 48-hour TAT.
+    if (ff.tat === "pending_late") clauses.push(OM_TAT_PENDING_LATE);
+    if (ff.tat === "sent_late") clauses.push(OM_TAT_SENT_LATE);
     if (ff.hold === "om") clauses.push(`COALESCE(o.om_status, '') = 'Hold'`);
     if (ff.hold === "all") clauses.push(`${onHoldSql("order_making")} AND ${orderOpenSql("o")}`);
     if (ff.hold && (HOLD_BY as readonly string[]).includes(ff.hold)) clauses.push(`${holdBySql(ff.hold as HoldBy)} AND ${orderOpenSql("o")}`);
@@ -5351,8 +5365,8 @@ export async function listOrdersForOrderMaking(opts: {
   const kf = f.kpiFilter;
   const base = buildClauses(
     kf
-      ? { ...f, assignees: kf.assignees, soState: kf.soState, missingOnly: kf.missingOnly, hold: kf.hold }
-      : { ...f, assignees: [], soState: null, missingOnly: false, hold: null }
+      ? { ...f, assignees: kf.assignees, soState: kf.soState, missingOnly: kf.missingOnly, hold: kf.hold, tat: kf.tat }
+      : { ...f, assignees: [], soState: null, missingOnly: false, hold: null, tat: null }
   );
   const omCards: KpiCardDef[] | undefined = opts.withKpis ? orderMakingKpiCards(f.types) : undefined;
   const dir = f.sort?.startsWith("-") ? "DESC" : "ASC";
