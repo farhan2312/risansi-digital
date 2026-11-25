@@ -225,17 +225,18 @@ body {
  * Every table's heading row in the portal's navy (as the department board's
  * column headings), white text. Unlayered, so it wins over the utility
  * classes each table sets on its own heading; the same vertical gradient on
- * every cell reads as one band.
+ * every cell reads as one band. Only a page's own tables: a small table inside
+ * a cell (PI terms, dispatches) keeps its own look.
  */
-thead th {
+thead:not(td thead) th {
   background-color: #1f3864 !important;
   background-image: linear-gradient(180deg, #1f3864 0%, #2a4b85 100%) !important;
   color: #fff !important;
   border-color: rgba(255, 255, 255, 0.14) !important;
 }
-thead th :where(*:not(input, select, textarea, option)) {
+thead:not(td thead) th :where(*:not(input, select, textarea, option)) {
   color: inherit !important;
 }
-thead th :where(input, select, textarea) {
+thead:not(td thead) th :where(input, select, textarea) {
   color: var(--color-foreground);
 }
