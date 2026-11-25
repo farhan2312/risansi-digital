@@ -28,6 +28,8 @@ import { PENDENCY, type Pendency } from "@/lib/pendency";
 import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS, PURCHASE_STATES } from "@/lib/purchase-filter";
 import { EcFocus, PanelSection, Portrait, SplitShell, type SplitCol } from "./split-view";
 import { DispatchStatusWithReason } from "./dispatch-status-pill";
+import { ReportDialogButton } from "./report-dialog";
+import { useSearchParams } from "next/navigation";
 
 type Row = Record<string, unknown>;
 
@@ -95,6 +97,13 @@ export function PurchaseWorkspace({
   const { get: getParam, getList, setParams } = useUrlTable();
   // SO view (each SO with its ECs) or BOI view (one row per bought-out item).
   const boiView = getParam("view") === "boi";
+  // The BOI report carries the page's filters, search and sort (every SO, not this page).
+  const searchParams = useSearchParams();
+  const boiReportHref = (() => {
+    const p = new URLSearchParams(searchParams.toString());
+    for (const k of ["page", "edit", "thread", "focus", "view"]) p.delete(k);
+    return `/risansi/departments/purchase/boi-report${p.size ? `?${p}` : ""}`;
+  })();
   // An empty table means one of two very different things — say which, so a
   // search that matched nothing isn't read as an empty queue.
   const emptyMessage = getParam("q")
@@ -468,11 +477,16 @@ export function PurchaseWorkspace({
             { value: "boi", label: "BOI view" },
           ]}
         />
+        {boiView && (
+          <span className="ml-auto">
+            <ReportDialogButton title="BOI report" href={boiReportHref} />
+          </span>
+        )}
         {/* Who each bought-out item is bought from; Purchase adds to it. */}
         <button
           type="button"
           onClick={() => setShowVendors(true)}
-          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background"
+          className={`${boiView ? "" : "ml-auto "}inline-flex h-9 items-center gap-1.5 rounded-lg border border-input-border bg-surface px-3 text-sm font-medium text-foreground transition-colors hover:bg-background`}
         >
           <Truck className="h-4 w-4 text-primary" />
           Vendors

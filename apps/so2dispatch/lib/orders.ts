@@ -5662,6 +5662,8 @@ export async function listItemsForPurchasePage(opts: {
   extraRestrict?: string;
   /** …and what of them the cards count over too (the vendor). */
   kpiRestrict?: string;
+  /** Every matching SO, not one page — the BOI report. */
+  all?: boolean;
 }): Promise<PageResult<PurchaseQueueRow> & { kpis?: KpiCard[] }> {
   const { ids, total, page, kpis } = await pageOfOrderIds({
     kpis: opts.kpis
@@ -5677,6 +5679,7 @@ export async function listItemsForPurchasePage(opts: {
     restrict: `${deptQueueSql("purchase")} AND EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id) AND (${opts.extraRestrict ?? "TRUE"})`,
     searchable: soAndEcSearch,
     filter: opts.filter,
+    all: opts.all,
   });
 
   const rows = ids.length === 0 ? [] : await listItemsForPurchase(ids);

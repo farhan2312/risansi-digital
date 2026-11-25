@@ -169,6 +169,11 @@ async function buildReport(r: Report): Promise<Uint8Array> {
   return pdf.save();
 }
 
+/** Any report in this layout (Purchase's BOI report). */
+export function buildReportPdf(r: Report): Promise<Uint8Array> {
+  return buildReport(r);
+}
+
 const dispatchColor = (s: string) =>
   s === "Fully dispatch" ? C.green : s.startsWith("LOT dispatch") ? C.blue : C.amber;
 
