@@ -316,7 +316,8 @@ function slices(cards: PieCard[], pick: (c: PieCard) => boolean): Datum[] {
 }
 /** Planning's Fully ready cards, as slices of its Fully ready SOs. */
 const READY_PART: Record<string, string> = { "s:ready_notpacked": "Not packed", "s:ready_unassembled": "Not assembled", "s:ready_unpacked": "Assembled, not packed" };
-const isStatus = (c: PieCard) => c.key.startsWith("s:") && !c.measure;
+// A status card: not a total (All SOs, ECs, pumps), Overdue or a hold. Pump assembly's keys are a: / p:, the rest s:.
+const isStatus = (c: PieCard) => !c.measure && c.key !== "all" && c.key !== "overdue" && !c.key.startsWith("hold");
 
 /**
  * Planning's and Assembly & Packing's status pies, counted as the department
