@@ -5718,6 +5718,13 @@ export async function listBoiVendors(): Promise<string[]> {
 }
 
 /** Billing and Dispatch queue: one page of SOs, filtered in SQL. */
+/** Dispatch's queue: open, released SOs (not Only Billing) with a numbered packing slip — nothing to send before. */
+export function dispatchQueueSql(): string {
+  return `${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
+                                         WHERE ps.order_id = o.id AND ps.kind = 'actual'
+                                           AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL)`;
+}
+
 export async function listOrdersForBillingPage(opts: {
   page: number;
   search: string;
@@ -5735,11 +5742,7 @@ export async function listOrdersForBillingPage(opts: {
   inHand?: boolean;
 }): Promise<PageResult<BillingQueueRow> & { kpis?: KpiCard[]; inHand?: number }> {
   const extra = opts.extraRestrict ? ` AND (${opts.extraRestrict})` : "";
-  const restrict = (opts.onlyPacked
-    ? `${orderOpenSql("o")} AND ${releasedSql("o")} AND NOT ${onlyBillingSql("o")} AND EXISTS (SELECT 1 FROM order_packing_slips ps
-                                         WHERE ps.order_id = o.id AND ps.kind = 'actual'
-                                           AND NULLIF(btrim(ps.packing_slip_no), '') IS NOT NULL)`
-    : deptQueueSql("billing")) + extra;
+  const restrict = (opts.onlyPacked ? dispatchQueueSql() : deptQueueSql("billing")) + extra;
   const { ids, total, page, kpis, inHand } = await pageOfOrderIds({
     kpis: opts.kpis ? { restrict, cards: opts.kpis } : undefined,
     inHand: opts.inHand,

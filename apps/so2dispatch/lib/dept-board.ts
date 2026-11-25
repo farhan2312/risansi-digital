@@ -8,6 +8,7 @@ import { query } from "@/lib/db";
 import {
   countKpiCardsOver,
   deptKpiCards,
+  dispatchQueueSql,
   listOrderDeptStatuses,
   listOrderIdsMatching,
   sectionItemsSql,
@@ -57,7 +58,7 @@ function deptSpec(dept: BoardDeptKey, kind: "spare" | "pump"): { cards: KpiCardD
         ? { cards: assemblyPumpCards(), restrict: `${deptQueueSql("assembly")} AND ${pumpViewRestrict([], [])} AND ${sectionItemsSql("assembly")}` }
         : { cards: deptKpiCards("assembly", ["Spare"]), restrict: `${deptQueueSql("assembly")} AND ${sectionItemsSql("assembly")}` };
     case "dispatch":
-      return { cards: deptKpiCards("dispatch", [], false), restrict: deptQueueSql("dispatch") };
+      return { cards: deptKpiCards("dispatch", [], false), restrict: dispatchQueueSql() };
   }
 }
 
