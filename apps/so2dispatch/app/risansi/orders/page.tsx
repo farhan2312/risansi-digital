@@ -25,6 +25,7 @@ import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { cardBaseGet } from "@/lib/kpis";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
+import { DeptBoard } from "@/components/risansi/dept-board";
 
 export const metadata: Metadata = {
   title: "Orders | Risansi",
@@ -104,6 +105,9 @@ export default async function OrdersPage({
   if (params.sort) pdfParams.set("sort", params.sort);
   if (params.pk) pdfParams.set("pk", params.pk);
   const pdfHref = `/api/orders/pdf${pdfParams.size ? `?${pdfParams}` : ""}`;
+  // The department board reads the same filter (and the Spare / Pump toggle).
+  const boardParams = orderListFilterParams(filter);
+  if (params.type) boardParams.set("type", params.type);
   const exportHref = isFiltered
     ? `/api/orders/export?${orderListFilterParams(filter)}`
     : "/api/orders/export";
@@ -156,7 +160,7 @@ export default async function OrdersPage({
         </div>
       </div>
 
-      <OrdersTable split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"} result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} pumpSummaries={pumpSummaries} dispatchDocs={dispatchDocs} />
+      <OrdersTable split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"} result={result} canDelete={canCreate} role={user.role} deptStatuses={deptStatuses} pumpSummaries={pumpSummaries} dispatchDocs={dispatchDocs} board={<DeptBoard query={boardParams.toString()} />} />
     </div>
   );
 }

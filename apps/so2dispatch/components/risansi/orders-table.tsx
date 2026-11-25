@@ -499,7 +499,10 @@ export function OrdersTable({
   deptStatuses = {},
   pumpSummaries,
   dispatchDocs = {},
+  board,
 }: {
+  /** The department board, between the cards and the table. */
+  board?: React.ReactNode;
   /** Split view: the table up to Departments, and the SO picked upright beside it. */
   split?: boolean;
   /** Each SO's packing slips and dispatches, by SO id. */
@@ -1046,6 +1049,7 @@ export function OrdersTable({
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage refSearch={seesOrderRefs(role)} kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} />
+      {board}
 
       <div
         className={
