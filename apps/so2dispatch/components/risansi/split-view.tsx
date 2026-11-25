@@ -52,7 +52,7 @@ export function Portrait<R>({ cols, row }: { cols: SplitCol<R>[]; row: R }) {
       )}
       {wide.map((c) => (
         <div key={c.key}>
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{c.label}</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[#2F5496] dark:text-sky-300">{c.label}</div>
           {c.panelCell ? (
             // Laid out for the panel: no sideways scroll.
             <div className="min-w-0">{c.panelCell(row)}</div>
@@ -122,24 +122,26 @@ export function SplitShell({
         <aside
           ref={box}
           // Its own layer above the table (whose SO column is sticky too).
-          className="sticky top-20 z-30 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-card-border bg-surface shadow-sm"
+          className="sticky top-20 z-30 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl border border-card-border bg-background shadow-md"
         >
-          <div className="sticky top-0 z-10 flex items-center justify-between gap-2 rounded-t-xl border-b border-card-border bg-surface px-4 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+          {/* The panel's heading: a navy band, as the table's headings. */}
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-2 overflow-hidden rounded-t-2xl bg-gradient-to-r from-[#1F3864] to-[#2F5496] px-4 py-2.5 text-white shadow-sm">
+            <span className="pointer-events-none absolute -right-6 -top-10 h-24 w-24 rounded-full bg-white/[0.07]" aria-hidden />
+            <span className="relative text-[11px] font-semibold uppercase tracking-[0.12em] text-white/75">
               {title}
-              {focusLabel ? <span className="ml-2 normal-case tracking-normal text-foreground">{focusLabel}</span> : null}
+              {focusLabel ? <span className="ml-2 text-sm normal-case tracking-normal text-white">{focusLabel}</span> : null}
             </span>
             <button
               type="button"
               onClick={() => setSplitPanelPrefs({ collapsed: true })}
               title={`Collapse the ${title} panel`}
               aria-label={`Collapse the ${title} panel`}
-              className="rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground"
+              className="relative rounded-lg p-1.5 text-white/75 transition-colors hover:bg-white/15 hover:text-white"
             >
               <PanelRightClose className="h-4 w-4" />
             </button>
           </div>
-          <div className="space-y-4 p-4">{panel ?? <p className="text-sm text-muted">No SO on this page.</p>}</div>
+          <div className="space-y-3 p-3">{panel ?? <p className="text-sm text-muted">No SO on this page.</p>}</div>
         </aside>
       )}
     </div>
@@ -166,12 +168,12 @@ export function EcFocus<E>({
   const shown = picked && ecs.some((e) => keyOf(e) === picked) ? ecs.filter((e) => keyOf(e) === picked) : ecs;
   const chip = (on: boolean) =>
     `inline-flex h-7 items-center rounded-full border px-3 text-xs font-semibold transition-colors ${
-      on ? "border-primary bg-primary text-primary-foreground" : "border-input-border bg-surface text-foreground hover:bg-background"
+      on ? "border-transparent bg-gradient-to-r from-[#1F3864] to-[#2F5496] text-white shadow-sm" : "border-input-border bg-surface text-foreground hover:border-[#2F5496]/40 hover:bg-[#2F5496]/[0.05]"
     }`;
   return (
     <>
       {ecs.length > 0 && (
-        <div role="tablist" aria-label="ECs" className="sticky top-11 z-[5] -mx-4 flex flex-wrap gap-1.5 border-b border-card-border bg-surface/95 px-4 py-2 backdrop-blur">
+        <div role="tablist" aria-label="ECs" className="sticky top-12 z-[5] -mx-3 flex flex-wrap gap-1.5 border-b border-card-border bg-background/95 px-3 py-2 backdrop-blur">
           <button type="button" role="tab" aria-selected={shown === ecs} onClick={() => setPicked(null)} className={chip(shown === ecs)}>
             All ECs ({ecs.length})
           </button>
@@ -195,12 +197,16 @@ export function EcFocus<E>({
 /** A heading inside the panel: a part of the SO (its ECs, one EC). */
 export function PanelSection({ title, aside, children }: { title: ReactNode; aside?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-card-border p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
+    <section className="overflow-hidden rounded-xl border border-card-border bg-surface shadow-sm">
+      {/* A tinted strip with a navy accent: each part of the SO stands out from the next. */}
+      <div className="flex items-center justify-between gap-2 border-b border-card-border bg-gradient-to-r from-[#1F3864]/[0.07] to-transparent px-3 py-2 dark:from-white/[0.06]">
+        <h3 className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[0.08em] text-[#1F3864] dark:text-sky-200">
+          <span className="h-3.5 w-1 rounded-full bg-gradient-to-b from-[#2F5496] to-[#5B8DEF]" aria-hidden />
+          {title}
+        </h3>
         {aside}
       </div>
-      {children}
+      <div className="p-3">{children}</div>
     </section>
   );
 }
