@@ -6,15 +6,20 @@
 import type { KpiCard, KpiTone } from "@/lib/kpis";
 
 export const BOARD_DEPTS = [
-  { key: "drawing", label: "Drawing", icon: "ruler", page: "/risansi/departments/drawing" },
-  { key: "purchase", label: "Purchase", icon: "cart", page: "/risansi/departments/purchase" },
+  { key: "drawing", label: "Drawing", icon: "ruler", page: "/risansi/departments/drawing", pumpOnly: true },
+  { key: "purchase", label: "Purchase", icon: "cart", page: "/risansi/departments/purchase", pumpOnly: true },
   { key: "billing", label: "Proforma Invoice", icon: "receipt", page: "/risansi/departments/billing" },
   { key: "accounts", label: "Accounts", icon: "wallet", page: "/risansi/departments/accounts" },
   { key: "planning", label: "Planning", icon: "calendar", page: "/risansi/departments/planning" },
-  { key: "quality", label: "Quality", icon: "shield", page: "/risansi/departments/qc" },
+  { key: "quality", label: "Quality", icon: "shield", page: "/risansi/departments/qc", pumpOnly: true },
   { key: "assembly", label: "Assembly & Packing", icon: "package", page: "/risansi/departments/assembly-dispatch" },
   { key: "dispatch", label: "Dispatch", icon: "truck", page: "/risansi/departments/dispatch" },
 ] as const;
+
+/** The departments a kind of SO goes through: a Spare has no Drawing, Purchase or Quality. */
+export function deptsFor(kind: "spare" | "pump") {
+  return BOARD_DEPTS.filter((d) => kind === "pump" || !("pumpOnly" in d && d.pumpOnly));
+}
 
 export type BoardDeptKey = (typeof BOARD_DEPTS)[number]["key"];
 

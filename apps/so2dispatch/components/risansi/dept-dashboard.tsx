@@ -7,7 +7,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowUpRight, ExternalLink, Search } from "lucide-react";
-import { BOARD_DEPTS, cardRole, TONE_STYLE, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
+import { BOARD_DEPTS, cardRole, deptsFor, TONE_STYLE, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
 import type { KpiCard } from "@/lib/kpis";
 import { ChartCard, Columns, Donut, HBars, VizStyles, type Datum } from "./spare-dashboard/charts";
 import { cardHref, DEPT_ICON, splitCards } from "./dept-board";
@@ -71,12 +71,12 @@ export function DeptDashboard({
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold tracking-tight">{meta.label}</h1>
             <p className="mt-0.5 text-sm text-white/70">
-              {kind === "pump" ? "Pump" : "Spare"} · {scope || "all SOs"} · as of {fmtDate(today)}
+              {scope || (kind === "pump" ? "Pump" : "Spare")} · as of {fmtDate(today)}
             </p>
           </div>
         </div>
         <nav className="relative mt-5 flex flex-wrap gap-1.5">
-          {BOARD_DEPTS.map((d) => (
+          {deptsFor(kind).map((d) => (
             <Link
               key={d.key}
               href={withQuery(`/risansi/orders/board/${d.key}`)}
