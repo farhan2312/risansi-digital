@@ -3,7 +3,7 @@
 // board so both count exactly the same. Plain module.
 
 import { deptKpiCards, totalHoldCard } from "@/lib/orders";
-import { DEPT_VIEWS } from "@/lib/dept-view";
+import { DEPT_VIEWS, spareEcSql } from "@/lib/dept-view";
 import { toneFor, type KpiCardDef } from "@/lib/kpis";
 import { CURVE_STATUSES, drawingFilterSql, ecStatusCountSql, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
 import { BOI_STATUSES, PURCHASE_STATES, boiCountSql, ecCountSql, purchaseFilterSql } from "@/lib/purchase-filter";
@@ -12,8 +12,6 @@ import { SO_ASSEMBLY_STATUSES, SO_PACKING_STATUSES, soStageStatusSql } from "@/l
 
 /** Central Visibility holds the SO (alias o): its cards say how many, the hold a badge. */
 const CV_HELD = "COALESCE(o.clearance_status, '') = 'Hold'";
-/** Drawing's SO versions card: SOs made into a new version (v1 on; a new SO is v0). */
-const VERSIONED_SQL = "COALESCE(o.version_no, 0) > 0";
 const none = { so: [] as string[], ec: [] as string[], item: [] as string[], boi: [] as string[], vendor: [] as string[] };
 
 export function drawingCards(): KpiCardDef[] {
@@ -22,6 +20,16 @@ export function drawingCards(): KpiCardDef[] {
   const overdue = deptKpiCards("drawing").find((c) => c.key === "overdue");
   return [
     { key: "all", label: "All SOs", group: "SO", sql: null, params: { ...clear }, tone: "neutral" },
+    // Every EC of those SOs Drawing works on (not a Spare's): a figure, not a filter.
+    {
+      key: "ecs",
+      label: "All ECs",
+      group: "SO",
+      sql: null,
+      params: {},
+      tone: "neutral",
+      measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND NOT (${spareEcSql("s", "o")}))`,
+    },
     ...SO_STATES.map((st) => ({
       key: `so:${st}`,
       label: `SO ${st}`,
@@ -36,15 +44,6 @@ export function drawingCards(): KpiCardDef[] {
     // Its SOs on any hold.
     // Its SOs on each hold — but not Dispatch's: Drawing's work comes long before it.
     ...totalHoldCard("drawing", clear, "SO").filter((c) => c.key !== "hold:dispatch"),
-    {
-      key: "versioned",
-      label: "SO versions",
-      group: "SO",
-      sql: VERSIONED_SQL,
-      params: { ...clear, drg_ver: "1" },
-      held: CV_HELD,
-      tone: "part" as const,
-    },
     ...GAD_STATUSES.map((st) => ({
       key: `gad:${st}`,
       label: `GAD & Base Plate ${st}`,
