@@ -5,11 +5,10 @@
 // Orders filter in its queue with the department's own status.
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowUpRight, ExternalLink, Search } from "lucide-react";
-import { BOARD_DEPTS, cardRole, deptsFor, TONE_STYLE, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
+import { ArrowLeft, ArrowUpRight, ExternalLink } from "lucide-react";
+import { BOARD_DEPTS, deptsFor, TONE_STYLE, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
 import type { KpiCard } from "@/lib/kpis";
-import { ChartCard, Columns, Donut, HBars, VizStyles, type Datum } from "./spare-dashboard/charts";
+import { ChartCard, Columns, Donut, HBars, StackBar, VizStyles, type Datum } from "./spare-dashboard/charts";
 import { cardHref, DEPT_ICON, splitCards } from "./dept-board";
 
 const nf = new Intl.NumberFormat("en-IN");
@@ -115,7 +114,7 @@ export function DeptDashboard({
             )}
           </div>
 
-          <SoTable rows={rows} dept={meta.label} cards={cards} />
+          <Breakdowns rows={rows} today={today} cards={cards} />
         </>
       )}
     </div>
@@ -180,180 +179,135 @@ function StatusGroup({ name, cards, page, kind }: { name: string; cards: KpiCard
   );
 }
 
-/** Rows the table draws at a time. */
-const PAGE = 50;
+/** The SO's status in the department's first group of cards, and whether that is a finished one. */
+const lead = (r: DeptSoRow) => r.statuses[0];
+const isDone = (r: DeptSoRow) => lead(r)?.tone === "done";
 
-function SoTable({ rows, dept, cards }: { rows: DeptSoRow[]; dept: string; cards: KpiCard[] }) {
-  // Filter by any of the department's own cards (its statuses, Overdue, holds).
-  const [pick, setPick] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const options = cards.filter((c) => cardRole(c) !== "total" && !c.measure);
-  const groupsShown = useMemo(() => {
-    const names: string[] = [];
-    for (const r of rows) for (const s of r.statuses) if (!names.includes(s.group)) names.push(s.group);
-    return names;
-  }, [rows]);
-  // The search applies once typing pauses.
-  const [needle, setNeedle] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setNeedle(search.trim().toLowerCase()), 300);
-    return () => clearTimeout(t);
-  }, [search]);
-  const list = rows
-    .filter((r) => pick === "all" || r.statuses.some((s) => s.key === pick) || r.flags.some((f) => f.key === pick))
-    .filter((r) => !needle || r.soNo.toLowerCase().includes(needle) || r.client.toLowerCase().includes(needle))
-    .sort((a, b) => b.late - a.late || (a.soDate ?? "").localeCompare(b.soDate ?? ""));
-  // 50 rows at a time, 50 more as the list is scrolled to its end; back to 50 when the filter or search changes.
-  const view = `${pick}|${needle}`;
-  const [paged, setPaged] = useState({ view, n: PAGE });
-  const limit = paged.view === view ? paged.n : PAGE;
-  const shown = list.slice(0, limit);
-  const boxRef = useRef<HTMLDivElement>(null);
-  const endRef = useRef<HTMLTableRowElement>(null);
-  useEffect(() => {
-    const end = endRef.current;
-    if (!end || limit >= list.length) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) setPaged({ view, n: limit + PAGE });
-      },
-      { root: boxRef.current, rootMargin: "200px" }
-    );
-    io.observe(end);
-    return () => io.disconnect();
-  }, [view, limit, list.length]);
-  const hasEc = rows.some((r) => r.ecStatuses?.length);
-  const hasTarget = rows.some((r) => r.target);
-  const heads = [
-    "SO No.",
-    "Client",
-    "Type",
-    "SO Date",
-    ...groupsShown.map((g) => (g === "Status" ? "Status" : g)),
-    ...(hasEc ? ["ECs by status"] : []),
-    ...(hasTarget ? ["Target", "Late"] : []),
-    "Overdue / hold",
-  ];
-  return (
-    <section className="overflow-hidden rounded-2xl border border-card-border bg-surface shadow-sm">
-      <header className="flex flex-wrap items-center gap-3 border-b border-card-border px-4 py-3">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">{dept} · SOs</h2>
-          <p className="text-xs text-muted">{shown.length < list.length ? `${shown.length} of ${list.length}` : list.length} shown · most overdue first</p>
+/** Zones laid out as on a map: North on top, West and East either side, South below; Export apart. */
+const ZONE_AT: Record<string, string> = {
+  North: "col-start-2 row-start-1",
+  West: "col-start-1 row-start-2",
+  Central: "col-start-2 row-start-2",
+  East: "col-start-3 row-start-2",
+  South: "col-start-2 row-start-3",
+};
+
+/**
+ * The department's SOs summed up every way the page can: on a zone map, by
+ * month, by age, by representative and by client — each split by the
+ * department's own statuses (its first group of cards), never a list.
+ */
+function Breakdowns({ rows, today, cards }: { rows: DeptSoRow[]; today: string; cards: KpiCard[] }) {
+  // The department's statuses, each its colour, in its cards' order.
+  const statusCards = splitCards(cards).groups[0]?.cards ?? [];
+  const color = (key: string | undefined) => {
+    const i = statusCards.findIndex((c) => c.key === key);
+    return i >= 0 ? SERIES[i % SERIES.length] : "var(--viz-gray)";
+  };
+  const strip = (l: string) => l.replace(/^(SO|EC|Curve|Part) /, "");
+  const partsOf = (list: DeptSoRow[]) =>
+    statusCards.map((c) => ({ label: strip(c.label), count: list.filter((r) => lead(r)?.key === c.key).length, color: color(c.key) }));
+  const legend = (
+    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+      {statusCards.map((c) => (
+        <span key={c.key} className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: color(c.key) }} />
+          {strip(c.label)}
+        </span>
+      ))}
+    </div>
+  );
+
+  // Zones.
+  const zones = [...new Set(rows.map((r) => r.zone || "No zone"))];
+  const zoneTile = (z: string) => {
+    const list = rows.filter((r) => (r.zone || "No zone") === z);
+    const open = list.filter((r) => !isDone(r)).length;
+    return (
+      <div key={z} className={`relative overflow-hidden rounded-xl border border-card-border bg-surface p-3 shadow-sm ${ZONE_AT[z] ?? ""}`}>
+        <span className="pointer-events-none absolute -right-5 -top-5 h-14 w-14 rounded-full bg-[#2F5496]/[0.07]" aria-hidden />
+        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#2F5496] dark:text-sky-300">{z}</p>
+        <p className="mt-1 flex items-baseline gap-2">
+          <b className="text-2xl tabular-nums text-foreground">{list.length}</b>
+          <span className="text-[11px] text-muted">{open} not done</span>
+        </p>
+        <div className="mt-2">
+          <StackBar parts={partsOf(list)} title={z} />
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <select
-            value={pick}
-            onChange={(e) => setPick(e.target.value)}
-            className="h-8 max-w-[18rem] rounded-lg border border-input-border bg-surface px-2 text-xs text-foreground outline-none focus:border-primary"
-            aria-label="Card"
-          >
-            <option value="all">All SOs ({rows.length})</option>
-            {options.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.label} ({c.count})
-              </option>
-            ))}
-          </select>
-          <label className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="SO or client"
-              className="h-8 w-44 rounded-lg border border-input-border bg-surface pl-8 pr-2 text-xs text-foreground outline-none focus:border-primary"
-            />
-          </label>
-        </div>
-      </header>
-      <div ref={boxRef} className="max-h-[70vh] overflow-auto">
-        <table className="w-full min-w-[900px] text-sm">
-          <thead className="sticky top-0 z-10">
-            <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {heads.map((h) => (
-                <th key={h} className="whitespace-nowrap border-b border-card-border bg-surface px-4 py-2.5">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((r) => (
-              <tr key={r.id} className="border-b border-card-border/70 transition-colors last:border-0 hover:bg-background/60">
-                <td className="whitespace-nowrap px-4 py-2.5">
-                  <Link href={`/risansi/orders/${r.id}`} className="group inline-flex items-center gap-1 font-semibold text-foreground hover:text-[#2F5496] dark:hover:text-sky-300">
-                    {r.soNo}
-                    <ArrowUpRight className="h-3 w-3 opacity-0 transition group-hover:opacity-100" />
-                  </Link>
-                </td>
-                <td className="max-w-[16rem] truncate px-4 py-2.5 text-foreground" title={r.client}>
-                  {r.client || "—"}
-                </td>
-                <td className="px-4 py-2.5 text-muted">{r.orderType || "—"}</td>
-                <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-muted">{fmtDate(r.soDate)}</td>
-                {groupsShown.map((g) => {
-                  const s = r.statuses.find((x) => x.group === g);
-                  const tone = TONE_STYLE[s?.tone ?? "neutral"];
-                  const label = s ? (s.label.startsWith(`${g} `) ? s.label.slice(g.length + 1) : s.label.replace(/^(SO|EC|Curve|Part) /, "")) : null;
-                  return (
-                    <td key={g} className="px-4 py-2.5">
-                      {s ? (
-                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone.chip}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
-                          {label}
-                        </span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                  );
-                })}
-                {hasEc && (
-                  <td className="px-4 py-2.5 text-xs text-muted">
-                    {r.ecStatuses?.length ? r.ecStatuses.map((e) => `${e.count} ${e.label}`).join(" · ") : "—"}
-                  </td>
-                )}
-                {hasTarget && (
-                  <>
-                    <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-muted">{fmtDate(r.target)}</td>
-                    <td className="px-4 py-2.5">
-                      {r.late > 0 ? (
-                        <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white">{r.late}d</span>
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                  </>
-                )}
-                <td className="px-4 py-2.5">
-                  <span className="flex flex-wrap gap-1">
-                    {r.flags.map((f) => (
-                      <span key={f.key} className={`whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10.5px] font-medium ring-1 ring-inset ${TONE_STYLE.danger.chip}`}>
-                        {f.label}
-                      </span>
-                    ))}
-                    {!r.flags.length && <span className="text-muted">—</span>}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {shown.length < list.length && (
-              <tr ref={endRef}>
-                <td colSpan={heads.length} className="px-4 py-4 text-center text-xs text-muted">
-                  Loading more…
-                </td>
-              </tr>
-            )}
-            {!list.length && (
-              <tr>
-                <td colSpan={heads.length} className="px-4 py-10 text-center text-sm text-muted">
-                  No SOs match.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
       </div>
-    </section>
+    );
+  };
+  const mapped = zones.filter((z) => ZONE_AT[z]);
+  const apart = zones.filter((z) => !ZONE_AT[z]);
+
+  // The last twelve SO months.
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(`${today}T00:00:00Z`);
+    const m = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - (11 - i), 1));
+    return m.toISOString().slice(0, 7);
+  });
+  const byMonth = months.map((k) => ({
+    label: new Date(`${k}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }),
+    count: rows.filter((r) => r.soDate?.startsWith(k)).length,
+  }));
+
+  // How long the ones not done have been open, from the SO date.
+  const ageOf = (r: DeptSoRow) => (r.soDate ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${r.soDate}T00:00:00Z`)) / 86_400_000) : null);
+  const ages = rows.filter((r) => !isDone(r)).map(ageOf).filter((a): a is number => a !== null);
+  const ageBuckets = (
+    [["0–15", 0, 15], ["16–30", 16, 30], ["31–60", 31, 60], ["61–90", 61, 90], ["91–180", 91, 180], ["180+", 181, 1e9]] as [string, number, number][]
+  ).map(([label, lo, hi]) => ({ label, count: ages.filter((a) => a >= lo && a <= hi).length }));
+
+  // Representatives and clients, most SOs first, each split by status.
+  const top = (keyOf: (r: DeptSoRow) => string[], n: number) => {
+    const m = new Map<string, DeptSoRow[]>();
+    for (const r of rows) for (const k of keyOf(r)) m.set(k, [...(m.get(k) ?? []), r]);
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, n);
+  };
+  const reps = top((r) => (r.reps ? r.reps.split(/\s*[,/]\s*/).filter(Boolean) : ["No rep"]), 8);
+  const clients = top((r) => [r.client || "—"], 8);
+  const ranked = (list: [string, DeptSoRow[]][]) => {
+    const max = Math.max(1, ...list.map(([, l]) => l.length));
+    return (
+      <ul className="space-y-2">
+        {list.map(([name, l]) => (
+          <li key={name} className="grid grid-cols-[minmax(6rem,11rem)_1fr_2.5rem] items-center gap-3 text-sm" title={`${name}: ${l.length} SOs`}>
+            <span className="truncate text-foreground">{name}</span>
+            <span className="block" style={{ width: `${Math.max(8, (l.length / max) * 100)}%` }}>
+              <StackBar parts={partsOf(l)} title={name} />
+            </span>
+            <b className="text-right text-xs tabular-nums text-foreground">{l.length}</b>
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  return (
+    <>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="By zone" sub="SOs on the map, each split by status">
+          <div className="grid grid-cols-3 grid-rows-3 gap-2">{mapped.map(zoneTile)}</div>
+          {apart.length > 0 && <div className="mt-2 grid grid-cols-2 gap-2">{apart.map(zoneTile)}</div>}
+          {legend}
+        </ChartCard>
+        <ChartCard title="SOs by month" sub="SO date, the last twelve months">
+          <Columns data={byMonth} color="var(--viz-blue)" />
+        </ChartCard>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Age of SOs not done" sub={`${ages.length} SOs, days since the SO date`}>
+          <Columns data={ageBuckets} xTitle="Days since SO date" color="var(--viz-violet)" />
+        </ChartCard>
+        <ChartCard title="By representative" sub="Top eight, each split by status">
+          {ranked(reps)}
+          {legend}
+        </ChartCard>
+      </div>
+      <ChartCard title="Top clients" sub="Most SOs here, each split by status">
+        {ranked(clients)}
+        {legend}
+      </ChartCard>
+    </>
   );
 }

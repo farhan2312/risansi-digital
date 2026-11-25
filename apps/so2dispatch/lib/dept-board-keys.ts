@@ -69,4 +69,6 @@ export type DeptSoRow = {
   /** Days past the target while the department is not done; 0 otherwise. */
   late: number;
   cvHold: boolean;
+  zone: string;
+  reps: string;
 };

@@ -86,6 +86,8 @@ type Head = {
   spare_type: string | null;
   so_date: string | null;
   cv_hold: boolean;
+  zone: string | null;
+  reps: string | null;
   /** The keys of the cards it counts in. */
   keys: string[];
 };
@@ -115,7 +117,7 @@ export async function loadDeptPage(
     query<Omit<Head, "keys"> & { keys: number[] }>(
       `SELECT o.id::text, o.so_no, o.client_name, o.order_type, o.spare_type,
               to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
-              COALESCE(o.clearance_status, '') = 'Hold' AS cv_hold,
+              COALESCE(o.clearance_status, '') = 'Hold' AS cv_hold, o.zone, o.reps,
               ${keysSql} AS keys
          FROM orders o
         WHERE o.id = ANY($1::uuid[]) AND (${spec.restrict}) AND NOT ${TEST_SO_SQL("o")}
@@ -135,6 +137,8 @@ export async function loadDeptPage(
       orderType: orderTypeText(h),
       soDate: h.so_date,
       cvHold: h.cv_hold,
+      zone: h.zone ?? "",
+      reps: h.reps ?? "",
       statuses: inCards
         .filter((c) => cardRole(c) === "status")
         .map((c) => ({ key: c.key, label: c.label, group: c.group ?? "Status", tone: c.tone ?? "neutral" })),
