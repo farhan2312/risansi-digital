@@ -222,16 +222,17 @@ export function canAssignSo(role: string): boolean {
 
 /** Payment holds escalate to Central Visibility (and Admin). */
 /**
- * Who the customer is does not change what Planning or Assembly & Packing do
- * — they work to dates and statuses — so they are not shown client details.
+ * Who the customer is does not change what Planning, Assembly & Packing,
+ * Purchase or Quality do — they work to dates, statuses and items — so they
+ * never see the client's name or code (lib/client-visibility).
  */
 export function canSeeClient(role: string): boolean {
-  return role !== "planning" && role !== "assembly";
+  return !["planning", "assembly", "purchase", "qc"].includes(role);
 }
 
-/** In the Discussion chat, Planning, Assembly & Packing, Purchase and Quality see no client name (and cannot search by it). */
+/** In the Discussion chat too (no client name, no search by it): as canSeeClient. */
 export function canSeeClientInChat(role: string): boolean {
-  return !["planning", "assembly", "purchase", "qc"].includes(role);
+  return canSeeClient(role);
 }
 
 export function canSeeEscalations(role: string): boolean {

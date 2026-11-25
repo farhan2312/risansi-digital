@@ -35,6 +35,7 @@ import { ReportDialogButton } from "@/components/risansi/report-dialog";
 import { deptKpiCards } from "@/lib/orders";
 import { cardBaseGet, type KpiCardDef } from "@/lib/kpis";
 import { assemblyPumpCards as assemblyPumpCardDefs } from "@/lib/dept-cards";
+import { withoutClient } from "@/lib/client-visibility";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
@@ -129,6 +130,8 @@ export default async function AssemblyDispatchWorkspacePage({
   // so the order id comes from whichever the row carries.
   // The rows' sign-offs and unread messages both hang off the queue's SOs and
   // not off each other, so they load together.
+  // Who the client is never reaches this department (lib/client-visibility).
+  queue.rows = queue.rows.map((r) => withoutClient(r, user.role));
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
   const [completions, unreadThreads] = await Promise.all([
     listDeptCompletions(orderIds),
@@ -164,7 +167,7 @@ export default async function AssemblyDispatchWorkspacePage({
         </div>
       </div>
 
-      <RemindersPanel reminders={reminders} showClient={false} focusInQueue />
+      <RemindersPanel reminders={reminders.map((r) => withoutClient(r, user.role))} showClient={false} focusInQueue />
 
       <DepartmentWorkspace
         split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}

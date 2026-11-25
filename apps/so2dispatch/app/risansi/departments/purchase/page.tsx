@@ -38,6 +38,7 @@ import {
   soPurchaseState,
 } from "@/lib/purchase-filter";
 import { purchaseCards } from "@/lib/dept-cards";
+import { withoutClient } from "@/lib/client-visibility";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -121,6 +122,8 @@ export default async function PurchaseWorkspacePage({
   // Purchase's sign-offs for the SOs on this page, for the EC cards.
   // The rows' sign-offs, unread messages and drawing documents all hang off
   // the queue and not off one another, so they load together.
+  // Who the client is never reaches this department (lib/client-visibility).
+  queue.rows = queue.rows.map((r) => withoutClient(r, user.role));
   const [completions, unreadThreads, drawingDocCounts, pendency] = await Promise.all([
     listDeptCompletions([...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))]),
     unreadByOrder([...new Set(queue.rows.map((r) => String(r.order_id)))], user),
@@ -137,7 +140,7 @@ export default async function PurchaseWorkspacePage({
         description="Add bought-out (BOI) items per EC. Orders with BOI = No are excluded — Purchase has nothing to do for those. BOI and the purchase target date are set by Central Visibility."
       />
 
-      <RemindersPanel reminders={reminders} showClient={false} focusInQueue />
+      <RemindersPanel reminders={reminders.map((r) => withoutClient(r, user.role))} showClient={false} focusInQueue />
 
       <PurchaseWorkspace
         split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}

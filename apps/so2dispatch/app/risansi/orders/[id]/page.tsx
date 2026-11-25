@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { canViewAll } from "@/lib/roles";
 import { roleSeesOrder } from "@/lib/dept-view";
 import { OrderDetail } from "@/components/risansi/order-detail";
+import { withoutClient } from "@/lib/client-visibility";
 
 export const metadata: Metadata = {
   title: "Order | Risansi",
@@ -47,7 +48,8 @@ export default async function OrderDetailPage({
 
   return (
     <OrderDetail
-      detail={detail}
+      // Who the client is never reaches Planning, Assembly & Packing, Purchase or Quality.
+      detail={{ ...detail, order: withoutClient(detail.order, user.role) }}
       orderId={id}
       role={user.role}
       targetRevisions={targetRevisions}

@@ -120,6 +120,7 @@ import {
 } from "@/lib/roles";
 import { parsePiWorkbook } from "@/lib/pi-import";
 import { previewEcImport, type EcImportPreview } from "@/lib/ec-import";
+import { withoutClient } from "@/lib/client-visibility";
 import { isAssignedTo, markSoDetails } from "@/lib/so-assignment";
 import { DEPT_FILTER_KEYS } from "@/lib/dept-status";
 import { boiStatus, isClosedStatus, repMatches } from "@/lib/dept-view";
@@ -392,7 +393,7 @@ export async function getOrderEcsAction(
   if (!detail) return null;
   const o = detail.order;
   return {
-    order: { id: o.id, sl_no: o.sl_no, so_no: o.so_no, client_name: o.client_name, order_type: o.order_type, boi: o.boi },
+    order: withoutClient({ id: o.id, sl_no: o.sl_no, so_no: o.so_no, client_name: o.client_name, order_type: o.order_type, boi: o.boi }, user.role),
     items: [...detail.items].sort((a, b) => String(a.ec_no ?? "").localeCompare(String(b.ec_no ?? ""), undefined, { numeric: true })),
   };
 }
@@ -427,11 +428,15 @@ export async function getOrderCoreAction(
       ["id", "sl_no", ...ORDER_MAKING_FIELDS.map((f) => f.column)].map((c) => [c, detail.order[c] ?? null])
     );
   }
-  // The terms live in their lines; the popup reads them as one.
-  return {
-    ...detail.order,
-    payment_terms: paymentTermsText(detail.order_payment_terms, detail.order.payment_terms) || null,
-  };
+  // The terms live in their lines; the popup reads them as one. Who the client
+  // is never reaches Planning, Assembly & Packing, Purchase or Quality.
+  return withoutClient(
+    {
+      ...detail.order,
+      payment_terms: paymentTermsText(detail.order_payment_terms, detail.order.payment_terms) || null,
+    },
+    user.role
+  );
 }
 
 export type CreateItemResult =

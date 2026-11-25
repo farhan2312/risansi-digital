@@ -29,6 +29,7 @@ import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { deptKpiCards } from "@/lib/orders";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
+import { withoutClient } from "@/lib/client-visibility";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { alignmentRestrict, pickAlignment } from "@/lib/assembly";
 import { boiItemRestrict, parsePurchaseFilter } from "@/lib/purchase-filter";
@@ -111,6 +112,8 @@ export default async function PlanningWorkspacePage({
   // so the order id comes from whichever the row carries.
   // The rows' sign-offs unread messages and drawing documents all hang off the queue's SOs and
   // not off one another, so they load together.
+  // Who the client is never reaches this department (lib/client-visibility).
+  queue.rows = queue.rows.map((r) => withoutClient(r, user.role));
   const orderIds = [...new Set(queue.rows.map((o) => String(o.order_id ?? o.id)))];
   const [completions, unreadThreads, drawingDocCounts, pumpSummaries] = await Promise.all([
     listDeptCompletions(orderIds),
@@ -147,7 +150,7 @@ export default async function PlanningWorkspacePage({
         </div>
       </div>
 
-      <RemindersPanel reminders={reminders} showClient={false} focusInQueue />
+      <RemindersPanel reminders={reminders.map((r) => withoutClient(r, user.role))} showClient={false} focusInQueue />
 
       <DepartmentWorkspace
         split={viewModeOf((await cookies()).get(VIEW_MODE_COOKIE)?.value) === "split"}

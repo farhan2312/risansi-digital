@@ -36,6 +36,7 @@ import {
   soQcState,
 } from "@/lib/qc-filter";
 import { qcCards } from "@/lib/dept-cards";
+import { withoutClient } from "@/lib/client-visibility";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -115,6 +116,8 @@ export default async function QcWorkspacePage({
   // Each SO's Open / Closed from all its ECs — worked out before a filter
   // narrows the ECs shown; then only the ECs at the status asked.
   // Every EC of an SO that needs Quality, assembled or not; its assembly shown beside it.
+  // Who the client is never reaches this department (lib/client-visibility).
+  queue.rows = queue.rows.map((r) => withoutClient(r, user.role));
   const assembly = await listEcAssembly(queue.rows.map((r) => String(r.id)));
   // A pump EC none of which is assembled reads EC not assembled, not Pending.
   for (const r of queue.rows) {
@@ -154,7 +157,7 @@ export default async function QcWorkspacePage({
         description="The QC documents each SO needs (MTC, IIR, Test Report, QAP and the rest) are set on the order. Give each one per EC as a SharePoint link; the EC is submitted once all are in."
       />
 
-      <RemindersPanel reminders={reminders} showClient={false} focusInQueue />
+      <RemindersPanel reminders={reminders.map((r) => withoutClient(r, user.role))} showClient={false} focusInQueue />
 
       <QcWorkspace
         queue={queue}

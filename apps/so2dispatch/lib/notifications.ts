@@ -7,6 +7,7 @@ import {
 } from "@/lib/pagination";
 import { SECTION_BY_TABLE, type OrderTable } from "@/lib/order-schema";
 import { versionLabel } from "@/lib/dept-view";
+import { canSeeClient } from "@/lib/roles";
 
 type Row = Record<string, unknown> | null;
 
@@ -121,7 +122,7 @@ export async function listNotificationsPage(
       query<NotificationRow & { total_count: string }>(
         `SELECT n.id, n.order_id, n.item_id, n.type, n.message,
                 to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
-                o.so_no, o.client_name, o.order_type,
+                o.so_no, ${roles.length && roles.every((r) => !canSeeClient(r)) ? "NULL::text" : "o.client_name"} AS client_name, o.order_type,
                 o.order_value::text AS order_value, o.order_currency,
                 b.pi_no, b.pi_value::text AS pi_value,
                 pis.nos AS order_pi_nos, pis.total::text AS order_pi_total,
