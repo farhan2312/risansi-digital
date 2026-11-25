@@ -1,17 +1,20 @@
-// The Orders page's department board: its departments, status groups and the
-// shapes the board and each department's page read. Plain module (client and
+// The Orders page's department board: its departments and the shapes the
+// board and each department's page read. Every figure is the department's
+// own: its page's summary cards, its own statuses. Plain module (client and
 // server alike).
 
+import type { KpiCard, KpiTone } from "@/lib/kpis";
+
 export const BOARD_DEPTS = [
-  { key: "order-making", label: "Order Making", icon: "file" },
-  { key: "drawing", label: "Drawing", icon: "ruler" },
-  { key: "purchase", label: "Purchase", icon: "cart" },
-  { key: "billing", label: "Billing", icon: "receipt" },
-  { key: "accounts", label: "Accounts", icon: "wallet" },
-  { key: "planning", label: "Planning", icon: "calendar" },
-  { key: "quality", label: "Quality", icon: "shield" },
-  { key: "assembly", label: "Assembly & Packing", icon: "package" },
-  { key: "dispatch", label: "Dispatch", icon: "truck" },
+  { key: "order-making", label: "Order Making", icon: "file", page: "/risansi/departments/order-making" },
+  { key: "drawing", label: "Drawing", icon: "ruler", page: "/risansi/departments/drawing" },
+  { key: "purchase", label: "Purchase", icon: "cart", page: "/risansi/departments/purchase" },
+  { key: "billing", label: "Billing", icon: "receipt", page: "/risansi/departments/billing" },
+  { key: "accounts", label: "Accounts", icon: "wallet", page: "/risansi/departments/accounts" },
+  { key: "planning", label: "Planning", icon: "calendar", page: "/risansi/departments/planning" },
+  { key: "quality", label: "Quality", icon: "shield", page: "/risansi/departments/qc" },
+  { key: "assembly", label: "Assembly & Packing", icon: "package", page: "/risansi/departments/assembly-dispatch" },
+  { key: "dispatch", label: "Dispatch", icon: "truck", page: "/risansi/departments/dispatch" },
 ] as const;
 
 export type BoardDeptKey = (typeof BOARD_DEPTS)[number]["key"];
@@ -20,53 +23,45 @@ export function boardDept(key: string | undefined | null) {
   return BOARD_DEPTS.find((d) => d.key === key) ?? null;
 }
 
-/** Where an SO stands in a department, as a group the board colours. */
-export const BOARD_GROUPS = ["overdue", "hold", "progress", "waiting", "done", "na"] as const;
-export type BoardGroup = (typeof BOARD_GROUPS)[number];
+/** A department's summary cards, as its own page counts them, over the Orders filter. */
+export type BoardColumn = { key: BoardDeptKey; cards: KpiCard[] };
 
-export const GROUP_LABEL: Record<BoardGroup, string> = {
-  overdue: "Overdue",
-  hold: "On hold",
-  progress: "In progress",
-  waiting: "Not started",
-  done: "Done",
-  na: "Not applicable",
+export type BoardData = { columns: BoardColumn[]; kind: "spare" | "pump" };
+
+/** What a card is, for laying it out: a total, a status, overdue or a hold. */
+export type CardRole = "total" | "status" | "overdue" | "hold";
+
+export function cardRole(c: Pick<KpiCard, "key" | "measure" | "tone">): CardRole {
+  if (c.key === "all" || c.key === "ecs" || c.key === "pumps" || c.key === "boi") return "total";
+  if (c.key === "overdue") return "overdue";
+  if (c.key.startsWith("hold") || c.key === "omhold" || c.key === "ahold:Hold") return "hold";
+  return "status";
+}
+
+/** The portal's card tones as colours (the chart palette's roles) and chip classes. */
+export const TONE_STYLE: Record<KpiTone, { color: string; chip: string; dot: string; text: string }> = {
+  done: { color: "var(--viz-aqua)", chip: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30", dot: "bg-emerald-500", text: "text-emerald-700 dark:text-emerald-300" },
+  part: { color: "var(--viz-blue)", chip: "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/30", dot: "bg-sky-500", text: "text-sky-700 dark:text-sky-300" },
+  pending: { color: "var(--viz-yellow)", chip: "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30", dot: "bg-amber-500", text: "text-amber-700 dark:text-amber-300" },
+  danger: { color: "var(--viz-red)", chip: "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/30", dot: "bg-rose-500", text: "text-rose-700 dark:text-rose-300" },
+  neutral: { color: "var(--viz-gray)", chip: "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30", dot: "bg-slate-400", text: "text-slate-600 dark:text-slate-300" },
 };
 
-/** The group's colour (the chart palette's roles) and its chip's classes. */
-export const GROUP_STYLE: Record<BoardGroup, { color: string; chip: string; dot: string }> = {
-  overdue: { color: "var(--viz-red)", chip: "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/30", dot: "bg-rose-500" },
-  hold: { color: "var(--viz-yellow)", chip: "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30", dot: "bg-amber-500" },
-  progress: { color: "var(--viz-blue)", chip: "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/30", dot: "bg-sky-500" },
-  waiting: { color: "var(--viz-gray)", chip: "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/30", dot: "bg-slate-400" },
-  done: { color: "var(--viz-aqua)", chip: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/30", dot: "bg-emerald-500" },
-  na: { color: "var(--viz-grid)", chip: "bg-slate-50 text-slate-400 ring-slate-200 dark:bg-slate-500/10 dark:text-slate-500 dark:ring-slate-500/20", dot: "bg-slate-300" },
-};
-
-/** One SO in one department. */
-export type BoardCell = {
-  group: BoardGroup;
-  /** The department's own status, as its page says it. */
-  label: string;
-  /** What it is due by (YYYY-MM-DD), when the department has a target. */
-  target: string | null;
-  /** Days past the target, while not done; 0 otherwise. */
-  late: number;
-  /** ECs done of those the department has, when it works per EC. */
-  ecDone?: number;
-  ecTotal?: number;
-};
-
-export type BoardSo = {
+/** One SO in one department, for the department page's table: its own status. */
+export type DeptSoRow = {
   id: string;
   soNo: string;
   client: string;
   orderType: string;
   soDate: string | null;
-  ecs: number;
-  /** Central Visibility's hold: a badge, not a status. */
+  /** The department's status cards the SO counts in (one per group of cards), as its page counts them. */
+  statuses: { key: string; label: string; group: string; tone: KpiTone }[];
+  /** The other cards it counts in: Overdue, and the holds. */
+  flags: { key: string; label: string }[];
+  /** Per EC: each status and how many of the SO's ECs are at it. */
+  ecStatuses?: { label: string; count: number }[];
+  target: string | null;
+  /** Days past the target while the department is not done; 0 otherwise. */
+  late: number;
   cvHold: boolean;
-  cells: Record<BoardDeptKey, BoardCell>;
 };
-
-export type BoardData = { sos: BoardSo[]; today: string };

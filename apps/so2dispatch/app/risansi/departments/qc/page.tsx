@@ -27,19 +27,15 @@ import { listPendency } from "@/lib/pendency-db";
 import { listEcAssembly } from "@/lib/ec-assembly";
 import { ecStageStatus } from "@/lib/assembly";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { deptKpiCards, totalHoldCard } from "@/lib/orders";
-import { DEPT_VIEWS } from "@/lib/dept-view";
-import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
+import { cardBaseGet, type KpiCardDef } from "@/lib/kpis";
 import {
-  QC_EC_STATUSES,
-  QC_SO_STATES,
   ecQcStatus,
   parseQcFilter,
-  qcEcCountSql,
   qcFilterActive,
   qcFilterSql,
   soQcState,
 } from "@/lib/qc-filter";
+import { qcCards } from "@/lib/dept-cards";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -48,9 +44,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-/** Central Visibility holds the SO (alias o): its cards say how many, the hold a badge. */
-const CV_HELD = "COALESCE(o.clearance_status, '') = 'Hold'";
 
 const TABLE = "order_qc" as const;
 
@@ -85,38 +78,7 @@ export default async function QcWorkspacePage({
   const qcFilter = parseQcFilter((key) => params[key]);
   // The cards: SOs open and closed (and overdue), then the ECs by documents
   // status — those count ECs, and filter like the rest.
-  const qcKpiCards = (): KpiCardDef[] => {
-    const clear = { qc_so: null, qc_ec: null, overdue: null, hold: null, dstatus: null } as Record<string, string | null>;
-    const overdue = deptKpiCards("quality", [], DEPT_VIEWS.quality.hasTarget).find((c) => c.key === "overdue");
-    return [
-      { key: "all", label: "All SOs", group: "SO", sql: null, params: { ...clear }, tone: "neutral" },
-      ...QC_SO_STATES.map((st) => ({
-        key: `so:${st}`,
-        label: `SO ${st}`,
-        group: "SO",
-        sql: qcFilterSql({ so: [st], ec: [], asm: [] }),
-        params: { ...clear, qc_so: st },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: st === "Closed" ? ("done" as const) : ("pending" as const),
-      })),
-      ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
-      // Its SOs on any hold.
-      ...totalHoldCard("quality", clear, "SO"),
-      { key: "ecs", label: "ECs", group: "EC", sql: null, params: {}, tone: "neutral", measure: qcEcCountSql("o") },
-      ...QC_EC_STATUSES.map((st) => ({
-        key: `ec:${st}`,
-        label: st,
-        group: "EC",
-        sql: null,
-        params: { ...clear, qc_ec: st },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: toneFor(st),
-        measure: qcEcCountSql("o", st),
-      })),
-    ];
-  };
+  const qcKpiCards = (): KpiCardDef[] => qcCards();
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,

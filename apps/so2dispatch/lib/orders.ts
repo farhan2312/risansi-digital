@@ -4846,6 +4846,16 @@ async function countKpis(
 }
 
 /**
+ * Cards counted over the given SOs (a department's own rule on top), as a
+ * department page counts them: the Orders page's department board.
+ */
+export async function countKpiCardsOver(orderIds: string[], restrict: string, cards: KpiCardDef[]): Promise<KpiCard[]> {
+  const ids = orderIds.filter((id) => UUID_RE.test(id));
+  if (!ids.length) return [];
+  return countKpis({ restrict: `o.id = ANY('{${ids.join(",")}}'::uuid[]) AND (${restrict})`, cards }, undefined, null, soAndEcSearch);
+}
+
+/**
  * A department queue's cards: all of it, each of its statuses (as its Status
  * filter reads them), and what is overdue against its target.
  */
@@ -5184,6 +5194,46 @@ export type OrderMakingRow = Record<string, unknown> & {
  * Purchase Order details, and which of those are still blank (where they
  * apply: no PO on an FR order). `missingOnly` keeps the ones still lacking.
  */
+/** Order Making's summary cards, of the kind shown (Spare / Pump): shared with the Orders page's department board. */
+export function orderMakingKpiCards(types: string[]): KpiCardDef[] {
+  const omSpare = types.some((t) => t.toLowerCase() === "spare");
+  const omPump = types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
+  const omEcKind = omSpare && !omPump ? spareEcSql("s", "o") : omPump && !omSpare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
+  return [
+    { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null, omhold: null }, tone: "neutral" },
+    // How many ECs those SOs hold, of the kind shown: a figure, not a filter.
+    {
+      key: "ecs",
+      label: "ECs",
+      sql: null,
+      params: {},
+      tone: "neutral",
+      measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${omEcKind})`,
+    },
+    { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
+    { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
+    // No SO details filled / Missing details cards: not needed on Order Making.
+    // Order Making's own holds, and every hold on its SOs.
+    {
+      key: "omhold",
+      label: "Order Making hold",
+      sql: `COALESCE(o.om_status, '') = 'Hold' AND ${orderOpenSql("o")}`,
+      params: { sos: null, asg: null, missing: null, omhold: "om" },
+      tone: "danger",
+    },
+    // …and each other kind, as the departments show them (no card for every hold together).
+    ...HOLD_BY.map(
+      (by): KpiCardDef => ({
+        key: `hold:${by}`,
+        label: HOLD_BY_LABEL[by],
+        sql: `${holdBySql(by)} AND ${orderOpenSql("o")}`,
+        params: { sos: null, asg: null, missing: null, omhold: by },
+        tone: "danger",
+      })
+    ),
+  ];
+}
+
 export async function listOrdersForOrderMaking(opts: {
   page: number;
   search: string;
@@ -5296,44 +5346,7 @@ export async function listOrdersForOrderMaking(opts: {
       ? { ...f, assignees: kf.assignees, soState: kf.soState, missingOnly: kf.missingOnly, hold: kf.hold }
       : { ...f, assignees: [], soState: null, missingOnly: false, hold: null }
   );
-  const omSpare = f.types.some((t) => t.toLowerCase() === "spare");
-  const omPump = f.types.some((t) => ["pump", "rolb"].includes(t.toLowerCase()));
-  const omEcKind = omSpare && !omPump ? spareEcSql("s", "o") : omPump && !omSpare ? `NOT (${spareEcSql("s", "o")})` : "TRUE";
-  const omCards: KpiCardDef[] | undefined = opts.withKpis
-    ? [
-        { key: "all", label: "All SOs", sql: null, params: { sos: null, asg: null, missing: null, omhold: null }, tone: "neutral" },
-        // How many ECs those SOs hold, of the kind shown: a figure, not a filter.
-        {
-          key: "ecs",
-          label: "ECs",
-          sql: null,
-          params: {},
-          tone: "neutral",
-          measure: `(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND ${omEcKind})`,
-        },
-        { key: "unassigned", label: "Unassigned", sql: `o.so_assignee_id IS NULL AND ${assignableSql("o")}`, params: { sos: null, asg: UNASSIGNED, missing: null }, tone: "pending" },
-        { key: "pending", label: "SO details pending", sql: `NOT ${SO_DETAILS_FILLED_SQL} AND ${orderOpenSql("o")}`, params: { sos: "pending", asg: null, missing: null }, tone: "pending" },
-        // No SO details filled / Missing details cards: not needed on Order Making.
-        // Order Making's own holds, and every hold on its SOs.
-        {
-          key: "omhold",
-          label: "Order Making hold",
-          sql: `COALESCE(o.om_status, '') = 'Hold' AND ${orderOpenSql("o")}`,
-          params: { sos: null, asg: null, missing: null, omhold: "om" },
-          tone: "danger",
-        },
-        // …and each other kind, as the departments show them (no card for every hold together).
-        ...HOLD_BY.map(
-          (by): KpiCardDef => ({
-            key: `hold:${by}`,
-            label: HOLD_BY_LABEL[by],
-            sql: `${holdBySql(by)} AND ${orderOpenSql("o")}`,
-            params: { sos: null, asg: null, missing: null, omhold: by },
-            tone: "danger",
-          })
-        ),
-      ]
-    : undefined;
+  const omCards: KpiCardDef[] | undefined = opts.withKpis ? orderMakingKpiCards(f.types) : undefined;
   const dir = f.sort?.startsWith("-") ? "DESC" : "ASC";
   const orderBy =
     f.sort && /^-?(so_date|po_received_date|ec_sent_operation_date)$/.test(f.sort)
@@ -5534,6 +5547,17 @@ function queueOrderBy(sort: QueueSort | null | undefined): string | undefined {
   return `${key} ${dir} NULLS LAST, o.sl_no DESC`;
 }
 
+/**
+ * Which SOs an EC department queue lists, beyond its own rule: those with
+ * ECs (Assembly: a Spare once ready; Quality: every SO that needs it,
+ * assembled or not).
+ */
+export function sectionItemsSql(dept: string | null | undefined): string {
+  return dept === "assembly"
+    ? `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("s")})`
+    : `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`;
+}
+
 export async function listItemsForSectionPage(
   table: OrderTable,
   contextColumns: ContextColumn[],
@@ -5557,11 +5581,7 @@ export async function listItemsForSectionPage(
   // the SO says QC is not needed). One rule, in lib/dept-view.
   const dept = deptForTable(table);
   const restrict = `${dept ? deptQueueSql(dept) : "TRUE"} AND (${opts.extraRestrict ?? "TRUE"})`;
-  // Assembly: a Spare once ready. Quality: every SO that needs it (Quality Required), assembled or not.
-  const items =
-    dept === "assembly"
-      ? `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id AND ${SPARE_READY_FOR_ASSEMBLY("s")})`
-      : `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = o.id)`;
+  const items = sectionItemsSql(dept);
 
   const { ids, total, page, kpis } = await pageOfOrderIds({
     kpis: opts.kpis

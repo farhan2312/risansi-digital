@@ -1,10 +1,11 @@
 "use client";
 
-// The Orders page's department board: a column per department, every SO the
-// filters select as a card in each, coloured by where it stands there.
-// Read when the board is open, and again as the filters change; folding it
-// away is remembered on this device. A column's heading opens the
-// department's own page.
+// The Orders page's department board: a column per department, each with the
+// department's own summary cards (its statuses, ECs, overdue and holds)
+// counted over the SOs the Orders filter selects — as its own page counts
+// them. A figure opens the department's page on that status; a column's
+// heading opens the department's dashboard. Read when open, and again as the
+// filters change; folding it away is remembered on this device.
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -17,7 +18,6 @@ import {
   Package,
   Receipt,
   Ruler,
-  Search,
   ShieldCheck,
   ShoppingCart,
   SquareKanban,
@@ -26,16 +26,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { loadDeptBoardAction } from "@/app/risansi/orders/board-actions";
-import {
-  BOARD_DEPTS,
-  GROUP_LABEL,
-  GROUP_STYLE,
-  type BoardCell,
-  type BoardData,
-  type BoardDeptKey,
-  type BoardGroup,
-  type BoardSo,
-} from "@/lib/dept-board-keys";
+import { BOARD_DEPTS, cardRole, TONE_STYLE, type BoardColumn, type BoardData } from "@/lib/dept-board-keys";
+import type { KpiCard } from "@/lib/kpis";
 import { VizStyles } from "./spare-dashboard/charts";
 
 export const DEPT_ICON: Record<string, LucideIcon> = {
@@ -50,26 +42,7 @@ export const DEPT_ICON: Record<string, LucideIcon> = {
   truck: Truck,
 };
 
-/** The groups in the order a column lists its cards, and the filter chips. */
-const ORDER: BoardGroup[] = ["overdue", "hold", "progress", "waiting", "done"];
 const FOLD_KEY = "risansi.deptBoard.folded";
-/** Cards a column draws; the rest are on the department's page. */
-const PER_COLUMN = 40;
-
-const fmtDay = (d: string | null) =>
-  d ? new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" }) : "";
-
-/** A column's cards: worst first (most overdue at the top), then by SO date. */
-function sortCards(list: { so: BoardSo; cell: BoardCell }[]) {
-  return list.sort((a, b) => {
-    const g = ORDER.indexOf(a.cell.group) - ORDER.indexOf(b.cell.group);
-    if (g) return g;
-    if (a.cell.late !== b.cell.late) return b.cell.late - a.cell.late;
-    return (a.so.soDate ?? "").localeCompare(b.so.soDate ?? "");
-  });
-}
-
-// Folded or not, as this device last left it.
 const foldListeners = new Set<() => void>();
 const subscribeFold = (cb: () => void) => {
   foldListeners.add(cb);
@@ -80,18 +53,38 @@ const subscribeFold = (cb: () => void) => {
   };
 };
 
+const nf = new Intl.NumberFormat("en-IN");
+
+/** The department's own page, on what the card picks (and the Pump view where it has one). */
+export function cardHref(page: string, card: Pick<KpiCard, "params">, kind: "spare" | "pump"): string {
+  const p = new URLSearchParams(Object.entries(card.params).filter((e): e is [string, string] => e[1] !== null));
+  if (kind === "pump" && /planning|assembly-dispatch/.test(page)) p.set("type", "pump");
+  return `${page}${p.size ? `?${p}` : ""}`;
+}
+
+/** A column's cards split for laying out: totals, status groups (as the page groups them), overdue and holds. */
+export function splitCards(cards: KpiCard[]) {
+  const totals = cards.filter((c) => cardRole(c) === "total");
+  const overdue = cards.filter((c) => cardRole(c) === "overdue");
+  const holds = cards.filter((c) => cardRole(c) === "hold");
+  const groups: { name: string; cards: KpiCard[] }[] = [];
+  for (const c of cards.filter((k) => cardRole(k) === "status")) {
+    const name = c.group ?? "Status";
+    const g = groups.find((x) => x.name === name) ?? groups[groups.push({ name, cards: [] }) - 1];
+    g.cards.push(c);
+  }
+  return { totals, overdue, holds, groups };
+}
+
 export function DeptBoard({ query }: { query: string }) {
   const folded = useSyncExternalStore(subscribeFold, () => localStorage.getItem(FOLD_KEY) === "1", () => false);
-  const [data, setData] = useState<BoardData | null>(null);
-  const [loadedFor, setLoadedFor] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [group, setGroup] = useState<BoardGroup | "all">("all");
-  const [search, setSearch] = useState("");
-
   const toggle = () => {
     localStorage.setItem(FOLD_KEY, folded ? "0" : "1");
     foldListeners.forEach((cb) => cb());
   };
+  const [data, setData] = useState<BoardData | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (folded || loadedFor === query) return;
@@ -112,211 +105,167 @@ export function DeptBoard({ query }: { query: string }) {
   }, [folded, query, loadedFor]);
 
   const loading = !folded && loadedFor !== query && !error;
-  const needle = search.trim().toLowerCase();
-  const sos = useMemo(
-    () => (data?.sos ?? []).filter((s) => !needle || s.soNo.toLowerCase().includes(needle) || s.client.toLowerCase().includes(needle)),
-    [data, needle]
+  // A department with none of these SOs (Drawing on Spare) is left off.
+  const columns = useMemo(
+    () => (data?.columns ?? []).filter((c) => (c.cards.find((k) => k.key === "all")?.count ?? 0) > 0),
+    [data]
   );
-  // A department none of these SOs go through (Drawing on Spare) is left off.
-  const depts = useMemo(() => BOARD_DEPTS.filter((d) => (data?.sos ?? []).some((s) => s.cells[d.key].group !== "na")), [data]);
-  const totals = useMemo(() => {
-    const t: Record<string, number> = {};
-    for (const s of sos) for (const d of depts) t[s.cells[d.key].group] = (t[s.cells[d.key].group] ?? 0) + 1;
-    return t;
-  }, [sos, depts]);
-
-  const deptHref = (key: string) => `/risansi/orders/board/${key}${query ? `?${query}` : ""}`;
 
   return (
     <section className="viz mb-4 overflow-hidden rounded-2xl border border-card-border bg-surface shadow-sm">
       <VizStyles />
-      <header className="flex flex-wrap items-center gap-3 border-b border-card-border bg-gradient-to-r from-[#1F3864]/[0.06] via-transparent to-transparent px-4 py-3">
+      <header className="flex flex-wrap items-center gap-3 border-b border-card-border bg-gradient-to-r from-[#1F3864]/[0.07] via-[#2F5496]/[0.03] to-transparent px-4 py-3">
         <button type="button" onClick={toggle} aria-expanded={!folded} className="flex min-w-0 items-center gap-3 text-left">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1F3864] text-white shadow-sm">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F3864] to-[#2F5496] text-white shadow-sm">
             <SquareKanban className="h-[18px] w-[18px]" />
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-foreground">Department board</span>
             <span className="block text-xs text-muted">
-              {data ? `${sos.length} SOs across ${depts.length} departments · follows the filters above` : "Every SO and where it stands in each department"}
+              Each department&apos;s own statuses over the SOs below · {data?.kind === "pump" ? "Pump" : "Spare"} · follows the filters
             </span>
           </span>
           <ChevronDown className={`h-4 w-4 shrink-0 text-muted transition-transform ${folded ? "-rotate-90" : ""}`} />
         </button>
-        {!folded && data && (
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap items-center gap-1 rounded-xl bg-background p-1">
-              <GroupChip active={group === "all"} onClick={() => setGroup("all")} label="All" />
-              {ORDER.map((g) => (
-                <GroupChip key={g} active={group === g} onClick={() => setGroup(group === g ? "all" : g)} label={GROUP_LABEL[g]} count={totals[g] ?? 0} dot={GROUP_STYLE[g].dot} />
-              ))}
-            </div>
-            <label className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="SO or client"
-                className="h-8 w-40 rounded-lg border border-input-border bg-surface pl-8 pr-2 text-xs text-foreground outline-none focus:border-primary"
-              />
-            </label>
-          </div>
+        {!folded && loading && data && (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-muted">
+            <Loader2 className="h-3 w-3 animate-spin" /> Updating
+          </span>
         )}
       </header>
 
-      {!folded && (
-        <div className="relative">
-          {error ? (
-            <p className="px-4 py-6 text-sm text-rose-600">{error}</p>
-          ) : !data ? (
-            <BoardSkeleton />
-          ) : sos.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted">No SOs match.</p>
-          ) : (
-            <div className="flex gap-3 overflow-x-auto px-4 py-4 [scrollbar-width:thin]">
-              {depts.map((d) => (
-                <Column key={d.key} dept={d} sos={sos} group={group} href={deptHref(d.key)} today={data.today} />
-              ))}
-            </div>
-          )}
-          {loading && data && (
-            <div className="absolute right-4 top-2 flex items-center gap-1.5 rounded-full bg-surface/90 px-2.5 py-1 text-[11px] text-muted shadow-sm ring-1 ring-card-border">
-              <Loader2 className="h-3 w-3 animate-spin" /> Updating
-            </div>
-          )}
-        </div>
-      )}
+      {!folded &&
+        (error ? (
+          <p className="px-4 py-6 text-sm text-rose-600">{error}</p>
+        ) : !data ? (
+          <BoardSkeleton />
+        ) : columns.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-muted">No SOs match.</p>
+        ) : (
+          <div className="flex items-start gap-3 overflow-x-auto px-4 py-4 [scrollbar-width:thin]">
+            {columns.map((c) => (
+              <Column key={c.key} col={c} kind={data.kind} query={query} />
+            ))}
+          </div>
+        ))}
     </section>
   );
 }
 
-function GroupChip({ active, onClick, label, count, dot }: { active: boolean; onClick: () => void; label: string; count?: number; dot?: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors ${
-        active ? "bg-surface text-foreground shadow-sm ring-1 ring-card-border" : "text-muted hover:text-foreground"
-      }`}
-    >
-      {dot && <span className={`h-2 w-2 rounded-full ${dot}`} />}
-      {label}
-      {count !== undefined && <span className="tabular-nums text-muted">{count}</span>}
-    </button>
-  );
-}
-
-function Column({
-  dept,
-  sos,
-  group,
-  href,
-  today,
-}: {
-  dept: (typeof BOARD_DEPTS)[number];
-  sos: BoardSo[];
-  group: BoardGroup | "all";
-  href: string;
-  today: string;
-}) {
+function Column({ col, kind, query }: { col: BoardColumn; kind: "spare" | "pump"; query: string }) {
+  const dept = BOARD_DEPTS.find((d) => d.key === col.key)!;
   const Icon = DEPT_ICON[dept.icon] ?? FileText;
-  const inDept = sos.map((so) => ({ so, cell: so.cells[dept.key as BoardDeptKey] })).filter((x) => x.cell.group !== "na");
-  const count: Record<string, number> = {};
-  for (const x of inDept) count[x.cell.group] = (count[x.cell.group] ?? 0) + 1;
-  const total = inDept.length;
-  const donePct = total ? Math.round(((count.done ?? 0) / total) * 100) : 0;
-  const cards = sortCards(inDept.filter((x) => group === "all" || x.cell.group === group));
-  const shown = cards.slice(0, PER_COLUMN);
+  const { totals, overdue, holds, groups } = splitCards(col.cards);
+  const all = totals.find((t) => t.key === "all");
+  const others = totals.filter((t) => t.key !== "all");
   return (
-    <div className="flex w-[16.5rem] shrink-0 flex-col rounded-2xl bg-background/70 ring-1 ring-card-border">
+    <div className="flex w-[17rem] shrink-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-sm ring-1 ring-card-border">
+      {/* The heading: the department, its SOs and its totals; opens its dashboard. */}
       <Link
-        href={href}
-        className="group m-2 rounded-xl border border-card-border bg-surface px-3 py-2.5 shadow-sm transition hover:-translate-y-px hover:border-[#2F5496]/40 hover:shadow-md"
+        href={`/risansi/orders/board/${col.key}${query ? `?${query}` : ""}`}
+        className="group relative overflow-hidden bg-gradient-to-br from-[#1F3864] to-[#2F5496] px-3.5 pb-3 pt-3 text-white"
         title={`Open the ${dept.label} dashboard`}
       >
+        <span className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/[0.07]" />
         <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1F3864]/[0.08] text-[#1F3864] dark:bg-white/10 dark:text-white">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
             <Icon className="h-4 w-4" />
           </span>
-          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">{dept.label}</span>
-          <ArrowUpRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-foreground" />
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{dept.label}</span>
+          <ArrowUpRight className="h-4 w-4 text-white/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
         </div>
-        <div className="mt-2 flex items-baseline justify-between">
-          <span className="text-xl font-bold tabular-nums text-foreground">{total}</span>
-          <span className="text-[11px] font-medium text-muted">
-            <span className="tabular-nums text-emerald-600 dark:text-emerald-400">{donePct}%</span> done
-          </span>
-        </div>
-        <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-[var(--viz-grid)]">
-          {ORDER.slice()
-            .reverse()
-            .map((g) =>
-              count[g] ? <span key={g} className="h-full border-r border-[var(--viz-surface)] last:border-r-0" style={{ width: `${(count[g] / total) * 100}%`, background: GROUP_STYLE[g].color }} /> : null
-            )}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-x-2.5 gap-y-1">
-          {ORDER.filter((g) => count[g]).map((g) => (
-            <span key={g} className="inline-flex items-center gap-1 text-[10.5px] text-muted">
-              <span className={`h-1.5 w-1.5 rounded-full ${GROUP_STYLE[g].dot}`} />
-              <span className="tabular-nums font-semibold text-foreground">{count[g]}</span> {GROUP_LABEL[g].toLowerCase()}
-            </span>
+        <div className="mt-2.5 flex items-end gap-3">
+          <div>
+            <p className="text-[26px] font-bold leading-none tabular-nums">{nf.format(all?.count ?? 0)}</p>
+            <p className="mt-1 text-[10.5px] uppercase tracking-wide text-white/65">{all?.label ?? "SOs"}</p>
+          </div>
+          {others.map((t) => (
+            <div key={t.key} className="border-l border-white/15 pl-3">
+              <p className="text-base font-semibold leading-none tabular-nums">{nf.format(t.count)}</p>
+              <p className="mt-1 text-[10.5px] uppercase tracking-wide text-white/65">{t.label}</p>
+            </div>
           ))}
         </div>
       </Link>
-      <div className="flex max-h-[25rem] flex-col gap-1.5 overflow-y-auto px-2 pb-2 [scrollbar-width:thin]">
-        {shown.map(({ so, cell }) => (
-          <SoCard key={so.id} so={so} cell={cell} today={today} />
-        ))}
-        {!cards.length && <p className="py-6 text-center text-xs text-muted">None</p>}
-        {cards.length > shown.length && (
-          <Link href={href} className="rounded-lg py-2 text-center text-xs font-semibold text-[#2F5496] hover:bg-surface dark:text-sky-300">
-            View all {cards.length} →
-          </Link>
+
+      <div className="space-y-3 px-3 py-3">
+        {groups.map((g) => {
+          // Bars against the group's whole: the SOs, or for a sum (ECs, items) their total.
+          const sum = g.cards.some((c) => c.measure);
+          const base = sum ? Math.max(1, g.cards.reduce((a, c) => a + c.count, 0)) : Math.max(1, all?.count ?? 1);
+          return (
+            <div key={g.name}>
+              {(groups.length > 1 || g.name !== "Status") && (
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{g.name}</p>
+              )}
+              <ul className="space-y-1">
+                {g.cards.map((c) => (
+                  <Metric key={c.key} card={c} base={base} href={c.measure ? null : cardHref(dept.page, c, kind)} group={g.name} />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+        {(overdue.length > 0 || holds.length > 0) && (
+          <div className="flex flex-wrap gap-1.5 border-t border-card-border pt-2.5">
+            {[...overdue, ...holds].map((c) => (
+              <Link
+                key={c.key}
+                href={cardHref(dept.page, c, kind)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset transition hover:brightness-95 ${
+                  c.count ? TONE_STYLE.danger.chip : TONE_STYLE.neutral.chip
+                }`}
+              >
+                {c.label}
+                <span className="font-bold tabular-nums">{c.count}</span>
+              </Link>
+            ))}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function SoCard({ so, cell, today }: { so: BoardSo; cell: BoardCell; today: string }) {
-  const style = GROUP_STYLE[cell.group];
-  const soon = cell.group !== "done" && cell.target && cell.target >= today;
-  return (
-    <Link
-      href={`/risansi/orders/${so.id}`}
-      className="group relative block overflow-hidden rounded-xl border border-card-border bg-surface px-3 py-2 pl-3.5 transition hover:border-[#2F5496]/35 hover:shadow-sm"
-    >
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: style.color }} />
-      <div className="flex items-center gap-1.5">
-        <span className="truncate text-[12.5px] font-semibold text-foreground">{so.soNo}</span>
-        {so.orderType && so.orderType !== "Spare" && (
-          <span className="rounded bg-indigo-50 px-1 text-[9.5px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">{so.orderType}</span>
-        )}
-        {so.cvHold && (
-          <span className="rounded bg-rose-50 px-1 text-[9.5px] font-semibold uppercase tracking-wide text-rose-700 dark:bg-rose-500/15 dark:text-rose-300" title="Central Visibility hold">
-            CV hold
-          </span>
-        )}
-        {cell.late > 0 && <span className="ml-auto shrink-0 rounded-full bg-rose-600 px-1.5 text-[10px] font-bold tabular-nums text-white">+{cell.late}d</span>}
-      </div>
-      <p className="truncate text-[11px] text-muted">{so.client || "—"}</p>
-      <div className="mt-1.5 flex items-center gap-1.5">
-        <span className={`inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium ring-1 ring-inset ${style.chip}`}>
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${style.dot}`} />
-          <span className="truncate">{cell.label}</span>
+/** One status: its name, its count (and its ECs), a bar of its share; opens the department on it. */
+function Metric({ card, base, href, group }: { card: KpiCard; base: number; href: string | null; group: string }) {
+  const tone = TONE_STYLE[card.tone ?? "neutral"];
+  // "GAD & Base Plate Pending" reads "Pending" under its group's heading.
+  const label = card.label.startsWith(`${group} `) ? card.label.slice(group.length + 1) : card.label.replace(/^(SO|EC|Curve|Part) /, "");
+  const body = (
+    <>
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
+        <span className={`min-w-0 flex-1 truncate text-[12px] ${card.count ? "text-foreground" : "text-muted"}`} title={card.label}>
+          {label}
         </span>
-        {cell.ecTotal && cell.ecTotal > 1 ? (
-          <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted" title="ECs done">
-            {cell.ecDone}/{cell.ecTotal} EC
+        {!!card.heldCount && (
+          <span className="rounded bg-rose-50 px-1 text-[9.5px] font-semibold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300" title="Of them on Central Visibility's hold">
+            {card.heldCount} CV
           </span>
-        ) : soon ? (
-          <span className="ml-auto shrink-0 text-[10px] text-muted" title="Target">
-            {fmtDay(cell.target)}
+        )}
+        <span className={`text-[13px] font-bold tabular-nums ${card.count ? "text-foreground" : "text-muted/60"}`}>{nf.format(card.count)}</span>
+        {card.also && (
+          <span className="w-12 text-right text-[10.5px] tabular-nums text-muted" title={`${card.also.count} ${card.also.label}`}>
+            {nf.format(card.also.count)} {card.also.label === "ECs" ? "EC" : card.also.label}
           </span>
-        ) : null}
+        )}
       </div>
-    </Link>
+      <div className="ml-4 mt-1 h-1 overflow-hidden rounded-full bg-[var(--viz-grid)]">
+        <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.min(100, (card.count / base) * 100)}%`, background: tone.color }} />
+      </div>
+    </>
+  );
+  return (
+    <li>
+      {href ? (
+        <Link href={href} className="block rounded-lg px-1.5 py-1 transition-colors hover:bg-background" title={`Open ${card.label}`}>
+          {body}
+        </Link>
+      ) : (
+        <div className="px-1.5 py-1">{body}</div>
+      )}
+    </li>
   );
 }
 
@@ -324,11 +273,13 @@ function BoardSkeleton() {
   return (
     <div className="flex gap-3 overflow-hidden px-4 py-4">
       {Array.from({ length: 6 }, (_, i) => (
-        <div key={i} className="w-[16.5rem] shrink-0 animate-pulse rounded-2xl bg-background/70 p-2 ring-1 ring-card-border">
-          <div className="h-[5.5rem] rounded-xl bg-surface" />
-          {Array.from({ length: 4 }, (_, k) => (
-            <div key={k} className="mt-1.5 h-[4.1rem] rounded-xl bg-surface" />
-          ))}
+        <div key={i} className="w-[17rem] shrink-0 animate-pulse overflow-hidden rounded-2xl ring-1 ring-card-border">
+          <div className="h-[6.2rem] bg-[#1F3864]/20" />
+          <div className="space-y-2.5 p-3">
+            {Array.from({ length: 5 }, (_, k) => (
+              <div key={k} className="h-6 rounded bg-background" />
+            ))}
+          </div>
         </div>
       ))}
     </div>

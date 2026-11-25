@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { canViewAll } from "@/lib/roles";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
-import { boardFilterOf, loadDeptBoard } from "@/lib/dept-board";
+import { boardFilterOf, loadDeptPage } from "@/lib/dept-board";
 import { boardDept } from "@/lib/dept-board-keys";
 import { describeOrderListFilter } from "@/lib/order-list-filter";
 import { DeptDashboard } from "@/components/risansi/dept-dashboard";
@@ -12,8 +12,9 @@ export const metadata: Metadata = { title: "Department dashboard | Risansi" };
 export const dynamic = "force-dynamic";
 
 /**
- * One department on the Orders board: its figures, charts and every SO the
- * Orders filter selects, as it stands there. Read only.
+ * One department off the Orders board: its own summary cards as figures and
+ * charts, and every SO of the Orders filter in its queue with its own
+ * status. Read only.
  */
 export default async function DeptBoardPage({
   params,
@@ -31,17 +32,19 @@ export default async function DeptBoardPage({
 
   const sp = await searchParams;
   const filter = boardFilterOf(user, (k) => sp[k]);
-  const data = await loadDeptBoard(filter);
-  const back = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => e[1] !== undefined));
+  const { cards, rows, kind, today } = await loadDeptPage(filter, dept.key);
+  const query = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => e[1] !== undefined)).toString();
 
   return (
     <div className="px-4 py-6 sm:px-8 sm:py-8">
       <DeptDashboard
         dept={dept.key}
-        data={data}
+        cards={cards}
+        rows={rows}
+        kind={kind}
+        today={today}
         scope={describeOrderListFilter(filter)}
-        backHref={`/risansi/orders${back.size ? `?${back}` : ""}`}
-        query={back.toString()}
+        query={query}
       />
     </div>
   );

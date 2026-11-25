@@ -22,21 +22,19 @@ import { parseDeptFilter, scopeToRep } from "@/lib/order-list-filter";
 import { listRemindersForDepartment } from "@/lib/reminders";
 import { ASSEMBLY_CONTEXT_FIELDS, SECTION_BY_TABLE } from "@/lib/order-schema";
 import {
-  SO_ASSEMBLY_STATUSES,
-  SO_PACKING_STATUSES,
   alignmentRestrict,
   pickAlignment,
   pickStageStatuses,
   pumpViewRestrict,
-  soStageStatusSql,
 } from "@/lib/assembly";
 import { unreadByOrder } from "@/lib/order-messages";
 import { DepartmentWorkspace } from "@/components/risansi/department-workspace";
 import { ecDrawingRestrict, parseDrawingFilter } from "@/lib/drawing-filter";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
 import { ReportDialogButton } from "@/components/risansi/report-dialog";
-import { deptKpiCards, totalHoldCard } from "@/lib/orders";
-import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
+import { deptKpiCards } from "@/lib/orders";
+import { cardBaseGet, type KpiCardDef } from "@/lib/kpis";
+import { assemblyPumpCards as assemblyPumpCardDefs } from "@/lib/dept-cards";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 import { VIEW_MODE_COOKIE, viewModeOf } from "@/lib/view-mode";
@@ -85,53 +83,7 @@ export default async function AssemblyDispatchWorkspacePage({
   const cardAssembly = pickStageStatuses(cardGet, "assembly");
   const cardPacking = pickStageStatuses(cardGet, "packing");
   // The Pump view's cards: the SOs' assembly, then their packing.
-  const assemblyPumpCards = (): KpiCardDef[] => {
-    const clear = { asm: null, pkg: null, dstatus: null, overdue: null, hold: null } as Record<string, string | null>;
-    const pumpQty =
-      "(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB'))";
-    const cards: KpiCardDef[] = [
-      { key: "all", label: "All SOs", sql: null, params: { ...clear }, tone: "neutral" },
-      // How many pump ECs those SOs hold: a figure, not a filter.
-      {
-        key: "ecs",
-        label: "ECs",
-        sql: null,
-        params: {},
-        tone: "neutral",
-        measure: "(SELECT count(*) FROM order_items s WHERE s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB'))",
-      },
-      // The pumps themselves: every pump EC's quantity, added up — as on Planning.
-      {
-        key: "pumps",
-        label: "Pumps",
-        sql: null,
-        params: {},
-        tone: "neutral",
-        measure: pumpQty,
-      },
-      ...SO_ASSEMBLY_STATUSES.map((st) => ({
-        key: `a:${st}`,
-        label: st,
-        sql: `${soStageStatusSql("assembly", "o")} = '${st}'`,
-        params: { ...clear, asm: st },
-        tone: toneFor(st),
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: "COALESCE(o.clearance_status, '') = 'Hold'",
-      })),
-      ...SO_PACKING_STATUSES.map((st) => ({
-        key: `p:${st}`,
-        label: st,
-        sql: `${soStageStatusSql("packing", "o")} = '${st}'`,
-        params: { ...clear, pkg: st },
-        tone: toneFor(st),
-        held: "COALESCE(o.clearance_status, '') = 'Hold'",
-      })),
-      // Its SOs on any hold.
-      ...totalHoldCard("assembly", clear),
-    ];
-    // Each SO card also counts the pumps on its SOs — as Planning's.
-    return cards.map((c) => (c.measure ? c : { ...c, also: { label: "pumps", measure: pumpQty } }));
-  };
+  const assemblyPumpCards = (): KpiCardDef[] => assemblyPumpCardDefs();
   // The Pump view's SOs: those Planning has In plan, Partial or Fully ready.
   // …and the base plate and wooden box asked for (cards too: the filter bar's, not a card's).
   // …and the drawings asked for: one pump EC both (GAD, Part drawing), as on Planning.

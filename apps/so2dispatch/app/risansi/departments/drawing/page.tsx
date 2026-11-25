@@ -40,9 +40,8 @@ import {
 import { unreadByOrder } from "@/lib/order-messages";
 import { DrawingWorkspace } from "@/components/risansi/drawing-workspace";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { deptKpiCards, totalHoldCard } from "@/lib/orders";
-import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
-import { CURVE_STATUSES, ecStatusCountSql, GAD_STATUSES, NOT_REQUIRED, PART_STATUSES, SO_STATES } from "@/lib/drawing-filter";
+import { cardBaseGet, type KpiCardDef } from "@/lib/kpis";
+import { drawingCards } from "@/lib/dept-cards";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -51,9 +50,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-/** Central Visibility holds the SO (alias o): its cards say how many, the hold a badge. */
-const CV_HELD = "COALESCE(o.clearance_status, '') = 'Hold'";
 
 const TABLE = "order_drawing" as const;
 
@@ -91,71 +87,7 @@ export default async function DrawingWorkspacePage({
   // Drawing's cards: its SOs open and closed, where their GADs, Performance
   // Curves and Part Drawings stand, and what is overdue against the Drawing
   // target — one compact row, a hairline between the groups.
-  const drawingKpiCards = (): KpiCardDef[] => {
-    const clear = { drg_so: null, drg_gad: null, drg_pc: null, drg_part: null, drg_ver: null, overdue: null, hold: null } as Record<string, string | null>;
-    const none = { so: [] as string[], gad: [] as string[], curve: [] as string[], part: [] as string[] };
-    const overdue = deptKpiCards("drawing").find((c) => c.key === "overdue");
-    return [
-      { key: "all", label: "All SOs", group: "SO", sql: null, params: { ...clear }, tone: "neutral" },
-      ...SO_STATES.map((st) => ({
-        key: `so:${st}`,
-        label: `SO ${st}`,
-        group: "SO",
-        sql: drawingFilterSql({ ...none, so: [st] }),
-        params: { ...clear, drg_so: st },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: st === "Closed" ? ("done" as const) : ("pending" as const),
-      })),
-      ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
-      // Its SOs on any hold.
-      // Its SOs on each hold — but not Dispatch's: Drawing's work comes long before it.
-      ...totalHoldCard("drawing", clear, "SO").filter((c) => c.key !== "hold:dispatch"),
-      {
-        key: "versioned",
-        label: "SO versions",
-        group: "SO",
-        sql: VERSIONED_SQL,
-        params: { ...clear, drg_ver: "1" },
-        held: CV_HELD,
-        tone: "part" as const,
-      },
-      ...GAD_STATUSES.map((st) => ({
-        key: `gad:${st}`,
-        label: `GAD & Base Plate ${st}`,
-        group: "GAD & Base Plate",
-        sql: drawingFilterSql({ ...none, gad: [st] }),
-        params: { ...clear, drg_gad: st },
-        // Beside the SOs: how many of their ECs stand there.
-        also: { label: "ECs", measure: ecStatusCountSql("gad", st) },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: toneFor(st),
-      })),
-      ...CURVE_STATUSES.filter((st) => st !== NOT_REQUIRED).map((st) => ({
-        key: `pc:${st}`,
-        label: `Curve ${st}`,
-        group: "Performance Curve",
-        sql: drawingFilterSql({ ...none, curve: [st] }),
-        params: { ...clear, drg_pc: st },
-        also: { label: "ECs", measure: ecStatusCountSql("curve", st) },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: toneFor(st),
-      })),
-      ...PART_STATUSES.filter((st) => st !== NOT_REQUIRED).map((st) => ({
-        key: `part:${st}`,
-        label: `Part ${st}`,
-        group: "Part Drawing",
-        sql: drawingFilterSql({ ...none, part: [st] }),
-        params: { ...clear, drg_part: st },
-        also: { label: "ECs", measure: ecStatusCountSql("part", st) },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: toneFor(st),
-      })),
-    ];
-  };
+  const drawingKpiCards = (): KpiCardDef[] => drawingCards();
   const [queue, reminders, filterOptions] = await Promise.all([
     listItemsForSectionPage(
       TABLE,

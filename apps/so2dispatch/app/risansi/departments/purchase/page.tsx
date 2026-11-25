@@ -26,15 +26,10 @@ import { unreadByOrder } from "@/lib/order-messages";
 import { PurchaseWorkspace } from "@/components/risansi/purchase-workspace";
 import { countEcDocuments } from "@/lib/drawing-docs-db";
 import { RemindersPanel } from "@/components/risansi/reminders-panel";
-import { deptKpiCards, listBoiVendors, listVendorList, totalHoldCard } from "@/lib/orders";
-import { DEPT_VIEWS } from "@/lib/dept-view";
-import { cardBaseGet, toneFor, type KpiCardDef } from "@/lib/kpis";
+import { listBoiVendors, listVendorList } from "@/lib/orders";
+import { cardBaseGet, type KpiCardDef } from "@/lib/kpis";
 import {
-  BOI_STATUSES,
-  PURCHASE_STATES,
-  boiCountSql,
   boiMatches,
-  ecCountSql,
   ecMatchesPurchaseFilter,
   ecPurchaseState,
   parsePurchaseFilter,
@@ -42,6 +37,7 @@ import {
   purchaseFilterSql,
   soPurchaseState,
 } from "@/lib/purchase-filter";
+import { purchaseCards } from "@/lib/dept-cards";
 import { homeFor, mayOpenPage } from "@/lib/view-pages";
 import { PageHeading } from "@/components/risansi/page-heading";
 
@@ -50,9 +46,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-/** Central Visibility holds the SO (alias o): its cards say how many, the hold a badge. */
-const CV_HELD = "COALESCE(o.clearance_status, '') = 'Hold'";
 
 const TABLE = "order_purchase" as const;
 
@@ -83,55 +76,10 @@ export default async function PurchaseWorkspacePage({
   // Purchase's own filters: the SO's and each EC's Open / Closed / N/A, each
   // bought-out item's status, and its vendor.
   const purchaseFilter = parsePurchaseFilter((key) => params[key]);
-  const none = { so: [] as string[], ec: [] as string[], item: [] as string[], boi: [] as string[], vendor: [] as string[] };
   // The cards: SOs, ECs and bought-out items, each by where it stands — the
   // EC and item cards count ECs and items, and filter like the rest. They
   // follow the BOI item and Vendor filters.
-  const purchaseKpiCards = (): KpiCardDef[] => {
-    const clear = { pur_so: null, pur_ec: null, pur_boi: null, overdue: null, hold: null, dstatus: null } as Record<string, string | null>;
-    const overdue = deptKpiCards("purchase", [], DEPT_VIEWS.purchase.hasTarget).find((c) => c.key === "overdue");
-    const tone = (st: string) => (st === "Closed" ? ("done" as const) : st === "Open" ? ("pending" as const) : ("neutral" as const));
-    return [
-      { key: "all", label: "All SOs", group: "SO", sql: null, params: { ...clear }, tone: "neutral" },
-      ...PURCHASE_STATES.map((st) => ({
-        key: `so:${st}`,
-        label: `SO ${st}`,
-        group: "SO",
-        sql: purchaseFilterSql({ ...none, so: [st] }),
-        params: { ...clear, pur_so: st },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: tone(st),
-      })),
-      ...(overdue ? [{ ...overdue, group: "SO", params: { ...clear, overdue: "1" } }] : []),
-      // Its SOs on any hold.
-      ...totalHoldCard("purchase", clear, "SO"),
-      { key: "ecs", label: "ECs", group: "EC", sql: null, params: {}, tone: "neutral", measure: ecCountSql("o") },
-      ...PURCHASE_STATES.map((st) => ({
-        key: `ec:${st}`,
-        label: `EC ${st}`,
-        group: "EC",
-        sql: null,
-        params: { ...clear, pur_ec: st },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: tone(st),
-        measure: ecCountSql("o", st),
-      })),
-      { key: "boi", label: "BOI items", group: "BOI", sql: null, params: {}, tone: "neutral", measure: boiCountSql("o", null, purchaseFilter.vendor, purchaseFilter.item) },
-      ...BOI_STATUSES.map((st) => ({
-        key: `boi:${st}`,
-        label: st,
-        group: "BOI",
-        sql: null,
-        params: { ...clear, pur_boi: st },
-        // How many of them Central Visibility holds (a badge: they count here).
-        held: CV_HELD,
-        tone: toneFor(st),
-        measure: boiCountSql("o", st, purchaseFilter.vendor, purchaseFilter.item),
-      })),
-    ];
-  };
+  const purchaseKpiCards = (): KpiCardDef[] => purchaseCards(purchaseFilter);
   const [queue, reminders, filterOptions, vendors, vendorList] = await Promise.all([
     listItemsForPurchasePage({
       kpis: purchaseKpiCards(),

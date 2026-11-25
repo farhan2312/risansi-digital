@@ -1,15 +1,29 @@
 import "server-only";
-// The Orders page's department board: every SO the filter selects, and where
-// it stands in each department. Read only: it reads the same department
-// statuses the Orders list's row tags do (listOrderDeptStatuses), and the
-// SO's own holds and targets.
+// The Orders page's department board: for every SO the Orders filter
+// selects, each department's own summary cards, counted exactly as its page
+// counts them (the same card definitions, over the same queue), and each
+// department's own status per SO for its page's table. Read only.
 
 import { query } from "@/lib/db";
-import { listOrderDeptStatuses, listOrderIdsMatching, TEST_SO_SQL, type DeptCell, type EcDeptStatus, type SoDeptStatus } from "@/lib/orders";
-import { orderStatusSql, CLOSED_ORDER_STATUSES } from "@/lib/dept-view";
-import { ONLY_BILLING, orderTypeText } from "@/lib/order-schema";
-import { parseOrderListFilter, scopeToRep, withOrdersKind, type OrderListFilter } from "@/lib/order-list-filter";
+import {
+  countKpiCardsOver,
+  deptKpiCards,
+  listOrderDeptStatuses,
+  listOrderIdsMatching,
+  orderMakingKpiCards,
+  sectionItemsSql,
+  TEST_SO_SQL,
+  type DeptCell,
+  type EcDeptStatus,
+} from "@/lib/orders";
+import { DEPT_VIEWS, deptQueueSql } from "@/lib/dept-view";
+import { pumpViewRestrict } from "@/lib/assembly";
+import { assemblyPumpCards, drawingCards, purchaseCards, qcCards } from "@/lib/dept-cards";
+import { orderTypeText } from "@/lib/order-schema";
+import { ordersKind, parseOrderListFilter, scopeToRep, withOrdersKind, type OrderListFilter } from "@/lib/order-list-filter";
 import { seesOrderRefs } from "@/lib/roles";
+import type { KpiCard, KpiCardDef } from "@/lib/kpis";
+import { BOARD_DEPTS, cardRole, type BoardData, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
 
 /** The Orders filter from its query string, as the Orders page reads it (a Rep's own SOs). */
 export function boardFilterOf(
@@ -20,49 +34,51 @@ export function boardFilterOf(
   if (!seesOrderRefs(user.role)) filter.refSearch = "";
   return filter;
 }
-import type { BoardCell, BoardData, BoardDeptKey, BoardGroup, BoardSo } from "@/lib/dept-board-keys";
 
-/** A status that says the department has not begun on it. */
-const NOT_STARTED = /^(pending|date awaited|assembly pending|packing pending|readiness date awaited|not started|—)$/i;
+const kindOf = (filter: OrderListFilter): "spare" | "pump" => ordersKind(filter.types.join(","));
+
+/** A department's cards and the SOs its page lists (its queue), as its page has them. */
+function deptSpec(dept: BoardDeptKey, kind: "spare" | "pump"): { cards: KpiCardDef[]; restrict: string } {
+  const pump = kind === "pump";
+  switch (dept) {
+    case "order-making":
+      return { cards: orderMakingKpiCards(pump ? ["Pump", "ROLB"] : ["Spare"]), restrict: "TRUE" };
+    case "drawing":
+      return { cards: drawingCards(), restrict: `${deptQueueSql("drawing")} AND ${sectionItemsSql("drawing")}` };
+    case "purchase":
+      return { cards: purchaseCards(), restrict: `${deptQueueSql("purchase")} AND ${sectionItemsSql("purchase")}` };
+    case "billing":
+      return { cards: deptKpiCards("billing", [], DEPT_VIEWS.billing.hasTarget), restrict: deptQueueSql("billing") };
+    case "accounts":
+      return { cards: deptKpiCards("accounts", [], DEPT_VIEWS.accounts.hasTarget), restrict: deptQueueSql("accounts") };
+    case "planning":
+      return { cards: deptKpiCards("planning", pump ? ["Pump"] : ["Spare"]), restrict: `${deptQueueSql("planning")} AND ${sectionItemsSql("planning")}` };
+    case "quality":
+      return { cards: qcCards(), restrict: `${deptQueueSql("quality")} AND ${sectionItemsSql("quality")}` };
+    case "assembly":
+      return pump
+        ? { cards: assemblyPumpCards(), restrict: `${deptQueueSql("assembly")} AND ${pumpViewRestrict([], [])} AND ${sectionItemsSql("assembly")}` }
+        : { cards: deptKpiCards("assembly", ["Spare"]), restrict: `${deptQueueSql("assembly")} AND ${sectionItemsSql("assembly")}` };
+    case "dispatch":
+      return { cards: deptKpiCards("dispatch", [], false), restrict: deptQueueSql("dispatch") };
+  }
+}
+
+/** Every department's cards over the SOs the Orders filter selects. */
+export async function loadDeptBoard(filter: OrderListFilter): Promise<BoardData> {
+  const kind = kindOf(filter);
+  const ids = await listOrderIdsMatching(filter);
+  const columns = await Promise.all(
+    BOARD_DEPTS.map(async (d) => {
+      const spec = deptSpec(d.key, kind);
+      return { key: d.key, cards: ids.length ? await countKpiCardsOver(ids, spec.restrict, spec.cards) : [] };
+    })
+  );
+  return { columns, kind };
+}
 
 const daysBetween = (from: string, to: string) =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
-
-/** A department's cell: its group from the status, the hold and the target. */
-function cellOf(c: DeptCell, target: string | null, today: string, held = false, ec?: { done: number; total: number }): BoardCell {
-  const late = c.state === "pending" && target && target < today ? daysBetween(target, today) : 0;
-  const group: BoardGroup =
-    c.state === "na" ? "na"
-    : c.state === "done" ? "done"
-    : held ? "hold"
-    : late > 0 ? "overdue"
-    : NOT_STARTED.test(c.label.trim()) && !(ec && ec.done > 0) ? "waiting"
-    : "progress";
-  return {
-    group,
-    label: held && c.state === "pending" ? "On hold" : c.label,
-    target: c.state === "na" ? null : target,
-    late,
-    ...(ec ? { ecDone: ec.done, ecTotal: ec.total } : {}),
-  };
-}
-
-/** A per-EC department as one cell for the SO: done once every EC it has is. */
-function rollUp(ecs: EcDeptStatus[], pick: (e: EcDeptStatus) => DeptCell): { cell: DeptCell; ec?: { done: number; total: number } } {
-  const cells = ecs.map(pick).filter((c) => c.state !== "na" && c.label !== "—");
-  if (!cells.length) return { cell: { state: "na", label: "N/A" } };
-  const done = cells.filter((c) => c.state === "done");
-  const ec = { done: done.length, total: cells.length };
-  if (done.length === cells.length) {
-    const labels = new Set(done.map((c) => c.label));
-    return { cell: { state: "done", label: labels.size === 1 ? done[0].label : "Done" }, ec };
-  }
-  // The status most of its open ECs are at.
-  const tally = new Map<string, number>();
-  for (const c of cells) if (c.state === "pending") tally.set(c.label, (tally.get(c.label) ?? 0) + 1);
-  const label = [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  return { cell: { state: "pending", label }, ec };
-}
 
 type Head = {
   id: string;
@@ -71,84 +87,87 @@ type Head = {
   order_type: string | null;
   spare_type: string | null;
   so_date: string | null;
-  bill_mode: string | null;
-  om_status: string | null;
-  sent_ops: string | null;
-  accounts_hold: string | null;
   cv_hold: boolean;
+  /** The keys of the cards it counts in. */
+  keys: string[];
 };
 
 /**
- * The board for the Orders filter: every SO it selects with an SO No. (no
- * test SO, none cancelled or diverted), oldest SO first.
+ * One department's cards and its SOs: for each, the cards it counts in (its
+ * status in each group, Overdue, the holds — the department page's own
+ * rules), per EC how many of its ECs are at each status, its target and how
+ * late.
  */
-export async function loadDeptBoard(filter: OrderListFilter): Promise<BoardData> {
+export async function loadDeptPage(
+  filter: OrderListFilter,
+  dept: BoardDeptKey
+): Promise<{ cards: KpiCard[]; rows: DeptSoRow[]; kind: "spare" | "pump"; today: string }> {
+  const kind = kindOf(filter);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const spec = deptSpec(dept, kind);
   const matched = await listOrderIdsMatching(filter);
-  if (!matched.length) return { sos: [], today };
-  const heads = await query<Head>(
-    `SELECT o.id::text, o.so_no, o.client_name, o.order_type, o.spare_type,
-            to_char(o.so_date, 'YYYY-MM-DD') AS so_date, o.bill_mode, o.om_status,
-            to_char(o.ec_sent_operation_date, 'YYYY-MM-DD') AS sent_ops,
-            o.accounts_hold_status AS accounts_hold,
-            COALESCE(o.clearance_status, '') = 'Hold' AS cv_hold
-       FROM orders o
-      WHERE o.id = ANY($1::uuid[])
-        AND NULLIF(btrim(o.so_no), '') IS NOT NULL
-        AND NOT ${TEST_SO_SQL("o")}
-        AND ${orderStatusSql("o")} <> ALL($2::text[])
-      ORDER BY o.so_date ASC NULLS LAST, o.sl_no ASC`,
-    [matched, [...CLOSED_ORDER_STATUSES]]
-  );
+  if (!matched.length) return { cards: [], rows: [], kind, today };
+  // The cards an SO can be in: those that pick SOs (not a total or a sum).
+  const picking = spec.cards.filter((c) => c.sql && !c.measure);
+  const keysSql = picking.length
+    ? `array_remove(ARRAY[${picking.map((c, i) => `CASE WHEN (${c.sql}) THEN ${i} END`).join(", ")}]::int[], NULL)`
+    : "ARRAY[]::int[]";
+  const [cards, heads] = await Promise.all([
+    countKpiCardsOver(matched, spec.restrict, spec.cards),
+    query<Omit<Head, "keys"> & { keys: number[] }>(
+      `SELECT o.id::text, o.so_no, o.client_name, o.order_type, o.spare_type,
+              to_char(o.so_date, 'YYYY-MM-DD') AS so_date,
+              COALESCE(o.clearance_status, '') = 'Hold' AS cv_hold,
+              ${keysSql} AS keys
+         FROM orders o
+        WHERE o.id = ANY($1::uuid[]) AND (${spec.restrict}) AND NOT ${TEST_SO_SQL("o")}
+        ORDER BY o.so_date ASC NULLS LAST, o.sl_no ASC`,
+      [matched]
+    ),
+  ]);
   const statuses = await listOrderDeptStatuses(heads.rows.map((h) => h.id));
-  const sos: BoardSo[] = [];
+  const rows: DeptSoRow[] = [];
   for (const h of heads.rows) {
     const st = statuses.get(h.id);
-    if (!st) continue;
-    sos.push({
+    const inCards = h.keys.map((i) => picking[i]);
+    const row: DeptSoRow = {
       id: h.id,
-      soNo: h.so_no,
+      soNo: h.so_no || "—",
       client: h.client_name ?? "",
       orderType: orderTypeText(h),
       soDate: h.so_date,
-      ecs: st.ecs.length,
       cvHold: h.cv_hold,
-      cells: cellsOf(h, st, today),
-    });
+      statuses: inCards
+        .filter((c) => cardRole(c) === "status")
+        .map((c) => ({ key: c.key, label: c.label, group: c.group ?? "Status", tone: c.tone ?? "neutral" })),
+      flags: inCards.filter((c) => cardRole(c) !== "status").map((c) => ({ key: c.key, label: c.label })),
+      target: null,
+      late: 0,
+    };
+    if (st) {
+      const t = st.targets;
+      // Per EC: how many of its ECs are at each status; the target and how late, while it is open.
+      const perEc = (pick: (e: EcDeptStatus) => DeptCell, target: string | null) => {
+        const cells = st.ecs.map(pick).filter((c) => c.state !== "na" && c.label !== "—");
+        const tally = new Map<string, number>();
+        for (const c of cells) tally.set(c.label, (tally.get(c.label) ?? 0) + 1);
+        row.ecStatuses = [...tally.entries()].sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count }));
+        setTarget(target, cells.some((c) => c.state === "pending"));
+      };
+      const setTarget = (target: string | null, open: boolean) => {
+        row.target = target;
+        row.late = open && target && target < today ? daysBetween(target, today) : 0;
+      };
+      if (dept === "drawing") perEc((e) => e.drawing, t.drawingReadiness ?? t.drawing);
+      else if (dept === "purchase") perEc((e) => e.purchase, t.purchase);
+      else if (dept === "planning") perEc((e) => e.planning, null);
+      else if (dept === "quality") perEc((e) => e.quality, t.quality);
+      else if (dept === "assembly") perEc((e) => e.assembly, t.assembly);
+      else if (dept === "dispatch" && st.dispatch.label !== "Hold") setTarget(t.dispatchRevised ?? t.dispatch, st.dispatch.state === "pending");
+    }
+    // Late only as the department's own Overdue card has it.
+    if (!row.flags.some((f) => f.key === "overdue")) row.late = 0;
+    rows.push(row);
   }
-  return { sos, today };
-}
-
-function cellsOf(h: Head, st: SoDeptStatus, today: string): Record<BoardDeptKey, BoardCell> {
-  const t = st.targets;
-  const per = (pick: (e: EcDeptStatus) => DeptCell, target: string | null) => {
-    const { cell, ec } = rollUp(st.ecs, pick);
-    return cellOf(cell, target, today, false, ec);
-  };
-  const rest = {
-    drawing: per((e) => e.drawing, t.drawingReadiness ?? t.drawing),
-    purchase: per((e) => e.purchase, t.purchase),
-    billing: cellOf(st.billing, null, today),
-    accounts: cellOf(st.accounts, null, today, h.accounts_hold === "Hold"),
-    planning: per((e) => e.planning, null),
-    quality: per((e) => e.quality, t.quality),
-    assembly: per((e) => e.assembly, t.assembly),
-    dispatch:
-      st.dispatch.label === "Hold"
-        ? cellOf(st.dispatch, null, today, true)
-        : cellOf(st.dispatch, t.dispatchRevised ?? t.dispatch, today),
-  };
-  // Order Making: done once sent to Operation (an Only Billing SO never goes);
-  // an SO the departments after it have taken up is past it too (the older
-  // SOs carry no Sent to Operation date).
-  const downstream = Object.values(rest).some((c) => c.group === "done" || c.group === "progress" || c.group === "overdue");
-  const om: DeptCell =
-    h.bill_mode === ONLY_BILLING
-      ? { state: "done", label: "Only Billing" }
-      : h.sent_ops
-        ? { state: "done", label: "Sent to Operation" }
-        : downstream && h.om_status !== "Hold"
-          ? { state: "done", label: "In Operation" }
-          : { state: "pending", label: "Pending" };
-  return { "order-making": cellOf(om, null, today, h.om_status === "Hold"), ...rest };
+  return { cards, rows, kind, today };
 }
