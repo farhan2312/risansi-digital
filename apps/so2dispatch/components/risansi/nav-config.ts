@@ -10,7 +10,6 @@ import {
   CalendarRange,
   Receipt,
   ScrollText,
-  ChartPie,
   ShieldCheck,
   PackageCheck,
   Truck,
@@ -103,7 +102,7 @@ export const ADMIN_NAV: NavItem[] = [
   // Which account is which rep on the orders: this portal's own, not the hub's.
   { label: "Reps", href: "/risansi/reps", icon: UserRound },
   { label: "Audit Log", href: "/risansi/audit-log", icon: ScrollText },
-  { label: "Reports", href: "/risansi/reports", icon: ChartPie },
+  // Reports: off the sidebar (the page stays at its address).
   { label: "Bug Tracker", href: "/risansi/bug-reports", icon: Bug },
 ];
 

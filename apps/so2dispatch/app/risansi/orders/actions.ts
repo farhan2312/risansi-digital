@@ -3257,6 +3257,21 @@ export async function invoiceCheckFactsAction(
 
 const MAX_EC_IMPORT_BYTES = 8 * 1024 * 1024;
 
+/** An Order Making SO member imports onto the SOs assigned to them only: any other is an error. */
+async function limitEcImportToAssigned(preview: EcImportPreview, user: { id: string; role: string }): Promise<void> {
+  if (!isOrderMakingSo(user.role)) return;
+  const ids = [...new Set(preview.ecs.map((e) => e.orderId).filter((x): x is string => !!x))];
+  if (!ids.length) return;
+  const r = await query<{ id: string }>(`SELECT id::text FROM orders WHERE id = ANY($1::uuid[]) AND so_assignee_id = $2`, [ids, user.id]);
+  const mine = new Set(r.rows.map((x) => x.id));
+  for (const e of preview.ecs) {
+    if (e.orderId && !mine.has(e.orderId) && (e.status === "ok" || e.status === "warn")) {
+      e.status = "error";
+      e.errors.push(`SO ${e.soNo} is not assigned to you`);
+    }
+  }
+}
+
 async function ecImportFile(formData: FormData): Promise<{ ok: true; buffer: ArrayBuffer; name: string } | { ok: false; error: string }> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose the Excel file first." };
@@ -3274,6 +3289,7 @@ export async function previewEcImportAction(formData: FormData): Promise<{ ok: t
   if (!f.ok) return f;
   try {
     const preview = await previewEcImport(f.buffer);
+    await limitEcImportToAssigned(preview, user);
     return preview.error ? { ok: false, error: preview.error } : { ok: true, preview };
   } catch (error) {
     console.error("previewEcImport failed:", error);
@@ -3297,6 +3313,7 @@ export async function importEcsAction(
   if (!f.ok) return f;
   const preview = await previewEcImport(f.buffer);
   if (preview.error) return { ok: false, error: preview.error };
+  await limitEcImportToAssigned(preview, user);
 
   const todo = preview.ecs.filter((e) => (e.status === "ok" || e.status === "warn") && e.orderId);
   const failed: { ecNo: string; error: string }[] = [];

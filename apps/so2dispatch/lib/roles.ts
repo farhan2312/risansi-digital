@@ -170,9 +170,9 @@ export function canManageEcs(role: string): boolean {
   return isCentral(role) || role === "order_making" || role === "order_making_so";
 }
 
-/** The EC import (the ERP's EC export, onto SOs already in the portal): Order Making PO, Central Visibility and Admin. */
+/** The EC import (the ERP's EC export, onto SOs already in the portal): Order Making PO and SO (an SO member onto the SOs assigned to them), Central Visibility and Admin. */
 export function canImportEcs(role: string): boolean {
-  return isCentral(role) || role === "order_making";
+  return isCentral(role) || role === "order_making" || role === "order_making_so";
 }
 
 /** Bulk Excel import of orders: Admin and Central Visibility only. */
