@@ -51,9 +51,8 @@ const ABOUT: Record<BoardDeptKey, string> = {
   dispatch: "Sends the packed SOs out: invoice, transport, docket and LR.",
 };
 
-/** The SO's status in the department's first group of cards, and whether that is a finished one. */
+/** The SO's status in the department's first group of cards. */
 const lead = (r: DeptSoRow) => r.statuses[0];
-const isDone = (r: DeptSoRow) => lead(r)?.tone === "done";
 
 /** Zones laid out as on a map: North on top, West and East either side, South below; Export apart. */
 const ZONE_AT: Record<string, string> = {
@@ -113,7 +112,7 @@ export function DeptDashboard({
     </div>
   );
 
-  // Timeliness: past the department's target, and the age of those not done.
+  // Timeliness: past the department's target, and the SOs' age by status.
   const lateRows = rows.filter((r) => r.late > 0);
   const lateDays = lateRows.map((r) => r.late);
   const lateBuckets = (
@@ -123,14 +122,16 @@ export function DeptDashboard({
     return { label, count: b.length, value: sumValue(b) };
   });
   const ageOf = (r: DeptSoRow) => (r.soDate ? Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${r.soDate}T00:00:00Z`)) / 86_400_000) : null);
-  const notDone = rows.filter((r) => !isDone(r) && ageOf(r) !== null);
+  const dated = rows.filter((r) => ageOf(r) !== null);
   const ageBuckets = (
-    [["0–15", 0, 15], ["16–30", 16, 30], ["31–60", 31, 60], ["61–90", 61, 90], ["91–180", 91, 180], ["180+", 181, 1e9]] as [string, number, number][]
-  ).map(([label, lo, hi]) => {
-    const b = notDone.filter((r) => ageOf(r)! >= lo && ageOf(r)! <= hi);
-    return { label, count: b.length, value: sumValue(b) };
-  });
-  const old = notDone.filter((r) => ageOf(r)! > 90);
+    [["0–15 days", 0, 15], ["16–30 days", 16, 30], ["31–60 days", 31, 60], ["61–90 days", 61, 90], ["91–180 days", 91, 180], ["180+ days", 181, 1e9]] as [string, number, number][]
+  ).map(([label, lo, hi]) => ({ label, list: dated.filter((r) => ageOf(r)! >= lo && ageOf(r)! <= hi) }));
+  // Over 90 days: by status, those not at a finished (green) one.
+  const old = dated.filter((r) => ageOf(r)! > 90 && lead(r)?.tone !== "done");
+  const oldBy = statusCards
+    .filter((c) => c.tone !== "done")
+    .map((c) => ({ c, n: old.filter((r) => lead(r)?.key === c.key) }))
+    .filter((x) => x.n.length);
 
   // Where from and for whom.
   const zones = [...new Set(rows.map((r) => r.zone || "No zone"))];
@@ -185,9 +186,6 @@ export function DeptDashboard({
       text: (
         <>
           Most of them — <b>{nf.format(biggest.count)}</b> ({pct(biggest.count, total)}%, {money(valueOf(biggest) ?? 0)}) — are at <b>{strip(biggest.label)}</b>.
-          {statusCards.some((c) => c.tone === "done") && biggest.tone !== "done" && (
-            <> {pct(rows.filter(isDone).length, total)}% are at a finished status.</>
-          )}
         </>
       ),
     });
@@ -225,13 +223,20 @@ export function DeptDashboard({
       ),
     });
   }
-  if (old.length) {
+  if (oldBy.length) {
     insights.push({
       icon: <Clock className="h-4 w-4" />,
       tone: "warn",
       text: (
         <>
-          <b>{nf.format(old.length)} SOs</b> not done here are over 90 days old ({money(sumValue(old))}).
+          Over 90 days since the SO date and still at{" "}
+          {oldBy.map((x, i) => (
+            <span key={x.c.key}>
+              {i ? (i === oldBy.length - 1 ? " and " : ", ") : ""}
+              <b>{strip(x.c.label)}</b>: {nf.format(x.n.length)} ({money(sumValue(x.n))})
+            </span>
+          ))}
+          .
         </>
       ),
     });
@@ -377,7 +382,7 @@ export function DeptDashboard({
           </Section>
 
           {/* 3. Timeliness. */}
-          <Section n={3} icon={<Clock className="h-4 w-4" />} title="Timeliness" about={`How far behind ${meta.label} is: SOs past its target date, and how long the SOs not yet at a finished status have been open since their SO date.`}>
+          <Section n={3} icon={<Clock className="h-4 w-4" />} title="Timeliness" about={`How far behind ${meta.label} is: SOs past its target date, and how old the SOs are at each of ${meta.label}'s statuses, counted from their SO date.`}>
             <div className="grid gap-4 lg:grid-cols-2">
               {overdue.length > 0 && (
                 <ChartCard title="Past the target" sub={lateRows.length ? `${lateRows.length} SOs (${money(sumValue(lateRows))}) by days past ${meta.label}'s target` : `Every SO is within ${meta.label}'s target`}>
@@ -385,9 +390,19 @@ export function DeptDashboard({
                   <Note>Taller bars to the right mean SOs that are further behind. An SO counts once it is past the target and not yet done here.</Note>
                 </ChartCard>
               )}
-              <ChartCard title="Age of SOs not done" sub={`${notDone.length} SOs (${money(sumValue(notDone))}) by days since the SO date`}>
-                <Columns data={ageBuckets} xTitle="Days since SO date" color="var(--viz-violet)" tooltip={valueTip} />
-                <Note>&ldquo;Not done&rdquo; means not at a finished status of {meta.label}&apos;s first group of cards. Bars on the right are the oldest work; hover a bar for its order value.</Note>
+              <ChartCard title="Age by status" sub={`${dated.length} SOs by days since the SO date, each split by status`}>
+                <ul className="space-y-2.5">
+                  {ageBuckets.map((b) => (
+                    <li key={b.label} className="grid grid-cols-[5.5rem_1fr_2.5rem_5.5rem] items-center gap-3 text-sm">
+                      <span className="text-muted">{b.label}</span>
+                      {b.list.length ? <StackBar parts={partsOf(b.list)} title={b.label} /> : <span className="h-2.5 rounded-full bg-[var(--viz-grid)]" />}
+                      <b className="text-right text-xs tabular-nums text-foreground">{b.list.length}</b>
+                      <span className="text-right text-xs font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(sumValue(b.list))}</span>
+                    </li>
+                  ))}
+                </ul>
+                {legend}
+                <Note>Each row is an age band; its bar shows which of {meta.label}&apos;s statuses those SOs are at. Old SOs at an early status are the work to chase.</Note>
               </ChartCard>
             </div>
           </Section>
@@ -435,7 +450,7 @@ export function DeptDashboard({
               <Term t="Order value">The SO&apos;s value in rupees: its INR value, or its order value when the order is in INR.</Term>
               <Term t="CV hold">Central Visibility&apos;s hold on an SO. The SO still counts at its own status; the hold shows beside it.</Term>
               <Term t="Overdue / past target">Not yet done here, and past the target date {meta.label} works to.</Term>
-              <Term t="Not done">Not at a finished status (green) of {meta.label}&apos;s first group of cards.</Term>
+              <Term t="Age">Days from the SO date to today, shown by {meta.label}&apos;s status.</Term>
             </dl>
           </section>
         </>
@@ -590,7 +605,8 @@ function StatusGroup({
 }
 
 function ZoneTile({ zone, list, parts, total }: { zone: string; list: DeptSoRow[]; parts: { label: string; count: number; color: string }[]; total: number }) {
-  const open = list.filter((r) => !isDone(r)).length;
+  // The status most of the zone's SOs are at.
+  const most = [...parts].sort((a, b) => b.count - a.count)[0];
   return (
     <div className={`relative overflow-hidden rounded-xl border border-card-border bg-surface p-3 shadow-sm ${ZONE_AT[zone] ?? ""}`}>
       <span className="pointer-events-none absolute -right-5 -top-5 h-14 w-14 rounded-full bg-[#2F5496]/[0.07]" aria-hidden />
@@ -600,7 +616,7 @@ function ZoneTile({ zone, list, parts, total }: { zone: string; list: DeptSoRow[
       </p>
       <p className="mt-1 flex items-baseline gap-2">
         <b className="text-2xl tabular-nums text-foreground">{list.length}</b>
-        <span className="text-[11px] text-muted">{open} not done</span>
+        {most?.count ? <span className="truncate text-[11px] text-muted">mostly {most.label}</span> : null}
       </p>
       <p className="text-xs font-semibold tabular-nums text-[#2F5496] dark:text-sky-300">{money(sumValue(list))}</p>
       <div className="mt-2">
