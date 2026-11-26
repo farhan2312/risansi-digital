@@ -952,11 +952,16 @@ export async function updateOrderSectionAction(
         if (onlyBilling) await query(`UPDATE orders SET ${ONLY_BILLING_CLEAR_FIGURES_SQL} WHERE id = $1`, [id]);
         await markReplacementTerms(id);
       }
-      // An EC added before the SO had an Order Type takes it now — Planning and
-      // the other departments read Pump or Spare off the EC.
+      // The SO's ECs take its Order Type — one added before it had one, or
+      // under the type it had before (Spare → Pump, or back). Planning and the
+      // other departments read Pump or Spare off the EC. A ROLB EC is a pump's.
       if (tbl === "orders" && allowedValues.order_type) {
         const typed = await query<{ id: string }>(
-          `UPDATE order_items SET item_type = $2 WHERE order_id = $1 AND NULLIF(btrim(item_type), '') IS NULL RETURNING id`,
+          `UPDATE order_items SET item_type = $2
+            WHERE order_id = $1
+              AND (NULLIF(btrim(item_type), '') IS NULL
+                   OR (btrim(item_type) = 'Spare') <> ($2 = 'Spare'))
+           RETURNING id`,
           [id, allowedValues.order_type]
         );
         if (allowedValues.order_type === "Spare") {
