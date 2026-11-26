@@ -366,19 +366,25 @@ export default function OperationDocsPage({ fixedType }: { /** Operation's own p
                         {/* Not picked on Review: not sent. Client's own format: only its
                             SharePoint links are shared, never the generated documents. No
                             Technical Data Sheet saved means no Techno-Commercial either. */}
-                        {!r.sentDocs.includes(c.key) || (r.links && !r.links[c.key]) ? (
+                        {!r.sentDocs.includes(c.key) || (r.links && !r.links[c.key]?.length) ? (
                           <span className="text-[12.5px] text-muted-foreground">—</span>
                         ) : r.links ? (
-                            <a
-                              href={r.links[c.key]!}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Client's own format: opens the SharePoint file"
-                              aria-label={`${c.label} V${r.version} of ${r.projectCode} (SharePoint)`}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12.5px] font-medium whitespace-nowrap text-foreground shadow-xs hover:bg-muted"
-                            >
-                              <ExternalLink className="size-3.5" /> SharePoint
-                            </a>
+                          // One button per SharePoint file (a document can have several).
+                          <span className="flex flex-col items-start gap-1">
+                            {r.links[c.key]!.map((url, i, all) => (
+                              <a
+                                key={url}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Client's own format: opens the SharePoint file"
+                                aria-label={`${c.label} V${r.version} of ${r.projectCode} (SharePoint${all.length > 1 ? ` ${i + 1}` : ""})`}
+                                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12.5px] font-medium whitespace-nowrap text-foreground shadow-xs hover:bg-muted"
+                              >
+                                <ExternalLink className="size-3.5" /> SharePoint{all.length > 1 ? ` ${i + 1}` : ""}
+                              </a>
+                            ))}
+                          </span>
                         ) : c.key !== "commercial" && !r.hasTechnical ? (
                           <span className="text-[12.5px] text-muted-foreground">—</span>
                         ) : (

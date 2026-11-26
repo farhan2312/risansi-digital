@@ -26,22 +26,29 @@ const ALL_DOCS: { key: SavedDocKind; label: string }[] = [
   { key: "techno", label: TECHNO_COMMERCIAL_TITLE },
 ];
 
-/** A document with a SharePoint link: the file made by hand opens instead of the generated one. */
-function LinkedDoc({ label, url }: { label: string; url: string }) {
+/** A document with SharePoint links (one or more): the files made by hand open instead of the generated one. */
+function LinkedDoc({ label, urls }: { label: string; urls: string[] }) {
+  const many = urls.length > 1;
   return (
     <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-muted/30 px-4 py-10 text-center">
       <p className="text-[13px] text-muted-foreground">
-        Client&apos;s own format: the <strong className="font-semibold text-foreground">{label}</strong> document is on SharePoint. It is shared instead of the generated one.
+        Client&apos;s own format: the <strong className="font-semibold text-foreground">{label}</strong> document is on SharePoint
+        {many ? ` (${urls.length} files)` : ""}. It is shared instead of the generated one.
       </p>
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
-      >
-        <ExternalLink className="size-4" /> Open {label} in SharePoint
-      </a>
-      <span className="max-w-full font-mono text-[11px] break-all text-muted-foreground">{url}</span>
+      {urls.map((url, i) => (
+        <div key={url} className="flex max-w-full flex-col items-center gap-1">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <ExternalLink className="size-4" /> Open {label}
+            {many ? ` ${i + 1}` : ""} in SharePoint
+          </a>
+          <span className="max-w-full font-mono text-[11px] break-all text-muted-foreground">{url}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -148,8 +155,8 @@ export default function SavedDocsViewer({
         )}
       </div>
       {clientFormat ? (
-        linked ? (
-          <LinkedDoc label={isSpare ? "Quotation" : (DOCS.find((d) => d.key === doc)?.label ?? "")} url={linked} />
+        linked?.length ? (
+          <LinkedDoc label={isSpare ? "Quotation" : (DOCS.find((d) => d.key === doc)?.label ?? "")} urls={linked} />
         ) : (
           <p className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-[13px] text-muted-foreground">
             <FileX className="size-5 text-muted-foreground/70" />
