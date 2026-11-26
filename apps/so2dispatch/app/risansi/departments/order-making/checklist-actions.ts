@@ -50,9 +50,24 @@ async function loadHead(orderId: string): Promise<OrderHead | null> {
   const r = await query<OrderHead>(
     `SELECT o.so_no, o.sl_no::int AS sl_no, to_char(o.so_date, 'YYYY-MM-DD') AS so_date, o.order_type,
             COALESCE(o.version_no, 0)::int AS version_no, o.so_assignee_id,
-            o.industry_type, o.market_type, o.reps, o.payment_terms,
+            o.industry_type, o.market_type, o.reps,
+            -- Payment terms: the SO's term lines ("30% Advance · 15 days"), as
+            -- Order Making enters them; the old free-text field only without any.
+            COALESCE(
+              (SELECT string_agg(
+                        concat_ws(' · ',
+                          NULLIF(btrim(concat_ws(' ', CASE WHEN t.percent IS NOT NULL THEN trim_scale(t.percent)::text || '%' END,
+                                                      NULLIF(btrim(t.term), ''))), ''),
+                          CASE WHEN t.days IS NOT NULL THEN t.days || ' days' END),
+                        '; ' ORDER BY t.seq)
+                 FROM order_payment_terms t WHERE t.order_id = o.id),
+              NULLIF(btrim(o.payment_terms), '')) AS payment_terms,
             to_char(o.delivery_date_as_per_so, 'YYYY-MM-DD') AS delivery_date_as_per_so,
-            o.ld, to_char(o.ld_date, 'YYYY-MM-DD') AS ld_date, o.freight_terms, o.packing_requirement, o.boi,
+            o.ld,
+            -- No LD: no LD date to give.
+            CASE WHEN lower(COALESCE(o.ld, '')) = 'no' THEN 'Not applicable'
+                 ELSE to_char(o.ld_date, 'YYYY-MM-DD') END AS ld_date,
+            o.freight_terms, o.packing_requirement, o.boi,
             -- Base plate: Yes when any EC asks for one.
             CASE WHEN EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.base_plate = 'Yes') THEN 'Yes'
                  WHEN EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id) THEN 'No' END AS base_plate
