@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ArrowLeft, CheckCheck, ExternalLink, Loader2, MessagesSquare, Search, X } from "lucide-react";
-import { ALL_ROLES, canSeeClientInChat, departmentHrefForRole, isCentral, isRep, roleLabel } from "@/lib/roles";
+import { ALL_ROLES, canSeeClientInChat, departmentHrefForRole, isCentral, isRep, roleLabel, chatLabel, chatLane } from "@/lib/roles";
 import type { ChatSummary, SoHit } from "@/lib/order-messages";
 import {
   allChatsAction,
@@ -121,8 +121,8 @@ export function AllChatsPanel({
   }, [onClose]);
 
   // The viewer's own team (a Rep Manager shares the Reps' side).
-  const ownPeer = isCentral(role) ? "central_visibility" : role === "rep_manager" ? "rep" : role;
-  const peerName = (p: string) => (p === ownPeer ? `${roleLabel(p)} (own team)` : roleLabel(p));
+  const ownPeer = isCentral(role) ? "central_visibility" : chatLane(role);
+  const peerName = (p: string) => (p === ownPeer ? `${chatLabel(p)} (own team)` : chatLabel(p));
 
   // Grouped by SO, in the order their latest message came.
   // (A page can end mid-SO: the next page's lines join its group.)

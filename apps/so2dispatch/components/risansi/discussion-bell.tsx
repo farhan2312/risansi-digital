@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, MessagesSquare } from "lucide-react";
-import { departmentHrefForRole, isCentral, roleLabel } from "@/lib/roles";
+import { departmentHrefForRole, isCentral, roleLabel, chatLabel } from "@/lib/roles";
 import type { InboxEntry } from "@/lib/order-messages";
 import { discussionInboxAction } from "@/app/risansi/orders/thread-actions";
 import { OrderThreadModal } from "./order-thread-modal";
@@ -191,10 +191,10 @@ export function DiscussionBell({
                   </p>
                   <p className="mt-0.5 text-[11px] text-muted">
                     {e.author_name} · {roleLabel(e.author_role)}
-                    {isCentral(role) ? ` · ${roleLabel(e.dept_role)} lane` : ""}
+                    {isCentral(role) ? ` · ${chatLabel(e.dept_role)} lane` : ""}
                     {/* A message addressed to you came from another
                         department's lane — say which. */}
-                    {e.to_role ? ` · asked of ${roleLabel(e.to_role)}` : ""}
+                    {e.to_role ? ` · asked of ${chatLabel(e.to_role)}` : ""}
                   </p>
                 </button>
               ))

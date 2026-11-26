@@ -5,7 +5,7 @@ import { query } from "@/lib/db";
 import { getOrderRep, listOrderDeptStatuses } from "@/lib/orders";
 import { orderStatusOf, acrossEcs } from "@/lib/order-row-view";
 import { orderStatusSql, repMatches } from "@/lib/dept-view";
-import { canSeeClientInChat, hasNoChat, isRep, roleLabel } from "@/lib/roles";
+import { canSeeClientInChat, hasNoChat, isRep, chatLabel } from "@/lib/roles";
 import { logAudit } from "@/lib/audit";
 import { subjectForOrder } from "@/lib/audit-subject";
 
@@ -164,7 +164,7 @@ export async function postMessageAction(
       await markConversationRead(user.id, orderId, other);
     } catch (error) {
       console.error("postMessageAction failed for", other, error);
-      failed.push(roleLabel(other));
+      failed.push(chatLabel(other));
     }
   }
   if (failed.length) return { ok: false, error: `Sent, except to ${failed.join(", ")}.` };
@@ -181,7 +181,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** Where an entry sat, as the audit log says it: "Planning → Central Visibility". */
 const laneOf = (m: { dept_role: string; to_role: string | null }) =>
-  `${roleLabel(m.dept_role)} → ${roleLabel(m.to_role ?? "central_visibility")}`;
+  `${chatLabel(m.dept_role)} → ${chatLabel(m.to_role ?? "central_visibility")}`;
 
 /**
  * Change one of your own entries (a note or a delay) in this conversation.

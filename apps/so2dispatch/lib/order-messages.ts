@@ -1,5 +1,5 @@
 import { query } from "@/lib/db";
-import { ALL_ROLES, canSeeClientInChat, hasNoChat, isCentral, isRep, type Role } from "@/lib/roles";
+import { ALL_ROLES, canSeeClientInChat, chatLane, hasNoChat, isCentral, isRep, type Role } from "@/lib/roles";
 import { deptQueueSql, deptViewForRole, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
 /**
@@ -74,7 +74,8 @@ export const MAX_MESSAGE_LENGTH = 2000;
  * second, empty lane.
  */
 export function laneOf(role: string): string {
-  return role === "rep_manager" ? "rep" : role;
+  // Order Making SO and PO are one side too (lib/roles chatLane).
+  return chatLane(role);
 }
 
 /** The department roles a conversation can be with — every non-central role that is its own side (CRM and 360° View only read). */
@@ -400,6 +401,7 @@ const escapeLike = (term: string) => term.replace(/[\\%_]/g, (c) => `\\${c}`);
 /** The roles on the viewer's own side of a conversation. */
 function ownSideRoles(role: string): string[] {
   if (isCentral(role)) return ["admin", CENTRAL_PEER];
+  if (chatLane(role) === "order_making") return ["order_making", "order_making_so"];
   return isRep(role) ? ["rep", "rep_manager"] : [role];
 }
 

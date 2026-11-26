@@ -12,7 +12,7 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import { isCentral, roleLabel } from "@/lib/roles";
+import { isCentral, roleLabel, chatLabel, chatLane } from "@/lib/roles";
 import type {
   ConversationSummary,
   OrderMessage,
@@ -83,8 +83,8 @@ export function OrderThread({
 }) {
   const central = isCentral(role);
   // The viewer's own team (a Rep Manager shares the Reps' side).
-  const ownPeer = central ? "central_visibility" : role === "rep_manager" ? "rep" : role;
-  const peerName = (p: string) => (p === ownPeer ? `${roleLabel(p)} (own team)` : roleLabel(p));
+  const ownPeer = central ? "central_visibility" : chatLane(role);
+  const peerName = (p: string) => (p === ownPeer ? `${chatLabel(p)} (own team)` : chatLabel(p));
   const [open, setOpen] = useState(collapsible ? defaultOpen : true);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   // The conversation on screen — who it is with. Everyone starts on the one
@@ -579,7 +579,7 @@ export function OrderThread({
                         <span>
                           {m.author_name} · {roleLabel(m.author_role)}
                           {central && m.to_role
-                            ? ` → ${roleLabel(m.to_role)}`
+                            ? ` → ${chatLabel(m.to_role)}`
                             : ""}
                         </span>
                         {messageTools(m, "delay")}
@@ -621,7 +621,7 @@ export function OrderThread({
                           }`}
                         >
                           <ArrowRight className="h-2.5 w-2.5" />
-                          {roleLabel(m.dept_role)} → {roleLabel(m.to_role)}
+                          {chatLabel(m.dept_role)} → {chatLabel(m.to_role)}
                         </div>
                       )}
                       {messageBody(m, m.mine ? "mine" : "plain")}

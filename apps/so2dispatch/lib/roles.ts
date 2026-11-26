@@ -373,3 +373,17 @@ export function departmentHrefForRole(role: string): string | null {
 export function roleLabel(role: string): string {
   return (ROLE_LABELS as Record<string, string>)[role] ?? role;
 }
+
+/**
+ * The side of a chat a role speaks for. A Rep Manager is on the Reps' side;
+ * Order Making SO and PO are one side, Order Making — both read and answer
+ * what is sent to it, and talk together as its own team.
+ */
+export function chatLane(role: string): string {
+  return role === "rep_manager" ? "rep" : role === "order_making_so" ? "order_making" : role;
+}
+
+/** A chat side's name: Order Making for both its teams, else the role's. */
+export function chatLabel(lane: string): string {
+  return lane === "order_making" || lane === "order_making_so" ? "Order Making" : roleLabel(lane);
+}
