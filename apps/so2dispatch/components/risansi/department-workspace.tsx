@@ -2189,7 +2189,7 @@ function EditSectionModal({
               }
               return (
                 <Fragment key={field.column}>
-                <div>
+                <div className={field.multiline ? "sm:col-span-2" : undefined}>
                   <label className="mb-1.5 block text-[13px] font-medium text-brand-label">
                     {field.label}
                   </label>
@@ -2224,6 +2224,13 @@ function EditSectionModal({
                         </option>
                       ))}
                     </select>
+                  ) : field.multiline ? (
+                    <textarea
+                      rows={4}
+                      value={values[field.column] ?? ""}
+                      onChange={(e) => setValues((v) => ({ ...v, [field.column]: e.target.value }))}
+                      className={`${inputClass.replace("h-10 ", "")} min-h-[6rem] resize-y py-2 leading-relaxed`}
+                    />
                   ) : (
                     <input
                       type={

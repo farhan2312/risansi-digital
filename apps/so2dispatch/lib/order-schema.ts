@@ -294,7 +294,7 @@ export const PUMP_SO_PLANNING_FIELDS: OrderField[] = [
     type: "date",
     dependsOn: [{ column: "actual_spare_status", value: "Date awaited", not: true }],
   },
-  { column: "pump_readiness_remarks", label: "Remarks", type: "text" },
+  { column: "pump_readiness_remarks", label: "Remarks", type: "text", multiline: true },
 ];
 /** Every Planning status, Pump and Spare together — the queue's Status filter. */
 export const PLANNING_STATUS_VALUES = [
@@ -915,12 +915,14 @@ export const ORDER_SECTIONS: OrderSection[] = [
         column: "pump_readiness_remarks",
         label: "Pump Readiness Remarks",
         type: "text",
+        multiline: true,
         dependsOn: [{ column: "item_type", value: PUMP_LIKE }],
       },
       {
         column: "spare_readiness_remarks",
         label: "Spare Readiness Remarks",
         type: "text",
+        multiline: true,
         dependsOn: [{ column: "item_type", value: "Spare" }],
       },
       // No readiness date to give while a Spare's date is still awaited.
