@@ -116,7 +116,7 @@ export const projects = pgTable("projects", {
   /** {technical?, commercial?, techno?}: SharePoint links added on Review (user,
    *  2026-11-18), a spare's quotation as commercial. A document with a link opens it
    *  instead of the generated one (lib/doc-links.ts). A new version starts with none. */
-  docLinks: jsonb("doc_links").$type<Record<string, string>>(),
+  docLinks: jsonb("doc_links").$type<Record<string, string | string[]>>(),
   /** Two statuses, each worked out automatically (lib/enquiry-filters-server.ts)
    *  but editable on the Edit form (user, 2026-11-03). The override is set only
    *  when what was picked there differs from the automatic status. */

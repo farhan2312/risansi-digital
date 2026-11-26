@@ -286,7 +286,7 @@ export const getReviewState = async (projectId: string): Promise<ReviewState> =>
   return data;
 };
 
-/** Client's own format on / off, and its documents' SharePoint links ("" clears one).
+/** Client's own format on / off, and each document's SharePoint links ([] clears one).
  *  Returns the links, or null when off. */
 export const saveDocLinks = async (projectId: string, body: { clientFormat: boolean } & DocLinks): Promise<{ links: DocLinks | null; changed: boolean }> => {
   const { data } = await apiClient.put<{ links: DocLinks | null; changed: boolean }>(`/projects/${projectId}/doc-links`, body);
