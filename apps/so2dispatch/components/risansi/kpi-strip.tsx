@@ -90,8 +90,8 @@ export function KpiStrip({ cards, panels = false, merged = false }: { cards: Kpi
     else groups.push({ name: c.group, cards: [c] });
   }
   // merged (the Orders page): every group in one strip, its heading over its
-  // figures, a hairline between figures and an arrow from one group to the
-  // next — the journey left to right.
+  // figures, a hairline between figures and a clear gap from one group to the
+  // next.
   if (merged) {
     const pick = (c: KpiCard, on: boolean) => {
       const clear = Object.fromEntries(keys.map((k) => [k, null]));
@@ -110,11 +110,8 @@ export function KpiStrip({ cards, panels = false, merged = false }: { cards: Kpi
         <div className="flex flex-wrap items-stretch">
           {groups.map((g, gi) => (
             <div key={g.name ?? gi} className="flex items-stretch">
-              {gi > 0 && (
-                <span className="flex items-center px-1 text-lg text-muted/70" aria-hidden>
-                  →
-                </span>
-              )}
+              {/* A clear gap, and a hairline, between one department and the next. */}
+              {gi > 0 && <span className="mx-3 my-3 w-px bg-card-border" aria-hidden />}
               <section className="flex flex-col py-2.5 pr-1">
                 <h3 className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#2F5496] dark:text-sky-300">{g.name || "Overview"}</h3>
                 <div className="flex flex-1 items-stretch divide-x divide-card-border">
