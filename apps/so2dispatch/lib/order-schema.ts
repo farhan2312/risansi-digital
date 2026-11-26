@@ -55,6 +55,8 @@ export type OrderField = {
   readOnly?: boolean;
   // Child lists only: several lines, edited in a box that keeps them.
   multiline?: boolean;
+  // Filled and shown on Order Making's own form only, not the Order details pop-up.
+  orderMakingOnly?: boolean;
   // Optional visual grouping inside a section — consecutive fields sharing
   // the same `group` label are rendered together under one subheading.
   group?: string;
@@ -584,6 +586,7 @@ export const ORDER_SECTIONS: OrderSection[] = [
         options: OM_HOLD_REASONS,
         dependsOn: [{ column: OM_TAT_LATE, value: "Yes" }],
         group: "Handover",
+        orderMakingOnly: true,
       },
       // When the SO went to PPC: the SO Hand Over Date, now under Handover.
       // Drawing's first target is counted from it — see lib/target-rules.ts.
@@ -1981,7 +1984,7 @@ export const DRAWING_CONTEXT_FIELDS: OrderField[] = [
   { column: "customer_po_date", label: "PO Date", type: "date" },
   { column: "drg_target_date", label: "Target Date for Drawing", type: "date" },
   // Drawing's own: when it says the SO's drawings will be ready (set on its page, with history).
-  { column: "drg_readiness_date", label: "Drawing Expected Readiness Date", type: "date" },
+  { column: "drg_readiness_date", label: "Expected DRG Readiness Date", type: "date" },
   { column: "performance_curve_required", label: "Performance Curve", type: "select", options: YES_NO },
   // The client's own drawing documents (Terms & Conditions), read only.
   { column: "client_drawing_link", label: "Client Drawing Docs", type: "text" },

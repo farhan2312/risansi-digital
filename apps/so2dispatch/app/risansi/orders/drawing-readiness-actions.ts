@@ -54,7 +54,7 @@ export async function setDrawingReadinessAction(
   const before = order.drg_readiness_date ?? "";
   if (before === day) return { ok: true };
   // A date that moves needs its reason; the first one does not.
-  if (before && !why) return { ok: false, error: "Say why the expected readiness date is revised." };
+  if (before && !why) return { ok: false, error: "Say why the expected DRG readiness date is revised." };
 
   try {
     await query(`UPDATE orders SET drg_readiness_date = $2, updated_at = now() WHERE id = $1`, [orderId, day || null]);
@@ -71,9 +71,9 @@ export async function setDrawingReadinessAction(
   const label = order.so_no ?? `#${order.sl_no}`;
   const what = day
     ? before
-      ? `Drawing expected readiness date for ${label} revised from ${formatDay(before)} to ${formatDay(day)}${why ? ` (${why})` : ""}`
-      : `Drawing expected readiness date for ${label} set to ${formatDay(day)}`
-    : `Drawing expected readiness date for ${label} cleared`;
+      ? `Expected DRG readiness date for ${label} revised from ${formatDay(before)} to ${formatDay(day)}${why ? ` (${why})` : ""}`
+      : `Expected DRG readiness date for ${label} set to ${formatDay(day)}`
+    : `Expected DRG readiness date for ${label} cleared`;
   await Promise.all([
     logAudit({
       actor: { id: user.id, email: user.email, role: user.role },

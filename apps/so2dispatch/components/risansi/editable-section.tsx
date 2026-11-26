@@ -345,7 +345,7 @@ export function EditableSection({
         type Bucket = { label: string | null; fields: OrderField[] };
         const buckets: Bucket[] = [];
         for (const f of section.fields) {
-          if (!dependsSatisfied(f, values, data)) continue;
+          if (f.orderMakingOnly || !dependsSatisfied(f, values, data)) continue;
           const label = f.group ?? null;
           const last = buckets[buckets.length - 1];
           if (last && last.label === label) last.fields.push(f);

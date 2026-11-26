@@ -96,7 +96,7 @@ export function OrderDetailsModal({
   if (order) {
     const read = (c: string) => str(order[c]);
     for (const f of CORE.fields) {
-      if (!dependsOnSatisfied(f, read)) continue;
+      if (f.orderMakingOnly || !dependsOnSatisfied(f, read)) continue;
       // A field the viewer is not shown at all (Order Making's view) is left out.
       if (!(f.column in order)) continue;
       const title = f.group ?? "Other";

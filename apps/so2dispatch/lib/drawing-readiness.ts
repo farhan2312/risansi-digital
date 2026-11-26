@@ -14,5 +14,5 @@ export async function readinessMissingForItem(itemId: string, revisionId?: strin
     [itemId, revisionId ?? null]
   );
   if (!r.rows[0]) return null;
-  return r.rows[0].has ? null : "Set the SO's Expected Readiness Date first (Drawing page, Expected Readiness Date column).";
+  return r.rows[0].has ? null : "Set the SO's Expected DRG Readiness Date first (Drawing page, Expected DRG Readiness Date column).";
 }
