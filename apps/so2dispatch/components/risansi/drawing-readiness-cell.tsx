@@ -98,7 +98,7 @@ export function DrawingReadinessCell({
   async function save(e: FormEvent) {
     e.preventDefault();
     if (current && date !== current && !reason.trim()) {
-      setError("Say why the expected readiness date is revised.");
+      setError("Say why the expected DRG readiness date is revised.");
       return;
     }
     setSaving(true);
@@ -122,8 +122,8 @@ export function DrawingReadinessCell({
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        aria-label={canEdit ? "Set expected readiness date" : "Expected readiness date history"}
-        title={canEdit ? "Set the expected readiness date, see its history" : "Expected readiness date history"}
+        aria-label={canEdit ? "Set expected DRG readiness date" : "Expected DRG readiness date history"}
+        title={canEdit ? "Set the expected DRG readiness date, see its history" : "Expected DRG readiness date history"}
         className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
       >
         {canEdit ? <Pencil className="h-3 w-3" /> : <History className="h-3 w-3" />}
@@ -139,12 +139,12 @@ export function DrawingReadinessCell({
         <div
           ref={popRef}
           role="dialog"
-          aria-label="Expected readiness date"
+          aria-label="Expected DRG readiness date"
           style={pos ? { top: pos.top, left: pos.left } : undefined}
           className="fixed z-50 max-h-[340px] w-72 overflow-y-auto whitespace-normal rounded-xl border border-card-border bg-surface p-3 text-left shadow-xl"
         >
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Expected readiness date
+            Expected DRG readiness date
             {moves > 0 && <span className="ml-1 font-normal normal-case text-amber-700">· moved {moves}×</span>}
           </p>
           {canEdit && (

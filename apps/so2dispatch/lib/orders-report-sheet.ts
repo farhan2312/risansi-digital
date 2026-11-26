@@ -179,7 +179,7 @@ export function ordersSheet(opts: {
         Col("GAD", 30, "Drawing"),
         Col("Perf. Curve", 28, "Drawing"),
         Col("Part Drawing", 26, "Drawing"),
-        Col("Expected Readiness Date", 14, "Drawing"),
+        Col("Expected DRG Readiness Date", 14, "Drawing"),
         Col("BOI", 44, "Purchase"),
         Col("QC Docs", 32, "Quality"),
         Col("Planning Status", 16, "Planning"),

@@ -42,7 +42,7 @@ export const ORDER_DATE_FIELDS = [
   // Planning's own date: when it says an EC will be ready.
   { value: "readiness", label: "Readiness date" },
   // Drawing's own: when it says the SO's drawings will be ready.
-  { value: "drg_readiness", label: "Drawing expected readiness" },
+  { value: "drg_readiness", label: "Expected DRG readiness" },
   // Drawing also finds an SO by its client's Purchase Order date.
   { value: "po_date", label: "PO date" },
   // The Orders list: an FR's complaint date.

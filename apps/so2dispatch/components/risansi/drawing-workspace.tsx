@@ -243,8 +243,8 @@ export function DrawingWorkspace({
     },
     {
       key: "readiness",
-      label: "Expected Readiness Date",
-      head: <SortHeader label="Expected Readiness Date" sortKey="drg_readiness_date" />,
+      label: "Expected DRG Readiness Date",
+      head: <SortHeader label="Expected DRG Readiness Date" sortKey="drg_readiness_date" />,
       thClass: "whitespace-nowrap",
       tdClass: "whitespace-nowrap",
       // Drawing's own date for the SO, with every value it has held; the last revision's reason under it.

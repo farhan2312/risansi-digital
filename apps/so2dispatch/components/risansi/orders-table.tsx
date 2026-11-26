@@ -1021,7 +1021,7 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
                   { label: "Drawing · GAD", dept: "drawing" },
                   { label: "Drawing · Perf. curve", dept: "drawing" },
                   { label: "Drawing · Part drawing", dept: "drawing" },
-                  { label: "Drawing · Expected Readiness", dept: "drawing" },
+                  { label: "Drawing · Expected DRG Readiness", dept: "drawing" },
                   { label: "Purchase · BOI", dept: "purchase" },
                   { label: "Quality · QC docs", dept: "quality" },
                   { label: "Planning · Status", dept: "planning" },
