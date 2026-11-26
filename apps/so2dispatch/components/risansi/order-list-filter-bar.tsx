@@ -112,6 +112,36 @@ const subscribeFold = (cb: () => void) => {
   };
 };
 
+/** The filter bar's fold: folded unless this device opened it. */
+export function useFilterFold(): [boolean, () => void] {
+  const folded = useSyncExternalStore(subscribeFold, () => localStorage.getItem(FOLD_KEY) !== "0", () => true);
+  const toggle = () => {
+    localStorage.setItem(FOLD_KEY, folded ? "0" : "1");
+    foldListeners.forEach((cb) => cb());
+  };
+  return [folded, toggle];
+}
+
+/** The Filters button: folds the filters away, and says how many are on while folded. */
+export function FilterFoldButton({ folded, onToggle, onCount }: { folded: boolean; onToggle: () => void; onCount: number }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!folded}
+      title={folded ? "Show the filters" : "Fold the filters away"}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
+        folded ? "border-primary/40 bg-primary/[0.06] text-primary" : "border-input-border bg-surface text-foreground hover:bg-background"
+      }`}
+    >
+      <SlidersHorizontal className="h-3.5 w-3.5" />
+      Filters
+      {folded && onCount > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">{onCount}</span>}
+      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${folded ? "-rotate-90" : ""}`} />
+    </button>
+  );
+}
+
 export function OrderListFilterBar({
   options,
   total,
@@ -196,11 +226,7 @@ export function OrderListFilterBar({
     setParams({ [to]: get(from) || null, [from]: null, page: null });
   };
   // Folded: the toggles and search only; the filters wait behind the button.
-  const folded = useSyncExternalStore(subscribeFold, () => localStorage.getItem(FOLD_KEY) === "1", () => false);
-  const toggleFold = () => {
-    localStorage.setItem(FOLD_KEY, folded ? "0" : "1");
-    foldListeners.forEach((cb) => cb());
-  };
+  const [folded, toggleFold] = useFilterFold();
   // How many filters are on, for the folded bar.
   const onCount = [...FILTER_KEYS, ...extraKeys].filter((k) => k !== "q" && k !== "page" && k !== "sort" && !(k === "type" && (kindToggle || typeToggle)) && !!get(k)).length;
   // The second Rep filter: a Rep Manager's own login, themself and their team;
@@ -248,20 +274,7 @@ export function OrderListFilterBar({
     <>
     <div className="mb-3 rounded-xl border border-card-border bg-surface p-2 shadow-sm">
       <div className="flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          onClick={toggleFold}
-          aria-expanded={!folded}
-          title={folded ? "Show the filters" : "Fold the filters away"}
-          className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
-            folded ? "border-primary/40 bg-primary/[0.06] text-primary" : "border-input-border bg-surface text-foreground hover:bg-background"
-          }`}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filters
-          {folded && onCount > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">{onCount}</span>}
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${folded ? "-rotate-90" : ""}`} />
-        </button>
+        <FilterFoldButton folded={folded} onToggle={toggleFold} onCount={onCount} />
         {/* Proforma Invoice, Accounts, Dispatch: All, Spare or Pump at a click. */}
         {typeToggle && (
           <OrderTypeToggle

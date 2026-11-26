@@ -23,6 +23,7 @@ import { EcImportButton } from "./ec-import-modal";
 import { RetrofitLine } from "./retrofit-line";
 import { CHECKLIST_STATES, checklistRequired } from "@/lib/so-checklist";
 import { OmReportPanel } from "./om-report-panel";
+import { FilterFoldButton, useFilterFold } from "./order-list-filter-bar";
 import {
   BILL_MODE_FILTER_OPTIONS,
   SO_CATEGORY_FILTER_OPTIONS,
@@ -184,7 +185,9 @@ export function OrderMakingWorkspace({
   const router = useRouter();
   const [threadFor, setThreadFor] = useState<{ orderId: string; soLabel: string } | null>(null);
   const missingOnly = filter.missingOnly;
-  const { setParams, pending } = useUrlTable();
+  const { setParams, pending, get: urlGet } = useUrlTable();
+  // The filter bar's fold, shared with every page's filter bar.
+  const [filtersFolded, toggleFilters] = useFilterFold();
   // The Excel report: the list as filtered and searched, every page.
   const urlParams = useSearchParams();
   const [showReport, setShowReport] = useState(false);
@@ -755,9 +758,13 @@ export function OrderMakingWorkspace({
       <OmReportPanel query={excelQuery} hideSentToOps={mode === "so"} />
       <div className="mb-4 space-y-2 rounded-xl border border-card-border bg-surface p-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
+        {/* The filters fold away to the type and the search (folded unless opened on this device). */}
+        <FilterFoldButton folded={filtersFolded} onToggle={toggleFilters} onCount={OM_FILTER_KEYS.filter((k) => k !== "type" && !!urlGet(k)).length} />
         {/* All, Spare or Pump: the SO's type (its own, or any of its ECs'). */}
         <KindTabs value={/pump/i.test(filter.types.join(",")) ? "pump" : filter.types.includes("Spare") ? "spare" : "all"} onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : k === "spare" ? "Spare" : null })} />
         <UrlSearchInput placeholder="Search SO, client, client code, PO…" />
+        {!filtersFolded && (
+        <>
         <MultiSelectFilter label="Zone" options={options.zones} selected={filter.zones} onChange={(next) => setParams({ zone: next })} />
         <MultiSelectFilter label="Rep" options={options.reps} selected={filter.reps} onChange={(next) => setParams({ rep: next })} />
         <MultiSelectFilter label="Market" options={options.markets} selected={filter.markets} onChange={(next) => setParams({ market: next })} />
@@ -843,10 +850,14 @@ export function OrderMakingWorkspace({
           <AlertTriangle className="h-3.5 w-3.5" />
           Details missing only
         </button>
+        </>
+        )}
       </div>
 
       {/* When: by PO receiving date (the default), SO date or the date the SO went to Operation. */}
       <div className="flex flex-wrap items-center gap-2">
+        {!filtersFolded && (
+        <>
         <SingleSelectFilter
           label="Date"
           showDefault
@@ -875,6 +886,8 @@ export function OrderMakingWorkspace({
             className="h-8 rounded-lg border border-input-border bg-surface px-2 text-xs text-foreground focus:border-primary focus:outline-none"
           />
         </label>
+        </>
+        )}
         {isOrderMakingFiltered(filter) && (
           <button
             type="button"
