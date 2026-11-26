@@ -587,12 +587,22 @@ export function OrdersTable({
       ? [
           { key: "departments", label: "Departments" },
           { key: "terms", label: "Payment terms, PIs & payment" },
+          // The Pump view: each department's column group.
+          ...(pump
+            ? [
+                { key: "dept_drawing", label: "Drawing" },
+                { key: "dept_purchase", label: "Purchase" },
+                { key: "dept_quality", label: "Quality" },
+                { key: "dept_planning", label: "Planning" },
+                { key: "dept_assembly", label: "Assembly & Packing" },
+              ]
+            : []),
           ...(!pump
             ? [
                 { key: "readiness", label: "Readiness Date" },
                 { key: "packing_plan", label: "Packing Plan Date" },
-                { key: "planning_lots", label: "Planning lots" },
-                { key: "assembly_lots", label: "Assembly & Packing lots" },
+                { key: "planning_lots", label: "Planning" },
+                { key: "assembly_lots", label: "Assembly & Packing" },
               ]
             : []),
           { key: "packing_slips", label: "Packing Slips" },

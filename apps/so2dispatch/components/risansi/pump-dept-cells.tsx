@@ -101,12 +101,12 @@ export function PumpLeadGroupHeads({
   const h = (dept: Parameters<NonNullable<typeof head>>[0], label: string) => (head ? head(dept, label) : label);
   return (
     <>
-      <th colSpan={4} className={g}>{h("drawing", "Drawing")}</th>
-      <th colSpan={1} className={g}>{h("purchase", "Purchase")}</th>
-      <th colSpan={1} className={g}>{h("quality", "Quality")}</th>
+      <th colSpan={4} data-col="dept_drawing" className={g}>{h("drawing", "Drawing")}</th>
+      <th colSpan={1} data-col="dept_purchase" className={g}>{h("purchase", "Purchase")}</th>
+      <th colSpan={1} data-col="dept_quality" className={g}>{h("quality", "Quality")}</th>
       {/* Each with its Latest Lot after the numbered ones. */}
-      <th colSpan={3 + lotCount} className={g}>{h("planning", "Planning")}</th>
-      <th colSpan={2 + lotCount} className={g}>{h("assembly", "Assembly & Packing")}</th>
+      <th colSpan={3 + lotCount} data-col="dept_planning" className={g}>{h("planning", "Planning")}</th>
+      <th colSpan={2 + lotCount} data-col="dept_assembly" className={g}>{h("assembly", "Assembly & Packing")}</th>
     </>
   );
 }
