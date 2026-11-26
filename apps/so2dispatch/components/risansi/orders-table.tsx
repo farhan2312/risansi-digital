@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, ClipboardList, History, Layers, Loader2, MessageSquare, Package, PanelRightClose, PanelRightOpen, PenTool, Receipt, Trash2, Truck } from "lucide-react";
 import { setSplitPanelPrefs, useSplitPanelPrefs } from "./split-panel-prefs";
+import { ColumnPicker, useApplyHiddenColumns, useHiddenColumns } from "./column-picker";
 import { ClearanceBadge, OrderPopupHost, type PopupKind } from "./order-popups";
 import { OmHoldChip } from "./om-hold";
 import { TermPis } from "./term-pis";
@@ -518,6 +519,11 @@ export function OrdersTable({
   deptStatuses?: Record<string, SoDeptStatus>;
 }) {
   const orders = result.rows;
+  // Columns the viewer has chosen not to see.
+  const tableRef = useRef<HTMLTableElement>(null);
+  const kindKey = ordersKind(useUrlTable().get("type"));
+  const [hiddenCols, setHiddenCols] = useHiddenColumns(`risansi.orders.cols.${kindKey}.${split ? "split" : "table"}`);
+  useApplyHiddenColumns(tableRef, hiddenCols);
   // The list refreshed: whatever the pop-ups read ahead may be old now.
   useEffect(() => clearOrderPrefetch(), [result]);
   // Resting on a row reads its Order details ahead of the click.
@@ -563,6 +569,43 @@ export function OrdersTable({
   // +1 the table view gives the SO Date its own column.)
   // (+2 the table view: PO No. / Date and Complaint No. / Date; +1 Quotation No. for Admin and Reps.)
   const refs = seesOrderRefs(role);
+  // The columns the Columns button offers, as this view draws them (SO No. always stays).
+  const pickable: { key: string; label: string }[] = [
+    { key: "sl", label: "Sl. No." },
+    ...(!split ? [{ key: "so_date", label: "SO Date" }, { key: "chat", label: "Chat" }] : []),
+    ...(!pump && !split ? [{ key: "type", label: "Type" }] : []),
+    { key: "client", label: "Client / Code" },
+    ...(!split ? [{ key: "po", label: "PO No. / Date" }, { key: "complaint", label: "Complaint No. / Date" }] : []),
+    ...(!split && refs ? [{ key: "quotation", label: "Quotation No." }] : []),
+    { key: "rep", label: "Rep / Zone" },
+    { key: "bill_mode", label: "Bill Mode" },
+    { key: "order_status", label: split ? "Status / Type" : "Order Status" },
+    { key: "order_value", label: "Order Value Details" },
+    { key: "in_hand", label: "Order in Hand" },
+    ...(pump ? [{ key: "quantity", label: "Quantity" }] : []),
+    ...(!split
+      ? [
+          { key: "departments", label: "Departments" },
+          { key: "terms", label: "Payment terms, PIs & payment" },
+          ...(!pump
+            ? [
+                { key: "readiness", label: "Readiness Date" },
+                { key: "packing_plan", label: "Packing Plan Date" },
+                { key: "planning_lots", label: "Planning lots" },
+                { key: "assembly_lots", label: "Assembly & Packing lots" },
+              ]
+            : []),
+          { key: "packing_slips", label: "Packing Slips" },
+          { key: "invoice", label: "Invoice" },
+          { key: "dispatch", label: "Dispatch" },
+          { key: "docket", label: "Docket & LR" },
+          { key: "pictures", label: "Order Pictures" },
+          { key: "dispatch_status", label: "Dispatch Status" },
+          { key: "ecs", label: "ECs" },
+          { key: "followup", label: "Follow Up" },
+        ]
+      : []),
+  ];
   const baseCols = (pump ? 17 + pumpDeptCols : 25) + 7 - 3 + (split ? 0 : 1) + (split ? 0 : 2 + (refs ? 1 : 0));
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
@@ -1069,6 +1112,10 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage refSearch={seesOrderRefs(role)} kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} merged />
       {board}
+      {/* Which columns to see, kept on this device (Spare and Pump each their own). */}
+      <div className="mb-2 flex justify-end">
+        <ColumnPicker columns={pickable} hidden={hiddenCols} onChange={setHiddenCols} />
+      </div>
 
       <div
         className={
@@ -1080,32 +1127,32 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
       <div className="rounded-xl border border-card-border bg-surface shadow-sm">
         {/* The header row stays under the top bar as the page scrolls (AppShell). */}
         <div className="overflow-x-auto" data-sticky-head>
-          <table className={`w-full ${split ? "min-w-[950px]" : pump ? "min-w-[2700px]" : "min-w-[2050px]"} text-sm`}>
+          <table ref={tableRef} className={`w-full ${split ? "min-w-[950px]" : pump ? "min-w-[2700px]" : "min-w-[2050px]"} text-sm`}>
             <thead className="relative z-10 bg-surface data-[stuck=1]:shadow-[0_2px_6px_-2px_rgba(0,0,0,0.18)] [&_th]:bg-surface">
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted">
                 {/* Split view: ECs, Chat and the departments are the portrait's. */}
                 {!split && <th rowSpan={2} className="w-8 px-2 py-3" />}
-                <th rowSpan={2} className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
+                <th data-col="sl" rowSpan={2} className="px-4 py-3"><SortHeader label="Sl. No." sortKey="sl" /></th>
                 {/* SO No. and its date, the client and its code, the rep and zone: a column each. */}
                 {/* The table view: SO No. and SO Date apart; the split list keeps the date under the SO. */}
                 <th rowSpan={2} className="sticky-so px-4 py-3">{split ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : <SortHeader label="SO No." sortKey="so_no" />}</th>
-                {!split && <th rowSpan={2} className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>}
-                {!split && <th rowSpan={2} className="px-3 py-3">Chat</th>}
-                {!pump && !split && <th rowSpan={2} className="px-4 py-3">Type</th>}
-                <th rowSpan={2} className="px-4 py-3">Client / Code</th>
-                {!split && <th rowSpan={2} className="whitespace-nowrap px-4 py-3">PO No. / Date</th>}
-                {!split && <th rowSpan={2} className="whitespace-nowrap px-4 py-3">Complaint No. / Date</th>}
-                {!split && refs && <th rowSpan={2} className="whitespace-nowrap px-4 py-3">Quotation No.</th>}
-                <th rowSpan={2} className="px-4 py-3"><SortHeader label="Rep / Zone" sortKey="rep" /></th>
+                {!split && <th data-col="so_date" rowSpan={2} className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>}
+                {!split && <th data-col="chat" rowSpan={2} className="px-3 py-3">Chat</th>}
+                {!pump && !split && <th data-col="type" rowSpan={2} className="px-4 py-3">Type</th>}
+                <th data-col="client" rowSpan={2} className="px-4 py-3">Client / Code</th>
+                {!split && <th data-col="po" rowSpan={2} className="whitespace-nowrap px-4 py-3">PO No. / Date</th>}
+                {!split && <th data-col="complaint" rowSpan={2} className="whitespace-nowrap px-4 py-3">Complaint No. / Date</th>}
+                {!split && refs && <th data-col="quotation" rowSpan={2} className="whitespace-nowrap px-4 py-3">Quotation No.</th>}
+                <th data-col="rep" rowSpan={2} className="px-4 py-3"><SortHeader label="Rep / Zone" sortKey="rep" /></th>
                 {/* Headers that filter, Excel-like: the values the column holds, each with its count. */}
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label={split ? "Status / Type" : "Order Status"} /></th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap text-right"><SortHeader label="Order in Hand" sortKey="in_hand" /></th>
-                {pump && <th rowSpan={2} className="px-4 py-3 text-right">Quantity</th>}
-                {!split && <th rowSpan={2} className="px-4 py-3">Departments</th>}
+                <th data-col="bill_mode" rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="bill_mode" label="Bill Mode" /></th>
+                <th data-col="order_status" rowSpan={2} className="px-4 py-3 whitespace-nowrap"><ColumnFilter column="order_status" label={split ? "Status / Type" : "Order Status"} /></th>
+                <th data-col="order_value" rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Value Details</th>
+                <th data-col="in_hand" rowSpan={2} className="px-4 py-3 whitespace-nowrap text-right"><SortHeader label="Order in Hand" sortKey="in_hand" /></th>
+                {pump && <th data-col="quantity" rowSpan={2} className="px-4 py-3 text-right">Quantity</th>}
+                {!split && <th data-col="departments" rowSpan={2} className="px-4 py-3">Departments</th>}
                 {!split && (<>
-                <th rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
+                <th data-col="terms" rowSpan={2} className="px-4 py-3">Payment terms, PIs &amp; payment</th>
                 {pump ? (
                   // A pump SO: each department's own columns.
                   <PumpLeadGroupHeads
@@ -1114,28 +1161,28 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
                   />
                 ) : (
                   <>
-                    <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Readiness Date" sortKey="readiness" /></th>
+                    <th data-col="readiness" rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Readiness Date" sortKey="readiness" /></th>
                     {/* Assembly & Packing's planned packing date: the SO's next among its unpacked lots. */}
-                    <th rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Plan Date" sortKey="packing" /></th>
+                    <th data-col="packing_plan" rowSpan={2} className="px-4 py-3 whitespace-nowrap"><SortHeader label="Packing Plan Date" sortKey="packing" /></th>
                     {/* A Spare's readiness lots, one column each, under each department. */}
-                    <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">
+                    <th data-col="planning_lots" colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">
                       <ColumnFilter column="dept:planning" label="Planning" align="center" />
                     </th>
-                    <th colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">
+                    <th data-col="assembly_lots" colSpan={LOT_COLUMNS.length} className="border-l border-card-border px-4 pt-3 pb-1 text-center">
                       <ColumnFilter column="dept:assembly" label="Assembly & Packing" align="center" />
                     </th>
                   </>
                 )}
-                <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">Packing Slips</th>
-                <th rowSpan={2} className="px-4 py-3">Invoice</th>
-                <th rowSpan={2} className="px-4 py-3">Dispatch</th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Docket &amp; LR</th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Pictures</th>
-                <th rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">
+                <th data-col="packing_slips" rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">Packing Slips</th>
+                <th data-col="invoice" rowSpan={2} className="px-4 py-3">Invoice</th>
+                <th data-col="dispatch" rowSpan={2} className="px-4 py-3">Dispatch</th>
+                <th data-col="docket" rowSpan={2} className="px-4 py-3 whitespace-nowrap">Docket &amp; LR</th>
+                <th data-col="pictures" rowSpan={2} className="px-4 py-3 whitespace-nowrap">Order Pictures</th>
+                <th data-col="dispatch_status" rowSpan={2} className="border-l border-card-border px-4 py-3 whitespace-nowrap">
                   <ColumnFilter column="dept:dispatch" label="Dispatch Status" />
                 </th>
-                <th rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
-                <th rowSpan={2} className="px-4 py-3 whitespace-nowrap">Follow Up</th>
+                <th data-col="ecs" rowSpan={2} className="px-4 py-3 text-center normal-case"><SortHeader label="ECs" sortKey="ecs" /></th>
+                <th data-col="followup" rowSpan={2} className="px-4 py-3 whitespace-nowrap">Follow Up</th>
                 </>)}
                 {canDelete && <th rowSpan={2} className="px-4 py-3" />}
               </tr>
@@ -1146,10 +1193,10 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
                 ) : (
                   <>
                     {LOT_COLUMNS.map((n) => (
-                      <th key={`p${n}`} className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
+                      <th key={`p${n}`} data-col="planning_lots" className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
                     ))}
                     {LOT_COLUMNS.map((n) => (
-                      <th key={`a${n}`} className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
+                      <th key={`a${n}`} data-col="assembly_lots" className={`px-4 pb-2 whitespace-nowrap ${n === 1 ? "border-l border-card-border" : ""}`}>Lot {n}</th>
                     ))}
                   </>
                 )}
