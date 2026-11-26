@@ -67,7 +67,7 @@ export function spareSheet(rows: Row[], filterLine: string, histories: Map<strin
   const lines = soLines(rows, histories);
   const widths: Record<string, number> = {
     sl: 7, so: 18, soDate: 12, type: 10, ecs: 7, status: 22, readiness: 22, overdue: 10,
-    dispatchTarget: 13, ld: 11, history: 26, lots: 34, remarks: 34, assembly: 22, dispatch: 18,
+    dispatchTarget: 13, ld: 11, history: 26, lots: 34, remarks: 34, shortage: 34, assembly: 22, dispatch: 18,
   };
   return {
     title: "Spare planning report",

@@ -72,6 +72,8 @@ export type SoLine = {
   /** The readiness lots, and Planning's remarks — each its own column. */
   lots: string;
   remarks: string;
+  /** The parts the SO is short of, and how many of each. */
+  shortage: string;
   /** How often the readiness date moved, and the dates it went through. */
   history: string;
   dateMoves: number;
@@ -129,6 +131,9 @@ export function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): S
       ...new Set(ecs.map((ec) => str(ec.spare_readiness_remarks) || str(ec.pump_readiness_remarks)).filter(Boolean)),
     ].join("; ");
 
+    const short = Array.isArray(head.so_part_shortages) ? (head.so_part_shortages as Row[]) : [];
+    const shortage = short.map((p) => (str(p.qty) ? `${str(p.part_name)} ×${str(p.qty)}` : str(p.part_name))).join(", ");
+
     const ready = ecs.every(ecReady);
     // The same reading as the history popup: "2× · 03 Oct → 06 Oct → 18 Sept".
     const summary = readinessSummary(histories.get(str(head.order_id)) ?? []);
@@ -157,6 +162,7 @@ export function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): S
       notes: [lots, remarks].filter(Boolean).join(" · "),
       lots,
       remarks,
+      shortage,
       history,
       dateMoves: summary.dateMoves,
       statusKey: uniq.length === 1 ? uniq[0] : "Mixed",
@@ -289,15 +295,16 @@ export const COLUMNS: Column<SoLine>[] = [
   { label: "SO date", width: 46, key: "soDate" },
   { label: "Type", width: 32, key: "type" },
   { label: "ECs", width: 22, key: "ecs" },
-  { label: "Status", width: 70, key: "status" },
-  { label: "Readiness date", width: 68, key: "readiness" },
+  { label: "Status", width: 64, key: "status" },
+  { label: "Readiness date", width: 60, key: "readiness" },
   { label: "Overdue", width: 40, key: "overdue" },
   { label: "Dispatch target", width: 50, key: "dispatchTarget" },
   { label: "LD date", width: 36, key: "ld" },
-  { label: "Date moved", width: 70, key: "history" },
-  { label: "Lots", width: 64, key: "lots" },
-  { label: "Remarks", width: 64, key: "remarks" },
-  { label: "Assembly & Packing", width: 62, key: "assembly" },
+  { label: "Date moved", width: 60, key: "history" },
+  { label: "Lots", width: 50, key: "lots" },
+  { label: "Remarks", width: 50, key: "remarks" },
+  { label: "Shortage", width: 60, key: "shortage" },
+  { label: "Assembly & Packing", width: 54, key: "assembly" },
   { label: "Dispatch", width: 52, key: "dispatch" },
 ];
 
@@ -331,6 +338,7 @@ export function spareTone(l: SoLine, key: string): Tone | undefined {
   if (key === "overdue" && l.overdue > 0) return "red";
   if (key === "history" && l.dateMoves > 0) return "amber";
   if (key === "status" && l.ready) return "green";
+  if (key === "shortage" && l.shortage) return "red";
   if (key === "assembly") return /fully packed/i.test(l.assembly) && !/,/.test(l.assembly) ? "green" : "amber";
   if (key === "dispatch") return dispatchTone(l.dispatch);
 }
