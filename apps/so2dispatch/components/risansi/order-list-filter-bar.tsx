@@ -296,7 +296,7 @@ export function OrderListFilterBar({
           />
         )}
         {refSearch ? (
-          <span className="inline-flex min-w-0 flex-1 items-center gap-1 sm:max-w-md">
+          <span className="inline-flex min-w-[20rem] flex-1 items-center gap-1 sm:max-w-md">
             <select
               value={searchBy}
               onChange={(e) => switchSearch(e.target.value as "so" | "ref")}
