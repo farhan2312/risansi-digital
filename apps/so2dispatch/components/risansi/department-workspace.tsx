@@ -276,8 +276,8 @@ export function DepartmentWorkspace({
   embedded?: boolean;
 }) {
   const [editRow, setEditRow] = useState<Row | null>(null);
-  // Planning, Spare: the EC whose shortage is open to mark.
-  const [shortRow, setShortRow] = useState<Row | null>(null);
+  // Planning, Spare: the SO whose shortage is open to mark (its head row).
+  const [shortSo, setShortSo] = useState<Row | null>(null);
   const spareShortage = table === "order_planning" && ecKind !== "pump";
   // Planning / Assembly & Packing edit a whole SO at once: one form for all
   // its ECs.
@@ -1069,6 +1069,34 @@ export function DepartmentWorkspace({
     ...(soEdit
       ? [
           { key: "status", label: "Status", thClass: "px-4 py-3", tdClass: "px-4 py-3 whitespace-nowrap", cell: (g: SoGroup) => soSummary(g.ecs).status, list: true },
+          // Planning, Spare: the parts the SO is short of.
+          ...(spareShortage
+            ? [
+                {
+                  key: "shortage",
+                  label: "Shortage",
+                  thClass: "px-4 py-3",
+                  tdClass: "px-4 py-3",
+                  cell: (g: SoGroup) => (
+                    <div className="flex items-start gap-2">
+                      <ShortageCell parts={Array.isArray(g.head.so_part_shortages) ? (g.head.so_part_shortages as Row[]) : []} />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShortSo(g.head);
+                        }}
+                        title={canEdit ? "Mark the parts short" : "Parts short"}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
+                      >
+                        <PackageX className="h-3.5 w-3.5" />
+                        Parts
+                      </button>
+                    </div>
+                  ),
+                },
+              ]
+            : []),
           // Planning has it after SO Date.
           ...(table !== "order_planning" ? [readinessCol] : []),
           // Planning sees how far Assembly & Packing and Dispatch have got.
@@ -1287,30 +1315,6 @@ export function DepartmentWorkspace({
         cell: (ec) => docButton(ec, doc, "h-7 px-2.5"),
       })
     ),
-    ...(spareShortage
-      ? [
-          {
-            key: "shortage",
-            label: "Shortage",
-            thClass: "px-3 py-2",
-            tdClass: "px-3 py-2",
-            cell: (ec: Row) => (
-              <div className="flex items-start gap-2">
-                <ShortageCell parts={Array.isArray(ec.part_shortages) ? (ec.part_shortages as Row[]) : []} />
-                <button
-                  type="button"
-                  onClick={() => setShortRow(ec)}
-                  title={canEdit ? "Mark the parts short" : "Parts short"}
-                  className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
-                >
-                  <PackageX className="h-3.5 w-3.5" />
-                  Parts
-                </button>
-              </div>
-            ),
-          },
-        ]
-      : []),
     ...(SIGN_OFF_ENABLED && dept && completePerEc
       ? [{ key: "complete", label: "Complete", thClass: "px-3 py-2", tdClass: "px-3 py-2", cell: (ec: Row) => completeCell(String(ec.id), toInput(ec.ec_no) || String(ec.id)) }]
       : []),
@@ -1861,16 +1865,17 @@ export function DepartmentWorkspace({
         />
       )}
 
-      {shortRow && (
+      {shortSo && (
         <PartPickerModal
-          key={`short:${String(shortRow.id)}`}
+          key={`soshort:${String(shortSo.order_id)}`}
           mode="shortage"
-          itemId={String(shortRow.id)}
-          label={[toInput(shortRow.so_no), `EC ${toInput(shortRow.ec_no) || "—"}`].filter(Boolean).join(" · ")}
+          itemId=""
+          orderId={String(shortSo.order_id)}
+          label={toInput(shortSo.so_no) || "SO"}
           pumpType={null}
-          parts={Array.isArray(shortRow.part_shortages) ? (shortRow.part_shortages as Row[]) : []}
+          parts={Array.isArray(shortSo.so_part_shortages) ? (shortSo.so_part_shortages as Row[]) : []}
           canEdit={canEdit}
-          onClose={() => setShortRow(null)}
+          onClose={() => setShortSo(null)}
         />
       )}
 
