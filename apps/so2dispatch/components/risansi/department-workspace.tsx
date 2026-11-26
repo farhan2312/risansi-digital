@@ -29,10 +29,12 @@ import {
   Loader2,
   MessageSquare,
   Paperclip,
+  PackageX,
   Pencil,
   Plus,
   X,
 } from "lucide-react";
+import { PartPickerModal, ShortageCell } from "./part-drawing";
 import { updateOrderSectionAction, updateSectionForSoAction } from "@/app/risansi/orders/actions";
 import {
   CHILD_FIELDS,
@@ -274,6 +276,9 @@ export function DepartmentWorkspace({
   embedded?: boolean;
 }) {
   const [editRow, setEditRow] = useState<Row | null>(null);
+  // Planning, Spare: the EC whose shortage is open to mark.
+  const [shortRow, setShortRow] = useState<Row | null>(null);
+  const spareShortage = table === "order_planning" && ecKind !== "pump";
   // Planning / Assembly & Packing edit a whole SO at once: one form for all
   // its ECs.
   const [editSo, setEditSo] = useState<{ orderId: string; head: Row; count: number; fields?: OrderField[]; spareLike?: boolean; ecs?: Row[] } | null>(null);
@@ -1282,6 +1287,30 @@ export function DepartmentWorkspace({
         cell: (ec) => docButton(ec, doc, "h-7 px-2.5"),
       })
     ),
+    ...(spareShortage
+      ? [
+          {
+            key: "shortage",
+            label: "Shortage",
+            thClass: "px-3 py-2",
+            tdClass: "px-3 py-2",
+            cell: (ec: Row) => (
+              <div className="flex items-start gap-2">
+                <ShortageCell parts={Array.isArray(ec.part_shortages) ? (ec.part_shortages as Row[]) : []} />
+                <button
+                  type="button"
+                  onClick={() => setShortRow(ec)}
+                  title={canEdit ? "Mark the parts short" : "Parts short"}
+                  className="inline-flex h-7 items-center gap-1 rounded-lg border border-input-border px-2 text-xs font-medium hover:bg-background"
+                >
+                  <PackageX className="h-3.5 w-3.5" />
+                  Parts
+                </button>
+              </div>
+            ),
+          },
+        ]
+      : []),
     ...(SIGN_OFF_ENABLED && dept && completePerEc
       ? [{ key: "complete", label: "Complete", thClass: "px-3 py-2", tdClass: "px-3 py-2", cell: (ec: Row) => completeCell(String(ec.id), toInput(ec.ec_no) || String(ec.id)) }]
       : []),
@@ -1829,6 +1858,19 @@ export function DepartmentWorkspace({
           canEditCentral={canEditCentral}
           data={editSo.head}
           onClose={() => setEditSo(null)}
+        />
+      )}
+
+      {shortRow && (
+        <PartPickerModal
+          key={`short:${String(shortRow.id)}`}
+          mode="shortage"
+          itemId={String(shortRow.id)}
+          label={[toInput(shortRow.so_no), `EC ${toInput(shortRow.ec_no) || "—"}`].filter(Boolean).join(" · ")}
+          pumpType={null}
+          parts={Array.isArray(shortRow.part_shortages) ? (shortRow.part_shortages as Row[]) : []}
+          canEdit={canEdit}
+          onClose={() => setShortRow(null)}
         />
       )}
 

@@ -219,7 +219,7 @@ export async function savePartProgressAction(
   }
 }
 
-/** Planning marks the parts a pump EC is short of, and how many of each; the list replaces the last. */
+/** Planning marks the parts a pump or spare EC is short of, and how many of each; the list replaces the last. */
 export async function saveShortageAction(
   itemId: string,
   parts: (PartListItem & { qty?: number | string | null })[]
@@ -231,8 +231,8 @@ export async function saveShortageAction(
   }
   const ec = await ecFacts(itemId);
   if (!ec) return { ok: false, error: "EC not found." };
-  if (!PUMP_LIKE.includes(String(ec.item_type ?? ""))) {
-    return { ok: false, error: "Shortages are for pump ECs." };
+  if (![...PUMP_LIKE, "Spare"].includes(String(ec.item_type ?? ""))) {
+    return { ok: false, error: "Shortages are for pump and spare ECs." };
   }
   const wanted = new Map<string, PartListItem & { qty: number }>();
   for (const p of Array.isArray(parts) ? parts : []) {
