@@ -92,7 +92,8 @@ export function KpiStrip({ cards, panels = false, merged = false }: { cards: Kpi
   // merged (the Orders page): every group in one strip, its heading over its
   // figures, a hairline between figures and a clear gap from one group to the
   // next.
-  if (merged) {
+  // Every strip but the Dashboard's panels takes this look (the Orders page and every department page).
+  if (merged || !panels) {
     const pick = (c: KpiCard, on: boolean) => {
       const clear = Object.fromEntries(keys.map((k) => [k, null]));
       setAsked(on ? "__none" : c.key);
@@ -113,7 +114,7 @@ export function KpiStrip({ cards, panels = false, merged = false }: { cards: Kpi
               {/* A clear gap, and a hairline, between one department and the next. */}
               {gi > 0 && <span className="mx-3 my-3 w-px bg-card-border" aria-hidden />}
               <section className="flex flex-col py-2.5 pr-1">
-                <h3 className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#2F5496] dark:text-sky-300">{g.name || "Overview"}</h3>
+                {g.name && <h3 className="px-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#2F5496]/80 dark:text-sky-300">{g.name}</h3>}
                 <div className="flex flex-1 items-stretch divide-x divide-card-border">
                   {g.cards.map((c) => {
                     const on = shown === c.key;
@@ -121,8 +122,8 @@ export function KpiStrip({ cards, panels = false, merged = false }: { cards: Kpi
                     const ro = readOnly(c);
                     const body = (
                       <>
-                        <span className="block whitespace-nowrap text-[10.5px] font-medium uppercase tracking-wide text-muted">{c.label}</span>
-                        <Count c={c} reserve={reserve} className={`mt-0.5 font-display text-[1.35rem] font-bold leading-none tabular-nums ${TEXT[tone]}`} />
+                        <span className="block whitespace-nowrap text-[11.5px] font-medium text-muted">{c.label}</span>
+                        <Count c={c} reserve={reserve} className={`mt-1 font-sans text-[1.3rem] font-semibold leading-none tracking-tight tabular-nums ${TEXT[tone]}`} />
                       </>
                     );
                     const cell = "flex min-w-[6.5rem] flex-col justify-between px-3 py-1 text-left";
