@@ -23,7 +23,7 @@ import { orderTypeText } from "@/lib/order-schema";
 import { ordersKind, parseOrderListFilter, scopeToRep, withOrdersKind, type OrderListFilter } from "@/lib/order-list-filter";
 import { seesOrderRefs } from "@/lib/roles";
 import type { KpiCard, KpiCardDef } from "@/lib/kpis";
-import { BOARD_DEPTS, cardRole, type BoardData, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
+import { deptsFor, cardRole, type BoardData, type BoardDeptKey, type DeptSoRow } from "@/lib/dept-board-keys";
 
 /** The Orders filter from its query string, as the Orders page reads it (a Rep's own SOs). */
 export function boardFilterOf(
@@ -70,7 +70,7 @@ export async function loadDeptBoard(filter: OrderListFilter): Promise<BoardData>
   const kind = kindOf(filter);
   const ids = await listOrderIdsMatching(filter);
   const columns = await Promise.all(
-    BOARD_DEPTS.map(async (d) => {
+    deptsFor(kind).map(async (d) => {
       const spec = deptSpec(d.key, kind);
       if (!ids.length) return { key: d.key, cards: [], values: {} };
       // Each SO card's order value: summed over the SOs it counts, in rupees.
