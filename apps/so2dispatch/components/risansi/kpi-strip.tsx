@@ -65,7 +65,7 @@ const readOnly = (c: KpiCard) => !!c.measure && Object.keys(c.params).length ===
  * its own (and clears the rest of the strip's). `panels` (the dashboard):
  * each group in its own titled panel, its cards as even cells.
  */
-export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?: boolean }) {
+export function KpiStrip({ cards, panels = false, merged = false }: { cards: KpiCard[]; panels?: boolean; merged?: boolean }) {
   const { get, setParams } = useUrlTable();
   // The card just clicked shows on at once; the page follows when it loads.
   const [asked, setAsked] = useState<string | null>(null);
@@ -88,6 +88,71 @@ export function KpiStrip({ cards, panels = false }: { cards: KpiCard[]; panels?:
     const last = groups[groups.length - 1];
     if (last && last.name === c.group) last.cards.push(c);
     else groups.push({ name: c.group, cards: [c] });
+  }
+  // merged (the Orders page): every group in one strip, its heading over its
+  // figures, a hairline between figures and an arrow from one group to the
+  // next — the journey left to right.
+  if (merged) {
+    const pick = (c: KpiCard, on: boolean) => {
+      const clear = Object.fromEntries(keys.map((k) => [k, null]));
+      setAsked(on ? "__none" : c.key);
+      setParams(on ? clear : { ...clear, ...c.params, [KPI_PICKED]: pickedValue(c.params) });
+    };
+    const TEXT: Record<KpiTone, string> = {
+      neutral: "text-foreground",
+      pending: "text-amber-600 dark:text-amber-400",
+      part: "text-sky-700 dark:text-sky-300",
+      done: "text-emerald-700 dark:text-emerald-400",
+      danger: "text-rose-600 dark:text-rose-400",
+    };
+    return (
+      <div data-url-dim className="mb-4 overflow-hidden rounded-2xl border border-card-border bg-surface shadow-sm">
+        <div className="flex flex-wrap items-stretch">
+          {groups.map((g, gi) => (
+            <div key={g.name ?? gi} className="flex items-stretch">
+              {gi > 0 && (
+                <span className="flex items-center px-1 text-lg text-muted/70" aria-hidden>
+                  →
+                </span>
+              )}
+              <section className="flex flex-col py-2.5 pr-1">
+                <h3 className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#2F5496] dark:text-sky-300">{g.name || "Overview"}</h3>
+                <div className="flex flex-1 items-stretch divide-x divide-card-border">
+                  {g.cards.map((c) => {
+                    const on = shown === c.key;
+                    const tone = c.tone ?? "neutral";
+                    const ro = readOnly(c);
+                    const body = (
+                      <>
+                        <span className="block whitespace-nowrap text-[10.5px] font-medium uppercase tracking-wide text-muted">{c.label}</span>
+                        <Count c={c} reserve={reserve} className={`mt-0.5 font-display text-[1.35rem] font-bold leading-none tabular-nums ${TEXT[tone]}`} />
+                      </>
+                    );
+                    const cell = "flex min-w-[6.5rem] flex-col justify-between px-3 py-1 text-left";
+                    return ro ? (
+                      <div key={c.key} title={`${c.label}: a total, not a filter`} className={cell}>
+                        {body}
+                      </div>
+                    ) : (
+                      <button
+                        key={c.key}
+                        type="button"
+                        aria-pressed={on}
+                        title={on ? "Click to clear" : `Show only: ${c.label}`}
+                        onClick={() => pick(c, on)}
+                        className={`${cell} rounded-lg transition-colors ${on ? `${TONE[tone].on} ring-2 ring-inset ${TONE[tone].ring}` : "hover:bg-background"}`}
+                      >
+                        {body}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
   if (panels) {
     const pick = (c: KpiCard, on: boolean) => {

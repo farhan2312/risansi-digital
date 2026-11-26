@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { EcKindToggle } from "./planning-pump-table";
-import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, PauseCircle, Receipt, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, PackageCheck, PackageX, PauseCircle, Receipt, SlidersHorizontal, X } from "lucide-react";
 import { UrlSearchInput, useUrlTable } from "./url-table";
 import { FilterCount, MultiSelectFilter, SingleSelectFilter, filterChip, useShownValue } from "./multi-select-filter";
 import { DEPT_VIEWS } from "@/lib/dept-view";
@@ -100,6 +100,18 @@ const FILTER_KEYS = [
  * to the URL and the server filters the whole table, so what you see — and
  * what Export downloads — is every matching SO, not just the page on screen.
  */
+/** The filter bar folded to its search, as this device last left it. */
+const FOLD_KEY = "risansi.filterBar.folded";
+const foldListeners = new Set<() => void>();
+const subscribeFold = (cb: () => void) => {
+  foldListeners.add(cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    foldListeners.delete(cb);
+    window.removeEventListener("storage", cb);
+  };
+};
+
 export function OrderListFilterBar({
   options,
   total,
@@ -169,6 +181,14 @@ export function OrderListFilterBar({
   // With the toggle, the type is pinned to it (statuses read that type's words).
   const filter = kindToggle ? { ...parsed, types: kindToggle === "pump" ? ["Pump", "ROLB"] : ["Spare"] } : parsed;
   const filtered = isOrderListFiltered(parsed) || !!filter.repTeam?.length || extraKeys.some((k) => !!get(k));
+  // Folded: the toggles and search only; the filters wait behind the button.
+  const folded = useSyncExternalStore(subscribeFold, () => localStorage.getItem(FOLD_KEY) === "1", () => false);
+  const toggleFold = () => {
+    localStorage.setItem(FOLD_KEY, folded ? "0" : "1");
+    foldListeners.forEach((cb) => cb());
+  };
+  // How many filters are on, for the folded bar.
+  const onCount = [...FILTER_KEYS, ...extraKeys].filter((k) => k !== "q" && k !== "page" && k !== "sort" && !(k === "type" && (kindToggle || typeToggle)) && !!get(k)).length;
   // The second Rep filter: a Rep Manager's own login, themself and their team;
   // anyone else, those of the Rep Manager(s) picked in the first.
   const teamOptions = options.repScope
@@ -214,6 +234,20 @@ export function OrderListFilterBar({
     <>
     <div className="mb-3 rounded-xl border border-card-border bg-surface p-2 shadow-sm">
       <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={toggleFold}
+          aria-expanded={!folded}
+          title={folded ? "Show the filters" : "Fold the filters away"}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
+            folded ? "border-primary/40 bg-primary/[0.06] text-primary" : "border-input-border bg-surface text-foreground hover:bg-background"
+          }`}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filters
+          {folded && onCount > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-bold text-white">{onCount}</span>}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${folded ? "-rotate-90" : ""}`} />
+        </button>
         {/* Proforma Invoice, Accounts, Dispatch: All, Spare or Pump at a click. */}
         {typeToggle && (
           <OrderTypeToggle
@@ -236,6 +270,8 @@ export function OrderListFilterBar({
         )}
         <UrlSearchInput compact placeholder={searchPlaceholder} className={searchClassName} />
         {refSearch && <UrlSearchInput compact paramKey="pq" placeholder="Search PO No., Quotation No.…" className="sm:max-w-[15rem]" />}
+        {!folded && (
+        <>
         {showsParty && (
         <MultiSelectFilter
           label="Zone"
@@ -793,6 +829,8 @@ export function OrderListFilterBar({
             className="h-8 rounded-lg border border-input-border bg-surface px-2 text-xs text-foreground focus:border-primary focus:outline-none"
           />
         </label>
+        </>
+        )}
         {filtered && (
           <>
             <button

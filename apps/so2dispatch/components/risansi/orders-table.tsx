@@ -1067,7 +1067,7 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
       )}
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
       <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage refSearch={seesOrderRefs(role)} kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
-      <KpiStrip cards={result.kpis ?? []} />
+      <KpiStrip cards={result.kpis ?? []} merged />
       {board}
 
       <div
