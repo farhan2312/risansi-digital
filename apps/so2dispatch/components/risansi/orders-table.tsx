@@ -18,7 +18,7 @@ import { VersionsModal } from "./versions-modal";
 import { VersionTag } from "./version-tag";
 import { OrderInHand, OrderValueDetails } from "./order-value-details";
 import { dispatchRowTone } from "@/lib/dept-view";
-import { canAddFollowup, canMakeVersions, canManageEcs, canOpenVersions, isCentral, isReadOnlyViewer, seesOrderRefs } from "@/lib/roles";
+import { canAddFollowup, canMakeVersions, canManageEcs, canOpenVersions, isCentral, isReadOnlyViewer, isRep, seesOrderRefs } from "@/lib/roles";
 import { READY_LOT_LIMIT } from "@/lib/order-schema";
 import { PACKED_FOR, PACKING_IN_PROGRESS, type SoLot } from "@/lib/ready-lots";
 import { ReadyLotHistoryButton } from "./ready-lot-history";
@@ -1119,7 +1119,7 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
         />
       )}
       {/* Spare or Pump, as a toggle in place of the Type filter. */}
-      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage refSearch={seesOrderRefs(role)} kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
+      <OrderListFilterBar options={result.options} total={result.total} noDispatchTarget ordersPage refSearch={seesOrderRefs(role)} refSearchDefault={isRep(role)} kindToggle={ordersKind(getParam("type"))} orderInHand={result.inHand} />
       <KpiStrip cards={result.kpis ?? []} merged />
       {board}
       {/* Which columns to see, kept on this device (Spare and Pump each their own). */}

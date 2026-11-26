@@ -128,9 +128,12 @@ export function OrderListFilterBar({
   orderInHand,
   ordersPage = false,
   refSearch = false,
+  refSearchDefault = false,
 }: {
   /** The Orders list, for Admin, Rep and Rep Manager: a second search box, by PO No. or Quotation No. */
   refSearch?: boolean;
+  /** With refSearch: the one search box starts on PO / Quotation (a Rep) rather than SO, client, EC. */
+  refSearchDefault?: boolean;
   /** The Orders page: no Field, Payment status or Only billing filter. */
   ordersPage?: boolean;
   /** Dispatch: the cumulative Order in Hand of every matching SO, in INR. */
@@ -181,6 +184,17 @@ export function OrderListFilterBar({
   // With the toggle, the type is pinned to it (statuses read that type's words).
   const filter = kindToggle ? { ...parsed, types: kindToggle === "pump" ? ["Pump", "ROLB"] : ["Spare"] } : parsed;
   const filtered = isOrderListFiltered(parsed) || !!filter.repTeam?.length || extraKeys.some((k) => !!get(k));
+  // One search box; with refSearch, what it searches is picked beside it — by
+  // what the URL already searches, else the viewer's default.
+  const [searchBy, setSearchBy] = useState<"so" | "ref">(() => (get("pq") ? "ref" : get("q") ? "so" : refSearchDefault ? "ref" : "so"));
+  const switchSearch = (next: "so" | "ref") => {
+    if (next === searchBy) return;
+    const from = searchBy === "ref" ? "pq" : "q";
+    const to = next === "ref" ? "pq" : "q";
+    setSearchBy(next);
+    // The words typed carry over to the new kind of search.
+    setParams({ [to]: get(from) || null, [from]: null, page: null });
+  };
   // Folded: the toggles and search only; the filters wait behind the button.
   const folded = useSyncExternalStore(subscribeFold, () => localStorage.getItem(FOLD_KEY) === "1", () => false);
   const toggleFold = () => {
@@ -268,8 +282,28 @@ export function OrderListFilterBar({
             onChange={(k) => setParams({ type: k === "pump" ? "Pump,ROLB" : null, dstatus: null, page: null })}
           />
         )}
-        <UrlSearchInput compact placeholder={searchPlaceholder} className={searchClassName} />
-        {refSearch && <UrlSearchInput compact paramKey="pq" placeholder="Search PO No., Quotation No.…" className="sm:max-w-[15rem]" />}
+        {refSearch ? (
+          <span className="inline-flex min-w-0 flex-1 items-center gap-1 sm:max-w-md">
+            <select
+              value={searchBy}
+              onChange={(e) => switchSearch(e.target.value as "so" | "ref")}
+              aria-label="Search by"
+              className="h-8 shrink-0 rounded-lg border border-input-border bg-surface px-2 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
+            >
+              <option value="so">SO, client, EC</option>
+              <option value="ref">PO / Quotation</option>
+            </select>
+            <UrlSearchInput
+              key={searchBy}
+              compact
+              paramKey={searchBy === "ref" ? "pq" : "q"}
+              placeholder={searchBy === "ref" ? "Search PO No., Quotation No.…" : searchPlaceholder}
+              className={searchClassName}
+            />
+          </span>
+        ) : (
+          <UrlSearchInput compact placeholder={searchPlaceholder} className={searchClassName} />
+        )}
         {!folded && (
         <>
         {showsParty && (
