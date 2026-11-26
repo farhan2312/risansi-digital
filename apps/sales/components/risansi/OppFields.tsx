@@ -67,11 +67,7 @@ export function OppField({ field, value, onChange, disabled, usdRate, options }:
             {PROBABILITY_CODES.map(c => (
               <option key={c.code} value={c.code}>{probabilityCodeLabel(c)}</option>
             ))}
-            {/* A legacy code that is no longer offered still has to render, or
-                opening an old record silently rewrites it on the next save. */}
-            {value && !PROBABILITY_CODES.some(c => c.code === value) && (
-              <option value={value}>{value}</option>
-            )}
+            {value && !PROBABILITY_CODES.some(c => c.code === value) && <RetiredOption value={value} />}
           </select>
         );
       case 'select':
@@ -79,7 +75,7 @@ export function OppField({ field, value, onChange, disabled, usdRate, options }:
           <select {...common} value={value} onChange={e => set(e.target.value)} style={{ ...INPUT, cursor: 'pointer' }}>
             <option value="">—</option>
             {opts.map(o => <option key={o} value={o}>{o}</option>)}
-            {value && !opts.includes(value) && <option value={value}>{value}</option>}
+            {value && !opts.includes(value) && <RetiredOption value={value} />}
           </select>
         );
       default:
@@ -97,6 +93,25 @@ export function OppField({ field, value, onChange, disabled, usdRate, options }:
       {field.help && <div style={HELP}>{field.help}</div>}
     </div>
   );
+}
+
+/**
+ * A value the record holds that the list no longer offers.
+ *
+ * It has to render. Drop it and the select falls back to the blank option, and
+ * the next save rewrites a field nobody touched — opening a record to read it
+ * would quietly edit it.
+ *
+ * But it must not read as a choice. Two Prospects side by side showed two
+ * options and three, the third being "Budgetary" on the four Prospect rows
+ * that still carry it, and nothing on screen said that one was history. It is
+ * history: Budgetary stopped being an expansion horizon in Nov 2026 and became
+ * a stage of its own, and 211 rows kept the word. Disabled keeps it readable
+ * and keeps it on the record, while making it a thing you can leave or move
+ * away from but never pick.
+ */
+function RetiredOption({ value }: { value: string }) {
+  return <option value={value} disabled>{value} (no longer offered)</option>;
 }
 
 /** A read-only line for the "already recorded" section. */
