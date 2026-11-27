@@ -146,6 +146,8 @@ const LOT_PACKING_SQL = `CASE WHEN EXISTS (SELECT 1 FROM order_items pe WHERE pe
 export type OrderListRow = {
   /** A Pump SO's current version (0 until a new one is made). */
   version_no?: number | null;
+  /** SO Sent to PPC Date (YYYY-MM-DD). */
+  so_handover_date?: string | null;
   /** The SO's latest follow-up, and how many it has. */
   last_followup?: { followup_date: string; remarks: string; next_followup_date: string | null; count: number } | null;
   id: string;
@@ -4406,6 +4408,8 @@ export async function listOrdersPage(opts: {
             o.spare_type,
             -- A Pump SO's version (v0 until a new one is made).
             o.version_no,
+            -- When the SO went to PPC (Central fills it).
+            to_char(o.so_handover_date, 'YYYY-MM-DD') AS so_handover_date,
             o.order_value::text AS order_value,
             o.order_currency,
             o.order_value_inr::text AS order_value_inr,
@@ -4570,6 +4574,8 @@ export async function listOrders(): Promise<OrderListRow[]> {
             o.spare_type,
             -- A Pump SO's version (v0 until a new one is made).
             o.version_no,
+            -- When the SO went to PPC (Central fills it).
+            to_char(o.so_handover_date, 'YYYY-MM-DD') AS so_handover_date,
             o.order_value::text AS order_value,
             o.order_currency,
             o.order_value_inr::text AS order_value_inr,

@@ -40,6 +40,7 @@ import { isOrderListFiltered, ordersKind, parseOrderListFilter } from "@/lib/ord
 import type { PumpSummary } from "@/lib/pump-summary";
 import { PumpLeadCells, PumpLeadGroupHeads, PumpLeadSubHeads, PumpTailCells } from "./pump-dept-cells";
 import { RetrofitLine } from "./retrofit-line";
+import { SoPpcCell } from "./so-ppc-cell";
 
 
 function formatDate(value: string | null): string {
@@ -572,7 +573,7 @@ export function OrdersTable({
   // The columns the Columns button offers, as this view draws them (SO No. always stays).
   const pickable: { key: string; label: string }[] = [
     { key: "sl", label: "Sl. No." },
-    ...(!split ? [{ key: "so_date", label: "SO Date" }, { key: "chat", label: "Chat" }] : []),
+    ...(!split ? [{ key: "so_date", label: "SO Date" }, { key: "ppc", label: "SO Sent to PPC" }, { key: "chat", label: "Chat" }] : []),
     ...(!pump && !split ? [{ key: "type", label: "Type" }] : []),
     { key: "client", label: "Client / Code" },
     ...(!split ? [{ key: "po", label: "PO No. / Date" }, { key: "complaint", label: "Complaint No. / Date" }] : []),
@@ -616,7 +617,7 @@ export function OrdersTable({
         ]
       : []),
   ];
-  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 7 - 3 + (split ? 0 : 1) + (split ? 0 : 2 + (refs ? 1 : 0));
+  const baseCols = (pump ? 17 + pumpDeptCols : 25) + 7 - 3 + (split ? 0 : 2) + (split ? 0 : 2 + (refs ? 1 : 0));
   // The readiness history is Planning's and Central's, as on the Planning page.
   const seesReadinessHistory = isCentral(role) || role === "planning";
   // Today in the browser's calendar, to mark a packing plan that has passed.
@@ -1147,6 +1148,7 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
                 {/* The table view: SO No. and SO Date apart; the split list keeps the date under the SO. */}
                 <th rowSpan={2} className="sticky-so px-4 py-3">{split ? <SortHeader label="SO No. / Date" sortKey="so_date" /> : <SortHeader label="SO No." sortKey="so_no" />}</th>
                 {!split && <th data-col="so_date" rowSpan={2} className="whitespace-nowrap px-4 py-3"><SortHeader label="SO Date" sortKey="so_date" /></th>}
+                {!split && <th data-col="ppc" rowSpan={2} className="whitespace-nowrap px-4 py-3">SO Sent to PPC</th>}
                 {!split && <th data-col="chat" rowSpan={2} className="px-3 py-3">Chat</th>}
                 {!pump && !split && <th data-col="type" rowSpan={2} className="px-4 py-3">Type</th>}
                 <th data-col="client" rowSpan={2} className="px-4 py-3">Client / Code</th>
@@ -1294,6 +1296,11 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
                         )}
                       </td>
                       {!split && <td className="whitespace-nowrap px-4 py-3 align-top">{formatDate(order.so_date)}</td>}
+                      {!split && (
+                        <td className="whitespace-nowrap px-4 py-3 align-top" onClick={(e) => e.stopPropagation()}>
+                          <SoPpcCell orderId={order.id} soLabel={soLabel} date={order.so_handover_date ?? null} canEdit={!readOnly && isCentral(role)} />
+                        </td>
+                      )}
                       {!split && (
                       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                         <button
@@ -1554,7 +1561,8 @@ const SECTION_TONE: Record<string, { strip: string; icon: string; title: string;
           onEdit={readOnly ? undefined : () => {
             const order = detailsFor;
             setDetailsFor(null);
-            setPopup({ order, what: { kind: "so", section: "orders", title: "Order details", edit: true } });
+            // Edit here: only the terms, documents required and target dates.
+            setPopup({ order, what: { kind: "so", section: "orders", title: "Order details", edit: true, groups: ["Terms & Conditions", "Document Required", "Target Dates"] } });
           }}
         />
       )}

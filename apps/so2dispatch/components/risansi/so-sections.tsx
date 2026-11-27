@@ -53,6 +53,7 @@ export function SoSections({
   middle,
   only,
   startEditing = false,
+  onlyGroups,
 }: {
   detail: OrderDetailData;
   orderId: string;
@@ -64,6 +65,8 @@ export function SoSections({
   only?: string;
   /** Open the shown section straight into its form (with `only`). */
   startEditing?: boolean;
+  /** Order details: just these groups of its fields (the Orders list's Edit). */
+  onlyGroups?: string[];
 }) {
   const order = detail.order;
   const central = isCentral(role);
@@ -171,7 +174,11 @@ export function SoSections({
       <div key={section.key} className="space-y-6">
         <EditableSection
           targetId={orderId}
-          section={section}
+          section={
+            section.table === "orders" && onlyGroups?.length
+              ? { ...section, fields: section.fields.filter((f) => onlyGroups.includes(f.group ?? "")) }
+              : section
+          }
           data={data ?? null}
           canEdit={canEditSection(role, section.table)}
           canEditCentral={central}

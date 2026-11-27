@@ -26,6 +26,8 @@ export type PopupKind =
       title: string;
       /** Open straight into the form (the details pop-up's Edit). */
       edit?: boolean;
+      /** Only these groups of the section's fields (the details pop-up's Edit: terms, documents, target dates). */
+      groups?: string[];
     }
   | { kind: "ec"; dept: DeptKey };
 
@@ -116,6 +118,7 @@ export function OrderPopupHost({
           targetRevisions={data.targetRevisions}
           only={what.section}
           startEditing={what.edit}
+          onlyGroups={what.groups}
         />
       </div>
     </Shell>
