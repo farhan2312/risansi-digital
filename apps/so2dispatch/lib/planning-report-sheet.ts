@@ -294,7 +294,7 @@ export function pumpSheet(
           : "Not selected";
       const short = (Array.isArray(r.part_shortages) ? r.part_shortages : []) as Row[];
       const shortText = short.length
-        ? `${short.length} short: ${short.map((p) => (str(p.qty) ? `${str(p.part_name)} ×${str(p.qty)}` : str(p.part_name))).join(", ")}`
+        ? `${short.length} short: ${short.map((p) => `${str(p.part_name)}${str(p.qty) ? ` ×${str(p.qty)}` : ""}${str(p.moc) ? ` (${str(p.moc)})` : ""}`).join(", ")}`
         : "None";
       const ecCells: [SheetCell, Tone | null][] = [
         [str(r.ec_no) || str(ec.ec_no) || null, null],

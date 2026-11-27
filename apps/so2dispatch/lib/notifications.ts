@@ -23,7 +23,9 @@ export type NotificationType =
   // Planning's own: a readiness date passed, an LD date coming up, a BOI item's status.
   | "delay"
   | "ld_due"
-  | "boi_status";
+  | "boi_status"
+  // Someone tagged the recipient in an SO chat (addressed to them alone).
+  | "mention";
 
 /** All Planning hears: its delays, LD dates coming up, and BOI status. */
 const PLANNING_TYPES = new Set<NotificationType>(["delay", "ld_due", "boi_status"]);

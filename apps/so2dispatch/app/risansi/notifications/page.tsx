@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { OpenChatButton } from "@/components/risansi/open-chat-button";
 import { redirect } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
+  AtSign,
   Bell,
   Inbox,
   Bug,
@@ -48,6 +50,7 @@ const NOTIF_ICON = {
   delay: AlertTriangle,
   ld_due: Scale,
   boi_status: Package,
+  mention: AtSign,
 } as const;
 
 const NOTIF_TONE = {
@@ -59,6 +62,7 @@ const NOTIF_TONE = {
   delay: "bg-rose-50 text-rose-600",
   ld_due: "bg-amber-50 text-amber-600",
   boi_status: "bg-blue-50 text-blue-600",
+  mention: "bg-violet-50 text-violet-600",
 } as const;
 
 function timeAgo(iso: string): string {
@@ -140,6 +144,7 @@ const NOTIF_LABEL = {
   delay: "Delay",
   ld_due: "LD date",
   boi_status: "BOI",
+  mention: "Tagged",
 } as const;
 
 /** "2026-10-21" in India, for grouping by day. */
@@ -213,7 +218,8 @@ function NotificationFeed({
               const Icon = NOTIF_ICON[n.type] ?? Bell;
               const tone = NOTIF_TONE[n.type] ?? "bg-slate-100 text-slate-600";
               const fresh = seen !== null && new Date(n.created_at).getTime() > seen;
-              const href = n.order_id || n.bug_report_id ? hrefFor(n) : null;
+              // A tag opens the chat it was in instead (OpenChatButton).
+              const href = n.type !== "mention" && (n.order_id || n.bug_report_id) ? hrefFor(n) : null;
               return (
                 <li
                   key={n.id}
@@ -249,6 +255,13 @@ function NotificationFeed({
                       {clockTime(n.created_at)} · {timeAgo(n.created_at)}
                     </p>
                   </div>
+                  {n.type === "mention" && n.order_id && (
+                    <OpenChatButton
+                      orderId={n.order_id}
+                      soLabel={n.so_no ?? ""}
+                      className="inline-flex shrink-0 items-center gap-1 self-center rounded-lg border border-input-border px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                    />
+                  )}
                   {href && (
                     <Link
                       href={href}

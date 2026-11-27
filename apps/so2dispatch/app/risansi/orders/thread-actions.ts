@@ -5,11 +5,17 @@ import { query } from "@/lib/db";
 import { getOrderRep, listOrderDeptStatuses } from "@/lib/orders";
 import { orderStatusOf, acrossEcs } from "@/lib/order-row-view";
 import { orderStatusSql, repMatches } from "@/lib/dept-view";
-import { canSeeClientInChat, hasNoChat, isRep, chatLabel } from "@/lib/roles";
+import { canSeeClientInChat, hasNoChat, isRep, chatLabel, parseGuestPeer } from "@/lib/roles";
+import { emitToUser } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
 import { subjectForOrder } from "@/lib/audit-subject";
 
 import {
+  addMentions,
+  guestSides,
+  isChatGuest,
+  isGuestOnOrder,
+  listChatPeople,
   canLogDelay,
   canUsePeer,
   deleteMessage,
@@ -47,6 +53,23 @@ async function repOwns(user: { id?: string; role: string; rep_names?: string[] }
   return repMatches(await getOrderRep(orderId), user.rep_names);
 }
 
+/** Whether the user may open and post in this chat on this SO: their side's, or one they were tagged into. */
+async function mayOpen(user: { id: string; role: string; rep_names?: string[] }, orderId: string, peer: string): Promise<boolean> {
+  if (parseGuestPeer(peer)) return isChatGuest(user.id, orderId, peer);
+  return canUsePeer(user.role, peer) && (await repOwns(user, orderId));
+}
+
+/** Whether the user may see this SO's chats at all: theirs, or one they were tagged into. */
+async function maySeeOrder(user: { id: string; role: string; rep_names?: string[] }, orderId: string): Promise<boolean> {
+  return (await repOwns(user, orderId)) || (await isGuestOnOrder(user.id, orderId));
+}
+
+/** The sides a message in this chat is stored as, for this user (a guest chat: its own two). */
+async function sidesIn(user: { id: string; role: string; rep_names?: string[] }, orderId: string, peer: string) {
+  if (parseGuestPeer(peer)) return (await isChatGuest(user.id, orderId, peer)) ? guestSides(peer) : null;
+  return sidesFor(user.role, peer);
+}
+
 export type ThreadResult =
   | { ok: true; messages: OrderMessage[] }
   | { ok: false; error: string };
@@ -66,7 +89,7 @@ export async function openThreadAction(
 ): Promise<ThreadResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!canUsePeer(user.role, peer) || !(await repOwns(user, orderId))) {
+  if (!(await mayOpen(user, orderId, peer))) {
     return { ok: false, error: "You don't have access to that conversation." };
   }
 
@@ -86,7 +109,7 @@ export async function listConversationsAction(
 ): Promise<ConversationsResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
+  if (!(await maySeeOrder(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
   try {
     return { ok: true, conversations: await listConversations(orderId, user) };
   } catch (error) {
@@ -106,17 +129,21 @@ export async function postMessageAction(
   peer: string,
   body: string,
   kind = "note",
-  alsoTo: string[] = []
+  alsoTo: string[] = [],
+  /** The people tagged (@Name) in it: their user ids. */
+  mentions: string[] = []
 ): Promise<ThreadResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
 
-  const sides = sidesFor(user.role, peer);
+  const sides = await sidesIn(user, orderId, peer);
   if (!sides) return { ok: false, error: "Pick who to send this to." };
+  const guestChat = !!parseGuestPeer(peer);
   const others = [...new Set(Array.isArray(alsoTo) ? alsoTo : [])].filter((p) => p !== peer);
   // Every conversation checked before any is written to.
-  if (others.some((p) => !sidesFor(user.role, p))) return { ok: false, error: "Pick who to send this to." };
-  if (!(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
+  const otherSides = await Promise.all(others.map((p) => sidesIn(user, orderId, p)));
+  if (otherSides.some((x) => !x)) return { ok: false, error: "Pick who to send this to." };
+  if (!guestChat && !(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
 
   const text = body.trim();
   if (text === "") return { ok: false, error: "Type a message first." };
@@ -128,7 +155,7 @@ export async function postMessageAction(
   }
 
   try {
-    await insertMessage({
+    const sent = await insertMessage({
       orderId,
       deptRole: sides.deptRole,
       toRole: sides.toRole,
@@ -136,11 +163,34 @@ export async function postMessageAction(
       authorName: user.full_name,
       authorRole: user.role,
       body: text,
-      // A public endpoint: the delay flag is checked here too.
+      // A public endpoint: the delay flag is checked here too. A guest posts notes.
       kind:
-        isMessageKind(kind) && canLogDelay(user.role, peer) ? kind : "note",
+        !guestChat && isMessageKind(kind) && canLogDelay(user.role, peer) ? kind : "note",
     });
     await markConversationRead(user.id, orderId, peer);
+    // Those tagged: kept on the message, a guest of the chat when outside it, and told.
+    const tagged = await addMentions({
+      messageId: sent.id,
+      orderId,
+      deptRole: sides.deptRole,
+      toRole: sides.toRole,
+      userIds: Array.isArray(mentions) ? mentions.filter((m) => typeof m === "string") : [],
+      addedBy: user.id,
+    });
+    if (tagged.length) {
+      const so = await query<{ so_no: string | null; sl_no: number }>(`SELECT so_no, sl_no::int AS sl_no FROM orders WHERE id = $1`, [orderId]);
+      const soLabel = so.rows[0]?.so_no || `#${so.rows[0]?.sl_no ?? ""}`;
+      const chat = `${chatLabel(sides.deptRole)} ↔ ${chatLabel(sides.toRole ?? "central_visibility")}`;
+      const snippet = text.length > 140 ? `${text.slice(0, 140)}…` : text;
+      for (const t of tagged) {
+        await emitToUser({
+          userId: t.id,
+          type: "mention",
+          orderId,
+          message: `${user.full_name} tagged you in the ${chat} chat on ${soLabel}: "${snippet}"`,
+        });
+      }
+    }
   } catch (error) {
     console.error("postMessageAction failed:", error);
     return { ok: false, error: "Could not send that message." };
@@ -148,8 +198,8 @@ export async function postMessageAction(
 
   // The others, one by one: one that fails does not undo those already sent.
   const failed: string[] = [];
-  for (const other of others) {
-    const s = sidesFor(user.role, other)!;
+  for (const [i, other] of others.entries()) {
+    const s = otherSides[i]!;
     try {
       await insertMessage({
         orderId,
@@ -159,7 +209,7 @@ export async function postMessageAction(
         authorName: user.full_name,
         authorRole: user.role,
         body: text,
-        kind: isMessageKind(kind) && canLogDelay(user.role, other) ? kind : "note",
+        kind: !parseGuestPeer(other) && isMessageKind(kind) && canLogDelay(user.role, other) ? kind : "note",
       });
       await markConversationRead(user.id, orderId, other);
     } catch (error) {
@@ -190,8 +240,8 @@ const laneOf = (m: { dept_role: string; to_role: string | null }) =>
 export async function editMessageAction(orderId: string, peer: string, messageId: string, body: string): Promise<ThreadResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!UUID_RE.test(messageId) || !canUsePeer(user.role, peer)) return { ok: false, error: "That message is not here." };
-  if (!(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
+  if (!UUID_RE.test(messageId)) return { ok: false, error: "That message is not here." };
+  if (!(await mayOpen(user, orderId, peer))) return { ok: false, error: "You don't have access to that conversation." };
   const text = body.trim();
   if (text === "") return { ok: false, error: "A message can't be empty — delete it instead." };
   if (text.length > MAX_MESSAGE_LENGTH) return { ok: false, error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` };
@@ -222,8 +272,8 @@ export async function editMessageAction(orderId: string, peer: string, messageId
 export async function deleteMessageAction(orderId: string, peer: string, messageId: string): Promise<ThreadResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (!UUID_RE.test(messageId) || !canUsePeer(user.role, peer)) return { ok: false, error: "That message is not here." };
-  if (!(await repOwns(user, orderId))) return { ok: false, error: "You don't have access to that conversation." };
+  if (!UUID_RE.test(messageId)) return { ok: false, error: "That message is not here." };
+  if (!(await mayOpen(user, orderId, peer))) return { ok: false, error: "You don't have access to that conversation." };
   try {
     const gone = await deleteMessage(messageId, user.id);
     if (!gone || gone.order_id !== orderId) return { ok: false, error: "Only its author can delete a message." };
@@ -254,7 +304,7 @@ export async function discussionInboxAction(): Promise<InboxResult> {
     const entries = await listDiscussionInbox(user);
     if (!isRep(user.role) && user.role !== "order_making_so") return { ok: true, entries };
     // A Rep: only the discussions on their own SOs.
-    const owned = await Promise.all(entries.map((e) => repOwns(user, e.order_id)));
+    const owned = await Promise.all(entries.map((e) => (parseGuestPeer(e.peer) ? true : repOwns(user, e.order_id))));
     return { ok: true, entries: entries.filter((_, i) => owned[i]) };
   } catch (error) {
     console.error("discussionInboxAction failed:", error);
@@ -357,7 +407,7 @@ export type ChatSoDetails = {
 export async function chatSoDetailsAction(orderId: string): Promise<{ ok: true; so: ChatSoDetails } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
-  if (hasNoChat(user.role) || !UUID_RE.test(orderId) || !(await repOwns(user, orderId))) {
+  if (hasNoChat(user.role) || !UUID_RE.test(orderId) || !(await maySeeOrder(user, orderId))) {
     return { ok: false, error: "You don't have access to that SO." };
   }
   try {
@@ -402,5 +452,18 @@ export async function chatSoDetailsAction(orderId: string): Promise<{ ok: true; 
   } catch (error) {
     console.error("chatSoDetailsAction failed:", error);
     return { ok: false, error: "Could not load the SO." };
+  }
+}
+
+/** Everyone who can be tagged in a chat (@Name), with their side; the caller left out. */
+export async function listChatPeopleAction(): Promise<{ ok: true; people: { id: string; name: string; side: string }[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  if (hasNoChat(user.role)) return { ok: false, error: "No chat." };
+  try {
+    return { ok: true, people: (await listChatPeople()).filter((p) => p.id !== user.id) };
+  } catch (error) {
+    console.error("listChatPeopleAction failed:", error);
+    return { ok: false, error: "Could not load the people." };
   }
 }

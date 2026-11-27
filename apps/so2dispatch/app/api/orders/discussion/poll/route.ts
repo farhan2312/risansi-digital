@@ -2,10 +2,12 @@ import type { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { getOrderRep } from "@/lib/orders";
 import { repMatches } from "@/lib/dept-view";
-import { isRep } from "@/lib/roles";
+import { isRep, parseGuestPeer } from "@/lib/roles";
 import {
   canUsePeer,
   countDiscussionUnread,
+  isChatGuest,
+  isGuestOnOrder,
   latestActivity,
   listConversations,
   listMessages,
@@ -47,11 +49,16 @@ export async function GET(req: NextRequest) {
 
   // The peer is authorized here too: this is a public endpoint, whatever the
   // UI happens to be showing.
-  if (orderId && peer && !canUsePeer(user.role, peer)) {
+  // A chat they were tagged into is theirs to watch, whatever their side or SOs.
+  const guestChat = !!(orderId && peer && parseGuestPeer(peer));
+  if (guestChat && !(await isChatGuest(user.id, orderId!, peer!))) {
     return new Response("Forbidden", { status: 403 });
   }
-  // A Rep watches only their own SOs, a Rep Manager their team's too.
-  if (orderId && isRep(user.role) && !repMatches(await getOrderRep(orderId), user.rep_names)) {
+  if (orderId && peer && !guestChat && !canUsePeer(user.role, peer)) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  // A Rep watches only their own SOs, a Rep Manager their team's too (and those they were tagged in).
+  if (orderId && isRep(user.role) && !guestChat && !repMatches(await getOrderRep(orderId), user.rep_names) && !(await isGuestOnOrder(user.id, orderId))) {
     return new Response("Forbidden", { status: 403 });
   }
 

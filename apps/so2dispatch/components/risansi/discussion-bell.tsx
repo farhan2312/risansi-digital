@@ -121,7 +121,7 @@ export function DiscussionBell({
   function go(entry: InboxEntry) {
     setOpen(false);
     setChatFor(entry);
-    if (isCentral(role)) return;
+    if (isCentral(role) || entry.peer.startsWith("g:")) return;
     const href = departmentHrefForRole(role);
     if (href) router.push(`${href}?focus=${entry.order_id}`);
   }
