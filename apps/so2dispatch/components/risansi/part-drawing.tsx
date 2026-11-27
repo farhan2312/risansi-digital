@@ -22,7 +22,6 @@ import {
   savePartProgressAction,
   savePartSelectionAction,
   saveShortageAction,
-  saveSoShortageAction,
 } from "@/app/risansi/orders/part-drawing-actions";
 
 type Row = Record<string, unknown>;
@@ -142,10 +141,7 @@ export function PartPickerModal({
   canEdit,
   onClose,
   mode = "drawing",
-  orderId,
 }: {
-  /** Shortage on a Spare SO as a whole: the SO, in place of an EC. */
-  orderId?: string;
   /** Part drawings (Standard / Non Standard and the parts), or the parts the EC is short of. */
   mode?: "drawing" | "shortage";
   itemId: string;
@@ -290,9 +286,7 @@ export function PartPickerModal({
   async function save() {
     setSaving(true);
     setError(null);
-    const res = shortage && orderId
-      ? await saveSoShortageAction(orderId, [...picked.values()].map((p) => ({ ...p, qty: qtys.get(keyOf(p)) ?? "" })))
-      : shortage
+    const res = shortage
       ? await saveShortageAction(itemId, [...picked.values()].map((p) => ({ ...p, qty: qtys.get(keyOf(p)) ?? "" })))
       : await savePartSelectionAction(itemId, yes ? "Yes" : "No", yes ? [...picked.values()] : []);
     setSaving(false);
@@ -308,7 +302,7 @@ export function PartPickerModal({
     <Shell title={`${shortage ? "Shortage" : "STD / Non STD"} · ${label}`} subtitle={lists.map((l) => l.title).join(" / ")} onClose={onClose}>
       {shortage ? (
         <p className="mb-4 text-sm text-muted">
-          Tick the parts this {orderId ? "SO" : "EC"} is short of, and how many of each. <span className="font-medium text-foreground">{picked.size} short</span>
+          Tick the parts this EC is short of, and how many of each. <span className="font-medium text-foreground">{picked.size} short</span>
         </p>
       ) : (
       <div className="mb-4 flex flex-wrap items-center gap-3">

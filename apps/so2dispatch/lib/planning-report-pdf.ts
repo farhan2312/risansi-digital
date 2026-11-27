@@ -72,7 +72,7 @@ export type SoLine = {
   /** The readiness lots, and Planning's remarks — each its own column. */
   lots: string;
   remarks: string;
-  /** The parts the SO is short of, and how many of each. */
+  /** The parts its ECs are short of, and how many of each. */
   shortage: string;
   /** How often the readiness date moved, and the dates it went through. */
   history: string;
@@ -131,8 +131,15 @@ export function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): S
       ...new Set(ecs.map((ec) => str(ec.spare_readiness_remarks) || str(ec.pump_readiness_remarks)).filter(Boolean)),
     ].join("; ");
 
-    const short = Array.isArray(head.so_part_shortages) ? (head.so_part_shortages as Row[]) : [];
-    const shortage = short.map((p) => (str(p.qty) ? `${str(p.part_name)} ×${str(p.qty)}` : str(p.part_name))).join(", ");
+    // Each EC's parts short; named by EC when the SO has more than one.
+    const shortOf = (ec: Row) =>
+      (Array.isArray(ec.part_shortages) ? (ec.part_shortages as Row[]) : [])
+        .map((p) => (str(p.qty) ? `${str(p.part_name)} ×${str(p.qty)}` : str(p.part_name)))
+        .join(", ");
+    const shortage =
+      ecs.length === 1
+        ? shortOf(head)
+        : ecs.map((ec) => shortOf(ec) && `${str(ec.ec_no) || "EC"}: ${shortOf(ec)}`).filter(Boolean).join("; ");
 
     const ready = ecs.every(ecReady);
     // The same reading as the history popup: "2× · 03 Oct → 06 Oct → 18 Sept".

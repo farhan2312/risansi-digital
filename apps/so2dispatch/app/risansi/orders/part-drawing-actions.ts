@@ -5,7 +5,7 @@ import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { readinessMissingForItem } from "@/lib/drawing-readiness";
 import { logAudit } from "@/lib/audit";
-import { subjectForItem, subjectForOrder } from "@/lib/audit-subject";
+import { subjectForItem } from "@/lib/audit-subject";
 import { emitNotification } from "@/lib/notifications";
 import { getOrderLabel } from "@/lib/orders";
 import { canEditChild, canEditSection } from "@/lib/roles";
@@ -219,7 +219,7 @@ export async function savePartProgressAction(
   }
 }
 
-/** Planning marks the parts a pump EC is short of, and how many of each; the list replaces the last. */
+/** Planning marks the parts a pump or Spare EC is short of, and how many of each; the list replaces the last. */
 export async function saveShortageAction(
   itemId: string,
   parts: (PartListItem & { qty?: number | string | null })[]
@@ -231,8 +231,8 @@ export async function saveShortageAction(
   }
   const ec = await ecFacts(itemId);
   if (!ec) return { ok: false, error: "EC not found." };
-  if (!PUMP_LIKE.includes(String(ec.item_type ?? ""))) {
-    return { ok: false, error: "Shortages are for pump ECs." };
+  if (![...PUMP_LIKE, "Spare"].includes(String(ec.item_type ?? ""))) {
+    return { ok: false, error: "Shortages are for pump and Spare ECs." };
   }
   const wanted = new Map<string, PartListItem & { qty: number }>();
   for (const p of Array.isArray(parts) ? parts : []) {
@@ -292,79 +292,6 @@ export async function saveShortageAction(
     return { ok: true };
   } catch (error) {
     console.error("saveShortage failed:", error);
-    return { ok: false, error: "Could not save the shortage." };
-  }
-}
-
-/** Planning marks the parts a Spare SO is short of, and how many of each, on the SO as a whole; the list replaces the last. */
-export async function saveSoShortageAction(
-  orderId: string,
-  parts: (PartListItem & { qty?: number | string | null })[]
-): Promise<PartDrawingResult> {
-  const user = await getCurrentUser();
-  if (!user) return { ok: false, error: "You are not signed in." };
-  if (!canEditSection(user.role, "order_planning")) {
-    return { ok: false, error: "Only Planning can mark shortages." };
-  }
-  if (!UUID_RE.test(orderId)) return { ok: false, error: "SO not found." };
-  const so = await query(`SELECT 1 FROM orders WHERE id = $1`, [orderId]);
-  if (so.rowCount === 0) return { ok: false, error: "SO not found." };
-  const wanted = new Map<string, PartListItem & { qty: number }>();
-  for (const p of Array.isArray(parts) ? parts : []) {
-    const name = String(p?.part_name ?? "").trim().slice(0, 200);
-    if (!name) continue;
-    const qty = Number(String(p.qty ?? "").trim());
-    if (!Number.isInteger(qty) || qty <= 0) return { ok: false, error: `Enter how many ${name} are short.` };
-    const item = {
-      section: String(p.section ?? OTHER_PART_SECTION).trim().slice(0, 100) || OTHER_PART_SECTION,
-      part_no: String(p.part_no ?? "").trim().slice(0, 50),
-      part_name: name,
-      qty,
-    };
-    wanted.set(keyOf(item), item);
-  }
-  try {
-    const existing = await query<Record<string, unknown>>(
-      `SELECT * FROM order_so_part_shortages WHERE order_id = $1 ORDER BY seq`,
-      [orderId]
-    );
-    const have = new Map(existing.rows.map((r) => [keyOf(r), r]));
-    const drop = existing.rows.filter((r) => !wanted.has(keyOf(r))).map((r) => String(r.id));
-    if (drop.length > 0) {
-      await query(`DELETE FROM order_so_part_shortages WHERE order_id = $1 AND id = ANY($2)`, [orderId, drop]);
-    }
-    let changed = 0;
-    for (const [k, p] of wanted) {
-      const row = have.get(k);
-      if (row) {
-        if (Number(row.qty) !== p.qty) {
-          await query(`UPDATE order_so_part_shortages SET qty = $2 WHERE id = $1`, [row.id, p.qty]);
-          changed++;
-        }
-        continue;
-      }
-      await query(
-        `INSERT INTO order_so_part_shortages (order_id, section, part_no, part_name, qty) VALUES ($1, $2, NULLIF($3, ''), $4, $5)`,
-        [orderId, p.section, p.part_no, p.part_name, p.qty]
-      );
-      changed++;
-    }
-    if (changed > 0 || drop.length > 0) {
-      await logAudit({
-        actor: { id: user.id, email: user.email, role: user.role },
-        action: "order.update",
-        category: "activity",
-        target: "Shortage",
-        details: wanted.size
-          ? `Shortage: ${[...wanted.values()].map((p) => `${p.part_name} ×${p.qty}`).join(", ")}`
-          : "Shortage cleared",
-        subject: await subjectForOrder(orderId),
-      });
-    }
-    refresh();
-    return { ok: true };
-  } catch (error) {
-    console.error("saveSoShortage failed:", error);
     return { ok: false, error: "Could not save the shortage." };
   }
 }
