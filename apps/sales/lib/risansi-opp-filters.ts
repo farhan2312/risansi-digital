@@ -18,6 +18,7 @@
 // different set of aliases to scope.
 
 import { soCoverageSql, isSoCoverage } from './risansi-pipeline-brackets';
+import { probabilityCodeSql, probabilityNamed } from './risansi-probability-codes';
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -198,7 +199,13 @@ export function buildOppFilter(f: OppFilters, scopedRepId: number | null, startI
   if (f.industry.length) { conds.push(`c.industry = ANY($${idx}::text[])`);        vals.push(f.industry); idx++; }
   if (f.ctype.length)    { conds.push(`c.client_type = ANY($${idx}::text[])`);     vals.push(f.ctype);    idx++; }
   if (f.cstat.length)    { conds.push(`c.status = ANY($${idx}::text[])`);          vals.push(f.cstat);    idx++; }
-  if (f.prob.length)     { conds.push(`o.probability_code = ANY($${idx}::text[])`); vals.push(f.prob);    idx++; }
+  if (f.prob.length) {
+    // Codes 1-4 and the unrated rows. The unrated side is a NULL test and
+    // inlines, so the $-index only moves when a real code is ticked.
+    const named = probabilityNamed(f.prob);
+    const psql = probabilityCodeSql(f.prob, `$${idx}::text[]`, 'o');
+    if (psql) { conds.push(psql); if (named.length) { vals.push(named); idx++; } }
+  }
   if (f.val.length)      { const v = valueRangeSql('o.value_cr', f.val); if (v) conds.push(v); }
   // SO coverage and value buckets inline (validated enum / constant thresholds),
   // so they leave every $-index untouched.

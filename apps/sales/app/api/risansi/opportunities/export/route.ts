@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { probabilityPctSql } from '@/lib/risansi-probability-codes';
+import { probabilityPctSql, probabilityCodeSql, probabilityNamed,
+  PROBABILITY_CODE_LABELS } from '@/lib/risansi-probability-codes';
 import { join } from 'path';
 import ExcelJS from 'exceljs';
 import risansiPool from '@/lib/db-risansi';
@@ -145,7 +146,11 @@ export async function GET(req: Request) {
   if (indFilts.length)      { conds.push(`c.industry = ANY($${idx}::text[])`);          vals.push(indFilts);      idx++; }
   if (ctypeFilts.length)    { conds.push(`c.client_type = ANY($${idx}::text[])`);       vals.push(ctypeFilts);    idx++; }
   if (cstatFilts.length)    { conds.push(`c.status = ANY($${idx}::text[])`);             vals.push(cstatFilts);    idx++; }
-  if (probFilts.length)     { conds.push(`o.probability_code = ANY($${idx}::text[])`);  vals.push(probFilts);     idx++; }
+  if (probFilts.length) {
+    const probNamed = probabilityNamed(probFilts);
+    const psql = probabilityCodeSql(probFilts, `$${idx}::text[]`, 'o');
+    if (psql) { conds.push(psql); if (probNamed.length) { vals.push(probNamed); idx++; } }
+  }
   if (valFilts.length)      { const v = valueRangeSql('o.value_cr', valFilts); if (v) conds.push(v); }
   if (soFilt) {
     // Mirrors soSql() on the Opportunities page — both branches pin stage='Won',
@@ -170,7 +175,7 @@ export async function GET(req: Request) {
   if (indFilts.length)      appliedFilters.push(['Industry', indFilts.join(', ')]);
   if (ctypeFilts.length)    appliedFilters.push(['Client Type', ctypeFilts.join(', ')]);
   if (cstatFilts.length)    appliedFilters.push(['Client Status', cstatFilts.map(clientStatusLabel).join(', ')]);
-  if (probFilts.length)     appliedFilters.push(['Probability code', probFilts.join(', ')]);
+  if (probFilts.length)     appliedFilters.push(['Probability code', probFilts.map(p => PROBABILITY_CODE_LABELS[p] ?? p).join(', ')]);
   if (valFilts.length)      appliedFilters.push(['Value bucket', valFilts.join(', ')]);
   if (soFilt)               appliedFilters.push(['Sales Order', soFilt === 'awaiting' ? 'Awaiting SO' : 'SO created']);
   if (qname) appliedFilters.push(['Quote no. / name search', qname]);

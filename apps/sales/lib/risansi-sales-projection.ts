@@ -16,7 +16,9 @@
 import type { Pool } from 'pg';
 import { LIVE_CLIENT } from '@/lib/risansi-opportunity-scope';
 import { creditedRepSql } from '@/lib/risansi-attribution';
-import { probabilityPctSql, hasProbabilitySql } from '@/lib/risansi-probability-codes';
+import { probabilityPctSql, hasProbabilitySql, probabilityCodeSql, probabilityNamed,
+  noProbabilitySql, probabilityCodeLabel, PROBABILITY_CODES,
+  PROBABILITY_UNRATED, PROBABILITY_UNRATED_LABEL } from '@/lib/risansi-probability-codes';
 
 /** Open = still live. Dropped is dead and has no place in a forecast. */
 // Open, and on a client that still exists: an archived client's quotes are not
@@ -113,9 +115,13 @@ export function parseProjectionFilters(sp: Record<string, string | string[] | un
   return { rep, prodType: list('pptype'), industry: list('pind'), ctype: list('pctype'), stage: list('pstage'), prob: list('pprob'), market: list('pmarket'), minValue: min };
 }
 
+/** A probability option: the stored code, and what it reads as on screen. */
+export interface ProjectionProbOption { value: string; label: string }
+
 /** Distinct values on the open pipeline the viewer may see, to fill the filter dropdowns. */
 export async function loadProjectionOptions(pool: Pool, repIds: number[] | null): Promise<{
-  reps: { id: number; name: string }[]; prodTypes: string[]; industries: string[]; ctypes: string[]; stages: string[]; probs: string[]; markets: string[];
+  reps: { id: number; name: string }[]; prodTypes: string[]; industries: string[]; ctypes: string[];
+  stages: string[]; probs: ProjectionProbOption[]; markets: string[];
 }> {
   if (repIds !== null && repIds.length === 0) return { reps: [], prodTypes: [], industries: [], ctypes: [], stages: [], probs: [], markets: [] };
   // Whose forecast a row belongs to is the client's owner, not o.rep_id — the
@@ -133,7 +139,26 @@ export async function loadProjectionOptions(pool: Pool, repIds: number[] | null)
          JOIN clients c ON c.id = o.client_id
          JOIN users u ON u.id = ${creditedRepSql()}
         WHERE ${OPEN}${repFilter} ORDER BY u.name`, params).then(r => r.rows),
-    q('o.product_type'), q('c.industry'), q('c.client_type'), q('o.stage'), q('o.probability_code'), q('o.market'),
+    q('o.product_type'), q('c.industry'), q('c.client_type'), q('o.stage'),
+    // Probability is the one list not built from DISTINCT text. A bare '2'
+    // means nothing to a reader, and the DISTINCT could not offer the
+    // unrated rows at all because it filters NULL out — which is most of
+    // the open pipeline, and why ticking every option still hid two thirds
+    // of it. Codes come from the shared scale with their glosses, and
+    // Unrated is offered when there is anything unrated to find.
+    pool.query<{ code: string | null; n: string }>(
+      `SELECT CASE WHEN ${HAS_PROB} THEN btrim(o.probability_code) END AS code, count(*)::text AS n
+         FROM opportunities o JOIN clients c ON c.id = o.client_id
+        WHERE ${OPEN}${repFilter} GROUP BY 1`, params).then(r => {
+      const present = new Set(r.rows.filter(x => x.code).map(x => x.code as string));
+      const unrated = r.rows.some(x => !x.code && Number(x.n) > 0);
+      const opts: ProjectionProbOption[] = PROBABILITY_CODES
+        .filter(c => present.has(c.code))
+        .map(c => ({ value: c.code, label: probabilityCodeLabel(c) }));
+      if (unrated) opts.push({ value: PROBABILITY_UNRATED, label: PROBABILITY_UNRATED_LABEL });
+      return opts;
+    }),
+    q('o.market'),
   ]);
   return { reps, prodTypes, industries, ctypes, stages, probs, markets };
 }
@@ -170,7 +195,13 @@ export async function loadProjection(
   if (f.rep != null) add(`${creditedRepSql()} = ?`, f.rep);
   if (f.prodType?.length) add('o.product_type = ANY(?::text[])', f.prodType);
   if (f.stage?.length)    add('o.stage = ANY(?::text[])', f.stage);
-  if (f.prob?.length)     add('o.probability_code = ANY(?::text[])', f.prob);
+  if (f.prob?.length) {
+    // Unrated is a NULL test and takes no parameter, so it cannot go
+    // through add() — that helper always pushes one.
+    const probNamed = probabilityNamed(f.prob);
+    if (probNamed.length) add(probabilityCodeSql(f.prob, '?::text[]', 'o'), probNamed);
+    else conds.push(noProbabilitySql('o'));
+  }
   if (f.market?.length)   add('o.market = ANY(?::text[])', f.market);
   if (f.industry?.length) add('o.client_id IN (SELECT id FROM clients WHERE industry = ANY(?::text[]))', f.industry);
   if (f.ctype?.length)    add('o.client_id IN (SELECT id FROM clients WHERE client_type = ANY(?::text[]))', f.ctype);

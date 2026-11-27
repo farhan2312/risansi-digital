@@ -25,11 +25,57 @@ export function probabilityCodeLabel(c: ProbabilityCode): string {
     : `${c.code} — No chance of the order`;
 }
 
+/**
+ * Probability as a filter offers it.
+ *
+ * The four codes are not the whole population. 1,973 of 2,482 opportunities
+ * carry no code at all — 436 of them still open — because the code is asked for
+ * at Quoted and most rows were raised before it existed or never reached that
+ * stage. A filter listing only 1-4 therefore could not reach most of the board:
+ * ticking all four returned 294 of 730 open opportunities and read as a bug,
+ * because the one thing it could not express was "nobody has rated this".
+ *
+ * Unrated is a selectable option for the same reason Market offers Unrecorded.
+ * Those are the rows somebody wants to find and rate; a filter that silently
+ * omits them makes them harder to see, not easier.
+ */
+export const PROBABILITY_UNRATED = 'Unrated';
+export const PROBABILITY_UNRATED_LABEL = 'Not rated (no probability set)';
+
 /** Filter options in the shape MultiSelectFilter expects. */
-export const PROBABILITY_CODE_OPTIONS = PROBABILITY_CODES.map(c => ({
-  value: c.code,
-  label: probabilityCodeLabel(c),
-}));
+export const PROBABILITY_CODE_OPTIONS = [
+  ...PROBABILITY_CODES.map(c => ({ value: c.code, label: probabilityCodeLabel(c) })),
+  { value: PROBABILITY_UNRATED, label: PROBABILITY_UNRATED_LABEL },
+];
+
+/** Code → label, for the active-filter bar and any chip that shows a selection. */
+export const PROBABILITY_CODE_LABELS: Record<string, string> =
+  Object.fromEntries(PROBABILITY_CODE_OPTIONS.map(o => [o.value, o.label]));
+
+/** The real codes out of a selection — what the $-param carries. */
+export const probabilityNamed = (picked: string[]) => picked.filter(p => p !== PROBABILITY_UNRATED);
+
+/** Rows the scale cannot read: no code, blank, or a code no longer in use. */
+export function noProbabilitySql(alias = 'o'): string {
+  return `${probabilityPctSql(alias)} IS NULL`;
+}
+
+/**
+ * SQL for a probability selection, including Unrated. The NULL side inlines —
+ * only the named codes take a parameter, and the parameter is skipped entirely
+ * when Unrated is the only thing ticked.
+ *
+ * Unrated deliberately means "not one of the four", not "column is NULL", so a
+ * stray historic code can never be a row no selection reaches. It is the same
+ * test the weighted forecast uses, so the filter and the weighting agree on
+ * which rows count as rated.
+ */
+export function probabilityCodeSql(picked: string[], namedParam: string, alias = 'o'): string {
+  const parts: string[] = [];
+  if (probabilityNamed(picked).length) parts.push(`${alias}.probability_code = ANY(${namedParam})`);
+  if (picked.includes(PROBABILITY_UNRATED)) parts.push(noProbabilitySql(alias));
+  return parts.length ? `(${parts.join(' OR ')})` : '';
+}
 
 /**
  * The odds to weight a forecast by. A missing code is not a coin toss: nobody

@@ -8,8 +8,12 @@ import type { CSSProperties } from 'react';
 // a link. Multi-selects are comma-joined in one param.
 
 export interface ProjectionOptions {
-  reps: { id: number; name: string }[]; prodTypes: string[]; industries: string[]; ctypes: string[]; stages: string[]; probs: string[]; markets: string[];
+  reps: { id: number; name: string }[]; prodTypes: string[]; industries: string[]; ctypes: string[];
+  stages: string[]; probs: MultiOption[]; markets: string[];
 }
+
+/** An option whose stored value and its label differ. */
+export interface MultiOption { value: string; label: string }
 
 export function ProjectionFilters({ options, value }: { options: ProjectionOptions; value: Record<string, string | undefined> }) {
   const router = useRouter();
@@ -39,6 +43,9 @@ export function ProjectionFilters({ options, value }: { options: ProjectionOptio
       <Multi label="Product type" k="pptype" opts={options.prodTypes} value={value.pptype} onChange={set} />
       <Multi label="Industry" k="pind" opts={options.industries} value={value.pind} onChange={set} />
       <Multi label="Client type" k="pctype" opts={options.ctypes} value={value.pctype} onChange={set} />
+      {/* The only list here whose stored value is not readable on its own:
+          a bare "2" says nothing, so the option carries the odds and the
+          gloss, exactly as the Opportunities filter states them. */}
       <Multi label="Probability" k="pprob" opts={options.probs} value={value.pprob} onChange={set} />
       <Multi label="Market" k="pmarket" opts={options.markets} value={value.pmarket} onChange={set} />
       <Field label="Min value">
@@ -59,20 +66,26 @@ export function ProjectionFilters({ options, value }: { options: ProjectionOptio
 // A multi-select as a dropdown of checkboxes would need state; a native
 // <select multiple> is awkward on a phone. A single select with the chosen
 // values shown, and "+ add" appending, keeps it to plain controls.
-function Multi({ label, k, opts, value, onChange }: { label: string; k: string; opts: string[]; value?: string; onChange: (k: string, v: string | undefined) => void }) {
+// Options arrive either as plain strings, where the stored value reads fine on
+// its own ("Quoted", "EXPORT"), or as value/label pairs where it does not.
+// Both the chip and the menu show the label, so a chosen probability stays
+// legible after it is picked rather than collapsing back to a bare digit.
+function Multi({ label, k, opts, value, onChange }: { label: string; k: string; opts: readonly (string | MultiOption)[]; value?: string; onChange: (k: string, v: string | undefined) => void }) {
+  const items: MultiOption[] = opts.map(o => (typeof o === 'string' ? { value: o, label: o } : o));
+  const labelOf = (v: string) => items.find(o => o.value === v)?.label ?? v;
   const chosen = value ? value.split(',').filter(Boolean) : [];
-  const remaining = opts.filter(o => !chosen.includes(o));
+  const remaining = items.filter(o => !chosen.includes(o.value));
   return (
     <Field label={label}>
       <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
         {chosen.map(c => (
           <button key={c} type="button" onClick={() => onChange(k, chosen.filter(x => x !== c).join(',') || undefined)} title="Remove"
-            style={CHIP}>{c} ×</button>
+            style={CHIP}>{labelOf(c)} ×</button>
         ))}
         <select value="" onChange={e => { if (e.target.value) onChange(k, [...chosen, e.target.value].join(',')); }}
           style={{ ...SEL, minWidth: chosen.length ? 60 : 130, color: chosen.length ? 'var(--fg-3)' : 'var(--fg-2)' }}>
           <option value="">{chosen.length ? '+ add' : `Any ${label.toLowerCase()}`}</option>
-          {remaining.map(o => <option key={o} value={o}>{o}</option>)}
+          {remaining.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
     </Field>

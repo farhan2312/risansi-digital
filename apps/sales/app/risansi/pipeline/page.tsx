@@ -7,7 +7,8 @@ import { OWN_OPEN, clientScopeSql, getCurrentUser, getSession, hasRole, ownedOnl
 import { creditedRepNameSql, CREDITED_REP_JOIN } from '@/lib/risansi-attribution';
 import { getCurrentFY, fmtCr, fmtUsdFromCr } from '@/lib/risansi-utils';
 import { getUsdRate } from '@/lib/risansi-settings';
-import { PROBABILITY_CODE_OPTIONS, probabilityWeight, probabilityPctSql } from '@/lib/risansi-probability-codes';
+import { PROBABILITY_CODE_OPTIONS, PROBABILITY_CODE_LABELS, probabilityWeight,
+  probabilityPctSql, probabilityCodeSql, probabilityNamed } from '@/lib/risansi-probability-codes';
 import { CLIENT_STATUSES, CLIENT_STATUS_LABELS, clientStatusLabel } from '@/lib/risansi-client-status';
 import { NewOpportunityButton } from '@/components/risansi/NewOpportunityButton';
 import { OpportunityKanban } from '@/components/risansi/OpportunityKanban';
@@ -252,9 +253,13 @@ export default async function PipelinePage({
     conds.push(`c.status = ANY($${idx}::text[])`);
     vals.push(cstatFilts); idx++;
   }
+  // Codes 1-4, and the rows nobody has rated. Unrated is a NULL test so it
+  // inlines; the $-param is only taken when a real code is ticked. Shared with
+  // the stage dashboards and the export through probabilityCodeSql.
   if (probFilts.length > 0) {
-    conds.push(`o.probability_code = ANY($${idx}::text[])`);
-    vals.push(probFilts); idx++;
+    const named = probabilityNamed(probFilts);
+    const psql = probabilityCodeSql(probFilts, `$${idx}::text[]`, 'o');
+    if (psql) { conds.push(psql); if (named.length) { vals.push(named); idx++; } }
   }
   if (valFilts.length > 0) {
     const vsql = valueRangeSql('o.value_cr', valFilts);
@@ -361,7 +366,11 @@ export default async function PipelinePage({
     if (cntryFilts.length)      { c.push(`${a}.client_id IN (SELECT id FROM clients WHERE country = ANY($${v.length + 1}::text[]))`); v.push(cntryFilts); }
     if (ctypeFilts.length)      { c.push(`${a}.client_id IN (SELECT id FROM clients WHERE client_type = ANY($${v.length + 1}::text[]))`); v.push(ctypeFilts); }
     if (cstatFilts.length)      { c.push(`${a}.client_id IN (SELECT id FROM clients WHERE status = ANY($${v.length + 1}::text[]))`); v.push(cstatFilts); }
-    if (probFilts.length)       { c.push(`${a}.probability_code = ANY($${v.length + 1}::text[])`);                             v.push(probFilts); }
+    if (probFilts.length) {
+      const named = probabilityNamed(probFilts);
+      const psql = probabilityCodeSql(probFilts, `$${v.length + 1}::text[]`, a);
+      if (psql) { c.push(psql); if (named.length) v.push(named); }
+    }
     return { clause: c.length ? ` AND ${c.join(' AND ')}` : '', vals: v as (string | number)[] };
   };
   const wlFilter   = analyticsFilter('po');
@@ -1004,7 +1013,8 @@ export default async function PipelinePage({
               { param: 'ctype',        label: 'Client Type', values: ctypeFilts },
               { param: 'cstat',        label: 'Client Status', values: cstatFilts,
                 valueLabels: CLIENT_STATUS_LABELS },
-              { param: 'prob',         label: 'Prob',     values: probFilts     },
+              { param: 'prob',         label: 'Prob',     values: probFilts,
+                valueLabels: PROBABILITY_CODE_LABELS },
               { param: 'so',           label: 'Sales Order', values: soFilt ? [soFilt] : [],
                 valueLabels: SO_COVERAGE_LABELS },
             ]} />
