@@ -23,6 +23,10 @@ import { CLOSED } from "@/lib/order-row-view";
 import { stageByCards } from "@/lib/dashboard-stages";
 import { dashboardDeptCards } from "@/lib/dept-board";
 import type { Bucket, RepRow } from "@/lib/spare-dashboard";
+import { PUMP_TYPE_OPTIONS } from "@/lib/order-schema";
+
+/** One Pump Type on the SOs in view (cancelled and diverted left out): its SOs, ECs and pumps. */
+export type PumpTypeRow = { label: string; sos: number; ecs: number; pumps: number; open: number };
 
 /** Where a pump SO stands, earliest first: Planning, then Assembly, Packing and Dispatch. */
 export const PUMP_STAGES = [
@@ -90,6 +94,8 @@ export type PumpDashboard = {
   clients: Bucket[];
   reps: RepRow<PumpStage>[];
   depts: DeptRow[];
+  /** Each Pump Type: SOs, pump ECs and pumps; "Not set" for ECs with none. */
+  pumpTypes: PumpTypeRow[];
   /** Open SOs by the GAD stage holding them back. */
   gad: Bucket[];
   /** Bought-out items on all SOs but the cancelled and diverted, received or not. */
@@ -418,6 +424,31 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
       qc.pending += (Number(f.qc_asm) || 0) - (Number(f.qc_asm_sub) || 0);
     }
   }
+  // Each Pump Type over the pump ECs of the SOs not cancelled or diverted; open: on SOs not fully dispatched.
+  const pumpTypes: PumpTypeRow[] = [];
+  if (live.length) {
+    const openIds = new Set(open.map((s) => s.id));
+    const r = await query<{ t: string; id: string; ecs: number; pumps: number }>(
+      `SELECT COALESCE(NULLIF(TRIM(it.pump_type), ''), 'Not set') AS t, it.order_id::text AS id,
+              count(*)::int AS ecs, COALESCE(sum(it.quantity), 0)::int AS pumps
+         FROM order_items it
+        WHERE it.order_id = ANY($1::uuid[]) AND it.item_type IN ('Pump', 'ROLB')
+        GROUP BY 1, 2`,
+      [live.map((s) => s.id)]
+    );
+    const m = new Map<string, PumpTypeRow>();
+    for (const x of r.rows) {
+      const row = m.get(x.t) ?? { label: x.t, sos: 0, ecs: 0, pumps: 0, open: 0 };
+      row.sos++;
+      row.ecs += Number(x.ecs) || 0;
+      row.pumps += Number(x.pumps) || 0;
+      if (openIds.has(x.id)) row.open++;
+      m.set(x.t, row);
+    }
+    const order: string[] = PUMP_TYPE_OPTIONS.map((o) => o.value);
+    const rank = (l: string) => (l === "Not set" ? 1e3 : order.includes(l) ? order.indexOf(l) : 500);
+    pumpTypes.push(...[...m.values()].sort((a, b) => rank(a.label) - rank(b.label) || b.ecs - a.ecs));
+  }
   const GAD_ORDER = ["Pending", "Resubmit", "Sent to client – approval pending", "Approved by client", "Issued to planning", GAD_CLOSED];
 
   return {
@@ -433,6 +464,7 @@ export async function getPumpDashboard(filter: OrderListFilter, card: string | n
     clients: group((s) => s.client || "—", sos).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).slice(0, 8),
     reps: [...repMap.values()].sort((a, b) => b.sos - a.sos || a.rep.localeCompare(b.rep)),
     depts,
+    pumpTypes,
     gad: [...gad.entries()]
       .map(([label, n]) => ({ label, count: n }))
       .sort((a, b) => GAD_ORDER.indexOf(a.label) - GAD_ORDER.indexOf(b.label)),

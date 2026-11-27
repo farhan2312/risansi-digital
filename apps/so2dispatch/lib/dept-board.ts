@@ -19,7 +19,7 @@ import {
 import { DEPT_VIEWS, deptQueueSql } from "@/lib/dept-view";
 import { pumpViewRestrict } from "@/lib/assembly";
 import { assemblyPumpCards, drawingCards, purchaseCards, qcCards } from "@/lib/dept-cards";
-import { orderTypeText } from "@/lib/order-schema";
+import { orderTypeText, PUMP_TYPE_OPTIONS } from "@/lib/order-schema";
 import { ordersKind, parseOrderListFilter, scopeToRep, withOrdersKind, type OrderListFilter } from "@/lib/order-list-filter";
 import { seesOrderRefs } from "@/lib/roles";
 import type { KpiCard, KpiCardDef } from "@/lib/kpis";
@@ -65,13 +65,33 @@ function deptSpec(dept: BoardDeptKey, kind: "spare" | "pump"): { cards: KpiCardD
   }
 }
 
+/** Planning on Pump: a card per Pump Type — the SOs with an EC of it, and its pumps; opens Planning on it. */
+function pumpTypeCards(): KpiCardDef[] {
+  const ec = (t: string) => `s.order_id = o.id AND s.item_type IN ('Pump', 'ROLB') AND TRIM(COALESCE(s.pump_type, '')) = '${t.replace(/'/g, "''")}'`;
+  return PUMP_TYPE_OPTIONS.map(({ value: t }) => ({
+    key: `pt:${t}`,
+    label: t,
+    group: "Pump Type",
+    sql: `EXISTS (SELECT 1 FROM order_items s WHERE ${ec(t)})`,
+    params: { ptype: t },
+    tone: "neutral" as const,
+    also: { label: "pumps", measure: `(SELECT COALESCE(sum(s.quantity), 0) FROM order_items s WHERE ${ec(t)})` },
+  }));
+}
+
+/** A department's spec on the board and its page: Planning on Pump adds its Pump Type cards (not the Dashboard's pies). */
+function boardSpec(dept: BoardDeptKey, kind: "spare" | "pump") {
+  const spec = deptSpec(dept, kind);
+  return dept === "planning" && kind === "pump" ? { ...spec, cards: [...spec.cards, ...pumpTypeCards()] } : spec;
+}
+
 /** Every department's cards over the SOs the Orders filter selects. */
 export async function loadDeptBoard(filter: OrderListFilter): Promise<BoardData> {
   const kind = kindOf(filter);
   const ids = await listOrderIdsMatching(filter);
   const columns = await Promise.all(
     deptsFor(kind).map(async (d) => {
-      const spec = deptSpec(d.key, kind);
+      const spec = boardSpec(d.key, kind);
       if (!ids.length) return { key: d.key, cards: [], values: {} };
       // Each SO card's order value: summed over the SOs it counts, in rupees.
       const valueCards: KpiCardDef[] = spec.cards
@@ -117,7 +137,7 @@ export async function loadDeptPage(
 ): Promise<{ cards: KpiCard[]; rows: DeptSoRow[]; kind: "spare" | "pump"; today: string }> {
   const kind = kindOf(filter);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  const spec = deptSpec(dept, kind);
+  const spec = boardSpec(dept, kind);
   const matched = await listOrderIdsMatching(filter);
   if (!matched.length) return { cards: [], rows: [], kind, today };
   // The cards an SO can be in: those that pick SOs (not a total or a sum).

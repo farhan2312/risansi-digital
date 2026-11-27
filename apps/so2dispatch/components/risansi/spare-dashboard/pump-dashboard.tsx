@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AlertTriangle, CalendarClock, Gauge, IndianRupee, PackageOpen, PauseCircle } from "lucide-react";
-import type { DeptRow, PumpDashboard, PumpStage } from "@/lib/pump-dashboard";
+import type { DeptRow, PumpDashboard, PumpStage, PumpTypeRow } from "@/lib/pump-dashboard";
 import { ChartCard, Donut, DonutTiles, HBars, DeptStatusPies, StackBar, VizStyles, type Datum } from "./charts";
 import { IntakeCard, Metric, RepCard, WatchHoldCards, ZoneClientCards, dispatchData, money, type RepGroup } from "./shared";
 
@@ -126,6 +126,50 @@ function DeptProgress({ depts, total }: { depts: DeptRow[]; total: number }) {
   );
 }
 
+const nfIn = new Intl.NumberFormat("en-IN");
+
+/** Each Pump Type: its SOs, open SOs, ECs and pumps, a bar of its share of the ECs. */
+function PumpTypes({ rows }: { rows: PumpTypeRow[] }) {
+  if (!rows.length) return <p className="py-6 text-center text-sm text-muted">No pump EC on these SOs.</p>;
+  const ecs = Math.max(1, rows.reduce((a, r) => a + r.ecs, 0));
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-[11px] uppercase tracking-wide text-muted">
+            <th className="py-1.5 pr-3 font-semibold">Pump type</th>
+            <th className="px-3 py-1.5 text-right font-semibold">SOs</th>
+            <th className="px-3 py-1.5 text-right font-semibold">Open SOs</th>
+            <th className="px-3 py-1.5 text-right font-semibold">ECs</th>
+            <th className="px-3 py-1.5 text-right font-semibold">Pumps</th>
+            <th className="w-1/3 py-1.5 pl-3 font-semibold">Share of ECs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label} className="border-t border-card-border">
+              <td className={`py-2 pr-3 font-semibold ${r.label === "Not set" ? "text-muted" : "text-foreground"}`}>{r.label}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{nfIn.format(r.sos)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{nfIn.format(r.open)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{nfIn.format(r.ecs)}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{nfIn.format(r.pumps)}</td>
+              <td className="py-2 pl-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--viz-grid)]">
+                    <span className="block h-full rounded-full" style={{ width: `${(r.ecs / ecs) * 100}%`, background: r.label === "Not set" ? "var(--viz-gray)" : "var(--viz-blue)" }} />
+                  </div>
+                  <span className="w-10 text-right text-xs tabular-nums text-muted">{Math.round((r.ecs / ecs) * 100)}%</span>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-2 text-[11px] text-muted">An SO with ECs of more than one pump type counts under each. Cancelled and diverted SOs left out; open: not fully dispatched.</p>
+    </div>
+  );
+}
+
 export function PumpDashboardView({ data }: { data: PumpDashboard }) {
   const m = data.metrics;
   // Each GAD stage keeps its colour, whichever stages are present.
@@ -175,6 +219,10 @@ export function PumpDashboardView({ data }: { data: PumpDashboard }) {
       {/* Every department on all SOs but the cancelled and diverted. */}
       <ChartCard title="Department progress" sub="Where each department stands on all pump SOs">
         <DeptProgress depts={data.depts} total={m.sos - m.closed} />
+      </ChartCard>
+
+      <ChartCard title="Pump types" sub="SOs, ECs and pumps by each EC's Pump Type">
+        <PumpTypes rows={data.pumpTypes} />
       </ChartCard>
 
       {/* Where the SOs stand, and how dispatch has gone. */}
