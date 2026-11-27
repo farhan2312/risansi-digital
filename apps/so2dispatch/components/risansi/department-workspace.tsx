@@ -20,7 +20,7 @@ import {
 } from "@/lib/assembly";
 import { LD_DATE_FIELD, PUMP_SO_PLANNING_FIELDS, SORTABLE_DATE_COLUMNS, withLdCombined } from "@/lib/order-schema";
 import { BOI_ITEMS, BOI_STATUSES, PURCHASE_FILTER_KEYS } from "@/lib/purchase-filter";
-import { DRAWING_FILTER_KEYS, GAD_STATUSES, PART_STATUSES } from "@/lib/drawing-filter";
+import { DRAWING_FILTER_KEYS, GAD_STATUSES, PART_STATUSES, STD_CHOICES } from "@/lib/drawing-filter";
 import { isCentral } from "@/lib/roles";
 import { useRouter } from "next/navigation";
 import {
@@ -1449,6 +1449,7 @@ export function DepartmentWorkspace({
               ...(alignmentFilters ? [BASE_PLATE_KEY, WOODEN_BOX_KEY] : []),
               ...(planningPump ? [PURCHASE_FILTER_KEYS.item, PURCHASE_FILTER_KEYS.boi] : []),
               ...(planningPump || assemblyPump ? [DRAWING_FILTER_KEYS.gad, DRAWING_FILTER_KEYS.part] : []),
+              ...(planningPump ? [DRAWING_FILTER_KEYS.std] : []),
             ]}
             extraFilters={
               alignmentFilters ? (
@@ -1522,6 +1523,16 @@ export function DepartmentWorkspace({
                         selected={getList(DRAWING_FILTER_KEYS.part)}
                         onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.part]: next })}
                       />
+                      {/* Planning: Drawing's STD / Non STD call on the EC's GAD. */}
+                      {planningPump && (
+                        <MultiSelectFilter
+                          label="STD / Non STD"
+                          allLabel="Any STD / Non STD"
+                          options={STD_CHOICES}
+                          selected={getList(DRAWING_FILTER_KEYS.std)}
+                          onChange={(next) => setParams({ [DRAWING_FILTER_KEYS.std]: next })}
+                        />
+                      )}
                     </>
                   )}
                 </>

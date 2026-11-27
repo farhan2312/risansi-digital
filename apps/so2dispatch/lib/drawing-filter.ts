@@ -22,11 +22,13 @@ export const GAD_STATUSES = [
 export const CURVE_STATUSES = [NOT_REQUIRED, EC_AWAITED, "Pending", "Sent to client for approval", "Resubmit", "Approved by client"];
 export const PART_STATUSES = [NOT_REQUIRED, EC_AWAITED, "Pending", "Partial complete", "Fully complete"];
 export const SO_STATES = ["Open", "Closed"];
+/** Drawing's call on an EC's GAD (order_planning.part_drawing): Standard, Non Standard, or not made yet. */
+export const STD_CHOICES = ["Standard", "Non Standard", "Not set"];
 
 /** The URL params Drawing's own filters live under. */
-export const DRAWING_FILTER_KEYS = { so: "drg_so", gad: "drg_gad", curve: "drg_pc", part: "drg_part" } as const;
+export const DRAWING_FILTER_KEYS = { so: "drg_so", gad: "drg_gad", curve: "drg_pc", part: "drg_part", std: "drg_std" } as const;
 
-export type DrawingFilter = { so: string[]; gad: string[]; curve: string[]; part: string[] };
+export type DrawingFilter = { so: string[]; gad: string[]; curve: string[]; part: string[]; std?: string[] };
 
 const pick = (raw: string | undefined, allowed: string[]) =>
   (raw ?? "")
@@ -41,6 +43,7 @@ export function parseDrawingFilter(get: (key: string) => string | undefined): Dr
     gad: pick(get(DRAWING_FILTER_KEYS.gad), GAD_STATUSES),
     curve: pick(get(DRAWING_FILTER_KEYS.curve), CURVE_STATUSES),
     part: pick(get(DRAWING_FILTER_KEYS.part), PART_STATUSES),
+    std: pick(get(DRAWING_FILTER_KEYS.std), STD_CHOICES),
   };
 }
 
@@ -180,23 +183,30 @@ export function partStatusSql(it: string): string {
                                  FROM order_part_drawings pd WHERE pd.item_id = ${it}.id) n)`;
 }
 
+/** An EC's STD / Non STD as Drawing set it (alias it): Standard, Non Standard or Not set. */
+export function stdChoiceSql(it: string): string {
+  return `(SELECT CASE lower(COALESCE(pl.part_drawing, '')) WHEN 'yes' THEN 'Non Standard' WHEN 'no' THEN 'Standard' ELSE 'Not set' END
+           FROM (SELECT 1) one LEFT JOIN order_planning pl ON pl.item_id = ${it}.id)`;
+}
+
 /**
- * Planning's GAD and Part Drawing filters, under Drawing's URL params: an SO
+ * Planning's GAD, Part Drawing and STD / Non STD filters, under Drawing's URL params: an SO
  * with a pump EC at those statuses, the one EC both. The status as the EC
  * shows it, held SO or not. TRUE with neither set.
  */
-export function ecDrawingRestrict(f: Pick<DrawingFilter, "gad" | "part">, o = "o"): string {
+export function ecDrawingRestrict(f: Pick<DrawingFilter, "gad" | "part"> & { std?: string[] }, o = "o"): string {
   const c: string[] = [];
   if (f.gad.length) c.push(inList(ecGadStatusSql("s"), f.gad));
   if (f.part.length) c.push(inList(partStatusSql("s"), f.part));
+  if (f.std?.length) c.push(inList(stdChoiceSql("s"), f.std));
   return c.length
     ? `EXISTS (SELECT 1 FROM order_items s WHERE s.order_id = ${o}.id AND NOT (${spareEcSql("s", o)}) AND ${c.join(" AND ")})`
     : "TRUE";
 }
 
 /** …and as the report's filter line says them. */
-export function ecDrawingLine(f: Pick<DrawingFilter, "gad" | "part">): string {
-  return [f.gad.length && `GAD: ${f.gad.join(", ")}`, f.part.length && `Part drawing: ${f.part.join(", ")}`]
+export function ecDrawingLine(f: Pick<DrawingFilter, "gad" | "part"> & { std?: string[] }): string {
+  return [f.gad.length && `GAD: ${f.gad.join(", ")}`, f.part.length && `Part drawing: ${f.part.join(", ")}`, f.std?.length && `STD / Non STD: ${f.std.join(", ")}`]
     .filter(Boolean)
     .join("  ·  ");
 }
