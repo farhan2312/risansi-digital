@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ArrowLeft, CheckCheck, ExternalLink, Loader2, MessagesSquare, Search, X } from "lucide-react";
-import { ALL_ROLES, canSeeClientInChat, departmentHrefForRole, isCentral, isRep, roleLabel, chatLabel, chatLane } from "@/lib/roles";
+import { ALL_ROLES, canSeeClientInChat, departmentHrefForRole, isCentral, isRep, roleLabel, chatPeerName, chatSide } from "@/lib/roles";
 import type { ChatSummary, SoHit } from "@/lib/order-messages";
 import {
   allChatsAction,
@@ -31,8 +31,11 @@ const count = (n: number) => (n > 99 ? "99+" : n);
 export function AllChatsPanel({
   role,
   liveUnread,
+  initialChat,
   onClose,
 }: {
+  /** Open at this SO's chat (a tag's notification). */
+  initialChat?: { orderId: string; soLabel: string };
   role: string;
   /** The unread count from the top bar's poll: a change means the list is out of date. */
   liveUnread: number;
@@ -48,7 +51,7 @@ export function AllChatsPanel({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [hits, setHits] = useState<SoHit[]>([]);
-  const [chat, setChat] = useState<OpenChat | null>(null);
+  const [chat, setChat] = useState<OpenChat | null>(initialChat ?? null);
   const [marking, setMarking] = useState(false);
   const sentinel = useRef<HTMLDivElement>(null);
   // Which request is current: a newer search or reload drops an older answer.
@@ -121,8 +124,8 @@ export function AllChatsPanel({
   }, [onClose]);
 
   // The viewer's own team (a Rep Manager shares the Reps' side).
-  const ownPeer = isCentral(role) ? "central_visibility" : chatLane(role);
-  const peerName = (p: string) => (p === ownPeer ? `${chatLabel(p)} (own team)` : chatLabel(p));
+  const ownPeer = chatSide(role);
+  const peerName = (p: string) => chatPeerName(p, ownPeer);
 
   // Grouped by SO, in the order their latest message came.
   // (A page can end mid-SO: the next page's lines join its group.)

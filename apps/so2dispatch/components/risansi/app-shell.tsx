@@ -9,6 +9,7 @@ import { Bell, ChevronRight, RotateCw, ZoomOut } from "lucide-react";
 import { ReportBugTrigger } from "./report-bug";
 import { DiscussionBell } from "./discussion-bell";
 import { AllChatsPanel } from "./all-chats";
+import { OPEN_CHAT_EVENT, type OpenChatDetail } from "./open-chat-button";
 import { hasNoChat } from "@/lib/roles";
 import { Sidebar } from "./sidebar";
 import { RoleSwitcher } from "./role-switcher";
@@ -102,6 +103,16 @@ export function AppShell({
   const [chatsOpen, setChatsOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(discussionUnread);
   const openChats = canChat ? () => setChatsOpen(true) : undefined;
+  // Opened at one SO's chat (a tag's notification): which.
+  const [chatAt, setChatAt] = useState<OpenChatDetail | null>(null);
+  useEffect(() => {
+    const open = (e: Event) => {
+      setChatAt((e as CustomEvent<OpenChatDetail>).detail);
+      setChatsOpen(true);
+    };
+    window.addEventListener(OPEN_CHAT_EVENT, open);
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, open);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -257,7 +268,18 @@ export function AppShell({
         onOpenChats={openChats}
       />
 
-      {chatsOpen && <AllChatsPanel role={user.role} liveUnread={chatUnread} onClose={() => setChatsOpen(false)} />}
+      {chatsOpen && (
+        <AllChatsPanel
+          key={chatAt?.orderId ?? "list"}
+          role={user.role}
+          liveUnread={chatUnread}
+          initialChat={chatAt ?? undefined}
+          onClose={() => {
+            setChatsOpen(false);
+            setChatAt(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { query } from "@/lib/db";
-import { ALL_ROLES, canSeeClientInChat, chatLane, hasNoChat, isCentral, isRep, type Role } from "@/lib/roles";
+import { ALL_ROLES, canSeeClientInChat, chatLane, hasNoChat, isCentral, isRep, parseGuestPeer, type Role } from "@/lib/roles";
 import { deptQueueSql, deptViewForRole, orderOpenSql, orderStatusSql, releasedSql } from "@/lib/dept-view";
 
 /**
@@ -37,6 +37,8 @@ export type OrderMessage = {
   /** When its author last changed it, or null. */
   edited_at: string | null;
   mine: boolean;
+  /** The people it tags (@Name). */
+  mentions?: { user_id: string; name: string }[];
 };
 
 /** A discussion entry is a plain note or a flagged delay. */
@@ -63,7 +65,25 @@ const ISO = `'YYYY-MM-DD"T"HH24:MI:SS"Z"'`;
 const MESSAGE_COLUMNS = `m.id, m.dept_role, m.to_role, m.author_id,
             m.author_name, m.author_role, m.kind, m.body,
             to_char(m.created_at AT TIME ZONE 'UTC', ${ISO}) AS created_at,
-            to_char(m.edited_at AT TIME ZONE 'UTC', ${ISO}) AS edited_at`;
+            to_char(m.edited_at AT TIME ZONE 'UTC', ${ISO}) AS edited_at,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('user_id', mm.user_id, 'name', mu.full_name))
+                        FROM order_message_mentions mm JOIN users mu ON mu.id = mm.user_id
+                       WHERE mm.message_id = m.id), '[]'::jsonb) AS mentions`;
+
+/**
+ * A message's chat as the pair of its sides, in order: its author's side and
+ * who it went to (no recipient: Central). A guest's access (order_chat_guests)
+ * is to one such pair.
+ */
+export const PAIR_A = `LEAST(m.dept_role, COALESCE(m.to_role, 'central_visibility'))`;
+export const PAIR_B = `GREATEST(m.dept_role, COALESCE(m.to_role, 'central_visibility'))`;
+/** The message's chat as a guest names it ("g:a|b"). */
+const GUEST_KEY = `('g:' || ${PAIR_A} || '|' || ${PAIR_B})`;
+/** The viewer (by the user-id parameter) was tagged into the message's chat. */
+const guestSql = (uidParam: string) =>
+  `EXISTS (SELECT 1 FROM order_chat_guests g
+            WHERE g.user_id = ${uidParam} AND g.order_id = m.order_id
+              AND g.lane_a = ${PAIR_A} AND g.lane_b = ${PAIR_B})`;
 
 export const MAX_MESSAGE_LENGTH = 2000;
 
@@ -89,7 +109,13 @@ function isDepartmentLane(value: string): value is Role {
 }
 
 function isPeer(value: string): boolean {
-  return value === CENTRAL_PEER || isDepartmentLane(value);
+  return value === CENTRAL_PEER || isDepartmentLane(value) || isGuestPeer(value);
+}
+
+/** A chat someone was tagged into, named by its two sides. */
+function isGuestPeer(value: string): boolean {
+  const pair = parseGuestPeer(value);
+  return !!pair && pair.every((p) => p === CENTRAL_PEER || isDepartmentLane(p));
 }
 
 /**
@@ -140,8 +166,14 @@ function conversationSql(viewerRole: string, peerParam: string, roleParam: strin
            OR (m.dept_role = ${roleParam} AND COALESCE(m.to_role, '${CENTRAL_PEER}') = ${peerParam}))`;
 }
 
-/** Every message this user may see at all, whatever conversation it is in. */
-function visibleSql(viewerRole: string, roleParam: string) {
+/** Every message this user may see at all: their side's chats, and (given their user id) the chats they were tagged into. */
+function visibleSql(viewerRole: string, roleParam: string, uidParam?: string) {
+  const own = memberSql(viewerRole, roleParam);
+  return uidParam ? `(${own} OR ${guestSql(uidParam)})` : own;
+}
+
+/** The messages in chats the viewer's side is in. */
+function memberSql(viewerRole: string, roleParam: string) {
   // Central is a party to exactly the messages that name no other recipient,
   // and to its own team's.
   if (isCentral(viewerRole)) {
@@ -158,8 +190,10 @@ function visibleSql(viewerRole: string, roleParam: string) {
  * message that involves two of their conversations.
  */
 function peerOfSql(viewerRole: string, roleParam: string) {
-  if (isCentral(viewerRole)) return "m.dept_role";
-  return `CASE WHEN m.to_role IS NULL THEN '${CENTRAL_PEER}'
+  const member = memberSql(viewerRole, roleParam);
+  if (isCentral(viewerRole)) return `CASE WHEN ${member} THEN m.dept_role ELSE ${GUEST_KEY} END`;
+  return `CASE WHEN NOT ${member} THEN ${GUEST_KEY}
+               WHEN m.to_role IS NULL THEN '${CENTRAL_PEER}'
                WHEN m.dept_role = ${roleParam} THEN m.to_role
                ELSE m.dept_role END`;
 }
@@ -187,6 +221,18 @@ export async function listMessages(
   peer: string,
   viewer: { id: string; role: string }
 ): Promise<OrderMessage[]> {
+  const pair = parseGuestPeer(peer);
+  if (pair) {
+    // Access to it is the caller's to check (canOpenChat).
+    const r = await query<OrderMessage>(
+      `SELECT ${MESSAGE_COLUMNS}, (m.author_id = $4) AS mine
+         FROM order_messages m
+        WHERE m.order_id = $1 AND ${PAIR_A} = $2 AND ${PAIR_B} = $3
+        ORDER BY m.created_at ASC`,
+      [orderId, pair[0], pair[1], viewer.id]
+    );
+    return r.rows;
+  }
   if (!canUsePeer(viewer.role, peer)) return [];
   const { param, params } = withRole(viewer, [orderId, peer, viewer.id]);
   const result = await query<OrderMessage>(
@@ -218,7 +264,7 @@ export async function listConversations(
   const peers = peersFor(viewer.role).filter(
     (p) => !(spare.rows[0]?.spare && (p === "drawing" || p === "purchase" || p === "qc"))
   );
-  if (peers.length === 0) return [];
+  if (peersFor(viewer.role).length === 0) return [];
 
   const { param, params } = withRole(viewer, [orderId, viewer.id]);
   const result = await query<{
@@ -242,12 +288,19 @@ export async function listConversations(
              AND r.order_id = m.order_id
              AND r.dept_role = ${peerOfSql(viewer.role, param)}
       WHERE m.order_id = $1
-        AND ${visibleSql(viewer.role, param)}
+        AND ${visibleSql(viewer.role, param, "$2")}
       GROUP BY 1`,
     params
   );
 
   const bySlug = new Map(result.rows.map((r) => [r.peer, r]));
+  // The chats on this SO the viewer was tagged into, after their own.
+  const guests = await query<{ peer: string }>(
+    `SELECT 'g:' || lane_a || '|' || lane_b AS peer FROM order_chat_guests
+      WHERE order_id = $1 AND user_id = $2 ORDER BY created_at`,
+    [orderId, viewer.id]
+  );
+  for (const g of guests.rows) if (!peers.includes(g.peer) && isGuestPeer(g.peer)) peers.push(g.peer);
   return peers.map((peer) => {
     const row = bySlug.get(peer);
     return {
@@ -279,7 +332,7 @@ export async function unreadByOrder(
              AND r.order_id = m.order_id
              AND r.dept_role = ${peerOfSql(viewer.role, param)}
       WHERE m.order_id = ANY($1)
-        AND ${visibleSql(viewer.role, param)}
+        AND ${visibleSql(viewer.role, param, "$2")}
         AND m.author_id <> $2
         AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
       GROUP BY m.order_id`,
@@ -302,13 +355,13 @@ export async function latestActivity(
   viewer: { id: string; role: string }
 ): Promise<string | null> {
   if (peersFor(viewer.role).length === 0) return null;
-  const { param, params } = withRole(viewer, [orderId]);
+  const { param, params } = withRole(viewer, [orderId, viewer.id]);
   const result = await query<{ at: string | null }>(
     `SELECT CASE WHEN count(*) = 0 THEN NULL ELSE
               concat_ws('|', to_char(MAX(m.created_at) AT TIME ZONE 'UTC', ${ISO}), count(*),
                         to_char(MAX(m.edited_at) AT TIME ZONE 'UTC', ${ISO})) END AS at
        FROM order_messages m
-      WHERE m.order_id = $1 AND ${visibleSql(viewer.role, param)}`,
+      WHERE m.order_id = $1 AND ${visibleSql(viewer.role, param, "$2")}`,
     params
   );
   return result.rows[0]?.at ?? null;
@@ -352,7 +405,7 @@ export async function listDiscussionInbox(
               ON r.user_id = $1
              AND r.order_id = m.order_id
              AND r.dept_role = ${peerOfSql(viewer.role, param)}
-      WHERE ${visibleSql(viewer.role, param)}
+      WHERE ${visibleSql(viewer.role, param, "$1")}
         AND m.author_id <> $1
         AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
       ORDER BY m.created_at DESC
@@ -433,6 +486,8 @@ export async function listAllChats(
   const scope: string[] = [];
   if (opts.repNames) scope.push(`lower(btrim(COALESCE(o.reps, ''))) = ANY(${add(opts.repNames.map((n) => n.trim().toLowerCase()))}::text[])`);
   if (opts.assigneeId) scope.push(`o.so_assignee_id = ${add(opts.assigneeId)}`);
+  // A chat they were tagged into is theirs whatever their SOs.
+  const scopeSql = scope.length ? `AND (${scope.join(" AND ")} OR ${guestSql("$1")})` : "";
   const like = search ? add(`%${escapeLike(search)}%`) : "";
   const hits = search ? add(opts.peerHits ?? []) : "";
   const outer: string[] = [];
@@ -475,13 +530,14 @@ export async function listAllChats(
                 ON r.user_id = $1
                AND r.order_id = m.order_id
                AND r.dept_role = ${peerOf}
-        WHERE ${visibleSql(viewer.role, param)}
-          ${scope.map((s) => `AND ${s}`).join(" ")}
+        WHERE ${visibleSql(viewer.role, param, "$1")}
+          ${scopeSql}
         GROUP BY m.order_id, o.so_no, o.sl_no, o.client_name, o.reps, o.so_assignee_id, 7
      ),
      -- Only conversations the viewer may still open.
-     v AS (SELECT c.*, (c.so_live AND c.peer <> ${ownPeer}::text AND NOT (c.last_role = ANY(${own}::text[]))) AS waiting
-             FROM c WHERE c.peer = ANY($2::text[]))
+     v AS (SELECT c.*, (c.so_live AND c.peer <> ${ownPeer}::text AND c.peer NOT LIKE 'g:%'
+                        AND NOT (c.last_role = ANY(${own}::text[]))) AS waiting
+             FROM c WHERE c.peer = ANY($2::text[]) OR c.peer LIKE 'g:%')
      SELECT c.*, (SELECT COALESCE(SUM(unread), 0) FROM v)::int AS all_unread,
             (SELECT COUNT(*) FROM v WHERE v.waiting)::int AS all_waiting
        FROM v c
@@ -546,6 +602,7 @@ export async function markAllChatsRead(viewer: { id: string; role: string }, sco
   const conds: string[] = [];
   if (scope.repNames) conds.push(`lower(btrim(COALESCE(o.reps, ''))) = ANY(${add(scope.repNames.map((n) => n.trim().toLowerCase()))}::text[])`);
   if (scope.assigneeId) conds.push(`o.so_assignee_id = ${add(scope.assigneeId)}`);
+  const scopeSql = conds.length ? `AND (${conds.join(" AND ")} OR ${guestSql("$1")})` : "";
   const peerOf = peerOfSql(viewer.role, param);
   const result = await query(
     `INSERT INTO order_message_reads (user_id, order_id, dept_role, last_read_at)
@@ -556,11 +613,11 @@ export async function markAllChatsRead(viewer: { id: string; role: string }, sco
               ON r.user_id = $1
              AND r.order_id = m.order_id
              AND r.dept_role = ${peerOf}
-      WHERE ${visibleSql(viewer.role, param)}
-        AND ${peerOf} = ANY($2::text[])
+      WHERE ${visibleSql(viewer.role, param, "$1")}
+        AND (${peerOf} = ANY($2::text[]) OR ${peerOf} LIKE 'g:%')
         AND m.author_id <> $1
         AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
-        ${conds.map((c) => `AND ${c}`).join(" ")}
+        ${scopeSql}
      ON CONFLICT (user_id, order_id, dept_role) DO UPDATE SET last_read_at = now()`,
     params
   );
@@ -576,8 +633,8 @@ export async function countDiscussionUnread(viewer: {
   if (peersFor(viewer.role).length === 0) return 0;
   const { param, params } = withRole(viewer, [viewer.id]);
   const repScope = isRep(viewer.role)
-    ? `AND EXISTS (SELECT 1 FROM orders so WHERE so.id = m.order_id
-         AND lower(btrim(COALESCE(so.reps, ''))) = ANY($${params.push((viewer.rep_names ?? []).map((n) => n.trim().toLowerCase()))}::text[]))`
+    ? `AND (${guestSql("$1")} OR EXISTS (SELECT 1 FROM orders so WHERE so.id = m.order_id
+         AND lower(btrim(COALESCE(so.reps, ''))) = ANY($${params.push((viewer.rep_names ?? []).map((n) => n.trim().toLowerCase()))}::text[])))`
     : "";
   const result = await query<{ n: string }>(
     `SELECT COUNT(*)::text AS n
@@ -586,10 +643,10 @@ export async function countDiscussionUnread(viewer: {
               ON r.user_id = $1
              AND r.order_id = m.order_id
              AND r.dept_role = ${peerOfSql(viewer.role, param)}
-      WHERE ${visibleSql(viewer.role, param)}
+      WHERE ${visibleSql(viewer.role, param, "$1")}
         AND m.author_id <> $1
         AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
-        ${viewer.role === "order_making_so" ? "AND EXISTS (SELECT 1 FROM orders so WHERE so.id = m.order_id AND so.so_assignee_id = $1)" : ""}
+        ${viewer.role === "order_making_so" ? `AND (${guestSql("$1")} OR EXISTS (SELECT 1 FROM orders so WHERE so.id = m.order_id AND so.so_assignee_id = $1))` : ""}
         ${repScope}`,
     params
   );
@@ -687,6 +744,82 @@ export function sidesFor(
   // Central's own team: Central on both sides.
   if (isCentral(role)) return peer === CENTRAL_PEER ? { deptRole: CENTRAL_PEER, toRole: CENTRAL_PEER } : { deptRole: peer, toRole: null };
   return { deptRole: role, toRole: peer === CENTRAL_PEER ? null : peer };
+}
+
+/** A guest chat's message, stored as its two sides would store it (Central: no recipient). */
+export function guestSides(peer: string): { deptRole: string; toRole: string | null } | null {
+  const pair = parseGuestPeer(peer);
+  if (!pair || !isGuestPeer(peer)) return null;
+  const [a, b] = pair;
+  if (a === CENTRAL_PEER && b === CENTRAL_PEER) return { deptRole: CENTRAL_PEER, toRole: CENTRAL_PEER };
+  if (b === CENTRAL_PEER) return { deptRole: a, toRole: null };
+  if (a === CENTRAL_PEER) return { deptRole: b, toRole: null };
+  return { deptRole: a, toRole: b };
+}
+
+/** Whether the user was tagged into this chat (a guest chat's key) on this SO. */
+export async function isChatGuest(userId: string, orderId: string, peer: string): Promise<boolean> {
+  const pair = parseGuestPeer(peer);
+  if (!pair) return false;
+  const r = await query(
+    `SELECT 1 FROM order_chat_guests WHERE order_id = $1 AND lane_a = $2 AND lane_b = $3 AND user_id = $4`,
+    [orderId, pair[0], pair[1], userId]
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** Whether the user was tagged into any chat on this SO. */
+export async function isGuestOnOrder(userId: string, orderId: string): Promise<boolean> {
+  const r = await query(`SELECT 1 FROM order_chat_guests WHERE order_id = $1 AND user_id = $2 LIMIT 1`, [orderId, userId]);
+  return (r.rowCount ?? 0) > 0;
+}
+
+/**
+ * Tag people in a message: each tag is kept on it, and anyone tagged from
+ * outside the chat's two sides becomes its guest (for good). Returns those
+ * newly tagged, with the chat's sides, for their notifications.
+ */
+export async function addMentions(input: {
+  messageId: string;
+  orderId: string;
+  deptRole: string;
+  toRole: string | null;
+  userIds: string[];
+  addedBy: string;
+}): Promise<{ id: string; full_name: string; guest: boolean }[]> {
+  const ids = [...new Set(input.userIds)].filter((id) => /^[0-9a-f-]{36}$/i.test(id) && id !== input.addedBy).slice(0, 20);
+  if (ids.length === 0) return [];
+  const users = await query<{ id: string; full_name: string; role: string }>(
+    `SELECT id, full_name, role FROM users WHERE id = ANY($1::uuid[]) AND status = 'approved'`,
+    [ids]
+  );
+  const sides = [input.deptRole, input.toRole ?? CENTRAL_PEER].sort();
+  const out: { id: string; full_name: string; guest: boolean }[] = [];
+  for (const u of users.rows) {
+    if (hasNoChat(u.role)) continue;
+    const side = isCentral(u.role) ? CENTRAL_PEER : laneOf(u.role);
+    const guest = !sides.includes(side);
+    await query(`INSERT INTO order_message_mentions (message_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [input.messageId, u.id]);
+    if (guest) {
+      await query(
+        `INSERT INTO order_chat_guests (order_id, lane_a, lane_b, user_id, added_by) VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT DO NOTHING`,
+        [input.orderId, sides[0], sides[1], u.id, input.addedBy]
+      );
+    }
+    out.push({ id: u.id, full_name: u.full_name, guest });
+  }
+  return out;
+}
+
+/** Everyone who can be tagged: approved users with a chat, by their side. */
+export async function listChatPeople(): Promise<{ id: string; name: string; side: string }[]> {
+  const r = await query<{ id: string; full_name: string; role: string }>(
+    `SELECT id, full_name, role FROM users WHERE status = 'approved' ORDER BY full_name`
+  );
+  return r.rows
+    .filter((u) => !hasNoChat(u.role))
+    .map((u) => ({ id: u.id, name: u.full_name, side: isCentral(u.role) ? CENTRAL_PEER : laneOf(u.role) }));
 }
 
 export async function insertMessage(input: {

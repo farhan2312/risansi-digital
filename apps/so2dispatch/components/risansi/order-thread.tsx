@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowRight,
+  AtSign,
   ChevronDown,
   ChevronRight,
   Loader2,
@@ -12,7 +13,7 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import { isCentral, roleLabel, chatLabel, chatLane } from "@/lib/roles";
+import { isCentral, roleLabel, chatLabel, chatPeerName, chatSide, parseGuestPeer } from "@/lib/roles";
 import type {
   ConversationSummary,
   OrderMessage,
@@ -20,6 +21,7 @@ import type {
 import {
   deleteMessageAction,
   editMessageAction,
+  listChatPeopleAction,
   listConversationsAction,
   openThreadAction,
   postMessageAction,
@@ -46,6 +48,28 @@ function stamp(iso: string): string {
   });
   return `${date} · ${time}`;
 }
+
+const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, (c) => `\\${c}`);
+
+/** A message's text with the people it tags (@Name) picked out. */
+function withTags(body: string, mentions: { name: string }[] | undefined, mine: boolean): ReactNode {
+  const names = [...new Set((mentions ?? []).map((m) => m.name).filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (names.length === 0) return body;
+  const re = new RegExp(`(@(?:${names.map(escapeRe).join("|")}))`, "g");
+  return body.split(re).map((part, i) =>
+    i % 2 === 1 ? (
+      <span key={i} className={`rounded px-0.5 font-semibold ${mine ? "bg-primary-foreground/20" : "bg-violet-100 text-violet-800"}`}>
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+}
+
+type Person = { id: string; name: string; side: string };
+/** The tag being typed: who it is (@) or which department first (#), from where in the text. */
+type Picking = { kind: "@" | "#"; query: string; start: number; end: number };
 
 /**
  * One SO's discussion, as a list of conversations. A department talks to every
@@ -83,8 +107,8 @@ export function OrderThread({
 }) {
   const central = isCentral(role);
   // The viewer's own team (a Rep Manager shares the Reps' side).
-  const ownPeer = central ? "central_visibility" : chatLane(role);
-  const peerName = (p: string) => (p === ownPeer ? `${chatLabel(p)} (own team)` : chatLabel(p));
+  const ownPeer = chatSide(role);
+  const peerName = (p: string) => chatPeerName(p, ownPeer);
   const [open, setOpen] = useState(collapsible ? defaultOpen : true);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   // The conversation on screen — who it is with. Everyone starts on the one
@@ -111,6 +135,14 @@ export function OrderThread({
   const [editText, setEditText] = useState("");
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Tagging: everyone who can be tagged (loaded once), those tagged in the
+  // message being typed (by name), the tag being typed, and its department.
+  const [people, setPeople] = useState<Person[] | null>(null);
+  const [tagged, setTagged] = useState<Map<string, string>>(new Map());
+  const [picking, setPicking] = useState<Picking | null>(null);
+  const [pickDept, setPickDept] = useState<string | null>(null);
+  const [pickIndex, setPickIndex] = useState(0);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
 
   async function refreshConversations() {
     const res = await listConversationsAction(orderId);
@@ -238,7 +270,8 @@ export function OrderThread({
     event.preventDefault();
     if (!peer || body.trim() === "" || sending) return;
     setSending(true);
-    const res = await postMessageAction(orderId, peer, body, composing, others);
+    const mentions = [...tagged].filter(([name]) => body.includes(`@${name}`)).map(([, id]) => id);
+    const res = await postMessageAction(orderId, peer, body, composing, others, mentions);
     setSending(false);
     if (!res.ok) {
       setError(res.error);
@@ -248,6 +281,9 @@ export function OrderThread({
     setBody("");
     setMode("note");
     setAlsoTo([]);
+    setTagged(new Map());
+    setPicking(null);
+    setPickDept(null);
     setMessages(res.messages);
     refreshConversations();
     onSent?.();
@@ -291,7 +327,7 @@ export function OrderThread({
   function messageBody(m: OrderMessage, tone: "mine" | "plain" | "delay") {
     if (editingId !== m.id) {
       return (
-        <p className={`whitespace-pre-wrap break-words text-sm ${tone === "delay" ? "text-amber-950" : ""}`}>{m.body}</p>
+        <p className={`whitespace-pre-wrap break-words text-sm ${tone === "delay" ? "text-amber-950" : ""}`}>{withTags(m.body, m.mentions, tone === "mine")}</p>
       );
     }
     return (
@@ -393,7 +429,72 @@ export function OrderThread({
   const others = alsoTo.filter((p) => p !== peer);
   // Every conversation can carry a delay — with Central or department to
   // department — beside a plain note.
-  const canLogDelay = !!peer;
+  const guestPair = peer ? parseGuestPeer(peer) : null;
+  const canLogDelay = !!peer && !guestPair;
+  // The chat's two sides: who "@" offers first.
+  const chatSides = guestPair ?? (peer ? [...new Set([ownPeer, peer])] : []);
+
+  /** Load who can be tagged, once. */
+  function loadPeople() {
+    if (people) return;
+    setPeople([]);
+    listChatPeopleAction().then((r) => setPeople(r.ok ? r.people : []));
+  }
+
+  /** The tag being typed at the caret, if any: "@na…" or "#pur…". */
+  function readPicking(text: string, caret: number) {
+    const m = /(^|[\s(])([@#])([^@#\n]{0,30})$/.exec(text.slice(0, caret));
+    if (!m) {
+      setPicking(null);
+      setPickDept(null);
+      return;
+    }
+    loadPeople();
+    setPicking({ kind: m[2] as "@" | "#", query: m[3], start: caret - m[3].length - 1, end: caret });
+    setPickIndex(0);
+  }
+
+  const q = picking?.query.trim().toLowerCase() ?? "";
+  const depts = [...new Set((people ?? []).map((p) => p.side))]
+    .map((side) => ({ side, label: chatLabel(side) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const pickList: { key: string; label: string; sub?: string; pick: () => void }[] = !picking
+    ? []
+    : picking.kind === "#"
+      ? depts
+          .filter((d) => !q || d.label.toLowerCase().includes(q))
+          .map((d) => ({ key: d.side, label: d.label, sub: "then pick who", pick: () => pickDepartment(d.side) }))
+      : (people ?? [])
+          .filter((p) => (pickDept ? p.side === pickDept : chatSides.includes(p.side)))
+          .filter((p) => !q || p.name.toLowerCase().includes(q))
+          .slice(0, 8)
+          .map((p) => ({ key: p.id, label: p.name, sub: chatLabel(p.side), pick: () => pickPerson(p) }));
+
+  /** Put the picked text in place of the tag being typed, the caret after it. */
+  function replaceTag(text: string) {
+    if (!picking) return;
+    const next = body.slice(0, picking.start) + text + body.slice(picking.end);
+    setBody(next);
+    const caret = picking.start + text.length;
+    requestAnimationFrame(() => {
+      boxRef.current?.focus();
+      boxRef.current?.setSelectionRange(caret, caret);
+    });
+    return caret;
+  }
+  function pickPerson(p: Person) {
+    replaceTag(`@${p.name} `);
+    setTagged((m) => new Map(m).set(p.name, p.id));
+    setPicking(null);
+    setPickDept(null);
+  }
+  function pickDepartment(side: string) {
+    // "#Purchase" becomes "@", and "@" offers Purchase's people.
+    const caret = replaceTag("@");
+    setPickDept(side);
+    if (caret !== undefined && picking) setPicking({ kind: "@", query: "", start: picking.start, end: caret });
+    setPickIndex(0);
+  }
 
   // A conversation that cannot carry a delay always sends a note, whatever the
   // toggle was last left on — derived, so switching tabs needs no reset and
@@ -454,7 +555,9 @@ export function OrderThread({
 
         <div className="flex flex-wrap items-center gap-3">
           <p className="hidden text-xs text-muted lg:block">
-            {peer === ownPeer
+            {guestPair
+              ? "You were tagged into this chat"
+              : peer === ownPeer
               ? "Visible to your own team only"
               : peerLabel
               ? `Visible to you and ${peerLabel} only`
@@ -686,11 +789,74 @@ export function OrderThread({
               </p>
             )}
 
-            <div className="flex items-end gap-2">
+            <div className="relative flex items-end gap-2">
+              {/* Tagging: "@" the people in this chat, "#" a department first, then its people. */}
+              {picking && (
+                <div className="absolute bottom-full left-0 z-30 mb-1.5 w-72 overflow-hidden rounded-xl border border-card-border bg-surface shadow-xl">
+                  <div className="flex items-center gap-1.5 border-b border-card-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    <AtSign className="h-3 w-3" />
+                    {picking.kind === "#"
+                      ? "Pick a department"
+                      : pickDept
+                        ? `${chatLabel(pickDept)} · pick who`
+                        : "People in this chat · # for another department"}
+                  </div>
+                  {people === null || (people.length === 0 && pickList.length === 0) ? (
+                    <p className="px-3 py-2 text-xs text-muted">Loading…</p>
+                  ) : pickList.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-muted">No one matches.</p>
+                  ) : (
+                    <ul className="max-h-60 overflow-y-auto py-1">
+                      {pickList.map((o, i) => (
+                        <li key={o.key}>
+                          <button
+                            type="button"
+                            // Keep the box's focus (and caret) while picking.
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={o.pick}
+                            onMouseEnter={() => setPickIndex(i)}
+                            className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm ${
+                              i === pickIndex ? "bg-primary/10 text-foreground" : "text-foreground hover:bg-background"
+                            }`}
+                          >
+                            <span className="truncate font-medium">{o.label}</span>
+                            {o.sub && <span className="shrink-0 text-[11px] text-muted">{o.sub}</span>}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               <textarea
+                ref={boxRef}
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onChange={(e) => {
+                  setBody(e.target.value);
+                  readPicking(e.target.value, e.target.selectionStart ?? e.target.value.length);
+                }}
+                onClick={(e) => readPicking(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+                onBlur={() => setPicking(null)}
                 onKeyDown={(e) => {
+                  // The picker open: arrows move, Enter or Tab picks, Esc closes it.
+                  if (picking && pickList.length > 0) {
+                    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setPickIndex((i) => (i + (e.key === "ArrowDown" ? 1 : pickList.length - 1)) % pickList.length);
+                      return;
+                    }
+                    if (e.key === "Enter" || e.key === "Tab") {
+                      e.preventDefault();
+                      pickList[Math.min(pickIndex, pickList.length - 1)].pick();
+                      return;
+                    }
+                  }
+                  if (picking && e.key === "Escape") {
+                    e.preventDefault();
+                    setPicking(null);
+                    setPickDept(null);
+                    return;
+                  }
                   // Enter sends, Shift+Enter makes a new line.
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -706,7 +872,7 @@ export function OrderThread({
                     : others.length > 0
                       ? `Message ${others.length + 1} departments…`
                       : peerLabel
-                      ? `Message ${peerLabel}…`
+                      ? `Message ${peerLabel}… (@ to tag)`
                       : "Add an update…"
                 }
                 className="min-h-[2.75rem] flex-1 resize-y rounded-[10px] border border-input-border bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:opacity-60"

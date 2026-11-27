@@ -387,3 +387,30 @@ export function chatLane(role: string): string {
 export function chatLabel(lane: string): string {
   return lane === "order_making" || lane === "order_making_so" ? "Order Making" : roleLabel(lane);
 }
+
+/** The chat side a user is on: Central Visibility for Central and Admin, else their lane. */
+export function chatSide(role: string): string {
+  return isCentral(role) ? "central_visibility" : chatLane(role);
+}
+
+/**
+ * A chat someone was tagged into from outside it: the pair of its two sides,
+ * as one key ("g:drawing|planning", sides in order). It stands in for the
+ * other side wherever a chat is named by who it is with.
+ */
+export function guestPeer(a: string, b: string): string {
+  return a <= b ? `g:${a}|${b}` : `g:${b}|${a}`;
+}
+
+/** The two sides of a guest chat's key, or null when it is not one. */
+export function parseGuestPeer(peer: string): [string, string] | null {
+  const m = /^g:([a-z_0-9]+)\|([a-z_0-9]+)$/.exec(peer);
+  return m && m[1] <= m[2] ? [m[1], m[2]] : null;
+}
+
+/** A chat's name from the viewer's side: the other side, their own team, or a chat they were tagged into. */
+export function chatPeerName(peer: string, ownPeer: string): string {
+  const pair = parseGuestPeer(peer);
+  if (pair) return pair[0] === pair[1] ? `${chatLabel(pair[0])} team (tagged)` : `${chatLabel(pair[0])} ↔ ${chatLabel(pair[1])} (tagged)`;
+  return peer === ownPeer ? `${chatLabel(peer)} (own team)` : chatLabel(peer);
+}
