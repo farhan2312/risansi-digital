@@ -204,6 +204,17 @@ export function PartPickerModal({
       )
   );
   const setQty = (k: string, v: string) => setQtys((m) => new Map(m).set(k, v));
+  // Shortage: each part's MOC, by the part's key.
+  const [mocs, setMocs] = useState<Map<string, string>>(
+    () =>
+      new Map(
+        parts.map((p) => [
+          keyOf({ section: str(p.section) || OTHER_PART_SECTION, part_no: str(p.part_no), part_name: str(p.part_name) }),
+          str(p.moc),
+        ])
+      )
+  );
+  const setMoc = (k: string, v: string) => setMocs((m) => new Map(m).set(k, v));
   const [find, setFind] = useState("");
   const [other, setOther] = useState({ part_no: "", part_name: "" });
   const [saving, setSaving] = useState(false);
@@ -254,6 +265,7 @@ export function PartPickerModal({
         return next;
       });
       setQtys((m) => new Map(m).set(keyOf(res.item), m.get(keyOf(was)) ?? ""));
+      setMocs((m) => new Map(m).set(keyOf(res.item), m.get(keyOf(was)) ?? ""));
     }
     setEditingExtra(null);
   }
@@ -287,7 +299,7 @@ export function PartPickerModal({
     setSaving(true);
     setError(null);
     const res = shortage
-      ? await saveShortageAction(itemId, [...picked.values()].map((p) => ({ ...p, qty: qtys.get(keyOf(p)) ?? "" })))
+      ? await saveShortageAction(itemId, [...picked.values()].map((p) => ({ ...p, qty: qtys.get(keyOf(p)) ?? "", moc: mocs.get(keyOf(p)) ?? "" })))
       : await savePartSelectionAction(itemId, yes ? "Yes" : "No", yes ? [...picked.values()] : []);
     setSaving(false);
     if (!res.ok) {
@@ -302,7 +314,7 @@ export function PartPickerModal({
     <Shell title={`${shortage ? "Shortage" : "STD / Non STD"} · ${label}`} subtitle={lists.map((l) => l.title).join(" / ")} onClose={onClose}>
       {shortage ? (
         <p className="mb-4 text-sm text-muted">
-          Tick the parts this EC is short of, and how many of each. <span className="font-medium text-foreground">{picked.size} short</span>
+          Tick the parts this EC is short of, how many of each and their MOC. <span className="font-medium text-foreground">{picked.size} short</span>
         </p>
       ) : (
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -403,6 +415,18 @@ export function PartPickerModal({
                                   className="h-7 w-16 shrink-0 rounded-md border border-input-border bg-surface px-2 text-right text-sm tabular-nums focus:border-primary focus:outline-none"
                                 />
                               )}
+                              {shortage && on && (
+                                <input
+                                  type="text"
+                                  maxLength={100}
+                                  disabled={ro}
+                                  value={mocs.get(keyOf(p)) ?? ""}
+                                  onChange={(e) => setMoc(keyOf(p), e.target.value)}
+                                  placeholder="MOC"
+                                  aria-label={`MOC of ${p.part_name}`}
+                                  className="h-7 w-28 shrink-0 rounded-md border border-input-border bg-surface px-2 text-sm focus:border-primary focus:outline-none"
+                                />
+                              )}
                               {/* An added part: correct it, or take it off the list. */}
                               {extra && !ro && (
                                 <span className="flex shrink-0 items-center gap-1">
@@ -461,6 +485,18 @@ export function PartPickerModal({
                         placeholder="Qty"
                         aria-label={`How many ${p.part_name} are short`}
                         className="h-6 w-14 rounded-md border border-input-border bg-surface px-1.5 text-right text-xs tabular-nums focus:border-primary focus:outline-none"
+                      />
+                    )}
+                    {shortage && (
+                      <input
+                        type="text"
+                        maxLength={100}
+                        disabled={ro}
+                        value={mocs.get(keyOf(p)) ?? ""}
+                        onChange={(e) => setMoc(keyOf(p), e.target.value)}
+                        placeholder="MOC"
+                        aria-label={`MOC of ${p.part_name}`}
+                        className="h-6 w-24 rounded-md border border-input-border bg-surface px-1.5 text-xs focus:border-primary focus:outline-none"
                       />
                     )}
                     {!ro && (
@@ -695,7 +731,7 @@ export function PartDrawingView({ itemId, label, parts, onClose }: { itemId: str
 /** The parts an EC is short of, on the front: none, or how many and which. */
 export function ShortageCell({ parts }: { parts: Row[] }) {
   if (parts.length === 0) return <span className="text-xs text-muted">None</span>;
-  const names = parts.map((p) => (str(p.qty) ? `${str(p.part_name)} ×${str(p.qty)}` : str(p.part_name)));
+  const names = parts.map((p) => `${str(p.part_name)}${str(p.qty) ? ` ×${str(p.qty)}` : ""}${str(p.moc) ? ` (${str(p.moc)})` : ""}`);
   return (
     <span title={names.join(", ")} className="flex flex-col items-start gap-0.5">
       <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">

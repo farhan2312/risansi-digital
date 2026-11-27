@@ -3751,3 +3751,9 @@ CREATE TABLE IF NOT EXISTS order_chat_guests (
     PRIMARY KEY (order_id, lane_a, lane_b, user_id)
 );
 CREATE INDEX IF NOT EXISTS order_chat_guests_user_idx ON order_chat_guests (user_id, order_id);
+
+-- 0045  A shortage's MOC: the material of the part short, after its quantity
+-- (Planning, Pump and Spare ECs). Same statement in apps/so2dispatch/db/schema.sql.
+-- Idempotent and additive.
+
+ALTER TABLE order_part_shortages ADD COLUMN IF NOT EXISTS moc TEXT;

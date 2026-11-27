@@ -222,7 +222,7 @@ export async function savePartProgressAction(
 /** Planning marks the parts a pump or Spare EC is short of, and how many of each; the list replaces the last. */
 export async function saveShortageAction(
   itemId: string,
-  parts: (PartListItem & { qty?: number | string | null })[]
+  parts: (PartListItem & { qty?: number | string | null; moc?: string | null })[]
 ): Promise<PartDrawingResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You are not signed in." };
@@ -234,7 +234,7 @@ export async function saveShortageAction(
   if (![...PUMP_LIKE, "Spare"].includes(String(ec.item_type ?? ""))) {
     return { ok: false, error: "Shortages are for pump and Spare ECs." };
   }
-  const wanted = new Map<string, PartListItem & { qty: number }>();
+  const wanted = new Map<string, PartListItem & { qty: number; moc: string }>();
   for (const p of Array.isArray(parts) ? parts : []) {
     const name = String(p?.part_name ?? "").trim().slice(0, 200);
     if (!name) continue;
@@ -246,6 +246,8 @@ export async function saveShortageAction(
       part_no: String(p.part_no ?? "").trim().slice(0, 50),
       part_name: name,
       qty,
+      // Its material (MOC), when given.
+      moc: String(p.moc ?? "").trim().slice(0, 100),
     };
     wanted.set(keyOf(item), item);
   }
@@ -263,16 +265,16 @@ export async function saveShortageAction(
     for (const [k, p] of wanted) {
       const row = have.get(k);
       if (row) {
-        // Already short: only its qty may have changed.
-        if (Number(row.qty) !== p.qty) {
-          await query(`UPDATE order_part_shortages SET qty = $2 WHERE id = $1`, [row.id, p.qty]);
+        // Already short: only its qty and MOC may have changed.
+        if (Number(row.qty) !== p.qty || String(row.moc ?? "") !== p.moc) {
+          await query(`UPDATE order_part_shortages SET qty = $2, moc = NULLIF($3, '') WHERE id = $1`, [row.id, p.qty, p.moc]);
           added++;
         }
         continue;
       }
       await query(
-        `INSERT INTO order_part_shortages (item_id, section, part_no, part_name, qty) VALUES ($1, $2, NULLIF($3, ''), $4, $5)`,
-        [itemId, p.section, p.part_no, p.part_name, p.qty]
+        `INSERT INTO order_part_shortages (item_id, section, part_no, part_name, qty, moc) VALUES ($1, $2, NULLIF($3, ''), $4, $5, NULLIF($6, ''))`,
+        [itemId, p.section, p.part_no, p.part_name, p.qty, p.moc]
       );
       added++;
     }
@@ -283,7 +285,7 @@ export async function saveShortageAction(
         category: "activity",
         target: "Shortage",
         details: wanted.size
-          ? `Shortage: ${[...wanted.values()].map((p) => `${p.part_name} ×${p.qty}`).join(", ")}`
+          ? `Shortage: ${[...wanted.values()].map((p) => `${p.part_name} ×${p.qty}${p.moc ? ` (MOC ${p.moc})` : ""}`).join(", ")}`
           : "Shortage cleared",
         subject: await subjectForItem(itemId),
       });

@@ -134,7 +134,7 @@ export function soLines(rows: Row[], histories: Map<string, ReadyLotEvent[]>): S
     // Each EC's parts short; named by EC when the SO has more than one.
     const shortOf = (ec: Row) =>
       (Array.isArray(ec.part_shortages) ? (ec.part_shortages as Row[]) : [])
-        .map((p) => (str(p.qty) ? `${str(p.part_name)} ×${str(p.qty)}` : str(p.part_name)))
+        .map((p) => `${str(p.part_name)}${str(p.qty) ? ` ×${str(p.qty)}` : ""}${str(p.moc) ? ` (${str(p.moc)})` : ""}`)
         .join(", ");
     const shortage =
       ecs.length === 1
