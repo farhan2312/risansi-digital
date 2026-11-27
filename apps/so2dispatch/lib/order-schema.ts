@@ -2051,7 +2051,10 @@ export const ASSEMBLY_CONTEXT_FIELDS: OrderField[] = [
 // Dispatch dates (SO-level, on orders) shown read-only in the Planning
 // workspace, so Planning sees the dates it must schedule to.
 export const PLANNING_CONTEXT_FIELDS: OrderField[] = [
-  ...SO_CONTEXT_FIELDS,
+  // SO Date, then when the SO reached PPC (Central fills it under Handover), then Order Type.
+  SO_CONTEXT_FIELDS[0],
+  { column: "so_handover_date", label: "SO Sent to PPC Date", type: "date" },
+  ...SO_CONTEXT_FIELDS.slice(1),
   { column: "dispatch_target_date", label: "Dispatch Target Date", type: "date" },
   // Central Visibility's date the SO is to be dispatched (set on the Dispatch Plan).
   { column: "final_dispatch_target_date", label: "To Be Dispatch Date", type: "date" },
@@ -2062,8 +2065,6 @@ export const PLANNING_CONTEXT_FIELDS: OrderField[] = [
   { column: "boi", label: "BOI", type: "select", options: YES_NO },
   // Billing / Tax Invoice or Challan / FR — what the SO goes out on.
   { column: "bill_mode", label: "Bill Mode", type: "select", options: BILL_MODE_OPTIONS },
-  // When the SO reached PPC (Central fills it under Handover).
-  { column: "so_handover_date", label: "SO Sent to PPC Date", type: "date" },
 ];
 
 /**

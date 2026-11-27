@@ -4026,6 +4026,9 @@ function orderListClauses(
   // SO Sent to PPC: Yes once its date is entered; blank is No.
   if (f.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
   if (f.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
+  // Versioned: a new version made of the SO (v1 on); Not versioned: still v0.
+  if (f.versioned === "yes") clauses.push(`COALESCE(o.version_no, 0) > 0`);
+  if (f.versioned === "no") clauses.push(`COALESCE(o.version_no, 0) = 0`);
   // The PO / Quotation search (its own box on the Orders list).
   if (f.refSearch) {
     const t = p(likePattern(f.refSearch));
@@ -5319,6 +5322,9 @@ export async function listOrdersForOrderMaking(opts: {
     // SO Sent to PPC: Yes once its date is entered; blank is No.
     if (ff.sentPpc === "yes") clauses.push(`o.so_handover_date IS NOT NULL`);
     if (ff.sentPpc === "no") clauses.push(`o.so_handover_date IS NULL`);
+    // Versioned: a new version made of the SO (v1 on); Not versioned: still v0.
+    if (ff.versioned === "yes") clauses.push(`COALESCE(o.version_no, 0) > 0`);
+    if (ff.versioned === "no") clauses.push(`COALESCE(o.version_no, 0) = 0`);
     // The checklist. Pending: only SOs still worked on (open, not dispatched,
     // not carried in by the migration) — as for assigning. An FR or Only
     // Billing SO needs none: in no checklist state.

@@ -93,6 +93,7 @@ const FILTER_KEYS = [
   "areason",
   "dhreason",
   "ppc",
+  "ver",
 ];
 
 /**
@@ -616,6 +617,17 @@ export function OrderListFilterBar({
             />
           </>
         )}
+        {/* Every page: a new version made of the SO (v1 on), or still on v0. */}
+        <SingleSelectFilter
+          label="Versioned"
+          allLabel="Any"
+          options={[
+            { value: "yes", label: "Versioned" },
+            { value: "no", label: "Not versioned" },
+          ]}
+          selected={filter.versioned ?? null}
+          onChange={(next) => setParams({ ver: next })}
+        />
         {/* The orders list: Central Visibility's clearance, and why SOs are held. */}
         {noDispatchTarget && (
           <>

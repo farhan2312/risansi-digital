@@ -829,6 +829,17 @@ export function OrderMakingWorkspace({
           selected={filter.sentPpc}
           onChange={(next) => setParams({ ppc: next, page: null })}
         />
+        {/* A new version made of the SO (v1 on), or still on v0. */}
+        <SingleSelectFilter
+          label="Versioned"
+          allLabel="Any"
+          options={[
+            { value: "yes", label: "Versioned" },
+            { value: "no", label: "Not versioned" },
+          ]}
+          selected={filter.versioned ?? null}
+          onChange={(next) => setParams({ ver: next, page: null })}
+        />
         {/* The SO checklist: either team's part still to fill, or all done. */}
         <SingleSelectFilter
           label="Checklist"

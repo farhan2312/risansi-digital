@@ -208,6 +208,8 @@ export type OrderListFilter = {
   pumpTypes: string[];
   models: string[];
   internalModels: string[];
+  /** Every page: SOs with a new version made (v1 on), or still on v0. URL `ver`. */
+  versioned?: "yes" | "no" | null;
   /** The orders list: Clear or Hold. */
   clearance: string[];
   /** The orders list: why the held SOs are held. */
@@ -373,6 +375,7 @@ export function parseOrderListFilter(
     pumpTypes: dept === "planning" ? pipeList(get("ptype")) : [],
     models: dept === "planning" ? pipeList(get("model")) : [],
     internalModels: dept === "planning" ? pipeList(get("imodel")) : [],
+    versioned: get("ver") === "yes" || get("ver") === "no" ? (get("ver") as "yes" | "no") : null,
     clearance: list(get("clear")).filter((v) => CLEARANCE_FILTER_OPTIONS.includes(v)),
     holdReasons: list(get("hreason")).filter((v) => HOLD_REASON_FILTER_OPTIONS.includes(v)),
     // Accounts' Hold / Clear: every department and the Orders list. Its reasons
@@ -437,6 +440,7 @@ export function serializeDeptStatusMulti(m: Partial<Record<DeptFilterKey, string
 /** Whether anything narrows the list at all. */
 export function isOrderListFiltered(f: OrderListFilter): boolean {
   return !!(
+    f.versioned ||
     f.clearance.length ||
     f.holdReasons.length ||
     f.accountsHold.length ||
@@ -496,6 +500,7 @@ export function orderListFilterParams(f: OrderListFilter): URLSearchParams {
   if (f.onHold) p.set("hold", f.holdBy ?? "1");
   if (f.onlyBilling) p.set("ob", "1");
   if (f.sentPpc) p.set("ppc", f.sentPpc);
+  if (f.versioned) p.set("ver", f.versioned);
   if (f.clearance.length) p.set("clear", f.clearance.join(","));
   if (f.holdReasons.length) p.set("hreason", f.holdReasons.join(","));
   if (f.accountsHold.length) p.set("ahold", f.accountsHold.join(","));
@@ -547,6 +552,7 @@ export function describeOrderListFilter(f: OrderListFilter): string {
     const label = FIELD_FILTER_FIELDS.find((x) => x.column === f.field!.column)?.label ?? f.field.column;
     parts.push(`${label}: ${f.field.state === "filled" ? "filled" : "pending"}`);
   }
+  if (f.versioned) parts.push(f.versioned === "yes" ? "Versioned" : "Not versioned");
   if (f.clearance.length) parts.push(`Clearance: ${f.clearance.join(", ")}`);
   if (f.holdReasons.length) parts.push(`Hold reason: ${f.holdReasons.join(", ")}`);
   if (f.accountsHold.length) parts.push(`Accounts hold: ${f.accountsHold.join(", ")}`);

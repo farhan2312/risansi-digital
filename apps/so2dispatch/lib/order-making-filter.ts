@@ -68,6 +68,8 @@ export type OrderMakingFilter = {
   sentOps: "yes" | "no" | null;
   /** SO Sent to PPC: its date entered (yes) or blank (no). */
   sentPpc: "yes" | "no" | null;
+  /** SOs with a new version made (v1 on), or still on v0. URL `ver`. */
+  versioned: "yes" | "no" | null;
   /** The SO checklist: its SO or PO part still to fill, either, or all done. */
   checklist: ChecklistState | null;
   /** The 48-hour TAT: past it and not sent to Operation yet, or sent past it. */
@@ -80,7 +82,7 @@ export const UNASSIGNED = "none";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Every parameter the filter owns — what "Clear all" empties. */
-export const OM_FILTER_KEYS = ["zone", "rep", "market", "type", "bmode", "btype", "socat", "datefield", "from", "to", "missing", "asg", "sos", "omhold", "sops", "ppc", "ckl", "omtat"];
+export const OM_FILTER_KEYS = ["zone", "rep", "market", "type", "bmode", "btype", "socat", "datefield", "from", "to", "missing", "asg", "sos", "omhold", "sops", "ppc", "ver", "ckl", "omtat"];
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const list = (v: string | undefined) => [...new Set((v ?? "").split(",").map((x) => x.trim()).filter(Boolean))];
@@ -109,6 +111,7 @@ export function parseOrderMakingFilter(get: (key: string) => string | undefined)
     soState: get("sos") === "pending" || get("sos") === "filled" ? (get("sos") as "pending" | "filled") : null,
     sentOps: get("sops") === "yes" || get("sops") === "no" ? (get("sops") as "yes" | "no") : null,
     sentPpc: get("ppc") === "yes" || get("ppc") === "no" ? (get("ppc") as "yes" | "no") : null,
+    versioned: get("ver") === "yes" || get("ver") === "no" ? (get("ver") as "yes" | "no") : null,
     checklist: CHECKLIST_STATES.find((s) => s.value === get("ckl"))?.value ?? null,
     tat: get("omtat") === "pending_late" || get("omtat") === "sent_late" ? (get("omtat") as "pending_late" | "sent_late") : null,
     sort: SORTS.includes(sort as OmSort) ? (sort as OmSort) : null,
@@ -132,6 +135,7 @@ export function isOrderMakingFiltered(f: OrderMakingFilter): boolean {
     f.soState ||
     f.sentOps ||
     f.sentPpc ||
+    f.versioned ||
     f.checklist ||
     f.tat
   );
@@ -173,6 +177,7 @@ export function sharedFacets(f: OrderMakingFilter): OrderListFilter {
     dispatchStatuses: [],
     dispatchStages: [],
     packingStatuses: [],
+    versioned: f.versioned,
     clearance: [],
     holdReasons: [],
     accountsHold: [],
