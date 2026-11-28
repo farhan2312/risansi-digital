@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCheck, ClipboardCheck, Loader2, Printer, X } from "lucide-react";
-import { checklistFor, fillablePoints, isSpareChecklist, type ChecklistPoint } from "@/lib/so-checklist";
+import { checklistFor, fillablePoints, isNaAnswer, isSpareChecklist, type ChecklistPoint } from "@/lib/so-checklist";
 import { getChecklistAction, saveChecklistAction, type ChecklistData } from "@/app/risansi/departments/order-making/checklist-actions";
 
 const ISO = /^\d{4}-\d{2}-\d{2}/;
@@ -34,14 +34,19 @@ function printChecklist(data: ChecklistData, points: ChecklistPoint[], version: 
         i === firstVerifier ? `<tr class="sec"><td colspan="7">These check points are for the verifier</td></tr>` : "";
       const details = p.auto ? `${esc(autoText(p))} <span class="tag">Auto</span>` : s?.answer ? `<b>${esc(s.answer)}</b>` : `<span class="muted">Pending</span>`;
       const prep = s?.filled_by_name ? `${esc(s.filled_by_name)}<br><span class="muted">${esc(fmtDate(s.filled_at))}</span>` : "";
-      const ver = s?.verified_by_name
-        ? `${s.verified ? "✓ " : ""}${esc(s.verified_by_name)}<br><span class="muted">${esc(fmtDate(s.verified_at))}</span>`
-        : "";
+      const na = isNaAnswer(p.auto ? data.auto[p.auto] : s?.answer);
+      const ver = na
+        ? `<span class="muted">NA · no need to verify</span>`
+        : s?.verified_by_name
+          ? `${s.verified ? "✓ " : ""}${esc(s.verified_by_name)}<br><span class="muted">${esc(fmtDate(s.verified_at))}</span>`
+          : "";
       return `${head}<tr class="${p.team === "SO" ? "so" : ""}"><td class="n">${i + 1}</td><td>${esc(p.label)}</td><td>${details}</td>
         <td>${esc(s?.remarks ?? "")}</td><td class="nw">${prep}</td><td>${esc(s?.verifier_remarks ?? "")}</td><td class="nw">${ver}</td></tr>`;
     })
     .join("");
-  const verified = points.filter((p) => saved.get(p.key)?.verified).length;
+  // NA points need no verifying: counted out.
+  const toCheck = points.filter((p) => !isNaAnswer(p.auto ? data.auto[p.auto] : saved.get(p.key)?.answer));
+  const verified = toCheck.filter((p) => saved.get(p.key)?.verified).length;
   const title = `${spare ? "Spare" : "Pump"} Order Checklist — ${data.soNo || `Sl. ${data.slNo}`} v${version}`;
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
     @page { size: A4 landscape; margin: 10mm; }
@@ -62,7 +67,7 @@ function printChecklist(data: ChecklistData, points: ChecklistPoint[], version: 
     <h1>${spare ? "Spare" : "Pump"} Order Checklist</h1>
     <div class="sub">SO No. ${esc(data.soNo || "—")} (Sl. ${data.slNo}) · Version v${version}${version === data.versionNo ? "" : " (earlier version)"}${
       data.soDate ? ` · Date ${esc(fmtDate(data.soDate))}` : ""
-    } · Verified ${verified}/${points.length} · Printed ${esc(fmtDate(new Date().toISOString()))}</div>
+    } · Verified ${verified}/${toCheck.length} · Printed ${esc(fmtDate(new Date().toISOString()))}</div>
     <table><thead><tr><th>#</th><th>Checklist</th><th>Details</th><th>Preparer's Remark</th><th>Prepared By</th><th>Verifier's Remark</th><th>Verified By</th></tr></thead>
     <tbody>${rows}</tbody></table>
   </body></html>`;
@@ -145,8 +150,11 @@ export function SoChecklistModal({ orderId, onClose }: { orderId: string; onClos
       if (patch.answer !== undefined && patch.answer !== base.answer) next.verified = false;
       return { ...prev, [key]: next };
     });
-  // A point that can be verified: answered, or read off the SO.
-  const verifiable = (p: ChecklistPoint) => !!p.auto || !!value(p).answer;
+  // Answered NA (or read NA off the SO): nothing to verify.
+  const naOf = (p: ChecklistPoint) => isNaAnswer(p.auto ? data?.auto[p.auto] : value(p).answer);
+  // A point that can be verified: answered, or read off the SO — but not NA.
+  const verifiable = (p: ChecklistPoint) => !naOf(p) && (!!p.auto || !!value(p).answer);
+  const needsVerify = points.filter((p) => !naOf(p));
   const toVerify = points.filter((p) => verifiable(p) && !value(p).verified);
 
   const progress = (team: "SO" | "PO") => {
@@ -275,7 +283,7 @@ export function SoChecklistModal({ orderId, onClose }: { orderId: string; onClos
             <span>
               Verified (Order Making PO) —{" "}
               <b className="text-foreground">
-                {points.filter((p) => value(p).verified).length}/{points.length}
+                {needsVerify.filter((p) => value(p).verified).length}/{needsVerify.length}
               </b>
             </span>
             {!current && <span className="font-semibold text-amber-700 dark:text-amber-300">An earlier version: read-only.</span>}
@@ -406,6 +414,10 @@ export function SoChecklistModal({ orderId, onClose }: { orderId: string; onClos
                           )}
                         </td>
                         <td className="px-3 py-2 align-top text-xs whitespace-nowrap text-muted">
+                          {naOf(p) ? (
+                            <span className="text-muted">NA · no need to verify</span>
+                          ) : (
+                          <>
                           {verifies && (
                             <label
                               className={`mb-0.5 inline-flex items-center gap-1.5 font-medium ${verifiable(p) ? "cursor-pointer text-foreground" : "cursor-not-allowed opacity-50"}`}
@@ -431,6 +443,8 @@ export function SoChecklistModal({ orderId, onClose }: { orderId: string; onClos
                             </>
                           ) : (
                             !verifies && <span>{verifiable(p) ? "To verify" : ""}</span>
+                          )}
+                          </>
                           )}
                         </td>
                       </tr>

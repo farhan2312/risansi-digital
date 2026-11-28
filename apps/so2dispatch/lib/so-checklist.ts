@@ -144,13 +144,28 @@ export function checklistDoneSql(o: string, team?: ChecklistTeam): string {
   return `(${checklistAnsweredSql(o, team)} >= ${checklistTotalSql(o, team)})`;
 }
 
-/** SQL: how many of the SO's points (every one, auto too) its current version has verified. */
+/** Answers that say the point does not apply: nothing to verify. */
+export const NA_ANSWERS = ["NA", "N/A", "Not applicable"];
+export function isNaAnswer(v: unknown): boolean {
+  const t = String(v ?? "").trim().toLowerCase();
+  return t !== "" && NA_ANSWERS.some((a) => a.toLowerCase() === t);
+}
+
+/**
+ * SQL: how many of the SO's points (every one, auto too) its current version
+ * has done with verifying — verified, or answered NA (nothing to verify);
+ * LD Date reads "Not applicable" off an SO with LD = No.
+ */
 export function checklistVerifiedSql(o: string): string {
-  return `(SELECT count(*)::int FROM order_so_checklist ck
-            WHERE ck.order_id = ${o}.id AND ck.version_no = COALESCE(${o}.version_no, 0) AND ck.verified
-              AND ck.point_key = ANY(CASE WHEN COALESCE(${o}.order_type, '') = 'Spare'
-                                          THEN ${arr(SPARE_CHECKLIST.map((p) => p.key))}
-                                          ELSE ${arr(PUMP_CHECKLIST.map((p) => p.key))} END))`;
+  const na = `ARRAY[${NA_ANSWERS.map((a) => `'${a.toLowerCase()}'`).join(", ")}]::text[]`;
+  return `(SELECT count(*)::int
+             FROM unnest(CASE WHEN COALESCE(${o}.order_type, '') = 'Spare'
+                              THEN ${arr(SPARE_CHECKLIST.map((p) => p.key))}
+                              ELSE ${arr(PUMP_CHECKLIST.map((p) => p.key))} END) AS ckp(k)
+            WHERE EXISTS (SELECT 1 FROM order_so_checklist ck
+                           WHERE ck.order_id = ${o}.id AND ck.version_no = COALESCE(${o}.version_no, 0) AND ck.point_key = ckp.k
+                             AND (ck.verified OR lower(btrim(COALESCE(ck.answer, ''))) = ANY(${na})))
+               OR (ckp.k = 'ld_date' AND lower(COALESCE(${o}.ld, '')) = 'no'))`;
 }
 
 /** SQL: how many points the SO's list has, auto ones too (all to verify). */
