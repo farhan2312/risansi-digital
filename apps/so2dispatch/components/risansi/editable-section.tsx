@@ -239,7 +239,8 @@ export function EditableSection({
     // Gone to Operation: its terms, documents, target dates and SO Sent to PPC
     // Date before it saves (payment terms, kept as lines, the server checks).
     if (section.table === "orders") {
-      const missing = firstAfterOperationMissing(readNow, true);
+      // Not the SO Sent to PPC Date when this form leaves it out (the Orders list Edit: it has its own column).
+      const missing = firstAfterOperationMissing(readNow, true, section.fields.some((f) => f.column === "so_handover_date") ? [] : ["so_handover_date"]);
       if (missing) {
         setError(
           TARGET_DATES.some((t) => t.column === missing.column)
@@ -331,7 +332,7 @@ export function EditableSection({
         </div>
       )}
 
-      {editing && clientLookup && (
+      {editing && clientLookup && section.fields.some((f) => f.column === "client_name") && (
         <ClientLookup
           onSelect={applyClient}
           label="Replace client details from directory"

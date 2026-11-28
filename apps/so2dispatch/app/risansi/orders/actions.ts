@@ -890,7 +890,8 @@ export async function updateOrderSectionAction(
       c === "drg_target_date" && !raw(c).trim()
         ? autoDrawingTarget({ so_handover_date: raw("so_handover_date"), total_quantity: raw("total_quantity") })?.date ?? ""
         : raw(c);
-    const missing = firstAfterOperationMissing(after, (detail?.order_payment_terms ?? []).length > 0);
+    // SO Sent to PPC Date is owed only by a save that carries it (the Orders list fills it from its own column).
+    const missing = firstAfterOperationMissing(after, (detail?.order_payment_terms ?? []).length > 0, "so_handover_date" in allowedValues ? [] : ["so_handover_date"]);
     if (missing) return { ok: false, error: `Sent to Operation: ${missing.label} is required.` };
   }
 

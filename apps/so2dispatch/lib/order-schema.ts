@@ -1176,11 +1176,13 @@ export function closedForOperation(read: (column: string) => string): boolean {
   return closed.includes(String(read("status_override") ?? "").trim()) || closed.includes(String(read("dispatch_status") ?? "").trim());
 }
 
-export function firstAfterOperationMissing(read: (column: string) => string, hasTermLines = false): OrderField | null {
+/** `skip`: columns this save does not carry (SO Sent to PPC Date, filled from its own column on the Orders list). */
+export function firstAfterOperationMissing(read: (column: string) => string, hasTermLines = false, skip: string[] = []): OrderField | null {
   if (!String(read("ec_sent_operation_date") ?? "").trim()) return null;
   if (closedForOperation(read)) return null;
   return (
     afterOperationRequired().find((f) => {
+      if (skip.includes(f.column)) return false;
       if (!dependsOnSatisfied(f, read)) return false;
       if (f.column === "payment_terms" && hasTermLines) return false;
       return String(read(f.column) ?? "").trim() === "";
