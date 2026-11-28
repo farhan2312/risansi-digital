@@ -65,6 +65,8 @@ export default function EnquiryReviewModal({
       ? missingDocLinks(docs.orderType, toSend, docs.links)
       : ungeneratedDocsProblem(docs.orderType, toSend, generated, docs.links)
     : null;
+  // Client's own format: the quotation, generated with its Quotation No. serial (user, 2026-11-28).
+  const [quoteProblem, setQuoteProblem] = useState<string | null>(null);
   // Only the ticked documents need their Save Version.
   const missing = docs ? unsavedDocsProblem(docs.orderType, toSend, unsaved, hand) : null;
 
@@ -155,6 +157,7 @@ export default function EnquiryReviewModal({
               kinds={toSend}
               locked={sent}
               wasReviewed={Boolean(project.reviewed_at || project.released_to_operation_at)}
+              onQuoteProblem={setQuoteProblem}
               onSaved={(links, changed) => {
                 setDocs({ ...docs, links });
                 if (changed) onChanged({ reviewed_at: null, released_to_operation_at: null });
@@ -213,8 +216,13 @@ export default function EnquiryReviewModal({
             </>
           ) : (
             <>
-              {docs && (missing || noLink) && <span className="text-[12.5px] font-medium text-warning">{missing || noLink}</span>}
-              <Button disabled={busy || !docs || Boolean(missing) || Boolean(noLink) || (isPump && pickedDocs.length === 0)} onClick={() => void act("send")}>
+              {docs && (missing || noLink || (docs.links && quoteProblem)) && (
+                <span className="text-[12.5px] font-medium text-warning">{missing || noLink || quoteProblem}</span>
+              )}
+              <Button
+                disabled={busy || !docs || Boolean(missing) || Boolean(noLink) || Boolean(docs.links && quoteProblem) || (isPump && pickedDocs.length === 0)}
+                onClick={() => void act("send")}
+              >
                 <Send /> {busy ? "Sending…" : "Send to operation"}
               </Button>
             </>

@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { error, json } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { AuthError, decodeToken } from "@/lib/auth";
-import { SPARE_GROUP } from "@/lib/commercial";
+import { DRIVE_GROUP_LABEL, SPARE_GROUP } from "@/lib/commercial";
 import { projectDriveGroups } from "@/lib/commercial-server";
 import { db } from "@/lib/db";
 import { projects, quotation, quotationVersion, techDocVersion } from "@/lib/db/schema";
@@ -39,6 +39,20 @@ async function generatedKinds(projectId: string, orderType: string): Promise<Doc
   if (orderType === "spare") return quoted ? ["commercial"] : [];
   const [sheet] = await db.select({ id: techDocVersion.id }).from(techDocVersion).where(eq(techDocVersion.projectId, projectId)).limit(1);
   return [...(sheet ? (["technical"] as const) : []), ...(quoted ? (["commercial"] as const) : []), ...(sheet && quoted ? (["techno"] as const) : [])];
+}
+
+/** Client's own format (user, 2026-11-28): the quotation has to be generated - each drive
+ *  system's, or a spare's - with its Quotation No. serial (ERP). What is missing, or null. */
+async function clientFormatQuotationProblem(projectId: string, orderType: string): Promise<string | null> {
+  const groups: string[] = orderType === "spare" ? [SPARE_GROUP] : await projectDriveGroups(projectId);
+  if (groups.length === 0) return "Client's own format: finish the Drive step, then generate the quotation and enter its Quotation No. serial.";
+  const quotes = await db.select({ group: quotation.driveGroup, erpSerial: quotation.erpSerial }).from(quotation).where(eq(quotation.projectId, projectId));
+  const name = (g: string) => (orderType === "spare" ? "the quotation" : groups.length > 1 ? `the ${DRIVE_GROUP_LABEL[g as keyof typeof DRIVE_GROUP_LABEL] ?? g} quotation` : "the quotation");
+  const none = groups.filter((g) => !quotes.some((q) => q.group === g));
+  if (none.length) return `Client's own format: generate ${none.map(name).join(", ")} and enter its Quotation No. serial.`;
+  const noSerial = groups.filter((g) => !quotes.find((q) => q.group === g)?.erpSerial?.trim());
+  if (noSerial.length) return `Client's own format: enter the Quotation No. serial for ${noSerial.map(name).join(", ")}.`;
+  return null;
 }
 
 /** Which steps still need Save Version (lib/saved-docs UnsavedSteps). Only the documents
@@ -158,6 +172,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (links) {
     const noLink = missingDocLinks(p.orderType, toSend, links);
     if (noLink) return error(noLink, 409);
+    const noQuote = await clientFormatQuotationProblem(id, p.orderType);
+    if (noQuote) return error(noQuote, 409);
   } else {
     // Completed by hand, nothing generated: it can go only as a SharePoint link.
     const none = ungeneratedDocsProblem(p.orderType, toSend, await generatedKinds(id, p.orderType), links);

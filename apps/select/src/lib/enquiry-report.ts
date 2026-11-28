@@ -71,16 +71,11 @@ function rilRep(p: ProjectRecord, reps: TsmOption[]): string {
 const isTestEnquiry = (p: ProjectRecord): boolean => [p.name, p.project_code].some((v) => /(^|[^a-z])test([^a-z]|$)/i.test(v ?? ""));
 
 /** An enquiry's assignment history as report lines, only when there is more than the
- *  one assignment it has now: "dd.mm.yyyy Reassigned: A -> B (by X) - Why: ...". */
+ *  one assignment it has now: just the date and who it was assigned to (user,
+ *  2026-11-28), "dd.mm.yyyy: Name", newest first. */
 export function assignHistoryLines(entries: AssignmentEntry[] | undefined): string[] {
   if (!entries || entries.length < 2) return [];
-  return entries.map((e) => {
-    const on = dotDate(new Date(e.at).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
-    const who = e.from ? `${e.from} -> ${e.to ?? "-"}` : (e.to ?? "-");
-    const kind = e.kind === "reassigned" ? "Reassigned" : e.kind === "new version" ? "New version" : e.kind === "created" ? "Created" : "Assigned";
-    const why = e.reason ? ` - ${e.kind === "new version" ? "Client asked" : "Why"}: ${e.reason}` : "";
-    return `${on} ${kind}: ${who}${e.byName ? ` (by ${e.byName})` : ""}${why}`;
-  });
+  return entries.map((e) => `${dotDate(new Date(e.at).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }))}: ${e.to ?? "-"}`);
 }
 
 export function enquiryReportRows(projects: ProjectRecord[], reps: TsmOption[], histories: Record<string, AssignmentEntry[]> = {}): EnquiryReportRow[] {
