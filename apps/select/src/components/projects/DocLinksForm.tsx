@@ -6,6 +6,7 @@ import { Link2, Plus, X } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { MAX_LINKS_PER_DOC, docLinkKinds, sharepointLinkProblem, type DocLinkKind, type DocLinks } from "../../lib/doc-links";
 import { saveDocLinks } from "../../services/projectService";
+import ClientFormatQuotation from "./ClientFormatQuotation";
 
 /** On Review: Client's own format (lib/doc-links.ts). Ticked, each document to send needs
  *  its SharePoint link (the file made by hand) - one or more (user, 2026-11-26) - and only
@@ -19,6 +20,7 @@ export default function DocLinksForm({
   locked,
   wasReviewed,
   onSaved,
+  onQuoteProblem,
 }: {
   projectId: string;
   orderType: string;
@@ -31,6 +33,8 @@ export default function DocLinksForm({
   /** Reviewed or sent already: a change undoes that, so say so. */
   wasReviewed: boolean;
   onSaved: (links: DocLinks | null, changed: boolean) => void;
+  /** On: what the quotation still needs before Send to operation (its Quotation No. serial), or null. */
+  onQuoteProblem: (problem: string | null) => void;
 }) {
   const on = links !== null;
   const shown = docLinkKinds(orderType).filter((k) => kinds.includes(k.key));
@@ -168,6 +172,7 @@ export default function DocLinksForm({
         </>
       )}
       {(err || problems[0]) && <p className="mt-2 text-[12px] font-medium text-destructive">{err || problems[0]}</p>}
+      {on && <ClientFormatQuotation projectId={projectId} orderType={orderType} locked={locked} onProblem={onQuoteProblem} />}
     </section>
   );
 }
