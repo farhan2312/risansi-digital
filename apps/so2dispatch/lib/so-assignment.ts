@@ -72,7 +72,7 @@ export async function listSoAssignmentHistory(orderId: string): Promise<SoAssign
 
 /**
  * Each SO's reassignments (and unassignments), oldest first, a line each:
- * "12-Oct-26: A → B (by C): reason". The first assignment is not one.
+ * "12-Oct-26: B" — the date and who it went to. The first assignment is not one.
  */
 export async function soReassignTexts(orderIds: string[]): Promise<Record<string, string>> {
   const ids = orderIds.filter((id) => UUID_RE.test(id));
@@ -80,10 +80,9 @@ export async function soReassignTexts(orderIds: string[]): Promise<Record<string
   const r = await query<{ id: string; text: string }>(
     `SELECT order_id::text AS id,
             string_agg(
+              -- Only when, and who it went to (the report's history).
               to_char(changed_at AT TIME ZONE 'Asia/Kolkata', 'DD-Mon-YY') || ': ' ||
-              prev_assignee_name || ' → ' || coalesce(new_assignee_name, 'Unassigned') ||
-              coalesce(' (by ' || changed_by_name || ')', '') ||
-              coalesce(': ' || nullif(btrim(reason), ''), ''),
+              coalesce(new_assignee_name, 'Unassigned'),
               E'\\n' ORDER BY changed_at) AS text
        FROM order_so_assignment_history
       WHERE order_id = ANY($1::uuid[]) AND prev_assignee_name IS NOT NULL
